@@ -2,6 +2,10 @@
     "editor.formatOnSave": true,
     "editor.codeActionsOnSave": {
         "source.organizeImports": "explicit",
-        "source.fixAll": "explicit"
-    }
+        "source.fixAll": "explicit",
+        "source.addMissingImports": "explicit"
+    },
+    "ruff.enable": true,
+    "ruff.fixAll": true,
+    "ruff.lint.enable": true,
 }

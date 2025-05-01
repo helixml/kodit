@@ -1,17 +1,27 @@
+"""Server-Sent Events (SSE) implementation for Coda."""
+
+from collections.abc import Coroutine
+from typing import Any
+
+from fastapi import Request
 from mcp.server.fastmcp import FastMCP
+from mcp.server.session import ServerSession
 from mcp.server.sse import SseServerTransport
 from starlette.applications import Starlette
 from starlette.routing import Mount, Route
-from mcp.server.session import ServerSession
 
 ####################################################################################
 # Temporary monkeypatch which avoids crashing when a POST message is received
 # before a connection has been initialized, e.g: after a deployment.
-# pylint: disable-next=protected-access
-old__received_request = ServerSession._received_request
+old__received_request = ServerSession._received_request  # noqa: SLF001
 
 
-async def _received_request(self, *args, **kwargs):
+async def _received_request(self: ServerSession, *args: Any, **kwargs: Any) -> None:
+    """Handle a received request, catching RuntimeError to avoid crashes.
+
+    This is a temporary monkeypatch to avoid crashing when a POST message is
+    received before a connection has been initialized, e.g: after a deployment.
+    """
     try:
         return await old__received_request(self, *args, **kwargs)
     except RuntimeError:
@@ -19,20 +29,26 @@ async def _received_request(self, *args, **kwargs):
 
 
 # pylint: disable-next=protected-access
-ServerSession._received_request = _received_request
+ServerSession._received_request = _received_request  # noqa: SLF001
 ####################################################################################
 
-def create_sse_server(mcp: FastMCP):
-    """Create a Starlette app that handles SSE connections and message handling"""
+
+def create_sse_server(mcp: FastMCP) -> Starlette:
+    """Create a Starlette app that handles SSE connections and message handling."""
     transport = SseServerTransport("/messages/")
 
     # Define handler functions
-    async def handle_sse(request):
+    async def handle_sse(request: Request) -> Coroutine[Any, Any, None]:
+        """Handle SSE connections."""
         async with transport.connect_sse(
-            request.scope, request.receive, request._send
+            request.scope,
+            request.receive,
+            request._send,  # noqa: SLF001
         ) as streams:
-            await mcp._mcp_server.run(
-                streams[0], streams[1], mcp._mcp_server.create_initialization_options()
+            await mcp._mcp_server.run(  # noqa: SLF001
+                streams[0],
+                streams[1],
+                mcp._mcp_server.create_initialization_options(),  # noqa: SLF001
             )
 
     # Create Starlette routes for SSE and message handling
