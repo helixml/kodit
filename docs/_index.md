@@ -1,5 +1,6 @@
 ---
 title: "Coda: Code Indexing MCP Server"
+linkTitle: Coda Docs
 cascade:
   type: docs
 menu:
