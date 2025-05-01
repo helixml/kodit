@@ -1,0 +1,27 @@
+[project]
+name = "coda"
+version = "0.0.0"
+description = "Code indexing for better AI code generation"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "better-exceptions>=0.3.3",
+    "click>=8.1.8",
+    "colorama>=0.4.6",
+    "fastapi[standard]>=0.115.12",
+    "mcp>=1.6.0",
+    "structlog>=25.3.0",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.11.8",
+]
+
+
+[project.scripts]
+coda = "coda.cli:cli"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
