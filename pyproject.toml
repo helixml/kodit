@@ -11,6 +11,8 @@ dependencies = [
     "colorama>=0.4.6",
     "dotenv>=0.9.9",
     "fastapi[standard]>=0.115.12",
+    "httpx-retries>=0.3.2",
+    "httpx>=0.28.1",
     "mcp>=1.6.0",
     "structlog>=25.3.0",
 ]
@@ -59,5 +61,4 @@ ignore = [
   "S101", # Allow assert statements in test files
 ]
 select = ["ALL"]
-exclude = [
-]
+exclude = []

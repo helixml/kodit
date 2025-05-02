@@ -144,6 +144,8 @@ dependencies = [
     { name = "colorama" },
     { name = "dotenv" },
     { name = "fastapi", extra = ["standard"] },
+    { name = "httpx" },
+    { name = "httpx-retries" },
     { name = "mcp" },
     { name = "structlog" },
 ]
@@ -166,6 +168,8 @@ requires-dist = [
     { name = "colorama", specifier = ">=0.4.6" },
     { name = "dotenv", specifier = ">=0.9.9" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.115.12" },
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "httpx-retries", specifier = ">=0.3.2" },
     { name = "mcp", specifier = ">=1.6.0" },
     { name = "structlog", specifier = ">=25.3.0" },
 ]
@@ -435,6 +439,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/b1/df/48c586a5fe32a0f01324ee087459e112ebb7224f646c0b5023f5e79e9956/httpx-0.28.1.tar.gz", hash = "sha256:75e98c5f16b0f35b567856f597f06ff2270a374470a5c2392242528e3e3e42fc", size = 141406 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/2a/39/e50c7c3a983047577ee07d2a9e53faf5a69493943ec3f6a384bdc792deb2/httpx-0.28.1-py3-none-any.whl", hash = "sha256:d909fcccc110f8c7faf814ca82a9a4d816bc5a6dbfea25d6591d6985b8ba59ad", size = 73517 },
+]
+
+[[package]]
+name = "httpx-retries"
+version = "0.3.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "httpx" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/6f/b5/d4d704365499c95671a8cd2256af45640ad42f855247f90eb268172d105b/httpx_retries-0.3.2.tar.gz", hash = "sha256:af2cc82f18e9196612e3c73aba027982450b6581f565af659dd8f5c884e991e0", size = 12530 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/29/18/9bb9338f86735b217e98fc5010bc95109e64917bfde53d304529dc8622ba/httpx_retries-0.3.2-py3-none-any.whl", hash = "sha256:105952745016db32fab6cab2007dd146fb03e2f08406b07ae0df98301bc792b0", size = 8232 },
 ]
 
 [[package]]
