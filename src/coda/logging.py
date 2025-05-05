@@ -2,12 +2,32 @@
 
 import logging
 import sys
+import uuid
+from enum import Enum
+from functools import lru_cache
 from typing import Any
 
 import structlog
+from posthog import Posthog
+from structlog.types import EventDict
+
+log = structlog.get_logger(__name__)
 
 
-def setup_logging(*, json_logs: bool = False, log_level: str = "INFO") -> None:
+def drop_color_message_key(_, __, event_dict: EventDict) -> EventDict:  # noqa: ANN001
+    """Drop the `color_message` key from the event dict."""
+    event_dict.pop("color_message", None)
+    return event_dict
+
+
+class LogFormat(Enum):
+    """The format of the log output."""
+
+    PRETTY = "pretty"
+    JSON = "json"
+
+
+def configure_logging(log_level: str, log_format: LogFormat) -> None:
     """Configure logging for the application.
 
     Args:
@@ -23,11 +43,12 @@ def setup_logging(*, json_logs: bool = False, log_level: str = "INFO") -> None:
         structlog.stdlib.add_log_level,
         structlog.stdlib.PositionalArgumentsFormatter(),
         structlog.stdlib.ExtraAdder(),
+        drop_color_message_key,
         timestamper,
         structlog.processors.StackInfoRenderer(),
     ]
 
-    if json_logs:
+    if log_format == LogFormat.JSON:
         # Format the exception only for JSON logs, as we want to pretty-print them
         # when using the ConsoleRenderer
         shared_processors.append(structlog.processors.format_exc_info)
@@ -43,7 +64,7 @@ def setup_logging(*, json_logs: bool = False, log_level: str = "INFO") -> None:
     )
 
     log_renderer: structlog.types.Processor
-    if json_logs:
+    if log_format == LogFormat.JSON:
         log_renderer = structlog.processors.JSONRenderer()
     else:
         log_renderer = structlog.dev.ConsoleRenderer()
@@ -91,3 +112,36 @@ def setup_logging(*, json_logs: bool = False, log_level: str = "INFO") -> None:
         )
 
     sys.excepthook = handle_exception
+
+
+posthog = Posthog(
+    project_api_key="phc_JsX0yx8NLPcIxamfp4Zc7xyFykXjwmekKUQz060cSt3",
+    host="https://eu.i.posthog.com",
+)
+
+
+@lru_cache(maxsize=1)
+def get_mac_address() -> str:
+    """Get the MAC address of the primary network interface.
+
+    Returns:
+        str: The MAC address or a fallback UUID if not available
+
+    """
+    # Get the MAC address of the primary network interface
+    mac = uuid.getnode()
+    return f"{mac:012x}" if mac != uuid.getnode() else str(uuid.uuid4())
+
+
+def disable_posthog() -> None:
+    """Disable telemetry for the application."""
+    structlog.stdlib.get_logger(__name__).info("Telemetry has been disabled")
+    posthog.disabled = True
+
+
+def log_event(event: str, properties: dict[str, Any] | None = None) -> None:
+    """Log an event to PostHog."""
+    log.debug(
+        "Logging event", id=get_mac_address(), ph_event=event, ph_properties=properties
+    )
+    posthog.capture(get_mac_address(), event, properties or {})

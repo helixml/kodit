@@ -15,6 +15,7 @@ dependencies = [
     "httpx>=0.28.1",
     "mcp>=1.6.0",
     "structlog>=25.3.0",
+    "posthog>=4.0.1",
 ]
 
 [dependency-groups]
