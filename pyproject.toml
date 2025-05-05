@@ -3,7 +3,23 @@ name = "kodit"
 dynamic = ["version"]
 description = "Code indexing for better AI code generation"
 readme = "README.md"
-requires-python = ">=3.11"
+authors = [
+  {name = "Helix.ML", email = "founders@helix.ml"},
+]
+maintainers = [
+  {name = "Helix.ML", email = "founders@helix.ml"},
+]
+license = "Apache-2.0"
+keywords = ["mcp", "indexing", "rag", "ai"]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Intended Audience :: Developers",
+  "Topic :: Software Development :: Code Generators",
+
+  # Specify the Python versions you support here.
+  "Programming Language :: Python :: 3.12",
+]
+requires-python = ">=3.12"
 dependencies = [
     "asgi-correlation-id>=4.3.4",
     "better-exceptions>=0.3.3",
@@ -27,6 +43,13 @@ dev = [
     "pytest-cov>=6.1.1",
     "ruff>=0.11.8",
 ]
+
+[project.urls]
+Homepage = "https://docs.helixml.tech/kodit/"
+Documentation = "https://docs.helixml.tech/kodit/"
+Repository = "https://github.com/helixml/kodit.git"
+Issues = "https://github.com/helixml/kodit/issues"
+Changelog = "https://github.com/helixml/kodit/releases"
 
 [project.scripts]
 kodit = "kodit.cli:cli"
