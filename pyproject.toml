@@ -42,7 +42,7 @@ local_scheme = "no-local-version"
 source = "vcs"
 
 [tool.hatch.build.hooks.vcs]
-version-file = "src/coda/_version.py"
+version-file = "src/kodit/_version.py"
 
 [tool.pytest.ini_options]
 norecursedirs = ".git"
