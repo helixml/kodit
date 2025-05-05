@@ -1,6 +1,6 @@
 [project]
-name = "helix-coda"
-dynamic = ["version"]
+name = "kodit"
+version = "0.0.0"
 description = "Code indexing for better AI code generation"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -29,7 +29,7 @@ dev = [
 ]
 
 [project.scripts]
-coda = "coda.cli:cli"
+kodit = "kodit.cli:cli"
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]

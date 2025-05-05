@@ -1,4 +1,4 @@
-"""Server-Sent Events (SSE) implementation for Coda."""
+"""Server-Sent Events (SSE) implementation for kodit."""
 
 from collections.abc import Coroutine
 from typing import Any

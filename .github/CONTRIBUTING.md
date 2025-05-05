@@ -1,9 +1,9 @@
-# Contributing to Coda
+# Contributing to kodit
 
-Thank you for your interest in contributing to Coda! This document provides guidelines and best practices for contributing to our project.
+Thank you for your interest in contributing to kodit! This document provides guidelines and best practices for contributing to our project.
 
 <blockquote class='warning-note'>
-     🔐 <b>Important:</b> If you discover a security vulnerability, please use the <a href="https://github.com/helixml/coda/security/advisories/new">Github security tool to report it privately</a>.
+     🔐 <b>Important:</b> If you discover a security vulnerability, please use the <a href="https://github.com/helixml/kodit/security/advisories/new">Github security tool to report it privately</a>.
 </blockquote>
 
 ## Pull Request Guidelines
@@ -23,6 +23,7 @@ Please format your PR titles using [Conventional Commits](https://www.convention
 ```
 
 Common types include:
+
 - `feat`: New feature
 - `fix`: Bug fix
 - `docs`: Documentation changes
@@ -32,6 +33,7 @@ Common types include:
 - `chore`: Maintenance tasks
 
 Examples:
+
 - `feat(api): add user authentication endpoint`
 - `fix(ui): resolve button alignment issue`
 - `docs(readme): update installation instructions`

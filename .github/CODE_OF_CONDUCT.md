@@ -2,7 +2,7 @@
 
 ## Our Pledge
 
-We are committed to creating a welcoming and respectful environment for everyone who contributes to Coda. We pledge to:
+We are committed to creating a welcoming and respectful environment for everyone who contributes to kodit. We pledge to:
 
 - Be respectful and inclusive
 - Accept constructive criticism gracefully
