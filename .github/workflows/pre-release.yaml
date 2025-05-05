@@ -1,0 +1,25 @@
+name: Pre-Release
+
+on:
+  release:
+    types: [prereleased]
+
+jobs:
+  testpypi:
+    name: Publish to TestPyPI
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - run: uv build
+      - name: Download built package
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Publish to TestPyPI
+        run: uv publish --index testpypi
