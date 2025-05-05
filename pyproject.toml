@@ -1,6 +1,6 @@
 [project]
 name = "kodit"
-version = "0.0.0"
+dynamic = ["version"]
 description = "Code indexing for better AI code generation"
 readme = "README.md"
 requires-python = ">=3.11"
