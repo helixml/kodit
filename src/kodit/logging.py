@@ -1,4 +1,4 @@
-"""Logging configuration for Coda."""
+"""Logging configuration for kodit."""
 
 import logging
 import sys

@@ -1,13 +1,13 @@
-"""FastAPI application for Coda API."""
+"""FastAPI application for kodit API."""
 
 from asgi_correlation_id import CorrelationIdMiddleware
 from fastapi import FastAPI
 
-from coda.mcp import mcp
-from coda.middleware import logging_middleware
-from coda.sse import create_sse_server
+from kodit.mcp import mcp
+from kodit.middleware import logging_middleware
+from kodit.sse import create_sse_server
 
-app = FastAPI(title="Coda API")
+app = FastAPI(title="kodit API")
 
 # Get the SSE routes from the Starlette app hosting the MCP server
 sse_app = create_sse_server(mcp)
@@ -21,5 +21,5 @@ app.add_middleware(CorrelationIdMiddleware)
 
 @app.get("/")
 async def root() -> dict[str, str]:
-    """Return a welcome message for the Coda API."""
-    return {"message": "Welcome to Coda API"}
+    """Return a welcome message for the kodit API."""
+    return {"message": "Welcome to kodit API"}

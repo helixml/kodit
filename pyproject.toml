@@ -1,5 +1,5 @@
 [project]
-name = "coda"
+name = "kodit"
 version = "0.0.0"
 description = "Code indexing for better AI code generation"
 readme = "README.md"
@@ -29,7 +29,7 @@ dev = [
 ]
 
 [project.scripts]
-coda = "coda.cli:cli"
+kodit = "kodit.cli:cli"
 
 [build-system]
 requires = ["hatchling"]

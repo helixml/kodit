@@ -9,7 +9,7 @@ from httpx_retries import Retry, RetryTransport
 from mcp import ClientSession
 from mcp.client.sse import sse_client
 
-from coda.app import app
+from kodit.app import app
 
 
 def run_server() -> None:

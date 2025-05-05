@@ -1,4 +1,4 @@
-"""Command line interface for Coda."""
+"""Command line interface for kodit."""
 
 import os
 
@@ -7,13 +7,13 @@ import structlog
 import uvicorn
 from dotenv import dotenv_values
 
-from coda.logging import LogFormat, configure_logging, disable_posthog, log_event
+from kodit.logging import LogFormat, configure_logging, disable_posthog, log_event
 
 env_vars = dict(dotenv_values())
 os.environ.update(env_vars)
 
 
-@click.group(context_settings={"auto_envvar_prefix": "CODA", "show_default": True})
+@click.group(context_settings={"auto_envvar_prefix": "KODIT", "show_default": True})
 @click.option("--log-level", default="INFO", help="Log level")
 @click.option("--log-format", default=LogFormat.PRETTY, help="Log format")
 @click.option("--disable-telemetry", is_flag=True, help="Disable telemetry")
@@ -22,7 +22,7 @@ def cli(
     log_format: LogFormat,
     disable_telemetry: bool,  # noqa: FBT001
 ) -> None:
-    """Coda CLI - Code indexing for better AI code generation."""
+    """kodit CLI - Code indexing for better AI code generation."""  # noqa: D403
     configure_logging(log_level, log_format)
     if disable_telemetry:
         disable_posthog()
@@ -37,12 +37,12 @@ def serve(
     port: int,
     reload: bool,  # noqa: FBT001
 ) -> None:
-    """Start the Coda server, which hosts the MCP server and the Coda API."""
+    """Start the kodit server, which hosts the MCP server and the kodit API."""
     log = structlog.get_logger(__name__)
-    log.info("Starting Coda server", host=host, port=port, reload=reload)
-    log_event("coda_server_started")
+    log.info("Starting kodit server", host=host, port=port, reload=reload)
+    log_event("kodit_server_started")
     uvicorn.run(
-        "coda.app:app",
+        "kodit.app:app",
         host=host,
         port=port,
         reload=reload,

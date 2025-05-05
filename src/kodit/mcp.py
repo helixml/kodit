@@ -1,4 +1,4 @@
-"""MCP server implementation for Coda."""
+"""MCP server implementation for kodit."""
 
 from pathlib import Path
 from typing import Annotated
@@ -7,7 +7,7 @@ import structlog
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
-mcp = FastMCP("Coda MCP Server")
+mcp = FastMCP("kodit MCP Server")
 
 
 @mcp.tool()

@@ -1,11 +1,11 @@
 ---
-title: "Coda: Code Indexing MCP Server"
-linkTitle: Coda Docs
+title: "kodit: Code Indexing MCP Server"
+linkTitle: kodit Docs
 cascade:
   type: docs
 menu:
   main:
-    name: Coda Docs
+    name: kodit Docs
     weight: 3
 # next: /helix/getting-started
 weight: 1
@@ -14,4 +14,4 @@ weight: 1
 #   - /docs/overview
 ---
 
-Coda is a work in progress. Check back soon!
+kodit is a work in progress. Check back soon!
