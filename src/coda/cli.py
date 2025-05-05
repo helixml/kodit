@@ -51,5 +51,16 @@ def serve(
     )
 
 
+@cli.command()
+def version() -> None:
+    """Show the version of Coda."""
+    try:
+        from coda import _version
+    except ImportError:
+        print("unknown, try running `uv build`, which is what happens in ci")  # noqa: T201
+    else:
+        print(_version.version)  # noqa: T201
+
+
 if __name__ == "__main__":
     cli()
