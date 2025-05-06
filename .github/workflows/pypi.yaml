@@ -29,7 +29,7 @@ jobs:
           formula-path: Formula/${{ github.event.repository.name }}.rb
           homebrew-tap: ${{ github.repository_owner }}/homebrew-${{
           github.event.repository.name }}
-          tag-name: 0.0.1
+          tag-name: "0.0.1"
           download-url: https://pypi.io/packages/source/k/${{ github.event.repository.name }}/${{ github.event.repository.name }}-0.0.1.tar.gz
           commit-message: |
             {{formulaName}} {{version}}
