@@ -2,8 +2,10 @@ name: Docs
 
 on:
   push:
-    # branches:
-    #   - main
+    branches:
+      - main
+    paths:
+      - docs/**
 
 jobs:
   cloudflare:
