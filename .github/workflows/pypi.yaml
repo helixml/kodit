@@ -1,8 +1,9 @@
 name: Release
 
 on:
-  release:
-    types: [released]
+  push:
+  # release:
+  #   types: [released]
 
 jobs:
   pypi:
@@ -15,15 +16,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
-      - run: uv build
-      - run: uv publish
+      # - run: uv build
+      # - run: uv publish
   homebrew:
     name: Bump Homebrew formula
     needs: pypi
     runs-on: ubuntu-latest
+    environment:
+      name: pypi
     permissions:
       contents: read
     steps:
+      # ${{ github.event.release.tag_name }}
+      - name: Wait for PyPI release to be available
+        run: |
+          while true; do
+            if curl -s https://pypi.io/packages/source/k/${{ github.event.repository.name }}/${{ github.event.repository.name }}-0.1.0.tar.gz; then
+              break
+            fi
+          done
       - uses: mislav/bump-homebrew-formula-action@v3
         with:
           formula-name: ${{ github.event.repository.name }}
@@ -32,8 +43,8 @@ jobs:
           tag-name: "${{ github.event.release.tag_name }}"
           push-to: ${{ github.repository_owner }}/homebrew-${{ github.event.repository.name }}
           base-branch: "main"
-          download-url: "https://pypi.io/packages/source/k/${{ github.event.repository.name }}/${{ github.event.repository.name }}-${{ github.event.release.tag_name }}.tar.gz"
+          download-url: "https://pypi.io/packages/source/k/${{ github.event.repository.name }}/${{ github.event.repository.name }}-0.1.0.tar.gz"
           commit-message: |
             {{formulaName}} {{version}}
         env:
-          COMMITTER_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COMMITTER_TOKEN: ${{ secrets.COMMITTER_TOKEN }}
