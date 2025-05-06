@@ -9,6 +9,6 @@
     "ruff.lint.enable": true,
     "python.analysis.autoImportCompletions": true,
     "rewrap.autoWrap.enabled": true,
-    "editor.wordWrap": "wordWrapColumn",
+    "editor.wordWrap": "off",
     "editor.wordWrapColumn": 88,
 }
