@@ -13,6 +13,4 @@ jobs:
     steps:
       - name: Trigger Cloudflare Pages deployment
         run: |
-          curl -XPOST \
-          "https://api.cloudflare.com/client/v4/accounts/${{ secrets.ACCOUNT_ID }}/pages/projects/docs/deployments" \ 
-          -H "Authorization: bearer ${{ secrets.CLOUDFLARE_API_KEY }}"
+          curl -XPOST "https://api.cloudflare.com/client/v4/accounts/${{ secrets.ACCOUNT_ID }}/pages/projects/docs/deployments" -H "Authorization: bearer ${{ secrets.CLOUDFLARE_API_KEY }}"
