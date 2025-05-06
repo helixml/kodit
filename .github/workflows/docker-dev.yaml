@@ -21,7 +21,7 @@ jobs:
       - name: Log in to Docker Hub
         uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a
         with:
-          registry: registry.helixml.tech
+          registry: ${{ vars.REGISTRY }}
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
@@ -29,7 +29,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@9ec57ed1fcdbf14dcef7dfbe97b2010124a938b7
         with:
-          images: registry.helixml.tech/helix/kodit
+          images: ${{ vars.REGISTRY }}/${{ vars.REGISTRY_ORG }}/${GITHUB_REPOSITORY#*/}
 
       - name: Build and push Docker image
         id: push
@@ -44,6 +44,6 @@ jobs:
       - name: Generate artifact attestation
         uses: actions/attest-build-provenance@v2
         with:
-          subject-name: registry.helixml.tech/helix/kodit
+          subject-name: ${{ vars.REGISTRY }}/${{ vars.REGISTRY_ORG }}/${GITHUB_REPOSITORY#*/}
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
