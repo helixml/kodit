@@ -28,9 +28,9 @@ jobs:
           formula-name: ${{ github.event.repository.name }}
           formula-path: Formula/${{ github.event.repository.name }}.rb
           homebrew-tap: ${{ github.repository_owner }}/homebrew-${{ github.event.repository.name }}
-          base-branch: main
           download-url: https://pypi.io/packages/source/k/${{ github.event.repository.name }}/${{ github.event.repository.name }}-0.0.1.tar.gz
           commit-message: |
             {{formulaName}} {{version}}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
