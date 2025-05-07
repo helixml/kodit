@@ -1,6 +1,6 @@
 """Database models for kodit."""
 
-from sqlalchemy import ForeignKey, LargeBinary, String
+from sqlalchemy import ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from kodit.database import Base, CommonMixin
@@ -28,14 +28,3 @@ class FolderSource(Base, CommonMixin):
 
     source_id: Mapped[int] = mapped_column(ForeignKey("sources.id"))
     path: Mapped[str] = mapped_column(String(1024))
-
-
-class File(Base, CommonMixin):
-    """File model."""
-
-    __tablename__ = "files"
-
-    source_id: Mapped[int] = mapped_column(ForeignKey("sources.id"))
-    mime_type: Mapped[str] = mapped_column(String(255))
-    path: Mapped[str] = mapped_column(String(1024))
-    content: Mapped[bytes] = mapped_column(LargeBinary)

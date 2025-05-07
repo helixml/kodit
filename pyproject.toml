@@ -36,6 +36,8 @@ dependencies = [
     "alembic>=1.15.2",
     "aiosqlite>=0.20.0",
     "pytable-formatter>=0.1.1",
+    "aiofiles>=24.1.0",
+    "tdqm>=0.0.1",
 ]
 
 [dependency-groups]

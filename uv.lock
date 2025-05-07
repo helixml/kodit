@@ -3,6 +3,15 @@ revision = 2
 requires-python = ">=3.12"
 
 [[package]]
+name = "aiofiles"
+version = "24.1.0"
+source = { registry = "https://pypi.org/simple/" }
+sdist = { url = "https://files.pythonhosted.org/packages/0b/03/a88171e277e8caa88a4c77808c20ebb04ba74cc4681bf1e9416c862de237/aiofiles-24.1.0.tar.gz", hash = "sha256:22a075c9e5a3810f0c2e48f3008c94d68c65d763b9b03857924c99e57355166c", size = 30247, upload-time = "2024-06-24T11:02:03.584Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a5/45/30bb92d442636f570cb5651bc661f52b610e2eec3f891a5dc3a4c3667db0/aiofiles-24.1.0-py3-none-any.whl", hash = "sha256:b4ec55f4195e3eb5d7abd1bf7e061763e864dd4954231fb8539a0ef8bb8260e5", size = 15896, upload-time = "2024-06-24T11:02:01.529Z" },
+]
+
+[[package]]
 name = "aiosqlite"
 version = "0.21.0"
 source = { registry = "https://pypi.org/simple/" }
@@ -619,6 +628,7 @@ wheels = [
 name = "kodit"
 source = { editable = "." }
 dependencies = [
+    { name = "aiofiles" },
     { name = "aiosqlite" },
     { name = "alembic" },
     { name = "asgi-correlation-id" },
@@ -634,6 +644,7 @@ dependencies = [
     { name = "pytable-formatter" },
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "structlog" },
+    { name = "tdqm" },
 ]
 
 [package.dev-dependencies]
@@ -648,6 +659,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aiofiles", specifier = ">=24.1.0" },
     { name = "aiosqlite", specifier = ">=0.20.0" },
     { name = "alembic", specifier = ">=1.15.2" },
     { name = "asgi-correlation-id", specifier = ">=4.3.4" },
@@ -663,6 +675,7 @@ requires-dist = [
     { name = "pytable-formatter", specifier = ">=0.1.1" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.40" },
     { name = "structlog", specifier = ">=25.3.0" },
+    { name = "tdqm", specifier = ">=0.0.1" },
 ]
 
 [package.metadata.requires-dev]
@@ -1354,6 +1367,15 @@ wheels = [
 ]
 
 [[package]]
+name = "tdqm"
+version = "0.0.1"
+source = { registry = "https://pypi.org/simple/" }
+dependencies = [
+    { name = "tqdm" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5a/38/58c9e22b95e98666fe29f35e217ab6126a03798dadf3f4f8f3e5f898510b/tdqm-0.0.1.tar.gz", hash = "sha256:f050004a76b1d22f70b78209b48781353c82440215b6ba7d22b1f499b05a0101", size = 1388, upload-time = "2020-08-19T20:16:22.191Z" }
+
+[[package]]
 name = "tornado"
 version = "6.4.2"
 source = { registry = "https://pypi.org/simple/" }
@@ -1369,6 +1391,18 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/2b/ae/c1b22d4524b0e10da2f29a176fb2890386f7bd1f63aacf186444873a88a0/tornado-6.4.2-cp38-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:932d195ca9015956fa502c6b56af9eb06106140d844a335590c1ec7f5277d10c", size = 437261, upload-time = "2024-11-22T03:06:32.458Z" },
     { url = "https://files.pythonhosted.org/packages/b5/25/36dbd49ab6d179bcfc4c6c093a51795a4f3bed380543a8242ac3517a1751/tornado-6.4.2-cp38-abi3-win32.whl", hash = "sha256:2876cef82e6c5978fde1e0d5b1f919d756968d5b4282418f3146b79b58556482", size = 438463, upload-time = "2024-11-22T03:06:34.71Z" },
     { url = "https://files.pythonhosted.org/packages/61/cc/58b1adeb1bb46228442081e746fcdbc4540905c87e8add7c277540934edb/tornado-6.4.2-cp38-abi3-win_amd64.whl", hash = "sha256:908b71bf3ff37d81073356a5fadcc660eb10c1476ee6e2725588626ce7e5ca38", size = 438907, upload-time = "2024-11-22T03:06:36.71Z" },
+]
+
+[[package]]
+name = "tqdm"
+version = "4.67.1"
+source = { registry = "https://pypi.org/simple/" }
+dependencies = [
+    { name = "colorama", marker = "sys_platform == 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a8/4b/29b4ef32e036bb34e4ab51796dd745cdba7ed47ad142a9f4a1eb8e0c744d/tqdm-4.67.1.tar.gz", hash = "sha256:f8aef9c52c08c13a65f30ea34f4e5aac3fd1a34959879d7e59e63027286627f2", size = 169737, upload-time = "2024-11-24T20:12:22.481Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d0/30/dc54f88dd4a2b5dc8a0279bdd7270e735851848b762aeb1c1184ed1f6b14/tqdm-4.67.1-py3-none-any.whl", hash = "sha256:26445eca388f82e72884e0d580d5464cd801a3ea01e63e5601bdff9ba6a48de2", size = 78540, upload-time = "2024-11-24T20:12:19.698Z" },
 ]
 
 [[package]]

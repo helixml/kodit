@@ -10,8 +10,10 @@ from pytable_formatter import Table
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.database import configure_database, with_session
-from kodit.indexes.repository import IndexRepository
+from kodit.indexes.service import IndexService
 from kodit.logging import LogFormat, configure_logging, disable_posthog, log_event
+from kodit.retreival.repository import RetrievalRepository
+from kodit.retreival.service import RetrievalRequest, RetrievalService
 from kodit.sources.repository import SourceRepository
 
 env_vars = dict(dotenv_values())
@@ -74,7 +76,7 @@ def indexes() -> None:
 @with_session
 async def create_index(session: AsyncSession, source_id: int) -> None:
     """Create an index for a source."""
-    repository = IndexRepository(session)
+    repository = IndexService(session)
     await repository.create(source_id)
 
 
@@ -82,19 +84,57 @@ async def create_index(session: AsyncSession, source_id: int) -> None:
 @with_session
 async def list_indexes(session: AsyncSession) -> None:
     """List all indexes."""
-    repository = IndexRepository(session)
+    repository = IndexService(session)
     indexes = await repository.list()
 
     # Define headers and data
-    headers = ["ID", "Created At", "Updated At", "Source URI"]
+    headers = [
+        "ID",
+        "Created At",
+        "Updated At",
+        "Source URI",
+        "Num Files",
+        "Num Snippets",
+    ]
     data = [
-        [index.id, index.created_at, index.updated_at, index.source_uri]
+        [
+            index.id,
+            index.created_at,
+            index.updated_at,
+            index.source_uri,
+            index.num_files,
+            index.num_snippets,
+        ]
         for index in indexes
     ]
 
     # Create and display the table
     table = Table(headers=headers, data=data)
     click.echo(table)
+
+
+@indexes.command(name="run")
+@click.argument("index_id")
+@with_session
+async def run_index(session: AsyncSession, index_id: int) -> None:
+    """Run an index."""
+    repository = IndexService(session)
+    await repository.run(index_id)
+
+
+@cli.command()
+@click.argument("query")
+@with_session
+async def retrieve(session: AsyncSession, query: str) -> None:
+    """Retrieve snippets from the database."""
+    repository = RetrievalRepository(session)
+    service = RetrievalService(repository)
+    snippets = await service.retrieve(RetrievalRequest(query=query))
+
+    for snippet in snippets:
+        click.echo(f"{snippet.file_path}")
+        click.echo(snippet.content)
+        click.echo()
 
 
 @cli.command()
