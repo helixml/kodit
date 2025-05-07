@@ -1,21 +1,24 @@
-"""Source repository."""
+"""Index service for managing code indexes.
+
+This module provides the IndexService class which handles the business logic for creating,
+listing, and running code indexes. It orchestrates the interaction between the file system,
+database operations (via IndexRepository), and provides a clean API for index management.
+"""
 
 import mimetypes
-from datetime import UTC, datetime
+from datetime import datetime
 from hashlib import sha256
 from pathlib import Path
 
 import aiofiles
 import pydantic
 import structlog
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 from tqdm.asyncio import tqdm
 
 from kodit.indexes.models import File, Snippet
-from kodit.indexes.models import Index as IndexModel
-from kodit.sources.models import FolderSource, GitSource, Source
+from kodit.indexes.repository import IndexRepository
 
+# List of MIME types that are supported for indexing and snippet creation
 MIME_WHITELIST = [
     "text/plain",
     "text/markdown",
@@ -26,7 +29,11 @@ MIME_WHITELIST = [
 
 
 class Index(pydantic.BaseModel):
-    """Index model."""
+    """Data transfer object for index information.
+
+    This model represents the public interface for index data, providing a clean
+    view of index information without exposing internal implementation details.
+    """
 
     id: int
     created_at: datetime
@@ -37,60 +44,68 @@ class Index(pydantic.BaseModel):
 
 
 class IndexService:
-    """Index repository."""
+    """Service for managing code indexes.
 
-    def __init__(self, session: AsyncSession) -> None:
-        """Initialize the index repository."""
-        self.session = session
+    This service handles the business logic for creating, listing, and running code indexes.
+    It coordinates between file system operations, database operations (via IndexRepository),
+    and provides a clean API for index management.
+    """
+
+    def __init__(self, repository: IndexRepository) -> None:
+        """Initialize the index service.
+
+        Args:
+            repository: The repository instance to use for database operations.
+
+        """
+        self.repository = repository
         self.log = structlog.get_logger(__name__)
 
     async def create(self, source_id: int) -> Index:
-        """Create an index."""
-        # First, check if the source exists
-        source = await self.session.execute(
-            select(Source).where(Source.id == source_id)
-        )
-        if not source.scalar_one_or_none():
+        """Create a new index for a source.
+
+        This method creates a new index for the specified source, after validating
+        that the source exists and doesn't already have an index.
+
+        Args:
+            source_id: The ID of the source to create an index for.
+
+        Returns:
+            An Index object representing the newly created index.
+
+        Raises:
+            ValueError: If the source doesn't exist or already has an index.
+
+        """
+        # Validate source existence
+        source_details = await self.repository.get_source_details(source_id)
+        if not source_details:
             msg = f"Source not found, please create it first: {source_id}"
             raise ValueError(msg)
 
-        # Now check if there is already an index on this source
-        index = await self.session.execute(
-            select(IndexModel).where(IndexModel.source_id == source_id)
-        )
-        if index.scalar_one_or_none():
+        # Check for existing index
+        existing_index = await self.repository.get_by_id(source_id)
+        if existing_index:
             msg = f"Index already exists on this source: {source_id}"
             raise ValueError(msg)
 
-        index = IndexModel(source_id=source_id)
-        self.session.add(index)
-        await self.session.commit()
+        # Create and return the new index
+        index = await self.repository.create(source_id)
         return Index(
             id=index.id, created_at=index.created_at, source_id=index.source_id
         )
 
     async def list(self) -> list[Index]:
-        """List indexes."""
-        query = (
-            select(
-                IndexModel,
-                Source,
-                GitSource,
-                FolderSource,
-                func.count(File.id).label("file_count"),
-                func.count(Snippet.id).label("snippet_count"),
-            )
-            .join(Source, IndexModel.source_id == Source.id)
-            .outerjoin(GitSource, Source.id == GitSource.source_id)
-            .outerjoin(FolderSource, Source.id == FolderSource.source_id)
-            .outerjoin(File, Source.id == File.source_id)
-            .outerjoin(Snippet, File.id == Snippet.file_id)
-            .group_by(IndexModel.id, Source.id, GitSource.id, FolderSource.id)
-        )
-        result = await self.session.execute(query)
-        rows = result.all()
+        """List all available indexes with their details.
 
-        # Map to Pydantic model
+        Returns:
+            A list of Index objects containing information about each index,
+            including file and snippet counts.
+
+        """
+        rows = await self.repository.list_with_details()
+
+        # Transform database results into DTOs
         return [
             Index(
                 id=index.id,
@@ -108,129 +123,112 @@ class IndexService:
         ]
 
     async def run(self, index_id: int) -> None:
-        """Run an index."""
-        # Get the index
-        index = await self.session.execute(
-            select(IndexModel).where(IndexModel.id == index_id)
-        )
-        index = index.scalar_one_or_none()
+        """Run the indexing process for a specific index.
 
+        This method performs the actual indexing process, which includes:
+        1. Scanning the source directory for files
+        2. Creating file records for new files
+        3. Creating snippets for supported file types
+        4. Updating the index timestamp
+
+        Args:
+            index_id: The ID of the index to run.
+
+        Raises:
+            ValueError: If the index or its source doesn't exist.
+            NotImplementedError: If the source is a git repository (not yet supported).
+            TypeError: If the source type is not supported.
+
+        """
+        # Get and validate index
+        index = await self.repository.get_by_id(index_id)
         if not index:
             msg = f"Index not found: {index_id}"
             raise ValueError(msg)
 
-        # Now find out what kind of source this is
-        result = await self.session.execute(
-            select(Source, GitSource, FolderSource)
-            .where(Source.id == index.source_id)
-            .outerjoin(GitSource, Source.id == GitSource.source_id)
-            .outerjoin(FolderSource, Source.id == FolderSource.source_id)
-        )
-        row = result.first()
-
-        if not row:
+        # Get and validate source details
+        source_details = await self.repository.get_source_details(index.source_id)
+        if not source_details:
             msg = f"Source not found: {index.source_id}"
             raise ValueError(msg)
 
-        source, git_source, folder_source = row
+        source, git_source, folder_source = source_details
 
-        # Build a list of sha's that have already been indexed
-        existing_files = await self.session.execute(
-            select(File.sha256).where(File.source_id == index.source_id)
-        )
-        existing_files = existing_files.scalars().all()
-        existing_files_set = set(existing_files)
+        # Get existing files to avoid duplicates
+        existing_files_set = await self.repository.get_existing_files(index.source_id)
 
         if git_source:
             msg = "Git source indexing is not implemented yet"
             raise NotImplementedError(msg)
         if folder_source:
-            # Count how many files there are in the folder, recursively
-            file_count = 0
-            for file_path in Path(folder_source.path).rglob("*"):
-                if file_path.is_file():
-                    file_count += 1
+            # Count total files for progress bar
+            file_count = sum(
+                1 for _ in Path(folder_source.path).rglob("*") if _.is_file()
+            )
 
-            # Find all files in the folder
+            # Process each file in the source directory
             for file_path in tqdm(
                 Path(folder_source.path).rglob("*"), total=file_count
             ):
-                if file_path.is_file():
-                    # Read the file content
-                    async with aiofiles.open(file_path, "rb") as f:
-                        content = await f.read()
+                if not file_path.is_file():
+                    continue
 
-                        # Detect the mime type of the file
-                        mime_type = mimetypes.guess_type(file_path)
+                # Read and process file content
+                async with aiofiles.open(file_path, "rb") as f:
+                    content = await f.read()
+                    mime_type = mimetypes.guess_type(file_path)
+                    sha = sha256(content).hexdigest()
 
-                        sha = sha256(content).hexdigest()
+                    # Skip if file already indexed
+                    if sha in existing_files_set:
+                        self.log.debug("File already exists", file_path=file_path)
+                        continue
 
-                        # Check if the file already exists
-                        if sha in existing_files_set:
-                            self.log.debug("File already exists", file_path=file_path)
-                            continue
+                    # Create file record
+                    file = File(
+                        index_id=index.id,
+                        source_id=index.source_id,
+                        mime_type=mime_type[0]
+                        if mime_type and mime_type[0]
+                        else "application/octet-stream",
+                        path=str(file_path),
+                        sha256=sha,
+                        size_bytes=len(content),
+                    )
 
-                        # Create a file model
-                        file = File(
-                            index_id=index.id,
-                            source_id=index.source_id,
-                            mime_type=mime_type[0]
-                            if mime_type and mime_type[0]
-                            else "application/octet-stream",
-                            path=str(file_path),
-                            sha256=sha,
-                            size_bytes=len(content),
-                        )
+                    self.log.debug("Adding file", file=file)
+                    await self.repository.add_file(file)
 
-                        self.log.debug("Adding file", file=file)
-                        self.session.add(file)
-
-            await self.session.commit()
-
-            # Now create snippets, based on these files
-            # This will be improved in due course
-
-            files = await self.session.execute(
-                select(File).where(File.source_id == index.source_id)
+            # Get all files for snippet creation
+            files = await self.repository.get_files_by_source(index.source_id)
+            existing_snippets_set = await self.repository.get_existing_snippets(
+                index.id
             )
-            files = files.scalars().all()
 
-            # Create a list of all snippets that have already been created
-            existing_snippets = await self.session.execute(
-                select(Snippet).where(Snippet.index_id == index.id)
-            )
-            existing_snippets = existing_snippets.scalars().all()
-            existing_snippets_set = {snippet.file_id for snippet in existing_snippets}
-
+            # Create snippets for supported file types
             for file in tqdm(files, total=len(files)):
-                # Only keep files that match the whitelist
+                # Skip unsupported file types
                 if file.mime_type not in MIME_WHITELIST:
                     self.log.debug("Skipping mime type", mime_type=file.mime_type)
                     continue
 
-                # Check if the snippet has already been created
+                # Skip if snippet already exists
                 if file.id in existing_snippets_set:
                     self.log.debug("Snippet already exists", file_id=file.id)
                     continue
 
-                # Read the file content
+                # Create snippet from file content
                 async with aiofiles.open(file.path, "rb") as f:
                     content = await f.read()
-
-                    # Create a snippet
                     snippet = Snippet(
                         index_id=index.id,
                         file_id=file.id,
                         content=content,
                     )
-                    self.session.add(snippet)
+                    await self.repository.add_snippet(snippet)
 
-            await self.session.commit()
-
-            # Touch the index to indicate that it has been updated
-            index.updated_at = datetime.now(UTC)
-
-            await self.session.commit()
+            # Update index timestamp
+            await self.repository.update_index_timestamp(index)
         else:
             msg = f"Unsupported source type: {type(source)}"
             raise TypeError(msg)

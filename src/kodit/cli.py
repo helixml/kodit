@@ -10,6 +10,7 @@ from pytable_formatter import Table
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.database import configure_database, with_session
+from kodit.indexes.repository import IndexRepository
 from kodit.indexes.service import IndexService
 from kodit.logging import LogFormat, configure_logging, disable_posthog, log_event
 from kodit.retreival.repository import RetrievalRepository
@@ -76,16 +77,18 @@ def indexes() -> None:
 @with_session
 async def create_index(session: AsyncSession, source_id: int) -> None:
     """Create an index for a source."""
-    repository = IndexService(session)
-    await repository.create(source_id)
+    repository = IndexRepository(session)
+    service = IndexService(repository)
+    await service.create(source_id)
 
 
 @indexes.command(name="list")
 @with_session
 async def list_indexes(session: AsyncSession) -> None:
     """List all indexes."""
-    repository = IndexService(session)
-    indexes = await repository.list()
+    repository = IndexRepository(session)
+    service = IndexService(repository)
+    indexes = await service.list()
 
     # Define headers and data
     headers = [
@@ -118,8 +121,9 @@ async def list_indexes(session: AsyncSession) -> None:
 @with_session
 async def run_index(session: AsyncSession, index_id: int) -> None:
     """Run an index."""
-    repository = IndexService(session)
-    await repository.run(index_id)
+    repository = IndexRepository(session)
+    service = IndexService(repository)
+    await service.run(index_id)
 
 
 @cli.command()
