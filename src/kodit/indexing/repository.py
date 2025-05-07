@@ -6,14 +6,13 @@ and retrieving index information with their associated metadata.
 """
 
 from datetime import UTC, datetime
-from typing import Any, TypeVar, cast
+from typing import Any, TypeVar
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import Select
 
-from kodit.indexing.models import File, Snippet
-from kodit.indexing.models import Index as IndexModel
+from kodit.indexing.models import File, Index, Snippet
 from kodit.sources.models import FolderSource, GitSource, Source
 
 T = TypeVar("T")
@@ -52,32 +51,32 @@ class IndexRepository:
         result = await self.session.execute(query)
         return result.scalar_one_or_none() if return_single else result.all()
 
-    async def create(self, source_id: int) -> IndexModel:
+    async def create(self, source_id: int) -> Index:
         """Create a new index for a source.
 
         Args:
             source_id: The ID of the source to create an index for.
 
         Returns:
-            The newly created IndexModel instance.
+            The newly created Index instance.
 
         """
-        index = IndexModel(source_id=source_id)
+        index = Index(source_id=source_id)
         self.session.add(index)
         await self.session.commit()
         return index
 
-    async def get_by_id(self, index_id: int) -> IndexModel | None:
+    async def get_by_id(self, index_id: int) -> Index | None:
         """Get an index by its ID.
 
         Args:
             index_id: The ID of the index to retrieve.
 
         Returns:
-            The IndexModel instance if found, None otherwise.
+            The Index instance if found, None otherwise.
 
         """
-        query = select(IndexModel).where(IndexModel.id == index_id)
+        query = select(Index).where(Index.id == index_id)
         return await self._execute_query(query, return_single=True)
 
     async def get_source_details(
@@ -113,19 +112,19 @@ class IndexRepository:
         """
         query = (
             select(
-                IndexModel,
+                Index,
                 Source,
                 GitSource,
                 FolderSource,
                 func.count(File.id).label("file_count"),
                 func.count(Snippet.id).label("snippet_count"),
             )
-            .join(Source, IndexModel.source_id == Source.id)
+            .join(Source, Index.source_id == Source.id)
             .outerjoin(GitSource, Source.id == GitSource.source_id)
             .outerjoin(FolderSource, Source.id == FolderSource.source_id)
             .outerjoin(File, Source.id == File.source_id)
             .outerjoin(Snippet, File.id == Snippet.file_id)
-            .group_by(IndexModel.id, Source.id, GitSource.id, FolderSource.id)
+            .group_by(Index.id, Source.id, GitSource.id, FolderSource.id)
         )
         return await self._execute_query(query)
 
@@ -140,8 +139,9 @@ class IndexRepository:
 
         """
         query = select(File.sha256).where(File.source_id == source_id)
-        result = await self._execute_query(query)
-        return set(cast("list[str]", result))
+        rows = await self._execute_query(query)
+        result_list = [row.sha256 for row in rows]
+        return set(result_list)
 
     async def get_existing_snippets(self, index_id: int) -> set[int]:
         """Get the set of file IDs that already have snippets in an index.
@@ -153,15 +153,16 @@ class IndexRepository:
             A set of file IDs that already have snippets in the index.
 
         """
-        query = select(Snippet).where(Snippet.index_id == index_id)
-        result = await self._execute_query(query)
-        return {snippet.file_id for snippet in result}
+        query = select(Snippet.file_id).where(Snippet.index_id == index_id)
+        rows = await self._execute_query(query)
+        results = [row.file_id for row in rows]
+        return set(results)
 
-    async def update_index_timestamp(self, index: IndexModel) -> None:
+    async def update_index_timestamp(self, index: Index) -> None:
         """Update the updated_at timestamp of an index.
 
         Args:
-            index: The IndexModel instance to update.
+            index: The Index instance to update.
 
         """
         index.updated_at = datetime.now(UTC)

@@ -16,7 +16,17 @@ from kodit.sources.repository import SourceRepository
 
 
 class SourceView(pydantic.BaseModel):
-    """Source model."""
+    """View model for displaying source information.
+
+    This model provides a clean interface for displaying source information,
+    containing only the essential fields needed for presentation.
+
+    Attributes:
+        id: The unique identifier for the source.
+        uri: The URI or path of the source.
+        created_at: Timestamp when the source was created.
+
+    """
 
     id: int
     uri: str
@@ -48,9 +58,6 @@ class SourceService:
             uri: The URI of the source to create. Can be a git-like URI or a local
                 directory.
 
-        Returns:
-            The newly created Source instance.
-
         Raises:
             ValueError: If the source type is not supported or if the folder doesn't
                 exist.
@@ -58,11 +65,7 @@ class SourceService:
         """
         if Path(uri).is_dir():
             return await self._create_folder_source(uri)
-        msg = (
-            f"Unsupported source type: {uri}. "
-            "Please pass a git-like URI or a local directory."
-        )
-        raise ValueError(msg)
+        return await self._create_git_source(uri)
 
     async def _create_git_source(self, uri: str) -> None:
         """Create a git source.
@@ -70,8 +73,8 @@ class SourceService:
         Args:
             uri: The git repository URI.
 
-        Returns:
-            A Source object representing the newly created git source.
+        Raises:
+            ValueError: If the git repository cannot be created.
 
         """
         await self.repository.create_git_source(uri)
@@ -81,9 +84,6 @@ class SourceService:
 
         Args:
             uri: The path to the local directory.
-
-        Returns:
-            A Source object representing the newly created folder source.
 
         Raises:
             ValueError: If the folder doesn't exist or is already added.
@@ -103,15 +103,15 @@ class SourceService:
         """List all available sources.
 
         Returns:
-            A list of Source objects containing information about each source.
+            A list of SourceView objects containing information about each source.
 
         """
         sources = await self.repository.list_sources()
         return [
             SourceView(
                 id=source.id,
-                uri=source.uri,
+                uri=git_source.uri if git_source else folder_source.path,
                 created_at=source.created_at,
             )
-            for source in sources
+            for (source, git_source, folder_source) in sources
         ]

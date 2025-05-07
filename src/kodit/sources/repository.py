@@ -43,7 +43,7 @@ class SourceRepository:
             for creating the linked GitSource record.
 
         """
-        source = Source(name=uri)
+        source = Source()
         self.session.add(source)
         await self.session.commit()  # Commit to get the source.id
         git_source = GitSource(source_id=source.id, uri=uri)

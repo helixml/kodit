@@ -16,6 +16,7 @@ from kodit.logging import LogFormat, configure_logging, disable_posthog, log_eve
 from kodit.retreival.repository import RetrievalRepository
 from kodit.retreival.service import RetrievalRequest, RetrievalService
 from kodit.sources.repository import SourceRepository
+from kodit.sources.service import SourceService
 
 env_vars = dict(dotenv_values())
 os.environ.update(env_vars)
@@ -47,7 +48,8 @@ def sources() -> None:
 async def list_sources(session: AsyncSession) -> None:
     """List all code sources."""
     repository = SourceRepository(session)
-    sources = await repository.list_sources()
+    service = SourceService(repository)
+    sources = await service.list_sources()
 
     # Define headers and data
     headers = ["ID", "Created At", "URI"]
