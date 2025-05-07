@@ -93,6 +93,15 @@ def configure_logging(log_level: str, log_format: LogFormat) -> None:
         logging.getLogger(_log).handlers.clear()
         logging.getLogger(_log).propagate = True
 
+    # Configure SQLAlchemy loggers to use our structlog setup
+    for _log in ["sqlalchemy.engine", "alembic"]:
+        engine_logger = logging.getLogger(_log)
+        engine_logger.setLevel(logging.WARNING)  # Hide INFO logs by default
+        if log_level.upper() == "DEBUG":
+            engine_logger.setLevel(
+                logging.DEBUG
+            )  # Only show all logs when in DEBUG mode
+
     def handle_exception(
         exc_type: type[BaseException],
         exc_value: BaseException,

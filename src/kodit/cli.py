@@ -6,8 +6,12 @@ import click
 import structlog
 import uvicorn
 from dotenv import dotenv_values
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from kodit.database import configure_database, with_session
 from kodit.logging import LogFormat, configure_logging, disable_posthog, log_event
+from kodit.models import Source
 
 env_vars = dict(dotenv_values())
 os.environ.update(env_vars)
@@ -26,6 +30,59 @@ def cli(
     configure_logging(log_level, log_format)
     if disable_telemetry:
         disable_posthog()
+    # Initialize database
+    configure_database()
+
+
+@cli.group()
+def sources() -> None:
+    """Manage code sources."""
+
+
+@sources.command(name="list")
+@with_session
+async def list_sources(session: AsyncSession) -> None:
+    """List all code sources."""
+    log = structlog.get_logger(__name__)
+    result = await session.execute(select(Source))
+    sources = result.scalars().all()
+
+    if not sources:
+        log.info("No sources found")
+        return
+
+    for source in sources:
+        log.info(
+            "Source found",
+            id=source.id,
+            name=source.name,
+            path=source.path,
+            created_at=source.created_at,
+            updated_at=source.updated_at,
+        )
+
+
+@sources.command()
+@click.argument("name")
+@click.argument("path")
+@with_session
+async def add(session: AsyncSession, name: str, path: str) -> None:
+    """Add a new code source.
+
+    NAME: The name of the source
+    PATH: The path to the source directory
+    """
+    log = structlog.get_logger(__name__)
+    source = Source(name=name, path=path)
+    session.add(source)
+    await session.commit()
+    log.info(
+        "Source added",
+        id=source.id,
+        name=source.name,
+        path=source.path,
+        created_at=source.created_at,
+    )
 
 
 @cli.command()

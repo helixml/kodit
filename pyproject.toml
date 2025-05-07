@@ -32,6 +32,9 @@ dependencies = [
     "mcp>=1.6.0",
     "structlog>=25.3.0",
     "posthog>=4.0.1",
+    "sqlalchemy[asyncio]>=2.0.40",
+    "alembic>=1.15.2",
+    "aiosqlite>=0.20.0",
 ]
 
 [dependency-groups]
