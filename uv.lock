@@ -645,6 +645,7 @@ dependencies = [
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "structlog" },
     { name = "tdqm" },
+    { name = "uritools" },
 ]
 
 [package.dev-dependencies]
@@ -676,6 +677,7 @@ requires-dist = [
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.40" },
     { name = "structlog", specifier = ">=25.3.0" },
     { name = "tdqm", specifier = ">=0.0.1" },
+    { name = "uritools", specifier = ">=5.0.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -1448,6 +1450,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/82/5c/e6082df02e215b846b4b8c0b887a64d7d08ffaba30605502639d44c06b82/typing_inspection-0.4.0.tar.gz", hash = "sha256:9765c87de36671694a67904bf2c96e395be9c6439bb6c87b5142569dcdd65122", size = 76222, upload-time = "2025-02-25T17:27:59.638Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/31/08/aa4fdfb71f7de5176385bd9e90852eaf6b5d622735020ad600f2bab54385/typing_inspection-0.4.0-py3-none-any.whl", hash = "sha256:50e72559fcd2a6367a19f7a7e610e6afcb9fac940c650290eed893d61386832f", size = 14125, upload-time = "2025-02-25T17:27:57.754Z" },
+]
+
+[[package]]
+name = "uritools"
+version = "5.0.0"
+source = { registry = "https://pypi.org/simple/" }
+sdist = { url = "https://files.pythonhosted.org/packages/36/b1/e482d43db3209663b82a59e37cf31f641254180190667c6b0bf18a297de8/uritools-5.0.0.tar.gz", hash = "sha256:68180cad154062bd5b5d9ffcdd464f8de6934414b25462ae807b00b8df9345de", size = 22730, upload-time = "2025-05-02T13:38:20.67Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8c/74/0987d204b5fbf83861affa6b36a20da22cb3fe708583b955c99ab834bd5a/uritools-5.0.0-py3-none-any.whl", hash = "sha256:cead3a49ba8fbca3f91857343849d506d8639718f4a2e51b62e87393b493bd6f", size = 10432, upload-time = "2025-05-02T13:38:18.703Z" },
 ]
 
 [[package]]

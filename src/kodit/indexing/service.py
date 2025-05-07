@@ -79,12 +79,6 @@ class IndexService:
             ValueError: If the source doesn't exist or already has an index.
 
         """
-        # Validate source existence
-        source_details = await self.repository.get_source_details(source_id)
-        if not source_details:
-            msg = f"Source not found, please create it first: {source_id}"
-            raise ValueError(msg)
-
         # Check for existing index
         existing_index = await self.repository.get_by_id(source_id)
         if existing_index:
@@ -210,7 +204,7 @@ class IndexService:
                 )
                 await self.repository.add_snippet(snippet)
 
-    async def run(self, index_id: int) -> None:
+    async def run(self, index_id: int, path: str) -> None:
         """Run the indexing process for a specific index.
 
         This method performs the actual indexing process, which includes:
@@ -234,43 +228,22 @@ class IndexService:
             msg = f"Index not found: {index_id}"
             raise ValueError(msg)
 
-        # Get and validate source details
-        source_details = await self.repository.get_source_details(index.source_id)
-        if not source_details:
-            msg = f"Source not found: {index.source_id}"
-            raise ValueError(msg)
-
-        source, git_source, folder_source = source_details
-
         # Get existing files to avoid duplicates
         existing_files_set = await self.repository.get_existing_files(index.source_id)
 
-        if git_source:
-            msg = "Git source indexing is not implemented yet"
-            raise NotImplementedError(msg)
-        if folder_source:
-            # Count total files for progress bar
-            file_count = sum(
-                1 for _ in Path(folder_source.path).rglob("*") if _.is_file()
-            )
+        # Count total files for progress bar
+        file_count = sum(1 for _ in Path(path).rglob("*") if _.is_file())
 
-            # Process each file in the source directory
-            for file_path in tqdm(
-                Path(folder_source.path).rglob("*"), total=file_count
-            ):
-                await self._process_file(file_path, index, existing_files_set)
+        # Process each file in the source directory
+        for file_path in tqdm(Path(path).rglob("*"), total=file_count):
+            await self._process_file(file_path, index, existing_files_set)
 
-            # Get all files for snippet creation
-            files = await self.repository.get_files_by_source(index.source_id)
-            existing_snippets_set = await self.repository.get_existing_snippets(
-                index.id
-            )
+        # Get all files for snippet creation
+        files = await self.repository.get_files_by_source(index.source_id)
+        existing_snippets_set = await self.repository.get_existing_snippets(index.id)
 
-            # Create snippets for supported file types
-            await self._create_snippets(index, files, existing_snippets_set)
+        # Create snippets for supported file types
+        await self._create_snippets(index, files, existing_snippets_set)
 
-            # Update index timestamp
-            await self.repository.update_index_timestamp(index)
-        else:
-            msg = f"Unsupported source type: {type(source)}"
-            raise TypeError(msg)
+        # Update index timestamp
+        await self.repository.update_index_timestamp(index)

@@ -9,7 +9,7 @@ from kodit.indexing.models import File, Snippet
 from kodit.indexing.models import Index as IndexModel
 from kodit.retreival.repository import RetrievalRepository
 from kodit.retreival.service import RetrievalRequest, RetrievalService
-from kodit.sources.models import FolderSource, Source
+from kodit.sources.models import Source
 
 
 @pytest.fixture
@@ -34,7 +34,7 @@ async def test_retrieve_snippets(
     session.add(source)
     await session.commit()
 
-    folder_source = FolderSource(source_id=source.id, path="test_folder")
+    folder_source = Source(source_id=source.id, path="test_folder")
     session.add(folder_source)
     await session.commit()
 

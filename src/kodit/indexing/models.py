@@ -34,9 +34,9 @@ class File(Base, CommonMixin):
 
     __tablename__ = "files"
 
-    index_id: Mapped[int] = mapped_column(ForeignKey("indexes.id"))
     source_id: Mapped[int] = mapped_column(ForeignKey("sources.id"))
     mime_type: Mapped[str] = mapped_column(String(255), default="")
-    path: Mapped[str] = mapped_column(String(1024), default="")
+    uri: Mapped[str] = mapped_column(String(1024), default="")
+    cloned_path: Mapped[str] = mapped_column(String(1024))
     sha256: Mapped[str] = mapped_column(String(64), default="", index=True)
     size_bytes: Mapped[int] = mapped_column(Integer, default=0)

@@ -5,10 +5,13 @@ related to code sources. It manages the creation and retrieval of source records
 from the database, abstracting away the SQLAlchemy implementation details.
 """
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from pathlib import Path
 
-from kodit.sources.models import FolderSource, GitSource, Source
+from sqlalchemy import Sequence, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from uritools import isuri
+
+from kodit.sources.models import Source
 
 
 class SourceRepository:
@@ -26,32 +29,7 @@ class SourceRepository:
         """Initialize the source repository."""
         self.session = session
 
-    async def create_git_source(self, uri: str) -> Source:
-        """Create a new git source record in the database.
-
-        This method creates both a Source record and a linked GitSource record
-        in a single transaction.
-
-        Args:
-            uri: The URI of the git repository to create a source for.
-
-        Returns:
-            The created Source model instance.
-
-        Note:
-            This method commits the transaction to ensure the source.id is available
-            for creating the linked GitSource record.
-
-        """
-        source = Source()
-        self.session.add(source)
-        await self.session.commit()  # Commit to get the source.id
-        git_source = GitSource(source_id=source.id, uri=uri)
-        self.session.add(git_source)
-        await self.session.commit()
-        return source
-
-    async def create_folder_source(self, path: str) -> Source:
+    async def create_source(self, uri: str, cloned_path: Path) -> Source:
         """Create a new folder source record in the database.
 
         This method creates both a Source record and a linked FolderSource record
@@ -68,31 +46,61 @@ class SourceRepository:
             for creating the linked FolderSource record.
 
         """
-        source = Source()
+        # Validate that uri really is a valid uri
+        if not isuri(uri):
+            msg = f"Invalid URI: {uri}"
+            raise ValueError(msg)
+
+        # Validate that cloned_path really is a valid path
+        if not Path(cloned_path).exists():
+            msg = f"Invalid path: {cloned_path}"
+            raise ValueError(msg)
+
+        source = Source(uri=uri, cloned_path=str(cloned_path))
         self.session.add(source)
-        await self.session.commit()  # Commit to get the source.id
-        folder_source = FolderSource(source_id=source.id, path=path)
-        self.session.add(folder_source)
         await self.session.commit()
         return source
 
-    async def list_sources(
-        self,
-    ) -> list[tuple[Source, GitSource | None, FolderSource | None]]:
-        """Retrieve all sources from the database with their associated details.
-
-        This method performs a left outer join to get all sources and their
-        associated git or folder source details, if any exist.
+    async def list_sources(self) -> Sequence[Source]:
+        """Retrieve all sources from the database.
 
         Returns:
-            A list of tuples containing (Source, GitSource, FolderSource) where
-            GitSource and FolderSource may be None if the source is not of that type.
+            A list of Source instances.
 
         """
-        query = (
-            select(Source, GitSource, FolderSource)
-            .outerjoin(GitSource, Source.id == GitSource.source_id)
-            .outerjoin(FolderSource, Source.id == FolderSource.source_id)
-        )
+        query = select(Source)
         result = await self.session.execute(query)
-        return result.all()
+        return result.scalars().all()
+
+    async def get_source_by_id(self, source_id: int) -> Source | None:
+        """Get a source by its ID.
+
+        Args:
+            source_id: The ID of the source to get.
+
+        Returns:
+            The source with the given ID, or None if it does not exist.
+
+        """
+        query = select(Source).where(Source.id == source_id)
+        result = await self.session.execute(query)
+        return result.scalar_one_or_none()
+
+    async def get_source_by_uri(self, uri: str) -> Source | None:
+        """Get a source by its URI.
+
+        Args:
+            uri: The URI of the source to get.
+
+        Returns:
+            The source with the given URI, or None if it does not exist.
+
+        """
+        # Validate that uri really is a valid uri
+        if not isuri(uri):
+            msg = f"Invalid URI: {uri}"
+            raise ValueError(msg)
+
+        query = select(Source).where(Source.uri == uri)
+        result = await self.session.execute(query)
+        return result.scalar_one_or_none()

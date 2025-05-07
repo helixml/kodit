@@ -6,13 +6,17 @@ system, database operations (via SourceRepository), and provides a clean API for
 source management.
 """
 
+import shutil
 from datetime import datetime
 from pathlib import Path
 
 import pydantic
 import structlog
+from uritools import isuri, urisplit
 
 from kodit.sources.repository import SourceRepository
+
+CLONE_DIR = Path("./kodit/clones")
 
 
 class SourceView(pydantic.BaseModel):
@@ -30,6 +34,7 @@ class SourceView(pydantic.BaseModel):
 
     id: int
     uri: str
+    cloned_path: Path
     created_at: datetime
 
 
@@ -51,7 +56,7 @@ class SourceService:
         self.repository = repository
         self.log = structlog.get_logger(__name__)
 
-    async def create(self, uri: str) -> None:
+    async def create(self, uri_or_path_like: str) -> None:
         """Create a new source from a URI.
 
         Args:
@@ -63,41 +68,52 @@ class SourceService:
                 exist.
 
         """
-        if Path(uri).is_dir():
-            return await self._create_folder_source(uri)
-        return await self._create_git_source(uri)
+        if Path(uri_or_path_like).is_dir():
+            return await self._create_folder_source(Path(uri_or_path_like))
+        if isuri(uri_or_path_like):
+            parsed = urisplit(uri_or_path_like)
+            if parsed.scheme == "file":
+                return await self._create_folder_source(Path(parsed.path))
 
-    async def _create_git_source(self, uri: str) -> None:
-        """Create a git source.
+        msg = f"Unsupported source type: {uri_or_path_like}"
+        raise ValueError(msg)
 
-        Args:
-            uri: The git repository URI.
-
-        Raises:
-            ValueError: If the git repository cannot be created.
-
-        """
-        await self.repository.create_git_source(uri)
-
-    async def _create_folder_source(self, uri: str) -> None:
+    async def _create_folder_source(self, directory: Path) -> None:
         """Create a folder source.
 
         Args:
-            uri: The path to the local directory.
+            directory: The path to the local directory.
 
         Raises:
             ValueError: If the folder doesn't exist or is already added.
 
         """
-        # Expand uri into a full path
-        uri = Path(uri).expanduser().resolve()
-
         # Check if the folder exists
-        if not uri.exists():
-            msg = f"Folder does not exist: {uri}"
+        if not directory.exists():
+            msg = f"Folder does not exist: {directory}"
             raise ValueError(msg)
 
-        await self.repository.create_folder_source(str(uri))
+        # Check if the folder is already added
+        if await self.repository.get_source_by_uri(directory.as_uri()):
+            msg = f"Directory already added: {directory}"
+            raise ValueError(msg)
+
+        # Clone into a local directory
+        clone_path = CLONE_DIR / directory.as_posix().replace("/", "_")
+        clone_path.mkdir(parents=True, exist_ok=True)
+
+        # Copy all files recursively, preserving directory structure, ignoring hidden files
+        shutil.copytree(
+            directory,
+            clone_path,
+            ignore=shutil.ignore_patterns(".*"),
+            dirs_exist_ok=True,
+        )
+
+        await self.repository.create_source(
+            uri=directory.as_uri(),
+            cloned_path=clone_path,
+        )
 
     async def list_sources(self) -> list[SourceView]:
         """List all available sources.
@@ -110,8 +126,9 @@ class SourceService:
         return [
             SourceView(
                 id=source.id,
-                uri=git_source.uri if git_source else folder_source.path,
+                uri=source.uri,
+                cloned_path=source.cloned_path,
                 created_at=source.created_at,
             )
-            for (source, git_source, folder_source) in sources
+            for source in sources
         ]

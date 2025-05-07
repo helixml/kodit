@@ -38,6 +38,7 @@ dependencies = [
     "pytable-formatter>=0.1.1",
     "aiofiles>=24.1.0",
     "tdqm>=0.0.1",
+    "uritools>=5.0.0",
 ]
 
 [dependency-groups]

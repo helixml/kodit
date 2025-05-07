@@ -79,9 +79,13 @@ def indexes() -> None:
 @with_session
 async def create_index(session: AsyncSession, source_id: int) -> None:
     """Create an index for a source."""
+    # First check if that source exists
+    repository = SourceRepository(session)
+    service = SourceService(repository)
+    source = await service.get_source_by_id(source_id)
     repository = IndexRepository(session)
     service = IndexService(repository)
-    await service.create(source_id)
+    await service.create(source.id)
 
 
 @indexes.command(name="list")
@@ -123,9 +127,15 @@ async def list_indexes(session: AsyncSession) -> None:
 @with_session
 async def run_index(session: AsyncSession, index_id: int) -> None:
     """Run an index."""
+    source_repository = SourceRepository(session)
+    service = SourceService(source_repository)
+    source = await service.get_source_by_id(index_id)
+    if source is None:
+        msg = f"Source not found: {index_id}"
+        raise ValueError(msg)
     repository = IndexRepository(session)
     service = IndexService(repository)
-    await service.run(index_id)
+    await service.run(index_id, source.uri)
 
 
 @cli.command()

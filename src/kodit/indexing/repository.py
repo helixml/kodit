@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import Select
 
 from kodit.indexing.models import File, Index, Snippet
-from kodit.sources.models import FolderSource, GitSource, Source
+from kodit.sources.models import Source
 
 T = TypeVar("T")
 
@@ -79,29 +79,6 @@ class IndexRepository:
         query = select(Index).where(Index.id == index_id)
         return await self._execute_query(query, return_single=True)
 
-    async def get_source_details(
-        self, source_id: int
-    ) -> tuple[Source, GitSource | None, FolderSource | None] | None:
-        """Get detailed information about a source including its type-specific data.
-
-        Args:
-            source_id: The ID of the source to get details for.
-
-        Returns:
-            A tuple containing the source and its type-specific data (git or folder),
-            or None if the source is not found.
-
-        """
-        query = (
-            select(Source, GitSource, FolderSource)
-            .where(Source.id == source_id)
-            .outerjoin(GitSource, Source.id == GitSource.source_id)
-            .outerjoin(FolderSource, Source.id == FolderSource.source_id)
-        )
-        result = await self.session.execute(query)
-        row = result.first()
-        return row if row else None
-
     async def list_with_details(self) -> list[tuple]:
         """List all indexes with their associated metadata and statistics.
 
@@ -114,17 +91,13 @@ class IndexRepository:
             select(
                 Index,
                 Source,
-                GitSource,
-                FolderSource,
                 func.count(File.id).label("file_count"),
                 func.count(Snippet.id).label("snippet_count"),
             )
             .join(Source, Index.source_id == Source.id)
-            .outerjoin(GitSource, Source.id == GitSource.source_id)
-            .outerjoin(FolderSource, Source.id == FolderSource.source_id)
             .outerjoin(File, Source.id == File.source_id)
             .outerjoin(Snippet, File.id == Snippet.file_id)
-            .group_by(Index.id, Source.id, GitSource.id, FolderSource.id)
+            .group_by(Index.id, Source.id)
         )
         return await self._execute_query(query)
 
