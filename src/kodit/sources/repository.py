@@ -1,9 +1,10 @@
-"""Source repository."""
+"""Source repository for database operations.
 
-from datetime import datetime
-from pathlib import Path
+This module provides the SourceRepository class which handles all database operations
+related to code sources. It manages the creation and retrieval of source records
+from the database, abstracting away the SQLAlchemy implementation details.
+"""
 
-import pydantic
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,86 +12,88 @@ from kodit.sources.models import FolderSource, GitSource
 from kodit.sources.models import Source as SourceModel
 
 
-class Source(pydantic.BaseModel):
-    """Source model."""
-
-    id: int
-    uri: str
-    created_at: datetime
-
-
 class SourceRepository:
-    """Source repository."""
+    """Repository for managing source database operations.
+
+    This class provides methods for creating and retrieving source records from the
+    database. It handles the low-level database operations and transaction management.
+
+    Args:
+        session: The SQLAlchemy async session to use for database operations.
+
+    """
 
     def __init__(self, session: AsyncSession) -> None:
         """Initialize the source repository."""
         self.session = session
 
-    async def create(self, uri: str) -> Source:
-        """Create a source.
+    async def create_git_source(self, uri: str) -> SourceModel:
+        """Create a new git source record in the database.
 
-        This will try it's best to infer the type of source from the URI.
+        This method creates both a Source record and a linked GitSource record
+        in a single transaction.
+
+        Args:
+            uri: The URI of the git repository to create a source for.
+
+        Returns:
+            The created Source model instance.
+
+        Note:
+            This method commits the transaction to ensure the source.id is available
+            for creating the linked GitSource record.
+
         """
-        if uri.startswith("https://"):
-            return await self._create_git_source(uri)
-        if Path(uri).is_dir():
-            return await self._create_folder_source(uri)
-        msg = f"Unsupported source type: {uri}. Please pass a git-like URI or a local directory."
-        raise ValueError(msg)
-
-    async def _create_git_source(self, uri: str) -> None:
-        """Create a git source."""
         source = SourceModel(name=uri)
         self.session.add(source)
         await self.session.commit()  # Commit to get the source.id
         git_source = GitSource(source_id=source.id, uri=uri)
         self.session.add(git_source)
         await self.session.commit()
+        return source
 
-    async def _create_folder_source(self, uri: str) -> None:
-        """Create a folder source."""
-        # Expand uri into a full path
-        uri = Path(uri).expanduser().resolve()
+    async def create_folder_source(self, path: str) -> SourceModel:
+        """Create a new folder source record in the database.
 
-        # Check if the folder exists
-        if not uri.exists():
-            msg = f"Folder does not exist: {uri}"
-            raise ValueError(msg)
+        This method creates both a Source record and a linked FolderSource record
+        in a single transaction.
 
-        # Check if that folder is already added
-        query = select(FolderSource).where(FolderSource.path == str(uri))
-        result = await self.session.execute(query)
-        if result.scalar_one_or_none() is not None:
-            msg = f"Folder already added: {uri}"
-            raise ValueError(msg)
+        Args:
+            path: The absolute path of the folder to create a source for.
 
+        Returns:
+            The created Source model instance.
+
+        Note:
+            This method commits the transaction to ensure the source.id is available
+            for creating the linked FolderSource record.
+
+        """
         source = SourceModel()
         self.session.add(source)
         await self.session.commit()  # Commit to get the source.id
-        folder_source = FolderSource(source_id=source.id, path=str(uri))
+        folder_source = FolderSource(source_id=source.id, path=path)
         self.session.add(folder_source)
         await self.session.commit()
+        return source
 
-    async def list(self) -> list[Source]:
-        """List sources."""
+    async def list(
+        self,
+    ) -> list[tuple[SourceModel, GitSource | None, FolderSource | None]]:
+        """Retrieve all sources from the database with their associated details.
+
+        This method performs a left outer join to get all sources and their
+        associated git or folder source details, if any exist.
+
+        Returns:
+            A list of tuples containing (Source, GitSource, FolderSource) where
+            GitSource and FolderSource may be None if the source is not of that type.
+
+        """
         query = (
             select(SourceModel, GitSource, FolderSource)
             .outerjoin(GitSource, SourceModel.id == GitSource.source_id)
             .outerjoin(FolderSource, SourceModel.id == FolderSource.source_id)
         )
         result = await self.session.execute(query)
-        rows = result.all()
-
-        # Map to Pydantic model
-        return [
-            Source(
-                id=source.id,
-                uri=git_source.uri
-                if git_source
-                else folder_source.path
-                if folder_source
-                else None,
-                created_at=source.created_at,
-            )
-            for source, git_source, folder_source in rows
-        ]
+        return result.all()

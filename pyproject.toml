@@ -98,6 +98,7 @@ ignore = [
   "PLR2004", # Just annoying, not really useful
   "TRY003", # Long exception messages in custom exception classes
   "S101", # Allow assert statements in test files
+  "PGH004", # If I've disabled all, I mean disable all
 ]
 select = ["ALL"]
 exclude = []

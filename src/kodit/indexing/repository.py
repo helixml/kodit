@@ -12,8 +12,8 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import Select
 
-from kodit.indexes.models import File, Snippet
-from kodit.indexes.models import Index as IndexModel
+from kodit.indexing.models import File, Snippet
+from kodit.indexing.models import Index as IndexModel
 from kodit.sources.models import FolderSource, GitSource, Source
 
 T = TypeVar("T")
@@ -36,19 +36,21 @@ class IndexRepository:
         """
         self.session = session
 
-    async def _execute_query(self, query: Select[Any], single: bool = False) -> Any:
+    async def _execute_query(
+        self, query: Select[Any], *, return_single: bool = False
+    ) -> Any:
         """Execute a SQLAlchemy query and return the results.
 
         Args:
             query: The SQLAlchemy select query to execute.
-            single: Whether to return a single result or a list of results.
+            return_single: Whether to return a single result or a list of results.
 
         Returns:
             The query results, either as a single item or a list.
 
         """
         result = await self.session.execute(query)
-        return result.scalar_one_or_none() if single else result.all()
+        return result.scalar_one_or_none() if return_single else result.all()
 
     async def create(self, source_id: int) -> IndexModel:
         """Create a new index for a source.
@@ -76,7 +78,7 @@ class IndexRepository:
 
         """
         query = select(IndexModel).where(IndexModel.id == index_id)
-        return await self._execute_query(query, single=True)
+        return await self._execute_query(query, return_single=True)
 
     async def get_source_details(
         self, source_id: int
@@ -97,7 +99,9 @@ class IndexRepository:
             .outerjoin(GitSource, Source.id == GitSource.source_id)
             .outerjoin(FolderSource, Source.id == FolderSource.source_id)
         )
-        return await self._execute_query(query, single=True)
+        result = await self.session.execute(query)
+        row = result.first()
+        return row if row else None
 
     async def list_with_details(self) -> list[tuple]:
         """List all indexes with their associated metadata and statistics.
@@ -174,7 +178,8 @@ class IndexRepository:
 
         """
         query = select(File).where(File.source_id == source_id)
-        return await self._execute_query(query)
+        result = await self.session.execute(query)
+        return [row[0] for row in result.all()]
 
     async def add_file(self, file: File) -> None:
         """Add a new file to the database.

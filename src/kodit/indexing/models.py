@@ -1,3 +1,10 @@
+"""Index models for managing code indexes.
+
+This module defines the SQLAlchemy models used for storing and managing code indexes,
+including files and snippets. It provides the data structures for tracking indexed
+files and their content.
+"""
+
 from sqlalchemy import ForeignKey, Integer, String, UnicodeText
 from sqlalchemy.orm import Mapped, mapped_column
 

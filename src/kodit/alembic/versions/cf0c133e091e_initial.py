@@ -1,9 +1,9 @@
-# ruff: noqa: D400,D415
+# ruff: noqa
 """initial
 
-Revision ID: 80f9aa1650cd
+Revision ID: cf0c133e091e
 Revises: 
-Create Date: 2025-05-07 16:02:21.194807
+Create Date: 2025-05-07 16:47:22.886383
 
 """
 
@@ -14,7 +14,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '80f9aa1650cd'
+revision: str = 'cf0c133e091e'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

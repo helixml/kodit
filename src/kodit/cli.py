@@ -10,8 +10,8 @@ from pytable_formatter import Table
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.database import configure_database, with_session
-from kodit.indexes.repository import IndexRepository
-from kodit.indexes.service import IndexService
+from kodit.indexing.repository import IndexRepository
+from kodit.indexing.service import IndexService
 from kodit.logging import LogFormat, configure_logging, disable_posthog, log_event
 from kodit.retreival.repository import RetrievalRepository
 from kodit.retreival.service import RetrievalRequest, RetrievalService
@@ -64,7 +64,7 @@ async def list_sources(session: AsyncSession) -> None:
 async def create_source(session: AsyncSession, uri: str) -> None:
     """Add a new code source."""
     repository = SourceRepository(session)
-    await repository.create(uri)
+    await repository.create_folder_source(uri)
 
 
 @cli.group()
@@ -88,7 +88,7 @@ async def list_indexes(session: AsyncSession) -> None:
     """List all indexes."""
     repository = IndexRepository(session)
     service = IndexService(repository)
-    indexes = await service.list()
+    indexes = await service.list_indexes()
 
     # Define headers and data
     headers = [

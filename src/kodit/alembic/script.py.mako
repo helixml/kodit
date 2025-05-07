@@ -1,4 +1,4 @@
-# ruff: noqa: D400,D415
+# ruff: noqa
 """${message}
 
 Revision ID: ${up_revision}

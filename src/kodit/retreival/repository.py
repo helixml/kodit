@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import Select
 
-from kodit.indexes.models import File, Snippet
+from kodit.indexing.models import File, Snippet
 
 T = TypeVar("T")
 
@@ -44,19 +44,21 @@ class RetrievalRepository:
         """
         self.session = session
 
-    async def _execute_query(self, query: Select[Any], single: bool = False) -> Any:
+    async def _execute_query(
+        self, query: Select[Any], *, return_single: bool = False
+    ) -> Any:
         """Execute a SQLAlchemy query and return the results.
 
         Args:
             query: The SQLAlchemy select query to execute.
-            single: Whether to return a single result or a list of results.
+            return_single: Whether to return a single result or a list of results.
 
         Returns:
             The query results, either as a single item or a list.
 
         """
         result = await self.session.execute(query)
-        return result.scalar_one_or_none() if single else result.all()
+        return result.scalar_one_or_none() if return_single else result.all()
 
     async def string_search(self, query: str) -> list[RetrievalResult]:
         """Search for snippets containing the given query string.
