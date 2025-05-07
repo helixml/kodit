@@ -35,6 +35,7 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.0.40",
     "alembic>=1.15.2",
     "aiosqlite>=0.20.0",
+    "pytable-formatter>=0.1.1",
 ]
 
 [dependency-groups]

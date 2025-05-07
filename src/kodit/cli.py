@@ -6,12 +6,13 @@ import click
 import structlog
 import uvicorn
 from dotenv import dotenv_values
-from sqlalchemy import select
+from pytable_formatter import Table
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.database import configure_database, with_session
+from kodit.indexes.repository import IndexRepository
 from kodit.logging import LogFormat, configure_logging, disable_posthog, log_event
-from kodit.models import Source
+from kodit.sources.repository import SourceRepository
 
 env_vars = dict(dotenv_values())
 os.environ.update(env_vars)
@@ -30,7 +31,6 @@ def cli(
     configure_logging(log_level, log_format)
     if disable_telemetry:
         disable_posthog()
-    # Initialize database
     configure_database()
 
 
@@ -43,46 +43,58 @@ def sources() -> None:
 @with_session
 async def list_sources(session: AsyncSession) -> None:
     """List all code sources."""
-    log = structlog.get_logger(__name__)
-    result = await session.execute(select(Source))
-    sources = result.scalars().all()
+    repository = SourceRepository(session)
+    sources = await repository.list()
 
-    if not sources:
-        log.info("No sources found")
-        return
+    # Define headers and data
+    headers = ["ID", "Created At", "URI"]
+    data = [[source.id, source.created_at, source.uri] for source in sources]
 
-    for source in sources:
-        log.info(
-            "Source found",
-            id=source.id,
-            name=source.name,
-            path=source.path,
-            created_at=source.created_at,
-            updated_at=source.updated_at,
-        )
+    # Create and display the table
+    table = Table(headers=headers, data=data)
+    click.echo(table)
 
 
-@sources.command()
-@click.argument("name")
-@click.argument("path")
+@sources.command(name="create")
+@click.argument("uri")
 @with_session
-async def add(session: AsyncSession, name: str, path: str) -> None:
-    """Add a new code source.
+async def create_source(session: AsyncSession, uri: str) -> None:
+    """Add a new code source."""
+    repository = SourceRepository(session)
+    await repository.create(uri)
 
-    NAME: The name of the source
-    PATH: The path to the source directory
-    """
-    log = structlog.get_logger(__name__)
-    source = Source(name=name, path=path)
-    session.add(source)
-    await session.commit()
-    log.info(
-        "Source added",
-        id=source.id,
-        name=source.name,
-        path=source.path,
-        created_at=source.created_at,
-    )
+
+@cli.group()
+def indexes() -> None:
+    """Manage indexes."""
+
+
+@indexes.command(name="create")
+@click.argument("source_id")
+@with_session
+async def create_index(session: AsyncSession, source_id: int) -> None:
+    """Create an index for a source."""
+    repository = IndexRepository(session)
+    await repository.create(source_id)
+
+
+@indexes.command(name="list")
+@with_session
+async def list_indexes(session: AsyncSession) -> None:
+    """List all indexes."""
+    repository = IndexRepository(session)
+    indexes = await repository.list()
+
+    # Define headers and data
+    headers = ["ID", "Created At", "Updated At", "Source URI"]
+    data = [
+        [index.id, index.created_at, index.updated_at, index.source_uri]
+        for index in indexes
+    ]
+
+    # Create and display the table
+    table = Table(headers=headers, data=data)
+    click.echo(table)
 
 
 @cli.command()

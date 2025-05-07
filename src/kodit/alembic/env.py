@@ -1,3 +1,4 @@
+# ruff: noqa: F401
 """Alembic environment file for kodit."""
 
 import asyncio
@@ -7,7 +8,8 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-import kodit.models  # noqa: F401
+import kodit.indexes.models
+import kodit.sources.models
 from kodit.database import Base
 
 # this is the Alembic Config object, which provides

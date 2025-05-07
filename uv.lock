@@ -631,6 +631,7 @@ dependencies = [
     { name = "httpx-retries" },
     { name = "mcp" },
     { name = "posthog" },
+    { name = "pytable-formatter" },
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "structlog" },
 ]
@@ -659,6 +660,7 @@ requires-dist = [
     { name = "httpx-retries", specifier = ">=0.3.2" },
     { name = "mcp", specifier = ">=1.6.0" },
     { name = "posthog", specifier = ">=4.0.1" },
+    { name = "pytable-formatter", specifier = ">=0.1.1" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.40" },
     { name = "structlog", specifier = ">=25.3.0" },
 ]
@@ -1014,6 +1016,15 @@ source = { registry = "https://pypi.org/simple/" }
 sdist = { url = "https://files.pythonhosted.org/packages/7c/2d/c3338d48ea6cc0feb8446d8e6937e1408088a72a39937982cc6111d17f84/pygments-2.19.1.tar.gz", hash = "sha256:61c16d2a8576dc0649d9f39e089b5f02bcd27fba10d8fb4dcc28173f7a45151f", size = 4968581, upload-time = "2025-01-06T17:26:30.443Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/8a/0b/9fcc47d19c48b59121088dd6da2488a49d5f72dacf8262e2790a1d2c7d15/pygments-2.19.1-py3-none-any.whl", hash = "sha256:9ea1544ad55cecf4b8242fab6dd35a93bbce657034b0611ee383099054ab6d8c", size = 1225293, upload-time = "2025-01-06T17:26:25.553Z" },
+]
+
+[[package]]
+name = "pytable-formatter"
+version = "0.1.1"
+source = { registry = "https://pypi.org/simple/" }
+sdist = { url = "https://files.pythonhosted.org/packages/d1/02/805bfcaa0220b8292424ce3c4ee793363d1adc577081e66edf7b6d00ee65/pytable_formatter-0.1.1.tar.gz", hash = "sha256:7908ed7206453be8c7ba01d9f681b9e7ce93d5cf1afbe227234231d6019d1c58", size = 16791, upload-time = "2025-03-12T15:10:36.645Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/68/f2/ecb5fa2aefe23ee877b244e21b641df5610e9fd36a67cfce58d9e25746ae/pytable_formatter-0.1.1-py3-none-any.whl", hash = "sha256:3453b4fcc8ba029fa7cc860ae254650a46bd686fe01660a4b26435f07ebe7c3b", size = 12048, upload-time = "2025-03-12T15:10:35.278Z" },
 ]
 
 [[package]]

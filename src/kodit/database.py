@@ -2,17 +2,19 @@
 
 import asyncio
 from collections.abc import AsyncGenerator, Callable
+from datetime import UTC, datetime
 from functools import wraps
 from pathlib import Path
 from typing import Any, TypeVar
 
 from alembic import command
 from alembic.config import Config
+from sqlalchemy import DateTime
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 # Constants
-DATA_DIR = Path.home() / ".kodit"
+DATA_DIR = Path.cwd() / ".kodit"
 DB_URL = f"sqlite+aiosqlite:///{DATA_DIR}/kodit.db"
 
 # Create data directory if it doesn't exist
@@ -31,6 +33,18 @@ async_session_factory = async_sessionmaker(
 
 class Base(DeclarativeBase):
     """Base class for all models."""
+
+
+class CommonMixin:
+    """Common mixin for all models."""
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(UTC)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
+    )
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
