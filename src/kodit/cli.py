@@ -47,7 +47,7 @@ def sources() -> None:
 async def list_sources(session: AsyncSession) -> None:
     """List all code sources."""
     repository = SourceRepository(session)
-    sources = await repository.list()
+    sources = await repository.list_sources()
 
     # Define headers and data
     headers = ["ID", "Created At", "URI"]

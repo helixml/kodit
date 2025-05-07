@@ -41,7 +41,7 @@ class SourceService:
         self.repository = repository
         self.log = structlog.get_logger(__name__)
 
-    async def create(self, uri: str) -> SourceView:
+    async def create(self, uri: str) -> None:
         """Create a new source from a URI.
 
         Args:
@@ -64,7 +64,7 @@ class SourceService:
         )
         raise ValueError(msg)
 
-    async def _create_git_source(self, uri: str) -> SourceView:
+    async def _create_git_source(self, uri: str) -> None:
         """Create a git source.
 
         Args:
@@ -74,14 +74,9 @@ class SourceService:
             A Source object representing the newly created git source.
 
         """
-        source = await self.repository.create_git_source(uri)
-        return SourceView(
-            id=source.id,
-            uri=uri,
-            created_at=source.created_at,
-        )
+        await self.repository.create_git_source(uri)
 
-    async def _create_folder_source(self, uri: str) -> SourceView:
+    async def _create_folder_source(self, uri: str) -> None:
         """Create a folder source.
 
         Args:
@@ -102,21 +97,16 @@ class SourceService:
             msg = f"Folder does not exist: {uri}"
             raise ValueError(msg)
 
-        source = await self.repository.create_folder_source(str(uri))
-        return SourceView(
-            id=source.id,
-            uri=str(uri),
-            created_at=source.created_at,
-        )
+        await self.repository.create_folder_source(str(uri))
 
-    async def list(self) -> list[SourceView]:
+    async def list_sources(self) -> list[SourceView]:
         """List all available sources.
 
         Returns:
             A list of Source objects containing information about each source.
 
         """
-        sources = await self.repository.list()
+        sources = await self.repository.list_sources()
         return [
             SourceView(
                 id=source.id,

@@ -8,8 +8,7 @@ from the database, abstracting away the SQLAlchemy implementation details.
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.sources.models import FolderSource, GitSource
-from kodit.sources.models import Source as SourceModel
+from kodit.sources.models import FolderSource, GitSource, Source
 
 
 class SourceRepository:
@@ -27,7 +26,7 @@ class SourceRepository:
         """Initialize the source repository."""
         self.session = session
 
-    async def create_git_source(self, uri: str) -> SourceModel:
+    async def create_git_source(self, uri: str) -> Source:
         """Create a new git source record in the database.
 
         This method creates both a Source record and a linked GitSource record
@@ -44,7 +43,7 @@ class SourceRepository:
             for creating the linked GitSource record.
 
         """
-        source = SourceModel(name=uri)
+        source = Source(name=uri)
         self.session.add(source)
         await self.session.commit()  # Commit to get the source.id
         git_source = GitSource(source_id=source.id, uri=uri)
@@ -52,7 +51,7 @@ class SourceRepository:
         await self.session.commit()
         return source
 
-    async def create_folder_source(self, path: str) -> SourceModel:
+    async def create_folder_source(self, path: str) -> Source:
         """Create a new folder source record in the database.
 
         This method creates both a Source record and a linked FolderSource record
@@ -69,7 +68,7 @@ class SourceRepository:
             for creating the linked FolderSource record.
 
         """
-        source = SourceModel()
+        source = Source()
         self.session.add(source)
         await self.session.commit()  # Commit to get the source.id
         folder_source = FolderSource(source_id=source.id, path=path)
@@ -77,9 +76,9 @@ class SourceRepository:
         await self.session.commit()
         return source
 
-    async def list(
+    async def list_sources(
         self,
-    ) -> list[tuple[SourceModel, GitSource | None, FolderSource | None]]:
+    ) -> list[tuple[Source, GitSource | None, FolderSource | None]]:
         """Retrieve all sources from the database with their associated details.
 
         This method performs a left outer join to get all sources and their
@@ -91,9 +90,9 @@ class SourceRepository:
 
         """
         query = (
-            select(SourceModel, GitSource, FolderSource)
-            .outerjoin(GitSource, SourceModel.id == GitSource.source_id)
-            .outerjoin(FolderSource, SourceModel.id == FolderSource.source_id)
+            select(Source, GitSource, FolderSource)
+            .outerjoin(GitSource, Source.id == GitSource.source_id)
+            .outerjoin(FolderSource, Source.id == FolderSource.source_id)
         )
         result = await self.session.execute(query)
         return result.all()
