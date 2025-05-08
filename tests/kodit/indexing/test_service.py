@@ -141,5 +141,5 @@ async def test_run_index(
 @pytest.mark.asyncio
 async def test_run_index_not_exists(service: IndexService) -> None:
     """Test running an index that doesn't exist."""
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Index not found: 999"):
         await service.run(999)

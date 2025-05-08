@@ -1,6 +1,6 @@
 """Tests for the source service module."""
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -96,7 +96,9 @@ async def test_create_source_list_source(
 
     assert len(sources) == 1
     assert sources[0].id == 1
-    assert sources[0].created_at - datetime.now() < timedelta(seconds=1)
+    assert sources[0].created_at.astimezone(UTC) - datetime.now(UTC) < timedelta(
+        seconds=1
+    )
     assert sources[0].uri.endswith("test_folder")
 
     # Check that the files are present in the cloned directory

@@ -52,7 +52,7 @@ class File(Base, CommonMixin):
     sha256: Mapped[str] = mapped_column(String(64), default="", index=True)
     size_bytes: Mapped[int] = mapped_column(Integer, default=0)
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         source_id: int,
         cloned_path: str,
