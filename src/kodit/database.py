@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 # Constants
-DATA_DIR = Path.cwd() / ".kodit"
+DATA_DIR = Path.home() / ".kodit"
 DB_URL = f"sqlite+aiosqlite:///{DATA_DIR}/kodit.db"
 
 # Create data directory if it doesn't exist
@@ -81,5 +81,7 @@ def with_session(func: Callable[..., T]) -> Callable[..., T]:
 def configure_database() -> None:
     """Configure the database by initializing it and running any pending migrations."""
     # Create Alembic configuration and run migrations
-    alembic_cfg = Config("alembic.ini")
+    alembic_cfg = Config()
+    alembic_cfg.set_main_option("script_location", "src/kodit/alembic")
+    alembic_cfg.set_main_option("sqlalchemy.url", DB_URL)
     command.upgrade(alembic_cfg, "head")

@@ -3,6 +3,7 @@
 
 import asyncio
 
+import structlog
 from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
@@ -65,6 +66,8 @@ async def run_async_migrations() -> None:
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
+    log = structlog.get_logger(__name__)
+    log.debug("Running migrations on %s", connectable.url)
 
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)
