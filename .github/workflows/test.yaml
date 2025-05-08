@@ -42,3 +42,11 @@ jobs:
               uses: MishaKav/pytest-coverage-comment@v1.1.54
               with:
                 pytest-xml-coverage-path: ./coverage.xml
+    build-test:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: astral-sh/setup- v@v6
+            - run: uv build --sdist --out-dir test-build
+            - run: uv tool run twine check test-build/*.tar.gz
+            - run: python -m venv .test-venv && source .test-venv/bin/activate && pip install test-build/*.tar.gz
