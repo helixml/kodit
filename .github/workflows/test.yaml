@@ -65,5 +65,7 @@ jobs:
         uses: threeal/pipx-install-action@v1.0.0
         with:
           packages: ${{ steps.sdist-path.outputs.path }}
-      - name: Run version command
+      - name: Run simple version command test
         run: kodit version
+      - name: Run smoke test
+        run: ./tests/smoke.sh
