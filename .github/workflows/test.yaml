@@ -58,9 +58,12 @@ jobs:
 
       - run: uv build --sdist --out-dir test-build
       - run: uv tool run twine check test-build/*.tar.gz
+      - name: Find the path of the sdist
+        id: sdist-path
+        run: echo "::set-output name=path::$(ls test-build/*.tar.gz)"
       - name: Install sdist
         uses: threeal/pipx-install-action@v1.0.0
         with:
-          packages: test-build/*.tar.gz
+          packages: ${{ steps.sdist-path.outputs.path }}
       - name: Run version command
         run: kodit version
