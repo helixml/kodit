@@ -9,6 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from kodit.indexing.repository import IndexRepository
 from kodit.indexing.service import IndexService
 from kodit.sources.models import File, Source
+from kodit.sources.repository import SourceRepository
+from kodit.sources.service import SourceService
 
 
 @pytest.fixture
@@ -18,9 +20,21 @@ def repository(session: AsyncSession) -> IndexRepository:
 
 
 @pytest.fixture
-def service(repository: IndexRepository) -> IndexService:
-    """Create a service instance with a real repository."""
-    return IndexService(repository)
+def source_repository(session: AsyncSession) -> SourceRepository:
+    """Create a real source repository instance with a database session."""
+    return SourceRepository(session)
+
+
+@pytest.fixture
+def source_service(source_repository: SourceRepository) -> SourceService:
+    """Create a real source service instance."""
+    return SourceService(source_repository)
+
+
+@pytest.fixture
+def service(repository: IndexRepository, source_service: SourceService) -> IndexService:
+    """Create a real service instance with a database session."""
+    return IndexService(repository, source_service)
 
 
 @pytest.mark.asyncio
@@ -52,7 +66,7 @@ async def test_create_index(
 @pytest.mark.asyncio
 async def test_create_index_source_not_found(service: IndexService) -> None:
     """Test creating an index for a non-existent source."""
-    with pytest.raises(IntegrityError):
+    with pytest.raises(ValueError, match="Source not found: 999"):
         await service.create(999)
 
 

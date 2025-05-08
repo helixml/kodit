@@ -62,6 +62,25 @@ class SourceService:
         self.repository = repository
         self.log = structlog.get_logger(__name__)
 
+    async def get(self, source_id: int) -> SourceView:
+        """Get a source by ID.
+
+        Args:
+            source_id: The ID of the source to get.
+
+        """
+        source = await self.repository.get_source_by_id(source_id)
+        if not source:
+            msg = f"Source not found: {source_id}"
+            raise ValueError(msg)
+        return SourceView(
+            id=source.id,
+            uri=source.uri,
+            cloned_path=Path(source.cloned_path),
+            created_at=source.created_at,
+            num_files=await self.repository.num_files_for_source(source.id),
+        )
+
     async def create(self, uri_or_path_like: str) -> SourceView:
         """Create a new source from a URI.
 
@@ -95,6 +114,9 @@ class SourceService:
             ValueError: If the folder doesn't exist or is already added.
 
         """
+        # Resolve the directory to an absolute path
+        directory = directory.expanduser().resolve()
+
         # Check if the folder exists
         if not directory.exists():
             msg = f"Folder does not exist: {directory}"

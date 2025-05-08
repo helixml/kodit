@@ -66,7 +66,9 @@ async def list_sources(session: AsyncSession) -> None:
 async def create_source(session: AsyncSession, uri: str) -> None:
     """Add a new code source."""
     repository = SourceRepository(session)
-    await repository.create_folder_source(uri)
+    service = SourceService(repository)
+    source = await service.create(uri)
+    click.echo(f"Source created: {source.id}")
 
 
 @cli.group()
@@ -79,21 +81,22 @@ def indexes() -> None:
 @with_session
 async def create_index(session: AsyncSession, source_id: int) -> None:
     """Create an index for a source."""
-    # First check if that source exists
-    repository = SourceRepository(session)
-    service = SourceService(repository)
-    source = await service.get_source_by_id(source_id)
+    source_repository = SourceRepository(session)
+    source_service = SourceService(source_repository)
     repository = IndexRepository(session)
-    service = IndexService(repository)
-    await service.create(source.id)
+    service = IndexService(repository, source_service)
+    index = await service.create(source_id)
+    click.echo(f"Index created: {index.id}")
 
 
 @indexes.command(name="list")
 @with_session
 async def list_indexes(session: AsyncSession) -> None:
     """List all indexes."""
+    source_repository = SourceRepository(session)
+    source_service = SourceService(source_repository)
     repository = IndexRepository(session)
-    service = IndexService(repository)
+    service = IndexService(repository, source_service)
     indexes = await service.list_indexes()
 
     # Define headers and data
@@ -102,7 +105,6 @@ async def list_indexes(session: AsyncSession) -> None:
         "Created At",
         "Updated At",
         "Source URI",
-        "Num Files",
         "Num Snippets",
     ]
     data = [
@@ -111,7 +113,6 @@ async def list_indexes(session: AsyncSession) -> None:
             index.created_at,
             index.updated_at,
             index.source_uri,
-            index.num_files,
             index.num_snippets,
         ]
         for index in indexes
@@ -128,14 +129,10 @@ async def list_indexes(session: AsyncSession) -> None:
 async def run_index(session: AsyncSession, index_id: int) -> None:
     """Run an index."""
     source_repository = SourceRepository(session)
-    service = SourceService(source_repository)
-    source = await service.get_source_by_id(index_id)
-    if source is None:
-        msg = f"Source not found: {index_id}"
-        raise ValueError(msg)
+    source_service = SourceService(source_repository)
     repository = IndexRepository(session)
-    service = IndexService(repository)
-    await service.run(index_id, source.uri)
+    service = IndexService(repository, source_service)
+    await service.run(index_id)
 
 
 @cli.command()
@@ -148,7 +145,7 @@ async def retrieve(session: AsyncSession, query: str) -> None:
     snippets = await service.retrieve(RetrievalRequest(query=query))
 
     for snippet in snippets:
-        click.echo(f"{snippet.file_path}")
+        click.echo(f"{snippet.uri}")
         click.echo(snippet.content)
         click.echo()
 

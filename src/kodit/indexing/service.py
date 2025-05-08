@@ -15,6 +15,7 @@ from tqdm.asyncio import tqdm
 
 from kodit.indexing.models import Snippet
 from kodit.indexing.repository import IndexRepository
+from kodit.sources.service import SourceService
 
 # List of MIME types that are supported for indexing and snippet creation
 MIME_WHITELIST = [
@@ -48,14 +49,18 @@ class IndexService:
     IndexRepository), and provides a clean API for index management.
     """
 
-    def __init__(self, repository: IndexRepository) -> None:
+    def __init__(
+        self, repository: IndexRepository, source_service: SourceService
+    ) -> None:
         """Initialize the index service.
 
         Args:
             repository: The repository instance to use for database operations.
+            source_service: The source service instance to use for source validation.
 
         """
         self.repository = repository
+        self.source_service = source_service
         self.log = structlog.get_logger(__name__)
 
     async def create(self, source_id: int) -> IndexView:
@@ -74,7 +79,10 @@ class IndexService:
             ValueError: If the source doesn't exist or already has an index.
 
         """
-        index = await self.repository.create(source_id)
+        # Check if the source exists
+        source = await self.source_service.get(source_id)
+
+        index = await self.repository.create(source.id)
         return IndexView(
             id=index.id,
             created_at=index.created_at,

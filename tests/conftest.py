@@ -4,14 +4,14 @@ from collections.abc import AsyncGenerator
 
 import pytest
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 from kodit.database import Base
 
 
 @pytest.fixture
-async def engine():
+async def engine() -> AsyncGenerator[AsyncEngine, None]:
     """Create a test database engine."""
     # Use SQLite in-memory database for testing
     engine = create_async_engine(
@@ -33,7 +33,7 @@ async def engine():
 
 
 @pytest.fixture
-async def session(engine) -> AsyncGenerator[AsyncSession, None]:
+async def session(engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
     """Create a test database session."""
     async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 

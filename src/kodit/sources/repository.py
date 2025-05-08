@@ -97,3 +97,14 @@ class SourceRepository:
         query = select(Source).where(Source.uri == uri)
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
+
+    async def get_source_by_id(self, source_id: int) -> Source | None:
+        """Get a source by its ID.
+
+        Args:
+            source_id: The ID of the source to get.
+
+        """
+        query = select(Source).where(Source.id == source_id)
+        result = await self.session.execute(query)
+        return result.scalar_one_or_none()
