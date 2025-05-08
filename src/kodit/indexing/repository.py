@@ -10,7 +10,6 @@ from typing import TypeVar
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from kodit.indexing.models import Index, Snippet
 from kodit.sources.models import File, Source
@@ -74,14 +73,14 @@ class IndexRepository:
             A list of File instances.
 
         """
-        index_query = (
-            select(Index)
+        query = (
+            select(File)
+            .join(Source, File.source_id == Source.id)
+            .join(Index, Index.source_id == Source.id)
             .where(Index.id == index_id)
-            .options(selectinload(Index.source).options(selectinload(Source.files)))
         )
-        index = await self.session.execute(index_query)
-        index = index.scalar_one()
-        return index.source.files
+        result = await self.session.execute(query)
+        return list(result.scalars())
 
     async def list_indexes(self) -> list[Index]:
         """List all indexes.

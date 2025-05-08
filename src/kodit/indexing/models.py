@@ -5,15 +5,10 @@ including files and snippets. It provides the data structures for tracking index
 files and their content.
 """
 
-from typing import TYPE_CHECKING
-
 from sqlalchemy import ForeignKey, UnicodeText
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from kodit.database import Base, CommonMixin
-
-if TYPE_CHECKING:
-    from kodit.sources.models import File, Source
 
 
 class Index(Base, CommonMixin):
@@ -24,8 +19,6 @@ class Index(Base, CommonMixin):
     source_id: Mapped[int] = mapped_column(
         ForeignKey("sources.id"), unique=True, index=True
     )
-    source: Mapped["Source"] = relationship()
-    snippets: Mapped[list["Snippet"]] = relationship(back_populates="index")
 
     def __init__(self, source_id: int) -> None:
         """Initialize the index."""
@@ -39,9 +32,7 @@ class Snippet(Base, CommonMixin):
     __tablename__ = "snippets"
 
     file_id: Mapped[int] = mapped_column(ForeignKey("files.id"))
-    file: Mapped["File"] = relationship(lazy="selectin")
     index_id: Mapped[int] = mapped_column(ForeignKey("indexes.id"))
-    index: Mapped["Index"] = relationship(back_populates="snippets")
     content: Mapped[str] = mapped_column(UnicodeText, default="")
 
     def __init__(self, file_id: int, index_id: int, content: str) -> None:

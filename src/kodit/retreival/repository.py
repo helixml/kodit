@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.indexing.models import Snippet
+from kodit.sources.models import File
 
 T = TypeVar("T")
 
@@ -58,18 +59,18 @@ class RetrievalRepository:
 
         """
         search_query = (
-            select(Snippet)
+            select(Snippet, File)
+            .join(File, Snippet.file_id == File.id)
             .where(Snippet.content.ilike(f"%{query}%"))
-            .order_by(Snippet.created_at)
             .limit(10)
         )
         rows = await self.session.execute(search_query)
-        snippets = rows.scalars()
+        results = list(rows.all())
 
         return [
             RetrievalResult(
-                uri=snippet.file.uri,
+                uri=file.uri,
                 content=snippet.content,
             )
-            for snippet in snippets
+            for snippet, file in results
         ]

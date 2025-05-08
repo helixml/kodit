@@ -96,7 +96,6 @@ class IndexService:
                 id=index.id,
                 created_at=index.created_at,
                 updated_at=index.updated_at,
-                source_uri=index.source.uri,
                 num_snippets=await self.repository.num_snippets_for_index(index.id),
             )
             for index in indexes

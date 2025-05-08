@@ -6,7 +6,7 @@ folders) and their relationships.
 """
 
 from sqlalchemy import ForeignKey, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from kodit.database import Base, CommonMixin
 
@@ -32,7 +32,6 @@ class Source(Base, CommonMixin):
     __tablename__ = "sources"
     uri: Mapped[str] = mapped_column(String(1024), index=True, unique=True)
     cloned_path: Mapped[str] = mapped_column(String(1024))
-    files: Mapped[list["File"]] = relationship(back_populates="source")
 
     def __init__(self, uri: str, cloned_path: str) -> None:
         """Initialize a new Source instance for typing purposes."""
@@ -47,7 +46,6 @@ class File(Base, CommonMixin):
     __tablename__ = "files"
 
     source_id: Mapped[int] = mapped_column(ForeignKey("sources.id"))
-    source: Mapped["Source"] = relationship(back_populates="files")
     mime_type: Mapped[str] = mapped_column(String(255), default="")
     uri: Mapped[str] = mapped_column(String(1024), default="")
     cloned_path: Mapped[str] = mapped_column(String(1024))
