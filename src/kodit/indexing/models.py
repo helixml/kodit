@@ -13,7 +13,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from kodit.database import Base, CommonMixin
 
 if TYPE_CHECKING:
-    from kodit.sources.models import Source
+    from kodit.sources.models import File, Source
 
 
 class Index(Base, CommonMixin):
@@ -39,6 +39,7 @@ class Snippet(Base, CommonMixin):
     __tablename__ = "snippets"
 
     file_id: Mapped[int] = mapped_column(ForeignKey("files.id"))
+    file: Mapped["File"] = relationship(lazy="selectin")
     index_id: Mapped[int] = mapped_column(ForeignKey("indexes.id"))
     index: Mapped["Index"] = relationship(back_populates="snippets")
     content: Mapped[str] = mapped_column(UnicodeText, default="")

@@ -5,14 +5,13 @@ related to searching and retrieving code snippets, including string-based search
 and their associated file information.
 """
 
-from typing import Any, TypeVar
+from typing import TypeVar
 
 import pydantic
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.sql import Select
 
-from kodit.indexing.models import File, Snippet
+from kodit.indexing.models import Snippet
 
 T = TypeVar("T")
 
@@ -24,7 +23,7 @@ class RetrievalResult(pydantic.BaseModel):
     and the matching snippet content.
     """
 
-    file_path: str
+    uri: str
     content: str
 
 
@@ -44,22 +43,6 @@ class RetrievalRepository:
         """
         self.session = session
 
-    async def _execute_query(
-        self, query: Select[Any], *, return_single: bool = False
-    ) -> Any:
-        """Execute a SQLAlchemy query and return the results.
-
-        Args:
-            query: The SQLAlchemy select query to execute.
-            return_single: Whether to return a single result or a list of results.
-
-        Returns:
-            The query results, either as a single item or a list.
-
-        """
-        result = await self.session.execute(query)
-        return result.scalar_one_or_none() if return_single else result.all()
-
     async def string_search(self, query: str) -> list[RetrievalResult]:
         """Search for snippets containing the given query string.
 
@@ -75,18 +58,18 @@ class RetrievalRepository:
 
         """
         search_query = (
-            select(Snippet, File)
+            select(Snippet)
             .where(Snippet.content.ilike(f"%{query}%"))
-            .outerjoin(File, Snippet.file_id == File.id)
             .order_by(Snippet.created_at)
             .limit(10)
         )
-        rows = await self._execute_query(search_query)
+        rows = await self.session.execute(search_query)
+        snippets = rows.scalars()
 
         return [
             RetrievalResult(
-                file_path=file.path,
+                uri=snippet.file.uri,
                 content=snippet.content,
             )
-            for (snippet, file) in rows
+            for snippet in snippets
         ]
