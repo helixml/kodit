@@ -18,10 +18,11 @@ import structlog
 from tqdm import tqdm
 from uritools import isuri, urisplit
 
+from kodit.config import DATA_DIR
 from kodit.sources.models import File, Source
 from kodit.sources.repository import SourceRepository
 
-CLONE_DIR = Path(".kodit/clones").expanduser().resolve()
+CLONE_DIR = DATA_DIR / "clones"
 
 
 class SourceView(pydantic.BaseModel):

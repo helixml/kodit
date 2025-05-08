@@ -4,7 +4,6 @@ import asyncio
 from collections.abc import AsyncGenerator, Callable
 from datetime import UTC, datetime
 from functools import wraps
-from pathlib import Path
 from typing import Any, TypeVar
 
 from alembic import command
@@ -18,8 +17,9 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
+from kodit.config import DATA_DIR
+
 # Constants
-DATA_DIR = Path.home() / ".kodit"
 DB_URL = f"sqlite+aiosqlite:///{DATA_DIR}/kodit.db"
 
 # Create data directory if it doesn't exist
