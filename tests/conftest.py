@@ -3,6 +3,7 @@
 from collections.abc import AsyncGenerator
 
 import pytest
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -20,6 +21,7 @@ async def engine():
     )
 
     async with engine.begin() as conn:
+        await conn.execute(text("PRAGMA foreign_keys = ON"))
         await conn.run_sync(Base.metadata.create_all)
 
     yield engine

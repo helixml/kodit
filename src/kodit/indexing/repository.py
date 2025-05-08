@@ -6,14 +6,14 @@ and retrieving index information with their associated metadata.
 """
 
 from datetime import UTC, datetime
-from typing import Any, TypeVar
+from typing import TypeVar
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.sql import Select
+from sqlalchemy.orm import selectinload
 
-from kodit.indexing.models import File, Index, Snippet
-from kodit.sources.models import Source
+from kodit.indexing.models import Index, Snippet
+from kodit.sources.models import File, Source
 
 T = TypeVar("T")
 
@@ -34,22 +34,6 @@ class IndexRepository:
 
         """
         self.session = session
-
-    async def _execute_query(
-        self, query: Select[Any], *, return_single: bool = False
-    ) -> Any:
-        """Execute a SQLAlchemy query and return the results.
-
-        Args:
-            query: The SQLAlchemy select query to execute.
-            return_single: Whether to return a single result or a list of results.
-
-        Returns:
-            The query results, either as a single item or a list.
-
-        """
-        result = await self.session.execute(query)
-        return result.scalar_one_or_none() if return_single else result.all()
 
     async def create(self, source_id: int) -> Index:
         """Create a new index for a source.
@@ -77,59 +61,45 @@ class IndexRepository:
 
         """
         query = select(Index).where(Index.id == index_id)
-        return await self._execute_query(query, return_single=True)
+        result = await self.session.execute(query)
+        return result.scalar_one_or_none()
 
-    async def list_with_details(self) -> list[tuple]:
-        """List all indexes with their associated metadata and statistics.
+    async def files_for_index(self, index_id: int) -> list[File]:
+        """Get all files for an index.
+
+        Args:
+            index_id: The ID of the index to get files for.
+
+        Returns:
+            A list of File instances.
+
+        """
+        index_query = (
+            select(Index)
+            .where(Index.id == index_id)
+            .options(selectinload(Index.source).options(selectinload(Source.files)))
+        )
+        index = await self.session.execute(index_query)
+        index = index.scalar_one()
+        return index.source.files
+
+    async def list_indexes(self) -> list[Index]:
+        """List all indexes.
 
         Returns:
             A list of tuples containing index information, source details,
             and counts of files and snippets.
 
         """
-        query = (
-            select(
-                Index,
-                Source,
-                func.count(File.id).label("file_count"),
-                func.count(Snippet.id).label("snippet_count"),
-            )
-            .join(Source, Index.source_id == Source.id)
-            .outerjoin(File, Source.id == File.source_id)
-            .outerjoin(Snippet, File.id == Snippet.file_id)
-            .group_by(Index.id, Source.id)
-        )
-        return await self._execute_query(query)
+        query = select(Index).limit(10)
+        result = await self.session.execute(query)
+        return list(result.scalars())
 
-    async def get_existing_files(self, source_id: int) -> set[str]:
-        """Get the set of SHA256 hashes for files already indexed in a source.
-
-        Args:
-            source_id: The ID of the source to get file hashes for.
-
-        Returns:
-            A set of SHA256 hashes for files already indexed in the source.
-
-        """
-        query = select(File.sha256).where(File.source_id == source_id)
-        rows = await self._execute_query(query)
-        result_list = [row.sha256 for row in rows]
-        return set(result_list)
-
-    async def get_existing_snippets(self, index_id: int) -> set[int]:
-        """Get the set of file IDs that already have snippets in an index.
-
-        Args:
-            index_id: The ID of the index to get snippet file IDs for.
-
-        Returns:
-            A set of file IDs that already have snippets in the index.
-
-        """
-        query = select(Snippet.file_id).where(Snippet.index_id == index_id)
-        rows = await self._execute_query(query)
-        results = [row.file_id for row in rows]
-        return set(results)
+    async def num_snippets_for_index(self, index_id: int) -> int:
+        """Get the number of snippets for an index."""
+        query = select(func.count()).where(Snippet.index_id == index_id)
+        result = await self.session.execute(query)
+        return result.scalar_one()
 
     async def update_index_timestamp(self, index: Index) -> None:
         """Update the updated_at timestamp of an index.
@@ -139,30 +109,6 @@ class IndexRepository:
 
         """
         index.updated_at = datetime.now(UTC)
-        await self.session.commit()
-
-    async def get_files_by_source(self, source_id: int) -> list[File]:
-        """Get all files associated with a source.
-
-        Args:
-            source_id: The ID of the source to get files for.
-
-        Returns:
-            A list of File instances associated with the source.
-
-        """
-        query = select(File).where(File.source_id == source_id)
-        result = await self.session.execute(query)
-        return [row[0] for row in result.all()]
-
-    async def add_file(self, file: File) -> None:
-        """Add a new file to the database.
-
-        Args:
-            file: The File instance to add.
-
-        """
-        self.session.add(file)
         await self.session.commit()
 
     async def add_snippet(self, snippet: Snippet) -> None:
@@ -175,6 +121,13 @@ class IndexRepository:
         self.session.add(snippet)
         await self.session.commit()
 
-    async def commit(self) -> None:
-        """Commit any pending changes to the database."""
-        await self.session.commit()
+    async def get_snippets_for_index(self, index_id: int) -> list[Snippet]:
+        """Get all snippets for an index.
+
+        Args:
+            index_id: The ID of the index to get snippets for.
+
+        """
+        query = select(Snippet).where(Snippet.index_id == index_id)
+        result = await self.session.execute(query)
+        return list(result.scalars())

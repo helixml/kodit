@@ -84,7 +84,12 @@ async def test_create_source_list_source(
     (test_dir / "subdir" / "file2.txt").write_text("Hello, world!")
 
     # Create a folder source
-    await service.create(str(test_dir))
+    source = await service.create(str(test_dir))
+    assert source.id is not None
+    assert source.uri == test_dir.as_uri()
+    assert source.cloned_path.is_dir()
+    assert source.created_at is not None
+    assert source.num_files == 2
 
     # List sources
     sources = await service.list_sources()

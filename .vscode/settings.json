@@ -7,7 +7,6 @@
     "ruff.enable": true,
     "ruff.fixAll": true,
     "ruff.lint.enable": true,
-    "python.analysis.autoImportCompletions": true,
     "rewrap.autoWrap.enabled": true,
     "editor.wordWrap": "off",
     "editor.wordWrapColumn": 88,
@@ -21,4 +20,9 @@
         "--cov-report=html",
         "--cov-report=xml"
     ],
+    "python.analysis.autoFormatStrings": true,
+    "python.analysis.autoImportCompletions": true,
+    "python.analysis.completeFunctionParens": true,
+    "python.analysis.inlayHints.functionReturnTypes": true,
+    "python.analysis.typeCheckingMode": "strict",
 }

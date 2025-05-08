@@ -10,7 +10,12 @@ from typing import Any, TypeVar
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import DateTime
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncAttrs,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 # Constants
@@ -31,7 +36,7 @@ async_session_factory = async_sessionmaker(
 )
 
 
-class Base(DeclarativeBase):
+class Base(AsyncAttrs, DeclarativeBase):
     """Base class for all models."""
 
 

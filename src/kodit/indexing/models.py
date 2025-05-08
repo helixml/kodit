@@ -5,10 +5,15 @@ including files and snippets. It provides the data structures for tracking index
 files and their content.
 """
 
-from sqlalchemy import ForeignKey, Integer, String, UnicodeText
-from sqlalchemy.orm import Mapped, mapped_column
+from typing import TYPE_CHECKING
+
+from sqlalchemy import ForeignKey, UnicodeText
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from kodit.database import Base, CommonMixin
+
+if TYPE_CHECKING:
+    from kodit.sources.models import Source
 
 
 class Index(Base, CommonMixin):
@@ -16,7 +21,16 @@ class Index(Base, CommonMixin):
 
     __tablename__ = "indexes"
 
-    source_id: Mapped[int] = mapped_column(ForeignKey("sources.id"))
+    source_id: Mapped[int] = mapped_column(
+        ForeignKey("sources.id"), unique=True, index=True
+    )
+    source: Mapped["Source"] = relationship()
+    snippets: Mapped[list["Snippet"]] = relationship(back_populates="index")
+
+    def __init__(self, source_id: int) -> None:
+        """Initialize the index."""
+        super().__init__()
+        self.source_id = source_id
 
 
 class Snippet(Base, CommonMixin):
@@ -26,17 +40,12 @@ class Snippet(Base, CommonMixin):
 
     file_id: Mapped[int] = mapped_column(ForeignKey("files.id"))
     index_id: Mapped[int] = mapped_column(ForeignKey("indexes.id"))
+    index: Mapped["Index"] = relationship(back_populates="snippets")
     content: Mapped[str] = mapped_column(UnicodeText, default="")
 
-
-class File(Base, CommonMixin):
-    """File model."""
-
-    __tablename__ = "files"
-
-    source_id: Mapped[int] = mapped_column(ForeignKey("sources.id"))
-    mime_type: Mapped[str] = mapped_column(String(255), default="")
-    uri: Mapped[str] = mapped_column(String(1024), default="")
-    cloned_path: Mapped[str] = mapped_column(String(1024))
-    sha256: Mapped[str] = mapped_column(String(64), default="", index=True)
-    size_bytes: Mapped[int] = mapped_column(Integer, default=0)
+    def __init__(self, file_id: int, index_id: int, content: str) -> None:
+        """Initialize the snippet."""
+        super().__init__()
+        self.file_id = file_id
+        self.index_id = index_id
+        self.content = content

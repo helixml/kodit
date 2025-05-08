@@ -6,17 +6,22 @@ system, database operations (via SourceRepository), and provides a clean API for
 source management.
 """
 
+import mimetypes
 import shutil
 from datetime import datetime
+from hashlib import sha256
 from pathlib import Path
 
+import aiofiles
 import pydantic
 import structlog
+from tqdm import tqdm
 from uritools import isuri, urisplit
 
+from kodit.sources.models import File, Source
 from kodit.sources.repository import SourceRepository
 
-CLONE_DIR = Path("./kodit/clones")
+CLONE_DIR = Path(".kodit/clones").expanduser().resolve()
 
 
 class SourceView(pydantic.BaseModel):
@@ -36,6 +41,7 @@ class SourceView(pydantic.BaseModel):
     uri: str
     cloned_path: Path
     created_at: datetime
+    num_files: int
 
 
 class SourceService:
@@ -56,7 +62,7 @@ class SourceService:
         self.repository = repository
         self.log = structlog.get_logger(__name__)
 
-    async def create(self, uri_or_path_like: str) -> None:
+    async def create(self, uri_or_path_like: str) -> SourceView:
         """Create a new source from a URI.
 
         Args:
@@ -74,11 +80,12 @@ class SourceService:
             parsed = urisplit(uri_or_path_like)
             if parsed.scheme == "file":
                 return await self._create_folder_source(Path(parsed.path))
-
+            msg = f"Unsupported source type: {uri_or_path_like}"
+            raise ValueError(msg)
         msg = f"Unsupported source type: {uri_or_path_like}"
         raise ValueError(msg)
 
-    async def _create_folder_source(self, directory: Path) -> None:
+    async def _create_folder_source(self, directory: Path) -> SourceView:
         """Create a folder source.
 
         Args:
@@ -102,7 +109,8 @@ class SourceService:
         clone_path = CLONE_DIR / directory.as_posix().replace("/", "_")
         clone_path.mkdir(parents=True, exist_ok=True)
 
-        # Copy all files recursively, preserving directory structure, ignoring hidden files
+        # Copy all files recursively, preserving directory structure, ignoring hidden
+        # files
         shutil.copytree(
             directory,
             clone_path,
@@ -110,10 +118,53 @@ class SourceService:
             dirs_exist_ok=True,
         )
 
-        await self.repository.create_source(
-            uri=directory.as_uri(),
-            cloned_path=clone_path,
+        source = await self.repository.create_source(
+            Source(uri=directory.as_uri(), cloned_path=str(clone_path)),
         )
+
+        # Add all files to the source
+        # Count total files for progress bar
+        file_count = sum(1 for _ in clone_path.rglob("*") if _.is_file())
+
+        # Process each file in the source directory
+        for path in tqdm(clone_path.rglob("*"), total=file_count):
+            await self._process_file(source.id, path.absolute())
+
+        return SourceView(
+            id=source.id,
+            uri=source.uri,
+            cloned_path=Path(source.cloned_path),
+            created_at=source.created_at,
+            num_files=await self.repository.num_files_for_source(source.id),
+        )
+
+    async def _process_file(
+        self,
+        source_id: int,
+        cloned_path: Path,
+    ) -> None:
+        """Process a single file for indexing."""
+        if not cloned_path.is_file():
+            return
+
+        async with aiofiles.open(cloned_path, "rb") as f:
+            content = await f.read()
+            mime_type = mimetypes.guess_type(cloned_path)
+            sha = sha256(content).hexdigest()
+
+            # Create file record
+            file = File(
+                source_id=source_id,
+                cloned_path=cloned_path.as_posix(),
+                mime_type=mime_type[0]
+                if mime_type and mime_type[0]
+                else "application/octet-stream",
+                uri=cloned_path.as_uri(),
+                sha256=sha,
+                size_bytes=len(content),
+            )
+
+            await self.repository.create_file(file)
 
     async def list_sources(self) -> list[SourceView]:
         """List all available sources.
@@ -127,8 +178,9 @@ class SourceService:
             SourceView(
                 id=source.id,
                 uri=source.uri,
-                cloned_path=source.cloned_path,
+                cloned_path=Path(source.cloned_path),
                 created_at=source.created_at,
+                num_files=await self.repository.num_files_for_source(source.id),
             )
             for source in sources
         ]

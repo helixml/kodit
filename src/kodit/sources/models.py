@@ -5,10 +5,13 @@ It includes models for tracking different types of sources (git repositories and
 folders) and their relationships.
 """
 
-from sqlalchemy import String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import ForeignKey, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from kodit.database import Base, CommonMixin
+
+# Enable proper type hints for SQLAlchemy models
+__all__ = ["File", "Source"]
 
 
 class Source(Base, CommonMixin):
@@ -27,5 +30,44 @@ class Source(Base, CommonMixin):
     """
 
     __tablename__ = "sources"
-    uri: Mapped[str] = mapped_column(String(1024), index=True)
+    uri: Mapped[str] = mapped_column(String(1024), index=True, unique=True)
     cloned_path: Mapped[str] = mapped_column(String(1024))
+    files: Mapped[list["File"]] = relationship(back_populates="source")
+
+    def __init__(self, uri: str, cloned_path: str) -> None:
+        """Initialize a new Source instance for typing purposes."""
+        super().__init__()
+        self.uri = uri
+        self.cloned_path = cloned_path
+
+
+class File(Base, CommonMixin):
+    """File model."""
+
+    __tablename__ = "files"
+
+    source_id: Mapped[int] = mapped_column(ForeignKey("sources.id"))
+    source: Mapped["Source"] = relationship(back_populates="files")
+    mime_type: Mapped[str] = mapped_column(String(255), default="")
+    uri: Mapped[str] = mapped_column(String(1024), default="")
+    cloned_path: Mapped[str] = mapped_column(String(1024))
+    sha256: Mapped[str] = mapped_column(String(64), default="", index=True)
+    size_bytes: Mapped[int] = mapped_column(Integer, default=0)
+
+    def __init__(
+        self,
+        source_id: int,
+        cloned_path: str,
+        mime_type: str = "",
+        uri: str = "",
+        sha256: str = "",
+        size_bytes: int = 0,
+    ) -> None:
+        """Initialize a new File instance for typing purposes."""
+        super().__init__()
+        self.source_id = source_id
+        self.cloned_path = cloned_path
+        self.mime_type = mime_type
+        self.uri = uri
+        self.sha256 = sha256
+        self.size_bytes = size_bytes
