@@ -65,7 +65,7 @@ jobs:
           path: test-build/*.tar.gz
 
   test-package:
-    needs: build
+    needs: build-package
     runs-on: ubuntu-latest
     steps:
       - name: Download built package
