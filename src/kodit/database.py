@@ -4,6 +4,7 @@ import asyncio
 from collections.abc import AsyncGenerator, Callable
 from datetime import UTC, datetime
 from functools import wraps
+from pathlib import Path
 from typing import Any, TypeVar
 
 from alembic import command
@@ -17,6 +18,7 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
+from kodit import alembic
 from kodit.config import DATA_DIR
 
 # Constants
@@ -82,6 +84,6 @@ def configure_database() -> None:
     """Configure the database by initializing it and running any pending migrations."""
     # Create Alembic configuration and run migrations
     alembic_cfg = Config()
-    alembic_cfg.set_main_option("script_location", "src/kodit/alembic")
+    alembic_cfg.set_main_option("script_location", str(Path(alembic.__file__).parent))
     alembic_cfg.set_main_option("sqlalchemy.url", DB_URL)
     command.upgrade(alembic_cfg, "head")
