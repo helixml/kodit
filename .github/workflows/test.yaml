@@ -76,6 +76,8 @@ jobs:
 
       - name: "Set up Python"
         uses: actions/setup-python@v5
+        with:
+          python-version: 3.12
 
       - name: Install sdist
         uses: threeal/pipx-install-action@v1.0.0
