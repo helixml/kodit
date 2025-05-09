@@ -1,8 +1,9 @@
 name: Release
 
 on:
-  release:
-    types: [released]
+  push:
+  # release:
+  #   types: [released]
 
 jobs:
   pypi:
@@ -14,9 +15,9 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
-      - run: uv build
-      - run: uv publish
+      # - uses: astral-sh/setup-uv@v6
+      # - run: uv build
+      # - run: uv publish
   homebrew:
     name: Bump Homebrew formula
     needs: pypi
@@ -28,19 +29,35 @@ jobs:
     steps:
       - name: Wait for PyPI release to be available
         run: |
+          set -x
+
+          REPO_NAME=${{ github.event.repository.name }}
+          REPO_TAG=${{ github.event.release.tag_name }}
+
+          # Get the first letter of the repo name
+          REPO_NAME_FIRST_LETTER=${REPO_NAME:0:1}
+
+          # Initialize counter for 60 second timeout
+          count=0
           while true; do
-            if curl -s https://pypi.io/packages/source/k/${{ github.event.repository.name }}/${{ github.event.repository.name }}-${{ github.event.release.tag_name }}.tar.gz; then
-              break
-            fi
+              if curl -sfL https://pypi.io/packages/source/${REPO_NAME_FIRST_LETTER}/${REPO_NAME}/${REPO_NAME}-${REPO_TAG}.tar.gz > /dev/null; then
+                  break
+              fi
+              sleep 1
+              ((count++))
+              if [ $count -ge 60 ]; then
+                  echo "Timeout reached after 60 seconds"
+                  exit 1
+              fi
           done
-      - uses: mislav/bump-homebrew-formula-action@v3
-        with:
-          formula-name: ${{ github.event.repository.name }}
-          formula-path: Formula/${{ github.event.repository.name }}.rb
-          homebrew-tap: ${{ github.repository_owner }}/homebrew-${{ github.event.repository.name }}
-          tag-name: "${{ github.event.release.tag_name }}"
-          download-url: "https://pypi.io/packages/source/k/${{ github.event.repository.name }}/${{ github.event.repository.name }}-${{ github.event.release.tag_name }}.tar.gz"
-          commit-message: |
-            {{formulaName}} {{version}}
-        env:
-          COMMITTER_TOKEN: ${{ secrets.COMMITTER_TOKEN }}
+      # - uses: mislav/bump-homebrew-formula-action@v3
+      #   with:
+      #     formula-name: ${{ github.event.repository.name }}
+      #     formula-path: Formula/${{ github.event.repository.name }}.rb
+      #     homebrew-tap: ${{ github.repository_owner }}/homebrew-${{ github.event.repository.name }}
+      #     tag-name: "${{ github.event.release.tag_name }}"
+      #     download-url: "https://pypi.io/packages/source/k/${{ github.event.repository.name }}/${{ github.event.repository.name }}-${{ github.event.release.tag_name }}.tar.gz"
+      #     commit-message: |
+      #       {{formulaName}} {{version}}
+      #   env:
+      #     COMMITTER_TOKEN: ${{ secrets.COMMITTER_TOKEN }}
