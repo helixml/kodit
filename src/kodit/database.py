@@ -2,6 +2,7 @@
 
 import asyncio
 from collections.abc import AsyncGenerator, Callable
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from functools import wraps
 from pathlib import Path
@@ -54,6 +55,7 @@ class CommonMixin:
     )
 
 
+@asynccontextmanager
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     """Get a database session."""
     async with async_session_factory() as session:

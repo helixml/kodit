@@ -37,7 +37,6 @@ class IndexView(pydantic.BaseModel):
     id: int
     created_at: datetime
     updated_at: datetime | None = None
-    source_uri: str | None = None
     num_snippets: int | None = None
 
 

@@ -104,7 +104,6 @@ async def list_indexes(session: AsyncSession) -> None:
         "ID",
         "Created At",
         "Updated At",
-        "Source URI",
         "Num Snippets",
     ]
     data = [
@@ -112,7 +111,6 @@ async def list_indexes(session: AsyncSession) -> None:
             index.id,
             index.created_at,
             index.updated_at,
-            index.source_uri,
             index.num_snippets,
         ]
         for index in indexes
