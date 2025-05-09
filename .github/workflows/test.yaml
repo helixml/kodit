@@ -81,7 +81,7 @@ jobs:
 
       - name: Extract path to sdist
         id: sdist_path
-        run: echo "sdist_path=$((ls test-build/*.tar.gz))" >> $GITHUB_OUTPUT
+        run: echo "sdist_path=$(ls test-build/*.tar.gz)" >> $GITHUB_OUTPUT
 
       - name: Install sdist
         uses: threeal/pipx-install-action@v1.0.0
