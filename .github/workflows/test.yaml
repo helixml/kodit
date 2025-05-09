@@ -79,14 +79,10 @@ jobs:
         with:
           python-version: 3.12
 
-      - name: Find the path of the sdist
-        id: sdist-path
-        run: echo "::set-output name=path::$(ls test-build/*.tar.gz)"
-
       - name: Install sdist
         uses: threeal/pipx-install-action@v1.0.0
         with:
-          packages: ${{ steps.sdist-path.outputs.path }}
+          packages: "$(ls test-build/*.tar.gz)"
 
       - name: Run simple version command test
         run: kodit version
