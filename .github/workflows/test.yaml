@@ -68,6 +68,12 @@ jobs:
     needs: build-package
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            tests/smoke.sh
+          sparse-checkout-cone-mode: false
+
       - name: Download built package
         uses: actions/download-artifact@v4
         with:
