@@ -1,3 +1,14 @@
+## Build
+
+```sh
+docker build -t test .
+```
+
+## Run
+
+```sh
+docker run -it --rm --gpus all test
+```
 
 ---
 
