@@ -1,19 +1,70 @@
 # syntax=docker/dockerfile:1.9
-FROM python:3.12.10-slim-bookworm
+FROM python:3.12.10-slim-bookworm AS build
 
+# The following does not work in Podman unless you build in Docker
+# compatibility mode: <https://github.com/containers/podman/issues/8477>
+# You can manually prepend every RUN script with `set -ex` too.
 SHELL ["sh", "-exc"]
 
-ENV PATH=/app/bin:$PATH
+# Ensure apt-get doesn't open a menu on you.
+ENV DEBIAN_FRONTEND=noninteractive
 
-# Don't run your app as root.
 RUN <<EOT
-groupadd -r app
-useradd -r -d /app -g app -N app
+apt-get update -qy
+apt-get install -qyy \
+    -o APT::Install-Recommends=false \
+    -o APT::Install-Suggests=false \
+    git 
 EOT
 
-STOPSIGNAL SIGINT
+# Security-conscious organizations should package/review uv themselves.
+COPY --from=ghcr.io/astral-sh/uv:0.7.2 /uv /usr/local/bin/uv
 
-# Ensure apt-get doesn't open a menu on you.
+# - Silence uv complaining about not being able to use hard links,
+# - tell uv to byte-compile packages for faster application startups,
+# - prevent uv from accidentally downloading isolated Python builds,
+# - pick a Python (use `/usr/bin/python3.12` on uv 0.5.0 and later),
+# - and finally declare `/app` as the target for `uv sync`.
+ENV UV_LINK_MODE=copy \
+    UV_COMPILE_BYTECODE=1 \
+    UV_PYTHON_DOWNLOADS=never \
+    UV_PYTHON=python3.12 \
+    UV_PROJECT_ENVIRONMENT=/app/.venv
+
+
+# Synchronize DEPENDENCIES without the application itself.
+# This layer is cached until uv.lock or pyproject.toml change, which are
+# only temporarily mounted into the build container since we don't need
+# them in the production one.
+# You can create `/app` using `uv venv` in a separate `RUN`
+# step to have it cached, but with uv it's so fast, it's not worth
+# it, so we let `uv sync` create it for us automagically.
+RUN --mount=type=cache,target=/root/.cache \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    uv sync \
+    --locked \
+    --no-dev \
+    --no-install-project
+
+# Now install the rest from `/src`: The APPLICATION w/o dependencies.
+COPY . /app
+WORKDIR /app
+RUN --mount=type=cache,target=/root/.cache \
+    uv sync \
+    --locked \
+    --no-dev \
+    --no-editable
+
+RUN uv run python3 -c "from evalplus.data import *; get_human_eval_plus(); get_mbpp_plus(); get_evalperf_data()"
+
+##########################################################################
+
+FROM python:3.12.10-slim-bookworm
+SHELL ["sh", "-exc"]
+
+ENV PATH=/app/.venv/bin:$PATH
+
 ENV DEBIAN_FRONTEND=noninteractive
 
 # install git and c++ (required by cirronlib.cpp)
@@ -25,20 +76,18 @@ apt-get install -qyy \
     git g++
 EOT
 
-# upgrade to latest pip
-RUN pip install --upgrade pip
+# Don't run your app as root.
+RUN <<EOT
+groupadd -r app
+useradd -r -d /app -g app -N app
+EOT
 
-RUN pip install "evalplus[vllm]==0.3.1"
-
-RUN mkdir /app
-
-WORKDIR /app
-
-RUN chown -R app:app /app
+STOPSIGNAL SIGINT
 
 USER app
+WORKDIR /app
 
-# Pre-install the dataset
-RUN python3 -c "from evalplus.data import *; get_human_eval_plus(); get_mbpp_plus(); get_evalperf_data()"
+ENTRYPOINT [ "bash" ]
 
-CMD ["bash"]
+COPY --from=build --chown=app:app /app /app
+
