@@ -688,6 +688,15 @@ wheels = [
 ]
 
 [[package]]
+name = "more-itertools"
+version = "10.7.0"
+source = { registry = "https://pypi.org/simple/" }
+sdist = { url = "https://files.pythonhosted.org/packages/ce/a0/834b0cebabbfc7e311f30b46c8188790a37f89fc8d756660346fe5abfd09/more_itertools-10.7.0.tar.gz", hash = "sha256:9fddd5403be01a94b204faadcff459ec3568cf110265d3c54323e1e866ad29d3", size = 127671, upload-time = "2025-04-22T14:17:41.838Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2b/9f/7ba6f94fc1e9ac3d2b853fdff3035fb2fa5afbed898c4a72b8a020610594/more_itertools-10.7.0-py3-none-any.whl", hash = "sha256:d43980384673cb07d2f7d2d918c616b30c659c089ee23953f601d6609c67510e", size = 65278, upload-time = "2025-04-22T14:17:40.49Z" },
+]
+
+[[package]]
 name = "mpmath"
 version = "1.3.0"
 source = { registry = "https://pypi.org/simple/" }
@@ -1030,6 +1039,18 @@ source = { registry = "https://pypi.org/simple/" }
 sdist = { url = "https://files.pythonhosted.org/packages/66/94/68e2e17afaa9169cf6412ab0f28623903be73d1b32e208d9e8e541bb086d/parso-0.8.4.tar.gz", hash = "sha256:eb3a7b58240fb99099a345571deecc0f9540ea5f4dd2fe14c2a99d6b281ab92d", size = 400609, upload-time = "2024-04-05T09:43:55.897Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c6/ac/dac4a63f978e4dcb3c6d3a78c4d8e0192a113d288502a1216950c41b1027/parso-0.8.4-py2.py3-none-any.whl", hash = "sha256:a418670a20291dacd2dddc80c377c5c3791378ee1e8d12bffc35420643d43f18", size = 103650, upload-time = "2024-04-05T09:43:53.299Z" },
+]
+
+[[package]]
+name = "patchpy"
+version = "2.0.4"
+source = { registry = "https://pypi.org/simple/" }
+dependencies = [
+    { name = "more-itertools" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d3/e3/cdac841ab3268b3fec521c40111e9299d5bfd234ff76bcb99a5098ee190e/patchpy-2.0.4.tar.gz", hash = "sha256:abe93dbd8cf972b0ac063239407ed7cf7415a67b73ac85de3b8e7a772af37f82", size = 8100, upload-time = "2024-08-12T08:28:09.22Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fa/33/9233df81238d7162dbbbe7efad6cf29c1d23da8dd40214b38ce8a5108b30/patchpy-2.0.4-py3-none-any.whl", hash = "sha256:5c03b5ee89385f598c0c1c5e262b47f57f48d48bfda51f827f4e8e3ebdbc57b3", size = 6914, upload-time = "2024-08-12T08:28:07.123Z" },
 ]
 
 [[package]]
@@ -1501,6 +1522,7 @@ dependencies = [
     { name = "datasets" },
     { name = "gitpython" },
     { name = "openai" },
+    { name = "patchpy" },
     { name = "swebench", extra = ["datasets"] },
     { name = "tdqm" },
     { name = "torch" },
@@ -1516,6 +1538,7 @@ requires-dist = [
     { name = "datasets", specifier = ">=3.6.0" },
     { name = "gitpython", specifier = ">=3.1.44" },
     { name = "openai", specifier = ">=1.78.0" },
+    { name = "patchpy", specifier = ">=2.0.4" },
     { name = "swebench", extras = ["datasets"], specifier = ">=4.0.3" },
     { name = "tdqm", specifier = ">=0.0.1" },
     { name = "torch", specifier = ">=2.2.0" },

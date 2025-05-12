@@ -11,6 +11,7 @@ dependencies = [
     "tdqm>=0.0.1",
     "torch>=2.2.0",
     "swebench[datasets]>=4.0.3",
+    "patchpy>=2.0.4",
 ]
 
 [dependency-groups]

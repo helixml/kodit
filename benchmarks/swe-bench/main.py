@@ -232,7 +232,7 @@ def process_dataset(
         final_dataset["validation"] = train_val["test"]
     
     # Save dataset
-    output_file = output_dir / f"dataset_with_{args.code_generator}_code"
+    output_file = output_dir / f"dataset_with_{code_generator.__name__}_code"
     final_dataset.save_to_disk(output_file)
     logger.info(f"Saved dataset to {output_file}")
     
@@ -310,10 +310,16 @@ def main():
     
     args = parser.parse_args()
     
+    def null_code_generator(instance: Dict) -> str:
+        return None
+
+    def dummy_code_generator(instance: Dict) -> str:
+        return f"# Dummy code for {instance.get('repo', '')}\n# Problem: {instance.get('problem_statement', '')}\n\ndef dummy_function():\n    pass"
+
     # Dictionary of available code generators
     CODE_GENERATORS = {
-        "null": lambda instance: None,  # Preserves original text
-        "dummy": lambda instance: f"# Dummy code for {instance.get('repo', '')}\n# Problem: {instance.get('problem_statement', '')}\n\ndef dummy_function():\n    pass"
+        "null": null_code_generator,  # Preserves original text
+        "dummy": dummy_code_generator
     }
     
     process_dataset(

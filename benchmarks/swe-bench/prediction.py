@@ -12,8 +12,10 @@ from pathlib import Path
 from tqdm.auto import tqdm
 import openai
 from datasets import load_dataset, load_from_disk
+from swebench.harness.constants import KEY_PREDICTION
 from swebench.inference.make_datasets.utils import extract_diff
 from argparse import ArgumentParser
+from patchpy import DiffFile
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -128,14 +130,14 @@ def run_inference(
             output_dict = {
                 "instance_id": instance_id,
                 "model_name_or_path": model_name,
-                "text": f"{datum['text']}\n\n"
+                KEY_PREDICTION: None  # Will be set after API call
             }
             
             try:
                 # Call API
                 response, input_tokens, output_tokens = call_api(
                     model_name=model_name,
-                    inputs=output_dict["text"],
+                    inputs=f"{datum['text']}\n\n",
                     api_base=api_base,
                     api_key=api_key,
                     temperature=temperature,
@@ -145,15 +147,16 @@ def run_inference(
                 # Extract completion
                 completion = response.choices[0].message.content
                 
-                # Add to output
-                output_dict["full_output"] = completion
-                output_dict["model_patch"] = extract_diff(completion)
-                
-                # Add token counts if available
-                if input_tokens > 0:
-                    output_dict["input_tokens"] = input_tokens
-                if output_tokens > 0:
-                    output_dict["output_tokens"] = output_tokens
+                # Set model_patch
+                patch = extract_diff(completion)
+                if patch is not None:
+                    # If patch does not end it a newline, add one
+                    if not patch.endswith("\n"):
+                        patch += "\n"
+                    diff_file = DiffFile.from_string(patch)
+                    diff_file.fix_counts()
+                    diff_file.validate()
+                    output_dict[KEY_PREDICTION] = diff_file.to_string()
                 
                 # Write to file
                 print(json.dumps(output_dict), file=f, flush=True)
