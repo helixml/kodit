@@ -645,6 +645,7 @@ dependencies = [
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "structlog" },
     { name = "tdqm" },
+    { name = "tree-sitter" },
     { name = "tree-sitter-language-pack" },
     { name = "uritools" },
 ]
@@ -678,6 +679,7 @@ requires-dist = [
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.40" },
     { name = "structlog", specifier = ">=25.3.0" },
     { name = "tdqm", specifier = ">=0.0.1" },
+    { name = "tree-sitter", specifier = ">=0.24.0" },
     { name = "tree-sitter-language-pack", specifier = ">=0.7.3" },
     { name = "uritools", specifier = ">=5.0.0" },
 ]
