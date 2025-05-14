@@ -106,7 +106,7 @@ ignore = [
   "PGH004", # If I've disabled all, I mean disable all
 ]
 select = ["ALL"]
-exclude = []
+exclude = ["./tests/*"]
 
 [[tool.uv.index]]
 name = "pypi"

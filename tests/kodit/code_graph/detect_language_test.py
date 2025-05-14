@@ -1,6 +1,10 @@
+"""Test the detect_language function."""
+
+from pathlib import Path
+
 import pytest
 
-from kodit.code_graph.detect_language import detect_language
+from kodit.snippets.languages import detect_language
 
 
 def test_detect_language_common_extensions() -> None:
@@ -26,7 +30,7 @@ def test_detect_language_common_extensions() -> None:
     ]
 
     for file_path, expected_language in test_cases:
-        assert detect_language(file_path) == expected_language, (
+        assert detect_language(Path(file_path)) == expected_language, (
             f"Failed to detect language for {file_path}"
         )
 
@@ -41,7 +45,7 @@ def test_detect_language_case_insensitive() -> None:
     ]
 
     for file_path, expected_language in test_cases:
-        assert detect_language(file_path) == expected_language, (
+        assert detect_language(Path(file_path)) == expected_language, (
             f"Failed to detect language for uppercase extension {file_path}"
         )
 
@@ -57,25 +61,27 @@ def test_detect_language_unsupported_extensions() -> None:
     ]
 
     for file_path in test_cases:
-        assert detect_language(file_path) is None, (
-            f"Should return None for unsupported extension {file_path}"
-        )
+        with pytest.raises(ValueError):
+            detect_language(Path(file_path))
 
 
 def test_detect_language_no_extension() -> None:
     """Test handling of files without extensions."""
-    assert detect_language("Makefile") is None
-    assert detect_language("Dockerfile") is None
-    assert detect_language("README") is None
+    with pytest.raises(ValueError):
+        detect_language(Path("Makefile"))
+    with pytest.raises(ValueError):
+        detect_language(Path("Dockerfile"))
+    with pytest.raises(ValueError):
+        detect_language(Path("README"))
 
 
 def test_detect_language_empty_path() -> None:
     """Test handling of empty file path."""
     with pytest.raises(ValueError):
-        detect_language("")
+        detect_language(Path())
 
 
 def test_detect_language_invalid_path() -> None:
     """Test handling of invalid file paths."""
     with pytest.raises(ValueError):
-        detect_language("")  # Using empty string instead of None to match type hints
+        detect_language(Path())
