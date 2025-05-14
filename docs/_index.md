@@ -87,6 +87,7 @@ description:
 globs: 
 alwaysApply: true
 ---
-You MUST use the code-search MCP tool and always include any file context the user has provided in the chat.```
+You MUST use the code-search MCP tool and always include any file context the user has provided in the chat.
+```
 
 Alternatively, you can browse to the cursor settings and set this prompt globally.
