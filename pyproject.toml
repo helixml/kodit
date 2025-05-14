@@ -29,7 +29,6 @@ dependencies = [
     "fastapi[standard]>=0.115.12",
     "httpx-retries>=0.3.2",
     "httpx>=0.28.1",
-    "mcp>=1.6.0",
     "structlog>=25.3.0",
     "posthog>=4.0.1",
     "sqlalchemy[asyncio]>=2.0.40",
@@ -41,6 +40,8 @@ dependencies = [
     "uritools>=5.0.0",
     "tree-sitter-language-pack>=0.7.3",
     "tree-sitter>=0.24.0",
+    "fastmcp>=2.3.3",
+    "pydantic-settings>=2.9.1",
 ]
 
 [dependency-groups]

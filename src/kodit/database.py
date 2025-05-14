@@ -40,8 +40,8 @@ class Database:
 
     def __init__(self, db_url: str) -> None:
         """Initialize the database."""
-        db_engine = create_async_engine(db_url, echo=False)
         self._configure_database(db_url)
+        db_engine = create_async_engine(db_url, echo=False)
         self.db_session_factory = async_sessionmaker(
             db_engine,
             class_=AsyncSession,

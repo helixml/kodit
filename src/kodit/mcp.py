@@ -7,6 +7,7 @@ import structlog
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
+from kodit.config import config
 from kodit.database import Database
 from kodit.retreival.repository import RetrievalRepository, RetrievalResult
 from kodit.retreival.service import RetrievalRequest, RetrievalService
@@ -62,7 +63,7 @@ async def retrieve_relevant_snippets(
         file_contents=related_file_contents,
     )
 
-    db = Database("sqlite+aiosqlite:///.kodit.db")
+    db = Database(config.db_url)
     async with db.get_session() as session:
         log.debug("Creating retrieval repository")
         retrieval_repository = RetrievalRepository(

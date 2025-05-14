@@ -10,7 +10,7 @@ from dotenv import dotenv_values
 from pytable_formatter import Table
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.config import Config, pass_config, with_session
+from kodit.config import DEFAULT_DB_URL, Config, pass_config, with_session
 from kodit.indexing.repository import IndexRepository
 from kodit.indexing.service import IndexService
 from kodit.logging import LogFormat, log_event
@@ -29,7 +29,8 @@ os.environ.update(env_vars)
 @click.option("--disable-telemetry", is_flag=True, help="Disable telemetry")
 @click.option(
     "--db-url",
-    help="Database URL  [default: sqlite+aiosqlite:///{DATA_DIR}/kodit.db]",
+    default=DEFAULT_DB_URL,
+    help="Database URL",
 )
 @click.option(
     "--data-dir",
@@ -42,7 +43,7 @@ def cli(
     log_level: str,
     log_format: LogFormat,
     disable_telemetry: bool,  # noqa: FBT001
-    db_url: str | None,
+    db_url: str,
     data_dir: str,
 ) -> None:
     """kodit CLI - Code indexing for better AI code generation."""  # noqa: D403
@@ -174,7 +175,9 @@ async def retrieve(session: AsyncSession, query: str) -> None:
 @click.option("--host", default="127.0.0.1", help="Host to bind the server to")
 @click.option("--port", default=8080, help="Port to bind the server to")
 @click.option("--reload", is_flag=True, help="Enable auto-reload for development")
+@pass_config
 def serve(
+    config: Config,
     host: str,
     port: int,
     reload: bool,  # noqa: FBT001
@@ -183,6 +186,7 @@ def serve(
     log = structlog.get_logger(__name__)
     log.info("Starting kodit server", host=host, port=port, reload=reload)
     log_event("kodit_server_started")
+    os.environ["HELLO"] = "WORLD"
     uvicorn.run(
         "kodit.app:app",
         host=host,
