@@ -13,6 +13,7 @@ import pydantic
 import structlog
 from tqdm.asyncio import tqdm
 
+from kodit.bm25.bm25 import BM25Service
 from kodit.indexing.models import Snippet
 from kodit.indexing.repository import IndexRepository
 from kodit.snippets.snippets import SnippetService
@@ -57,6 +58,7 @@ class IndexService:
         self.source_service = source_service
         self.snippet_service = SnippetService()
         self.log = structlog.get_logger(__name__)
+        self.bm25 = BM25Service()
 
     async def create(self, source_id: int) -> IndexView:
         """Create a new index for a source.
@@ -114,6 +116,10 @@ class IndexService:
 
         # Create snippets for supported file types
         await self._create_snippets(index_id)
+
+        # Update BM25 index
+        snippets = await self.repository.get_all_snippets()
+        self.bm25.index([snippet.content for snippet in snippets])
 
         # Update index timestamp
         await self.repository.update_index_timestamp(index)

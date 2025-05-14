@@ -142,9 +142,15 @@ async def retrieve(session: AsyncSession, query: str) -> None:
     service = RetrievalService(repository)
     snippets = await service.retrieve(RetrievalRequest(query=query))
 
+    if len(snippets) == 0:
+        click.echo("No snippets found")
+        return
+
     for snippet in snippets:
+        click.echo("-" * 80)
         click.echo(f"{snippet.uri}")
         click.echo(snippet.content)
+        click.echo("-" * 80)
         click.echo()
 
 

@@ -41,6 +41,7 @@ dependencies = [
     "uritools>=5.0.0",
     "tree-sitter-language-pack>=0.7.3",
     "tree-sitter>=0.24.0",
+    "bm25s[core]>=0.2.12",
 ]
 
 [dependency-groups]

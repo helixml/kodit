@@ -1,7 +1,9 @@
 """Retrieval service."""
 
 import pydantic
+import structlog
 
+from kodit.bm25.bm25 import BM25Service
 from kodit.retreival.repository import RetrievalRepository, RetrievalResult
 
 
@@ -9,6 +11,7 @@ class RetrievalRequest(pydantic.BaseModel):
     """Request for a retrieval."""
 
     query: str
+    top_k: int = 10
 
 
 class Snippet(pydantic.BaseModel):
@@ -24,7 +27,15 @@ class RetrievalService:
     def __init__(self, repository: RetrievalRepository) -> None:
         """Initialize the retrieval service."""
         self.repository = repository
+        self.log = structlog.get_logger(__name__)
+        self.bm25 = BM25Service()
+
+    async def _load_bm25_index(self) -> None:
+        """Load the BM25 index."""
 
     async def retrieve(self, request: RetrievalRequest) -> list[RetrievalResult]:
         """Retrieve relevant data."""
-        return await self.repository.string_search(request.query)
+        snippet_ids = await self.repository.list_snippet_ids()
+        results = self.bm25.retrieve(snippet_ids, request.query, request.top_k)
+        # Get results from database
+        return await self.repository.list_snippets_by_ids(results)

@@ -74,3 +74,35 @@ class RetrievalRepository:
             )
             for snippet, file in results
         ]
+
+    async def list_snippet_ids(self) -> list[int]:
+        """List all snippet IDs.
+
+        Returns:
+            A list of all snippets.
+
+        """
+        query = select(Snippet.id)
+        rows = await self.session.execute(query)
+        return list(rows.scalars().all())
+
+    async def list_snippets_by_ids(self, ids: list[int]) -> list[RetrievalResult]:
+        """List snippets by IDs.
+
+        Returns:
+            A list of snippets.
+
+        """
+        query = (
+            select(Snippet, File)
+            .where(Snippet.id.in_(ids))
+            .join(File, Snippet.file_id == File.id)
+        )
+        rows = await self.session.execute(query)
+        return [
+            RetrievalResult(
+                uri=file.uri,
+                content=snippet.content,
+            )
+            for snippet, file in rows.all()
+        ]
