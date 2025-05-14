@@ -17,9 +17,9 @@ def repository(session: AsyncSession) -> SourceRepository:
 
 
 @pytest.fixture
-def service(repository: SourceRepository) -> SourceService:
+def service(tmp_path: Path, repository: SourceRepository) -> SourceService:
     """Create a service instance with a real repository."""
-    return SourceService(repository)
+    return SourceService(tmp_path, repository)
 
 
 @pytest.mark.asyncio

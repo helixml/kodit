@@ -1,6 +1,7 @@
 """Command line interface for kodit."""
 
 import os
+from pathlib import Path
 
 import click
 import structlog
@@ -9,10 +10,10 @@ from dotenv import dotenv_values
 from pytable_formatter import Table
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.database import configure_database, with_session
+from kodit.config import Config, pass_config, with_session
 from kodit.indexing.repository import IndexRepository
 from kodit.indexing.service import IndexService
-from kodit.logging import LogFormat, configure_logging, disable_posthog, log_event
+from kodit.logging import LogFormat, log_event
 from kodit.retreival.repository import RetrievalRepository
 from kodit.retreival.service import RetrievalRequest, RetrievalService
 from kodit.sources.repository import SourceRepository
@@ -26,16 +27,32 @@ os.environ.update(env_vars)
 @click.option("--log-level", default="INFO", help="Log level")
 @click.option("--log-format", default=LogFormat.PRETTY, help="Log format")
 @click.option("--disable-telemetry", is_flag=True, help="Disable telemetry")
+@click.option(
+    "--db-url",
+    help="Database URL  [default: sqlite+aiosqlite:///{DATA_DIR}/kodit.db]",
+)
+@click.option(
+    "--data-dir",
+    default=str(Path.home() / ".kodit"),
+    help="Directory to store kodit data",
+)
+@click.pass_context
 def cli(
+    ctx: click.Context,
     log_level: str,
     log_format: LogFormat,
     disable_telemetry: bool,  # noqa: FBT001
+    db_url: str | None,
+    data_dir: str,
 ) -> None:
     """kodit CLI - Code indexing for better AI code generation."""  # noqa: D403
-    configure_logging(log_level, log_format)
-    if disable_telemetry:
-        disable_posthog()
-    configure_database()
+    ctx.obj = Config(
+        data_dir=Path(data_dir),
+        db_url=db_url,
+        log_level=log_level,
+        log_format=log_format,
+        disable_telemetry=disable_telemetry,
+    )
 
 
 @cli.group()
@@ -45,10 +62,11 @@ def sources() -> None:
 
 @sources.command(name="list")
 @with_session
-async def list_sources(session: AsyncSession) -> None:
+@pass_config
+async def list_sources(config: Config, session: AsyncSession) -> None:
     """List all code sources."""
     repository = SourceRepository(session)
-    service = SourceService(repository)
+    service = SourceService(config.get_clone_dir(), repository)
     sources = await service.list_sources()
 
     # Define headers and data
@@ -63,10 +81,11 @@ async def list_sources(session: AsyncSession) -> None:
 @sources.command(name="create")
 @click.argument("uri")
 @with_session
-async def create_source(session: AsyncSession, uri: str) -> None:
+@pass_config
+async def create_source(config: Config, session: AsyncSession, uri: str) -> None:
     """Add a new code source."""
     repository = SourceRepository(session)
-    service = SourceService(repository)
+    service = SourceService(config.get_clone_dir(), repository)
     source = await service.create(uri)
     click.echo(f"Source created: {source.id}")
 
@@ -79,10 +98,11 @@ def indexes() -> None:
 @indexes.command(name="create")
 @click.argument("source_id")
 @with_session
-async def create_index(session: AsyncSession, source_id: int) -> None:
+@pass_config
+async def create_index(config: Config, session: AsyncSession, source_id: int) -> None:
     """Create an index for a source."""
     source_repository = SourceRepository(session)
-    source_service = SourceService(source_repository)
+    source_service = SourceService(config.get_clone_dir(), source_repository)
     repository = IndexRepository(session)
     service = IndexService(repository, source_service)
     index = await service.create(source_id)
@@ -91,10 +111,11 @@ async def create_index(session: AsyncSession, source_id: int) -> None:
 
 @indexes.command(name="list")
 @with_session
-async def list_indexes(session: AsyncSession) -> None:
+@pass_config
+async def list_indexes(config: Config, session: AsyncSession) -> None:
     """List all indexes."""
     source_repository = SourceRepository(session)
-    source_service = SourceService(source_repository)
+    source_service = SourceService(config.get_clone_dir(), source_repository)
     repository = IndexRepository(session)
     service = IndexService(repository, source_service)
     indexes = await service.list_indexes()
@@ -124,10 +145,11 @@ async def list_indexes(session: AsyncSession) -> None:
 @indexes.command(name="run")
 @click.argument("index_id")
 @with_session
-async def run_index(session: AsyncSession, index_id: int) -> None:
+@pass_config
+async def run_index(config: Config, session: AsyncSession, index_id: int) -> None:
     """Run an index."""
     source_repository = SourceRepository(session)
-    source_service = SourceService(source_repository)
+    source_service = SourceService(config.get_clone_dir(), source_repository)
     repository = IndexRepository(session)
     service = IndexService(repository, source_service)
     await service.run(index_id)
