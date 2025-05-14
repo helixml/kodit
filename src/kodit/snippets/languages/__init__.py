@@ -40,8 +40,9 @@ LANGUAGE_MAP: dict[str, str] = {
 
 def detect_language(file_path: Path) -> SupportedLanguage:
     """Detect the language of a file."""
-    msg = f"Unsupported language for file: {file_path}"
-    lang = LANGUAGE_MAP.get(file_path.suffix)
+    suffix = file_path.suffix.removeprefix(".").lower()
+    msg = f"Unsupported language for file suffix: {suffix}"
+    lang = LANGUAGE_MAP.get(suffix)
     if lang is None:
         raise ValueError(msg)
 

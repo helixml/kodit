@@ -116,15 +116,15 @@ async def test_run_index(
         sha256="",
     )
     session.add(file)
-    await session.commit()
     file = File(
         source_id=source.id,
         cloned_path=str(test_file),
-        mime_type="unknown/unknown",
+        mime_type="unknown/unknown",  # This file will be ignored
         uri=str(test_file),
         sha256="",
     )
     session.add(file)
+    await session.commit()
 
     # Create index
     index = await service.create(source.id)

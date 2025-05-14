@@ -7,24 +7,19 @@ index management.
 """
 
 from datetime import datetime
+from pathlib import Path
 
-import aiofiles
 import pydantic
 import structlog
 from tqdm.asyncio import tqdm
 
 from kodit.indexing.models import Snippet
 from kodit.indexing.repository import IndexRepository
+from kodit.snippets.snippets import SnippetService
 from kodit.sources.service import SourceService
 
-# List of MIME types that are supported for indexing and snippet creation
-MIME_WHITELIST = [
-    "text/plain",
-    "text/markdown",
-    "text/x-python",
-    "text/x-shellscript",
-    "text/x-sql",
-]
+# List of MIME types that are blacklisted from being indexed
+MIME_BLACKLIST = ["unknown/unknown"]
 
 
 class IndexView(pydantic.BaseModel):
@@ -60,6 +55,7 @@ class IndexService:
         """
         self.repository = repository
         self.source_service = source_service
+        self.snippet_service = SnippetService()
         self.log = structlog.get_logger(__name__)
 
     async def create(self, source_id: int) -> IndexView:
@@ -137,16 +133,23 @@ class IndexService:
         files = await self.repository.files_for_index(index_id)
         for file in tqdm(files, total=len(files)):
             # Skip unsupported file types
-            if file.mime_type not in MIME_WHITELIST:
+            if file.mime_type in MIME_BLACKLIST:
                 self.log.debug("Skipping mime type", mime_type=file.mime_type)
                 continue
 
             # Create snippet from file content
-            async with aiofiles.open(file.cloned_path, "rb") as f:
-                content = await f.read()
-                snippet = Snippet(
+            try:
+                snippets = self.snippet_service.snippets_for_file(
+                    Path(file.cloned_path)
+                )
+            except ValueError as e:
+                self.log.debug("Skipping file", file=file.cloned_path, error=e)
+                continue
+
+            for snippet in snippets:
+                s = Snippet(
                     index_id=index_id,
                     file_id=file.id,
-                    content=content.decode("utf-8"),
+                    content=snippet.text,
                 )
-                await self.repository.add_snippet(snippet)
+                await self.repository.add_snippet(s)

@@ -4,7 +4,7 @@ import inspect
 from pathlib import Path
 
 from kodit.snippets.languages import detect_language
-from kodit.snippets.method_snippets import MethodASTAnalyzer
+from kodit.snippets.method_snippets import MethodSnippets
 
 
 def test_extract_methods() -> None:
@@ -15,8 +15,8 @@ def test_extract_methods() -> None:
     file_path = inspect.getfile(detect_language)
     python_query = (Path(file_path).parent / "python.scm").read_text()
 
-    analyzer = MethodASTAnalyzer("python", python_query)
-    extracted_methods = analyzer.analyze(source_code)
+    analyzer = MethodSnippets("python", python_query)
+    extracted_methods = analyzer.extract(source_code)
 
     for method in extracted_methods:
         print(method)  # noqa: T201
@@ -50,8 +50,8 @@ def test_extract_csharp_methods() -> None:
     file_path = inspect.getfile(detect_language)
     csharp_query = (Path(file_path).parent / "csharp.scm").read_text()
 
-    analyzer = MethodASTAnalyzer("csharp", csharp_query)
-    extracted_methods = analyzer.analyze(source_code)
+    analyzer = MethodSnippets("csharp", csharp_query)
+    extracted_methods = analyzer.extract(source_code)
 
     for method in extracted_methods:
         print(method)  # noqa: T201

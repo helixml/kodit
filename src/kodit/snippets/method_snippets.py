@@ -1,9 +1,14 @@
+"""Extract method snippets from source code."""
+
 from tree_sitter import Node, Query
 from tree_sitter_language_pack import SupportedLanguage, get_language, get_parser
 
 
-class MethodASTAnalyzer:
+class MethodSnippets:
+    """Extract method snippets from source code."""
+
     def __init__(self, language: SupportedLanguage, query: str) -> None:
+        """Initialize the MethodSnippets class."""
         self.language = get_language(language)
         self.parser = get_parser(language)
         self.query = Query(self.language, query)
@@ -61,7 +66,8 @@ class MethodASTAnalyzer:
             parent = parent.parent
         return ancestors
 
-    def analyze(self, source_code: bytes) -> list[str]:
+    def extract(self, source_code: bytes) -> list[str]:
+        """Extract method snippets from source code."""
         tree = self.parser.parse(source_code)
 
         captures_by_name = self.query.captures(tree.root_node)
@@ -100,13 +106,15 @@ class MethodASTAnalyzer:
                 end = node.start_point[0]
                 all_lines_to_keep.update(range(start, end + 1))
 
-            # 3. Print pseudo-code: only lines in selected ranges, in order
-
-            psuedo_code = []
+            pseudo_code = []
             for i, line in enumerate(lines):
                 if i in all_lines_to_keep:
-                    psuedo_code.append(line)
+                    pseudo_code.append(line)
 
-            results.append("\n".join(psuedo_code))
+            results.append("\n".join(pseudo_code))
+
+        # If there are no results, then return the entire file
+        if not results:
+            return [source_code.decode()]
 
         return results

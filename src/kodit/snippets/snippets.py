@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from kodit.snippets.languages import detect_language
-from kodit.snippets.method_snippets import MethodASTAnalyzer
+from kodit.snippets.method_snippets import MethodSnippets
 
 
 @dataclass
@@ -14,7 +14,7 @@ class Snippet:
     text: str
 
 
-class SnippetFactory:
+class SnippetService:
     """Factory for generating snippets from a file.
 
     This is required because there's going to be multiple ways to generate snippets.
@@ -36,7 +36,7 @@ class SnippetFactory:
             msg = f"Unsupported language: {file_path}"
             raise ValueError(msg) from e
 
-        method_analser = MethodASTAnalyzer(language, query)
+        method_analser = MethodSnippets(language, query)
 
         try:
             file_bytes = file_path.read_bytes()
@@ -44,5 +44,5 @@ class SnippetFactory:
             msg = f"Failed to read file: {file_path}"
             raise ValueError(msg) from e
 
-        method_snippets = method_analser.analyze(file_bytes)
+        method_snippets = method_analser.extract(file_bytes)
         return [Snippet(text=snippet) for snippet in method_snippets]
