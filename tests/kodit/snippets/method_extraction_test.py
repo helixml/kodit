@@ -84,8 +84,10 @@ def test_extract_csharp_methods() -> None:
     # assert "this.value = value" in constructor
 
     # Verify GetValue method
-    get_value_methods = [m for m in extracted_methods if "GetValue" in m]
-    assert len(get_value_methods) == 2
+    get_value_methods = [
+        m for m in extracted_methods if "public List<string> GetValue()" in m
+    ]
+    assert len(get_value_methods) == 1
     get_value = get_value_methods[0]
     assert "public List<string> GetValue()" in get_value
     assert "Directory.GetFiles" in get_value
