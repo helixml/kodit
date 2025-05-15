@@ -1,9 +1,5 @@
 """Command line interface for kodit."""
 
-# TODO:
-# 5. some more finesse
-# 6. some better e2e tests (partially implemented)
-
 import os
 import signal
 from pathlib import Path
