@@ -10,22 +10,41 @@ import pytest
 from click.testing import CliRunner
 
 from kodit.cli import cli
+from kodit.config import reset_config, get_config
 
 
 @pytest.fixture
-def runner() -> CliRunner:
+def tmp_data_dir() -> Generator[Path, None, None]:
+    """Create a temporary data directory."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        yield Path(tmp_dir)
+
+
+@pytest.fixture
+def runner(tmp_data_dir: Path) -> Generator[CliRunner, None, None]:
     """Create a CliRunner instance."""
-    return CliRunner()
+    reset_config()
+    runner = CliRunner()
+    runner.env = {
+        "DATA_DIR": str(tmp_data_dir),
+        "DB_URL": f"sqlite+aiosqlite:///{tmp_data_dir}/test.db",
+        "DISABLE_TELEMETRY": "true",
+    }
+    yield runner
 
 
 @pytest.fixture
-def test_repo() -> Generator[Path, None, None]:
+def tmp_repo_dir() -> Generator[Path, None, None]:
     """Create a temporary test repository with some sample code."""
-    # Create a temporary directory
-    temp_dir = Path(tempfile.mkdtemp())
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        yield Path(tmp_dir)
 
+
+@pytest.fixture
+def test_repo(tmp_repo_dir: Path) -> Generator[Path, None, None]:
+    """Create a temporary test repository with some sample code."""
     # Create a sample Python file
-    sample_file = temp_dir / "sample.py"
+    sample_file = tmp_repo_dir / "sample.py"
     sample_file.write_text("""
 def hello_world():
     \"\"\"A simple hello world function.\"\"\"
@@ -37,38 +56,19 @@ def add_numbers(a: int, b: int) -> int:
 """)
 
     # Create a sample README
-    readme = temp_dir / "README.md"
+    readme = tmp_repo_dir / "README.md"
     readme.write_text(
         "# Test Repository\n\nThis is a test repository for kodit e2e tests."
     )
 
-    yield temp_dir
-
-    # Cleanup
-    shutil.rmtree(temp_dir)
+    yield tmp_repo_dir
 
 
-@pytest.fixture
-def test_env() -> Generator[None, None, None]:
-    """Set up test environment variables."""
-    # Store original environment
-    original_env = dict(os.environ)
-
-    # Set test environment variables
-    os.environ["KODIT_DISABLE_TELEMETRY"] = "true"
-    os.environ["KODIT_LOG_LEVEL"] = "ERROR"
-
-    yield
-
-    # Restore original environment
-    os.environ.clear()
-    os.environ.update(original_env)
-
-
-def test_source_management(runner: CliRunner, test_repo: Path, test_env: None) -> None:
+def test_source_management(runner: CliRunner, test_repo: Path) -> None:
     """Test source management commands."""
     # Test creating a source
     result = runner.invoke(cli, ["sources", "create", str(test_repo)])
+    assert result.exception is None
     assert result.exit_code == 0
     assert "Source created:" in result.output
 
@@ -78,13 +78,16 @@ def test_source_management(runner: CliRunner, test_repo: Path, test_env: None) -
     assert str(test_repo) in result.output
 
 
-def test_index_management(runner: CliRunner, test_repo: Path, test_env: None) -> None:
+def test_index_management(runner: CliRunner, test_repo: Path) -> None:
     """Test index management commands."""
     # Create a source first
     runner.invoke(cli, ["sources", "create", str(test_repo)])
+    result = runner.invoke(cli, ["sources", "list"])
+    print(result.output)
 
     # Test creating an index
     result = runner.invoke(cli, ["indexes", "create", "1"])
+    print(result.exception)
     assert result.exit_code == 0
     assert "Index created:" in result.output
 
@@ -99,7 +102,7 @@ def test_index_management(runner: CliRunner, test_repo: Path, test_env: None) ->
     assert result.exit_code == 0
 
 
-def test_retrieval(runner: CliRunner, test_repo: Path, test_env: None) -> None:
+def test_retrieval(runner: CliRunner, test_repo: Path) -> None:
     """Test retrieval functionality."""
     # Set up source and index
     runner.invoke(cli, ["sources", "create", str(test_repo)])
