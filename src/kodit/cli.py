@@ -117,7 +117,7 @@ async def create_index(session: AsyncSession, source_id: int) -> None:
     source_repository = SourceRepository(session)
     source_service = SourceService(get_config().get_clone_dir(), source_repository)
     repository = IndexRepository(session)
-    service = IndexService(repository, source_service)
+    service = IndexService(get_config(), repository, source_service)
     index = await service.create(source_id)
     click.echo(f"Index created: {index.id}")
 
@@ -129,7 +129,7 @@ async def list_indexes(session: AsyncSession) -> None:
     source_repository = SourceRepository(session)
     source_service = SourceService(get_config().get_clone_dir(), source_repository)
     repository = IndexRepository(session)
-    service = IndexService(repository, source_service)
+    service = IndexService(get_config(), repository, source_service)
     indexes = await service.list_indexes()
 
     # Define headers and data
@@ -162,19 +162,22 @@ async def run_index(session: AsyncSession, index_id: int) -> None:
     source_repository = SourceRepository(session)
     source_service = SourceService(get_config().get_clone_dir(), source_repository)
     repository = IndexRepository(session)
-    service = IndexService(repository, source_service)
+    service = IndexService(get_config(), repository, source_service)
     await service.run(index_id)
 
 
 @cli.command()
 @click.argument("query")
+@click.option("--top-k", default=10, help="Number of snippets to retrieve")
 @with_session
-async def retrieve(session: AsyncSession, query: str) -> None:
+async def retrieve(session: AsyncSession, query: str, top_k: int) -> None:
     """Retrieve snippets from the database."""
     repository = RetrievalRepository(session)
-    service = RetrievalService(repository)
+    service = RetrievalService(get_config(), repository)
     # Temporary request while we don't have all search capabilities
-    snippets = await service.retrieve(RetrievalRequest(keywords=[query]))
+    snippets = await service.retrieve(
+        RetrievalRequest(keywords=query.split(","), top_k=top_k)
+    )
 
     if len(snippets) == 0:
         click.echo("No snippets found")

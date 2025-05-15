@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from unittest.mock import Mock
 
 from kodit.bm25.bm25 import BM25Service
+from kodit.config import Config
 from kodit.indexing.models import Index, Snippet
 from kodit.retreival.repository import RetrievalRepository
 from kodit.retreival.service import RetrievalRequest, RetrievalService
@@ -20,17 +21,19 @@ def repository(session: AsyncSession) -> RetrievalRepository:
 @pytest.fixture
 def service(repository: RetrievalRepository) -> RetrievalService:
     """Create a service instance with a real repository."""
-    service = RetrievalService(repository)
+    service = RetrievalService(Config(), repository)
     mock_bm25 = Mock(spec=BM25Service)
 
-    def mock_retrieve(doc_ids: list[int], query: str, top_k: int = 2) -> list[int]:
+    def mock_retrieve(
+        doc_ids: list[int], query: str, top_k: int = 2
+    ) -> list[tuple[int, float]]:
         # Mock behavior based on test cases
         if query.lower() == "hello":
-            return [1]  # Return first snippet for "hello"
+            return [(1, 0.5)]  # Return first snippet for "hello"
         elif query.lower() == "world":
-            return [1, 2]  # Return both snippets for "world"
+            return [(1, 0.5), (2, 0.4)]  # Return both snippets for "world"
         elif query.lower() == "good":
-            return [2]  # Return second snippet for "good"
+            return [(2, 0.4)]  # Return second snippet for "good"
         return []  # Return empty list for no matches
 
     mock_bm25.retrieve.side_effect = mock_retrieve
