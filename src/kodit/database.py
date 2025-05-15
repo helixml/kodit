@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 
+import structlog
 from alembic import command
 from alembic.config import Config as AlembicConfig
 from sqlalchemy import DateTime
@@ -40,6 +41,7 @@ class Database:
 
     def __init__(self, db_url: str) -> None:
         """Initialize the database."""
+        self.log = structlog.get_logger(__name__)
         self._configure_database(db_url)
         db_engine = create_async_engine(db_url, echo=False)
         self.db_session_factory = async_sessionmaker(
@@ -65,4 +67,5 @@ class Database:
             "script_location", str(Path(alembic.__file__).parent)
         )
         alembic_cfg.set_main_option("sqlalchemy.url", db_url)
+        self.log.debug("Running migrations", db_url=db_url)
         command.upgrade(alembic_cfg, "head")

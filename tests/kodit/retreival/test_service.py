@@ -64,22 +64,22 @@ async def test_retrieve_snippets(
     await session.commit()
 
     # Test retrieving snippets
-    results = await service.retrieve(RetrievalRequest(query="hello"))
+    results = await service.retrieve(RetrievalRequest(keywords=["hello"]))
     assert len(results) == 1
     assert results[0].uri == "test1.txt"
     assert results[0].content == "hello world"
 
     # Test case-insensitive search
-    results = await service.retrieve(RetrievalRequest(query="WORLD"))
+    results = await service.retrieve(RetrievalRequest(keywords=["WORLD"]))
     assert len(results) == 2
     assert {r.uri for r in results} == {"test1.txt", "test2.txt"}
 
     # Test partial match
-    results = await service.retrieve(RetrievalRequest(query="good"))
+    results = await service.retrieve(RetrievalRequest(keywords=["good"]))
     assert len(results) == 1
     assert results[0].uri == "test2.txt"
     assert results[0].content == "goodbye world"
 
     # Test no matches
-    results = await service.retrieve(RetrievalRequest(query="nonexistent"))
+    results = await service.retrieve(RetrievalRequest(keywords=["nonexistent"]))
     assert len(results) == 0
