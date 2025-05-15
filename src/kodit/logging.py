@@ -89,9 +89,14 @@ def configure_logging(log_level: str, log_format: LogFormat) -> None:
     root_logger.setLevel(log_level.upper())
 
     # Configure uvicorn loggers to use our structlog setup
+    # Uvicorn spits out loads of exception logs when sse server doesn't shut down
+    # gracefully, so we hide them unless in DEBUG mode
     for _log in ["uvicorn", "uvicorn.error", "uvicorn.access"]:
-        logging.getLogger(_log).handlers.clear()
-        logging.getLogger(_log).propagate = True
+        if root_logger.getEffectiveLevel() == logging.DEBUG:
+            logging.getLogger(_log).handlers.clear()
+            logging.getLogger(_log).propagate = True
+        else:
+            logging.getLogger(_log).disabled = True
 
     # Configure SQLAlchemy loggers to use our structlog setup
     for _log in ["sqlalchemy.engine", "alembic"]:

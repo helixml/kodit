@@ -1,13 +1,14 @@
 """Command line interface for kodit."""
 
 # TODO:
-# 1. Doesn't shutdown gracefully
 # 4. Could do with some more testing on the new config object. E.g. are the env vars the same when using cli vs server?
 # 5. some more finesse
 # 6. some better e2e tests (partially implemented)
 
 import os
+import signal
 from pathlib import Path
+from typing import Any
 
 import click
 import structlog
@@ -175,25 +176,35 @@ async def retrieve(session: AsyncSession, query: str) -> None:
 @cli.command()
 @click.option("--host", default="127.0.0.1", help="Host to bind the server to")
 @click.option("--port", default=8080, help="Port to bind the server to")
-@click.option("--reload", is_flag=True, help="Enable auto-reload for development")
 def serve(
     host: str,
     port: int,
-    reload: bool,  # noqa: FBT001
 ) -> None:
     """Start the kodit server, which hosts the MCP server and the kodit API."""
     log = structlog.get_logger(__name__)
-    log.info("Starting kodit server", host=host, port=port, reload=reload)
+    log.info("Starting kodit server", host=host, port=port)
     log_event("kodit_server_started")
     os.environ["HELLO"] = "WORLD"
-    uvicorn.run(
+
+    # Configure uvicorn with graceful shutdown
+    config = uvicorn.Config(
         "kodit.app:app",
         host=host,
         port=port,
-        reload=reload,
+        reload=False,
         log_config=None,  # Setting to None forces uvicorn to use our structlog setup
         access_log=False,  # Using own middleware for access logging
+        timeout_graceful_shutdown=0,  # The mcp server does not support graceful shutdown
     )
+    server = uvicorn.Server(config)
+
+    def handle_sigint(signum: int, frame: Any) -> None:
+        """Handle SIGINT (Ctrl+C)."""
+        log.info("Received shutdown signal, force killing MCP connections")
+        server.handle_exit(signum, frame)
+
+    signal.signal(signal.SIGINT, handle_sigint)
+    server.run()
 
 
 @cli.command()

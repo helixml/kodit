@@ -84,7 +84,7 @@ async def retrieve_relevant_snippets(
         )
         log.debug("Input", input_query=input_query)
         retrieval_request = RetrievalRequest(
-            query=input_query,
+            keywords=keywords,
         )
         log.debug("Retrieving snippets")
         snippets = await retrieval_service.retrieve(request=retrieval_request)
