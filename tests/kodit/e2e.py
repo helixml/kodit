@@ -129,3 +129,17 @@ def test_serve_command(runner: CliRunner) -> None:
     result = runner.invoke(cli, ["serve", "--help"])
     assert result.exit_code == 0
     assert "Start the kodit server" in result.output
+
+
+def test_ensure_data_dir_exists(runner: CliRunner, tmp_data_dir: Path) -> None:
+    """Ensure the data directory exists."""
+    reset_config()
+    subdir = tmp_data_dir / "test"
+    # intentionally not creating the subdir
+    runner.env = {
+        "DATA_DIR": str(subdir),
+        "DB_URL": f"sqlite+aiosqlite:///{subdir}/test.db",
+        "DISABLE_TELEMETRY": "true",
+    }
+    result = runner.invoke(cli, ["sources", "list"])
+    assert result.exit_code == 0
