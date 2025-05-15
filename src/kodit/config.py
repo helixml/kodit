@@ -31,6 +31,11 @@ class Config(BaseSettings):
     disable_telemetry: bool = Field(default=DEFAULT_DISABLE_TELEMETRY)
     _db: Database | None = None
 
+    def model_post_init(self, _: Any) -> None:
+        """Post-initialization hook."""
+        # Call this to ensure the data dir exists for the default db location
+        self.get_data_dir()
+
     def get_data_dir(self) -> Path:
         """Get the data directory."""
         self.data_dir.mkdir(parents=True, exist_ok=True)
