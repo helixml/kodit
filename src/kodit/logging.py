@@ -11,6 +11,8 @@ import structlog
 from posthog import Posthog
 from structlog.types import EventDict
 
+from kodit.config import Config
+
 log = structlog.get_logger(__name__)
 
 
@@ -27,14 +29,8 @@ class LogFormat(Enum):
     JSON = "json"
 
 
-def configure_logging(log_level: str, log_format: LogFormat) -> None:
-    """Configure logging for the application.
-
-    Args:
-        json_logs: Whether to use JSON format for logs
-        log_level: The minimum log level to display
-
-    """
+def configure_logging(config: Config) -> None:
+    """Configure logging for the application."""
     timestamper = structlog.processors.TimeStamper(fmt="iso")
 
     shared_processors: list[structlog.types.Processor] = [
@@ -48,7 +44,7 @@ def configure_logging(log_level: str, log_format: LogFormat) -> None:
         structlog.processors.StackInfoRenderer(),
     ]
 
-    if log_format == LogFormat.JSON:
+    if config.log_format == LogFormat.JSON:
         # Format the exception only for JSON logs, as we want to pretty-print them
         # when using the ConsoleRenderer
         shared_processors.append(structlog.processors.format_exc_info)
@@ -64,7 +60,7 @@ def configure_logging(log_level: str, log_format: LogFormat) -> None:
     )
 
     log_renderer: structlog.types.Processor
-    if log_format == LogFormat.JSON:
+    if config.log_format == LogFormat.JSON:
         log_renderer = structlog.processors.JSONRenderer()
     else:
         log_renderer = structlog.dev.ConsoleRenderer()
@@ -86,18 +82,23 @@ def configure_logging(log_level: str, log_format: LogFormat) -> None:
     handler.setFormatter(formatter)
     root_logger = logging.getLogger()
     root_logger.addHandler(handler)
-    root_logger.setLevel(log_level.upper())
+    root_logger.setLevel(config.log_level.upper())
 
     # Configure uvicorn loggers to use our structlog setup
+    # Uvicorn spits out loads of exception logs when sse server doesn't shut down
+    # gracefully, so we hide them unless in DEBUG mode
     for _log in ["uvicorn", "uvicorn.error", "uvicorn.access"]:
-        logging.getLogger(_log).handlers.clear()
-        logging.getLogger(_log).propagate = True
+        if root_logger.getEffectiveLevel() == logging.DEBUG:
+            logging.getLogger(_log).handlers.clear()
+            logging.getLogger(_log).propagate = True
+        else:
+            logging.getLogger(_log).disabled = True
 
     # Configure SQLAlchemy loggers to use our structlog setup
     for _log in ["sqlalchemy.engine", "alembic"]:
         engine_logger = logging.getLogger(_log)
         engine_logger.setLevel(logging.WARNING)  # Hide INFO logs by default
-        if log_level.upper() == "DEBUG":
+        if config.log_level.upper() == "DEBUG":
             engine_logger.setLevel(
                 logging.DEBUG
             )  # Only show all logs when in DEBUG mode
@@ -142,10 +143,11 @@ def get_mac_address() -> str:
     return f"{mac:012x}" if mac != uuid.getnode() else str(uuid.uuid4())
 
 
-def disable_posthog() -> None:
-    """Disable telemetry for the application."""
-    structlog.stdlib.get_logger(__name__).info("Telemetry has been disabled")
-    posthog.disabled = True
+def configure_telemetry(config: Config) -> None:
+    """Configure telemetry for the application."""
+    if config.disable_telemetry:
+        structlog.stdlib.get_logger(__name__).info("Telemetry has been disabled")
+        posthog.disabled = True
 
 
 def log_event(event: str, properties: dict[str, Any] | None = None) -> None:

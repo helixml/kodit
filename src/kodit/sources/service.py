@@ -18,11 +18,8 @@ import structlog
 from tqdm import tqdm
 from uritools import isuri, urisplit
 
-from kodit.config import DATA_DIR
 from kodit.sources.models import File, Source
 from kodit.sources.repository import SourceRepository
-
-CLONE_DIR = DATA_DIR / "clones"
 
 
 class SourceView(pydantic.BaseModel):
@@ -53,13 +50,14 @@ class SourceService:
     SourceRepository), and provides a clean API for source management.
     """
 
-    def __init__(self, repository: SourceRepository) -> None:
+    def __init__(self, clone_dir: Path, repository: SourceRepository) -> None:
         """Initialize the source service.
 
         Args:
             repository: The repository instance to use for database operations.
 
         """
+        self.clone_dir = clone_dir
         self.repository = repository
         self.log = structlog.get_logger(__name__)
 
@@ -129,7 +127,7 @@ class SourceService:
             raise ValueError(msg)
 
         # Clone into a local directory
-        clone_path = CLONE_DIR / directory.as_posix().replace("/", "_")
+        clone_path = self.clone_dir / directory.as_posix().replace("/", "_")
         clone_path.mkdir(parents=True, exist_ok=True)
 
         # Copy all files recursively, preserving directory structure, ignoring hidden

@@ -1,41 +1,74 @@
 """Command line interface for kodit."""
 
 import os
+import signal
+from pathlib import Path
+from typing import Any
 
 import click
 import structlog
 import uvicorn
-from dotenv import dotenv_values
 from pytable_formatter import Table
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.database import configure_database, with_session
+from kodit.config import (
+    DEFAULT_BASE_DIR,
+    DEFAULT_DB_URL,
+    DEFAULT_DISABLE_TELEMETRY,
+    DEFAULT_LOG_FORMAT,
+    DEFAULT_LOG_LEVEL,
+    get_config,
+    reset_config,
+    with_session,
+)
 from kodit.indexing.repository import IndexRepository
 from kodit.indexing.service import IndexService
-from kodit.logging import LogFormat, configure_logging, disable_posthog, log_event
+from kodit.logging import configure_logging, configure_telemetry, log_event
 from kodit.retreival.repository import RetrievalRepository
 from kodit.retreival.service import RetrievalRequest, RetrievalService
 from kodit.sources.repository import SourceRepository
 from kodit.sources.service import SourceService
 
-env_vars = dict(dotenv_values())
-os.environ.update(env_vars)
 
-
-@click.group(context_settings={"auto_envvar_prefix": "KODIT", "show_default": True})
-@click.option("--log-level", default="INFO", help="Log level")
-@click.option("--log-format", default=LogFormat.PRETTY, help="Log format")
-@click.option("--disable-telemetry", is_flag=True, help="Disable telemetry")
-def cli(
-    log_level: str,
-    log_format: LogFormat,
-    disable_telemetry: bool,  # noqa: FBT001
+@click.group(context_settings={"max_content_width": 100})
+@click.option("--log-level", help=f"Log level [default: {DEFAULT_LOG_LEVEL}]")
+@click.option("--log-format", help=f"Log format [default: {DEFAULT_LOG_FORMAT}]")
+@click.option(
+    "--disable-telemetry",
+    is_flag=True,
+    help=f"Disable telemetry [default: {DEFAULT_DISABLE_TELEMETRY}]",
+)
+@click.option("--db-url", help=f"Database URL [default: {DEFAULT_DB_URL}]")
+@click.option("--data-dir", help=f"Data directory [default: {DEFAULT_BASE_DIR}]")
+@click.option("--env-file", help="Path to a .env file [default: .env]")
+def cli(  # noqa: PLR0913
+    log_level: str | None,
+    log_format: str | None,
+    disable_telemetry: bool | None,
+    db_url: str | None,
+    data_dir: str | None,
+    env_file: str | None,
 ) -> None:
     """kodit CLI - Code indexing for better AI code generation."""  # noqa: D403
-    configure_logging(log_level, log_format)
+    # First check if env-file is set and reload config if it is
+    if env_file:
+        reset_config()
+        get_config(env_file)
+
+    # Override global config with cli args, if set
+    config = get_config()
+    if data_dir:
+        config.data_dir = Path(data_dir)
+    if db_url:
+        config.db_url = db_url
+    if log_level:
+        config.log_level = log_level
+    if log_format:
+        config.log_format = log_format
     if disable_telemetry:
-        disable_posthog()
-    configure_database()
+        config.disable_telemetry = disable_telemetry
+    configure_logging(config)
+    configure_telemetry(config)
 
 
 @cli.group()
@@ -48,7 +81,7 @@ def sources() -> None:
 async def list_sources(session: AsyncSession) -> None:
     """List all code sources."""
     repository = SourceRepository(session)
-    service = SourceService(repository)
+    service = SourceService(get_config().get_clone_dir(), repository)
     sources = await service.list_sources()
 
     # Define headers and data
@@ -66,7 +99,7 @@ async def list_sources(session: AsyncSession) -> None:
 async def create_source(session: AsyncSession, uri: str) -> None:
     """Add a new code source."""
     repository = SourceRepository(session)
-    service = SourceService(repository)
+    service = SourceService(get_config().get_clone_dir(), repository)
     source = await service.create(uri)
     click.echo(f"Source created: {source.id}")
 
@@ -82,7 +115,7 @@ def indexes() -> None:
 async def create_index(session: AsyncSession, source_id: int) -> None:
     """Create an index for a source."""
     source_repository = SourceRepository(session)
-    source_service = SourceService(source_repository)
+    source_service = SourceService(get_config().get_clone_dir(), source_repository)
     repository = IndexRepository(session)
     service = IndexService(repository, source_service)
     index = await service.create(source_id)
@@ -94,7 +127,7 @@ async def create_index(session: AsyncSession, source_id: int) -> None:
 async def list_indexes(session: AsyncSession) -> None:
     """List all indexes."""
     source_repository = SourceRepository(session)
-    source_service = SourceService(source_repository)
+    source_service = SourceService(get_config().get_clone_dir(), source_repository)
     repository = IndexRepository(session)
     service = IndexService(repository, source_service)
     indexes = await service.list_indexes()
@@ -127,7 +160,7 @@ async def list_indexes(session: AsyncSession) -> None:
 async def run_index(session: AsyncSession, index_id: int) -> None:
     """Run an index."""
     source_repository = SourceRepository(session)
-    source_service = SourceService(source_repository)
+    source_service = SourceService(get_config().get_clone_dir(), source_repository)
     repository = IndexRepository(session)
     service = IndexService(repository, source_service)
     await service.run(index_id)
@@ -140,7 +173,8 @@ async def retrieve(session: AsyncSession, query: str) -> None:
     """Retrieve snippets from the database."""
     repository = RetrievalRepository(session)
     service = RetrievalService(repository)
-    snippets = await service.retrieve(RetrievalRequest(query=query))
+    # Temporary request while we don't have all search capabilities
+    snippets = await service.retrieve(RetrievalRequest(keywords=[query]))
 
     if len(snippets) == 0:
         click.echo("No snippets found")
@@ -157,24 +191,35 @@ async def retrieve(session: AsyncSession, query: str) -> None:
 @cli.command()
 @click.option("--host", default="127.0.0.1", help="Host to bind the server to")
 @click.option("--port", default=8080, help="Port to bind the server to")
-@click.option("--reload", is_flag=True, help="Enable auto-reload for development")
 def serve(
     host: str,
     port: int,
-    reload: bool,  # noqa: FBT001
 ) -> None:
     """Start the kodit server, which hosts the MCP server and the kodit API."""
     log = structlog.get_logger(__name__)
-    log.info("Starting kodit server", host=host, port=port, reload=reload)
+    log.info("Starting kodit server", host=host, port=port)
     log_event("kodit_server_started")
-    uvicorn.run(
+    os.environ["HELLO"] = "WORLD"
+
+    # Configure uvicorn with graceful shutdown
+    config = uvicorn.Config(
         "kodit.app:app",
         host=host,
         port=port,
-        reload=reload,
+        reload=False,
         log_config=None,  # Setting to None forces uvicorn to use our structlog setup
         access_log=False,  # Using own middleware for access logging
+        timeout_graceful_shutdown=0,  # The mcp server does not shutdown cleanly, force
     )
+    server = uvicorn.Server(config)
+
+    def handle_sigint(signum: int, frame: Any) -> None:
+        """Handle SIGINT (Ctrl+C)."""
+        log.info("Received shutdown signal, force killing MCP connections")
+        server.handle_exit(signum, frame)
+
+    signal.signal(signal.SIGINT, handle_sigint)
+    server.run()
 
 
 @cli.command()

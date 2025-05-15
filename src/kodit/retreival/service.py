@@ -10,7 +10,7 @@ from kodit.retreival.repository import RetrievalRepository, RetrievalResult
 class RetrievalRequest(pydantic.BaseModel):
     """Request for a retrieval."""
 
-    query: str
+    keywords: list[str]
     top_k: int = 10
 
 
@@ -36,6 +36,6 @@ class RetrievalService:
     async def retrieve(self, request: RetrievalRequest) -> list[RetrievalResult]:
         """Retrieve relevant data."""
         snippet_ids = await self.repository.list_snippet_ids()
-        results = self.bm25.retrieve(snippet_ids, request.query, request.top_k)
+        results = self.bm25.retrieve(snippet_ids, request.keywords[0], request.top_k)
         # Get results from database
         return await self.repository.list_snippets_by_ids(results)

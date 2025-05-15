@@ -1,15 +1,13 @@
 """Database configuration for kodit."""
 
-import asyncio
-from collections.abc import AsyncGenerator, Callable
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
-from functools import wraps
 from pathlib import Path
-from typing import Any, TypeVar
 
+import structlog
 from alembic import command
-from alembic.config import Config
+from alembic.config import Config as AlembicConfig
 from sqlalchemy import DateTime
 from sqlalchemy.ext.asyncio import (
     AsyncAttrs,
@@ -20,23 +18,6 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from kodit import alembic
-from kodit.config import DATA_DIR
-
-# Constants
-DB_URL = f"sqlite+aiosqlite:///{DATA_DIR}/kodit.db"
-
-# Create data directory if it doesn't exist
-DATA_DIR.mkdir(exist_ok=True)
-
-# Create async engine with file-based SQLite
-engine = create_async_engine(DB_URL, echo=False)
-
-# Create async session factory
-async_session_factory = async_sessionmaker(
-    engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-)
 
 
 class Base(AsyncAttrs, DeclarativeBase):
@@ -55,37 +36,36 @@ class CommonMixin:
     )
 
 
-@asynccontextmanager
-async def get_session() -> AsyncGenerator[AsyncSession, None]:
-    """Get a database session."""
-    async with async_session_factory() as session:
-        try:
-            yield session
-        finally:
-            await session.close()
+class Database:
+    """Database class for kodit."""
 
+    def __init__(self, db_url: str) -> None:
+        """Initialize the database."""
+        self.log = structlog.get_logger(__name__)
+        self._configure_database(db_url)
+        db_engine = create_async_engine(db_url, echo=False)
+        self.db_session_factory = async_sessionmaker(
+            db_engine,
+            class_=AsyncSession,
+            expire_on_commit=False,
+        )
 
-T = TypeVar("T")
+    @asynccontextmanager
+    async def get_session(self) -> AsyncGenerator[AsyncSession, None]:
+        """Get a database session."""
+        async with self.db_session_factory() as session:
+            try:
+                yield session
+            finally:
+                await session.close()
 
-
-def with_session(func: Callable[..., T]) -> Callable[..., T]:
-    """Provide an async session to CLI commands."""
-
-    @wraps(func)
-    def wrapper(*args: Any, **kwargs: Any) -> T:
-        async def _run() -> T:
-            async with async_session_factory() as session:
-                return await func(session, *args, **kwargs)
-
-        return asyncio.run(_run())
-
-    return wrapper
-
-
-def configure_database() -> None:
-    """Configure the database by initializing it and running any pending migrations."""
-    # Create Alembic configuration and run migrations
-    alembic_cfg = Config()
-    alembic_cfg.set_main_option("script_location", str(Path(alembic.__file__).parent))
-    alembic_cfg.set_main_option("sqlalchemy.url", DB_URL)
-    command.upgrade(alembic_cfg, "head")
+    def _configure_database(self, db_url: str) -> None:
+        """Run any pending migrations."""
+        # Create Alembic configuration and run migrations
+        alembic_cfg = AlembicConfig()
+        alembic_cfg.set_main_option(
+            "script_location", str(Path(alembic.__file__).parent)
+        )
+        alembic_cfg.set_main_option("sqlalchemy.url", db_url)
+        self.log.debug("Running migrations", db_url=db_url)
+        command.upgrade(alembic_cfg, "head")
