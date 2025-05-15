@@ -41,7 +41,7 @@ from kodit.sources.service import SourceService
 @click.option("--db-url", help=f"Database URL [default: {DEFAULT_DB_URL}]")
 @click.option("--data-dir", help=f"Data directory [default: {DEFAULT_BASE_DIR}]")
 @click.option("--env-file", help="Path to a .env file [default: .env]")
-def cli(
+def cli(  # noqa: PLR0913
     log_level: str | None,
     log_format: str | None,
     disable_telemetry: bool | None,
@@ -203,7 +203,7 @@ def serve(
         reload=False,
         log_config=None,  # Setting to None forces uvicorn to use our structlog setup
         access_log=False,  # Using own middleware for access logging
-        timeout_graceful_shutdown=0,  # The mcp server does not support graceful shutdown
+        timeout_graceful_shutdown=0,  # The mcp server does not shutdown cleanly, force
     )
     server = uvicorn.Server(config)
 
