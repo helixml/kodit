@@ -8,7 +8,7 @@ from kodit.retreival.repository import RetrievalRepository, RetrievalResult
 class RetrievalRequest(pydantic.BaseModel):
     """Request for a retrieval."""
 
-    query: str
+    keywords: list[str]
 
 
 class Snippet(pydantic.BaseModel):
@@ -27,4 +27,4 @@ class RetrievalService:
 
     async def retrieve(self, request: RetrievalRequest) -> list[RetrievalResult]:
         """Retrieve relevant data."""
-        return await self.repository.string_search(request.query)
+        return await self.repository.string_search(request.keywords[0])

@@ -1,5 +1,11 @@
 """Command line interface for kodit."""
 
+# TODO:
+# 1. Doesn't shutdown gracefully
+# 4. Could do with some more testing on the new config object. E.g. are the env vars the same when using cli vs server?
+# 5. some more finesse
+# 6. some better e2e tests (partially implemented)
+
 import os
 from pathlib import Path
 
@@ -10,7 +16,7 @@ from dotenv import dotenv_values
 from pytable_formatter import Table
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.config import DEFAULT_DB_URL, Config, pass_config, with_session
+from kodit.config import DEFAULT_DB_URL, config, with_session
 from kodit.indexing.repository import IndexRepository
 from kodit.indexing.service import IndexService
 from kodit.logging import LogFormat, log_event
@@ -47,13 +53,12 @@ def cli(
     data_dir: str,
 ) -> None:
     """kodit CLI - Code indexing for better AI code generation."""  # noqa: D403
-    ctx.obj = Config(
-        data_dir=Path(data_dir),
-        db_url=db_url,
-        log_level=log_level,
-        log_format=log_format,
-        disable_telemetry=disable_telemetry,
-    )
+    # Override global config with cli args
+    config.data_dir = Path(data_dir)
+    config.db_url = db_url
+    config.log_level = log_level
+    config.log_format = log_format
+    config.disable_telemetry = disable_telemetry
 
 
 @cli.group()
@@ -63,8 +68,7 @@ def sources() -> None:
 
 @sources.command(name="list")
 @with_session
-@pass_config
-async def list_sources(config: Config, session: AsyncSession) -> None:
+async def list_sources(session: AsyncSession) -> None:
     """List all code sources."""
     repository = SourceRepository(session)
     service = SourceService(config.get_clone_dir(), repository)
@@ -82,8 +86,7 @@ async def list_sources(config: Config, session: AsyncSession) -> None:
 @sources.command(name="create")
 @click.argument("uri")
 @with_session
-@pass_config
-async def create_source(config: Config, session: AsyncSession, uri: str) -> None:
+async def create_source(session: AsyncSession, uri: str) -> None:
     """Add a new code source."""
     repository = SourceRepository(session)
     service = SourceService(config.get_clone_dir(), repository)
@@ -99,8 +102,7 @@ def indexes() -> None:
 @indexes.command(name="create")
 @click.argument("source_id")
 @with_session
-@pass_config
-async def create_index(config: Config, session: AsyncSession, source_id: int) -> None:
+async def create_index(session: AsyncSession, source_id: int) -> None:
     """Create an index for a source."""
     source_repository = SourceRepository(session)
     source_service = SourceService(config.get_clone_dir(), source_repository)
@@ -112,8 +114,7 @@ async def create_index(config: Config, session: AsyncSession, source_id: int) ->
 
 @indexes.command(name="list")
 @with_session
-@pass_config
-async def list_indexes(config: Config, session: AsyncSession) -> None:
+async def list_indexes(session: AsyncSession) -> None:
     """List all indexes."""
     source_repository = SourceRepository(session)
     source_service = SourceService(config.get_clone_dir(), source_repository)
@@ -146,8 +147,7 @@ async def list_indexes(config: Config, session: AsyncSession) -> None:
 @indexes.command(name="run")
 @click.argument("index_id")
 @with_session
-@pass_config
-async def run_index(config: Config, session: AsyncSession, index_id: int) -> None:
+async def run_index(session: AsyncSession, index_id: int) -> None:
     """Run an index."""
     source_repository = SourceRepository(session)
     source_service = SourceService(config.get_clone_dir(), source_repository)
@@ -163,7 +163,8 @@ async def retrieve(session: AsyncSession, query: str) -> None:
     """Retrieve snippets from the database."""
     repository = RetrievalRepository(session)
     service = RetrievalService(repository)
-    snippets = await service.retrieve(RetrievalRequest(query=query))
+    # Temporary request while we don't have all search capabilities
+    snippets = await service.retrieve(RetrievalRequest(keywords=[query]))
 
     for snippet in snippets:
         click.echo(f"{snippet.uri}")
@@ -175,9 +176,7 @@ async def retrieve(session: AsyncSession, query: str) -> None:
 @click.option("--host", default="127.0.0.1", help="Host to bind the server to")
 @click.option("--port", default=8080, help="Port to bind the server to")
 @click.option("--reload", is_flag=True, help="Enable auto-reload for development")
-@pass_config
 def serve(
-    config: Config,
     host: str,
     port: int,
     reload: bool,  # noqa: FBT001

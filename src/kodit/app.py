@@ -9,8 +9,6 @@ from kodit.middleware import logging_middleware
 # See https://gofastmcp.com/deployment/asgi#fastapi-integration
 mcp_app = mcp.sse_app()
 app = FastAPI(title="kodit API", lifespan=mcp_app.router.lifespan_context)
-app.mount("", mcp_app)
-
 
 # Add middleware
 app.middleware("http")(logging_middleware)
@@ -21,3 +19,7 @@ app.add_middleware(CorrelationIdMiddleware)
 async def root() -> dict[str, str]:
     """Return a welcome message for the kodit API."""
     return {"message": "Hello, World!"}
+
+
+# Add mcp routes last, otherwise previous routes aren't added
+app.mount("", mcp_app)
