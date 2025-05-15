@@ -39,10 +39,11 @@ class CommonMixin:
 class Database:
     """Database class for kodit."""
 
-    def __init__(self, db_url: str) -> None:
+    def __init__(self, db_url: str, *, run_migrations: bool = True) -> None:
         """Initialize the database."""
         self.log = structlog.get_logger(__name__)
-        self._configure_database(db_url)
+        if run_migrations:
+            self._run_migrations(db_url)
         db_engine = create_async_engine(db_url, echo=False)
         self.db_session_factory = async_sessionmaker(
             db_engine,
@@ -59,7 +60,7 @@ class Database:
             finally:
                 await session.close()
 
-    def _configure_database(self, db_url: str) -> None:
+    def _run_migrations(self, db_url: str) -> None:
         """Run any pending migrations."""
         # Create Alembic configuration and run migrations
         alembic_cfg = AlembicConfig()

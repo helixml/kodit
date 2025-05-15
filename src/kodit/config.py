@@ -47,10 +47,10 @@ class Config(BaseSettings):
         clone_dir.mkdir(parents=True, exist_ok=True)
         return clone_dir
 
-    def get_db(self) -> Database:
+    def get_db(self, *, run_migrations: bool = True) -> Database:
         """Get the database."""
         if self._db is None:
-            self._db = Database(self.db_url)
+            self._db = Database(self.db_url, run_migrations=run_migrations)
         return self._db
 
 
