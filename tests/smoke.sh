@@ -1,9 +1,13 @@
 #!/bin/bash
 set -e
 
-# Set this according to what you want to test
-# prefix=""
+# Set this according to what you want to test. uv run will run the command in the current directory
 prefix="uv run"
+
+# If CI is set, no prefix because we're running in github actions
+if [ -z "$CI" ]; then
+    prefix=""
+fi
 
 # Check that the kodit data_dir does not exist
 if [ -d "$HOME/.kodit" ]; then
