@@ -4,9 +4,10 @@ from pathlib import Path
 from typing import Annotated
 
 import structlog
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from pydantic import Field
 
+from kodit._version import version
 from kodit.config import get_config
 from kodit.retreival.repository import RetrievalRepository, RetrievalResult
 from kodit.retreival.service import RetrievalRequest, RetrievalService
@@ -113,3 +114,9 @@ def input_fusion(
 def output_fusion(snippets: list[RetrievalResult]) -> str:
     """Fuse the snippets into a single output."""
     return "\n\n".join(f"{snippet.uri}\n{snippet.content}" for snippet in snippets)
+
+
+@mcp.tool()
+async def get_version() -> str:
+    """Get the version of the kodit project."""
+    return version
