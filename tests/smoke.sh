@@ -5,7 +5,7 @@ set -e
 prefix="uv run"
 
 # If CI is set, no prefix because we're running in github actions
-if [ -z "$CI" ]; then
+if [ -n "$CI" ]; then
     prefix=""
 fi
 
