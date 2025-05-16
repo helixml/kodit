@@ -100,5 +100,8 @@ jobs:
       - name: Run simple version command test
         run: kodit version
 
+      - name: Delete kodit data_dir
+        run: rm -rf ${HOME}/.kodit
+
       - name: Run smoke test
         run: ./tests/smoke.sh
