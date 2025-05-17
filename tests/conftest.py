@@ -1,12 +1,16 @@
 """Test configuration and fixtures."""
 
 from collections.abc import AsyncGenerator
+from pathlib import Path
+import tempfile
+from typing import Generator
 
 import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
+from kodit.config import AppContext
 from kodit.database import Base
 
 
@@ -40,3 +44,17 @@ async def session(engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
     async with async_session() as session:
         yield session
         await session.rollback()
+
+
+@pytest.fixture
+def app_context() -> Generator[AppContext, None, None]:
+    """Create a test app context."""
+    with tempfile.TemporaryDirectory() as data_dir:
+        app_context = AppContext(
+            data_dir=Path(data_dir),
+            db_url="sqlite+aiosqlite:///:memory:",
+            log_level="DEBUG",
+            log_format="json",
+            disable_telemetry=True,
+        )
+        yield app_context

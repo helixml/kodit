@@ -3,7 +3,6 @@
 
 import asyncio
 
-import structlog
 from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
@@ -75,7 +74,11 @@ async def run_async_migrations() -> None:
 
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode."""
-    asyncio.run(run_async_migrations())
+    connectable = config.attributes.get("connection", None)
+    if connectable is None:
+        asyncio.run(run_async_migrations())
+    else:
+        do_run_migrations(connectable)
 
 
 if context.is_offline_mode():

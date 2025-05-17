@@ -25,3 +25,17 @@ async def test_mcp_client_connection() -> None:
         content = result[0]
         assert isinstance(content, TextContent)
         assert content.text is not None
+
+        # Call the tool
+        result = await client.call_tool(
+            "retrieve_relevant_snippets",
+            {
+                "user_intent": "What is the capital of France?",
+                "related_file_paths": [],
+                "related_file_contents": [],
+                "keywords": [],
+            },
+        )
+        assert len(result) == 1
+        content = result[0]
+        assert isinstance(content, TextContent)

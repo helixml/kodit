@@ -1,20 +1,20 @@
 """BM25 service."""
 
+from pathlib import Path
+
 import bm25s
 import Stemmer
 import structlog
 from bm25s.tokenization import Tokenized
 
-from kodit.config import Config
-
 
 class BM25Service:
     """Service for BM25."""
 
-    def __init__(self, config: Config) -> None:
+    def __init__(self, data_dir: Path) -> None:
         """Initialize the BM25 service."""
         self.log = structlog.get_logger(__name__)
-        self.index_path = config.get_data_dir() / "bm25s_index"
+        self.index_path = data_dir / "bm25s_index"
         try:
             self.log.debug("Loading BM25 index")
             self.retriever = bm25s.BM25.load(self.index_path, mmap=True)

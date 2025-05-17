@@ -1,7 +1,5 @@
 """Database configuration for kodit."""
 
-from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -39,28 +37,22 @@ class CommonMixin:
 class Database:
     """Database class for kodit."""
 
-    def __init__(self, db_url: str, *, run_migrations: bool = True) -> None:
+    def __init__(self, db_url: str) -> None:
         """Initialize the database."""
         self.log = structlog.get_logger(__name__)
-        if run_migrations:
-            self._run_migrations(db_url)
-        db_engine = create_async_engine(db_url, echo=False)
+        self.db_engine = create_async_engine(db_url, echo=False)
         self.db_session_factory = async_sessionmaker(
-            db_engine,
+            self.db_engine,
             class_=AsyncSession,
             expire_on_commit=False,
         )
 
-    @asynccontextmanager
-    async def get_session(self) -> AsyncGenerator[AsyncSession, None]:
-        """Get a database session."""
-        async with self.db_session_factory() as session:
-            try:
-                yield session
-            finally:
-                await session.close()
+    @property
+    def session_factory(self) -> async_sessionmaker[AsyncSession]:
+        """Get the session factory."""
+        return self.db_session_factory
 
-    def _run_migrations(self, db_url: str) -> None:
+    async def run_migrations(self, db_url: str) -> None:
         """Run any pending migrations."""
         # Create Alembic configuration and run migrations
         alembic_cfg = AlembicConfig()
@@ -69,4 +61,15 @@ class Database:
         )
         alembic_cfg.set_main_option("sqlalchemy.url", db_url)
         self.log.debug("Running migrations", db_url=db_url)
-        command.upgrade(alembic_cfg, "head")
+
+        async with self.db_engine.begin() as conn:
+            await conn.run_sync(self.run_upgrade, alembic_cfg)
+
+    def run_upgrade(self, connection, cfg) -> None:  # noqa: ANN001
+        """Make sure the database is up to date."""
+        cfg.attributes["connection"] = connection
+        command.upgrade(cfg, "head")
+
+    async def close(self) -> None:
+        """Close the database."""
+        await self.db_engine.dispose()

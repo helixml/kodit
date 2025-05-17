@@ -1,11 +1,14 @@
 """Middleware for the FastAPI application."""
 
+import contextlib
 import time
+from asyncio import CancelledError
 from collections.abc import Callable
 
 import structlog
 from asgi_correlation_id.context import correlation_id
 from fastapi import Request, Response
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 access_logger = structlog.stdlib.get_logger("api.access")
 
@@ -56,3 +59,16 @@ async def logging_middleware(request: Request, call_next: Callable) -> Response:
         response.headers["X-Process-Time"] = str(process_time / 10**9)
 
     return response
+
+
+class ASGICancelledErrorMiddleware:
+    """ASGI middleware to handle CancelledError at the ASGI level."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        """Initialize the middleware."""
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        """Handle the ASGI request and catch CancelledError."""
+        with contextlib.suppress(CancelledError):
+            await self.app(scope, receive, send)

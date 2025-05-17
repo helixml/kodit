@@ -1,10 +1,11 @@
 """Retrieval service."""
 
+from pathlib import Path
+
 import pydantic
 import structlog
 
 from kodit.bm25.bm25 import BM25Service
-from kodit.config import Config
 from kodit.retreival.repository import RetrievalRepository, RetrievalResult
 
 
@@ -25,11 +26,11 @@ class Snippet(pydantic.BaseModel):
 class RetrievalService:
     """Service for retrieving relevant data."""
 
-    def __init__(self, config: Config, repository: RetrievalRepository) -> None:
+    def __init__(self, repository: RetrievalRepository, data_dir: Path) -> None:
         """Initialize the retrieval service."""
         self.repository = repository
         self.log = structlog.get_logger(__name__)
-        self.bm25 = BM25Service(config)
+        self.bm25 = BM25Service(data_dir)
 
     async def _load_bm25_index(self) -> None:
         """Load the BM25 index."""

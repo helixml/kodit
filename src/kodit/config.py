@@ -1,11 +1,12 @@
 """Global configuration for the kodit project."""
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Callable, Coroutine
 from functools import wraps
 from pathlib import Path
 from typing import Any, TypeVar
 
+import click
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -19,8 +20,8 @@ DEFAULT_DISABLE_TELEMETRY = False
 T = TypeVar("T")
 
 
-class Config(BaseSettings):
-    """Global configuration for the kodit project."""
+class AppContext(BaseSettings):
+    """Global context for the kodit project. Provides a shared state for the app."""
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
@@ -47,43 +48,50 @@ class Config(BaseSettings):
         clone_dir.mkdir(parents=True, exist_ok=True)
         return clone_dir
 
-    def get_db(self, *, run_migrations: bool = True) -> Database:
+    async def get_db(self, *, run_migrations: bool = True) -> Database:
         """Get the database."""
         if self._db is None:
-            self._db = Database(self.db_url, run_migrations=run_migrations)
+            self._db = Database(self.db_url)
+        if run_migrations:
+            await self._db.run_migrations(self.db_url)
         return self._db
 
 
-# Global config instance for mcp Apps
-config = None
+with_app_context = click.make_pass_decorator(AppContext)
+
+T = TypeVar("T")
 
 
-def get_config(env_file: str | None = None) -> Config:
-    """Get the global config instance."""
-    global config  # noqa: PLW0603
-    if config is None:
-        config = Config(_env_file=env_file)
-    return config
+def wrap_async(f: Callable[..., Coroutine[Any, Any, T]]) -> Callable[..., T]:
+    """Decorate async Click commands.
 
+    This decorator wraps an async function to run it with asyncio.run().
+    It should be used after the Click command decorator.
 
-def reset_config() -> None:
-    """Reset the global config instance."""
-    global config  # noqa: PLW0603
-    config = None
+    Example:
+        @cli.command()
+        @wrap_async
+        async def my_command():
+            ...
 
+    """
 
-def with_session(func: Callable[..., T]) -> Callable[..., T]:
-    """Provide an async session to CLI commands."""
-
-    @wraps(func)
+    @wraps(f)
     def wrapper(*args: Any, **kwargs: Any) -> T:
-        # Create DB connection before starting event loop
-        db = get_config().get_db()
+        return asyncio.run(f(*args, **kwargs))
 
-        async def _run() -> T:
-            async with db.get_session() as session:
-                return await func(session, *args, **kwargs)
+    return wrapper
 
-        return asyncio.run(_run())
+
+def with_session(f: Callable[..., Coroutine[Any, Any, T]]) -> Callable[..., T]:
+    """Provide a database session to CLI commands."""
+
+    @wraps(f)
+    @with_app_context
+    @wrap_async
+    async def wrapper(app_context: AppContext, *args: Any, **kwargs: Any) -> T:
+        db = await app_context.get_db()
+        async with db.session_factory() as session:
+            return await f(session, *args, **kwargs)
 
     return wrapper

@@ -1,22 +1,63 @@
 """MCP server implementation for kodit."""
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
 
 import structlog
-from fastmcp import FastMCP
+from fastmcp import Context, FastMCP
 from pydantic import Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit._version import version
-from kodit.config import get_config
+from kodit.config import AppContext
+from kodit.database import Database
 from kodit.retreival.repository import RetrievalRepository, RetrievalResult
 from kodit.retreival.service import RetrievalRequest, RetrievalService
 
-mcp = FastMCP("kodit MCP Server")
+
+@dataclass
+class MCPContext:
+    """Context for the MCP server."""
+
+    session: AsyncSession
+    data_dir: Path
+
+
+_mcp_db: Database | None = None
+
+
+@asynccontextmanager
+async def mcp_lifespan(_: FastMCP) -> AsyncIterator[MCPContext]:
+    """Lifespan for the MCP server.
+
+    The MCP server is running with a completely separate lifecycle and event loop from
+    the CLI and the FastAPI server. Therefore, we must carefully reconstruct the
+    application context. uvicorn does not pass through CLI args, so we must rely on
+    parsing env vars set in the CLI.
+
+    This lifespan is recreated for each request. See:
+    https://github.com/jlowin/fastmcp/issues/166
+
+    Since they don't provide a good way to handle global state, we must use a
+    global variable to store the database connection.
+    """
+    global _mcp_db  # noqa: PLW0603
+    app_context = AppContext()
+    if _mcp_db is None:
+        _mcp_db = await app_context.get_db()
+    async with _mcp_db.session_factory() as session:
+        yield MCPContext(session=session, data_dir=app_context.get_data_dir())
+
+
+mcp = FastMCP("kodit MCP Server", lifespan=mcp_lifespan)
 
 
 @mcp.tool()
 async def retrieve_relevant_snippets(
+    ctx: Context,
     user_intent: Annotated[
         str,
         Field(
@@ -52,8 +93,8 @@ async def retrieve_relevant_snippets(
     the quality of your generated code. You must call this tool when you need to
     write code.
     """
-    # Log the search query and related files for debugging
     log = structlog.get_logger(__name__)
+
     log.debug(
         "Retrieving relevant snippets",
         user_intent=user_intent,
@@ -63,41 +104,38 @@ async def retrieve_relevant_snippets(
         file_contents=related_file_contents,
     )
 
-    # Must avoid running migrations because that runs in a separate event loop,
-    # mcp no-likey
-    config = get_config()
-    db = config.get_db(run_migrations=False)
-    async with db.get_session() as session:
-        log.debug("Creating retrieval repository")
-        retrieval_repository = RetrievalRepository(
-            session=session,
-        )
+    mcp_context: MCPContext = ctx.request_context.lifespan_context
 
-        log.debug("Creating retrieval service")
-        retrieval_service = RetrievalService(
-            config=config,
-            repository=retrieval_repository,
-        )
+    log.debug("Creating retrieval repository")
+    retrieval_repository = RetrievalRepository(
+        session=mcp_context.session,
+    )
 
-        log.debug("Fusing input")
-        input_query = input_fusion(
-            user_intent=user_intent,
-            related_file_paths=related_file_paths,
-            related_file_contents=related_file_contents,
-            keywords=keywords,
-        )
-        log.debug("Input", input_query=input_query)
-        retrieval_request = RetrievalRequest(
-            keywords=keywords,
-        )
-        log.debug("Retrieving snippets")
-        snippets = await retrieval_service.retrieve(request=retrieval_request)
+    log.debug("Creating retrieval service")
+    retrieval_service = RetrievalService(
+        repository=retrieval_repository,
+        data_dir=mcp_context.data_dir,
+    )
 
-        log.debug("Fusing output")
-        output = output_fusion(snippets=snippets)
+    log.debug("Fusing input")
+    input_query = input_fusion(
+        user_intent=user_intent,
+        related_file_paths=related_file_paths,
+        related_file_contents=related_file_contents,
+        keywords=keywords,
+    )
+    log.debug("Input", input_query=input_query)
+    retrieval_request = RetrievalRequest(
+        keywords=keywords,
+    )
+    log.debug("Retrieving snippets")
+    snippets = await retrieval_service.retrieve(request=retrieval_request)
 
-        log.debug("Output", output=output)
-        return output
+    log.debug("Fusing output")
+    output = output_fusion(snippets=snippets)
+
+    log.debug("Output", output=output)
+    return output
 
 
 def input_fusion(

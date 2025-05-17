@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.config import Config
+from kodit.config import AppContext
 from kodit.indexing.repository import IndexRepository
 from kodit.indexing.service import IndexService
 from kodit.sources.models import File, Source
@@ -35,9 +35,11 @@ def source_service(
 
 
 @pytest.fixture
-def service(repository: IndexRepository, source_service: SourceService) -> IndexService:
+def service(
+    app_context: AppContext, repository: IndexRepository, source_service: SourceService
+) -> IndexService:
     """Create a real service instance with a database session."""
-    return IndexService(Config(), repository, source_service)
+    return IndexService(repository, source_service, app_context.get_data_dir())
 
 
 @pytest.mark.asyncio
