@@ -8,7 +8,6 @@ from typing import Any
 import click
 import structlog
 import uvicorn
-from pytable_formatter import Table
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.config import (
@@ -84,110 +83,19 @@ def cli(  # noqa: PLR0913
     ctx.obj = config
 
 
-@cli.group()
-def sources() -> None:
-    """Manage code sources."""
-
-
-@sources.command(name="list")
+@cli.command()
+@click.argument("source")
 @with_app_context
 @with_session
-async def list_sources(session: AsyncSession, app_context: AppContext) -> None:
-    """List all code sources."""
-    repository = SourceRepository(session)
-    service = SourceService(app_context.get_clone_dir(), repository)
-    sources = await service.list_sources()
-
-    # Define headers and data
-    headers = ["ID", "Created At", "URI"]
-    data = [[source.id, source.created_at, source.uri] for source in sources]
-
-    # Create and display the table
-    table = Table(headers=headers, data=data)
-    click.echo(table)
-
-
-@sources.command(name="create")
-@click.argument("uri")
-@with_app_context
-@with_session
-async def create_source(
-    session: AsyncSession, app_context: AppContext, uri: str
-) -> None:
-    """Add a new code source."""
-    repository = SourceRepository(session)
-    service = SourceService(app_context.get_clone_dir(), repository)
-    source = await service.create(uri)
-    click.echo(f"Source created: {source.id}")
-
-
-@cli.group()
-def indexes() -> None:
-    """Manage indexes."""
-
-
-@indexes.command(name="create")
-@click.argument("source_id")
-@with_app_context
-@with_session
-async def create_index(
-    session: AsyncSession, app_context: AppContext, source_id: int
-) -> None:
-    """Create an index for a source."""
+async def index(session: AsyncSession, app_context: AppContext, source: str) -> None:
+    """Index a file, directory or git repository."""
     source_repository = SourceRepository(session)
     source_service = SourceService(app_context.get_clone_dir(), source_repository)
     repository = IndexRepository(session)
     service = IndexService(repository, source_service, app_context.get_data_dir())
-    index = await service.create(source_id)
-    click.echo(f"Index created: {index.id}")
-
-
-@indexes.command(name="list")
-@with_app_context
-@with_session
-async def list_indexes(session: AsyncSession, app_context: AppContext) -> None:
-    """List all indexes."""
-    source_repository = SourceRepository(session)
-    source_service = SourceService(app_context.get_clone_dir(), source_repository)
-    repository = IndexRepository(session)
-    service = IndexService(repository, source_service, app_context.get_data_dir())
-    indexes = await service.list_indexes()
-
-    # Define headers and data
-    headers = [
-        "ID",
-        "Created At",
-        "Updated At",
-        "Num Snippets",
-    ]
-    data = [
-        [
-            index.id,
-            index.created_at,
-            index.updated_at,
-            index.num_snippets,
-        ]
-        for index in indexes
-    ]
-
-    # Create and display the table
-    table = Table(headers=headers, data=data)
-    click.echo(table)
-
-
-@indexes.command(name="run")
-@click.argument("index_id")
-@with_app_context
-@with_session
-async def run_index(
-    session: AsyncSession, app_context: AppContext, index_id: int
-) -> None:
-    """Run an index."""
-    source_repository = SourceRepository(session)
-    source_service = SourceService(app_context.get_clone_dir(), source_repository)
-    repository = IndexRepository(session)
-    service = IndexService(repository, source_service, app_context.get_data_dir())
-    await service.run(index_id)
+    s = await source_service.create(source)
+    index = await service.create(s.id)
+    await service.run(index.id)
 
 
 @cli.command()
