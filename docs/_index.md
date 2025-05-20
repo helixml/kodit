@@ -57,10 +57,9 @@ pip install kodit
 Kodit has two key parts. A configuration CLI to manage what gets indexed and an MCP
 server to expose your code to an AI coding assistant.
 
-1. Add a source: `kodit sources create /path/to/your/code`
-2. Create an index on that source: `kodit indexes create 1`
-3. Test retrieval on your index: `kodit retrieve "test"`
-4. Start an MCP server: `kodit serve`
+1. Add an index: `kodit index /path/to/your/code`
+2. Test retrieval on your index: `kodit retrieve "test"`
+3. Start an MCP server: `kodit serve`
 
 Now browse to your AI coding assistant and add the MCP server. You will also need to
 tell your assistant to use this server in coding tasks, otherwise it won't get called!
