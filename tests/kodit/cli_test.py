@@ -37,9 +37,7 @@ def test_version_command(runner: CliRunner, default_cli_args: list[str]) -> None
 def test_cli_vars_work(runner: CliRunner, default_cli_args: list[str]) -> None:
     """Test that cli args override env vars."""
     runner.env = {"LOG_LEVEL": "INFO"}
-    result = runner.invoke(
-        cli, [*default_cli_args, "--log-level", "DEBUG", "sources", "list"]
-    )
+    result = runner.invoke(cli, [*default_cli_args, "--log-level", "DEBUG", "index"])
     assert result.exit_code == 0
     assert result.output.count("debug") > 10  # The db spits out lots of debug messages
 
@@ -47,7 +45,7 @@ def test_cli_vars_work(runner: CliRunner, default_cli_args: list[str]) -> None:
 def test_env_vars_work(runner: CliRunner, default_cli_args: list[str]) -> None:
     """Test that env vars work."""
     runner.env = {"LOG_LEVEL": "DEBUG"}
-    result = runner.invoke(cli, [*default_cli_args, "sources", "list"])
+    result = runner.invoke(cli, [*default_cli_args, "index"])
     assert result.exit_code == 0
     assert result.output.count("debug") > 10  # The db spits out lots of debug messages
 
@@ -57,9 +55,7 @@ def test_dotenv_file_works(runner: CliRunner, default_cli_args: list[str]) -> No
     with tempfile.NamedTemporaryFile(delete=False) as f:
         f.write(b"LOG_LEVEL=DEBUG")
         f.flush()
-        result = runner.invoke(
-            cli, [*default_cli_args, "--env-file", f.name, "sources", "list"]
-        )
+        result = runner.invoke(cli, [*default_cli_args, "--env-file", f.name, "index"])
         assert result.exit_code == 0
         assert (
             result.output.count("debug") > 10
@@ -69,7 +65,7 @@ def test_dotenv_file_works(runner: CliRunner, default_cli_args: list[str]) -> No
 def test_dotenv_file_not_found(runner: CliRunner, default_cli_args: list[str]) -> None:
     """Test that the .env file not found error is raised."""
     result = runner.invoke(
-        cli, [*default_cli_args, "--env-file", "nonexistent.env", "sources", "list"]
+        cli, [*default_cli_args, "--env-file", "nonexistent.env", "index"]
     )
     assert result.exit_code == 2
     assert "does not exist" in result.output

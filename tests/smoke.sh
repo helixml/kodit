@@ -24,14 +24,9 @@ echo "print('Hello, world!')" > $tmp_dir/test.py
 # Test version command
 $prefix kodit version
 
-# Test sources commands
-$prefix kodit sources list
-$prefix kodit sources create $tmp_dir
-
-# Test indexes commands
-$prefix kodit indexes list
-$prefix kodit indexes create 1
-$prefix kodit indexes run 1
+# Test index command
+$prefix kodit index --directory $tmp_dir
+$prefix kodit index
 
 # Test retrieve command
 $prefix kodit retrieve "Hello"

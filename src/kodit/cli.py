@@ -8,6 +8,7 @@ from typing import Any
 import click
 import structlog
 import uvicorn
+from pytable_formatter import Cell, Table
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.config import (
@@ -84,18 +85,59 @@ def cli(  # noqa: PLR0913
 
 
 @cli.command()
-@click.argument("source")
+@click.option("--file", help="File to index")
+@click.option("--directory", help="Directory to index")
+@click.option("--git", help="Git repository to index")
 @with_app_context
 @with_session
-async def index(session: AsyncSession, app_context: AppContext, source: str) -> None:
-    """Index a file, directory or git repository."""
+async def index(
+    session: AsyncSession,
+    app_context: AppContext,
+    file: str | None,
+    directory: str | None,
+    git: str | None,
+) -> None:
+    """List indexes, or index a datasource."""
     source_repository = SourceRepository(session)
     source_service = SourceService(app_context.get_clone_dir(), source_repository)
     repository = IndexRepository(session)
     service = IndexService(repository, source_service, app_context.get_data_dir())
-    s = await source_service.create(source)
-    index = await service.create(s.id)
-    await service.run(index.id)
+
+    # Handle source indexing
+    if file:
+        msg = "File indexing is not implemented yet"
+        raise click.UsageError(msg)
+    if git:
+        msg = "Git indexing is not implemented yet"
+        raise click.UsageError(msg)
+    if directory:
+        # Index directory
+        source = await source_service.create(directory)
+        index = await service.create(source.id)
+        await service.run(index.id)
+        click.echo(f"Indexed directory: {directory}")
+    else:
+        # No source specified, list all indexes
+        indexes = await service.list_indexes()
+        headers: list[str | Cell] = [
+            "ID",
+            "Created At",
+            "Updated At",
+            "Source",
+            "Num Snippets",
+        ]
+        data = [
+            [
+                index.id,
+                index.created_at,
+                index.updated_at,
+                index.source,
+                index.num_snippets,
+            ]
+            for index in indexes
+        ]
+        click.echo(Table(headers=headers, data=data))
+        return
 
 
 @cli.command()

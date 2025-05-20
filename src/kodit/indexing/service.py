@@ -33,6 +33,7 @@ class IndexView(pydantic.BaseModel):
     id: int
     created_at: datetime
     updated_at: datetime | None = None
+    source: str | None = None
     num_snippets: int | None = None
 
 
@@ -105,8 +106,9 @@ class IndexService:
                 created_at=index.created_at,
                 updated_at=index.updated_at,
                 num_snippets=await self.repository.num_snippets_for_index(index.id),
+                source=source.uri,
             )
-            for index in indexes
+            for index, source in indexes
         ]
 
     async def run(self, index_id: int) -> None:

@@ -82,7 +82,7 @@ class IndexRepository:
         result = await self.session.execute(query)
         return list(result.scalars())
 
-    async def list_indexes(self) -> list[Index]:
+    async def list_indexes(self) -> list[tuple[Index, Source]]:
         """List all indexes.
 
         Returns:
@@ -90,9 +90,11 @@ class IndexRepository:
             and counts of files and snippets.
 
         """
-        query = select(Index).limit(10)
+        query = select(Index, Source).join(
+            Source, Index.source_id == Source.id, full=True
+        )
         result = await self.session.execute(query)
-        return list(result.scalars())
+        return list(result.tuples())
 
     async def num_snippets_for_index(self, index_id: int) -> int:
         """Get the number of snippets for an index."""
