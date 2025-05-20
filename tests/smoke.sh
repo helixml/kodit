@@ -25,7 +25,7 @@ echo "print('Hello, world!')" > $tmp_dir/test.py
 $prefix kodit version
 
 # Test index command
-$prefix kodit index --directory $tmp_dir
+$prefix kodit index $tmp_dir
 $prefix kodit index
 
 # Test retrieve command

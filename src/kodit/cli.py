@@ -85,38 +85,21 @@ def cli(  # noqa: PLR0913
 
 
 @cli.command()
-@click.option("--file", help="File to index")
-@click.option("--directory", help="Directory to index")
-@click.option("--git", help="Git repository to index")
+@click.argument("sources", nargs=-1)
 @with_app_context
 @with_session
 async def index(
     session: AsyncSession,
     app_context: AppContext,
-    file: str | None,
-    directory: str | None,
-    git: str | None,
+    sources: list[str],
 ) -> None:
-    """List indexes, or index a datasource."""
+    """List indexes, or index data sources."""
     source_repository = SourceRepository(session)
     source_service = SourceService(app_context.get_clone_dir(), source_repository)
     repository = IndexRepository(session)
     service = IndexService(repository, source_service, app_context.get_data_dir())
 
-    # Handle source indexing
-    if file:
-        msg = "File indexing is not implemented yet"
-        raise click.UsageError(msg)
-    if git:
-        msg = "Git indexing is not implemented yet"
-        raise click.UsageError(msg)
-    if directory:
-        # Index directory
-        source = await source_service.create(directory)
-        index = await service.create(source.id)
-        await service.run(index.id)
-        click.echo(f"Indexed directory: {directory}")
-    else:
+    if not sources:
         # No source specified, list all indexes
         indexes = await service.list_indexes()
         headers: list[str | Cell] = [
@@ -138,6 +121,22 @@ async def index(
         ]
         click.echo(Table(headers=headers, data=data))
         return
+    # Handle source indexing
+    for source in sources:
+        if source.startswith("https://"):
+            msg = "Web or git indexing is not implemented yet"
+            raise click.UsageError(msg)
+        if source.startswith("git"):
+            msg = "Git indexing is not implemented yet"
+            raise click.UsageError(msg)
+        if Path(source).is_file():
+            msg = "File indexing is not implemented yet"
+            raise click.UsageError(msg)
+
+        # Index directory
+        s = await source_service.create(source)
+        index = await service.create(s.id)
+        await service.run(index.id)
 
 
 @cli.command()
