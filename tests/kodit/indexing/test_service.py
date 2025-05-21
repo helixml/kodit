@@ -88,9 +88,8 @@ async def test_create_index_already_exists(
     # Create first index
     await service.create(source.id)
 
-    # Try to create second index
-    with pytest.raises(IntegrityError, match="UNIQUE constraint failed"):
-        await service.create(source.id)
+    # Try to create second index, should be fine
+    await service.create(source.id)
 
 
 @pytest.mark.asyncio

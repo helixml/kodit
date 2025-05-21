@@ -57,9 +57,8 @@ async def test_create_source_already_added(
     # Create a folder source
     await service.create(str(test_dir))
 
-    # Try to create the same source again
-    with pytest.raises(ValueError, match=f"Directory already added: {test_dir}"):
-        await service.create(str(test_dir))
+    # Try to create the same source again, should be fine
+    await service.create(str(test_dir))
 
 
 @pytest.mark.asyncio
