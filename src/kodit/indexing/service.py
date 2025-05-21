@@ -83,7 +83,10 @@ class IndexService:
         # Check if the source exists
         source = await self.source_service.get(source_id)
 
-        index = await self.repository.create(source.id)
+        # Check if the index already exists
+        index = await self.repository.get_by_source_id(source.id)
+        if not index:
+            index = await self.repository.create(source.id)
         return IndexView(
             id=index.id,
             created_at=index.created_at,
@@ -118,6 +121,9 @@ class IndexService:
         if not index:
             msg = f"Index not found: {index_id}"
             raise ValueError(msg)
+
+        # First delete all old snippets, if they exist
+        await self.repository.delete_all_snippets(index_id)
 
         # Create snippets for supported file types
         await self._create_snippets(index_id)

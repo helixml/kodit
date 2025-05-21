@@ -8,7 +8,7 @@ and retrieving index information with their associated metadata.
 from datetime import UTC, datetime
 from typing import TypeVar
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.indexing.models import Index, Snippet
@@ -60,6 +60,17 @@ class IndexRepository:
 
         """
         query = select(Index).where(Index.id == index_id)
+        result = await self.session.execute(query)
+        return result.scalar_one_or_none()
+
+    async def get_by_source_id(self, source_id: int) -> Index | None:
+        """Get an index by its source ID.
+
+        Args:
+            source_id: The ID of the source to retrieve an index for.
+
+        """
+        query = select(Index).where(Index.source_id == source_id)
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
 
@@ -120,6 +131,17 @@ class IndexRepository:
 
         """
         self.session.add(snippet)
+        await self.session.commit()
+
+    async def delete_all_snippets(self, index_id: int) -> None:
+        """Delete all snippets for an index.
+
+        Args:
+            index_id: The ID of the index to delete snippets for.
+
+        """
+        query = delete(Snippet).where(Snippet.index_id == index_id)
+        await self.session.execute(query)
         await self.session.commit()
 
     async def get_snippets_for_index(self, index_id: int) -> list[Snippet]:

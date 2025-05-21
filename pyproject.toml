@@ -43,6 +43,7 @@ dependencies = [
     "fastmcp>=2.3.3",
     "pydantic-settings>=2.9.1",
     "bm25s[core]>=0.2.12",
+    "gitpython>=3.1.44",
 ]
 
 [dependency-groups]

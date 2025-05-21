@@ -123,12 +123,6 @@ async def index(
         return
     # Handle source indexing
     for source in sources:
-        if source.startswith("https://"):
-            msg = "Web or git indexing is not implemented yet"
-            raise click.UsageError(msg)
-        if source.startswith("git"):
-            msg = "Git indexing is not implemented yet"
-            raise click.UsageError(msg)
         if Path(source).is_file():
             msg = "File indexing is not implemented yet"
             raise click.UsageError(msg)

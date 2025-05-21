@@ -2,7 +2,9 @@
 
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+import shutil
 
+import git
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -108,3 +110,39 @@ async def test_create_source_list_source(
     assert not (cloned_path / ".hidden-file").exists()
     assert (cloned_path / "file1.txt").exists()
     assert (cloned_path / "subdir" / "file2.txt").exists()
+
+
+@pytest.mark.asyncio
+async def test_create_git_source(service: SourceService, tmp_path: Path) -> None:
+    """Test creating a git source."""
+    # Create a temporary git repository
+    repo_path = tmp_path / "test_repo"
+    repo_path.mkdir()
+    repo = git.Repo.init(repo_path)
+
+    # Add some files to the repository
+    (repo_path / "file1.txt").write_text("Hello, world!")
+    (repo_path / "subdir").mkdir()
+    (repo_path / "subdir" / "file2.txt").write_text("Hello, world!")
+
+    # Commit the files
+    repo.index.add(["file1.txt", "subdir/file2.txt"])
+    repo.index.commit("Initial commit")
+
+    # Create a git source
+    source = await service.create(repo_path.as_uri())
+    assert source.id is not None
+    assert source.uri == repo_path.as_uri()
+    assert source.cloned_path.is_dir()
+    assert source.created_at is not None
+    assert source.num_files == 2
+
+    # Check that the files are present in the cloned directory
+    cloned_path = Path(source.cloned_path)
+    assert cloned_path.exists()
+    assert cloned_path.is_dir()
+    assert (cloned_path / "file1.txt").exists()
+    assert (cloned_path / "subdir" / "file2.txt").exists()
+
+    # Clean up
+    shutil.rmtree(repo_path)

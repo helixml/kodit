@@ -13,6 +13,7 @@ from hashlib import sha256
 from pathlib import Path
 
 import aiofiles
+import git
 import pydantic
 import structlog
 from tqdm import tqdm
@@ -98,8 +99,19 @@ class SourceService:
             parsed = urisplit(uri_or_path_like)
             if parsed.scheme == "file":
                 return await self._create_folder_source(Path(parsed.path))
-            msg = f"Unsupported source type: {uri_or_path_like}"
-            raise ValueError(msg)
+            if parsed.scheme in ("git", "http", "https") and parsed.path.endswith(
+                ".git"
+            ):
+                return await self._create_git_source(uri_or_path_like)
+
+            # Try adding a .git suffix, sometimes people just pass the url
+            if not uri_or_path_like.endswith(".git"):
+                uri_or_path_like = uri_or_path_like + ".git"
+                try:
+                    return await self._create_git_source(uri_or_path_like)
+                except ValueError:
+                    pass
+
         msg = f"Unsupported source type: {uri_or_path_like}"
         raise ValueError(msg)
 
@@ -110,46 +122,98 @@ class SourceService:
             directory: The path to the local directory.
 
         Raises:
-            ValueError: If the folder doesn't exist or is already added.
+            ValueError: If the folder doesn't exist.
+            SourceAlreadyExistsError: If the folder is already added.
 
         """
-        # Resolve the directory to an absolute path
-        directory = directory.expanduser().resolve()
+        source = await self.repository.get_source_by_uri(directory.as_uri())
+        if source:
+            self.log.info("Source already exists, reusing...", source_id=source.id)
+        else:
+            # Resolve the directory to an absolute path
+            directory = directory.expanduser().resolve()
 
-        # Check if the folder exists
-        if not directory.exists():
-            msg = f"Folder does not exist: {directory}"
-            raise ValueError(msg)
+            # Check if the folder exists
+            if not directory.exists():
+                msg = f"Folder does not exist: {directory}"
+                raise ValueError(msg)
 
-        # Check if the folder is already added
-        if await self.repository.get_source_by_uri(directory.as_uri()):
-            msg = f"Directory already added: {directory}"
-            raise ValueError(msg)
+            # Check if the folder is already added
+            if await self.repository.get_source_by_uri(directory.as_uri()):
+                msg = f"Directory already added: {directory}"
+                raise ValueError(msg)
 
-        # Clone into a local directory
-        clone_path = self.clone_dir / directory.as_posix().replace("/", "_")
-        clone_path.mkdir(parents=True, exist_ok=True)
+            # Clone into a local directory
+            clone_path = self.clone_dir / directory.as_posix().replace("/", "_")
+            clone_path.mkdir(parents=True, exist_ok=True)
 
-        # Copy all files recursively, preserving directory structure, ignoring hidden
-        # files
-        shutil.copytree(
-            directory,
-            clone_path,
-            ignore=shutil.ignore_patterns(".*"),
-            dirs_exist_ok=True,
+            # Copy all files recursively, preserving directory structure, ignoring hidden
+            # files
+            shutil.copytree(
+                directory,
+                clone_path,
+                ignore=shutil.ignore_patterns(".*"),
+                dirs_exist_ok=True,
+            )
+
+            source = await self.repository.create_source(
+                Source(uri=directory.as_uri(), cloned_path=str(clone_path)),
+            )
+
+            # Add all files to the source
+            # Count total files for progress bar
+            file_count = sum(1 for _ in clone_path.rglob("*") if _.is_file())
+
+            # Process each file in the source directory
+            for path in tqdm(clone_path.rglob("*"), total=file_count):
+                await self._process_file(source.id, path.absolute())
+
+        return SourceView(
+            id=source.id,
+            uri=source.uri,
+            cloned_path=Path(source.cloned_path),
+            created_at=source.created_at,
+            num_files=await self.repository.num_files_for_source(source.id),
         )
 
-        source = await self.repository.create_source(
-            Source(uri=directory.as_uri(), cloned_path=str(clone_path)),
-        )
+    async def _create_git_source(self, uri: str) -> SourceView:
+        """Create a git source.
 
-        # Add all files to the source
-        # Count total files for progress bar
-        file_count = sum(1 for _ in clone_path.rglob("*") if _.is_file())
+        Args:
+            uri: The URI of the git repository.
 
-        # Process each file in the source directory
-        for path in tqdm(clone_path.rglob("*"), total=file_count):
-            await self._process_file(source.id, path.absolute())
+        Raises:
+            ValueError: If the repository cloning fails.
+
+        """
+        # Check if the repository is already added
+        source = await self.repository.get_source_by_uri(uri)
+
+        if source:
+            self.log.info("Source already exists, reusing...", source_id=source.id)
+        else:
+            # Create a unique directory name for the clone
+            clone_path = self.clone_dir / uri.replace("/", "_").replace(":", "_")
+            clone_path.mkdir(parents=True, exist_ok=True)
+
+            try:
+                # Clone the repository
+                git.Repo.clone_from(uri, clone_path)
+            except git.GitCommandError as e:
+                msg = f"Failed to clone repository: {e}"
+                raise ValueError(msg) from e
+
+            source = await self.repository.create_source(
+                Source(uri=uri, cloned_path=str(clone_path)),
+            )
+
+            # Add all files to the source
+            # Count total files for progress bar
+            file_count = sum(1 for _ in clone_path.rglob("*") if _.is_file())
+
+            # Process each file in the source directory
+            for path in tqdm(clone_path.rglob("*"), total=file_count):
+                await self._process_file(source.id, path.absolute())
 
         return SourceView(
             id=source.id,
