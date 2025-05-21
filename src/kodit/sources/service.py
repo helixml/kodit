@@ -147,8 +147,8 @@ class SourceService:
             clone_path = self.clone_dir / directory.as_posix().replace("/", "_")
             clone_path.mkdir(parents=True, exist_ok=True)
 
-            # Copy all files recursively, preserving directory structure, ignoring hidden
-            # files
+            # Copy all files recursively, preserving directory structure, ignoring
+            # hidden files
             shutil.copytree(
                 directory,
                 clone_path,
