@@ -26,6 +26,7 @@ $prefix kodit version
 
 # Test index command
 $prefix kodit index $tmp_dir
+$prefix kodit index https://github.com/winderai/analytics-ai-agent-demo
 $prefix kodit index
 
 # Test retrieve command
