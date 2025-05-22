@@ -5,7 +5,7 @@ including files and snippets. It provides the data structures for tracking index
 files and their content.
 """
 
-from sqlalchemy import ForeignKey, UnicodeText
+from sqlalchemy import JSON, ForeignKey, UnicodeText
 from sqlalchemy.orm import Mapped, mapped_column
 
 from kodit.database import Base, CommonMixin
@@ -41,3 +41,12 @@ class Snippet(Base, CommonMixin):
         self.file_id = file_id
         self.index_id = index_id
         self.content = content
+
+
+class Embedding(Base, CommonMixin):
+    """Embedding model."""
+
+    __tablename__ = "embeddings"
+
+    snippet_id: Mapped[int] = mapped_column(ForeignKey("snippets.id"))
+    embedding: Mapped[list[float]] = mapped_column(JSON)

@@ -11,7 +11,7 @@ from typing import TypeVar
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.indexing.models import Index, Snippet
+from kodit.indexing.models import Embedding, Index, Snippet
 from kodit.sources.models import File, Source
 
 T = TypeVar("T")
@@ -165,3 +165,13 @@ class IndexRepository:
         query = select(Snippet).order_by(Snippet.id)
         result = await self.session.execute(query)
         return list(result.scalars())
+
+    async def add_embedding(self, embedding: Embedding) -> None:
+        """Add a new embedding to the database.
+
+        Args:
+            embedding: The Embedding instance to add.
+
+        """
+        self.session.add(embedding)
+        await self.session.commit()
