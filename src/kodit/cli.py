@@ -133,20 +133,91 @@ async def index(
         await service.run(index.id)
 
 
-@cli.command()
+@cli.group()
+def search() -> None:
+    """Search for snippets in the database."""
+
+
+@search.command()
 @click.argument("query")
 @click.option("--top-k", default=10, help="Number of snippets to retrieve")
 @with_app_context
 @with_session
-async def retrieve(
-    session: AsyncSession, app_context: AppContext, query: str, top_k: int
+async def semantic(
+    session: AsyncSession,
+    app_context: AppContext,
+    query: str,
+    top_k: int,
 ) -> None:
-    """Retrieve snippets from the database."""
+    """Search for snippets using semantic search."""
     repository = RetrievalRepository(session)
     service = RetrievalService(repository, app_context.get_data_dir())
-    # Temporary request while we don't have all search capabilities
+
+    snippets = await service.retrieve(RetrievalRequest(query=query, top_k=top_k))
+
+    if len(snippets) == 0:
+        click.echo("No snippets found")
+        return
+
+    for snippet in snippets:
+        click.echo("-" * 80)
+        click.echo(f"{snippet.uri}")
+        click.echo(snippet.content)
+        click.echo("-" * 80)
+        click.echo()
+
+
+@search.command()
+@click.argument("keywords", nargs=-1)
+@click.option("--top-k", default=10, help="Number of snippets to retrieve")
+@with_app_context
+@with_session
+async def keyword(
+    session: AsyncSession,
+    app_context: AppContext,
+    keywords: list[str],
+    top_k: int,
+) -> None:
+    """Search for snippets using keyword search."""
+    repository = RetrievalRepository(session)
+    service = RetrievalService(repository, app_context.get_data_dir())
+
+    snippets = await service.retrieve(RetrievalRequest(keywords=keywords, top_k=top_k))
+
+    if len(snippets) == 0:
+        click.echo("No snippets found")
+        return
+
+    for snippet in snippets:
+        click.echo("-" * 80)
+        click.echo(f"{snippet.uri}")
+        click.echo(snippet.content)
+        click.echo("-" * 80)
+        click.echo()
+
+
+@search.command()
+@click.option("--top-k", default=10, help="Number of snippets to retrieve")
+@click.option("--keywords", required=True, help="Comma separated list of keywords")
+@click.option("--semantic", required=True, help="Semantic search query")
+@with_app_context
+@with_session
+async def hybrid(
+    session: AsyncSession,
+    app_context: AppContext,
+    top_k: int,
+    keywords: str,
+    semantic: str,
+) -> None:
+    """Search for snippets using hybrid search."""
+    repository = RetrievalRepository(session)
+    service = RetrievalService(repository, app_context.get_data_dir())
+
+    # Parse keywords into a list of strings
+    keywords_list = [k.strip().lower() for k in keywords.split(",")]
+
     snippets = await service.retrieve(
-        RetrievalRequest(keywords=query.split(","), top_k=top_k)
+        RetrievalRequest(keywords=keywords_list, query=semantic, top_k=top_k)
     )
 
     if len(snippets) == 0:

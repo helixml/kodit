@@ -5,13 +5,20 @@ related to searching and retrieving code snippets, including string-based search
 and their associated file information.
 """
 
+import math
 from typing import TypeVar
 
 import pydantic
-from sqlalchemy import select
+from sqlalchemy import (
+    Float,
+    cast,
+    func,
+    literal,
+    select,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.indexing.models import Snippet
+from kodit.indexing.models import Embedding, Snippet
 from kodit.sources.models import File
 
 T = TypeVar("T")
@@ -26,6 +33,7 @@ class RetrievalResult(pydantic.BaseModel):
 
     uri: str
     content: str
+    score: float
 
 
 class RetrievalRepository:
@@ -103,6 +111,43 @@ class RetrievalRepository:
             RetrievalResult(
                 uri=file.uri,
                 content=snippet.content,
+                score=1.0,
             )
             for snippet, file in rows.all()
         ]
+
+    async def list_semantic_results(
+        self, embedding: list[float], top_k: int = 10
+    ) -> list[tuple[int, float]]:
+        """List semantic results."""
+        cos_dist = cosine_distance_json(Embedding.embedding, embedding).label(
+            "cos_dist"
+        )
+
+        query = select(Embedding, cos_dist).order_by(cos_dist).limit(top_k)
+        rows = await self.session.execute(query)
+        return [(embedding.snippet_id, distance) for embedding, distance in rows.all()]
+
+
+def cosine_distance_json(col, query_vec):
+    """Calculate the cosine distance using pure sqlalchemy.
+
+    Build a SQLAlchemy scalar expression that returns
+    1 – cosine_similarity(json_array, query_vec).
+    Works for a *fixed-length* vector.
+    """
+    q_norm = math.sqrt(sum(x * x for x in query_vec))
+
+    dot = sum(
+        cast(func.json_extract(col, f"$[{i}]"), Float) * literal(float(q))
+        for i, q in enumerate(query_vec)
+    )
+    row_norm = func.sqrt(
+        sum(
+            cast(func.json_extract(col, f"$[{i}]"), Float)
+            * cast(func.json_extract(col, f"$[{i}]"), Float)
+            for i in range(len(query_vec))
+        )
+    )
+
+    return 1 - dot / (row_norm * literal(q_norm))

@@ -6,13 +6,15 @@ import pydantic
 import structlog
 
 from kodit.bm25.bm25 import BM25Service
+from kodit.embedding.embedding import CODE, EmbeddingService
 from kodit.retreival.repository import RetrievalRepository, RetrievalResult
 
 
 class RetrievalRequest(pydantic.BaseModel):
     """Request for a retrieval."""
 
-    keywords: list[str]
+    query: str | None = None
+    keywords: list[str] | None = None
     top_k: int = 10
 
 
@@ -26,44 +28,90 @@ class Snippet(pydantic.BaseModel):
 class RetrievalService:
     """Service for retrieving relevant data."""
 
-    def __init__(self, repository: RetrievalRepository, data_dir: Path) -> None:
+    def __init__(
+        self,
+        repository: RetrievalRepository,
+        data_dir: Path,
+        embedding_model_name: str = CODE,
+    ) -> None:
         """Initialize the retrieval service."""
         self.repository = repository
         self.log = structlog.get_logger(__name__)
         self.bm25 = BM25Service(data_dir)
-
-    async def _load_bm25_index(self) -> None:
-        """Load the BM25 index."""
+        self.embedding_service = EmbeddingService(model_name=embedding_model_name)
 
     async def retrieve(self, request: RetrievalRequest) -> list[RetrievalResult]:
         """Retrieve relevant data."""
-        snippet_ids = await self.repository.list_snippet_ids()
+        bm25_results = []
+        if request.keywords:
+            snippet_ids = await self.repository.list_snippet_ids()
 
-        # Gather results for each keyword
-        result_ids: list[tuple[int, float]] = []
-        for keyword in request.keywords:
-            results = self.bm25.retrieve(snippet_ids, keyword, request.top_k)
-            result_ids.extend(results)
+            # Gather results for each keyword
+            result_ids: list[tuple[int, float]] = []
+            for keyword in request.keywords:
+                results = self.bm25.retrieve(snippet_ids, keyword, request.top_k)
+                result_ids.extend(results)
 
-        if len(result_ids) == 0:
-            return []
+            # Sort results by score
+            result_ids.sort(key=lambda x: x[1], reverse=True)
 
-        # Sort results by score
-        result_ids.sort(key=lambda x: x[1], reverse=True)
+            bm25_results = [x[0] for x in result_ids]
+            self.log.debug("Retrieval results (BM25)", results=bm25_results)
 
-        self.log.debug(
-            "Retrieval results",
-            total_results=len(result_ids),
-            max_score=result_ids[0][1],
-            min_score=result_ids[-1][1],
-            median_score=result_ids[len(result_ids) // 2][1],
-        )
+        # Compute embedding for semantic query
+        semantic_results = []
+        if request.query:
+            query_embedding = next(self.embedding_service.embed([request.query]))
+            self.log.debug(
+                "Semantic query embedding",
+                query=request.query,
+                embedding=query_embedding,
+            )
+            query_results = await self.repository.list_semantic_results(
+                query_embedding, top_k=request.top_k
+            )
 
-        # Don't return zero score results
-        result_ids = [x for x in result_ids if x[1] > 0]
+            # Extract the snippet ids from the query results
+            semantic_results = [x[0] for x in query_results]
+            self.log.debug("Retrieval results (Semantic)", results=semantic_results)
 
-        # Build final list of doc ids up to top_k
-        final_doc_ids = [x[0] for x in result_ids[: request.top_k]]
+        # Combine all results together with RFF
+        final_results = reciprocal_rank_fusion([bm25_results, semantic_results], k=60)
 
-        # Get snippets from database
-        return await self.repository.list_snippets_by_ids(final_doc_ids)
+        # Extract ids from final results
+        final_ids = [x[0] for x in final_results]
+
+        # Get snippets from database (up to top_k)
+        return await self.repository.list_snippets_by_ids(final_ids[: request.top_k])
+
+
+def reciprocal_rank_fusion(
+    rankings: list[list[int]], k: float = 60
+) -> list[tuple[int, float]]:
+    """RRF prioritises results that are present in all results.
+
+    Args:
+        rankings: List of rankers, each containing a list of document ids. Top of the
+        list is considered to be the best result.
+        k: Parameter for RRF.
+
+    Returns:
+        Dictionary of ids and their scores.
+
+    """
+    scores = {}
+    for ranker in rankings:
+        for id in ranker:
+            scores[id] = float(0)
+
+    for ranker in rankings:
+        for i, id in enumerate(ranker):
+            scores[id] += 1.0 / (k + i)
+
+    # Create a list of tuples of ids and their scores
+    results = [(id, scores[id]) for id in scores]
+
+    # Sort results by score
+    results.sort(key=lambda x: x[1], reverse=True)
+
+    return results

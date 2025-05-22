@@ -15,7 +15,7 @@ COMMON_EMBEDDING_MODELS = {
 class EmbeddingService:
     """Service for embeddings."""
 
-    def __init__(self, model_name: str = TINY) -> None:
+    def __init__(self, model_name: str = CODE) -> None:
         """Initialize the embedding service."""
         self.log = structlog.get_logger(__name__)
         self.model_name = COMMON_EMBEDDING_MODELS.get(model_name, model_name)
