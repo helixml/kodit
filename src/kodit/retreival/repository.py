@@ -102,7 +102,7 @@ class RetrievalRepository:
         """List snippets by IDs.
 
         Returns:
-            A list of snippets.
+            A list of snippets in the same order as the input IDs.
 
         """
         query = (
@@ -111,15 +111,20 @@ class RetrievalRepository:
             .join(File, Snippet.file_id == File.id)
         )
         rows = await self.session.execute(query)
-        return [
-            RetrievalResult(
+
+        # Create a dictionary for O(1) lookup of results by ID
+        id_to_result = {
+            snippet.id: RetrievalResult(
                 id=snippet.id,
                 uri=file.uri,
                 content=snippet.content,
                 score=1.0,
             )
-            for snippet, file in reversed(rows.all())  # Bloody thing was reversing
-        ]
+            for snippet, file in rows.all()
+        }
+
+        # Return results in the same order as input IDs
+        return [id_to_result[id] for id in ids]
 
     async def list_semantic_results(
         self, embedding: list[float], top_k: int = 10
