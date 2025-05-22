@@ -165,7 +165,7 @@ class SourceService:
             file_count = sum(1 for _ in clone_path.rglob("*") if _.is_file())
 
             # Process each file in the source directory
-            for path in tqdm(clone_path.rglob("*"), total=file_count):
+            for path in tqdm(clone_path.rglob("*"), total=file_count, leave=False):
                 await self._process_file(source.id, path.absolute())
 
         return SourceView(
@@ -212,7 +212,7 @@ class SourceService:
             file_count = sum(1 for _ in clone_path.rglob("*") if _.is_file())
 
             # Process each file in the source directory
-            for path in tqdm(clone_path.rglob("*"), total=file_count):
+            for path in tqdm(clone_path.rglob("*"), total=file_count, leave=False):
                 await self._process_file(source.id, path.absolute())
 
         return SourceView(

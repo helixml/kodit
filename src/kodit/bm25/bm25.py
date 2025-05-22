@@ -38,7 +38,7 @@ class BM25Service:
         self.log.debug("Indexing corpus")
         vocab = self._tokenize(corpus)
         self.retriever = bm25s.BM25()
-        self.retriever.index(vocab)
+        self.retriever.index(vocab, show_progress=False)
         self.retriever.save(self.index_path)
 
     def retrieve(

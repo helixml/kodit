@@ -174,3 +174,4 @@ cython_debug/
 .pypirc
 .kodit/
 .DS_Store
+.kodit.db

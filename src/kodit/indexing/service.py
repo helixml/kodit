@@ -131,15 +131,19 @@ class IndexService:
         # Create snippets for supported file types
         await self._create_snippets(index_id)
 
-        # Update BM25 index
         snippets = await self.repository.get_all_snippets()
-        self.bm25.index([snippet.content for snippet in snippets])
 
-        # Update the semantic index
-        embeddings = self.embedding_service.embed(
-            [snippet.content for snippet in snippets]
+        self.log.info("Creating keyword index")
+        self.bm25.index(
+            [
+                snippet.content
+                for snippet in tqdm(snippets, total=len(snippets), leave=False)
+            ]
         )
-        for snippet, embedding in zip(snippets, embeddings, strict=True):
+
+        self.log.info("Creating semantic index")
+        for snippet in tqdm(snippets, total=len(snippets), leave=False):
+            embedding = next(self.embedding_service.embed([snippet.content]))
             await self.repository.add_embedding(
                 Embedding(snippet_id=snippet.id, embedding=embedding)
             )
@@ -160,7 +164,7 @@ class IndexService:
 
         """
         files = await self.repository.files_for_index(index_id)
-        for file in tqdm(files, total=len(files)):
+        for file in tqdm(files, total=len(files), leave=False):
             # Skip unsupported file types
             if file.mime_type in MIME_BLACKLIST:
                 self.log.debug("Skipping mime type", mime_type=file.mime_type)
