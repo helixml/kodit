@@ -42,7 +42,7 @@ class RetrievalService:
 
     async def retrieve(self, request: RetrievalRequest) -> list[RetrievalResult]:
         """Retrieve relevant data."""
-        bm25_results = []
+        fusion_list = []
         if request.keywords:
             snippet_ids = await self.repository.list_snippet_ids()
 
@@ -55,8 +55,10 @@ class RetrievalService:
             # Sort results by score
             result_ids.sort(key=lambda x: x[1], reverse=True)
 
+            self.log.debug("Retrieval results (BM25)", results=result_ids)
+
             bm25_results = [x[0] for x in result_ids]
-            self.log.debug("Retrieval results (BM25)", results=bm25_results)
+            fusion_list.append(bm25_results)
 
         # Compute embedding for semantic query
         semantic_results = []
@@ -71,18 +73,25 @@ class RetrievalService:
                 query_embedding, top_k=request.top_k
             )
 
+            # Sort results by score
+            query_results.sort(key=lambda x: x[1], reverse=True)
+
+            self.log.debug("Retrieval results (Semantic)", results=query_results)
             # Extract the snippet ids from the query results
             semantic_results = [x[0] for x in query_results]
-            self.log.debug("Retrieval results (Semantic)", results=semantic_results)
+            fusion_list.append(semantic_results)
 
-        # Combine all results together with RFF
-        final_results = reciprocal_rank_fusion([bm25_results, semantic_results], k=60)
+        if len(fusion_list) == 0:
+            return []
+
+        # Combine all results together with RFF if required
+        final_results = reciprocal_rank_fusion(fusion_list, k=60)
 
         # Extract ids from final results
         final_ids = [x[0] for x in final_results]
 
         # Get snippets from database (up to top_k)
-        return await self.repository.list_snippets_by_ids(final_ids[: request.top_k])
+        return await self.repository.list_snippets_by_ids(final_ids)
 
 
 def reciprocal_rank_fusion(

@@ -12,6 +12,7 @@ import pydantic
 from sqlalchemy import (
     Float,
     cast,
+    desc,
     func,
     literal,
     select,
@@ -31,6 +32,7 @@ class RetrievalResult(pydantic.BaseModel):
     and the matching snippet content.
     """
 
+    id: int
     uri: str
     content: str
     score: float
@@ -77,8 +79,10 @@ class RetrievalRepository:
 
         return [
             RetrievalResult(
+                id=snippet.id,
                 uri=file.uri,
                 content=snippet.content,
+                score=1.0,
             )
             for snippet, file in results
         ]
@@ -109,31 +113,34 @@ class RetrievalRepository:
         rows = await self.session.execute(query)
         return [
             RetrievalResult(
+                id=snippet.id,
                 uri=file.uri,
                 content=snippet.content,
                 score=1.0,
             )
-            for snippet, file in rows.all()
+            for snippet, file in reversed(rows.all())  # Bloody thing was reversing
         ]
 
     async def list_semantic_results(
         self, embedding: list[float], top_k: int = 10
     ) -> list[tuple[int, float]]:
         """List semantic results."""
-        cos_dist = cosine_distance_json(Embedding.embedding, embedding).label(
-            "cos_dist"
-        )
+        cosine_similarity = cosine_similarity_json(
+            Embedding.embedding, embedding
+        ).label("cosine_similarity")
 
-        query = select(Embedding, cos_dist).order_by(cos_dist).limit(top_k)
+        query = (
+            select(Embedding, cosine_similarity)
+            .order_by(desc(cosine_similarity))
+            .limit(top_k)
+        )
         rows = await self.session.execute(query)
         return [(embedding.snippet_id, distance) for embedding, distance in rows.all()]
 
 
-def cosine_distance_json(col, query_vec):
-    """Calculate the cosine distance using pure sqlalchemy.
+def cosine_similarity_json(col, query_vec):
+    """Calculate the cosine similarity using pure sqlalchemy.
 
-    Build a SQLAlchemy scalar expression that returns
-    1 – cosine_similarity(json_array, query_vec).
     Works for a *fixed-length* vector.
     """
     q_norm = math.sqrt(sum(x * x for x in query_vec))
@@ -150,4 +157,4 @@ def cosine_distance_json(col, query_vec):
         )
     )
 
-    return 1 - dot / (row_norm * literal(q_norm))
+    return dot / (row_norm * literal(q_norm))

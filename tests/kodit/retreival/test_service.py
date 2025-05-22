@@ -176,6 +176,14 @@ def test_reciprocal_rank_fusion() -> None:
     assert abs(results[2][1] - 1 / 62) < 0.0001  # Third position
 
 
+def test_reciprocal_rank_fusion_single_ranking() -> None:
+    """Test the reciprocal rank fusion function with a single ranking."""
+    rankings = [[1, 2, 3]]
+    results = reciprocal_rank_fusion(rankings, k=60)
+    assert len(results) == 3
+    assert [r[0] for r in results] == [1, 2, 3]
+
+
 @pytest.mark.asyncio
 async def test_retrieve_snippets_semantic(
     service: RetrievalService, session: AsyncSession
