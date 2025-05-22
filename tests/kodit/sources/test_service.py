@@ -145,3 +145,13 @@ async def test_create_git_source(service: SourceService, tmp_path: Path) -> None
 
     # Clean up
     shutil.rmtree(repo_path)
+
+
+@pytest.mark.asyncio
+async def test_create_source_relative_path(
+    service: SourceService, tmp_path: Path
+) -> None:
+    """Test creating a source with a relative path, i.e. the current directory."""
+
+    # Should not raise an error
+    await service.create(".")

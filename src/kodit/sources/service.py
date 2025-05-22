@@ -126,13 +126,13 @@ class SourceService:
             SourceAlreadyExistsError: If the folder is already added.
 
         """
+        # Resolve the directory to an absolute path
+        directory = directory.expanduser().resolve()
+
         source = await self.repository.get_source_by_uri(directory.as_uri())
         if source:
             self.log.info("Source already exists, reusing...", source_id=source.id)
         else:
-            # Resolve the directory to an absolute path
-            directory = directory.expanduser().resolve()
-
             # Check if the folder exists
             if not directory.exists():
                 msg = f"Folder does not exist: {directory}"
