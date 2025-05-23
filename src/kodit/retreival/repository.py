@@ -6,11 +6,10 @@ and their associated file information.
 """
 
 import math
-from typing import Any, TypeVar
+from typing import TypeVar
 
 import pydantic
 from sqlalchemy import (
-    ColumnElement,
     Float,
     cast,
     desc,
@@ -19,7 +18,6 @@ from sqlalchemy import (
     select,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import Mapped
 
 from kodit.embedding.models import Embedding, EmbeddingType
 from kodit.indexing.models import Snippet
@@ -133,9 +131,29 @@ class RetrievalRepository:
         self, embedding_type: EmbeddingType, embedding: list[float], top_k: int = 10
     ) -> list[tuple[int, float]]:
         """List semantic results."""
-        cosine_similarity = cosine_similarity_json(
-            Embedding.embedding, embedding
-        ).label("cosine_similarity")
+        # Pre-compute query norm
+        q_norm = math.sqrt(sum(x * x for x in embedding))
+
+        # Calculate dot product using JSON array functions
+        dot = sum(
+            cast(func.json_extract(Embedding.embedding, f"$[{i}]"), Float)
+            * literal(float(q))
+            for i, q in enumerate(embedding)
+        )
+
+        # Calculate row norm on the fly
+        row_norm = func.sqrt(
+            sum(
+                cast(func.json_extract(Embedding.embedding, f"$[{i}]"), Float)
+                * cast(func.json_extract(Embedding.embedding, f"$[{i}]"), Float)
+                for i in range(len(embedding))
+            )
+        )
+
+        # Calculate cosine similarity
+        cosine_similarity = (dot / (row_norm * literal(q_norm))).label(
+            "cosine_similarity"
+        )
 
         query = (
             select(Embedding, cosine_similarity)
@@ -145,27 +163,3 @@ class RetrievalRepository:
         )
         rows = await self.session.execute(query)
         return [(embedding.snippet_id, distance) for embedding, distance in rows.all()]
-
-
-def cosine_similarity_json(
-    col: Mapped[Any], query_vec: list[float]
-) -> ColumnElement[Any]:
-    """Calculate the cosine similarity using pure sqlalchemy.
-
-    Works for a *fixed-length* vector.
-    """
-    q_norm = math.sqrt(sum(x * x for x in query_vec))
-
-    dot = sum(
-        cast(func.json_extract(col, f"$[{i}]"), Float) * literal(float(q))
-        for i, q in enumerate(query_vec)
-    )
-    row_norm = func.sqrt(
-        sum(
-            cast(func.json_extract(col, f"$[{i}]"), Float)
-            * cast(func.json_extract(col, f"$[{i}]"), Float)
-            for i in range(len(query_vec))
-        )
-    )
-
-    return dot / (row_norm * literal(q_norm))

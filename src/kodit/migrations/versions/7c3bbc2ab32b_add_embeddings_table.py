@@ -1,9 +1,9 @@
 # ruff: noqa
 """add embeddings table
 
-Revision ID: 0dfa7167f7de
+Revision ID: 7c3bbc2ab32b
 Revises: 85155663351e
-Create Date: 2025-05-23 16:05:47.584722
+Create Date: 2025-05-23 17:23:09.924980
 
 """
 
@@ -14,7 +14,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '0dfa7167f7de'
+revision: str = '7c3bbc2ab32b'
 down_revision: Union[str, None] = '85155663351e'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

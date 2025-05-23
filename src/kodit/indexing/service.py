@@ -147,7 +147,9 @@ class IndexService:
             embedding = next(self.code_embedding_service.embed([snippet.content]))
             await self.repository.add_embedding(
                 Embedding(
-                    snippet_id=snippet.id, embedding=embedding, type=EmbeddingType.CODE
+                    snippet_id=snippet.id,
+                    embedding=embedding,
+                    type=EmbeddingType.CODE,
                 )
             )
 
