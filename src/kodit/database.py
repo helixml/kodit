@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-from kodit import alembic
+from kodit import migrations
 
 
 class Base(AsyncAttrs, DeclarativeBase):
@@ -57,7 +57,7 @@ class Database:
         # Create Alembic configuration and run migrations
         alembic_cfg = AlembicConfig()
         alembic_cfg.set_main_option(
-            "script_location", str(Path(alembic.__file__).parent)
+            "script_location", str(Path(migrations.__file__).parent)
         )
         alembic_cfg.set_main_option("sqlalchemy.url", db_url)
         self.log.debug("Running migrations", db_url=db_url)

@@ -24,7 +24,7 @@ from kodit.config import (
 )
 from kodit.indexing.repository import IndexRepository
 from kodit.indexing.service import IndexService
-from kodit.logging import configure_logging, configure_telemetry, log_event
+from kodit.log import configure_logging, configure_telemetry, log_event
 from kodit.retreival.repository import RetrievalRepository
 from kodit.retreival.service import RetrievalRequest, RetrievalService
 from kodit.sources.repository import SourceRepository
