@@ -8,6 +8,7 @@ from unittest.mock import Mock
 from kodit.bm25.bm25 import BM25Service
 from kodit.config import AppContext
 from kodit.embedding.embedding import TINY, EmbeddingService
+from kodit.embedding.models import EmbeddingType
 from kodit.indexing.models import Index, Snippet
 from kodit.retreival.repository import RetrievalRepository
 from kodit.retreival.service import (
@@ -60,7 +61,7 @@ def service(
 
     mock_embedding.embed.side_effect = mock_embed
     mock_embedding.query.side_effect = mock_embed
-    service.embedding_service = mock_embedding
+    service.code_embedding_service = mock_embedding
     return service
 
 
@@ -233,14 +234,16 @@ async def test_retrieve_snippets_semantic(
     await session.commit()
 
     # Mock repository's semantic search
-    async def mock_list_semantic_results(embedding: list[float], top_k: int = 10):
+    async def mock_list_semantic_results(
+        embedding_type: EmbeddingType, embedding: list[float], top_k: int = 10
+    ):
         # Return mock semantic search results
         return [(1, 0.8), (2, 0.6)]  # First snippet is more semantically similar
 
     service.repository.list_semantic_results = mock_list_semantic_results
 
     # Test semantic search
-    results = await service.retrieve(RetrievalRequest(query="greeting"))
+    results = await service.retrieve(RetrievalRequest(code_query="greeting"))
     assert len(results) == 2
     assert (
         results[0].uri == "test1.txt"
@@ -251,16 +254,18 @@ async def test_retrieve_snippets_semantic(
 
     # Test combined semantic and keyword search
     results = await service.retrieve(
-        RetrievalRequest(query="greeting", keywords=["hello"])
+        RetrievalRequest(code_query="greeting", keywords=["hello"])
     )
     assert len(results) == 2
     # Results should be fused from both semantic and keyword search
     assert {r.uri for r in results} == {"test1.txt", "test2.txt"}
 
     # Test semantic search with no matches
-    async def mock_empty_semantic_results(embedding: list[float], top_k: int = 10):
+    async def mock_empty_semantic_results(
+        embedding_type: EmbeddingType, embedding: list[float], top_k: int = 10
+    ):
         return []
 
     service.repository.list_semantic_results = mock_empty_semantic_results
-    results = await service.retrieve(RetrievalRequest(query="nonexistent"))
+    results = await service.retrieve(RetrievalRequest(code_query="nonexistent"))
     assert len(results) == 0
