@@ -6,7 +6,7 @@ import pydantic
 import structlog
 
 from kodit.bm25.bm25 import BM25Service
-from kodit.embedding.embedding import EmbeddingService
+from kodit.embedding.embedding import TransformersEmbeddingService
 from kodit.retreival.repository import RetrievalRepository, RetrievalResult
 
 
@@ -38,7 +38,7 @@ class RetrievalService:
         self.repository = repository
         self.log = structlog.get_logger(__name__)
         self.bm25 = BM25Service(data_dir)
-        self.embedding_service = EmbeddingService(model_name=embedding_model_name)
+        self.embedding_service = TransformersEmbeddingService()
 
     async def retrieve(self, request: RetrievalRequest) -> list[RetrievalResult]:
         """Retrieve relevant data."""

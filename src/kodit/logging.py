@@ -87,7 +87,13 @@ def configure_logging(app_context: AppContext) -> None:
     # Configure uvicorn loggers to use our structlog setup
     # Uvicorn spits out loads of exception logs when sse server doesn't shut down
     # gracefully, so we hide them unless in DEBUG mode
-    for _log in ["uvicorn", "uvicorn.error", "uvicorn.access", "bm25s"]:
+    for _log in [
+        "uvicorn",
+        "uvicorn.error",
+        "uvicorn.access",
+        "bm25s",
+        "sentence_transformers.SentenceTransformer",
+    ]:
         if root_logger.getEffectiveLevel() == logging.DEBUG:
             logging.getLogger(_log).handlers.clear()
             logging.getLogger(_log).propagate = True
