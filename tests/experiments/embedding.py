@@ -2,7 +2,7 @@
 
 import numpy as np
 import psutil
-from kodit.embedding.embedding import TransformersEmbeddingService
+from kodit.embedding.embedding import EmbeddingService
 
 EXAMPLE_CODE = """
 from contextlib import asynccontextmanager
@@ -39,6 +39,8 @@ async def predict(x: float):
 def test_embedding_performance():
     """Test several embedding models for performace."""
     models_under_test = [
+        "minishlab/potion-base-4M",  # teeny weeny
+        "ibm-granite/granite-embedding-30m-english",
         "jinaai/jina-embeddings-v2-small-en",  # Best smallest "normal" embedding
         "flax-sentence-embeddings/st-codesearch-distilroberta-base",  # Best smallest "code" embedding
         "jinaai/jina-embeddings-v2-base-en",
@@ -55,7 +57,7 @@ def test_embedding_performance():
     # Pre-download the models and print some stats about the model
     print("Downloading models and printing stats...")
     for model in models_under_test:
-        embedding_service = TransformersEmbeddingService(model)
+        embedding_service = EmbeddingService(model)
         sen_model = embedding_service._model()
         dims = sen_model.get_sentence_embedding_dimension()
         total_num = sum(p.numel() for p in sen_model.parameters()) / 1_000_000
@@ -63,7 +65,7 @@ def test_embedding_performance():
 
     print("Testing embedding performance. Should be HIGH, LOW, ZERO")
     for model in models_under_test:
-        embedding_service = TransformersEmbeddingService(model)
+        embedding_service = EmbeddingService(model)
         embeddings = next(embedding_service.embed([EXAMPLE_CODE]))
         query = [
             "The user wants to add hooks for startup and shutdown in their fastapi application.",

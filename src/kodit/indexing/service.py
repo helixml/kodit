@@ -14,7 +14,7 @@ import structlog
 from tqdm.asyncio import tqdm
 
 from kodit.bm25.bm25 import BM25Service
-from kodit.embedding.embedding import TransformersEmbeddingService
+from kodit.embedding.embedding import EmbeddingService
 from kodit.indexing.models import Embedding, Snippet
 from kodit.indexing.repository import IndexRepository
 from kodit.snippets.snippets import SnippetService
@@ -65,7 +65,7 @@ class IndexService:
         self.snippet_service = SnippetService()
         self.log = structlog.get_logger(__name__)
         self.bm25 = BM25Service(data_dir)
-        self.embedding_service = TransformersEmbeddingService()
+        self.embedding_service = EmbeddingService(model_name=embedding_model_name)
 
     async def create(self, source_id: int) -> IndexView:
         """Create a new index for a source.

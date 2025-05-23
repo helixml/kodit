@@ -1,5 +1,6 @@
 """Tests for the retrieval service module."""
 
+from typing import Generator
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 from unittest.mock import Mock
@@ -52,12 +53,13 @@ def service(
     service.bm25 = mock_bm25
 
     # Mock embedding service
-    def mock_embed(snippets: list[str]):
+    def mock_embed(snippets: list[str]) -> Generator[list[float], None, None]:
         # Return a simple mock embedding for testing
         for _ in snippets:
             yield [0.1, 0.2, 0.3]
 
     mock_embedding.embed.side_effect = mock_embed
+    mock_embedding.query.side_effect = mock_embed
     service.embedding_service = mock_embedding
     return service
 

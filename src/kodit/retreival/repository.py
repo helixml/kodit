@@ -6,10 +6,11 @@ and their associated file information.
 """
 
 import math
-from typing import TypeVar
+from typing import Any, TypeVar
 
 import pydantic
 from sqlalchemy import (
+    ColumnElement,
     Float,
     cast,
     desc,
@@ -18,6 +19,7 @@ from sqlalchemy import (
     select,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Mapped
 
 from kodit.indexing.models import Embedding, Snippet
 from kodit.sources.models import File
@@ -124,7 +126,7 @@ class RetrievalRepository:
         }
 
         # Return results in the same order as input IDs
-        return [id_to_result[id] for id in ids]
+        return [id_to_result[i] for i in ids]
 
     async def list_semantic_results(
         self, embedding: list[float], top_k: int = 10
@@ -143,7 +145,9 @@ class RetrievalRepository:
         return [(embedding.snippet_id, distance) for embedding, distance in rows.all()]
 
 
-def cosine_similarity_json(col, query_vec):
+def cosine_similarity_json(
+    col: Mapped[Any], query_vec: list[float]
+) -> ColumnElement[Any]:
     """Calculate the cosine similarity using pure sqlalchemy.
 
     Works for a *fixed-length* vector.
