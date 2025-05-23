@@ -39,18 +39,18 @@ async def predict(x: float):
 def test_embedding_performance():
     """Test several embedding models for performace."""
     models_under_test = [
-        "jinaai/jina-embeddings-v2-small-en",  # Recommended by qdrant
+        "jinaai/jina-embeddings-v2-small-en",  # Best smallest "normal" embedding
+        "flax-sentence-embeddings/st-codesearch-distilroberta-base",  # Best smallest "code" embedding
         "jinaai/jina-embeddings-v2-base-en",
         "sentence-transformers/all-MiniLM-L6-v2",  # Default sentence-transformers model
         "BAAI/bge-code-v1",
-        # "nomic-ai/nomic-embed-code", # Didn't work
+        "nomic-ai/nomic-embed-code",
         "mchochlov/codebert-base-cd-ft",
         "Shuu12121/CodeSearch-ModernBERT-Crow-Plus",
         "nomic-ai/CodeRankEmbed",
         "codesage/codesage-small-v2",
         "codesage/codesage-large-v2",
         "Salesforce/SFR-Embedding-Code-400M_R",
-        "Salesforce/SFR-Embedding-Code-2B_R",
     ]
     # Pre-download the models and print some stats about the model
     print("Downloading models and printing stats...")
