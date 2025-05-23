@@ -7,13 +7,14 @@ import structlog
 
 from kodit.bm25.bm25 import BM25Service
 from kodit.embedding.embedding import EmbeddingService
+from kodit.embedding.models import EmbeddingType
 from kodit.retreival.repository import RetrievalRepository, RetrievalResult
 
 
 class RetrievalRequest(pydantic.BaseModel):
     """Request for a retrieval."""
 
-    query: str | None = None
+    code_query: str | None = None
     keywords: list[str] | None = None
     top_k: int = 10
 
@@ -38,7 +39,7 @@ class RetrievalService:
         self.repository = repository
         self.log = structlog.get_logger(__name__)
         self.bm25 = BM25Service(data_dir)
-        self.embedding_service = EmbeddingService(model_name=embedding_model_name)
+        self.code_embedding_service = EmbeddingService(model_name=embedding_model_name)
 
     async def retrieve(self, request: RetrievalRequest) -> list[RetrievalResult]:
         """Retrieve relevant data."""
@@ -62,22 +63,18 @@ class RetrievalService:
 
         # Compute embedding for semantic query
         semantic_results = []
-        if request.query:
-            query_embedding = next(self.embedding_service.query([request.query]))
-            self.log.debug(
-                "Semantic query embedding",
-                query=request.query,
-                embedding=query_embedding,
+        if request.code_query:
+            query_embedding = next(
+                self.code_embedding_service.query([request.code_query])
             )
 
             query_results = await self.repository.list_semantic_results(
-                query_embedding, top_k=request.top_k
+                EmbeddingType.CODE, query_embedding, top_k=request.top_k
             )
 
             # Sort results by score
             query_results.sort(key=lambda x: x[1], reverse=True)
 
-            self.log.debug("Retrieval results (Semantic)", results=query_results)
             # Extract the snippet ids from the query results
             semantic_results = [x[0] for x in query_results]
             fusion_list.append(semantic_results)
@@ -92,7 +89,7 @@ class RetrievalService:
         final_ids = [x[0] for x in final_results]
 
         # Get snippets from database (up to top_k)
-        return await self.repository.list_snippets_by_ids(final_ids)
+        return await self.repository.list_snippets_by_ids(final_ids[: request.top_k])
 
 
 def reciprocal_rank_fusion(

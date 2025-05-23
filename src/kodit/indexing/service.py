@@ -15,7 +15,8 @@ from tqdm.asyncio import tqdm
 
 from kodit.bm25.bm25 import BM25Service
 from kodit.embedding.embedding import EmbeddingService
-from kodit.indexing.models import Embedding, Snippet
+from kodit.embedding.models import Embedding, EmbeddingType
+from kodit.indexing.models import Snippet
 from kodit.indexing.repository import IndexRepository
 from kodit.snippets.snippets import SnippetService
 from kodit.sources.service import SourceService
@@ -65,7 +66,7 @@ class IndexService:
         self.snippet_service = SnippetService()
         self.log = structlog.get_logger(__name__)
         self.bm25 = BM25Service(data_dir)
-        self.embedding_service = EmbeddingService(model_name=embedding_model_name)
+        self.code_embedding_service = EmbeddingService(model_name=embedding_model_name)
 
     async def create(self, source_id: int) -> IndexView:
         """Create a new index for a source.
@@ -141,11 +142,13 @@ class IndexService:
             ]
         )
 
-        self.log.info("Creating semantic index")
+        self.log.info("Creating semantic code index")
         for snippet in tqdm(snippets, total=len(snippets), leave=False):
-            embedding = next(self.embedding_service.embed([snippet.content]))
+            embedding = next(self.code_embedding_service.embed([snippet.content]))
             await self.repository.add_embedding(
-                Embedding(snippet_id=snippet.id, embedding=embedding)
+                Embedding(
+                    snippet_id=snippet.id, embedding=embedding, type=EmbeddingType.CODE
+                )
             )
 
         # Update index timestamp

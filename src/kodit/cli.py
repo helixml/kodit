@@ -149,13 +149,16 @@ def search() -> None:
 @click.option("--top-k", default=10, help="Number of snippets to retrieve")
 @with_app_context
 @with_session
-async def semantic(
+async def code(
     session: AsyncSession,
     app_context: AppContext,
     query: str,
     top_k: int,
 ) -> None:
-    """Search for snippets using semantic search."""
+    """Search for snippets using semantic code search.
+
+    This works best if your query is code.
+    """
     repository = RetrievalRepository(session)
     service = RetrievalService(
         repository,
@@ -163,7 +166,7 @@ async def semantic(
         embedding_model_name=DEFAULT_EMBEDDING_MODEL_NAME,
     )
 
-    snippets = await service.retrieve(RetrievalRequest(query=query, top_k=top_k))
+    snippets = await service.retrieve(RetrievalRequest(code_query=query, top_k=top_k))
 
     if len(snippets) == 0:
         click.echo("No snippets found")
@@ -213,7 +216,7 @@ async def keyword(
 @search.command()
 @click.option("--top-k", default=10, help="Number of snippets to retrieve")
 @click.option("--keywords", required=True, help="Comma separated list of keywords")
-@click.option("--semantic", required=True, help="Semantic search query")
+@click.option("--code", required=True, help="Semantic code search query")
 @with_app_context
 @with_session
 async def hybrid(
@@ -221,7 +224,7 @@ async def hybrid(
     app_context: AppContext,
     top_k: int,
     keywords: str,
-    semantic: str,
+    code: str,
 ) -> None:
     """Search for snippets using hybrid search."""
     repository = RetrievalRepository(session)
@@ -235,7 +238,7 @@ async def hybrid(
     keywords_list = [k.strip().lower() for k in keywords.split(",")]
 
     snippets = await service.retrieve(
-        RetrievalRequest(keywords=keywords_list, query=semantic, top_k=top_k)
+        RetrievalRequest(keywords=keywords_list, code_query=code, top_k=top_k)
     )
 
     if len(snippets) == 0:

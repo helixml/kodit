@@ -21,7 +21,8 @@ from sqlalchemy import (
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped
 
-from kodit.indexing.models import Embedding, Snippet
+from kodit.embedding.models import Embedding, EmbeddingType
+from kodit.indexing.models import Snippet
 from kodit.sources.models import File
 
 T = TypeVar("T")
@@ -129,7 +130,7 @@ class RetrievalRepository:
         return [id_to_result[i] for i in ids]
 
     async def list_semantic_results(
-        self, embedding: list[float], top_k: int = 10
+        self, embedding_type: EmbeddingType, embedding: list[float], top_k: int = 10
     ) -> list[tuple[int, float]]:
         """List semantic results."""
         cosine_similarity = cosine_similarity_json(
@@ -138,6 +139,7 @@ class RetrievalRepository:
 
         query = (
             select(Embedding, cosine_similarity)
+            .where(Embedding.type == embedding_type)
             .order_by(desc(cosine_similarity))
             .limit(top_k)
         )

@@ -11,7 +11,8 @@ from typing import TypeVar
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.indexing.models import Embedding, Index, Snippet
+from kodit.embedding.models import Embedding
+from kodit.indexing.models import Index, Snippet
 from kodit.sources.models import File, Source
 
 T = TypeVar("T")

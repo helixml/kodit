@@ -8,6 +8,7 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
+import kodit.embedding.models
 import kodit.indexing.models
 import kodit.sources.models
 from kodit.database import Base
