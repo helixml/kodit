@@ -6,7 +6,7 @@ from unittest.mock import Mock
 
 from kodit.bm25.bm25 import BM25Service
 from kodit.config import AppContext
-from kodit.embedding.embedding import EmbeddingService
+from kodit.embedding.embedding import TINY, EmbeddingService
 from kodit.indexing.models import Index, Snippet
 from kodit.retreival.repository import RetrievalRepository
 from kodit.retreival.service import (
@@ -28,7 +28,11 @@ def service(
     app_context: AppContext, repository: RetrievalRepository
 ) -> RetrievalService:
     """Create a service instance with a real repository."""
-    service = RetrievalService(repository, app_context.get_data_dir())
+    service = RetrievalService(
+        repository,
+        app_context.get_data_dir(),
+        embedding_model_name=TINY,
+    )
     mock_bm25 = Mock(spec=BM25Service)
     mock_embedding = Mock(spec=EmbeddingService)
 

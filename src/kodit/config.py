@@ -11,12 +11,14 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from kodit.database import Database
+from kodit.embedding.embedding import TINY
 
 DEFAULT_BASE_DIR = Path.home() / ".kodit"
 DEFAULT_DB_URL = f"sqlite+aiosqlite:///{DEFAULT_BASE_DIR}/kodit.db"
 DEFAULT_LOG_LEVEL = "INFO"
 DEFAULT_LOG_FORMAT = "pretty"
 DEFAULT_DISABLE_TELEMETRY = False
+DEFAULT_EMBEDDING_MODEL_NAME = TINY
 T = TypeVar("T")
 
 

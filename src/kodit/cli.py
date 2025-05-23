@@ -15,6 +15,7 @@ from kodit.config import (
     DEFAULT_BASE_DIR,
     DEFAULT_DB_URL,
     DEFAULT_DISABLE_TELEMETRY,
+    DEFAULT_EMBEDDING_MODEL_NAME,
     DEFAULT_LOG_FORMAT,
     DEFAULT_LOG_LEVEL,
     AppContext,
@@ -97,7 +98,12 @@ async def index(
     source_repository = SourceRepository(session)
     source_service = SourceService(app_context.get_clone_dir(), source_repository)
     repository = IndexRepository(session)
-    service = IndexService(repository, source_service, app_context.get_data_dir())
+    service = IndexService(
+        repository,
+        source_service,
+        app_context.get_data_dir(),
+        embedding_model_name=DEFAULT_EMBEDDING_MODEL_NAME,
+    )
 
     if not sources:
         # No source specified, list all indexes
@@ -151,7 +157,11 @@ async def semantic(
 ) -> None:
     """Search for snippets using semantic search."""
     repository = RetrievalRepository(session)
-    service = RetrievalService(repository, app_context.get_data_dir())
+    service = RetrievalService(
+        repository,
+        app_context.get_data_dir(),
+        embedding_model_name=DEFAULT_EMBEDDING_MODEL_NAME,
+    )
 
     snippets = await service.retrieve(RetrievalRequest(query=query, top_k=top_k))
 
@@ -180,7 +190,11 @@ async def keyword(
 ) -> None:
     """Search for snippets using keyword search."""
     repository = RetrievalRepository(session)
-    service = RetrievalService(repository, app_context.get_data_dir())
+    service = RetrievalService(
+        repository,
+        app_context.get_data_dir(),
+        embedding_model_name=DEFAULT_EMBEDDING_MODEL_NAME,
+    )
 
     snippets = await service.retrieve(RetrievalRequest(keywords=keywords, top_k=top_k))
 
@@ -211,7 +225,11 @@ async def hybrid(
 ) -> None:
     """Search for snippets using hybrid search."""
     repository = RetrievalRepository(session)
-    service = RetrievalService(repository, app_context.get_data_dir())
+    service = RetrievalService(
+        repository,
+        app_context.get_data_dir(),
+        embedding_model_name=DEFAULT_EMBEDDING_MODEL_NAME,
+    )
 
     # Parse keywords into a list of strings
     keywords_list = [k.strip().lower() for k in keywords.split(",")]

@@ -14,7 +14,7 @@ import structlog
 from tqdm.asyncio import tqdm
 
 from kodit.bm25.bm25 import BM25Service
-from kodit.embedding.embedding import CODE, EmbeddingService
+from kodit.embedding.embedding import EmbeddingService
 from kodit.indexing.models import Embedding, Snippet
 from kodit.indexing.repository import IndexRepository
 from kodit.snippets.snippets import SnippetService
@@ -51,7 +51,7 @@ class IndexService:
         repository: IndexRepository,
         source_service: SourceService,
         data_dir: Path,
-        embedding_model_name: str = CODE,
+        embedding_model_name: str,
     ) -> None:
         """Initialize the index service.
 

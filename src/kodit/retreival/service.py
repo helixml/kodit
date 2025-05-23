@@ -6,7 +6,7 @@ import pydantic
 import structlog
 
 from kodit.bm25.bm25 import BM25Service
-from kodit.embedding.embedding import CODE, EmbeddingService
+from kodit.embedding.embedding import EmbeddingService
 from kodit.retreival.repository import RetrievalRepository, RetrievalResult
 
 
@@ -32,7 +32,7 @@ class RetrievalService:
         self,
         repository: RetrievalRepository,
         data_dir: Path,
-        embedding_model_name: str = CODE,
+        embedding_model_name: str,
     ) -> None:
         """Initialize the retrieval service."""
         self.repository = repository
@@ -63,12 +63,13 @@ class RetrievalService:
         # Compute embedding for semantic query
         semantic_results = []
         if request.query:
-            query_embedding = next(self.embedding_service.embed([request.query]))
+            query_embedding = next(self.embedding_service.query([request.query]))
             self.log.debug(
                 "Semantic query embedding",
                 query=request.query,
                 embedding=query_embedding,
             )
+
             query_results = await self.repository.list_semantic_results(
                 query_embedding, top_k=request.top_k
             )

@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.config import AppContext
+from kodit.embedding.embedding import TINY
 from kodit.indexing.repository import IndexRepository
 from kodit.indexing.service import IndexService
 from kodit.sources.models import File, Source
@@ -39,7 +40,12 @@ def service(
     app_context: AppContext, repository: IndexRepository, source_service: SourceService
 ) -> IndexService:
     """Create a real service instance with a database session."""
-    return IndexService(repository, source_service, app_context.get_data_dir())
+    return IndexService(
+        repository,
+        source_service,
+        app_context.get_data_dir(),
+        embedding_model_name=TINY,
+    )
 
 
 @pytest.mark.asyncio
