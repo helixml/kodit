@@ -8,10 +8,10 @@ from typing import List
 
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 
-from kodit.embedding.models import Embedding, EmbeddingType
-from kodit.indexing.models import Index, Snippet
-from kodit.search.repository import SearchRepository
-from kodit.sources.models import File, Source
+from kodit.embedding.embedding_models import Embedding, EmbeddingType
+from kodit.indexing.indexing_models import Index, Snippet
+from kodit.search.search_repository import SearchRepository
+from kodit.source.source_models import File, Source
 
 
 def generate_random_embedding(dim: int = 750) -> List[float]:

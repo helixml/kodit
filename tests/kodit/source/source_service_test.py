@@ -8,8 +8,8 @@ import git
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.sources.repository import SourceRepository
-from kodit.sources.service import SourceService
+from kodit.source.source_repository import SourceRepository
+from kodit.source.source_service import SourceService
 
 
 @pytest.fixture

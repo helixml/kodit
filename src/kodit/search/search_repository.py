@@ -8,9 +8,9 @@ from sqlalchemy import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.embedding.models import Embedding, EmbeddingType
-from kodit.indexing.models import Snippet
-from kodit.sources.models import File
+from kodit.embedding.embedding_models import Embedding, EmbeddingType
+from kodit.indexing.indexing_models import Snippet
+from kodit.source.source_models import File
 
 T = TypeVar("T")
 

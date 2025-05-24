@@ -8,11 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.config import AppContext
 from kodit.embedding.embedding import TINY
-from kodit.indexing.repository import IndexRepository
-from kodit.indexing.service import IndexService
-from kodit.sources.models import File, Source
-from kodit.sources.repository import SourceRepository
-from kodit.sources.service import SourceService
+from kodit.indexing.indexing_repository import IndexRepository
+from kodit.indexing.indexing_service import IndexService
+from kodit.source.source_models import File, Source
+from kodit.source.source_repository import SourceRepository
+from kodit.source.source_service import SourceService
 
 
 @pytest.fixture

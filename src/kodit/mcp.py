@@ -14,8 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from kodit._version import version
 from kodit.config import DEFAULT_EMBEDDING_MODEL_NAME, AppContext
 from kodit.database import Database
-from kodit.search.repository import SearchRepository
-from kodit.search.service import SearchRequest, SearchResult, SearchService
+from kodit.search.search_repository import SearchRepository
+from kodit.search.search_service import SearchRequest, SearchResult, SearchService
 
 
 @dataclass

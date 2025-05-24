@@ -15,11 +15,11 @@ from tqdm.asyncio import tqdm
 
 from kodit.bm25.bm25 import BM25Service
 from kodit.embedding.embedding import EmbeddingService
-from kodit.embedding.models import Embedding, EmbeddingType
-from kodit.indexing.models import Snippet
-from kodit.indexing.repository import IndexRepository
+from kodit.embedding.embedding_models import Embedding, EmbeddingType
+from kodit.indexing.indexing_models import Snippet
+from kodit.indexing.indexing_repository import IndexRepository
 from kodit.snippets.snippets import SnippetService
-from kodit.sources.service import SourceService
+from kodit.source.source_service import SourceService
 
 # List of MIME types that are blacklisted from being indexed
 MIME_BLACKLIST = ["unknown/unknown"]

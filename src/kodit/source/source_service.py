@@ -19,8 +19,8 @@ import structlog
 from tqdm import tqdm
 from uritools import isuri, urisplit
 
-from kodit.sources.models import File, Source
-from kodit.sources.repository import SourceRepository
+from kodit.source.source_models import File, Source
+from kodit.source.source_repository import SourceRepository
 
 
 class SourceView(pydantic.BaseModel):

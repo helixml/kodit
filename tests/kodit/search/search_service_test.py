@@ -8,15 +8,15 @@ from unittest.mock import Mock
 from kodit.bm25.bm25 import BM25Service
 from kodit.config import AppContext
 from kodit.embedding.embedding import TINY, EmbeddingService
-from kodit.embedding.models import EmbeddingType
-from kodit.indexing.models import Index, Snippet
-from kodit.search.repository import SearchRepository
-from kodit.search.service import (
+from kodit.embedding.embedding_models import EmbeddingType
+from kodit.indexing.indexing_models import Index, Snippet
+from kodit.search.search_repository import SearchRepository
+from kodit.search.search_service import (
     SearchRequest,
     SearchService,
     reciprocal_rank_fusion,
 )
-from kodit.sources.models import File, Source
+from kodit.source.source_models import File, Source
 
 
 @pytest.fixture

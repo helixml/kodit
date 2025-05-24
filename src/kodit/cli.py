@@ -22,13 +22,13 @@ from kodit.config import (
     with_app_context,
     with_session,
 )
-from kodit.indexing.repository import IndexRepository
-from kodit.indexing.service import IndexService
+from kodit.indexing.indexing_repository import IndexRepository
+from kodit.indexing.indexing_service import IndexService
 from kodit.log import configure_logging, configure_telemetry, log_event
-from kodit.search.repository import SearchRepository
-from kodit.search.service import SearchRequest, SearchService
-from kodit.sources.repository import SourceRepository
-from kodit.sources.service import SourceService
+from kodit.search.search_repository import SearchRepository
+from kodit.search.search_service import SearchRequest, SearchService
+from kodit.source.source_repository import SourceRepository
+from kodit.source.source_service import SourceService
 
 
 @click.group(context_settings={"max_content_width": 100})

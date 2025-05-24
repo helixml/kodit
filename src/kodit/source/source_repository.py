@@ -3,7 +3,7 @@
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.sources.models import File, Source
+from kodit.source.source_models import File, Source
 
 
 class SourceRepository:

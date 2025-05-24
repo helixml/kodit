@@ -7,8 +7,8 @@ import structlog
 
 from kodit.bm25.bm25 import BM25Service
 from kodit.embedding.embedding import EmbeddingService
-from kodit.embedding.models import EmbeddingType
-from kodit.search.repository import SearchRepository
+from kodit.embedding.embedding_models import EmbeddingType
+from kodit.search.search_repository import SearchRepository
 
 
 class SearchRequest(pydantic.BaseModel):
