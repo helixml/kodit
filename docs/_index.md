@@ -57,13 +57,16 @@ pip install kodit
 Kodit has two key parts. A configuration CLI to manage what gets indexed and an MCP
 server to expose your code to an AI coding assistant.
 
-1. Index a local path: `kodit index /path/to/your/code`
-2. Or index a public git repository: `kodit index https://github.com/pydantic/pydantic-ai`
-3. Test retrieval on your index: `kodit retrieve "test"`
-4. Start an MCP server: `kodit serve`
+1. Index a source:
+    1. a local path: `kodit index /path/to/your/code`
+    2. or index a public git repository: `kodit index https://github.com/pydantic/pydantic-ai`
+2. Manually search your index:
+    1. with a keyword: `kodit search keyword "test"`
+    2. or with code: `kodit search code "def main()"`
+    3. or via hybrid search:  `kodit search code hybrid --keywords "main" --code "def main()"`
+3. Start an MCP server: `kodit serve`
 
-Now browse to your AI coding assistant and add the MCP server. You will also need to
-tell your assistant to use this server in coding tasks, otherwise it won't get called!
+Now add the Kodit MCP server to your AI coding assistant.
 
 ### Integration with Cursor
 
