@@ -29,8 +29,10 @@ $prefix kodit index $tmp_dir
 $prefix kodit index https://github.com/winderai/analytics-ai-agent-demo
 $prefix kodit index
 
-# Test retrieve command
-$prefix kodit retrieve "Hello"
+# Test search command
+$prefix kodit search keyword "Hello"
+$prefix kodit search code "Hello"
+$prefix kodit search hybrid --keywords "main" --code "def main()"
 
 # Test serve command with timeout
 timeout 2s $prefix kodit serve || true
