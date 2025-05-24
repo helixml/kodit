@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sess
 
 from kodit.embedding.models import Embedding, EmbeddingType
 from kodit.indexing.models import Index, Snippet
-from kodit.retreival.repository import RetrievalRepository
+from kodit.search.repository import SearchRepository
 from kodit.sources.models import File, Source
 
 
@@ -64,7 +64,7 @@ async def run_benchmark(session: AsyncSession) -> None:
     await setup_test_data(session)
 
     # Create repository instance
-    repo = RetrievalRepository(session)
+    repo = SearchRepository(session)
 
     # Generate a test query embedding
     query_embedding = generate_random_embedding()

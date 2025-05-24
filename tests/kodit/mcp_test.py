@@ -6,7 +6,7 @@ from mcp.types import (
     TextContent,
 )
 
-from kodit.mcp import mcp
+from kodit.mcp import mcp, search
 
 
 @pytest.mark.asyncio
@@ -28,7 +28,7 @@ async def test_mcp_client_connection() -> None:
 
         # Call the tool
         result = await client.call_tool(
-            "retrieve_relevant_snippets",
+            search.__name__,
             {
                 "user_intent": "What is the capital of France?",
                 "related_file_paths": [],

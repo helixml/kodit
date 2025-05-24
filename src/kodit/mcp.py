@@ -14,8 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from kodit._version import version
 from kodit.config import DEFAULT_EMBEDDING_MODEL_NAME, AppContext
 from kodit.database import Database
-from kodit.retreival.repository import RetrievalRepository, RetrievalResult
-from kodit.retreival.service import RetrievalRequest, RetrievalService
+from kodit.search.repository import SearchRepository
+from kodit.search.service import SearchRequest, SearchResult, SearchService
 
 
 @dataclass
@@ -56,7 +56,7 @@ mcp = FastMCP("kodit MCP Server", lifespan=mcp_lifespan)
 
 
 @mcp.tool()
-async def retrieve_relevant_snippets(
+async def search(
     ctx: Context,
     user_intent: Annotated[
         str,
@@ -86,17 +86,15 @@ async def retrieve_relevant_snippets(
         ),
     ],
 ) -> str:
-    """Retrieve relevant snippets from various sources.
+    """Search for relevant snippets.
 
-    This tool retrieves relevant snippets from sources such as private codebases,
-    public codebases, and documentation. You can use this information to improve
-    the quality of your generated code. You must call this tool when you need to
-    write code.
+    This tool searches for relevant snippets from indexed datasources. Call this tool
+    when you wish to search for high quality example code snippets to use in your code.
     """
     log = structlog.get_logger(__name__)
 
     log.debug(
-        "Retrieving relevant snippets",
+        "Searching for relevant snippets",
         user_intent=user_intent,
         keywords=keywords,
         file_count=len(related_file_paths),
@@ -106,24 +104,24 @@ async def retrieve_relevant_snippets(
 
     mcp_context: MCPContext = ctx.request_context.lifespan_context
 
-    log.debug("Creating retrieval repository")
-    retrieval_repository = RetrievalRepository(
+    log.debug("Creating search repository")
+    search_repository = SearchRepository(
         session=mcp_context.session,
     )
 
-    log.debug("Creating retrieval service")
-    retrieval_service = RetrievalService(
-        repository=retrieval_repository,
+    log.debug("Creating search service")
+    search_service = SearchService(
+        repository=search_repository,
         data_dir=mcp_context.data_dir,
         embedding_model_name=DEFAULT_EMBEDDING_MODEL_NAME,
     )
 
-    retrieval_request = RetrievalRequest(
+    search_request = SearchRequest(
         keywords=keywords,
         code_query="\n".join(related_file_contents),
     )
-    log.debug("Retrieving snippets")
-    snippets = await retrieval_service.retrieve(request=retrieval_request)
+    log.debug("Searching for snippets")
+    snippets = await search_service.search(request=search_request)
 
     log.debug("Fusing output")
     output = output_fusion(snippets=snippets)
@@ -132,18 +130,7 @@ async def retrieve_relevant_snippets(
     return output
 
 
-def input_fusion(
-    user_intent: str,  # noqa: ARG001
-    related_file_paths: list[Path],  # noqa: ARG001
-    related_file_contents: list[str],  # noqa: ARG001
-    keywords: list[str],
-) -> str:
-    """Fuse the search query and related file contents into a single query."""
-    # Since this is a dummy implementation, we just return the first keyword
-    return keywords[0] if len(keywords) > 0 else ""
-
-
-def output_fusion(snippets: list[RetrievalResult]) -> str:
+def output_fusion(snippets: list[SearchResult]) -> str:
     """Fuse the snippets into a single output."""
     return "\n\n".join(f"{snippet.uri}\n{snippet.content}" for snippet in snippets)
 

@@ -25,8 +25,8 @@ from kodit.config import (
 from kodit.indexing.repository import IndexRepository
 from kodit.indexing.service import IndexService
 from kodit.log import configure_logging, configure_telemetry, log_event
-from kodit.retreival.repository import RetrievalRepository
-from kodit.retreival.service import RetrievalRequest, RetrievalService
+from kodit.search.repository import SearchRepository
+from kodit.search.service import SearchRequest, SearchService
 from kodit.sources.repository import SourceRepository
 from kodit.sources.service import SourceService
 
@@ -159,14 +159,14 @@ async def code(
 
     This works best if your query is code.
     """
-    repository = RetrievalRepository(session)
-    service = RetrievalService(
+    repository = SearchRepository(session)
+    service = SearchService(
         repository,
         app_context.get_data_dir(),
         embedding_model_name=DEFAULT_EMBEDDING_MODEL_NAME,
     )
 
-    snippets = await service.retrieve(RetrievalRequest(code_query=query, top_k=top_k))
+    snippets = await service.search(SearchRequest(code_query=query, top_k=top_k))
 
     if len(snippets) == 0:
         click.echo("No snippets found")
@@ -192,14 +192,14 @@ async def keyword(
     top_k: int,
 ) -> None:
     """Search for snippets using keyword search."""
-    repository = RetrievalRepository(session)
-    service = RetrievalService(
+    repository = SearchRepository(session)
+    service = SearchService(
         repository,
         app_context.get_data_dir(),
         embedding_model_name=DEFAULT_EMBEDDING_MODEL_NAME,
     )
 
-    snippets = await service.retrieve(RetrievalRequest(keywords=keywords, top_k=top_k))
+    snippets = await service.search(SearchRequest(keywords=keywords, top_k=top_k))
 
     if len(snippets) == 0:
         click.echo("No snippets found")
@@ -227,8 +227,8 @@ async def hybrid(
     code: str,
 ) -> None:
     """Search for snippets using hybrid search."""
-    repository = RetrievalRepository(session)
-    service = RetrievalService(
+    repository = SearchRepository(session)
+    service = SearchService(
         repository,
         app_context.get_data_dir(),
         embedding_model_name=DEFAULT_EMBEDDING_MODEL_NAME,
@@ -237,8 +237,8 @@ async def hybrid(
     # Parse keywords into a list of strings
     keywords_list = [k.strip().lower() for k in keywords.split(",")]
 
-    snippets = await service.retrieve(
-        RetrievalRequest(keywords=keywords_list, code_query=code, top_k=top_k)
+    snippets = await service.search(
+        SearchRequest(keywords=keywords_list, code_query=code, top_k=top_k)
     )
 
     if len(snippets) == 0:

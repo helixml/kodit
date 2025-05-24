@@ -1,9 +1,4 @@
-"""Source repository for database operations.
-
-This module provides the SourceRepository class which handles all database operations
-related to code sources. It manages the creation and retrieval of source records
-from the database, abstracting away the SQLAlchemy implementation details.
-"""
+"""Source repository for database operations."""
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession

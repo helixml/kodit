@@ -102,15 +102,15 @@ def test_index_management(runner: CliRunner, test_repo: Path) -> None:
     assert result.exit_code == 0
 
 
-def test_retrieval(runner: CliRunner, test_repo: Path) -> None:
-    """Test retrieval functionality."""
+def test_search(runner: CliRunner, test_repo: Path) -> None:
+    """Test search functionality."""
     # Set up source and index
     runner.invoke(cli, ["sources", "create", str(test_repo)])
     runner.invoke(cli, ["indexes", "create", "1"])
     runner.invoke(cli, ["indexes", "run", "1"])
 
-    # Test retrieval
-    result = runner.invoke(cli, ["retrieve", "hello world function"])
+    # Test search
+    result = runner.invoke(cli, ["search", "hello world function"])
     assert result.exit_code == 0
     assert "hello_world" in result.output
     assert "Hello, World!" in result.output

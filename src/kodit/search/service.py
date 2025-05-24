@@ -1,4 +1,4 @@
-"""Retrieval service."""
+"""Search service."""
 
 from pathlib import Path
 
@@ -8,15 +8,27 @@ import structlog
 from kodit.bm25.bm25 import BM25Service
 from kodit.embedding.embedding import EmbeddingService
 from kodit.embedding.models import EmbeddingType
-from kodit.retreival.repository import RetrievalRepository, RetrievalResult
+from kodit.search.repository import SearchRepository
 
 
-class RetrievalRequest(pydantic.BaseModel):
-    """Request for a retrieval."""
+class SearchRequest(pydantic.BaseModel):
+    """Request for a search."""
 
     code_query: str | None = None
     keywords: list[str] | None = None
     top_k: int = 10
+
+
+class SearchResult(pydantic.BaseModel):
+    """Data transfer object for search results.
+
+    This model represents a single search result, containing both the file path
+    and the matching snippet content.
+    """
+
+    id: int
+    uri: str
+    content: str
 
 
 class Snippet(pydantic.BaseModel):
@@ -26,23 +38,23 @@ class Snippet(pydantic.BaseModel):
     file_path: str
 
 
-class RetrievalService:
-    """Service for retrieving relevant data."""
+class SearchService:
+    """Service for searching for relevant data."""
 
     def __init__(
         self,
-        repository: RetrievalRepository,
+        repository: SearchRepository,
         data_dir: Path,
         embedding_model_name: str,
     ) -> None:
-        """Initialize the retrieval service."""
+        """Initialize the search service."""
         self.repository = repository
         self.log = structlog.get_logger(__name__)
         self.bm25 = BM25Service(data_dir)
         self.code_embedding_service = EmbeddingService(model_name=embedding_model_name)
 
-    async def retrieve(self, request: RetrievalRequest) -> list[RetrievalResult]:
-        """Retrieve relevant data."""
+    async def search(self, request: SearchRequest) -> list[SearchResult]:
+        """Search for relevant data."""
         fusion_list = []
         if request.keywords:
             snippet_ids = await self.repository.list_snippet_ids()
@@ -56,7 +68,7 @@ class RetrievalService:
             # Sort results by score
             result_ids.sort(key=lambda x: x[1], reverse=True)
 
-            self.log.debug("Retrieval results (BM25)", results=result_ids)
+            self.log.debug("Search results (BM25)", results=result_ids)
 
             bm25_results = [x[0] for x in result_ids]
             fusion_list.append(bm25_results)
@@ -89,7 +101,18 @@ class RetrievalService:
         final_ids = [x[0] for x in final_results]
 
         # Get snippets from database (up to top_k)
-        return await self.repository.list_snippets_by_ids(final_ids[: request.top_k])
+        search_results = await self.repository.list_snippets_by_ids(
+            final_ids[: request.top_k]
+        )
+
+        return [
+            SearchResult(
+                id=snippet.id,
+                uri=file.uri,
+                content=snippet.content,
+            )
+            for file, snippet in search_results
+        ]
 
 
 def reciprocal_rank_fusion(

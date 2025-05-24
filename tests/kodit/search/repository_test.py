@@ -2,20 +2,20 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.indexing.models import Index, Snippet
-from kodit.retreival.repository import RetrievalRepository
+from kodit.search.repository import SearchRepository
 from kodit.sources.models import File, Source
 
 
 @pytest.fixture
-def repository(session: AsyncSession) -> RetrievalRepository:
+def repository(session: AsyncSession) -> SearchRepository:
     """Create a repository instance with a real database session."""
-    return RetrievalRepository(session)
+    return SearchRepository(session)
 
 
 # Test that list_snippets_by_ids returns a list in the same order it was passed
 @pytest.mark.asyncio
 async def test_list_snippets_by_ids_order(
-    repository: RetrievalRepository, session: AsyncSession
+    repository: SearchRepository, session: AsyncSession
 ) -> None:
     """Test that list_snippets_by_ids returns snippets in the same order as input IDs."""
     # Create test source and file
@@ -52,6 +52,6 @@ async def test_list_snippets_by_ids_order(
     print(results)
     # Verify results are in same order as input IDs
     assert len(results) == 3
-    assert results[0].id == test_ids[0]
-    assert results[1].id == test_ids[1]
-    assert results[2].id == test_ids[2]
+    assert results[0][1].id == test_ids[0]
+    assert results[1][1].id == test_ids[1]
+    assert results[2][1].id == test_ids[2]

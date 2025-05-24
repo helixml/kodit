@@ -1,1 +1,0 @@
-"""Test the retrieval module."""

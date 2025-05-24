@@ -1,14 +1,8 @@
-"""Repository for retrieving code snippets and search results.
-
-This module provides the RetrievalRepository class which handles all database operations
-related to searching and retrieving code snippets, including string-based searches
-and their associated file information.
-"""
+"""Repository for searching for relevant snippets."""
 
 from typing import TypeVar
 
 import numpy as np
-import pydantic
 from sqlalchemy import (
     select,
 )
@@ -21,67 +15,17 @@ from kodit.sources.models import File
 T = TypeVar("T")
 
 
-class RetrievalResult(pydantic.BaseModel):
-    """Data transfer object for search results.
-
-    This model represents a single search result, containing both the file path
-    and the matching snippet content.
-    """
-
-    id: int
-    uri: str
-    content: str
-    score: float
-
-
-class RetrievalRepository:
-    """Repository for retrieving code snippets and search results.
-
-    This class provides methods for searching and retrieving code snippets from
-    the database, including string-based searches and their associated file information.
-    """
+class SearchRepository:
+    """Repository for searching for relevant snippets."""
 
     def __init__(self, session: AsyncSession) -> None:
-        """Initialize the retrieval repository.
+        """Initialize the search repository.
 
         Args:
             session: The SQLAlchemy async session to use for database operations.
 
         """
         self.session = session
-
-    async def string_search(self, query: str) -> list[RetrievalResult]:
-        """Search for snippets containing the given query string.
-
-        This method performs a case-insensitive search for the query string within
-        snippet contents, returning up to 10 most recent matches.
-
-        Args:
-            query: The string to search for within snippet contents.
-
-        Returns:
-            A list of RetrievalResult objects containing the matching snippets
-            and their associated file paths.
-
-        """
-        search_query = (
-            select(Snippet, File)
-            .join(File, Snippet.file_id == File.id)
-            .where(Snippet.content.ilike(f"%{query}%"))
-            .limit(10)
-        )
-        rows = await self.session.execute(search_query)
-        results = list(rows.all())
-
-        return [
-            RetrievalResult(
-                id=snippet.id,
-                uri=file.uri,
-                content=snippet.content,
-                score=1.0,
-            )
-            for snippet, file in results
-        ]
 
     async def list_snippet_ids(self) -> list[int]:
         """List all snippet IDs.
@@ -94,7 +38,7 @@ class RetrievalRepository:
         rows = await self.session.execute(query)
         return list(rows.scalars().all())
 
-    async def list_snippets_by_ids(self, ids: list[int]) -> list[RetrievalResult]:
+    async def list_snippets_by_ids(self, ids: list[int]) -> list[tuple[File, Snippet]]:
         """List snippets by IDs.
 
         Returns:
@@ -109,23 +53,46 @@ class RetrievalRepository:
         rows = await self.session.execute(query)
 
         # Create a dictionary for O(1) lookup of results by ID
-        id_to_result = {
-            snippet.id: RetrievalResult(
-                id=snippet.id,
-                uri=file.uri,
-                content=snippet.content,
-                score=1.0,
-            )
-            for snippet, file in rows.all()
-        }
+        id_to_result = {snippet.id: (file, snippet) for snippet, file in rows.all()}
 
         # Return results in the same order as input IDs
         return [id_to_result[i] for i in ids]
 
-    async def fetch_embeddings(
+    async def list_semantic_results(
+        self, embedding_type: EmbeddingType, embedding: list[float], top_k: int = 10
+    ) -> list[tuple[int, float]]:
+        """List semantic results using cosine similarity.
+
+        This implementation fetches all embeddings of the given type and computes
+        cosine similarity in Python using NumPy for better performance.
+
+        Args:
+            embedding_type: The type of embeddings to search
+            embedding: The query embedding vector
+            top_k: Number of results to return
+
+        Returns:
+            List of (snippet_id, similarity_score) tuples, sorted by similarity
+
+        """
+        # Step 1: Fetch embeddings from database
+        embeddings = await self._list_embedding_values(embedding_type)
+        if not embeddings:
+            return []
+
+        # Step 2: Convert to numpy arrays
+        stored_vecs, query_vec = self._prepare_vectors(embeddings, embedding)
+
+        # Step 3: Compute similarities
+        similarities = self._compute_similarities(stored_vecs, query_vec)
+
+        # Step 4: Get top-k results
+        return self._get_top_k_results(similarities, embeddings, top_k)
+
+    async def _list_embedding_values(
         self, embedding_type: EmbeddingType
     ) -> list[tuple[int, list[float]]]:
-        """Fetch all embeddings of a given type from the database.
+        """List all embeddings of a given type from the database.
 
         Args:
             embedding_type: The type of embeddings to fetch
@@ -141,7 +108,7 @@ class RetrievalRepository:
         rows = await self.session.execute(query)
         return [tuple(row) for row in rows.all()]  # Convert Row objects to tuples
 
-    def prepare_vectors(
+    def _prepare_vectors(
         self, embeddings: list[tuple[int, list[float]]], query_embedding: list[float]
     ) -> tuple[np.ndarray, np.ndarray]:
         """Convert embeddings to numpy arrays.
@@ -160,7 +127,7 @@ class RetrievalRepository:
         query_vec = np.array(query_embedding)
         return stored_vecs, query_vec
 
-    def compute_similarities(
+    def _compute_similarities(
         self, stored_vecs: np.ndarray, query_vec: np.ndarray
     ) -> np.ndarray:
         """Compute cosine similarities between stored vectors and query vector.
@@ -177,7 +144,7 @@ class RetrievalRepository:
         query_norm = np.linalg.norm(query_vec)
         return np.dot(stored_vecs, query_vec) / (stored_norms * query_norm)
 
-    def get_top_k_results(
+    def _get_top_k_results(
         self,
         similarities: np.ndarray,
         embeddings: list[tuple[int, list[float]]],
@@ -198,34 +165,3 @@ class RetrievalRepository:
         return [
             (embeddings[i][0], float(similarities[i])) for i in top_indices
         ]  # Use index 0 to get snippet_id
-
-    async def list_semantic_results(
-        self, embedding_type: EmbeddingType, embedding: list[float], top_k: int = 10
-    ) -> list[tuple[int, float]]:
-        """List semantic results using cosine similarity.
-
-        This implementation fetches all embeddings of the given type and computes
-        cosine similarity in Python using NumPy for better performance.
-
-        Args:
-            embedding_type: The type of embeddings to search
-            embedding: The query embedding vector
-            top_k: Number of results to return
-
-        Returns:
-            List of (snippet_id, similarity_score) tuples, sorted by similarity
-
-        """
-        # Step 1: Fetch embeddings from database
-        embeddings = await self.fetch_embeddings(embedding_type)
-        if not embeddings:
-            return []
-
-        # Step 2: Convert to numpy arrays
-        stored_vecs, query_vec = self.prepare_vectors(embeddings, embedding)
-
-        # Step 3: Compute similarities
-        similarities = self.compute_similarities(stored_vecs, query_vec)
-
-        # Step 4: Get top-k results
-        return self.get_top_k_results(similarities, embeddings, top_k)

@@ -1,4 +1,4 @@
-"""Tests for the retrieval service module."""
+"""Tests for the search service module."""
 
 from typing import Generator
 import pytest
@@ -10,27 +10,25 @@ from kodit.config import AppContext
 from kodit.embedding.embedding import TINY, EmbeddingService
 from kodit.embedding.models import EmbeddingType
 from kodit.indexing.models import Index, Snippet
-from kodit.retreival.repository import RetrievalRepository
-from kodit.retreival.service import (
-    RetrievalRequest,
-    RetrievalService,
+from kodit.search.repository import SearchRepository
+from kodit.search.service import (
+    SearchRequest,
+    SearchService,
     reciprocal_rank_fusion,
 )
 from kodit.sources.models import File, Source
 
 
 @pytest.fixture
-def repository(session: AsyncSession) -> RetrievalRepository:
+def repository(session: AsyncSession) -> SearchRepository:
     """Create a repository instance with a real database session."""
-    return RetrievalRepository(session)
+    return SearchRepository(session)
 
 
 @pytest.fixture
-def service(
-    app_context: AppContext, repository: RetrievalRepository
-) -> RetrievalService:
+def service(app_context: AppContext, repository: SearchRepository) -> SearchService:
     """Create a service instance with a real repository."""
-    service = RetrievalService(
+    service = SearchService(
         repository,
         app_context.get_data_dir(),
         embedding_model_name=TINY,
@@ -38,7 +36,7 @@ def service(
     mock_bm25 = Mock(spec=BM25Service)
     mock_embedding = Mock(spec=EmbeddingService)
 
-    def mock_retrieve(
+    def mock_search(
         doc_ids: list[int], query: str, top_k: int = 2
     ) -> list[tuple[int, float]]:
         # Mock behavior based on test cases
@@ -50,7 +48,7 @@ def service(
             return [(2, 0.4)]  # Return second snippet for "good"
         return []  # Return empty list for no matches
 
-    mock_bm25.retrieve.side_effect = mock_retrieve
+    mock_bm25.retrieve.side_effect = mock_search
     service.bm25 = mock_bm25
 
     # Mock embedding service
@@ -66,10 +64,10 @@ def service(
 
 
 @pytest.mark.asyncio
-async def test_retrieve_snippets_bm25(
-    service: RetrievalService, session: AsyncSession
+async def test_search_snippets_bm25(
+    service: SearchService, session: AsyncSession
 ) -> None:
-    """Test retrieving snippets through the service."""
+    """Test searching for snippets through the service."""
     # Create test source
     source = Source(uri="test_source", cloned_path="test_source")
     session.add(source)
@@ -107,25 +105,25 @@ async def test_retrieve_snippets_bm25(
     session.add(snippet2)
     await session.commit()
 
-    # Test retrieving snippets
-    results = await service.retrieve(RetrievalRequest(keywords=["hello"]))
+    # Test searching for snippets
+    results = await service.search(SearchRequest(keywords=["hello"]))
     assert len(results) == 1
     assert results[0].uri == "test1.txt"
     assert results[0].content == "hello world"
 
     # Test case-insensitive search
-    results = await service.retrieve(RetrievalRequest(keywords=["WORLD"]))
+    results = await service.search(SearchRequest(keywords=["WORLD"]))
     assert len(results) == 2
     assert {r.uri for r in results} == {"test1.txt", "test2.txt"}
 
     # Test partial match
-    results = await service.retrieve(RetrievalRequest(keywords=["good"]))
+    results = await service.search(SearchRequest(keywords=["good"]))
     assert len(results) == 1
     assert results[0].uri == "test2.txt"
     assert results[0].content == "goodbye world"
 
     # Test no matches
-    results = await service.retrieve(RetrievalRequest(keywords=["nonexistent"]))
+    results = await service.search(SearchRequest(keywords=["nonexistent"]))
     assert len(results) == 0
 
 
@@ -192,10 +190,10 @@ def test_reciprocal_rank_fusion_single_ranking() -> None:
 
 
 @pytest.mark.asyncio
-async def test_retrieve_snippets_semantic(
-    service: RetrievalService, session: AsyncSession
+async def test_search_snippets_semantic(
+    service: SearchService, session: AsyncSession
 ) -> None:
-    """Test retrieving snippets through semantic search."""
+    """Test searching for snippets through semantic search."""
     # Create test source
     source = Source(uri="test_source", cloned_path="test_source")
     session.add(source)
@@ -243,7 +241,7 @@ async def test_retrieve_snippets_semantic(
     service.repository.list_semantic_results = mock_list_semantic_results
 
     # Test semantic search
-    results = await service.retrieve(RetrievalRequest(code_query="greeting"))
+    results = await service.search(SearchRequest(code_query="greeting"))
     assert len(results) == 2
     assert (
         results[0].uri == "test1.txt"
@@ -253,8 +251,8 @@ async def test_retrieve_snippets_semantic(
     assert results[1].content == "goodbye world"
 
     # Test combined semantic and keyword search
-    results = await service.retrieve(
-        RetrievalRequest(code_query="greeting", keywords=["hello"])
+    results = await service.search(
+        SearchRequest(code_query="greeting", keywords=["hello"])
     )
     assert len(results) == 2
     # Results should be fused from both semantic and keyword search
@@ -267,5 +265,5 @@ async def test_retrieve_snippets_semantic(
         return []
 
     service.repository.list_semantic_results = mock_empty_semantic_results
-    results = await service.retrieve(RetrievalRequest(code_query="nonexistent"))
+    results = await service.search(SearchRequest(code_query="nonexistent"))
     assert len(results) == 0
