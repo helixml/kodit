@@ -33,7 +33,6 @@ class EmbeddingService:
             self.embedding_model = SentenceTransformer(
                 self.model_name,
                 trust_remote_code=True,
-                local_files_only=True,
                 device="cpu",  # Force CPU so we don't have to install accelerate, etc.
             )
         return self.embedding_model
