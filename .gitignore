@@ -175,3 +175,5 @@ cython_debug/
 .kodit/
 .DS_Store
 .kodit.db
+benchmark.db
+profile.prof
