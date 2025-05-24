@@ -118,16 +118,9 @@ async def retrieve_relevant_snippets(
         embedding_model_name=DEFAULT_EMBEDDING_MODEL_NAME,
     )
 
-    log.debug("Fusing input")
-    input_query = input_fusion(
-        user_intent=user_intent,
-        related_file_paths=related_file_paths,
-        related_file_contents=related_file_contents,
-        keywords=keywords,
-    )
-    log.debug("Input", input_query=input_query)
     retrieval_request = RetrievalRequest(
         keywords=keywords,
+        code_query="\n".join(related_file_contents),
     )
     log.debug("Retrieving snippets")
     snippets = await retrieval_service.retrieve(request=retrieval_request)
