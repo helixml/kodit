@@ -1,6 +1,5 @@
 """Command line interface for kodit."""
 
-import os
 import signal
 from pathlib import Path
 from typing import Any
@@ -236,10 +235,6 @@ def serve(
     log = structlog.get_logger(__name__)
     log.info("Starting kodit server", host=host, port=port)
     log_event("kodit_server_started")
-
-    # Dump AppContext to a dictionary of strings, and set the env vars
-    app_context_dict = {k: str(v) for k, v in app_context.model_dump().items()}
-    os.environ.update(app_context_dict)
 
     # Configure uvicorn with graceful shutdown
     config = uvicorn.Config(

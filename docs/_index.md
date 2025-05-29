@@ -95,6 +95,33 @@ You MUST use the code-search MCP tool and always include any file context the us
 
 Alternatively, you can browse to the cursor settings and set this prompt globally.
 
+### Integration with Cline
+
+1. Click on the Cline icon in the menu
+2. Click the `MCP Servers` button at the top right of the Cline window (looks like a
+   server)
+3. Click the `Remote Servers` tab.
+4. Click `Edit Configuration`
+5. Add the following configuration:
+
+```json
+{
+  "mcpServers": {
+    "kodit": {
+      "autoApprove": [],
+      "disabled": true,
+      "timeout": 60,
+      "url": "http://localhost:8080/sse",
+      "transportType": "sse"
+    }
+  }
+}
+```
+
+6. Save the configuration and browse to the `Installed` tab.
+
+Kodit should be listed and responding. Now code on!
+
 ## Configuring Kodit
 
 Configuration of Kodit is performed by setting environmental variables or adding
