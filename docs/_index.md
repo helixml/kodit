@@ -94,3 +94,40 @@ You MUST use the code-search MCP tool and always include any file context the us
 ```
 
 Alternatively, you can browse to the cursor settings and set this prompt globally.
+
+## Configuring Kodit
+
+Configuration of Kodit is performed by setting environmental variables or adding
+variables to a .env file.
+
+{{< warn >}}
+Note that updating a setting does not automatically update the data that uses that
+setting. For example, if you change a provider, you will need to delete and
+recreate all indexes.
+{{< /warn >}}
+
+### Indexing
+
+#### Default Provider
+
+By default, Kodit will use small local models for semantic search and enrichment. If you
+are using Kodit in a professional capacity, it is likely that the local model latency is
+too high to provide a good developer experience.
+
+Instead, you should use an external provider. The settings provided here will cause all
+embedding and enrichments request to be sent to this provider by default. You can
+override the provider used for each task if you wish. (Coming soon!)
+
+##### OpenAI
+
+Add the following settings to your .env file, or export them as environmental variables:
+
+```bash
+DEFAULT_ENDPOINT_BASE_URL=https://api.openai.com/v1
+DEFAULT_ENDPOINT_API_KEY=sk-xxxxxx
+```
+
+## Managing Kodit
+
+There is limited management functionality at this time. To delete indexes you must
+delete the database and/or tables.
