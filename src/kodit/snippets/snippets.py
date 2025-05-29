@@ -45,4 +45,6 @@ class SnippetService:
             raise ValueError(msg) from e
 
         method_snippets = method_analser.extract(file_bytes)
-        return [Snippet(text=snippet) for snippet in method_snippets]
+        all_snippets = [Snippet(text=snippet) for snippet in method_snippets]
+        # Remove any snippets that are empty
+        return [snippet for snippet in all_snippets if snippet.text.strip()]

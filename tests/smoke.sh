@@ -19,7 +19,7 @@ fi
 tmp_dir=$(mktemp -d)
 
 # Write a dummy python file to the temporary directory
-echo "print('Hello, world!')" > $tmp_dir/test.py
+echo -e "def main():\n    print('Hello, world!')" > $tmp_dir/test.py
 
 # Test version command
 $prefix kodit version

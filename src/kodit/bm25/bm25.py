@@ -52,7 +52,7 @@ class BM25Service:
             self.log.warning("No documents to retrieve from, returning empty list")
             return []
 
-        top_k = min(top_k, len(doc_ids))
+        top_k = min(top_k, len(self.retriever.scores))
         self.log.debug(
             "Retrieving from index", query=query, top_k=top_k, num_docs=len(doc_ids)
         )
