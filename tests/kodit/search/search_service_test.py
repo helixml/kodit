@@ -1,13 +1,13 @@
 """Tests for the search service module."""
 
-from typing import Generator
+from typing import AsyncGenerator, Generator
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 from unittest.mock import Mock
 
 from kodit.bm25.bm25 import BM25Service
 from kodit.config import AppContext
-from kodit.embedding.embedding import TINY, EmbeddingService
+from kodit.embedding.embedding import Embedder, EmbeddingInput, EmbeddingOutput
 from kodit.embedding.embedding_models import EmbeddingType
 from kodit.indexing.indexing_models import Index, Snippet
 from kodit.search.search_repository import SearchRepository
@@ -28,13 +28,32 @@ def repository(session: AsyncSession) -> SearchRepository:
 @pytest.fixture
 def service(app_context: AppContext, repository: SearchRepository) -> SearchService:
     """Create a service instance with a real repository."""
+
+    # Mock embedding service
+    async def mock_embed(
+        snippets: list[EmbeddingInput],
+    ) -> AsyncGenerator[EmbeddingOutput, None]:
+        # Return a simple mock embedding for testing
+        for _ in snippets:
+            yield EmbeddingOutput(0, [0.1, 0.2, 0.3])
+
+    async def mock_query(
+        data: list[str],
+    ) -> AsyncGenerator[list[float], None]:
+        # Return a simple mock embedding for testing
+        for _ in data:
+            yield [0.1, 0.2, 0.3]
+
+    mock_embedding = Mock(spec=Embedder)
+    mock_embedding.embed = mock_embed
+    mock_embedding.query = mock_query
+
     service = SearchService(
         repository,
         app_context.get_data_dir(),
-        embedding_model_name=TINY,
+        embedding_service=mock_embedding,
     )
     mock_bm25 = Mock(spec=BM25Service)
-    mock_embedding = Mock(spec=EmbeddingService)
 
     def mock_search(
         doc_ids: list[int], query: str, top_k: int = 2
@@ -51,15 +70,6 @@ def service(app_context: AppContext, repository: SearchRepository) -> SearchServ
     mock_bm25.retrieve.side_effect = mock_search
     service.bm25 = mock_bm25
 
-    # Mock embedding service
-    def mock_embed(snippets: list[str]) -> Generator[list[float], None, None]:
-        # Return a simple mock embedding for testing
-        for _ in snippets:
-            yield [0.1, 0.2, 0.3]
-
-    mock_embedding.embed.side_effect = mock_embed
-    mock_embedding.query.side_effect = mock_embed
-    service.code_embedding_service = mock_embedding
     return service
 
 

@@ -1,9 +1,13 @@
-from kodit.embedding.embedding import TEST, EmbeddingService
+from kodit.embedding.embedding import TEST, EmbeddingInput, LocalEmbedder
 
 
-def test_embed() -> None:
+async def test_embed():
     """Test the embed method."""
-    embedding_service = EmbeddingService(model_name=TEST)
-    embeddings = list(embedding_service.embed(["Hello, world!"]))
-    assert len(embeddings) == 1
-    assert len(embeddings[0]) > 100  # Just check that the dimensions are reasonable
+    embedding_service = LocalEmbedder(model_name=TEST)
+    embedding = await anext(
+        embedding_service.embed([EmbeddingInput(0, "Hello, world!")])
+    )
+    assert embedding.id == 0
+    assert (
+        len(embedding.embedding) > 100
+    )  # Just check that the dimensions are reasonable

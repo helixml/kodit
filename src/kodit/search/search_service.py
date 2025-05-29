@@ -6,7 +6,7 @@ import pydantic
 import structlog
 
 from kodit.bm25.bm25 import BM25Service
-from kodit.embedding.embedding import EmbeddingService
+from kodit.embedding.embedding import Embedder
 from kodit.embedding.embedding_models import EmbeddingType
 from kodit.search.search_repository import SearchRepository
 
@@ -45,13 +45,13 @@ class SearchService:
         self,
         repository: SearchRepository,
         data_dir: Path,
-        embedding_model_name: str,
+        embedding_service: Embedder,
     ) -> None:
         """Initialize the search service."""
         self.repository = repository
         self.log = structlog.get_logger(__name__)
         self.bm25 = BM25Service(data_dir)
-        self.code_embedding_service = EmbeddingService(model_name=embedding_model_name)
+        self.code_embedding_service = embedding_service
 
     async def search(self, request: SearchRequest) -> list[SearchResult]:
         """Search for relevant data."""
@@ -76,7 +76,7 @@ class SearchService:
         # Compute embedding for semantic query
         semantic_results = []
         if request.code_query:
-            query_embedding = next(
+            query_embedding = await anext(
                 self.code_embedding_service.query([request.code_query])
             )
 

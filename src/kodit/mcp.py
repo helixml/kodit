@@ -12,8 +12,9 @@ from pydantic import Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit._version import version
-from kodit.config import DEFAULT_EMBEDDING_MODEL_NAME, AppContext
+from kodit.config import AppContext
 from kodit.database import Database
+from kodit.embedding.embedding import embedding_factory
 from kodit.search.search_repository import SearchRepository
 from kodit.search.search_service import SearchRequest, SearchResult, SearchService
 
@@ -23,7 +24,7 @@ class MCPContext:
     """Context for the MCP server."""
 
     session: AsyncSession
-    data_dir: Path
+    app_context: AppContext
 
 
 _mcp_db: Database | None = None
@@ -49,7 +50,7 @@ async def mcp_lifespan(_: FastMCP) -> AsyncIterator[MCPContext]:
     if _mcp_db is None:
         _mcp_db = await app_context.get_db()
     async with _mcp_db.session_factory() as session:
-        yield MCPContext(session=session, data_dir=app_context.get_data_dir())
+        yield MCPContext(session=session, app_context=app_context)
 
 
 mcp = FastMCP("kodit MCP Server", lifespan=mcp_lifespan)
@@ -109,11 +110,16 @@ async def search(
         session=mcp_context.session,
     )
 
+    log.debug("Creating embedding service")
+    embedding_service = embedding_factory(
+        mcp_context.app_context.get_default_openai_client()
+    )
+
     log.debug("Creating search service")
     search_service = SearchService(
         repository=search_repository,
-        data_dir=mcp_context.data_dir,
-        embedding_model_name=DEFAULT_EMBEDDING_MODEL_NAME,
+        data_dir=mcp_context.app_context.get_data_dir(),
+        embedding_service=embedding_service,
     )
 
     search_request = SearchRequest(

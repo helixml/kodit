@@ -31,8 +31,8 @@ class Snippet(Base, CommonMixin):
 
     __tablename__ = "snippets"
 
-    file_id: Mapped[int] = mapped_column(ForeignKey("files.id"))
-    index_id: Mapped[int] = mapped_column(ForeignKey("indexes.id"))
+    file_id: Mapped[int] = mapped_column(ForeignKey("files.id"), index=True)
+    index_id: Mapped[int] = mapped_column(ForeignKey("indexes.id"), index=True)
     content: Mapped[str] = mapped_column(UnicodeText, default="")
 
     def __init__(self, file_id: int, index_id: int, content: str) -> None:

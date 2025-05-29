@@ -156,14 +156,14 @@ class IndexRepository:
         result = await self.session.execute(query)
         return list(result.scalars())
 
-    async def get_all_snippets(self) -> list[Snippet]:
+    async def get_all_snippets(self, index_id: int) -> list[Snippet]:
         """Get all snippets.
 
         Returns:
             A list of all snippets.
 
         """
-        query = select(Snippet).order_by(Snippet.id)
+        query = select(Snippet).where(Snippet.index_id == index_id).order_by(Snippet.id)
         result = await self.session.execute(query)
         return list(result.scalars())
 

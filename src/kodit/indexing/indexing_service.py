@@ -14,7 +14,7 @@ import structlog
 from tqdm.asyncio import tqdm
 
 from kodit.bm25.bm25 import BM25Service
-from kodit.embedding.embedding import EmbeddingService
+from kodit.embedding.embedding import Embedder, EmbeddingInput
 from kodit.embedding.embedding_models import Embedding, EmbeddingType
 from kodit.indexing.indexing_models import Snippet
 from kodit.indexing.indexing_repository import IndexRepository
@@ -52,7 +52,7 @@ class IndexService:
         repository: IndexRepository,
         source_service: SourceService,
         data_dir: Path,
-        embedding_model_name: str,
+        embedding_service: Embedder,
     ) -> None:
         """Initialize the index service.
 
@@ -66,7 +66,7 @@ class IndexService:
         self.snippet_service = SnippetService()
         self.log = structlog.get_logger(__name__)
         self.bm25 = BM25Service(data_dir)
-        self.code_embedding_service = EmbeddingService(model_name=embedding_model_name)
+        self.code_embedding_service = embedding_service
 
     async def create(self, source_id: int) -> IndexView:
         """Create a new index for a source.
@@ -132,7 +132,7 @@ class IndexService:
         # Create snippets for supported file types
         await self._create_snippets(index_id)
 
-        snippets = await self.repository.get_all_snippets()
+        snippets = await self.repository.get_all_snippets(index_id)
 
         self.log.info("Creating keyword index")
         self.bm25.index(
@@ -143,12 +143,17 @@ class IndexService:
         )
 
         self.log.info("Creating semantic code index")
-        for snippet in tqdm(snippets, total=len(snippets), leave=False):
-            embedding = next(self.code_embedding_service.embed([snippet.content]))
+        async for e in tqdm(
+            self.code_embedding_service.embed(
+                [EmbeddingInput(snippet.id, snippet.content) for snippet in snippets]
+            ),
+            total=len(snippets),
+            leave=False,
+        ):
             await self.repository.add_embedding(
                 Embedding(
-                    snippet_id=snippet.id,
-                    embedding=embedding,
+                    snippet_id=e.id,
+                    embedding=e.embedding,
                     type=EmbeddingType.CODE,
                 )
             )

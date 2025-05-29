@@ -12,16 +12,11 @@ from pytable_formatter import Cell, Table
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.config import (
-    DEFAULT_BASE_DIR,
-    DEFAULT_DB_URL,
-    DEFAULT_DISABLE_TELEMETRY,
-    DEFAULT_EMBEDDING_MODEL_NAME,
-    DEFAULT_LOG_FORMAT,
-    DEFAULT_LOG_LEVEL,
     AppContext,
     with_app_context,
     with_session,
 )
+from kodit.embedding.embedding import embedding_factory
 from kodit.indexing.indexing_repository import IndexRepository
 from kodit.indexing.indexing_service import IndexService
 from kodit.log import configure_logging, configure_telemetry, log_event
@@ -32,15 +27,6 @@ from kodit.source.source_service import SourceService
 
 
 @click.group(context_settings={"max_content_width": 100})
-@click.option("--log-level", help=f"Log level [default: {DEFAULT_LOG_LEVEL}]")
-@click.option("--log-format", help=f"Log format [default: {DEFAULT_LOG_FORMAT}]")
-@click.option(
-    "--disable-telemetry",
-    is_flag=True,
-    help=f"Disable telemetry [default: {DEFAULT_DISABLE_TELEMETRY}]",
-)
-@click.option("--db-url", help=f"Database URL [default: {DEFAULT_DB_URL}]")
-@click.option("--data-dir", help=f"Data directory [default: {DEFAULT_BASE_DIR}]")
 @click.option(
     "--env-file",
     help="Path to a .env file [default: .env]",
@@ -52,13 +38,8 @@ from kodit.source.source_service import SourceService
     ),
 )
 @click.pass_context
-def cli(  # noqa: PLR0913
+def cli(
     ctx: click.Context,
-    log_level: str | None,
-    log_format: str | None,
-    disable_telemetry: bool | None,
-    db_url: str | None,
-    data_dir: str | None,
     env_file: Path | None,
 ) -> None:
     """kodit CLI - Code indexing for better AI code generation."""  # noqa: D403
@@ -67,17 +48,6 @@ def cli(  # noqa: PLR0913
     if env_file:
         config = AppContext(_env_file=env_file)  # type: ignore[reportCallIssue]
 
-    # Now override with CLI arguments, if set
-    if data_dir:
-        config.data_dir = Path(data_dir)
-    if db_url:
-        config.db_url = db_url
-    if log_level:
-        config.log_level = log_level
-    if log_format:
-        config.log_format = log_format
-    if disable_telemetry:
-        config.disable_telemetry = disable_telemetry
     configure_logging(config)
     configure_telemetry(config)
 
@@ -102,7 +72,7 @@ async def index(
         repository,
         source_service,
         app_context.get_data_dir(),
-        embedding_model_name=DEFAULT_EMBEDDING_MODEL_NAME,
+        embedding_service=embedding_factory(app_context.get_default_openai_client()),
     )
 
     if not sources:
@@ -163,7 +133,7 @@ async def code(
     service = SearchService(
         repository,
         app_context.get_data_dir(),
-        embedding_model_name=DEFAULT_EMBEDDING_MODEL_NAME,
+        embedding_service=embedding_factory(app_context.get_default_openai_client()),
     )
 
     snippets = await service.search(SearchRequest(code_query=query, top_k=top_k))
@@ -196,7 +166,7 @@ async def keyword(
     service = SearchService(
         repository,
         app_context.get_data_dir(),
-        embedding_model_name=DEFAULT_EMBEDDING_MODEL_NAME,
+        embedding_service=embedding_factory(app_context.get_default_openai_client()),
     )
 
     snippets = await service.search(SearchRequest(keywords=keywords, top_k=top_k))
@@ -231,7 +201,7 @@ async def hybrid(
     service = SearchService(
         repository,
         app_context.get_data_dir(),
-        embedding_model_name=DEFAULT_EMBEDDING_MODEL_NAME,
+        embedding_service=embedding_factory(app_context.get_default_openai_client()),
     )
 
     # Parse keywords into a list of strings

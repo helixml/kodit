@@ -121,9 +121,20 @@ class SearchRepository:
             Tuple of (stored_vectors, query_vector) as numpy arrays
 
         """
-        stored_vecs = np.array(
-            [emb[1] for emb in embeddings]
-        )  # Use index 1 to get embedding
+        try:
+            stored_vecs = np.array(
+                [emb[1] for emb in embeddings]
+            )  # Use index 1 to get embedding
+        except ValueError as e:
+            if "inhomogeneous" in str(e):
+                msg = (
+                    "The database has returned embeddings of different sizes. If you"
+                    "have recently updated the embedding model, you will need to"
+                    "delete your database and re-index your snippets."
+                )
+                raise ValueError(msg) from e
+            raise
+
         query_vec = np.array(query_embedding)
         return stored_vecs, query_vec
 

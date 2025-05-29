@@ -93,6 +93,7 @@ def configure_logging(app_context: AppContext) -> None:
         "uvicorn.access",
         "bm25s",
         "sentence_transformers.SentenceTransformer",
+        "httpx",
     ]:
         if root_logger.getEffectiveLevel() == logging.DEBUG:
             logging.getLogger(_log).handlers.clear()

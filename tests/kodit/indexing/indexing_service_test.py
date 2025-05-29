@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.config import AppContext
-from kodit.embedding.embedding import TINY
+from kodit.embedding.embedding import TINY, LocalEmbedder
 from kodit.indexing.indexing_repository import IndexRepository
 from kodit.indexing.indexing_service import IndexService
 from kodit.source.source_models import File, Source
@@ -44,7 +44,7 @@ def service(
         repository,
         source_service,
         app_context.get_data_dir(),
-        embedding_model_name=TINY,
+        embedding_service=LocalEmbedder(model_name=TINY),
     )
 
 
