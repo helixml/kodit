@@ -53,7 +53,16 @@ async def mcp_lifespan(_: FastMCP) -> AsyncIterator[MCPContext]:
         yield MCPContext(session=session, app_context=app_context)
 
 
-mcp = FastMCP("kodit MCP Server", lifespan=mcp_lifespan)
+mcp = FastMCP(
+    "Kodit",
+    lifespan=mcp_lifespan,
+    # Note that instructions are not used by Cline.
+    instructions=(
+        "This server is used to assist with code generation by retrieving "
+        "code examples related to the user's intent."
+        "Call search() to retrieve relevant code examples."
+    ),
+)
 
 
 @mcp.tool()
@@ -87,11 +96,19 @@ async def search(
         ),
     ],
 ) -> str:
-    """Search for relevant snippets.
+    """Search for pre-existing examples of relevant code.
 
-    This tool searches for relevant snippets from indexed datasources. Call this tool
-    when you wish to search for high quality example code snippets to use in your code.
+    ⚠️ **ENFORCEMENT:**
+    For *every* user request that involves writing or modifying code (of any language or
+    domain), the assistant’s *first* action **must** be to call the kodit.search MCP
+    tool. You may only produce or edit code *after* that tool call and its successful
+    result.
     """
+    # This docstring is used by the AI assistant to decide when to call the tool. If you
+    # want to update it, please make sure you thoroughly test the assistant's response
+    # to the updated tool call. See:
+    # tests/experiments/cline-prompt-regression-tests/cline_prompt_test.py
+
     log = structlog.get_logger(__name__)
 
     log.debug(

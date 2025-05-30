@@ -80,6 +80,7 @@ async def process_prompt(prompt: str, cline_prompt: str) -> Dict[str, Any]:
 
     # Analyze the response
     analysis = analyze_response(response_content)
+    print(f"Prompt: {prompt}, result: {analysis['used_kodit_tool']}")
 
     return {"prompt": prompt, "analysis": analysis, "response": response_content}
 
@@ -102,7 +103,6 @@ def print_results(results: List[Dict[str, Any]], category: str) -> None:
     for result in results:
         print(f"\nPrompt: {result['prompt']}")
         print(f"Used kodit tool: {result['analysis']['used_kodit_tool']}")
-        print(f"Contains code: {result['analysis']['contains_code']}")
         print(f"Response length: {result['analysis']['response_length']}")
         print("-" * 80)
 
