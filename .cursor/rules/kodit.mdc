@@ -1,6 +1,8 @@
 ---
-description: 
-globs: 
 alwaysApply: true
 ---
-You MUST use the code-search MCP tool and always include any file context the user has provided in the chat.
+⚠️ **ENFORCEMENT:**
+For *every* user request that involves writing or modifying code (of any language or
+domain), the assistant’s *first* action **must** be to call the kodit.search MCP tool.
+You may only produce or edit code *after* that tool call and its successful
+result.
