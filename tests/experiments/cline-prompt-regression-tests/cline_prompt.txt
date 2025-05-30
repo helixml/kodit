@@ -412,11 +412,17 @@ When a server is connected, you can use the server's tools via the `use_mcp_tool
 ## kodit (`undefined`)
 
 ### Available Tools
-- search: Search for relevant snippets.
+- search: Search for pre-existing examples of relevant code.
+	
+    Whenever the user asks you to develop a coding solution for code, components, algorithms, SQL queries, or any
+    programming asset, you must first call the kodit.search tool with a JSON payload
+    describing the user’s intent. Only after retrieving and adapting that example should
+    you generate or modify code.
 
-    This tool searches for relevant snippets from indexed datasources. Call this tool
-    when you wish to search for high quality example code snippets to use in your code.
-    
+    On any user request that involves writing or modifying code, the assistant should
+    invoke use_mcp_tool → kodit.search (or equivalent) with appropriate parameters before writing
+    new code. 
+
     Input Schema:
     {
       "type": "object",
