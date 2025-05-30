@@ -35,7 +35,7 @@ jobs:
         run: uv run ruff check
 
       - name: Run tests
-        run: uv run pytest -s --cov=src --cov-report=xml
+        run: uv run pytest -s --cov=src --cov-report=xml tests/kodit
 
       - name: Pytest coverage comment
         if: github.event_name == 'pull_request'
