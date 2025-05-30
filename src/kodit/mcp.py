@@ -100,7 +100,7 @@ async def search(
 
     ⚠️ **ENFORCEMENT:**
     For *every* user request that involves writing or modifying code (of any language or
-    domain), the assistant’s *first* action **must** be to call the kodit.search MCP
+    domain), the assistant's *first* action **must** be to call the kodit.search MCP
     tool. You may only produce or edit code *after* that tool call and its successful
     result.
     """

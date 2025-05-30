@@ -127,7 +127,7 @@ Try using this system prompt:
 ```txt
 ⚠️ **ENFORCEMENT:**
 For *every* user request that involves writing or modifying code (of any language or
-domain), the assistant’s *first* action **must** be to call the kodit.search MCP tool.
+domain), the assistant's *first* action **must** be to call the kodit.search MCP tool.
 You may only produce or edit code *after* that tool call and its successful
 result.
 ```
@@ -144,7 +144,7 @@ alwaysApply: true
 ---
 ⚠️ **ENFORCEMENT:**
 For *every* user request that involves writing or modifying code (of any language or
-domain), the assistant’s *first* action **must** be to call the kodit.search MCP tool.
+domain), the assistant's *first* action **must** be to call the kodit.search MCP tool.
 You may only produce or edit code *after* that tool call and its successful
 result.
 ```
