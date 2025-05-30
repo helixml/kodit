@@ -39,11 +39,11 @@ jobs:
           # Initialize counter for 60 second timeout
           count=0
           while true; do
-              if curl -sfL https://pypi.io/packages/source/${REPO_NAME_FIRST_LETTER}/${REPO_NAME}/${REPO_NAME}-${REPO_TAG}.tar.gz > /dev/null; then
+              if curl -sfL https://pypi.org/packages/source/${REPO_NAME_FIRST_LETTER}/${REPO_NAME}/${REPO_NAME}-${REPO_TAG}.tar.gz > /dev/null; then
                   break
               fi
               sleep 1
-              ((count++))
+              count=$((count+1))
               if [ $count -ge 60 ]; then
                   echo "Timeout reached after 60 seconds"
                   exit 1
