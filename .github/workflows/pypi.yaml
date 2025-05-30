@@ -42,10 +42,10 @@ jobs:
               if curl -sfL https://pypi.org/packages/source/${REPO_NAME_FIRST_LETTER}/${REPO_NAME}/${REPO_NAME}-${REPO_TAG}.tar.gz > /dev/null; then
                   break
               fi
-              sleep 1
+              sleep 5
               count=$((count+1))
               if [ $count -ge 60 ]; then
-                  echo "Timeout reached after 60 seconds"
+                  echo "Timeout reached after 300 seconds"
                   exit 1
               fi
           done
