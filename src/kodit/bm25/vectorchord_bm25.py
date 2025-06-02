@@ -1,5 +1,7 @@
 """VectorChord repository for document operations."""
 
+from typing import Any
+
 from sqlalchemy import Result, TextClause, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -122,11 +124,13 @@ class VectorChordBM25(KeywordSearchProvider):
         await self.__session.execute(text(CREATE_BM25_INDEX))
         await self._commit()
 
-    async def _execute(self, query: TextClause) -> Result:
+    async def _execute(
+        self, query: TextClause, param_list: list[Any] | None = None
+    ) -> Result:
         """Execute a query."""
         if not self._initialized:
             await self._initialize()
-        return await self.__session.execute(query)
+        return await self.__session.execute(query, param_list)
 
     async def _commit(self) -> None:
         """Commit the session."""
@@ -145,12 +149,10 @@ class VectorChordBM25(KeywordSearchProvider):
             return
 
         # Execute inserts
-        for doc in corpus:
-            stmt = text(INSERT_QUERY).bindparams(
-                snippet_id=doc.snippet_id,
-                passage=doc.text,
-            )
-            await self._execute(stmt)
+        await self._execute(
+            text(INSERT_QUERY),
+            [{"snippet_id": doc.snippet_id, "passage": doc.text} for doc in corpus],
+        )
 
         # Tokenize the new documents with schema qualification
         await self._execute(text(UPDATE_QUERY))
