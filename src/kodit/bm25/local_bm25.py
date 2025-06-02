@@ -1,4 +1,4 @@
-"""BM25 service."""
+"""Locally hosted BM25 service primarily for use with SQLite."""
 
 from pathlib import Path
 
@@ -15,7 +15,7 @@ from kodit.bm25.keyword_search_service import (
 
 
 class BM25Service(KeywordSearchProvider):
-    """Service for BM25."""
+    """LocalBM25 service."""
 
     def __init__(self, data_dir: Path) -> None:
         """Initialize the BM25 service."""
