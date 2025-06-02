@@ -1,5 +1,6 @@
 """Test the CLI."""
 
+from pathlib import Path
 import tempfile
 from typing import Generator
 import pytest
@@ -9,12 +10,22 @@ from kodit.cli import cli
 
 
 @pytest.fixture
-def runner() -> Generator[CliRunner, None, None]:
+def tmp_data_dir() -> Generator[Path, None, None]:
+    """Create a temporary data directory."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        yield Path(tmp_dir)
+
+
+@pytest.fixture
+def runner(tmp_data_dir: Path) -> Generator[CliRunner, None, None]:
     """Create a CliRunner instance."""
-    with tempfile.TemporaryDirectory() as data_dir:
-        runner = CliRunner()
-        runner.env = {"DISABLE_TELEMETRY": "true", "DATA_DIR": data_dir}
-        yield runner
+    runner = CliRunner()
+    runner.env = {
+        "DISABLE_TELEMETRY": "true",
+        "DATA_DIR": str(tmp_data_dir),
+        "DB_URL": f"sqlite+aiosqlite:///{tmp_data_dir}/test.db",
+    }
+    yield runner
 
 
 def test_version_command(runner: CliRunner) -> None:
