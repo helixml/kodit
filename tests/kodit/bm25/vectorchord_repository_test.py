@@ -2,7 +2,7 @@ import socket
 import subprocess
 import time
 from kodit.bm25.keyword_search_service import BM25Document
-from kodit.bm25.vectorchord_repository import VectorChordRepository
+from kodit.bm25.vectorchord_bm25 import VectorChordBM25
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -145,7 +145,7 @@ async def test_vectorchord_repository_bm25_search(vectorchord_session: AsyncSess
     await vectorchord_session.commit()
 
     # Initialize repository
-    r = VectorChordRepository(session=vectorchord_session)
+    r = VectorChordBM25(session=vectorchord_session)
 
     # Index the documents
     await r.index([BM25Document(snippet_id=s.id, text=s.content) for s in snippets])

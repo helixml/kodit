@@ -77,14 +77,14 @@ SEARCH_QUERY = f"""
 """  # noqa: S608
 
 
-class VectorChordRepository(KeywordSearchProvider):
-    """Repository for VectorChord document operations."""
+class VectorChordBM25(KeywordSearchProvider):
+    """BM25 using VectorChord."""
 
     def __init__(
         self,
         session: AsyncSession,
     ) -> None:
-        """Initialize the VectorChord repository."""
+        """Initialize the VectorChord BM25."""
         self.__session = session
         self._initialized = False
 
