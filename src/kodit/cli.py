@@ -10,6 +10,7 @@ import uvicorn
 from pytable_formatter import Cell, Table
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from kodit.bm25.keyword_search_factory import keyword_search_factory
 from kodit.config import (
     AppContext,
     with_app_context,
@@ -68,9 +69,9 @@ async def index(
     source_service = SourceService(app_context.get_clone_dir(), source_repository)
     repository = IndexRepository(session)
     service = IndexService(
-        repository,
-        source_service,
-        app_context.get_data_dir(),
+        repository=repository,
+        source_service=source_service,
+        keyword_search_provider=keyword_search_factory(app_context, session),
         embedding_service=embedding_factory(app_context.get_default_openai_client()),
     )
 
@@ -131,7 +132,7 @@ async def code(
     repository = SearchRepository(session)
     service = SearchService(
         repository,
-        app_context.get_data_dir(),
+        keyword_search_provider=keyword_search_factory(app_context, session),
         embedding_service=embedding_factory(app_context.get_default_openai_client()),
     )
 
@@ -164,7 +165,7 @@ async def keyword(
     repository = SearchRepository(session)
     service = SearchService(
         repository,
-        app_context.get_data_dir(),
+        keyword_search_provider=keyword_search_factory(app_context, session),
         embedding_service=embedding_factory(app_context.get_default_openai_client()),
     )
 
@@ -199,7 +200,7 @@ async def hybrid(
     repository = SearchRepository(session)
     service = SearchService(
         repository,
-        app_context.get_data_dir(),
+        keyword_search_provider=keyword_search_factory(app_context, session),
         embedding_service=embedding_factory(app_context.get_default_openai_client()),
     )
 

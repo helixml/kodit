@@ -1,12 +1,9 @@
 """Search service."""
 
-from pathlib import Path
-
 import pydantic
 import structlog
 
-from kodit.bm25.bm25 import BM25Service
-from kodit.bm25.keyword_search_service import BM25Result
+from kodit.bm25.keyword_search_service import BM25Result, KeywordSearchProvider
 from kodit.embedding.embedding import Embedder
 from kodit.embedding.embedding_models import EmbeddingType
 from kodit.search.search_repository import SearchRepository
@@ -45,13 +42,13 @@ class SearchService:
     def __init__(
         self,
         repository: SearchRepository,
-        data_dir: Path,
+        keyword_search_provider: KeywordSearchProvider,
         embedding_service: Embedder,
     ) -> None:
         """Initialize the search service."""
         self.repository = repository
         self.log = structlog.get_logger(__name__)
-        self.bm25 = BM25Service(data_dir)
+        self.keyword_search_provider = keyword_search_provider
         self.code_embedding_service = embedding_service
 
     async def search(self, request: SearchRequest) -> list[SearchResult]:
@@ -61,7 +58,9 @@ class SearchService:
             # Gather results for each keyword
             result_ids: list[BM25Result] = []
             for keyword in request.keywords:
-                results = await self.bm25.retrieve(keyword, request.top_k)
+                results = await self.keyword_search_provider.retrieve(
+                    keyword, request.top_k
+                )
                 result_ids.extend(results)
 
             # Sort results by score

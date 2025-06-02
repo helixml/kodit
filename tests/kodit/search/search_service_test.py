@@ -49,11 +49,6 @@ def service(app_context: AppContext, repository: SearchRepository) -> SearchServ
     mock_embedding.embed = mock_embed
     mock_embedding.query = mock_query
 
-    service = SearchService(
-        repository,
-        app_context.get_data_dir(),
-        embedding_service=mock_embedding,
-    )
     mock_bm25 = Mock(spec=KeywordSearchProvider)
 
     def mock_search(query: str, top_k: int = 2) -> list[BM25Result]:
@@ -74,8 +69,12 @@ def service(app_context: AppContext, repository: SearchRepository) -> SearchServ
         return []  # Return empty list for no matches
 
     mock_bm25.retrieve.side_effect = mock_search
-    service.bm25 = mock_bm25
 
+    service = SearchService(
+        repository,
+        keyword_search_provider=mock_bm25,
+        embedding_service=mock_embedding,
+    )
     return service
 
 

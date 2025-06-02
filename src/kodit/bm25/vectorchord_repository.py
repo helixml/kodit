@@ -17,8 +17,10 @@ logger = logging.getLogger(__name__)
 CREATE_VCHORD_EXTENSION = "CREATE EXTENSION IF NOT EXISTS vchord CASCADE;"
 CREATE_PG_TOKENIZER = "CREATE EXTENSION IF NOT EXISTS pg_tokenizer CASCADE;"
 CREATE_VCHORD_BM25 = "CREATE EXTENSION IF NOT EXISTS vchord_bm25 CASCADE;"
-SET_SEARCH_PATH = 'SET search_path TO "$user", public, bm25_catalog, pg_catalog, information_schema, tokenizer_catalog;'
-
+SET_SEARCH_PATH = """
+SET search_path TO
+    "$user", public, bm25_catalog, pg_catalog, information_schema, tokenizer_catalog;
+"""
 CREATE_BM25_TABLE = """
 CREATE TABLE IF NOT EXISTS {table_name} (
     id SERIAL PRIMARY KEY,
@@ -28,23 +30,21 @@ CREATE TABLE IF NOT EXISTS {table_name} (
     UNIQUE(snippet_id)
 )
 """
-
 CREATE_BM25_INDEX = """
 CREATE INDEX IF NOT EXISTS {index_name}
 ON {table_name}
 USING bm25 (embedding bm25_ops)
 """
-
 LOAD_TOKENIZER = """
 SELECT create_tokenizer('bert', $$
 model = "llmlingua2"
-pre_tokenizer = "unicode_segmentation"  # split texts according to the Unicode Standard Annex #29
+pre_tokenizer = "unicode_segmentation"  # Unicode Standard Annex #29
 [[character_filters]]
 to_lowercase = {}                       # convert all characters to lowercase
 [[character_filters]]
-unicode_normalization = "nfkd"          # normalize the text to Unicode Normalization Form KD
+unicode_normalization = "nfkd"          # Unicode Normalization Form KD
 [[token_filters]]
-skip_non_alphanumeric = {}              # skip tokens that all characters are not alphanumeric
+skip_non_alphanumeric = {}              # remove non-alphanumeric tokens
 [[token_filters]]
 stopwords = "nltk_english"              # remove stopwords using the nltk dictionary
 [[token_filters]]
@@ -76,8 +76,12 @@ class VectorChordRepository(KeywordSearchProvider):
             await self.session.execute(text(SET_SEARCH_PATH))
             await self.session.commit()
 
-            # Create the tokenizer
-            await self.session.execute(text(LOAD_TOKENIZER))
+            # Create the tokenizer if it doesn't exist
+            try:
+                await self.session.execute(text("SELECT tokenize('test', 'bert')"))
+            except Exception:  # noqa: BLE001
+                await self.session.execute(text(LOAD_TOKENIZER))
+
             await self.session.commit()
 
             # Create tables with proper dependency order
@@ -103,8 +107,8 @@ class VectorChordRepository(KeywordSearchProvider):
             )
             await self.session.commit()
         except Exception as e:
-            logger.error(f"Error creating tables: {e}")
-            raise
+            msg = f"Error creating tables: {e}"
+            raise RuntimeError(msg) from e
 
     async def index(self, corpus: list[BM25Document]) -> None:
         """Index a new corpus."""
@@ -123,20 +127,26 @@ class VectorChordRepository(KeywordSearchProvider):
 
         # Write the documents to the bm25 database in one big batch
         query = text(
-            f"INSERT INTO {self._bm25_table_name} (snippet_id, passage) VALUES (:snippet_id, :passage)"
+            """
+            INSERT INTO :table_name (snippet_id, passage)
+            VALUES (:snippet_id, :passage)
+            """
         )
 
         for doc in corpus:
             await self.session.execute(
-                query, {"snippet_id": doc.snippet_id, "passage": doc.text}
+                query,
+                {
+                    "table_name": self._bm25_table_name,
+                    "snippet_id": doc.snippet_id,
+                    "passage": doc.text,
+                },
             )
         await self.session.commit()
 
         # Tokenize the new documents with schema qualification
-        query = text(
-            f"UPDATE {self._bm25_table_name} SET embedding = tokenize(passage, 'bert')"
-        )
-        await self.session.execute(query)
+        query = text("UPDATE :table_name SET embedding = tokenize(passage, 'bert')")
+        await self.session.execute(query, {"table_name": self._bm25_table_name})
         await self.session.commit()
 
     async def retrieve(
@@ -154,19 +164,21 @@ class VectorChordRepository(KeywordSearchProvider):
         table_name = self._bm25_table_name
         index_name = self._bm25_index_name
 
-        sql = text(f"""
-            SELECT 
-                   snippet_id, 
-                   embedding <&> to_bm25query('{index_name}', tokenize(:query_text,
-                   'bert')) AS bm25_score 
-                FROM {table_name} 
-                ORDER BY bm25_score
-                LIMIT :limit
+        sql = text("""
+            SELECT
+                snippet_id,
+                embedding <&> to_bm25query(:index_name, tokenize(:query_text, 'bert'))
+            AS bm25_score
+            FROM :table_name
+            ORDER BY bm25_score
+            LIMIT :top_k
         """)
-
-        # Bind parameters separately to avoid SQL injection
-        params = {"query_text": query, "limit": top_k}
-
+        params = {
+            "table_name": table_name,
+            "index_name": index_name,
+            "query_text": query,
+            "limit": top_k,
+        }
         try:
             result = await self.session.execute(sql, params)
             rows = result.fetchall()
@@ -174,5 +186,5 @@ class VectorChordRepository(KeywordSearchProvider):
             # Convert to dictionary format
             return [BM25Result(snippet_id=row[0], score=row[1]) for row in rows]
         except Exception as e:
-            logger.error(f"Error during BM25 search: {e}")
-            raise
+            msg = f"Error during BM25 search: {e}"
+            raise RuntimeError(msg) from e

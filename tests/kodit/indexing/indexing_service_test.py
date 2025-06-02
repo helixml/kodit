@@ -6,6 +6,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from kodit.bm25.bm25 import BM25Service
 from kodit.config import AppContext
 from kodit.embedding.embedding import TINY, LocalEmbedder
 from kodit.indexing.indexing_repository import IndexRepository
@@ -40,10 +41,11 @@ def service(
     app_context: AppContext, repository: IndexRepository, source_service: SourceService
 ) -> IndexService:
     """Create a real service instance with a database session."""
+    keyword_search_provider = BM25Service(app_context.get_data_dir())
     return IndexService(
         repository,
         source_service,
-        app_context.get_data_dir(),
+        keyword_search_provider,
         embedding_service=LocalEmbedder(model_name=TINY),
     )
 

@@ -1,0 +1,17 @@
+"""Factory for creating keyword search providers."""
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from kodit.bm25.bm25 import BM25Service
+from kodit.bm25.keyword_search_service import KeywordSearchProvider
+from kodit.bm25.vectorchord_repository import VectorChordRepository
+from kodit.config import AppContext
+
+
+def keyword_search_factory(
+    app_context: AppContext, session: AsyncSession
+) -> KeywordSearchProvider:
+    """Create a keyword search provider."""
+    if app_context.keyword_search.provider == "vectorchord":
+        return VectorChordRepository(session=session)
+    return BM25Service(data_dir=app_context.get_data_dir())
