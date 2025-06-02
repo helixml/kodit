@@ -6,6 +6,7 @@ import pydantic
 import structlog
 
 from kodit.bm25.bm25 import BM25Service
+from kodit.bm25.keyword_search_service import BM25Result
 from kodit.embedding.embedding import Embedder
 from kodit.embedding.embedding_models import EmbeddingType
 from kodit.search.search_repository import SearchRepository
@@ -57,12 +58,10 @@ class SearchService:
         """Search for relevant data."""
         fusion_list = []
         if request.keywords:
-            snippet_ids = await self.repository.list_snippet_ids()
-
             # Gather results for each keyword
-            result_ids: list[tuple[int, float]] = []
+            result_ids: list[BM25Result] = []
             for keyword in request.keywords:
-                results = self.bm25.retrieve(snippet_ids, keyword, request.top_k)
+                results = await self.bm25.retrieve(keyword, request.top_k)
                 result_ids.extend(results)
 
             # Sort results by score

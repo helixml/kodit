@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from unittest.mock import Mock
 
 from kodit.bm25.bm25 import BM25Service
+from kodit.bm25.keyword_search_service import BM25Result, KeywordSearchProvider
 from kodit.config import AppContext
 from kodit.embedding.embedding import Embedder, EmbeddingInput, EmbeddingOutput
 from kodit.embedding.embedding_models import EmbeddingType
@@ -53,18 +54,23 @@ def service(app_context: AppContext, repository: SearchRepository) -> SearchServ
         app_context.get_data_dir(),
         embedding_service=mock_embedding,
     )
-    mock_bm25 = Mock(spec=BM25Service)
+    mock_bm25 = Mock(spec=KeywordSearchProvider)
 
-    def mock_search(
-        doc_ids: list[int], query: str, top_k: int = 2
-    ) -> list[tuple[int, float]]:
+    def mock_search(query: str, top_k: int = 2) -> list[BM25Result]:
         # Mock behavior based on test cases
         if query.lower() == "hello":
-            return [(1, 0.5)]  # Return first snippet for "hello"
+            return [
+                BM25Result(snippet_id=1, score=0.5)
+            ]  # Return first snippet for "hello"
         elif query.lower() == "world":
-            return [(1, 0.5), (2, 0.4)]  # Return both snippets for "world"
+            return [
+                BM25Result(snippet_id=1, score=0.5),
+                BM25Result(snippet_id=2, score=0.4),
+            ]  # Return both snippets for "world"
         elif query.lower() == "good":
-            return [(2, 0.4)]  # Return second snippet for "good"
+            return [
+                BM25Result(snippet_id=2, score=0.4)
+            ]  # Return second snippet for "good"
         return []  # Return empty list for no matches
 
     mock_bm25.retrieve.side_effect = mock_search

@@ -188,6 +188,42 @@ DEFAULT_ENDPOINT_BASE_URL=https://api.openai.com/v1
 DEFAULT_ENDPOINT_API_KEY=sk-xxxxxx
 ```
 
+### Database
+
+Out of the box Kodit uses a local sqlite file to make it easier for users to get
+started. But for production use, it's likely you will want to use a database that has
+dedicated semantic and keyword search capabilities for reduced latency.
+
+#### VectorChord
+
+[VectorChord](https://github.com/tensorchord/VectorChord) is an optimized PostgreSQL
+extension that provides both vector and BM25 search.
+
+Start a container with:
+
+```sh
+docker run \
+  --name kodit-vectorchord \
+  -e POSTGRES_DB=kodit \
+  -e POSTGRES_PASSWORD=mysecretpassword \
+  -p 5432:5432 \
+  -d tensorchord/vchord-suite:pg17-20250601
+```
+
+{{< warn >}}
+Kodit assumes the database exists. In the above example I'm abusing the POSTGRES_DB
+environmental variable from the [Postgres Docker
+container](https://hub.docker.com/_/postgres/) to create the database for me. In
+production setups, please create a database yourself.
+{{< /warn >}}
+
+Then update your `.env` file to include:
+
+```env
+DB_URL=postgresql+asyncpg://postgres:mysecretpassword@localhost:5432/kodit
+
+```
+
 ## Managing Kodit
 
 There is limited management functionality at this time. To delete indexes you must

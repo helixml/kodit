@@ -31,6 +31,12 @@ class Endpoint(BaseModel):
     base_url: str | None = None
 
 
+class Search(BaseModel):
+    """Search provides configuration for a search engine."""
+
+    provider: Literal["sqlite", "vectorchord"] = Field(default="sqlite")
+
+
 class AppContext(BaseSettings):
     """Global context for the kodit project. Provides a shared state for the app."""
 
@@ -56,6 +62,12 @@ class AppContext(BaseSettings):
             "Default endpoint to use for all AI interactions "
             "(can be overridden by task-specific configuration)."
         ),
+    )
+    keyword_search: Search = Field(
+        default=Search(),
+    )
+    vector_search: Search = Field(
+        default=Search(),
     )
     _db: Database | None = None
 

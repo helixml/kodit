@@ -14,6 +14,7 @@ import structlog
 from tqdm.asyncio import tqdm
 
 from kodit.bm25.bm25 import BM25Service
+from kodit.bm25.keyword_search_service import BM25Document
 from kodit.embedding.embedding import Embedder, EmbeddingInput
 from kodit.embedding.embedding_models import Embedding, EmbeddingType
 from kodit.indexing.indexing_models import Snippet
@@ -135,9 +136,9 @@ class IndexService:
         snippets = await self.repository.get_all_snippets(index_id)
 
         self.log.info("Creating keyword index")
-        self.bm25.index(
+        await self.bm25.index(
             [
-                snippet.content
+                BM25Document(snippet_id=snippet.id, text=snippet.content)
                 for snippet in tqdm(snippets, total=len(snippets), leave=False)
             ]
         )

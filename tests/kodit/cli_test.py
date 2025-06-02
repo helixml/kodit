@@ -11,9 +11,10 @@ from kodit.cli import cli
 @pytest.fixture
 def runner() -> Generator[CliRunner, None, None]:
     """Create a CliRunner instance."""
-    runner = CliRunner()
-    runner.env = {"DISABLE_TELEMETRY": "true"}
-    yield runner
+    with tempfile.TemporaryDirectory() as data_dir:
+        runner = CliRunner()
+        runner.env = {"DISABLE_TELEMETRY": "true", "DATA_DIR": data_dir}
+        yield runner
 
 
 def test_version_command(runner: CliRunner) -> None:
@@ -23,8 +24,8 @@ def test_version_command(runner: CliRunner) -> None:
     assert result.exit_code == 0
 
 
-def test_telemetry_disabled_by_default(runner: CliRunner) -> None:
-    """Test that telemetry is disabled by default."""
+def test_telemetry_disabled_in_these_tests(runner: CliRunner) -> None:
+    """Test that telemetry is disabled in these tests."""
     result = runner.invoke(cli, ["version"])
     assert result.exit_code == 0
     assert "Telemetry has been disabled" in result.output
