@@ -109,6 +109,8 @@ class SourceService:
                 uri_or_path_like = uri_or_path_like + ".git"
                 try:
                     return await self._create_git_source(uri_or_path_like)
+                except git.GitCommandError:
+                    raise
                 except ValueError:
                     pass
 
@@ -200,8 +202,11 @@ class SourceService:
                 # Clone the repository
                 git.Repo.clone_from(uri, clone_path)
             except git.GitCommandError as e:
-                msg = f"Failed to clone repository: {e}"
-                raise ValueError(msg) from e
+                if "already exists and is not an empty directory" in str(e):
+                    self.log.info("Repository already exists, reusing...", uri=uri)
+                else:
+                    msg = f"Failed to clone repository: {e}"
+                    raise ValueError(msg) from e
 
             source = await self.repository.create_source(
                 Source(uri=uri, cloned_path=str(clone_path)),

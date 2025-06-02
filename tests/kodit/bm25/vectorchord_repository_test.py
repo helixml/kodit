@@ -84,12 +84,15 @@ async def vectorchord_session(
 ) -> AsyncGenerator[AsyncSession, None]:
     """Create a test database session."""
     async_session = async_sessionmaker(
-        vectorchord_engine, class_=AsyncSession, expire_on_commit=False
+        vectorchord_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autocommit=False,
+        autoflush=False,
     )
 
     async with async_session() as session:
         yield session
-        await session.rollback()
 
 
 @pytest.mark.asyncio
@@ -98,15 +101,15 @@ async def test_vectorchord_repository_bm25_search(vectorchord_session: AsyncSess
     # Create test data
     source = Source(uri="test", cloned_path="test")
     vectorchord_session.add(source)
-    await vectorchord_session.commit()
+    await vectorchord_session.flush()
 
     file = File(source_id=source.id, cloned_path="test")
     vectorchord_session.add(file)
-    await vectorchord_session.commit()
+    await vectorchord_session.flush()
 
     index = Index(source_id=source.id)
     vectorchord_session.add(index)
-    await vectorchord_session.commit()
+    await vectorchord_session.flush()
 
     # Create snippets with varied content to test different aspects of BM25
     snippets = [
@@ -149,34 +152,26 @@ async def test_vectorchord_repository_bm25_search(vectorchord_session: AsyncSess
 
     # Test 1: Basic keyword search
     results = await r.retrieve("Python programming", top_k=3)
-    print(results)
     assert len(results) == 3
 
     # Test 2: Phrase search
     results = await r.retrieve("Guido van Rossum", top_k=10)
-    print(results)
     assert len(results) == 1
     assert results[0].snippet_id == snippets[2].id
 
     # Test 3: Multiple word search with different frequencies
     results = await r.retrieve("Python data science", top_k=1)
-    print(results)
     assert len(results) == 1
-    # Should prioritize the snippet that contains both "Python" and "data science"
     assert results[0].snippet_id == snippets[3].id
 
     # Test 4: Edge case - empty query
     results = await r.retrieve("", top_k=10)
-    print(results)
     assert len(results) == 0
 
     # Test 5: Case insensitivity
     results = await r.retrieve("PYTHON", top_k=10)
-    print(results)
     assert len(results) > 0
 
     # Test 6: Partial word matching
     results = await r.retrieve("program", top_k=10)
-    print(results)
     assert len(results) == 3
-    # Should match "programming" in the content

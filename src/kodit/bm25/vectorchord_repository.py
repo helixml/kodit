@@ -1,8 +1,6 @@
 """VectorChord repository for document operations."""
 
-import logging
-
-from sqlalchemy import text
+from sqlalchemy import Result, TextClause, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.bm25.keyword_search_service import (
@@ -11,7 +9,9 @@ from kodit.bm25.keyword_search_service import (
     KeywordSearchProvider,
 )
 
-logger = logging.getLogger(__name__)
+TABLE_NAME = "vectorchord_bm25_documents"
+INDEX_NAME = f"{TABLE_NAME}_idx"
+TOKENIZER_NAME = "bert"
 
 # SQL statements
 CREATE_VCHORD_EXTENSION = "CREATE EXTENSION IF NOT EXISTS vchord CASCADE;"
@@ -21,20 +21,24 @@ SET_SEARCH_PATH = """
 SET search_path TO
     "$user", public, bm25_catalog, pg_catalog, information_schema, tokenizer_catalog;
 """
-CREATE_BM25_TABLE = """
-CREATE TABLE IF NOT EXISTS {table_name} (
+CREATE_BM25_TABLE = f"""
+CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
     id SERIAL PRIMARY KEY,
-    snippet_id BIGINT NOT NULL REFERENCES snippets(id),
-    passage TEXT,
+    snippet_id BIGINT NOT NULL,
+    passage TEXT NOT NULL,
     embedding bm25vector,
     UNIQUE(snippet_id)
 )
 """
-CREATE_BM25_INDEX = """
-CREATE INDEX IF NOT EXISTS {index_name}
-ON {table_name}
+
+CREATE_BM25_INDEX = f"""
+CREATE INDEX IF NOT EXISTS {INDEX_NAME}
+ON {TABLE_NAME}
 USING bm25 (embedding bm25_ops)
 """
+TOKENIZER_NAME_CHECK_QUERY = (
+    f"SELECT 1 FROM tokenizer_catalog.tokenizer WHERE name = '{TOKENIZER_NAME}'"  # noqa: S608
+)
 LOAD_TOKENIZER = """
 SELECT create_tokenizer('bert', $$
 model = "llmlingua2"
@@ -51,6 +55,26 @@ stopwords = "nltk_english"              # remove stopwords using the nltk dictio
 stemmer = "english_porter2"             # stem tokens using the English Porter2 stemmer
 $$)
 """
+INSERT_QUERY = f"""
+INSERT INTO {TABLE_NAME} (snippet_id, passage)
+VALUES (:snippet_id, :passage)
+ON CONFLICT (snippet_id) DO UPDATE
+SET passage = EXCLUDED.passage
+"""  # noqa: S608
+UPDATE_QUERY = f"""
+UPDATE {TABLE_NAME}
+SET embedding = tokenize(passage, '{TOKENIZER_NAME}')
+"""  # noqa: S608
+SEARCH_QUERY = f"""
+    SELECT
+        snippet_id,
+        embedding <&>
+            to_bm25query('{INDEX_NAME}', tokenize(:query_text, '{TOKENIZER_NAME}'))
+    AS bm25_score
+    FROM {TABLE_NAME}
+    ORDER BY bm25_score
+    LIMIT :limit
+"""  # noqa: S608
 
 
 class VectorChordRepository(KeywordSearchProvider):
@@ -61,63 +85,55 @@ class VectorChordRepository(KeywordSearchProvider):
         session: AsyncSession,
     ) -> None:
         """Initialize the VectorChord repository."""
-        self.session = session
+        self.__session = session
         self._initialized = False
-        self._bm25_table_name = "vectorchord_bm25_documents"
-        self._bm25_index_name = f"{self._bm25_table_name}_idx"
 
     async def _initialize(self) -> None:
         """Initialize the VectorChord environment."""
         try:
-            # Execute each command separately with verification
-            await self.session.execute(text(CREATE_VCHORD_EXTENSION))
-            await self.session.execute(text(CREATE_PG_TOKENIZER))
-            await self.session.execute(text(CREATE_VCHORD_BM25))
-            await self.session.execute(text(SET_SEARCH_PATH))
-            await self.session.commit()
-
-            # Create the tokenizer if it doesn't exist
-            try:
-                await self.session.execute(text("SELECT tokenize('test', 'bert')"))
-            except Exception:  # noqa: BLE001
-                await self.session.execute(text(LOAD_TOKENIZER))
-
-            await self.session.commit()
-
-            # Create tables with proper dependency order
+            await self._create_extensions()
+            await self._create_tokenizer_if_not_exists()
             await self._create_tables()
             self._initialized = True
         except Exception as e:
             msg = f"Failed to initialize VectorChord repository: {e}"
             raise RuntimeError(msg) from e
 
+    async def _create_extensions(self) -> None:
+        """Create the necessary extensions."""
+        await self.__session.execute(text(CREATE_VCHORD_EXTENSION))
+        await self.__session.execute(text(CREATE_PG_TOKENIZER))
+        await self.__session.execute(text(CREATE_VCHORD_BM25))
+        await self.__session.execute(text(SET_SEARCH_PATH))
+        await self._commit()
+
+    async def _create_tokenizer_if_not_exists(self) -> None:
+        """Create the tokenizer if it doesn't exist."""
+        # Check if tokenizer exists in the catalog
+        result = await self.__session.execute(text(TOKENIZER_NAME_CHECK_QUERY))
+        if result.scalar_one_or_none() is None:
+            # Tokenizer doesn't exist, create it
+            await self.__session.execute(text(LOAD_TOKENIZER))
+            await self._commit()
+
     async def _create_tables(self) -> None:
         """Create the necessary tables in the correct order."""
-        try:
-            await self.session.execute(
-                text(CREATE_BM25_TABLE.format(table_name=self._bm25_table_name))
-            )
-            await self.session.execute(
-                text(
-                    CREATE_BM25_INDEX.format(
-                        table_name=self._bm25_table_name,
-                        index_name=self._bm25_index_name,
-                    )
-                )
-            )
-            await self.session.commit()
-        except Exception as e:
-            msg = f"Error creating tables: {e}"
-            raise RuntimeError(msg) from e
+        await self.__session.execute(text(CREATE_BM25_TABLE))
+        await self.__session.execute(text(CREATE_BM25_INDEX))
+        await self._commit()
+
+    async def _execute(self, query: TextClause) -> Result:
+        """Execute a query."""
+        if not self._initialized:
+            await self._initialize()
+        return await self.__session.execute(query)
+
+    async def _commit(self) -> None:
+        """Commit the session."""
+        await self.__session.commit()
 
     async def index(self, corpus: list[BM25Document]) -> None:
         """Index a new corpus."""
-        if not self._initialized:
-            await self._initialize()
-
-        if not corpus:
-            return
-
         # Filter out any documents that don't have a snippet_id or text
         corpus = [
             doc
@@ -125,29 +141,20 @@ class VectorChordRepository(KeywordSearchProvider):
             if doc.snippet_id is not None and doc.text is not None and doc.text != ""
         ]
 
-        # Write the documents to the bm25 database in one big batch
-        query = text(
-            """
-            INSERT INTO :table_name (snippet_id, passage)
-            VALUES (:snippet_id, :passage)
-            """
-        )
+        if not corpus:
+            return
 
+        # Execute inserts
         for doc in corpus:
-            await self.session.execute(
-                query,
-                {
-                    "table_name": self._bm25_table_name,
-                    "snippet_id": doc.snippet_id,
-                    "passage": doc.text,
-                },
+            stmt = text(INSERT_QUERY).bindparams(
+                snippet_id=doc.snippet_id,
+                passage=doc.text,
             )
-        await self.session.commit()
+            await self._execute(stmt)
 
         # Tokenize the new documents with schema qualification
-        query = text("UPDATE :table_name SET embedding = tokenize(passage, 'bert')")
-        await self.session.execute(query, {"table_name": self._bm25_table_name})
-        await self.session.commit()
+        await self._execute(text(UPDATE_QUERY))
+        await self._commit()
 
     async def retrieve(
         self,
@@ -155,36 +162,18 @@ class VectorChordRepository(KeywordSearchProvider):
         top_k: int = 10,
     ) -> list[BM25Result]:
         """Search documents using BM25 similarity."""
-        if not self._initialized:
-            await self._initialize()
-
         if not query or query == "":
             return []
 
-        table_name = self._bm25_table_name
-        index_name = self._bm25_index_name
-
-        sql = text("""
-            SELECT
-                snippet_id,
-                embedding <&> to_bm25query(:index_name, tokenize(:query_text, 'bert'))
-            AS bm25_score
-            FROM :table_name
-            ORDER BY bm25_score
-            LIMIT :top_k
-        """)
-        params = {
-            "table_name": table_name,
-            "index_name": index_name,
-            "query_text": query,
-            "limit": top_k,
-        }
+        sql = text(SEARCH_QUERY).bindparams(query_text=query, limit=top_k)
         try:
-            result = await self.session.execute(sql, params)
-            rows = result.fetchall()
+            result = await self._execute(sql)
+            rows = result.mappings().all()
 
-            # Convert to dictionary format
-            return [BM25Result(snippet_id=row[0], score=row[1]) for row in rows]
+            return [
+                BM25Result(snippet_id=row["snippet_id"], score=row["bm25_score"])
+                for row in rows
+            ]
         except Exception as e:
             msg = f"Error during BM25 search: {e}"
             raise RuntimeError(msg) from e

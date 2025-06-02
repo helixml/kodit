@@ -12,6 +12,7 @@ from pydantic import Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit._version import version
+from kodit.bm25.keyword_search_factory import keyword_search_factory
 from kodit.config import AppContext
 from kodit.database import Database
 from kodit.embedding.embedding import embedding_factory
@@ -135,7 +136,10 @@ async def search(
     log.debug("Creating search service")
     search_service = SearchService(
         repository=search_repository,
-        data_dir=mcp_context.app_context.get_data_dir(),
+        keyword_search_provider=keyword_search_factory(
+            app_context=mcp_context.app_context,
+            session=mcp_context.session,
+        ),
         embedding_service=embedding_service,
     )
 
