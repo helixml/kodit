@@ -5,7 +5,6 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 from unittest.mock import Mock
 
-from kodit.bm25.bm25 import BM25Service
 from kodit.bm25.keyword_search_service import BM25Result, KeywordSearchProvider
 from kodit.config import AppContext
 from kodit.embedding.embedding import Embedder, EmbeddingInput, EmbeddingOutput

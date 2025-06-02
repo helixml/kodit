@@ -3,10 +3,9 @@
 from pathlib import Path
 
 import pytest
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.bm25.bm25 import BM25Service
+from kodit.bm25.local_bm25 import BM25Service
 from kodit.config import AppContext
 from kodit.embedding.embedding import TINY, LocalEmbedder
 from kodit.indexing.indexing_repository import IndexRepository

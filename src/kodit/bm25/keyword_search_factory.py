@@ -2,8 +2,8 @@
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.bm25.bm25 import BM25Service
 from kodit.bm25.keyword_search_service import KeywordSearchProvider
+from kodit.bm25.local_bm25 import BM25Service
 from kodit.bm25.vectorchord_bm25 import VectorChordBM25
 from kodit.config import AppContext
 
