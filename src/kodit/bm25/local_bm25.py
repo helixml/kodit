@@ -1,7 +1,9 @@
 """Locally hosted BM25 service primarily for use with SQLite."""
 
+import json
 from pathlib import Path
 
+import aiofiles
 import bm25s
 import Stemmer
 import structlog
@@ -13,6 +15,8 @@ from kodit.bm25.keyword_search_service import (
     KeywordSearchProvider,
 )
 
+SNIPPET_IDS_FILE = "snippet_ids.jsonl"
+
 
 class BM25Service(KeywordSearchProvider):
     """LocalBM25 service."""
@@ -21,9 +25,12 @@ class BM25Service(KeywordSearchProvider):
         """Initialize the BM25 service."""
         self.log = structlog.get_logger(__name__)
         self.index_path = data_dir / "bm25s_index"
+        self.snippet_ids: list[int] = []
         try:
             self.log.debug("Loading BM25 index")
             self.retriever = bm25s.BM25.load(self.index_path, mmap=True)
+            with Path(self.index_path / SNIPPET_IDS_FILE).open() as f:
+                self.snippet_ids = json.load(f)
         except FileNotFoundError:
             self.log.debug("BM25 index not found, creating new index")
             self.retriever = bm25s.BM25()
@@ -46,6 +53,9 @@ class BM25Service(KeywordSearchProvider):
         self.retriever = bm25s.BM25()
         self.retriever.index(vocab, show_progress=False)
         self.retriever.save(self.index_path)
+        self.snippet_ids = self.snippet_ids + [doc.snippet_id for doc in corpus]
+        async with aiofiles.open(self.index_path / SNIPPET_IDS_FILE, "w") as f:
+            await f.write(json.dumps(self.snippet_ids))
 
     async def retrieve(self, query: str, top_k: int = 2) -> list[BM25Result]:
         """Retrieve from the index."""
@@ -66,7 +76,7 @@ class BM25Service(KeywordSearchProvider):
 
         results, scores = self.retriever.retrieve(
             query_tokens=query_tokens,
-            corpus=list(range(len(self.retriever.scores))),
+            corpus=self.snippet_ids,
             k=top_k,
         )
         self.log.debug("Raw results", results=results, scores=scores)
