@@ -144,9 +144,13 @@ class IndexService:
             )
 
         self.log.info("Creating semantic code index")
-        await self.code_search_service.index(
-            [VectorSearchRequest(snippet.id, snippet.content) for snippet in snippets]
-        )
+        with Spinner():
+            await self.code_search_service.index(
+                [
+                    VectorSearchRequest(snippet.id, snippet.content)
+                    for snippet in snippets
+                ]
+            )
 
         # Update index timestamp
         await self.repository.update_index_timestamp(index)
