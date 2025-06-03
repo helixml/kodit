@@ -199,7 +199,7 @@ class SourceService:
             clone_path.mkdir(parents=True, exist_ok=True)
 
             try:
-                # Clone the repository
+                self.log.info("Cloning repository", uri=uri, clone_path=str(clone_path))
                 git.Repo.clone_from(uri, clone_path)
             except git.GitCommandError as e:
                 if "already exists and is not an empty directory" in str(e):
@@ -217,6 +217,7 @@ class SourceService:
             file_count = sum(1 for _ in clone_path.rglob("*") if _.is_file())
 
             # Process each file in the source directory
+            self.log.info("Inspecting files", source_id=source.id)
             for path in tqdm(clone_path.rglob("*"), total=file_count, leave=False):
                 await self._process_file(source.id, path.absolute())
 
