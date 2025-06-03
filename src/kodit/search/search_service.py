@@ -4,8 +4,7 @@ import pydantic
 import structlog
 
 from kodit.bm25.keyword_search_service import BM25Result, KeywordSearchProvider
-from kodit.embedding.embedding import Embedder
-from kodit.embedding.embedding_models import EmbeddingType
+from kodit.embedding.embedding_service import EmbeddingService
 from kodit.search.search_repository import SearchRepository
 
 
@@ -43,7 +42,7 @@ class SearchService:
         self,
         repository: SearchRepository,
         keyword_search_provider: KeywordSearchProvider,
-        embedding_service: Embedder,
+        embedding_service: EmbeddingService,
     ) -> None:
         """Initialize the search service."""
         self.repository = repository
@@ -74,19 +73,10 @@ class SearchService:
         # Compute embedding for semantic query
         semantic_results = []
         if request.code_query:
-            query_embedding = await anext(
-                self.code_embedding_service.query([request.code_query])
+            query_embedding = await self.code_embedding_service.retrieve(
+                request.code_query, top_k=request.top_k
             )
-
-            query_results = await self.repository.list_semantic_results(
-                EmbeddingType.CODE, query_embedding, top_k=request.top_k
-            )
-
-            # Sort results by score
-            query_results.sort(key=lambda x: x[1], reverse=True)
-
-            # Extract the snippet ids from the query results
-            semantic_results = [x[0] for x in query_results]
+            semantic_results = [x.snippet_id for x in query_embedding]
             fusion_list.append(semantic_results)
 
         if len(fusion_list) == 0:

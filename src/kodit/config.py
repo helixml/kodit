@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from kodit.database import Database
-from kodit.embedding.embedding import TINY
+from kodit.embedding.embedding_service import TINY
 
 DEFAULT_BASE_DIR = Path.home() / ".kodit"
 DEFAULT_DB_URL = f"sqlite+aiosqlite:///{DEFAULT_BASE_DIR}/kodit.db"

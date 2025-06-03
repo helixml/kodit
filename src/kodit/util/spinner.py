@@ -9,13 +9,12 @@ import time
 class Spinner:
     """Spinner for long-running tasks."""
 
-    def __init__(self, message: str, delay: float = 0.1) -> None:
+    def __init__(self, delay: float = 0.1) -> None:
         """Initialize the spinner."""
         self.spinner = itertools.cycle(["-", "/", "|", "\\"])
         self.delay = delay
         self.busy = False
         self.spinner_visible = False
-        sys.stdout.write(message)
 
     def write_next(self) -> None:
         """Write the next character of the spinner."""

@@ -15,7 +15,7 @@ from kodit._version import version
 from kodit.bm25.keyword_search_factory import keyword_search_factory
 from kodit.config import AppContext
 from kodit.database import Database
-from kodit.embedding.embedding import embedding_factory
+from kodit.embedding.embedding_factory import embedding_factory
 from kodit.search.search_repository import SearchRepository
 from kodit.search.search_service import SearchRequest, SearchResult, SearchService
 
@@ -130,7 +130,7 @@ async def search(
 
     log.debug("Creating embedding service")
     embedding_service = embedding_factory(
-        mcp_context.app_context.get_default_openai_client()
+        app_context=mcp_context.app_context, session=mcp_context.session
     )
 
     log.debug("Creating search service")

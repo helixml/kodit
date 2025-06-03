@@ -2,7 +2,7 @@
 
 import numpy as np
 import psutil
-from kodit.embedding.embedding import EmbeddingService
+from kodit.embedding.embedding_service import EmbeddingService
 
 EXAMPLE_CODE = """
 from contextlib import asynccontextmanager

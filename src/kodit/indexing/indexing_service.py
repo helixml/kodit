@@ -14,8 +14,7 @@ import structlog
 from tqdm.asyncio import tqdm
 
 from kodit.bm25.keyword_search_service import BM25Document, KeywordSearchProvider
-from kodit.embedding.embedding import Embedder, EmbeddingInput
-from kodit.embedding.embedding_models import Embedding, EmbeddingType
+from kodit.embedding.embedding_service import EmbeddingInput, EmbeddingService
 from kodit.indexing.indexing_models import Snippet
 from kodit.indexing.indexing_repository import IndexRepository
 from kodit.snippets.snippets import SnippetService
@@ -53,7 +52,7 @@ class IndexService:
         repository: IndexRepository,
         source_service: SourceService,
         keyword_search_provider: KeywordSearchProvider,
-        embedding_service: Embedder,
+        embedding_service: EmbeddingService,
     ) -> None:
         """Initialize the index service.
 
@@ -133,7 +132,7 @@ class IndexService:
         snippets = await self.repository.get_all_snippets(index_id)
 
         self.log.info("Creating keyword index")
-        with Spinner("Building keyword index..."):
+        with Spinner():
             await self.keyword_search_provider.index(
                 [
                     BM25Document(snippet_id=snippet.id, text=snippet.content)
@@ -142,20 +141,9 @@ class IndexService:
             )
 
         self.log.info("Creating semantic code index")
-        async for e in tqdm(
-            self.code_embedding_service.embed(
-                [EmbeddingInput(snippet.id, snippet.content) for snippet in snippets]
-            ),
-            total=len(snippets),
-            leave=False,
-        ):
-            await self.repository.add_embedding(
-                Embedding(
-                    snippet_id=e.id,
-                    embedding=e.embedding,
-                    type=EmbeddingType.CODE,
-                )
-            )
+        await self.code_embedding_service.index(
+            [EmbeddingInput(snippet.id, snippet.content) for snippet in snippets]
+        )
 
         # Update index timestamp
         await self.repository.update_index_timestamp(index)

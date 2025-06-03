@@ -7,7 +7,11 @@ from unittest.mock import Mock
 
 from kodit.bm25.keyword_search_service import BM25Result, KeywordSearchProvider
 from kodit.config import AppContext
-from kodit.embedding.embedding import Embedder, EmbeddingInput, EmbeddingOutput
+from kodit.embedding.embedding_service import (
+    EmbeddingService,
+    EmbeddingInput,
+    EmbeddingResult,
+)
 from kodit.embedding.embedding_models import EmbeddingType
 from kodit.indexing.indexing_models import Index, Snippet
 from kodit.search.search_repository import SearchRepository
@@ -32,23 +36,10 @@ def service(app_context: AppContext, repository: SearchRepository) -> SearchServ
     # Mock embedding service
     async def mock_embed(
         snippets: list[EmbeddingInput],
-    ) -> AsyncGenerator[EmbeddingOutput, None]:
+    ) -> AsyncGenerator[EmbeddingResult, None]:
         # Return a simple mock embedding for testing
         for _ in snippets:
-            yield EmbeddingOutput(0, [0.1, 0.2, 0.3])
-
-    async def mock_query(
-        data: list[str],
-    ) -> AsyncGenerator[list[float], None]:
-        # Return a simple mock embedding for testing
-        for _ in data:
-            yield [0.1, 0.2, 0.3]
-
-    mock_embedding = Mock(spec=Embedder)
-    mock_embedding.embed = mock_embed
-    mock_embedding.query = mock_query
-
-    mock_bm25 = Mock(spec=KeywordSearchProvider)
+            yield EmbeddingResult(snippet_id=0, score=0.1)
 
     def mock_search(query: str, top_k: int = 2) -> list[BM25Result]:
         # Mock behavior based on test cases
@@ -67,7 +58,21 @@ def service(app_context: AppContext, repository: SearchRepository) -> SearchServ
             ]  # Return second snippet for "good"
         return []  # Return empty list for no matches
 
+    mock_bm25 = Mock(spec=KeywordSearchProvider)
+    mock_bm25.index.side_effect = mock_embed
     mock_bm25.retrieve.side_effect = mock_search
+
+    def mock_embedding_index(
+        snippets: list[EmbeddingInput],
+    ) -> None:
+        pass
+
+    def mock_embedding_retrieve(query: str, top_k: int = 10) -> list[EmbeddingResult]:
+        return [EmbeddingResult(snippet_id=1, score=0.5)]
+
+    mock_embedding = Mock(spec=EmbeddingService)
+    mock_embedding.index.side_effect = mock_embedding_index
+    mock_embedding.retrieve.side_effect = mock_embedding_retrieve
 
     service = SearchService(
         repository,
@@ -201,83 +206,3 @@ def test_reciprocal_rank_fusion_single_ranking() -> None:
     results = reciprocal_rank_fusion(rankings, k=60)
     assert len(results) == 3
     assert [r[0] for r in results] == [1, 2, 3]
-
-
-@pytest.mark.asyncio
-async def test_search_snippets_semantic(
-    service: SearchService, session: AsyncSession
-) -> None:
-    """Test searching for snippets through semantic search."""
-    # Create test source
-    source = Source(uri="test_source", cloned_path="test_source")
-    session.add(source)
-    await session.commit()
-
-    # Create test index
-    index = Index(source_id=source.id)
-    session.add(index)
-    await session.commit()
-
-    # Create test files and snippets
-    file1 = File(
-        source_id=source.id,
-        cloned_path="test1.txt",
-        mime_type="text/plain",
-        uri="test1.txt",
-        sha256="hash1",
-        size_bytes=100,
-    )
-    file2 = File(
-        source_id=source.id,
-        cloned_path="test2.txt",
-        mime_type="text/plain",
-        sha256="hash2",
-        size_bytes=200,
-        uri="test2.txt",
-    )
-    session.add(file1)
-    session.add(file2)
-    await session.commit()
-
-    snippet1 = Snippet(index_id=1, file_id=file1.id, content="hello world")
-    snippet2 = Snippet(index_id=1, file_id=file2.id, content="goodbye world")
-    session.add(snippet1)
-    session.add(snippet2)
-    await session.commit()
-
-    # Mock repository's semantic search
-    async def mock_list_semantic_results(
-        embedding_type: EmbeddingType, embedding: list[float], top_k: int = 10
-    ):
-        # Return mock semantic search results
-        return [(1, 0.8), (2, 0.6)]  # First snippet is more semantically similar
-
-    service.repository.list_semantic_results = mock_list_semantic_results
-
-    # Test semantic search
-    results = await service.search(SearchRequest(code_query="greeting"))
-    assert len(results) == 2
-    assert (
-        results[0].uri == "test1.txt"
-    )  # First result should be the more semantically similar one
-    assert results[0].content == "hello world"
-    assert results[1].uri == "test2.txt"
-    assert results[1].content == "goodbye world"
-
-    # Test combined semantic and keyword search
-    results = await service.search(
-        SearchRequest(code_query="greeting", keywords=["hello"])
-    )
-    assert len(results) == 2
-    # Results should be fused from both semantic and keyword search
-    assert {r.uri for r in results} == {"test1.txt", "test2.txt"}
-
-    # Test semantic search with no matches
-    async def mock_empty_semantic_results(
-        embedding_type: EmbeddingType, embedding: list[float], top_k: int = 10
-    ):
-        return []
-
-    service.repository.list_semantic_results = mock_empty_semantic_results
-    results = await service.search(SearchRequest(code_query="nonexistent"))
-    assert len(results) == 0

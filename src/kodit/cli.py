@@ -16,7 +16,7 @@ from kodit.config import (
     with_app_context,
     with_session,
 )
-from kodit.embedding.embedding import embedding_factory
+from kodit.embedding.embedding_factory import embedding_factory
 from kodit.indexing.indexing_repository import IndexRepository
 from kodit.indexing.indexing_service import IndexService
 from kodit.log import configure_logging, configure_telemetry, log_event
@@ -72,7 +72,7 @@ async def index(
         repository=repository,
         source_service=source_service,
         keyword_search_provider=keyword_search_factory(app_context, session),
-        embedding_service=embedding_factory(app_context.get_default_openai_client()),
+        embedding_service=embedding_factory(app_context=app_context, session=session),
     )
 
     if not sources:
@@ -133,7 +133,7 @@ async def code(
     service = SearchService(
         repository,
         keyword_search_provider=keyword_search_factory(app_context, session),
-        embedding_service=embedding_factory(app_context.get_default_openai_client()),
+        embedding_service=embedding_factory(app_context=app_context, session=session),
     )
 
     snippets = await service.search(SearchRequest(code_query=query, top_k=top_k))
@@ -166,7 +166,7 @@ async def keyword(
     service = SearchService(
         repository,
         keyword_search_provider=keyword_search_factory(app_context, session),
-        embedding_service=embedding_factory(app_context.get_default_openai_client()),
+        embedding_service=embedding_factory(app_context=app_context, session=session),
     )
 
     snippets = await service.search(SearchRequest(keywords=keywords, top_k=top_k))
@@ -201,7 +201,7 @@ async def hybrid(
     service = SearchService(
         repository,
         keyword_search_provider=keyword_search_factory(app_context, session),
-        embedding_service=embedding_factory(app_context.get_default_openai_client()),
+        embedding_service=embedding_factory(app_context=app_context, session=session),
     )
 
     # Parse keywords into a list of strings
