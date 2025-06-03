@@ -25,7 +25,7 @@ class Spinner:
                 self.spinner_visible = True
                 sys.stdout.flush()
 
-    def remove_spinner(self, cleanup: bool = False) -> None:
+    def remove_spinner(self, cleanup: bool = False) -> None:  # noqa: FBT001, FBT002
         """Remove the spinner."""
         with self._screen_lock:
             if self.spinner_visible:
