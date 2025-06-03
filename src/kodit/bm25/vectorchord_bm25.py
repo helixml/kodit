@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from sqlalchemy import Result, TextClause, text
+from sqlalchemy import Result, TextClause, bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.bm25.keyword_search_service import (
@@ -77,6 +77,10 @@ SEARCH_QUERY = f"""
     ORDER BY bm25_score
     LIMIT :limit
 """  # noqa: S608
+DELETE_QUERY = f"""
+DELETE FROM {TABLE_NAME}
+WHERE snippet_id IN :snippet_ids
+"""  # noqa: S608
 
 
 class VectorChordBM25(KeywordSearchProvider):
@@ -125,7 +129,7 @@ class VectorChordBM25(KeywordSearchProvider):
         await self._commit()
 
     async def _execute(
-        self, query: TextClause, param_list: list[Any] | None = None
+        self, query: TextClause, param_list: list[Any] | dict[str, Any] | None = None
     ) -> Result:
         """Execute a query."""
         if not self._initialized:
@@ -156,6 +160,14 @@ class VectorChordBM25(KeywordSearchProvider):
 
         # Tokenize the new documents with schema qualification
         await self._execute(text(UPDATE_QUERY))
+        await self._commit()
+
+    async def delete(self, snippet_ids: list[int]) -> None:
+        """Delete documents from the index."""
+        await self._execute(
+            text(DELETE_QUERY).bindparams(bindparam("snippet_ids", expanding=True)),
+            {"snippet_ids": snippet_ids},
+        )
         await self._commit()
 
     async def retrieve(

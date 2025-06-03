@@ -175,3 +175,8 @@ async def test_vectorchord_repository_bm25_search(vectorchord_session: AsyncSess
     # Test 6: Partial word matching
     results = await r.retrieve("program", top_k=10)
     assert len(results) == 3
+
+    # Test 7: Delete documents
+    await r.delete([s.id for s in snippets])
+    results = await r.retrieve("Python programming", top_k=10)
+    assert len(results) == 0

@@ -124,14 +124,25 @@ class IndexRepository:
         index.updated_at = datetime.now(UTC)
         await self.session.commit()
 
-    async def add_snippet(self, snippet: Snippet) -> None:
-        """Add a new snippet to the database.
+    async def add_snippet_or_update_content(self, snippet: Snippet) -> None:
+        """Add a new snippet to the database if it doesn't exist, otherwise update it.
 
         Args:
             snippet: The Snippet instance to add.
 
         """
-        self.session.add(snippet)
+        query = select(Snippet).where(
+            Snippet.file_id == snippet.file_id,
+            Snippet.index_id == snippet.index_id,
+        )
+        result = await self.session.execute(query)
+        existing_snippet = result.scalar_one_or_none()
+
+        if existing_snippet:
+            existing_snippet.content = snippet.content
+        else:
+            self.session.add(snippet)
+
         await self.session.commit()
 
     async def delete_all_snippets(self, index_id: int) -> None:

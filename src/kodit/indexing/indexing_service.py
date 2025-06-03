@@ -126,9 +126,6 @@ class IndexService:
             msg = f"Index not found: {index_id}"
             raise ValueError(msg)
 
-        # First delete all old snippets, if they exist
-        await self.repository.delete_all_snippets(index_id)
-
         # Create snippets for supported file types
         await self._create_snippets(index_id)
 
@@ -195,4 +192,4 @@ class IndexService:
                     file_id=file.id,
                     content=snippet.text,
                 )
-                await self.repository.add_snippet(s)
+                await self.repository.add_snippet_or_update_content(s)

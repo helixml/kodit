@@ -84,3 +84,7 @@ class BM25Service(KeywordSearchProvider):
             BM25Result(snippet_id=int(result), score=float(score))
             for result, score in zip(results[0], scores[0], strict=False)
         ]
+
+    async def delete(self, snippet_ids: list[int]) -> None:  # noqa: ARG002
+        """Delete documents from the index."""
+        self.log.warning("Deletion not supported for local BM25 index")

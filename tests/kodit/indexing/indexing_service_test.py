@@ -1,6 +1,8 @@
 """Tests for the indexing service module."""
 
 from pathlib import Path
+import tempfile
+from typing import Any, Generator
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -83,23 +85,6 @@ async def test_create_index_source_not_found(service: IndexService) -> None:
 
 
 @pytest.mark.asyncio
-async def test_create_index_already_exists(
-    service: IndexService, session: AsyncSession
-) -> None:
-    """Test creating an index that already exists."""
-    # Create a test source
-    source = Source(uri="test_folder", cloned_path="test_folder")
-    session.add(source)
-    await session.commit()
-
-    # Create first index
-    await service.create(source.id)
-
-    # Try to create second index, should be fine
-    await service.create(source.id)
-
-
-@pytest.mark.asyncio
 async def test_run_index(
     repository: IndexRepository,
     service: IndexService,
@@ -147,6 +132,16 @@ async def test_run_index(
     snippets = await repository.get_snippets_for_index(index.id)
     assert len(snippets) == 1
     assert snippets[0].content == "print('hello')"
+
+    # Try to create second index, should be fine
+    await service.create(source.id)
+
+    # Try to run the index again, should reuse
+    await service.run(index.id)
+
+    # Check that number of snippets is still 1
+    snippets = await repository.get_snippets_for_index(index.id)
+    assert len(snippets) == 1
 
 
 @pytest.mark.asyncio

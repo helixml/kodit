@@ -28,3 +28,7 @@ class KeywordSearchProvider(ABC):
     @abstractmethod
     async def retrieve(self, query: str, top_k: int = 2) -> list[BM25Result]:
         """Retrieve from the index."""
+
+    @abstractmethod
+    async def delete(self, snippet_ids: list[int]) -> None:
+        """Delete documents from the index."""
