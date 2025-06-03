@@ -5,7 +5,6 @@ import asyncio
 import structlog
 import tiktoken
 from openai import AsyncOpenAI
-from tqdm import tqdm
 
 from kodit.embedding.embedding_provider.embedding_provider import (
     EmbeddingProvider,
@@ -59,7 +58,6 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
 
         # Process all batches and yield results as they complete
         results: list[Vector] = []
-        self.log.info("Embedding snippets", num_snippets=len(data))
-        for task in tqdm(asyncio.as_completed(tasks), total=len(tasks), leave=False):
+        for task in asyncio.as_completed(tasks):
             results.extend(await task)
         return results

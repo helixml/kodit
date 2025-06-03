@@ -29,7 +29,6 @@ class LocalVectorSearchService(VectorSearchService):
 
     async def index(self, data: list[VectorSearchRequest]) -> None:
         """Embed a list of documents."""
-        self.log.info("Embedding snippets", num_snippets=len(data))
         embeddings = await self.embedding_provider.embed([i.text for i in data])
         for i, x in zip(data, embeddings, strict=False):
             await self.embedding_repository.create_embedding(
