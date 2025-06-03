@@ -221,7 +221,7 @@ Then update your `.env` file to include:
 
 ```env
 DB_URL=postgresql+asyncpg://postgres:mysecretpassword@localhost:5432/kodit
-KEYWORD_SEARCH_PROVIDER=vectorchord
+SEARCH_PROVIDER=vectorchord
 ```
 
 ## Managing Kodit

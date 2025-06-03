@@ -55,7 +55,7 @@ class IndexService:
         repository: IndexRepository,
         source_service: SourceService,
         keyword_search_provider: KeywordSearchProvider,
-        embedding_service: VectorSearchService,
+        vector_search_service: VectorSearchService,
     ) -> None:
         """Initialize the index service.
 
@@ -69,7 +69,7 @@ class IndexService:
         self.snippet_service = SnippetService()
         self.log = structlog.get_logger(__name__)
         self.keyword_search_provider = keyword_search_provider
-        self.code_embedding_service = embedding_service
+        self.code_search_service = vector_search_service
 
     async def create(self, source_id: int) -> IndexView:
         """Create a new index for a source.
@@ -144,7 +144,7 @@ class IndexService:
             )
 
         self.log.info("Creating semantic code index")
-        await self.code_embedding_service.index(
+        await self.code_search_service.index(
             [VectorSearchRequest(snippet.id, snippet.content) for snippet in snippets]
         )
 

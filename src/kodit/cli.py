@@ -72,7 +72,9 @@ async def index(
         repository=repository,
         source_service=source_service,
         keyword_search_provider=keyword_search_factory(app_context, session),
-        embedding_service=embedding_factory(app_context=app_context, session=session),
+        vector_search_service=embedding_factory(
+            app_context=app_context, session=session
+        ),
     )
 
     if not sources:

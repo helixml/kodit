@@ -12,6 +12,6 @@ def keyword_search_factory(
     app_context: AppContext, session: AsyncSession
 ) -> KeywordSearchProvider:
     """Create a keyword search provider."""
-    if app_context.keyword_search.provider == "vectorchord":
+    if app_context.search.provider == "vectorchord":
         return VectorChordBM25(session=session)
     return BM25Service(data_dir=app_context.get_data_dir())
