@@ -96,7 +96,7 @@ jobs:
         run: echo "wheel_path=$(ls test-build/*.whl)" >> $GITHUB_OUTPUT
 
       - name: Install wheel
-        run: uvx install --include-deps "${{ steps.wheel_path.outputs.wheel_path }}"
+        run: uv tool install "${{ steps.wheel_path.outputs.wheel_path }}"
 
       - name: Run simple version command test
         run: kodit version
