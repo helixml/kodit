@@ -88,9 +88,6 @@ jobs:
         with:
           python-version: 3.12
 
-      - name: Install pipx
-        run: sudo apt update && sudo apt install pipx && pipx ensurepath
-
       - name: Extract path to sdist
         id: sdist_path
         run: echo "sdist_path=$(ls test-build/*.tar.gz)" >> $GITHUB_OUTPUT
