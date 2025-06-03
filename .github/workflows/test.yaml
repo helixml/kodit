@@ -71,6 +71,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Install pipx
+        run: sudo apt update && sudo apt install pipx && pipx ensurepath
+
       - uses: actions/checkout@v4
         with:
           sparse-checkout: |
@@ -93,9 +96,7 @@ jobs:
         run: echo "sdist_path=$(ls test-build/*.tar.gz)" >> $GITHUB_OUTPUT
 
       - name: Install sdist
-        uses: threeal/pipx-install-action@v1.0.0
-        with:
-          packages: "${{ steps.sdist_path.outputs.sdist_path }}"
+        run: pipx install --include-deps "${{ steps.sdist_path.outputs.sdist_path }}"
 
       - name: Run simple version command test
         run: kodit version
