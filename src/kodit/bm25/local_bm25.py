@@ -63,7 +63,13 @@ class BM25Service(KeywordSearchProvider):
             self.log.warning("Top k is 0, returning empty list")
             return []
 
-        top_k = min(top_k, len(self.retriever.scores))
+        # Get the number of documents in the index
+        num_docs = self.retriever.scores["num_docs"]
+        if num_docs == 0:
+            return []
+
+        # Adjust top_k to not exceed corpus size
+        top_k = min(top_k, num_docs)
         self.log.debug(
             "Retrieving from index",
             query=query,
@@ -83,6 +89,7 @@ class BM25Service(KeywordSearchProvider):
         return [
             BM25Result(snippet_id=int(result), score=float(score))
             for result, score in zip(results[0], scores[0], strict=False)
+            if score > 0.0
         ]
 
     async def delete(self, snippet_ids: list[int]) -> None:  # noqa: ARG002
