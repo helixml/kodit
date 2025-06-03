@@ -88,12 +88,15 @@ jobs:
         with:
           python-version: 3.12
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
       - name: Extract path to wheel
         id: wheel_path
         run: echo "wheel_path=$(ls test-build/*.whl)" >> $GITHUB_OUTPUT
 
       - name: Install wheel
-        run: pipx install --include-deps "${{ steps.wheel_path.outputs.wheel_path }}"
+        run: uvx install --include-deps "${{ steps.wheel_path.outputs.wheel_path }}"
 
       - name: Run simple version command test
         run: kodit version
