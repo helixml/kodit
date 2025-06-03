@@ -7,10 +7,10 @@ from unittest.mock import Mock
 
 from kodit.bm25.keyword_search_service import BM25Result, KeywordSearchProvider
 from kodit.config import AppContext
-from kodit.embedding.embedding_service import (
-    EmbeddingService,
-    EmbeddingInput,
-    EmbeddingResult,
+from kodit.embedding.vector_search_service import (
+    VectorSearchService,
+    VectorSearchRequest,
+    VectorSearchResponse,
 )
 from kodit.embedding.embedding_models import EmbeddingType
 from kodit.indexing.indexing_models import Index, Snippet
@@ -35,11 +35,11 @@ def service(app_context: AppContext, repository: SearchRepository) -> SearchServ
 
     # Mock embedding service
     async def mock_embed(
-        snippets: list[EmbeddingInput],
-    ) -> AsyncGenerator[EmbeddingResult, None]:
+        snippets: list[VectorSearchRequest],
+    ) -> AsyncGenerator[VectorSearchResponse, None]:
         # Return a simple mock embedding for testing
         for _ in snippets:
-            yield EmbeddingResult(snippet_id=0, score=0.1)
+            yield VectorSearchResponse(snippet_id=0, score=0.1)
 
     def mock_search(query: str, top_k: int = 2) -> list[BM25Result]:
         # Mock behavior based on test cases
@@ -63,14 +63,16 @@ def service(app_context: AppContext, repository: SearchRepository) -> SearchServ
     mock_bm25.retrieve.side_effect = mock_search
 
     def mock_embedding_index(
-        snippets: list[EmbeddingInput],
+        snippets: list[VectorSearchRequest],
     ) -> None:
         pass
 
-    def mock_embedding_retrieve(query: str, top_k: int = 10) -> list[EmbeddingResult]:
-        return [EmbeddingResult(snippet_id=1, score=0.5)]
+    def mock_embedding_retrieve(
+        query: str, top_k: int = 10
+    ) -> list[VectorSearchResponse]:
+        return [VectorSearchResponse(snippet_id=1, score=0.5)]
 
-    mock_embedding = Mock(spec=EmbeddingService)
+    mock_embedding = Mock(spec=VectorSearchService)
     mock_embedding.index.side_effect = mock_embedding_index
     mock_embedding.retrieve.side_effect = mock_embedding_retrieve
 

@@ -4,7 +4,7 @@ import pydantic
 import structlog
 
 from kodit.bm25.keyword_search_service import BM25Result, KeywordSearchProvider
-from kodit.embedding.embedding_service import EmbeddingService
+from kodit.embedding.vector_search_service import VectorSearchService
 from kodit.search.search_repository import SearchRepository
 
 
@@ -42,7 +42,7 @@ class SearchService:
         self,
         repository: SearchRepository,
         keyword_search_provider: KeywordSearchProvider,
-        embedding_service: EmbeddingService,
+        embedding_service: VectorSearchService,
     ) -> None:
         """Initialize the search service."""
         self.repository = repository

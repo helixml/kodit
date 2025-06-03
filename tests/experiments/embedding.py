@@ -2,7 +2,7 @@
 
 import numpy as np
 import psutil
-from kodit.embedding.embedding_service import EmbeddingService
+from kodit.embedding.vector_search_service import VectorSearchService
 
 EXAMPLE_CODE = """
 from contextlib import asynccontextmanager
@@ -57,7 +57,7 @@ def test_embedding_performance():
     # Pre-download the models and print some stats about the model
     print("Downloading models and printing stats...")
     for model in models_under_test:
-        embedding_service = EmbeddingService(model)
+        embedding_service = VectorSearchService(model)
         sen_model = embedding_service._model()
         dims = sen_model.get_sentence_embedding_dimension()
         total_num = sum(p.numel() for p in sen_model.parameters()) / 1_000_000
@@ -65,7 +65,7 @@ def test_embedding_performance():
 
     print("Testing embedding performance. Should be HIGH, LOW, ZERO")
     for model in models_under_test:
-        embedding_service = EmbeddingService(model)
+        embedding_service = VectorSearchService(model)
         embeddings = next(embedding_service.embed([EXAMPLE_CODE]))
         query = [
             "The user wants to add hooks for startup and shutdown in their fastapi application.",

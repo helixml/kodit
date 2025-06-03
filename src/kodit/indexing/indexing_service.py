@@ -14,7 +14,10 @@ import structlog
 from tqdm.asyncio import tqdm
 
 from kodit.bm25.keyword_search_service import BM25Document, KeywordSearchProvider
-from kodit.embedding.embedding_service import EmbeddingInput, EmbeddingService
+from kodit.embedding.vector_search_service import (
+    VectorSearchRequest,
+    VectorSearchService,
+)
 from kodit.indexing.indexing_models import Snippet
 from kodit.indexing.indexing_repository import IndexRepository
 from kodit.snippets.snippets import SnippetService
@@ -52,7 +55,7 @@ class IndexService:
         repository: IndexRepository,
         source_service: SourceService,
         keyword_search_provider: KeywordSearchProvider,
-        embedding_service: EmbeddingService,
+        embedding_service: VectorSearchService,
     ) -> None:
         """Initialize the index service.
 
@@ -142,7 +145,7 @@ class IndexService:
 
         self.log.info("Creating semantic code index")
         await self.code_embedding_service.index(
-            [EmbeddingInput(snippet.id, snippet.content) for snippet in snippets]
+            [VectorSearchRequest(snippet.id, snippet.content) for snippet in snippets]
         )
 
         # Update index timestamp
