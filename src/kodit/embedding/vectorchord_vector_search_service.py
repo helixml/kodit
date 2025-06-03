@@ -46,9 +46,9 @@ SET embedding = EXCLUDED.embedding
 """  # noqa: S608
 
 SEARCH_QUERY = f"""
-SELECT snippet_id, embedding <-> :query as score 
-FROM {TABLE_NAME} 
-ORDER BY embedding <-> :query 
+SELECT snippet_id, embedding <-> :query as score
+FROM {TABLE_NAME}
+ORDER BY embedding <-> :query
 LIMIT :top_k;
 """  # noqa: S608
 

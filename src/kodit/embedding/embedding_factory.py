@@ -3,7 +3,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.config import AppContext
-from kodit.embedding.embedding_provider.embedding_provider import EmbeddingProvider
 from kodit.embedding.embedding_provider.local_embedding_provider import (
     CODE,
     LocalEmbeddingProvider,
@@ -23,7 +22,7 @@ def embedding_factory(
 ) -> VectorSearchService:
     """Create an embedding service."""
     embedding_repository = EmbeddingRepository(session=session)
-    embedding_provider: EmbeddingProvider | None = None
+    embedding_provider = None
     openai_client = app_context.get_default_openai_client()
     if openai_client is not None:
         embedding_provider = OpenAIEmbeddingProvider(openai_client=openai_client)

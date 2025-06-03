@@ -17,8 +17,8 @@ class EmbeddingProvider(ABC):
     async def embed(self, data: list[str]) -> list[Vector]:
         """Embed a list of strings.
 
-        The embedding provider is responsible for embedding a list of strings into a list
-        of vectors. The embedding provider is responsible for splitting the list of
+        The embedding provider is responsible for embedding a list of strings into a
+        list of vectors. The embedding provider is responsible for splitting the list of
         strings into smaller sub-batches and embedding them in parallel.
         """
 
