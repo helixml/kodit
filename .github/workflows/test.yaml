@@ -58,13 +58,13 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v5
 
-      - run: uv build --sdist --out-dir test-build
+      - run: uv build --wheel --out-dir test-build
 
       - name: Upload built package
         uses: actions/upload-artifact@v4
         with:
           name: built-package
-          path: test-build/*.tar.gz
+          path: test-build/*.whl
 
   test-package:
     needs: build-package
@@ -88,12 +88,12 @@ jobs:
         with:
           python-version: 3.12
 
-      - name: Extract path to sdist
-        id: sdist_path
-        run: echo "sdist_path=$(ls test-build/*.tar.gz)" >> $GITHUB_OUTPUT
+      - name: Extract path to wheel
+        id: wheel_path
+        run: echo "wheel_path=$(ls test-build/*.whl)" >> $GITHUB_OUTPUT
 
-      - name: Install sdist
-        run: pipx install --include-deps "${{ steps.sdist_path.outputs.sdist_path }}"
+      - name: Install wheel
+        run: pipx install --include-deps "${{ steps.wheel_path.outputs.wheel_path }}"
 
       - name: Run simple version command test
         run: kodit version
