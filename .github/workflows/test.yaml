@@ -71,9 +71,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Install pipx
-        run: sudo apt update && sudo apt install pipx && pipx ensurepath
-
       - uses: actions/checkout@v4
         with:
           sparse-checkout: |
@@ -90,6 +87,9 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: 3.12
+
+      - name: Install pipx
+        run: sudo apt update && sudo apt install pipx && pipx ensurepath
 
       - name: Extract path to sdist
         id: sdist_path
