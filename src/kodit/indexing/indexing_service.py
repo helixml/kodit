@@ -20,6 +20,7 @@ from kodit.indexing.indexing_models import Snippet
 from kodit.indexing.indexing_repository import IndexRepository
 from kodit.snippets.snippets import SnippetService
 from kodit.source.source_service import SourceService
+from kodit.util.spinner import Spinner
 
 # List of MIME types that are blacklisted from being indexed
 MIME_BLACKLIST = ["unknown/unknown"]
@@ -132,12 +133,13 @@ class IndexService:
         snippets = await self.repository.get_all_snippets(index_id)
 
         self.log.info("Creating keyword index")
-        await self.keyword_search_provider.index(
-            [
-                BM25Document(snippet_id=snippet.id, text=snippet.content)
-                for snippet in tqdm(snippets, total=len(snippets), leave=False)
-            ]
-        )
+        with Spinner("Building keyword index..."):
+            await self.keyword_search_provider.index(
+                [
+                    BM25Document(snippet_id=snippet.id, text=snippet.content)
+                    for snippet in snippets
+                ]
+            )
 
         self.log.info("Creating semantic code index")
         async for e in tqdm(

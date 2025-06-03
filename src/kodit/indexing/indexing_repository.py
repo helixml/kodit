@@ -10,6 +10,7 @@ from typing import TypeVar
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.exc import MultipleResultsFound
 
 from kodit.embedding.embedding_models import Embedding
 from kodit.indexing.indexing_models import Index, Snippet
@@ -136,14 +137,22 @@ class IndexRepository:
             Snippet.index_id == snippet.index_id,
         )
         result = await self.session.execute(query)
-        existing_snippet = result.scalar_one_or_none()
+        try:
+            existing_snippet = result.scalar_one_or_none()
 
-        if existing_snippet:
-            existing_snippet.content = snippet.content
-        else:
-            self.session.add(snippet)
+            if existing_snippet:
+                existing_snippet.content = snippet.content
+            else:
+                self.session.add(snippet)
 
-        await self.session.commit()
+            await self.session.commit()
+        except MultipleResultsFound as e:
+            msg = (
+                f"Multiple snippets found for file_id {snippet.file_id}, this "
+                "shouldn't happen. "
+                "Please report this as a bug then delete your index and start again."
+            )
+            raise ValueError(msg) from e
 
     async def delete_all_snippets(self, index_id: int) -> None:
         """Delete all snippets for an index.
