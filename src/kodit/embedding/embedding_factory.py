@@ -15,6 +15,9 @@ from kodit.embedding.local_vector_search_service import LocalVectorSearchService
 from kodit.embedding.vector_search_service import (
     VectorSearchService,
 )
+from kodit.embedding.vectorchord_vector_search_service import (
+    VectorChordVectorSearchService,
+)
 
 
 def embedding_factory(
@@ -29,6 +32,13 @@ def embedding_factory(
     else:
         embedding_provider = LocalEmbeddingProvider(CODE)
 
-    return LocalVectorSearchService(
-        embedding_repository=embedding_repository, embedding_provider=embedding_provider
-    )
+    if app_context.semantic_search.provider == "vectorchord":
+        return VectorChordVectorSearchService(session, embedding_provider)
+    if app_context.semantic_search.provider == "sqlite":
+        return LocalVectorSearchService(
+            embedding_repository=embedding_repository,
+            embedding_provider=embedding_provider,
+        )
+
+    msg = f"Invalid semantic search provider: {app_context.semantic_search.provider}"
+    raise ValueError(msg)

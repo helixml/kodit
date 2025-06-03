@@ -64,6 +64,9 @@ class AppContext(BaseSettings):
     keyword_search: Search = Field(
         default=Search(),
     )
+    semantic_search: Search = Field(
+        default=Search(),
+    )
     _db: Database | None = None
 
     def model_post_init(self, _: Any) -> None:
