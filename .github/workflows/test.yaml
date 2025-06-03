@@ -95,6 +95,7 @@ jobs:
         id: wheel_path
         run: echo "wheel_path=$(ls test-build/*.whl)" >> $GITHUB_OUTPUT
 
+      # This is equivalent to `pipx install --include-deps, but faster
       - name: Install wheel
         run: uv tool install "${{ steps.wheel_path.outputs.wheel_path }}"
 
