@@ -38,26 +38,38 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         # Process batches in parallel with a semaphore to limit concurrent requests
         sem = asyncio.Semaphore(OPENAI_NUM_PARALLEL_TASKS)
 
-        async def process_batch(batch: list[str]) -> list[Vector]:
+        # Create a list of tuples with a temporary id for each batch
+        # We need to do this so that we can return the results in the same order as the
+        # input data
+        input_data = [(i, batch) for i, batch in enumerate(batched_data)]
+
+        async def process_batch(
+            data: tuple[int, list[str]],
+        ) -> tuple[int, list[Vector]]:
+            batch_id, batch = data
             async with sem:
                 try:
                     response = await self.openai_client.embeddings.create(
                         model=self.model_name,
                         input=batch,
                     )
-                    return [
+                    return batch_id, [
                         [float(x) for x in embedding.embedding]
                         for embedding in response.data
                     ]
                 except Exception as e:
                     self.log.exception("Error embedding batch", error=str(e))
-                    return []
+                    return batch_id, []
 
         # Create tasks for all batches
-        tasks = [process_batch(batch) for batch in batched_data]
+        tasks = [process_batch(batch) for batch in input_data]
 
         # Process all batches and yield results as they complete
-        results: list[Vector] = []
+        results: list[tuple[int, list[Vector]]] = []
         for task in asyncio.as_completed(tasks):
-            results.extend(await task)
-        return results
+            result = await task
+            results.append(result)
+
+        # Output in the same order as the input data
+        ordered_results = [result for _, result in sorted(results, key=lambda x: x[0])]
+        return [item for sublist in ordered_results for item in sublist]
