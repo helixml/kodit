@@ -77,7 +77,6 @@ class SearchService:
                 request.code_query, top_k=request.top_k
             )
             semantic_results = [x.snippet_id for x in query_embedding]
-            print(query_embedding)
             fusion_list.append(semantic_results)
 
         if len(fusion_list) == 0:
