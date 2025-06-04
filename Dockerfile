@@ -23,12 +23,12 @@ COPY --from=ghcr.io/astral-sh/uv:0.7.2 /uv /usr/local/bin/uv
 # - Silence uv complaining about not being able to use hard links,
 # - tell uv to byte-compile packages for faster application startups,
 # - prevent uv from accidentally downloading isolated Python builds,
-# - pick a Python (use `/usr/bin/python3.12` on uv 0.5.0 and later),
+# - pick a Python (use `/usr/bin/python3.13` on uv 0.5.0 and later),
 # - and finally declare `/app` as the target for `uv sync`.
 ENV UV_LINK_MODE=copy \
     UV_COMPILE_BYTECODE=1 \
     UV_PYTHON_DOWNLOADS=never \
-    UV_PYTHON=python3.12 \
+    UV_PYTHON=python3.13 \
     UV_PROJECT_ENVIRONMENT=/app
 
 # Synchronize DEPENDENCIES without the application itself.
