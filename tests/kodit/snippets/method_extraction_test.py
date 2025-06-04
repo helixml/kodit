@@ -106,3 +106,41 @@ def test_extract_csharp_methods() -> None:
     assert "public static string Main()" in main_func
     assert "var obj = new MyClass(42)" in main_func
     assert "return result" in main_func
+
+
+def test_extract_golang_methods() -> None:
+    """Test the Go method extraction functionality."""
+    source_code = (Path(__file__).parent / "golang.go").read_bytes()
+
+    # Query to capture function definitions, bodies, and imports
+    file_path = inspect.getfile(detect_language)
+    go_query = (Path(file_path).parent / "go.scm").read_text()
+
+    analyzer = MethodSnippets("go", go_query)
+    extracted_methods = analyzer.extract(source_code)
+
+    for method in extracted_methods:
+        print(method)  # noqa: T201
+        print("-" * 40)  # noqa: T201
+
+    assert len(extracted_methods) == 2  # main and add functions
+
+    # Verify each method contains its imports
+    for method in extracted_methods:
+        assert 'import "fmt"' in method
+
+    # Verify add function
+    add_funcs = [m for m in extracted_methods if "add" in m]
+    assert len(add_funcs) == 1
+    add_func = add_funcs[0]
+    assert "func add(a, b int) int" in add_func
+    assert "return a + b" in add_func
+
+    # Verify main function
+    main_funcs = [m for m in extracted_methods if "main" in m]
+    assert len(main_funcs) == 1
+    main_func = main_funcs[0]
+    assert "func main()" in main_func
+    assert "person := Person{" in main_func
+    assert 'fmt.Printf("Person: %+v\\n", person)' in main_func
+    assert 'fmt.Println("Hello, Go!")' in main_func

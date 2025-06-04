@@ -38,8 +38,15 @@ def split_sub_batches(encoding: tiktoken.Encoding, data: list[str]) -> list[list
             item_tokens = len(encoding.encode(next_item))
 
             if item_tokens > OPENAI_MAX_EMBEDDING_SIZE:
-                log.warning("Skipping too long snippet", snippet=data_to_process.pop(0))
-                continue
+                # Loop around trying to truncate the snippet until it fits in the max
+                # embedding size
+                while item_tokens > OPENAI_MAX_EMBEDDING_SIZE:
+                    next_item = next_item[:-1]
+                    item_tokens = len(encoding.encode(next_item))
+
+                data_to_process[0] = next_item
+
+                log.warning("Truncated snippet", snippet=next_item)
 
             if current_tokens + item_tokens > OPENAI_MAX_EMBEDDING_SIZE:
                 break
