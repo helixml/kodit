@@ -32,7 +32,7 @@ $prefix kodit index
 # Test search command
 $prefix kodit search keyword "Hello"
 $prefix kodit search code "Hello"
-$prefix kodit search hybrid --keywords "main" --code "def main()"
+$prefix kodit search hybrid --keywords "main" --code "def main()" --smoke "main"
 
 # Test serve command with timeout
 timeout 2s $prefix kodit serve || true
