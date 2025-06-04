@@ -23,7 +23,7 @@ from kodit.embedding.vector_search_service import (
     VectorSearchService,
 )
 from kodit.enrichment.enrichment_service import EnrichmentService
-from kodit.indexing.fusion import reciprocal_rank_fusion
+from kodit.indexing.fusion import FusionRequest, reciprocal_rank_fusion
 from kodit.indexing.indexing_models import Snippet
 from kodit.indexing.indexing_repository import IndexRepository
 from kodit.snippets.snippets import SnippetService
@@ -67,6 +67,7 @@ class SearchResult(pydantic.BaseModel):
     id: int
     uri: str
     content: str
+    original_scores: list[float]
 
 
 class IndexService:
@@ -212,7 +213,7 @@ class IndexService:
 
     async def search(self, request: SearchRequest) -> list[SearchResult]:
         """Search for relevant data."""
-        fusion_list = []
+        fusion_list: list[list[FusionRequest]] = []
         if request.keywords:
             # Gather results for each keyword
             result_ids: list[BM25Result] = []
@@ -222,42 +223,42 @@ class IndexService:
                 )
                 result_ids.extend(results)
 
-            # Sort results by score
-            result_ids.sort(key=lambda x: x[1], reverse=True)
-
-            self.log.debug("Search results (BM25)", results=result_ids)
-
-            bm25_results = [x[0] for x in result_ids]
-            fusion_list.append(bm25_results)
+            fusion_list.append(
+                [FusionRequest(id=x.snippet_id, score=x.score) for x in result_ids]
+            )
 
         # Compute embedding for semantic query
-        semantic_results = []
         if request.code_query:
             query_embedding = await self.code_search_service.retrieve(
                 request.code_query, top_k=request.top_k
             )
-            semantic_results = [x.snippet_id for x in query_embedding]
-            fusion_list.append(semantic_results)
+            fusion_list.append(
+                [FusionRequest(id=x.snippet_id, score=x.score) for x in query_embedding]
+            )
 
         if request.text_query:
             query_embedding = await self.text_search_service.retrieve(
                 request.text_query, top_k=request.top_k
             )
-            semantic_results = [x.snippet_id for x in query_embedding]
-            fusion_list.append(semantic_results)
+            fusion_list.append(
+                [FusionRequest(id=x.snippet_id, score=x.score) for x in query_embedding]
+            )
 
         if len(fusion_list) == 0:
             return []
 
         # Combine all results together with RFF if required
-        final_results = reciprocal_rank_fusion(fusion_list, k=60)
+        final_results = reciprocal_rank_fusion(
+            rankings=fusion_list,
+            k=60,
+        )
 
-        # Extract ids from final results
-        final_ids = [x[0] for x in final_results]
+        # Only keep top_k results
+        final_results = final_results[: request.top_k]
 
         # Get snippets from database (up to top_k)
         search_results = await self.repository.list_snippets_by_ids(
-            final_ids[: request.top_k]
+            [x.id for x in final_results]
         )
 
         return [
@@ -265,8 +266,9 @@ class IndexService:
                 id=snippet.id,
                 uri=file.uri,
                 content=snippet.content,
+                original_scores=fr.original_scores,
             )
-            for file, snippet in search_results
+            for (file, snippet), fr in zip(search_results, final_results, strict=True)
         ]
 
     async def _create_snippets(
