@@ -45,10 +45,12 @@ ON CONFLICT (snippet_id) DO UPDATE
 SET embedding = EXCLUDED.embedding
 """  # noqa: S608
 
+# Note that <=> in vectorchord is cosine distance
+# So scores go from 0 (similar) to 2 (opposite)
 SEARCH_QUERY = f"""
-SELECT snippet_id, embedding <-> :query as score
+SELECT snippet_id, embedding <=> :query as score
 FROM {TABLE_NAME}
-ORDER BY embedding <-> :query
+ORDER BY score ASC
 LIMIT :top_k;
 """  # noqa: S608
 
