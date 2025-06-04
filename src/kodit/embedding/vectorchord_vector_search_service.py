@@ -85,7 +85,7 @@ class VectorChordVectorSearchService(VectorSearchService):
 
     async def _create_tables(self) -> None:
         """Create the necessary tables."""
-        vector_dim = (await self.embedding_provider.embed(["kodit"]))[0]
+        vector_dim = (await self.embedding_provider.embed(["dimension"]))[0]
         await self._session.execute(
             text(
                 f"""CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
