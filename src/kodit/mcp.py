@@ -16,8 +16,10 @@ from kodit.bm25.keyword_search_factory import keyword_search_factory
 from kodit.config import AppContext
 from kodit.database import Database
 from kodit.embedding.embedding_factory import embedding_factory
-from kodit.search.search_repository import SearchRepository
-from kodit.search.search_service import SearchRequest, SearchResult, SearchService
+from kodit.indexing.indexing_repository import IndexRepository
+from kodit.indexing.indexing_service import IndexService, SearchRequest, SearchResult
+from kodit.source.source_repository import SourceRepository
+from kodit.source.source_service import SourceService
 
 
 @dataclass
@@ -123,24 +125,20 @@ async def search(
 
     mcp_context: MCPContext = ctx.request_context.lifespan_context
 
-    log.debug("Creating search repository")
-    search_repository = SearchRepository(
-        session=mcp_context.session,
+    source_repository = SourceRepository(mcp_context.session)
+    source_service = SourceService(
+        mcp_context.app_context.get_clone_dir(), source_repository
     )
-
-    log.debug("Creating embedding service")
-    embedding_service = embedding_factory(
-        app_context=mcp_context.app_context, session=mcp_context.session
-    )
-
-    log.debug("Creating search service")
-    search_service = SearchService(
-        repository=search_repository,
+    repository = IndexRepository(mcp_context.session)
+    service = IndexService(
+        repository=repository,
+        source_service=source_service,
         keyword_search_provider=keyword_search_factory(
-            app_context=mcp_context.app_context,
-            session=mcp_context.session,
+            mcp_context.app_context, mcp_context.session
         ),
-        embedding_service=embedding_service,
+        vector_search_service=embedding_factory(
+            mcp_context.app_context, mcp_context.session
+        ),
     )
 
     search_request = SearchRequest(
@@ -148,7 +146,7 @@ async def search(
         code_query="\n".join(related_file_contents),
     )
     log.debug("Searching for snippets")
-    snippets = await search_service.search(request=search_request)
+    snippets = await service.search(request=search_request)
 
     log.debug("Fusing output")
     output = output_fusion(snippets=snippets)

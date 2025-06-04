@@ -18,10 +18,8 @@ from kodit.config import (
 )
 from kodit.embedding.embedding_factory import embedding_factory
 from kodit.indexing.indexing_repository import IndexRepository
-from kodit.indexing.indexing_service import IndexService
+from kodit.indexing.indexing_service import IndexService, SearchRequest
 from kodit.log import configure_logging, configure_telemetry, log_event
-from kodit.search.search_repository import SearchRepository
-from kodit.search.search_service import SearchRequest, SearchService
 from kodit.source.source_repository import SourceRepository
 from kodit.source.source_service import SourceService
 
@@ -131,11 +129,16 @@ async def code(
 
     This works best if your query is code.
     """
-    repository = SearchRepository(session)
-    service = SearchService(
-        repository,
+    source_repository = SourceRepository(session)
+    source_service = SourceService(app_context.get_clone_dir(), source_repository)
+    repository = IndexRepository(session)
+    service = IndexService(
+        repository=repository,
+        source_service=source_service,
         keyword_search_provider=keyword_search_factory(app_context, session),
-        embedding_service=embedding_factory(app_context=app_context, session=session),
+        vector_search_service=embedding_factory(
+            app_context=app_context, session=session
+        ),
     )
 
     snippets = await service.search(SearchRequest(code_query=query, top_k=top_k))
@@ -164,11 +167,16 @@ async def keyword(
     top_k: int,
 ) -> None:
     """Search for snippets using keyword search."""
-    repository = SearchRepository(session)
-    service = SearchService(
-        repository,
+    source_repository = SourceRepository(session)
+    source_service = SourceService(app_context.get_clone_dir(), source_repository)
+    repository = IndexRepository(session)
+    service = IndexService(
+        repository=repository,
+        source_service=source_service,
         keyword_search_provider=keyword_search_factory(app_context, session),
-        embedding_service=embedding_factory(app_context=app_context, session=session),
+        vector_search_service=embedding_factory(
+            app_context=app_context, session=session
+        ),
     )
 
     snippets = await service.search(SearchRequest(keywords=keywords, top_k=top_k))
@@ -199,11 +207,16 @@ async def hybrid(
     code: str,
 ) -> None:
     """Search for snippets using hybrid search."""
-    repository = SearchRepository(session)
-    service = SearchService(
-        repository,
+    source_repository = SourceRepository(session)
+    source_service = SourceService(app_context.get_clone_dir(), source_repository)
+    repository = IndexRepository(session)
+    service = IndexService(
+        repository=repository,
+        source_service=source_service,
         keyword_search_provider=keyword_search_factory(app_context, session),
-        embedding_service=embedding_factory(app_context=app_context, session=session),
+        vector_search_service=embedding_factory(
+            app_context=app_context, session=session
+        ),
     )
 
     # Parse keywords into a list of strings
