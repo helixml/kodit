@@ -73,6 +73,7 @@ jobs:
         with:
           sparse-checkout: |
             tests/smoke.sh
+            uv.lock
           sparse-checkout-cone-mode: false
 
       - name: Download built package
