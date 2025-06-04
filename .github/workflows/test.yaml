@@ -62,6 +62,11 @@ jobs:
   test-package:
     needs: build-package
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version:
+          - 3.12
+          - 3.13
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -79,7 +84,7 @@ jobs:
       - name: "Set up Python"
         uses: actions/setup-python@v5
         with:
-          python-version-file: ".python-version"
+          python-version: ${{ matrix.python-version }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
