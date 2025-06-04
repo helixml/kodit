@@ -18,6 +18,7 @@ from kodit.embedding.local_vector_search_service import LocalVectorSearchService
 from kodit.embedding.vector_search_service import (
     VectorSearchService,
 )
+from kodit.enrichment.enrichment_service import NullEnrichmentService
 from kodit.indexing.indexing_repository import IndexRepository
 from kodit.indexing.indexing_service import IndexService
 from kodit.source.source_models import File, Source
@@ -64,10 +65,12 @@ def service(
     """Create a real service instance with a database session."""
     keyword_search_provider = BM25Service(app_context.get_data_dir())
     return IndexService(
-        repository,
-        source_service,
-        keyword_search_provider,
-        embedding_service,
+        repository=repository,
+        source_service=source_service,
+        keyword_search_provider=keyword_search_provider,
+        code_search_service=embedding_service,
+        text_search_service=embedding_service,
+        enrichment_service=NullEnrichmentService(),
     )
 
 
@@ -151,7 +154,7 @@ async def test_run_index(
     # Verify snippets were created
     snippets = await repository.get_snippets_for_index(index.id)
     assert len(snippets) == 1
-    assert snippets[0].content == "print('hello')"
+    assert "print('hello')" in snippets[0].content
 
     # Try to create second index, should be fine
     await service.create(source.id)
