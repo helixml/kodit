@@ -194,10 +194,10 @@ Out of the box Kodit uses a local sqlite file to make it easier for users to get
 started. But for production use, it's likely you will want to use a database that has
 dedicated semantic and keyword search capabilities for reduced latency.
 
-#### VectorChord
+#### VectorChord Database
 
 [VectorChord](https://github.com/tensorchord/VectorChord) is an optimized PostgreSQL
-extension that provides both vector and BM25 search.
+extension that provides both vector and BM25 search. (See [Search](#search))
 
 Start a container with:
 
@@ -221,7 +221,30 @@ Then update your `.env` file to include:
 
 ```env
 DB_URL=postgresql+asyncpg://postgres:mysecretpassword@localhost:5432/kodit
-SEARCH_PROVIDER=vectorchord
+```
+
+### Search
+
+#### Default Search Provider
+
+By default, Kodit will use built-in implementations of BM25 and similarity search to
+improve the out of the box experience. If you are using Kodit in a professional
+capacity, it is likely that the search latency is too high to provide a good developer
+experience.
+
+Instead, you should use the features included in your database. The settings provided
+here will cause all search functionality to use this database by default. You can
+override the database used for each search type if you wish. (Coming soon!)
+
+##### VectorChord Search
+
+Configure Kodit to use a [VectorChord database](#vectorchord-database).
+
+Then update your `.env` file to include:
+
+```env
+DB_URL=postgresql+asyncpg://postgres:mysecretpassword@localhost:5432/kodit
+DEFAULT_SEARCH_PROVIDER=vectorchord
 ```
 
 ## Managing Kodit

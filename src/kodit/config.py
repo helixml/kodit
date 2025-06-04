@@ -61,7 +61,7 @@ class AppContext(BaseSettings):
             "(can be overridden by task-specific configuration)."
         ),
     )
-    search: Search = Field(
+    default_search: Search = Field(
         default=Search(),
     )
     _db: Database | None = None

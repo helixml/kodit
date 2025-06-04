@@ -32,13 +32,13 @@ def embedding_factory(
     else:
         embedding_provider = LocalEmbeddingProvider(CODE)
 
-    if app_context.search.provider == "vectorchord":
+    if app_context.default_search.provider == "vectorchord":
         return VectorChordVectorSearchService(session, embedding_provider)
-    if app_context.search.provider == "sqlite":
+    if app_context.default_search.provider == "sqlite":
         return LocalVectorSearchService(
             embedding_repository=embedding_repository,
             embedding_provider=embedding_provider,
         )
 
-    msg = f"Invalid semantic search provider: {app_context.search.provider}"
+    msg = f"Invalid semantic search provider: {app_context.default_search.provider}"
     raise ValueError(msg)
