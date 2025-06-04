@@ -169,7 +169,7 @@ recreate all indexes.
 
 ### Indexing
 
-#### Default Provider
+#### Default Indexing Provider
 
 By default, Kodit will use small local models for semantic search and enrichment. If you
 are using Kodit in a professional capacity, it is likely that the local model latency is
@@ -246,6 +246,12 @@ Then update your `.env` file to include:
 DB_URL=postgresql+asyncpg://postgres:mysecretpassword@localhost:5432/kodit
 DEFAULT_SEARCH_PROVIDER=vectorchord
 ```
+
+### Enrichment
+
+#### Default Enrichment Provider
+
+The default enrichment provider is the same as [the default indexing provider](#default-indexing-provider).
 
 ## Managing Kodit
 

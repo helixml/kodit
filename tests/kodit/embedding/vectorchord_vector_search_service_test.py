@@ -146,6 +146,7 @@ def vector_search_service(
     vectorchord_session: AsyncSession, embedding_provider: EmbeddingProvider
 ):
     return VectorChordVectorSearchService(
+        task_name="test",
         session=vectorchord_session,
         embedding_provider=embedding_provider,
     )

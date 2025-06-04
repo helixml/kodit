@@ -22,6 +22,7 @@ from kodit.embedding.vector_search_service import (
     VectorSearchRequest,
     VectorSearchService,
 )
+from kodit.enrichment.enrichment_service import EnrichmentService
 from kodit.indexing.fusion import reciprocal_rank_fusion
 from kodit.indexing.indexing_models import Snippet
 from kodit.indexing.indexing_repository import IndexRepository
@@ -50,6 +51,7 @@ class IndexView(pydantic.BaseModel):
 class SearchRequest(pydantic.BaseModel):
     """Request for a search."""
 
+    text_query: str | None = None
     code_query: str | None = None
     keywords: list[str] | None = None
     top_k: int = 10
@@ -80,7 +82,9 @@ class IndexService:
         repository: IndexRepository,
         source_service: SourceService,
         keyword_search_provider: KeywordSearchProvider,
-        vector_search_service: VectorSearchService,
+        code_search_service: VectorSearchService,
+        text_search_service: VectorSearchService,
+        enrichment_service: EnrichmentService,
     ) -> None:
         """Initialize the index service.
 
@@ -94,7 +98,9 @@ class IndexService:
         self.snippet_service = SnippetService()
         self.log = structlog.get_logger(__name__)
         self.keyword_search_provider = keyword_search_provider
-        self.code_search_service = vector_search_service
+        self.code_search_service = code_search_service
+        self.text_search_service = text_search_service
+        self.enrichment_service = enrichment_service
 
     async def create(self, source_id: int) -> IndexView:
         """Create a new index for a source.
@@ -177,6 +183,30 @@ class IndexService:
                 ]
             )
 
+        self.log.info("Enriching snippets")
+        enriched_contents = await self.enrichment_service.enrich(
+            [snippet.content for snippet in snippets]
+        )
+
+        self.log.info("Creating semantic text index")
+        with Spinner():
+            await self.text_search_service.index(
+                [
+                    VectorSearchRequest(snippet.id, enriched_content)
+                    for snippet, enriched_content in zip(
+                        snippets, enriched_contents, strict=True
+                    )
+                ]
+            )
+            # Add the enriched text back to the snippets and write to the database
+            for snippet, enriched_content in zip(
+                snippets, enriched_contents, strict=True
+            ):
+                snippet.content = (
+                    enriched_content + "\n\n```\n" + snippet.content + "\n```"
+                )
+                await self.repository.add_snippet_or_update_content(snippet)
+
         # Update index timestamp
         await self.repository.update_index_timestamp(index)
 
@@ -205,6 +235,13 @@ class IndexService:
         if request.code_query:
             query_embedding = await self.code_search_service.retrieve(
                 request.code_query, top_k=request.top_k
+            )
+            semantic_results = [x.snippet_id for x in query_embedding]
+            fusion_list.append(semantic_results)
+
+        if request.text_query:
+            query_embedding = await self.text_search_service.retrieve(
+                request.text_query, top_k=request.top_k
             )
             semantic_results = [x.snippet_id for x in query_embedding]
             fusion_list.append(semantic_results)

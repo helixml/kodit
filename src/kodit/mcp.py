@@ -16,6 +16,7 @@ from kodit.bm25.keyword_search_factory import keyword_search_factory
 from kodit.config import AppContext
 from kodit.database import Database
 from kodit.embedding.embedding_factory import embedding_factory
+from kodit.enrichment.enrichment_factory import enrichment_factory
 from kodit.indexing.indexing_repository import IndexRepository
 from kodit.indexing.indexing_service import IndexService, SearchRequest, SearchResult
 from kodit.source.source_repository import SourceRepository
@@ -136,15 +137,25 @@ async def search(
         keyword_search_provider=keyword_search_factory(
             mcp_context.app_context, mcp_context.session
         ),
-        vector_search_service=embedding_factory(
-            mcp_context.app_context, mcp_context.session
+        code_search_service=embedding_factory(
+            task_name="code",
+            app_context=mcp_context.app_context,
+            session=mcp_context.session,
         ),
+        text_search_service=embedding_factory(
+            task_name="text",
+            app_context=mcp_context.app_context,
+            session=mcp_context.session,
+        ),
+        enrichment_service=enrichment_factory(mcp_context.app_context),
     )
 
     search_request = SearchRequest(
         keywords=keywords,
         code_query="\n".join(related_file_contents),
+        text_query=user_intent,
     )
+
     log.debug("Searching for snippets")
     snippets = await service.search(request=search_request)
 

@@ -21,7 +21,7 @@ from kodit.embedding.vectorchord_vector_search_service import (
 
 
 def embedding_factory(
-    app_context: AppContext, session: AsyncSession
+    task_name: str, app_context: AppContext, session: AsyncSession
 ) -> VectorSearchService:
     """Create an embedding service."""
     embedding_repository = EmbeddingRepository(session=session)
@@ -33,7 +33,7 @@ def embedding_factory(
         embedding_provider = LocalEmbeddingProvider(CODE)
 
     if app_context.default_search.provider == "vectorchord":
-        return VectorChordVectorSearchService(session, embedding_provider)
+        return VectorChordVectorSearchService(task_name, session, embedding_provider)
     if app_context.default_search.provider == "sqlite":
         return LocalVectorSearchService(
             embedding_repository=embedding_repository,

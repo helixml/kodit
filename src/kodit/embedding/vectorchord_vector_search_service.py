@@ -12,23 +12,20 @@ from kodit.embedding.vector_search_service import (
     VectorSearchService,
 )
 
-TABLE_NAME = "vectorchord_embeddings"
-INDEX_NAME = f"{TABLE_NAME}_idx"
-
 # SQL Queries
 CREATE_VCHORD_EXTENSION = """
 CREATE EXTENSION IF NOT EXISTS vchord CASCADE;
 """
 
-CHECK_VCHORD_EMBEDDING_DIMENSION = f"""
+CHECK_VCHORD_EMBEDDING_DIMENSION = """
 SELECT a.atttypmod as dimension
 FROM pg_attribute a
 JOIN pg_class c ON a.attrelid = c.oid
 WHERE c.relname = '{TABLE_NAME}'
 AND a.attname = 'embedding';
-"""  # noqa: S608
+"""
 
-CREATE_VCHORD_INDEX = f"""
+CREATE_VCHORD_INDEX = """
 CREATE INDEX IF NOT EXISTS {INDEX_NAME}
 ON {TABLE_NAME}
 USING vchordrq (embedding vector_l2_ops) WITH (options = $$
@@ -38,21 +35,21 @@ lists = []
 $$);
 """
 
-INSERT_QUERY = f"""
+INSERT_QUERY = """
 INSERT INTO {TABLE_NAME} (snippet_id, embedding)
 VALUES (:snippet_id, :embedding)
 ON CONFLICT (snippet_id) DO UPDATE
 SET embedding = EXCLUDED.embedding
-"""  # noqa: S608
+"""
 
 # Note that <=> in vectorchord is cosine distance
 # So scores go from 0 (similar) to 2 (opposite)
-SEARCH_QUERY = f"""
+SEARCH_QUERY = """
 SELECT snippet_id, embedding <=> :query as score
 FROM {TABLE_NAME}
 ORDER BY score ASC
 LIMIT :top_k;
-"""  # noqa: S608
+"""
 
 
 class VectorChordVectorSearchService(VectorSearchService):
@@ -60,6 +57,7 @@ class VectorChordVectorSearchService(VectorSearchService):
 
     def __init__(
         self,
+        task_name: str,
         session: AsyncSession,
         embedding_provider: EmbeddingProvider,
     ) -> None:
@@ -67,6 +65,8 @@ class VectorChordVectorSearchService(VectorSearchService):
         self.embedding_provider = embedding_provider
         self._session = session
         self._initialized = False
+        self.table_name = f"vectorchord_{task_name}_embeddings"
+        self.index_name = f"{self.table_name}_idx"
 
     async def _initialize(self) -> None:
         """Initialize the VectorChord environment."""
@@ -88,15 +88,23 @@ class VectorChordVectorSearchService(VectorSearchService):
         vector_dim = (await self.embedding_provider.embed(["dimension"]))[0]
         await self._session.execute(
             text(
-                f"""CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
+                f"""CREATE TABLE IF NOT EXISTS {self.table_name} (
                     id SERIAL PRIMARY KEY,
                     snippet_id INT NOT NULL UNIQUE,
                     embedding VECTOR({len(vector_dim)}) NOT NULL
                 );"""
             )
         )
-        await self._session.execute(text(CREATE_VCHORD_INDEX))
-        result = await self._session.execute(text(CHECK_VCHORD_EMBEDDING_DIMENSION))
+        await self._session.execute(
+            text(
+                CREATE_VCHORD_INDEX.format(
+                    TABLE_NAME=self.table_name, INDEX_NAME=self.index_name
+                )
+            )
+        )
+        result = await self._session.execute(
+            text(CHECK_VCHORD_EMBEDDING_DIMENSION.format(TABLE_NAME=self.table_name))
+        )
         vector_dim_from_db = result.scalar_one()
         if vector_dim_from_db != len(vector_dim):
             msg = (
@@ -123,7 +131,7 @@ class VectorChordVectorSearchService(VectorSearchService):
         embeddings = await self.embedding_provider.embed([doc.text for doc in data])
         # Execute inserts
         await self._execute(
-            text(INSERT_QUERY),
+            text(INSERT_QUERY.format(TABLE_NAME=self.table_name)),
             [
                 {"snippet_id": doc.snippet_id, "embedding": str(embedding)}
                 for doc, embedding in zip(data, embeddings, strict=True)
@@ -135,7 +143,8 @@ class VectorChordVectorSearchService(VectorSearchService):
         """Query the embedding model."""
         embedding = await self.embedding_provider.embed([query])
         result = await self._execute(
-            text(SEARCH_QUERY), {"query": str(embedding[0]), "top_k": top_k}
+            text(SEARCH_QUERY.format(TABLE_NAME=self.table_name)),
+            {"query": str(embedding[0]), "top_k": top_k},
         )
         rows = result.mappings().all()
 

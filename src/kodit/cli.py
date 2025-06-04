@@ -17,6 +17,7 @@ from kodit.config import (
     with_session,
 )
 from kodit.embedding.embedding_factory import embedding_factory
+from kodit.enrichment.enrichment_factory import enrichment_factory
 from kodit.indexing.indexing_repository import IndexRepository
 from kodit.indexing.indexing_service import IndexService, SearchRequest
 from kodit.log import configure_logging, configure_telemetry, log_event
@@ -70,9 +71,13 @@ async def index(
         repository=repository,
         source_service=source_service,
         keyword_search_provider=keyword_search_factory(app_context, session),
-        vector_search_service=embedding_factory(
-            app_context=app_context, session=session
+        code_search_service=embedding_factory(
+            task_name="code", app_context=app_context, session=session
         ),
+        text_search_service=embedding_factory(
+            task_name="text", app_context=app_context, session=session
+        ),
+        enrichment_service=enrichment_factory(app_context),
     )
 
     if not sources:
@@ -136,9 +141,13 @@ async def code(
         repository=repository,
         source_service=source_service,
         keyword_search_provider=keyword_search_factory(app_context, session),
-        vector_search_service=embedding_factory(
-            app_context=app_context, session=session
+        code_search_service=embedding_factory(
+            task_name="code", app_context=app_context, session=session
         ),
+        text_search_service=embedding_factory(
+            task_name="text", app_context=app_context, session=session
+        ),
+        enrichment_service=enrichment_factory(app_context),
     )
 
     snippets = await service.search(SearchRequest(code_query=query, top_k=top_k))
@@ -174,9 +183,13 @@ async def keyword(
         repository=repository,
         source_service=source_service,
         keyword_search_provider=keyword_search_factory(app_context, session),
-        vector_search_service=embedding_factory(
-            app_context=app_context, session=session
+        code_search_service=embedding_factory(
+            task_name="code", app_context=app_context, session=session
         ),
+        text_search_service=embedding_factory(
+            task_name="text", app_context=app_context, session=session
+        ),
+        enrichment_service=enrichment_factory(app_context),
     )
 
     snippets = await service.search(SearchRequest(keywords=keywords, top_k=top_k))
@@ -194,9 +207,55 @@ async def keyword(
 
 
 @search.command()
+@click.argument("query")
+@click.option("--top-k", default=10, help="Number of snippets to retrieve")
+@with_app_context
+@with_session
+async def text(
+    session: AsyncSession,
+    app_context: AppContext,
+    query: str,
+    top_k: int,
+) -> None:
+    """Search for snippets using semantic text search.
+
+    This works best if your query is text.
+    """
+    source_repository = SourceRepository(session)
+    source_service = SourceService(app_context.get_clone_dir(), source_repository)
+    repository = IndexRepository(session)
+    service = IndexService(
+        repository=repository,
+        source_service=source_service,
+        keyword_search_provider=keyword_search_factory(app_context, session),
+        code_search_service=embedding_factory(
+            task_name="code", app_context=app_context, session=session
+        ),
+        text_search_service=embedding_factory(
+            task_name="text", app_context=app_context, session=session
+        ),
+        enrichment_service=enrichment_factory(app_context),
+    )
+
+    snippets = await service.search(SearchRequest(text_query=query, top_k=top_k))
+
+    if len(snippets) == 0:
+        click.echo("No snippets found")
+        return
+
+    for snippet in snippets:
+        click.echo("-" * 80)
+        click.echo(f"{snippet.uri}")
+        click.echo(snippet.content)
+        click.echo("-" * 80)
+        click.echo()
+
+
+@search.command()
 @click.option("--top-k", default=10, help="Number of snippets to retrieve")
 @click.option("--keywords", required=True, help="Comma separated list of keywords")
 @click.option("--code", required=True, help="Semantic code search query")
+@click.option("--text", required=True, help="Semantic text search query")
 @with_app_context
 @with_session
 async def hybrid(
@@ -205,6 +264,7 @@ async def hybrid(
     top_k: int,
     keywords: str,
     code: str,
+    text: str,
 ) -> None:
     """Search for snippets using hybrid search."""
     source_repository = SourceRepository(session)
@@ -214,16 +274,25 @@ async def hybrid(
         repository=repository,
         source_service=source_service,
         keyword_search_provider=keyword_search_factory(app_context, session),
-        vector_search_service=embedding_factory(
-            app_context=app_context, session=session
+        code_search_service=embedding_factory(
+            task_name="code", app_context=app_context, session=session
         ),
+        text_search_service=embedding_factory(
+            task_name="text", app_context=app_context, session=session
+        ),
+        enrichment_service=enrichment_factory(app_context),
     )
 
     # Parse keywords into a list of strings
     keywords_list = [k.strip().lower() for k in keywords.split(",")]
 
     snippets = await service.search(
-        SearchRequest(keywords=keywords_list, code_query=code, top_k=top_k)
+        SearchRequest(
+            text_query=text,
+            keywords=keywords_list,
+            code_query=code,
+            top_k=top_k,
+        )
     )
 
     if len(snippets) == 0:
