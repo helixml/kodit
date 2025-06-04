@@ -29,7 +29,9 @@ class LocalEnrichmentProvider(EnrichmentProvider):
         if self.model is None:
             os.environ["TOKENIZERS_PARALLELISM"] = "false"  # Avoid warnings
             self.model = AutoModelForCausalLM.from_pretrained(
-                self.model_name, torch_dtype="auto", device_map="auto"
+                self.model_name,
+                torch_dtype="auto",
+                trust_remote_code=True,
             )
 
         results = []
