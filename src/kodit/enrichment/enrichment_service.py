@@ -2,9 +2,7 @@
 
 from abc import ABC, abstractmethod
 
-from kodit.enrichment.enrichment_provider.openai_enrichment_provider import (
-    OpenAIEnrichmentProvider,
-)
+from kodit.enrichment.enrichment_provider.enrichment_provider import EnrichmentProvider
 
 
 class EnrichmentService(ABC):
@@ -23,10 +21,10 @@ class NullEnrichmentService(EnrichmentService):
         return [""] * len(data)
 
 
-class OpenAIEnrichmentService(EnrichmentService):
-    """Enrichment service."""
+class LLMEnrichmentService(EnrichmentService):
+    """Enrichment service using an LLM."""
 
-    def __init__(self, enrichment_provider: OpenAIEnrichmentProvider) -> None:
+    def __init__(self, enrichment_provider: EnrichmentProvider) -> None:
         """Initialize the enrichment service."""
         self.enrichment_provider = enrichment_provider
 

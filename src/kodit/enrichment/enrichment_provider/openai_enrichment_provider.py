@@ -7,15 +7,15 @@ import tiktoken
 from openai import AsyncOpenAI
 from tqdm import tqdm
 
+from kodit.enrichment.enrichment_provider.enrichment_provider import (
+    ENRICHMENT_SYSTEM_PROMPT,
+    EnrichmentProvider,
+)
+
 OPENAI_NUM_PARALLEL_TASKS = 10
 
-ENRICHMENT_SYSTEM_PROMPT = """
-You are a professional software developer. You will be given a snippet of code.
-Please provide a concise explanation of the code.
-"""
 
-
-class OpenAIEnrichmentProvider:
+class OpenAIEnrichmentProvider(EnrichmentProvider):
     """OpenAI enrichment provider."""
 
     def __init__(
