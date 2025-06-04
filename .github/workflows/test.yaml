@@ -9,7 +9,6 @@ on:
 permissions:
   contents: read # Needed to check out code
   checks: write # Needed to report test results
-  pull-requests: write # Needed to add comments/annotations to PRs
 
 jobs:
   test:
@@ -36,12 +35,6 @@ jobs:
 
       - name: Run tests
         run: uv run pytest -s --cov=src --cov-report=xml tests/kodit
-
-      - name: Pytest coverage comment
-        if: github.event_name == 'pull_request'
-        uses: MishaKav/pytest-coverage-comment@v1.1.54
-        with:
-          pytest-xml-coverage-path: ./coverage.xml
 
   build-package:
     runs-on: ubuntu-latest

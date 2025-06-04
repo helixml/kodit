@@ -1,0 +1,35 @@
+# This workflow will install dependencies, create coverage tests and run Pytest Coverage Comment
+# For more information see: https://github.com/MishaKav/pytest-coverage-comment/
+name: pytest-coverage-comment
+on:
+  pull_request:
+    branches:
+      - "*"
+
+# https://docs.github.com/en/actions/using-jobs/assigning-permissions-to-jobs
+# `contents` is for permission to the contents of the repository.
+# `pull-requests` is for permission to pull request
+permissions:
+  contents: write
+  checks: write
+  pull-requests: write
+
+jobs:
+  coverage-comment:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --locked --all-extras --dev
+
+      - name: Run tests
+        run: uv run pytest --junitxml=pytest.xml --cov-report=term-missing:skip-covered --cov=src tests/kodit | tee pytest-coverage.txt
+
+      - name: Pytest coverage comment
+        uses: MishaKav/pytest-coverage-comment@main
+        with:
+          pytest-coverage-path: ./pytest-coverage.txt
+          junitxml-path: ./pytest.xml
