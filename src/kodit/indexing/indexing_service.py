@@ -77,7 +77,7 @@ class IndexService:
     IndexRepository), and provides a clean API for index management.
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         repository: IndexRepository,
         source_service: SourceService,

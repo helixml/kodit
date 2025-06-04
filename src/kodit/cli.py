@@ -258,7 +258,7 @@ async def text(
 @click.option("--text", required=True, help="Semantic text search query")
 @with_app_context
 @with_session
-async def hybrid(
+async def hybrid(  # noqa: PLR0913
     session: AsyncSession,
     app_context: AppContext,
     top_k: int,
