@@ -31,7 +31,7 @@ class Source(Base, CommonMixin):
 
     __tablename__ = "sources"
     uri: Mapped[str] = mapped_column(String(1024), index=True, unique=True)
-    cloned_path: Mapped[str] = mapped_column(String(1024))
+    cloned_path: Mapped[str] = mapped_column(String(1024), index=True)
 
     def __init__(self, uri: str, cloned_path: str) -> None:
         """Initialize a new Source instance for typing purposes."""
@@ -46,9 +46,9 @@ class File(Base, CommonMixin):
     __tablename__ = "files"
 
     source_id: Mapped[int] = mapped_column(ForeignKey("sources.id"))
-    mime_type: Mapped[str] = mapped_column(String(255), default="")
-    uri: Mapped[str] = mapped_column(String(1024), default="")
-    cloned_path: Mapped[str] = mapped_column(String(1024))
+    mime_type: Mapped[str] = mapped_column(String(255), default="", index=True)
+    uri: Mapped[str] = mapped_column(String(1024), default="", index=True)
+    cloned_path: Mapped[str] = mapped_column(String(1024), index=True)
     sha256: Mapped[str] = mapped_column(String(64), default="", index=True)
     size_bytes: Mapped[int] = mapped_column(Integer, default=0)
 
