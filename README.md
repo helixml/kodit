@@ -12,7 +12,9 @@ Kodit connects your AI coding assistant to external codebases to provide accurat
 
 <div align="center">
 
-<a href="https://docs.helix.ml/kodit/" target="_blank"><img src="https://img.shields.io/badge/Documentation-6B46C1?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Documentation"></a>
+[![Documentation](https://img.shields.io/badge/Documentation-6B46C1?style=for-the-badge&logo=readthedocs&logoColor=white)](https://docs.helix.ml/kodit/)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=for-the-badge)](./LICENSE)
+[![Discussions](https://img.shields.io/badge/Discussions-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/helixml/kodit/discussions)
 
 </div>
 
@@ -28,32 +30,17 @@ If you're an engineer working with AI-powered coding assistants, Kodit helps by
 providing relevant and up-to-date examples of your task so that LLMs make less mistakes
 and produce fewer hallucinations.
 
----
-
-## Quick Start
-
-1. [Install Kodit](https://docs.helix.ml/kodit/#installation)
-2. [Index codebases](https://docs.helix.ml/kodit/#quick-start)
-3. [Integrate with your coding assistant](https://docs.helix.ml/kodit/#integrating-kodit-with-coding-assistants)
-
-### Documentation
-
-- [Installation Guide](https://docs.helix.ml/kodit/#installation)
-- [Usage Guide](https://docs.helix.ml/kodit/#quick-start)
-- [Connecting to Kodit](https://docs.helix.ml/kodit/#integrating-kodit-with-coding-assistants)
-- [Configuration Options](https://docs.helix.ml/kodit/#configuring-kodit)
-- [Contribution Guidelines](.github/CONTRIBUTING.md)
-
-## Key Features
+## ✨ Features
 
 ### Codebase Indexing
 
 Kodit connects to a variety of local and remote codebases to build an index of your
 code. This index is used to build a snippet library, ready for ingestion into an LLM.
-Kodit supports indexing:
 
-- Local directories
-- Public Git repositories
+- Index local directories and public Git repositories
+- Build comprehensive snippet libraries for LLM ingestion
+- Support for multiple codebase types and languages
+- Efficient indexing and search capabilities
 
 ### MCP Server
 
@@ -61,10 +48,11 @@ Relevant snippets are exposed to an AI coding assistant via an MCP server. This 
 the assistant to request relevant snippets by providing keywords, code, and semantic
 intent. Kodit has been tested to work well with:
 
-- [Cursor](https://docs.helix.ml/kodit/#integration-with-cursor)
-- [Cline](https://docs.helix.ml/kodit/#integration-with-cline)
-- Please contribute more instructions!
-- ... any other assistant is likely to work ...
+- Seamless integration with popular AI coding assistants
+- Tested and verified with:
+  - [Cursor](https://docs.helix.ml/kodit/#integration-with-cursor)
+  - [Cline](https://docs.helix.ml/kodit/#integration-with-cline)
+- Please contribute more instructions! ... any other assistant is likely to work ...
 
 ### Enterprise Ready
 
@@ -82,13 +70,32 @@ Supported providers:
 
 - Local (which uses tiny CPU-only open-source models)
 - OpenAI
+- Secure, private LLM enclave with [Helix](https://helix.ml).
 - Any other OpenAI compatible API
 
-## Support
+## 🚀 Quick Start
+
+1. [Install Kodit](https://docs.helix.ml/kodit/#installation)
+2. [Index codebases](https://docs.helix.ml/kodit/#quick-start)
+3. [Integrate with your coding assistant](https://docs.helix.ml/kodit/#integrating-kodit-with-coding-assistants)
+
+### Documentation
+
+- [Installation Guide](https://docs.helix.ml/kodit/#installation)
+- [Usage Guide](https://docs.helix.ml/kodit/#quick-start)
+- [Connecting to Kodit](https://docs.helix.ml/kodit/#integrating-kodit-with-coding-assistants)
+- [Configuration Options](https://docs.helix.ml/kodit/#configuring-kodit)
+- [Contribution Guidelines](.github/CONTRIBUTING.md)
+
+## 🗺️ Roadmap
+
+The roadmap is currently maintained as a [Github Project](https://github.com/orgs/helixml/projects/4).
+
+## 💬 Support
 
 For commercial support, please contact [Helix.ML](founders@helix.ml). To ask a question,
 please [open a discussion](https://github.com/helixml/kodit/discussions).
 
-## License
+## 📄 License
 
 [Apache 2.0 © 2025 HelixML, Inc.](./LICENSE)
