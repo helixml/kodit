@@ -87,7 +87,7 @@ Supported providers:
 - [Configuration Options](https://docs.helix.ml/kodit/#configuring-kodit)
 - [Contribution Guidelines](.github/CONTRIBUTING.md)
 
-## 🗺️ Roadmap
+## Roadmap
 
 The roadmap is currently maintained as a [Github Project](https://github.com/orgs/helixml/projects/4).
 
@@ -96,6 +96,6 @@ The roadmap is currently maintained as a [Github Project](https://github.com/org
 For commercial support, please contact [Helix.ML](founders@helix.ml). To ask a question,
 please [open a discussion](https://github.com/helixml/kodit/discussions).
 
-## 📄 License
+## License
 
 [Apache 2.0 © 2025 HelixML, Inc.](./LICENSE)
