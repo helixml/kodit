@@ -156,13 +156,16 @@ async def test_run_index(
     assert len(snippets) == 1
     assert "print('hello')" in snippets[0].content
 
-    # Try to create second index, should be fine
-    await service.create(source.id)
+    # Try to create second index, should be the same index
+    new_index = await service.create(source.id)
+    assert index.id == new_index.id
 
-    # Try to run the index again, should reuse
+    # Try to run the index again, should be fine
     await service.run(index.id)
 
-    # Check that number of snippets is still 1
+    # Check that number of snippets is still 1 (because there is only one snippet)
+    # I.e. if the file wasn't detected at the same, or was not deleted, then it
+    # could create a second, duplicate snippet.
     snippets = await repository.get_snippets_for_index(index.id)
     assert len(snippets) == 1
 

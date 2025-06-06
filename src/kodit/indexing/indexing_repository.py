@@ -10,7 +10,6 @@ from typing import TypeVar
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm.exc import MultipleResultsFound
 
 from kodit.embedding.embedding_models import Embedding
 from kodit.indexing.indexing_models import Index, Snippet
@@ -125,34 +124,15 @@ class IndexRepository:
         index.updated_at = datetime.now(UTC)
         await self.session.commit()
 
-    async def add_snippet_or_update_content(self, snippet: Snippet) -> None:
+    async def add_snippet(self, snippet: Snippet) -> None:
         """Add a new snippet to the database if it doesn't exist, otherwise update it.
 
         Args:
             snippet: The Snippet instance to add.
 
         """
-        query = select(Snippet).where(
-            Snippet.file_id == snippet.file_id,
-            Snippet.index_id == snippet.index_id,
-        )
-        result = await self.session.execute(query)
-        try:
-            existing_snippet = result.scalar_one_or_none()
-
-            if existing_snippet:
-                existing_snippet.content = snippet.content
-            else:
-                self.session.add(snippet)
-
-            await self.session.commit()
-        except MultipleResultsFound as e:
-            msg = (
-                f"Multiple snippets found for file_id {snippet.file_id}, this "
-                "shouldn't happen. "
-                "Please report this as a bug then delete your index and start again."
-            )
-            raise ValueError(msg) from e
+        self.session.add(snippet)
+        await self.session.commit()
 
     async def delete_all_snippets(self, index_id: int) -> None:
         """Delete all snippets for an index.
@@ -161,6 +141,15 @@ class IndexRepository:
             index_id: The ID of the index to delete snippets for.
 
         """
+        # First get all snippets for this index
+        snippets = await self.get_snippets_for_index(index_id)
+
+        # Delete all embeddings for these snippets, if there are any
+        for snippet in snippets:
+            query = delete(Embedding).where(Embedding.snippet_id == snippet.id)
+            await self.session.execute(query)
+
+        # Now delete the snippets
         query = delete(Snippet).where(Snippet.index_id == index_id)
         await self.session.execute(query)
         await self.session.commit()
@@ -214,5 +203,12 @@ class IndexRepository:
         # Create a dictionary for O(1) lookup of results by ID
         id_to_result = {snippet.id: (file, snippet) for snippet, file in rows.all()}
 
-        # Return results in the same order as input IDs
+        # Check that all IDs are present
+        if len(id_to_result) != len(ids):
+            # Create a list of missing IDs
+            missing_ids = [id for id in ids if id not in id_to_result]
+            msg = f"Some IDs are not present: {missing_ids}"
+            raise ValueError(msg)
+
+        # Rebuild the list in the same order that it was passed in
         return [id_to_result[i] for i in ids]

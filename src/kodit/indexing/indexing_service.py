@@ -161,10 +161,15 @@ class IndexService:
             msg = f"Index not found: {index_id}"
             raise ValueError(msg)
 
-        # Create snippets for supported file types
-        await self._create_snippets(index_id)
+        # Delete old snippets so we don't duplicate. In the future should probably check
+        # which files have changed and only change those.
+        await self.repository.delete_all_snippets(index.id)
 
-        snippets = await self.repository.get_all_snippets(index_id)
+        # Create snippets for supported file types
+        self.log.info("Creating snippets for files", index_id=index.id)
+        await self._create_snippets(index.id)
+
+        snippets = await self.repository.get_all_snippets(index.id)
 
         self.log.info("Creating keyword index")
         with Spinner():
@@ -184,7 +189,7 @@ class IndexService:
                 ]
             )
 
-        self.log.info("Enriching snippets")
+        self.log.info("Enriching snippets", num_snippets=len(snippets))
         enriched_contents = await self.enrichment_service.enrich(
             [snippet.content for snippet in snippets]
         )
@@ -206,7 +211,7 @@ class IndexService:
                 snippet.content = (
                     enriched_content + "\n\n```\n" + snippet.content + "\n```"
                 )
-                await self.repository.add_snippet_or_update_content(snippet)
+                await self.repository.add_snippet(snippet)
 
         # Update index timestamp
         await self.repository.update_index_timestamp(index)
@@ -284,7 +289,6 @@ class IndexService:
 
         """
         files = await self.repository.files_for_index(index_id)
-        self.log.info("Creating snippets for files", index_id=index_id)
         for file in tqdm(files, total=len(files), leave=False):
             # Skip unsupported file types
             if file.mime_type in MIME_BLACKLIST:
@@ -306,4 +310,4 @@ class IndexService:
                     file_id=file.id,
                     content=snippet.text,
                 )
-                await self.repository.add_snippet_or_update_content(s)
+                await self.repository.add_snippet(s)

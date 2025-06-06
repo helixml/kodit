@@ -142,6 +142,8 @@ class VectorChordVectorSearchService(VectorSearchService):
     async def retrieve(self, query: str, top_k: int = 10) -> list[VectorSearchResponse]:
         """Query the embedding model."""
         embedding = await self.embedding_provider.embed([query])
+        if len(embedding) == 0 or len(embedding[0]) == 0:
+            return []
         result = await self._execute(
             text(SEARCH_QUERY.format(TABLE_NAME=self.table_name)),
             {"query": str(embedding[0]), "top_k": top_k},

@@ -144,3 +144,21 @@ def test_extract_golang_methods() -> None:
     assert "person := Person{" in main_func
     assert 'fmt.Printf("Person: %+v\\n", person)' in main_func
     assert 'fmt.Println("Hello, Go!")' in main_func
+
+
+def test_extract_knock_knock_server() -> None:
+    """Test the method extraction functionality."""
+    source_code = (Path(__file__).parent / "knock-knock-server.py").read_bytes()
+
+    # Query to capture function definitions, bodies, and imports
+    file_path = inspect.getfile(detect_language)
+    python_query = (Path(file_path).parent / "python.scm").read_text()
+
+    analyzer = MethodSnippets("python", python_query)
+    extracted_methods = analyzer.extract(source_code)
+
+    for method in extracted_methods:
+        print(method)  # noqa: T201
+        print("-" * 40)  # noqa: T201
+
+    assert len(extracted_methods) == 5
