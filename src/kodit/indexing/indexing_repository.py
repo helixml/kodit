@@ -206,7 +206,9 @@ class IndexRepository:
         # Check that all IDs are present
         if len(id_to_result) != len(ids):
             # Create a list of missing IDs
-            missing_ids = [id for id in ids if id not in id_to_result]
+            missing_ids = [
+                snippet_id for snippet_id in ids if snippet_id not in id_to_result
+            ]
             msg = f"Some IDs are not present: {missing_ids}"
             raise ValueError(msg)
 
