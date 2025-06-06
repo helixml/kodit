@@ -16,7 +16,7 @@ Kodit connects your AI coding assistant to external codebases to provide accurat
 
 </div>
 
-**Helix.ML Kodit** is an **MCP server** that connects your AI coding assistant to external codebases. It can:
+**Helix Kodit** is an **MCP server** that connects your AI coding assistant to external codebases. It can:
 
 - Improve your AI-assisted code by providing canonical examples direct from the source
 - Index local and public codebases
@@ -88,8 +88,6 @@ Supported providers:
 
 For commercial support, please contact [Helix.ML](founders@helix.ml). To ask a question,
 please [open a discussion](https://github.com/helixml/kodit/discussions).
-
----
 
 ## License
 
