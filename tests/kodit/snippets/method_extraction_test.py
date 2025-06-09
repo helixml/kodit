@@ -162,3 +162,47 @@ def test_extract_knock_knock_server() -> None:
         print("-" * 40)  # noqa: T201
 
     assert len(extracted_methods) == 5
+
+
+def test_extract_typescript_example() -> None:
+    source_code = (Path(__file__).parent / "typescript.tsx").read_bytes()
+
+    # Query to capture function definitions, bodies, and imports
+    file_path = inspect.getfile(detect_language)
+    typescript_query = (Path(file_path).parent / "typescript.scm").read_text()
+
+    analyzer = MethodSnippets("typescript", typescript_query)
+    extracted_methods = analyzer.extract(source_code)
+
+    print("---- Typescript ----")
+    for method in extracted_methods:
+        print(method)  # noqa: T201
+        print("-" * 40)  # noqa: T201
+
+    assert len(extracted_methods) == 7
+    funcs = [m for m in extracted_methods if "const formatName = (name: string)" in m]
+    assert len(funcs) == 1
+    funcs = [m for m in extracted_methods if "addUser(user: User): void {" in m]
+    assert len(funcs) == 1
+
+
+def test_extract_javascript_example() -> None:
+    source_code = (Path(__file__).parent / "javascript.js").read_bytes()
+
+    # Query to capture function definitions, bodies, and imports
+    file_path = inspect.getfile(detect_language)
+    javascript_query = (Path(file_path).parent / "javascript.scm").read_text()
+
+    analyzer = MethodSnippets("javascript", javascript_query)
+    extracted_methods = analyzer.extract(source_code)
+
+    print("---- Javascript ----")
+    for method in extracted_methods:
+        print(method)  # noqa: T201
+        print("-" * 40)  # noqa: T201
+
+    assert len(extracted_methods) == 8
+    funcs = [m for m in extracted_methods if "formatCurrency(amount)" in m]
+    assert len(funcs) == 1
+    funcs = [m for m in extracted_methods if "removeItem(itemId) {" in m]
+    assert len(funcs) == 1
