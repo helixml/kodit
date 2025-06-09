@@ -81,8 +81,8 @@ Supported providers:
 
 ### Documentation
 
-- [Getting Started Guide](http://localhost:1313/kodit/getting-started/)
-- [Reference Guide](http://localhost:1313/kodit/reference/)
+- [Getting Started Guide](https://docs.helix.ml/kodit/getting-started/)
+- [Reference Guide](https://docs.helix.ml/kodit/reference/)
 - [Contribution Guidelines](.github/CONTRIBUTING.md)
 
 ## Roadmap
