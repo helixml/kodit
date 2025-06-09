@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.9
-FROM python:3.13.3-slim-bookworm AS build
+FROM python:3.13.4-slim-bookworm AS build
 
 # The following does not work in Podman unless you build in Docker
 # compatibility mode: <https://github.com/containers/podman/issues/8477>
@@ -60,7 +60,7 @@ RUN --mount=type=cache,target=/root/.cache \
 
 ##########################################################################
 
-FROM python:3.13.3-slim-bookworm
+FROM python:3.13.4-slim-bookworm
 SHELL ["sh", "-exc"]
 
 ENV PATH=/app/bin:$PATH
