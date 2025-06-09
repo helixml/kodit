@@ -5,6 +5,9 @@ on:
   pull_request_target:
     types: [opened, synchronize, reopened]
 
+env:
+  TEST_TAG: user/app:test
+
 jobs:
   test-build:
     name: Test and build Docker image
@@ -12,12 +15,6 @@ jobs:
     steps:
       - name: Check out the repo
         uses: actions/checkout@v4
-
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@9ec57ed1fcdbf14dcef7dfbe97b2010124a938b7
-        with:
-          images: ${{ vars.REGISTRY }}/${{ vars.REGISTRY_ORG }}/${{ github.event.repository.name }}
 
       - name: Build and push Docker image
         id: push
@@ -27,8 +24,7 @@ jobs:
           file: ./Dockerfile
           push: false
           load: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ env.TEST_TAG }}
 
   push_to_registry:
     name: Push Docker image to registry
