@@ -1,12 +1,12 @@
 ---
 title: Kodit Demos
 linkTitle: Demos
-weight: 4
+weight: 3
 tags:
 - demo
 ---
 
-The following sections provide lots of examples and demos of using Kodit.
+The following sections provide examples and demos using Kodit.
 
 <!--more-->
 

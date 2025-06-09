@@ -1,5 +1,7 @@
 ---
 title: "Kodit Demo: Proprietary Auth Patterns"
+linkTitle: Proprietary Code
+description: A demo of Kodit where knowledge of proprietary code is required.
 weight: 1
 tags:
 - demo

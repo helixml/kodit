@@ -1,7 +1,6 @@
 ---
 title: "Kodit Developer Documentation"
 linkTitle: Developer Docs
-# next: /helix/getting-started
 weight: 99
 ---
 
