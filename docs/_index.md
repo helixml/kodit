@@ -60,8 +60,8 @@ intent. Kodit has been tested to work well with:
 
 - Seamless integration with popular AI coding assistants
 - Tested and verified with:
-  - [Cursor](https://docs.helix.ml/kodit/#integration-with-cursor)
-  - [Cline](https://docs.helix.ml/kodit/#integration-with-cline)
+  - [Cursor](./getting-started/integration/index.md#integration-with-cursor)
+  - [Cline](./getting-started/integration/index.md#integration-with-cline)
 - Please contribute more instructions! ... any other assistant is likely to work ...
 
 ### Enterprise Ready

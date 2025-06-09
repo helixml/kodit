@@ -50,8 +50,8 @@ intent. Kodit has been tested to work well with:
 
 - Seamless integration with popular AI coding assistants
 - Tested and verified with:
-  - [Cursor](https://docs.helix.ml/kodit/#integration-with-cursor)
-  - [Cline](https://docs.helix.ml/kodit/#integration-with-cline)
+  - [Cursor](https://docs.helix.ml/kodit/getting-started/integration/#integration-with-cursor)
+  - [Cline](https://docs.helix.ml/kodit/getting-started/integration/#integration-with-cline)
 - Please contribute more instructions! ... any other assistant is likely to work ...
 
 ### Enterprise Ready
@@ -75,16 +75,14 @@ Supported providers:
 
 ## 🚀 Quick Start
 
-1. [Install Kodit](https://docs.helix.ml/kodit/#installation)
-2. [Index codebases](https://docs.helix.ml/kodit/#quick-start)
-3. [Integrate with your coding assistant](https://docs.helix.ml/kodit/#integrating-kodit-with-coding-assistants)
+1. [Install Kodit](https://docs.helix.ml/kodit/getting-started/installation/)
+2. [Index codebases](https://docs.helix.ml/kodit/getting-started/quick-start/)
+3. [Integrate with your coding assistant](https://docs.helix.ml/kodit/getting-started/integration/)
 
 ### Documentation
 
-- [Installation Guide](https://docs.helix.ml/kodit/#installation)
-- [Usage Guide](https://docs.helix.ml/kodit/#quick-start)
-- [Connecting to Kodit](https://docs.helix.ml/kodit/#integrating-kodit-with-coding-assistants)
-- [Configuration Options](https://docs.helix.ml/kodit/#configuring-kodit)
+- [Getting Started Guide](http://localhost:1313/kodit/getting-started/)
+- [Reference Guide](http://localhost:1313/kodit/reference/)
 - [Contribution Guidelines](.github/CONTRIBUTING.md)
 
 ## Roadmap
