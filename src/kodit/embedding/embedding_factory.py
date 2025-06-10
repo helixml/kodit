@@ -2,7 +2,7 @@
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.config import AppContext
+from kodit.config import AppContext, Endpoint
 from kodit.embedding.embedding_provider.local_embedding_provider import (
     CODE,
     LocalEmbeddingProvider,
@@ -20,15 +20,29 @@ from kodit.embedding.vectorchord_vector_search_service import (
 )
 
 
+def _get_endpoint_configuration(app_context: AppContext) -> Endpoint | None:
+    """Get the endpoint configuration for the embedding service."""
+    return app_context.embedding_endpoint or app_context.default_endpoint or None
+
+
 def embedding_factory(
     task_name: str, app_context: AppContext, session: AsyncSession
 ) -> VectorSearchService:
     """Create an embedding service."""
     embedding_repository = EmbeddingRepository(session=session)
-    embedding_provider = None
-    openai_client = app_context.get_embedding_openai_client()
-    if openai_client is not None:
-        embedding_provider = OpenAIEmbeddingProvider(openai_client=openai_client)
+    endpoint = _get_endpoint_configuration(app_context)
+    endpoint = app_context.embedding_endpoint or app_context.default_endpoint or None
+
+    if endpoint and endpoint.type == "openai":
+        from openai import AsyncOpenAI
+
+        embedding_provider = OpenAIEmbeddingProvider(
+            openai_client=AsyncOpenAI(
+                api_key=endpoint.api_key or "default",
+                base_url=endpoint.base_url or "https://api.openai.com/v1",
+            ),
+            model_name=endpoint.model or "text-embedding-3-small",
+        )
     else:
         embedding_provider = LocalEmbeddingProvider(CODE)
 

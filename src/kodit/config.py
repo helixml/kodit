@@ -14,7 +14,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
 
-    from openai import AsyncOpenAI
 
 from kodit.database import Database
 
@@ -25,14 +24,16 @@ DEFAULT_LOG_FORMAT = "pretty"
 DEFAULT_DISABLE_TELEMETRY = False
 T = TypeVar("T")
 
+EndpointType = Literal["openai"]
+
 
 class Endpoint(BaseModel):
     """Endpoint provides configuration for an AI service."""
 
-    type: Literal["openai"] = Field(default="openai")
-    base_url: str = Field(default="https://api.openai.com/v1")
-    model: str = Field(default="gpt-4o-mini")
-    api_key: str = Field(default="default")  # Set to make vllm use easier
+    type: EndpointType | None = None
+    base_url: str | None = None
+    model: str | None = None
+    api_key: str | None = None
 
 
 class Search(BaseModel):
@@ -100,20 +101,6 @@ class AppContext(BaseSettings):
         if run_migrations:
             await self._db.run_migrations(self.db_url)
         return self._db
-
-    def get_embedding_openai_client(self) -> AsyncOpenAI | None:
-        """Get the embedding OpenAI client, if it is configured."""
-        from openai import AsyncOpenAI
-
-        endpoint = self.embedding_endpoint or self.default_endpoint or None
-        if endpoint is None:
-            return None
-        if endpoint.type != "openai":
-            return None
-        return AsyncOpenAI(
-            api_key=endpoint.api_key,
-            base_url=endpoint.base_url,
-        )
 
 
 with_app_context = click.make_pass_decorator(AppContext)

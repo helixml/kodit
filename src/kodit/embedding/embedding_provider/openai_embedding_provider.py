@@ -27,7 +27,9 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         self.log = structlog.get_logger(__name__)
         self.openai_client = openai_client
         self.model_name = model_name
-        self.encoding = tiktoken.encoding_for_model(model_name)
+        self.encoding = tiktoken.encoding_for_model(
+            "text-embedding-3-small"
+        )  # Sensible default
 
     async def embed(self, data: list[str]) -> list[Vector]:
         """Embed a list of documents."""

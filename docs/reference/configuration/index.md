@@ -23,15 +23,39 @@ too high to provide a good developer experience.
 
 Instead, you should use an external provider. The settings provided here will cause all
 embedding and enrichments request to be sent to this provider by default. You can
-override the provider used for each task if you wish. (Coming soon!)
+override the provider used for each task if you wish.
 
 #### OpenAI
 
 Add the following settings to your .env file, or export them as environmental variables:
 
 ```bash
+DEFAULT_ENDPOINT_TYPE=openai
 DEFAULT_ENDPOINT_BASE_URL=https://api.openai.com/v1
 DEFAULT_ENDPOINT_API_KEY=sk-xxxxxx
+# No need to set the model, sensible defaults
+```
+
+### Configuring the Embedding Provider
+
+This takes precedence over the default indexing provider.
+
+```bash
+EMBEDDING_ENDPOINT_TYPE=openai
+EMBEDDING_ENDPOINT_BASE_URL=http://localhost:8000/v1
+EMBEDDING_ENDPOINT_API_KEY=xxxxxxx
+EMBEDDING_ENDPOINT_MODEL=xxxx-xxxx
+```
+
+### Configuring the Enrichment Provider
+
+This takes precedence over the default indexing provider.
+
+```bash
+ENRICHMENT_ENDPOINT_TYPE=openai
+ENRICHMENT_ENDPOINT_BASE_URL=http://localhost:8000/v1
+ENRICHMENT_ENDPOINT_API_KEY=xxxxxxx
+ENRICHMENT_ENDPOINT_MODEL=xxxx-xxxx
 ```
 
 ## Configuring the Database

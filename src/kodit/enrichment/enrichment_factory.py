@@ -19,21 +19,21 @@ def _get_endpoint_configuration(app_context: AppContext) -> Endpoint | None:
 
 
 def enrichment_factory(app_context: AppContext) -> EnrichmentService:
-    """Create an embedding service."""
-    from openai import AsyncOpenAI
-
+    """Create an enrichment service."""
     endpoint = _get_endpoint_configuration(app_context)
     endpoint = app_context.enrichment_endpoint or app_context.default_endpoint or None
 
-    if endpoint is None or endpoint.type != "openai":
-        return LLMEnrichmentService(LocalEnrichmentProvider())
+    if endpoint and endpoint.type == "openai":
+        from openai import AsyncOpenAI
 
-    return LLMEnrichmentService(
-        OpenAIEnrichmentProvider(
+        enrichment_provider = OpenAIEnrichmentProvider(
             openai_client=AsyncOpenAI(
-                api_key=endpoint.api_key,
-                base_url=endpoint.base_url,
+                api_key=endpoint.api_key or "default",
+                base_url=endpoint.base_url or "https://api.openai.com/v1",
             ),
-            model_name=endpoint.model,
+            model_name=endpoint.model or "gpt-4o-mini",
         )
-    )
+    else:
+        enrichment_provider = LocalEnrichmentProvider()
+
+    return LLMEnrichmentService(enrichment_provider=enrichment_provider)
