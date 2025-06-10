@@ -63,6 +63,14 @@ RUN --mount=type=cache,target=/root/.cache \
 FROM python:3.13.4-slim-bookworm
 SHELL ["sh", "-exc"]
 
+RUN <<EOT
+apt-get update -qy
+apt-get install -qyy \
+    -o APT::Install-Recommends=false \
+    -o APT::Install-Suggests=false \
+    git 
+EOT
+
 ENV PATH=/app/bin:$PATH
 
 # Don't run your app as root.
