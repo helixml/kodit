@@ -23,7 +23,11 @@ class EmbeddingProvider(ABC):
         """
 
 
-def split_sub_batches(encoding: tiktoken.Encoding, data: list[str]) -> list[list[str]]:
+def split_sub_batches(
+    encoding: tiktoken.Encoding,
+    data: list[str],
+    max_context_window: int = OPENAI_MAX_EMBEDDING_SIZE,
+) -> list[list[str]]:
     """Split a list of strings into smaller sub-batches."""
     log = structlog.get_logger(__name__)
     result = []
@@ -37,10 +41,10 @@ def split_sub_batches(encoding: tiktoken.Encoding, data: list[str]) -> list[list
             next_item = data_to_process[0]
             item_tokens = len(encoding.encode(next_item))
 
-            if item_tokens > OPENAI_MAX_EMBEDDING_SIZE:
+            if item_tokens > max_context_window:
                 # Loop around trying to truncate the snippet until it fits in the max
                 # embedding size
-                while item_tokens > OPENAI_MAX_EMBEDDING_SIZE:
+                while item_tokens > max_context_window:
                     next_item = next_item[:-1]
                     item_tokens = len(encoding.encode(next_item))
 
@@ -48,7 +52,7 @@ def split_sub_batches(encoding: tiktoken.Encoding, data: list[str]) -> list[list
 
                 log.warning("Truncated snippet", snippet=next_item)
 
-            if current_tokens + item_tokens > OPENAI_MAX_EMBEDDING_SIZE:
+            if current_tokens + item_tokens > max_context_window:
                 break
 
             next_batch.append(data_to_process.pop(0))
