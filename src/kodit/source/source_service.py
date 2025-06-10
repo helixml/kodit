@@ -82,17 +82,7 @@ class SourceService:
         )
 
     async def create(self, uri_or_path_like: str) -> SourceView:
-        """Create a new source from a URI.
-
-        Args:
-            uri: The URI of the source to create. Can be a git-like URI or a local
-                directory.
-
-        Raises:
-            ValueError: If the source type is not supported or if the folder doesn't
-                exist.
-
-        """
+        """Create a new source from a URI or path."""
         if Path(uri_or_path_like).is_dir():
             return await self._create_folder_source(Path(uri_or_path_like))
         if isuri(uri_or_path_like):
@@ -103,18 +93,11 @@ class SourceService:
                 ".git"
             ):
                 return await self._create_git_source(uri_or_path_like)
-
-            # Try adding a .git suffix, sometimes people just pass the url
             if not uri_or_path_like.endswith(".git"):
-                uri_or_path_like = uri_or_path_like + ".git"
-                try:
-                    return await self._create_git_source(uri_or_path_like)
-                except git.GitCommandError:
-                    raise
-                except ValueError:
-                    pass
+                uri_or_path_like = uri_or_path_like.strip("/") + ".git"
+                return await self._create_git_source(uri_or_path_like)
 
-        msg = f"Unsupported source type: {uri_or_path_like}"
+        msg = f"Unsupported source: {uri_or_path_like}"
         raise ValueError(msg)
 
     async def _create_folder_source(self, directory: Path) -> SourceView:

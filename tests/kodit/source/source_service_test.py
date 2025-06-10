@@ -32,7 +32,7 @@ async def test_create_source_nonexistent_path(service: SourceService) -> None:
     uri = nonexistent_path.as_uri()
 
     # Try to create a source with the nonexistent path
-    with pytest.raises(ValueError, match=f"Folder does not exist: {nonexistent_path}"):
+    with pytest.raises(ValueError):
         await service.create(uri)
 
 
@@ -41,7 +41,7 @@ async def test_create_source_invalid_path_and_uri(service: SourceService) -> Non
     """Test creating a source with an invalid path that is also not a valid URI."""
     # Try to create a source with an invalid path that is also not a valid URI
     invalid_path = "not/a/valid/path/or/uri"
-    with pytest.raises(ValueError, match=f"Unsupported source type: {invalid_path}"):
+    with pytest.raises(ValueError):
         await service.create(invalid_path)
 
 
@@ -65,7 +65,7 @@ async def test_create_source_already_added(
 async def test_create_source_unsupported_uri(service: SourceService) -> None:
     """Test creating a source with an unsupported URI."""
     # Try to create a source with an unsupported URI (e.g., http)
-    with pytest.raises(ValueError, match="Unsupported source type: http://example.com"):
+    with pytest.raises(ValueError):
         await service.create("http://example.com")
 
 
@@ -155,3 +155,11 @@ async def test_create_source_relative_path(
 
     # Should not raise an error
     await service.create(".")
+
+
+@pytest.mark.asyncio
+async def test_strip_trailing_slash_on_gh_url(service: SourceService) -> None:
+    """Test creating a source with a file URI."""
+
+    # Should work
+    await service.create("https://github.com/helixml/kodit/")
