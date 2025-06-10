@@ -26,6 +26,9 @@ jobs:
           load: true
           tags: ${{ env.TEST_TAG }}
 
+      - name: Docker smoke test
+        run: DOCKER=true ./tests/smoke.sh
+
   push_to_registry:
     name: Push Docker image to registry
     runs-on: ubuntu-latest

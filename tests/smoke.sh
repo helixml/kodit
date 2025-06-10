@@ -1,12 +1,23 @@
 #!/bin/bash
 set -e
 
-# Set this according to what you want to test. uv run will run the command in the current directory
-prefix="uv run"
+# Create a temporary directory
+tmp_dir=$(mktemp -d)
 
-# If CI is set, no prefix because we're running in github actions
-if [ -n "$CI" ]; then
-    prefix=""
+# Write a dummy python file to the temporary directory
+echo -e "def main():\n    print('Hello, world!')" > $tmp_dir/test.py
+
+if [ -n "$DOCKER" ]; then
+    echo "Running in Docker using $TEST_TAG"
+    prefix="docker run -it -v $HOME/.kodit:/root/.kodit -v $tmp_dir:$tmp_dir $TEST_TAG"
+else
+    # If CI is set, no prefix because we're running in github actions
+    if [ -n "$CI" ]; then
+        prefix=""
+    else
+        echo "Running in local"
+        prefix="uv run"
+    fi
 fi
 
 # Check that the kodit data_dir does not exist
@@ -14,12 +25,6 @@ if [ -d "$HOME/.kodit" ]; then
     echo "Kodit data_dir is not empty, please rm -rf $HOME/.kodit"
     exit 1
 fi
-
-# Create a temporary directory
-tmp_dir=$(mktemp -d)
-
-# Write a dummy python file to the temporary directory
-echo -e "def main():\n    print('Hello, world!')" > $tmp_dir/test.py
 
 # Test version command
 $prefix kodit version
