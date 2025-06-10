@@ -6,18 +6,8 @@ if [ -z "$TEST_TAG" ]; then
     exit 1
 fi
 
-# Create a temporary directory
-tmp_dir=$HOME/tmp/kodit
-mkdir -p $tmp_dir
+# Get the directory of this script
+script_dir=$(dirname "$0")
 
-# Write a dummy python file to the temporary directory
-echo -e "def main():\n    print('Hello, world!')" > $tmp_dir/test.py
-
-
-docker run -i -v $HOME/.kodit:/root/.kodit -v $tmp_dir:/code $TEST_TAG version
-docker run -i -v $HOME/.kodit:/root/.kodit -v $tmp_dir:/code $TEST_TAG index
-docker run -i -v $HOME/.kodit:/root/.kodit -v $tmp_dir:/code $TEST_TAG index /code
-docker run -i -v $HOME/.kodit:/root/.kodit -v $tmp_dir:/code $TEST_TAG search keyword "Hello"
-docker run -i -v $HOME/.kodit:/root/.kodit -v $tmp_dir:/code $TEST_TAG search code "Hello"
-docker run -i -v $HOME/.kodit:/root/.kodit -v $tmp_dir:/code $TEST_TAG search hybrid --keywords "main" --code "def main()" --text "main"
-docker run -i -v $HOME/.kodit:/root/.kodit -v $tmp_dir:/code $TEST_TAG serve
+# Start the container, mount the smoke test and run it
+docker run -i -v $script_dir:/tests --entrypoint /bin/bash --env CI=true $TEST_TAG -c "/tests/smoke.sh"
