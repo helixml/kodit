@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable, Coroutine
 from functools import wraps
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, TypeVar
@@ -13,6 +12,8 @@ from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 if TYPE_CHECKING:
+    from collections.abc import Callable, Coroutine
+
     from openai import AsyncOpenAI
 
 from kodit.database import Database
