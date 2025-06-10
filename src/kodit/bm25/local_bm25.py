@@ -18,6 +18,7 @@ from kodit.bm25.keyword_search_service import (
 
 if TYPE_CHECKING:
     import bm25s
+    from bm25s.tokenization import Tokenized
 
 
 SNIPPET_IDS_FILE = "snippet_ids.jsonl"
@@ -49,9 +50,7 @@ class BM25Service(KeywordSearchProvider):
                 self.__retriever = bm25s.BM25()
         return self.__retriever
 
-    def _tokenize(
-        self, corpus: list[str]
-    ) -> list[list[str]] | bm25s.tokenize.Tokenized:
+    def _tokenize(self, corpus: list[str]) -> list[list[str]] | Tokenized:
         from bm25s import tokenize
 
         return tokenize(

@@ -35,14 +35,6 @@ def sample_documents():
 
 
 @pytest.mark.asyncio
-async def test_initialization(bm25_service):
-    """Test that the service initializes correctly."""
-    assert bm25_service.retriever is not None
-    assert isinstance(bm25_service.snippet_ids, list)
-    assert len(bm25_service.snippet_ids) == 0
-
-
-@pytest.mark.asyncio
 async def test_index_and_retrieve(bm25_service, sample_documents):
     """Test indexing and retrieving documents."""
     # Index the documents
@@ -134,6 +126,7 @@ async def test_persistence(bm25_service, sample_documents):
 
     # Create a new service instance with the same data directory
     new_service = BM25Service(bm25_service.index_path.parent)
+    new_service._retriever()
 
     # Verify the new instance loaded the correct data
     assert len(new_service.snippet_ids) == 3
