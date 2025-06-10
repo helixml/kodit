@@ -9,14 +9,14 @@ echo -e "def main():\n    print('Hello, world!')" > $tmp_dir/test.py
 
 if [ -n "$DOCKER" ]; then
     echo "Running in Docker using $TEST_TAG"
-    prefix="docker run -i --entrypoint /bin/bash -v $HOME/.kodit:/root/.kodit -v $tmp_dir:$tmp_dir $TEST_TAG -- "
+    prefix="docker run -i -v $HOME/.kodit:/root/.kodit -v $tmp_dir:$tmp_dir $TEST_TAG "
 else
     # If CI is set, no prefix because we're running in github actions
     if [ -n "$CI" ]; then
-        prefix=""
+        prefix="kodit"
     else
         echo "Running in local"
-        prefix="uv run"
+        prefix="uv run kodit"
     fi
 fi
 
@@ -27,17 +27,17 @@ if [ -d "$HOME/.kodit" ]; then
 fi
 
 # Test version command
-$prefix kodit version
+$prefix version
 
 # Test index command
-$prefix kodit index $tmp_dir
-$prefix kodit index https://github.com/winderai/analytics-ai-agent-demo
-$prefix kodit index
+$prefix index $tmp_dir
+$prefix index https://github.com/winderai/analytics-ai-agent-demo
+$prefix index
 
 # Test search command
-$prefix kodit search keyword "Hello"
-$prefix kodit search code "Hello"
-$prefix kodit search hybrid --keywords "main" --code "def main()" --text "main"
+$prefix search keyword "Hello"
+$prefix search code "Hello"
+$prefix search hybrid --keywords "main" --code "def main()" --text "main"
 
 # Test serve command with timeout
-timeout 2s $prefix kodit serve || true
+timeout 2s $prefix serve || true
