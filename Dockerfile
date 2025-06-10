@@ -14,7 +14,8 @@ apt-get update -qy
 apt-get install -qyy \
     -o APT::Install-Recommends=false \
     -o APT::Install-Suggests=false \
-    git 
+    git \
+    build-essential
 EOT
 
 # Security-conscious organizations should package/review uv themselves.
