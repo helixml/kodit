@@ -1,10 +1,12 @@
 """Local embedding service."""
 
+from __future__ import annotations
+
 import os
+from typing import TYPE_CHECKING
 
 import structlog
 import tiktoken
-from sentence_transformers import SentenceTransformer
 from tqdm import tqdm
 
 from kodit.embedding.embedding_provider.embedding_provider import (
@@ -12,6 +14,9 @@ from kodit.embedding.embedding_provider.embedding_provider import (
     Vector,
     split_sub_batches,
 )
+
+if TYPE_CHECKING:
+    from sentence_transformers import SentenceTransformer
 
 TINY = "tiny"
 CODE = "code"
@@ -38,6 +43,8 @@ class LocalEmbeddingProvider(EmbeddingProvider):
         """Get the embedding model."""
         if self.embedding_model is None:
             os.environ["TOKENIZERS_PARALLELISM"] = "false"  # Avoid warnings
+            from sentence_transformers import SentenceTransformer
+
             self.embedding_model = SentenceTransformer(
                 self.model_name,
                 trust_remote_code=True,

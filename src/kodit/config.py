@@ -1,15 +1,19 @@
 """Global configuration for the kodit project."""
 
+from __future__ import annotations
+
 import asyncio
 from collections.abc import Callable, Coroutine
 from functools import wraps
 from pathlib import Path
-from typing import Any, Literal, TypeVar
+from typing import TYPE_CHECKING, Any, Literal, TypeVar
 
 import click
-from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+if TYPE_CHECKING:
+    from openai import AsyncOpenAI
 
 from kodit.database import Database
 
@@ -92,6 +96,8 @@ class AppContext(BaseSettings):
 
     def get_default_openai_client(self) -> AsyncOpenAI | None:
         """Get the default OpenAI client, if it is configured."""
+        from openai import AsyncOpenAI
+
         endpoint = self.default_endpoint
         if not (
             endpoint

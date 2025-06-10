@@ -3,8 +3,6 @@
 import os
 
 import structlog
-from transformers.models.auto.modeling_auto import AutoModelForCausalLM
-from transformers.models.auto.tokenization_auto import AutoTokenizer
 
 from kodit.enrichment.enrichment_provider.enrichment_provider import (
     ENRICHMENT_SYSTEM_PROMPT,
@@ -24,6 +22,11 @@ class LocalEnrichmentProvider(EnrichmentProvider):
 
     async def enrich(self, data: list[str]) -> list[str]:
         """Enrich a list of strings."""
+        from transformers.models.auto.modeling_auto import (
+            AutoModelForCausalLM,
+        )
+        from transformers.models.auto.tokenization_auto import AutoTokenizer
+
         if self.tokenizer is None:
             self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         if self.model is None:
