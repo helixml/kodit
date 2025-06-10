@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -ex
 
 # Create a temporary directory
 tmp_dir=$(mktemp -d)
@@ -9,7 +9,7 @@ echo -e "def main():\n    print('Hello, world!')" > $tmp_dir/test.py
 
 if [ -n "$DOCKER" ]; then
     echo "Running in Docker using $TEST_TAG"
-    prefix="docker run -i --entrypoint /bin/bash -v $HOME/.kodit:/root/.kodit -v $tmp_dir:$tmp_dir $TEST_TAG -c"
+    prefix="docker run -i --entrypoint /bin/bash -v $HOME/.kodit:/root/.kodit -v $tmp_dir:$tmp_dir $TEST_TAG -c -- "
 else
     # If CI is set, no prefix because we're running in github actions
     if [ -n "$CI" ]; then
