@@ -26,7 +26,7 @@ def embedding_factory(
     """Create an embedding service."""
     embedding_repository = EmbeddingRepository(session=session)
     embedding_provider = None
-    openai_client = app_context.get_default_openai_client()
+    openai_client = app_context.get_embedding_openai_client()
     if openai_client is not None:
         embedding_provider = OpenAIEmbeddingProvider(openai_client=openai_client)
     else:

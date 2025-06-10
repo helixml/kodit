@@ -30,8 +30,9 @@ class Endpoint(BaseModel):
     """Endpoint provides configuration for an AI service."""
 
     type: Literal["openai"] = Field(default="openai")
-    api_key: str | None = None
-    base_url: str | None = None
+    base_url: str = Field(default="https://api.openai.com/v1")
+    model: str = Field(default="gpt-4o-mini")
+    api_key: str = Field(default="default")  # Set to make vllm use easier
 
 
 class Search(BaseModel):
@@ -57,14 +58,19 @@ class AppContext(BaseSettings):
     log_format: str = Field(default=DEFAULT_LOG_FORMAT)
     disable_telemetry: bool = Field(default=DEFAULT_DISABLE_TELEMETRY)
     default_endpoint: Endpoint | None = Field(
-        default=Endpoint(
-            type="openai",
-            base_url="https://api.openai.com/v1",
-        ),
+        default=None,
         description=(
             "Default endpoint to use for all AI interactions "
             "(can be overridden by task-specific configuration)."
         ),
+    )
+    embedding_endpoint: Endpoint | None = Field(
+        default=None,
+        description="Endpoint to use for embedding.",
+    )
+    enrichment_endpoint: Endpoint | None = Field(
+        default=None,
+        description="Endpoint to use for enrichment.",
     )
     default_search: Search = Field(
         default=Search(),
@@ -95,17 +101,14 @@ class AppContext(BaseSettings):
             await self._db.run_migrations(self.db_url)
         return self._db
 
-    def get_default_openai_client(self) -> AsyncOpenAI | None:
-        """Get the default OpenAI client, if it is configured."""
+    def get_embedding_openai_client(self) -> AsyncOpenAI | None:
+        """Get the embedding OpenAI client, if it is configured."""
         from openai import AsyncOpenAI
 
-        endpoint = self.default_endpoint
-        if not (
-            endpoint
-            and endpoint.type == "openai"
-            and endpoint.api_key
-            and endpoint.base_url
-        ):
+        endpoint = self.embedding_endpoint or self.default_endpoint or None
+        if endpoint is None:
+            return None
+        if endpoint.type != "openai":
             return None
         return AsyncOpenAI(
             api_key=endpoint.api_key,

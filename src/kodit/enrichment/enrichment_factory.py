@@ -1,6 +1,6 @@
 """Embedding service."""
 
-from kodit.config import AppContext
+from kodit.config import AppContext, Endpoint
 from kodit.enrichment.enrichment_provider.local_enrichment_provider import (
     LocalEnrichmentProvider,
 )
@@ -13,11 +13,27 @@ from kodit.enrichment.enrichment_service import (
 )
 
 
+def _get_endpoint_configuration(app_context: AppContext) -> Endpoint | None:
+    """Get the endpoint configuration for the enrichment service."""
+    return app_context.enrichment_endpoint or app_context.default_endpoint or None
+
+
 def enrichment_factory(app_context: AppContext) -> EnrichmentService:
     """Create an embedding service."""
-    openai_client = app_context.get_default_openai_client()
-    if openai_client is not None:
-        enrichment_provider = OpenAIEnrichmentProvider(openai_client=openai_client)
-        return LLMEnrichmentService(enrichment_provider)
+    from openai import AsyncOpenAI
 
-    return LLMEnrichmentService(LocalEnrichmentProvider())
+    endpoint = _get_endpoint_configuration(app_context)
+    endpoint = app_context.enrichment_endpoint or app_context.default_endpoint or None
+
+    if endpoint is None or endpoint.type != "openai":
+        return LLMEnrichmentService(LocalEnrichmentProvider())
+
+    return LLMEnrichmentService(
+        OpenAIEnrichmentProvider(
+            openai_client=AsyncOpenAI(
+                api_key=endpoint.api_key,
+                base_url=endpoint.base_url,
+            ),
+            model_name=endpoint.model,
+        )
+    )
