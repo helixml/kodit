@@ -3,6 +3,7 @@
 import os
 
 import structlog
+from tqdm import tqdm
 
 from kodit.enrichment.enrichment_provider.enrichment_provider import (
     ENRICHMENT_SYSTEM_PROMPT,
@@ -35,10 +36,11 @@ class LocalEnrichmentProvider(EnrichmentProvider):
                 self.model_name,
                 torch_dtype="auto",
                 trust_remote_code=True,
+                device_map="auto",
             )
 
         results = []
-        for snippet in data:
+        for snippet in tqdm(data, leave=False, total=len(data)):
             # prepare the model input
             messages = [
                 {"role": "system", "content": ENRICHMENT_SYSTEM_PROMPT},

@@ -48,7 +48,6 @@ class LocalEmbeddingProvider(EmbeddingProvider):
             self.embedding_model = SentenceTransformer(
                 self.model_name,
                 trust_remote_code=True,
-                device="cpu",  # Force CPU so we don't have to install accelerate, etc.
             )
         return self.embedding_model
 
