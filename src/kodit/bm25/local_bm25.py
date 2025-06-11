@@ -77,6 +77,10 @@ class BM25Service(KeywordSearchProvider):
             self.log.warning("Top k is 0, returning empty list")
             return []
 
+        # Check that the index has data
+        if not hasattr(self._retriever(), "scores"):
+            return []
+
         # Get the number of documents in the index
         num_docs = self._retriever().scores["num_docs"]
         if num_docs == 0:

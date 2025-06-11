@@ -146,3 +146,9 @@ async def test_delete_not_supported(bm25_service, sample_documents):
     # Verify that the documents are still there
     results = await bm25_service.retrieve("quick brown fox", top_k=2)
     assert len(results) == 2
+
+@pytest.mark.asyncio
+async def test_with_no_index(bm25_service):
+    """No results when no index is loaded and doesn't crash!"""
+    results = await bm25_service.retrieve("quick brown fox", top_k=2)
+    assert len(results) == 0
