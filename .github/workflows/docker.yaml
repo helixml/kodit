@@ -16,6 +16,18 @@ jobs:
       - name: Check out the repo
         uses: actions/checkout@v4
 
+      # Run the usual uv setup steps to pull in the uv cache
+      - name: "Set up Python"
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install the project
+        run: uv sync --locked --all-extras --dev
+
       - name: Build and push Docker image
         id: push
         uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671
@@ -45,6 +57,18 @@ jobs:
     steps:
       - name: Check out the repo
         uses: actions/checkout@v4
+
+      # Run the usual uv setup steps to pull in the uv cache
+      - name: "Set up Python"
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install the project
+        run: uv sync --locked --all-extras --dev
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
