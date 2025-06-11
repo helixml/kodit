@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Free up disk space for docker
-        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet || true
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/hostedtoolcache || true
 
       - name: Check out the repo
         uses: actions/checkout@v4
