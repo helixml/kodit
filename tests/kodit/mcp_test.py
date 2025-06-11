@@ -9,8 +9,14 @@ from mcp.types import (
 from kodit.mcp import mcp, search
 
 
+@pytest.fixture
+def mock_env_db(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Mock the database URL environment variable."""
+    monkeypatch.setenv("DB_URL", "sqlite+aiosqlite:///:memory:")
+
+
 @pytest.mark.asyncio
-async def test_mcp_client_connection() -> None:
+async def test_mcp_client_connection(mock_env_db: None) -> None:  # noqa: ARG001
     """Test connecting to the MCP server."""
     async with Client(mcp) as client:
         tools = await client.list_tools()
