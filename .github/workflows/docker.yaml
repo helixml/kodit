@@ -28,6 +28,14 @@ jobs:
       - name: Build Docker image
         if: steps.docker-cache.outputs.cache-hit != 'true'
         uses: docker/build-push-action@v6
+        with:
+          # context: .
+          # file: ./Dockerfile
+          # push: false
+          # load: true
+          tags: ${{ env.TEST_TAG }}
+          # cache-from: type=gha
+          # cache-to: type=gha,mode=max
 
       - name: Docker smoke test
         run: ./tests/docker-smoke.sh
