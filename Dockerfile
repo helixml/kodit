@@ -39,7 +39,7 @@ ENV UV_LINK_MODE=copy \
 # You can create `/app` using `uv venv` in a separate `RUN`
 # step to have it cached, but with uv it's so fast, it's not worth
 # it, so we let `uv sync` create it for us automagically.
-RUN --mount=type=cache,target=/root/.cache \
+RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv sync \
@@ -52,12 +52,11 @@ RUN --mount=type=cache,target=/root/.cache \
 # LEAVE THIS OUT if your application is NOT a proper Python package.
 COPY . /src
 WORKDIR /src
-RUN --mount=type=cache,target=/root/.cache \
+RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync \
         --locked \
         --no-dev \
         --no-editable
-
 
 ##########################################################################
 
