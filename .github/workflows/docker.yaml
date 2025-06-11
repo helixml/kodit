@@ -51,6 +51,9 @@ jobs:
     # Only run on main branch or when explicitly triggered
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     steps:
+      - name: Free disk space
+        run: rm -rf /opt/hostedtoolcache
+
       - name: Check out the repo
         uses: actions/checkout@v4
 
