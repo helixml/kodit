@@ -13,6 +13,10 @@ jobs:
     name: Test and build Docker image
     runs-on: ubuntu-latest
     steps:
+      - run: ls -la /opt/hostedtoolcache
+      - name: Free disk space
+        run: rm -rf /opt/hostedtoolcache
+
       - name: Check out the repo
         uses: actions/checkout@v4
 
