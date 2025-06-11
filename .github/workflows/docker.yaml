@@ -54,8 +54,8 @@ jobs:
     # Only run on main branch or when explicitly triggered
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     steps:
-      - name: Free disk space
-        run: rm -rf /opt/hostedtoolcache
+      - name: Free up disk space for docker
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/hostedtoolcache || true
 
       - name: Check out the repo
         uses: actions/checkout@v4
@@ -89,8 +89,6 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Generate artifact attestation
         uses: actions/attest-build-provenance@v2
