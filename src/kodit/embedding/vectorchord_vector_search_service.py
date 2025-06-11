@@ -1,6 +1,6 @@
 """Vectorchord vector search."""
 
-from typing import Any
+from typing import Any, Literal
 
 from sqlalchemy import Result, TextClause, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -51,13 +51,15 @@ ORDER BY score ASC
 LIMIT :top_k;
 """
 
+TaskName = Literal["code", "text"]
+
 
 class VectorChordVectorSearchService(VectorSearchService):
     """VectorChord vector search."""
 
     def __init__(
         self,
-        task_name: str,
+        task_name: TaskName,
         session: AsyncSession,
         embedding_provider: EmbeddingProvider,
     ) -> None:

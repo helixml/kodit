@@ -16,6 +16,7 @@ from kodit.embedding.vector_search_service import (
     VectorSearchService,
 )
 from kodit.embedding.vectorchord_vector_search_service import (
+    TaskName,
     VectorChordVectorSearchService,
 )
 
@@ -26,7 +27,7 @@ def _get_endpoint_configuration(app_context: AppContext) -> Endpoint | None:
 
 
 def embedding_factory(
-    task_name: str, app_context: AppContext, session: AsyncSession
+    task_name: TaskName, app_context: AppContext, session: AsyncSession
 ) -> VectorSearchService:
     """Create an embedding service."""
     embedding_repository = EmbeddingRepository(session=session)
