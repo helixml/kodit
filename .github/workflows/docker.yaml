@@ -20,7 +20,7 @@ jobs:
         id: docker-cache
         uses: ScribeMD/docker-cache@0.5.0
         with:
-          key: docker-${{ runner.os }}-${{ hashFiles('Dockerfile') }}-${{ hashFiles('uv.lock') }}
+          key: docker-${{ runner.os }}
 
       - name: Build Docker image
         if: steps.docker-cache.outputs.cache-hit != 'true'
