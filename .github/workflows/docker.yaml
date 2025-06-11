@@ -13,6 +13,9 @@ jobs:
     name: Test and build Docker image
     runs-on: ubuntu-latest
     steps:
+      - name: Free up disk space
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet || true
+
       - name: Check out the repo
         uses: actions/checkout@v4
 
@@ -55,6 +58,9 @@ jobs:
     # Only run on main branch or when explicitly triggered
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     steps:
+      - name: Free up disk space
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet || true
+
       - name: Check out the repo
         uses: actions/checkout@v4
 
