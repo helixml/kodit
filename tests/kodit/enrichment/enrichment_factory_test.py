@@ -12,7 +12,7 @@ from kodit.enrichment.enrichment_service import LLMEnrichmentService
 
 
 @pytest.mark.asyncio
-async def test_embedding_factory(app_context: AppContext):
+async def test_enrichment_factory(app_context: AppContext):
     # With defaults, no settings
     app_context.default_endpoint = None
     app_context.enrichment_endpoint = None

@@ -13,6 +13,11 @@ from sqlalchemy.orm import sessionmaker
 from kodit.config import AppContext
 from kodit.database import Base
 
+# Need to import these models to create the tables
+import kodit.indexing.indexing_models
+import kodit.embedding.embedding_models
+import kodit.source.source_models
+
 
 @pytest.fixture
 async def engine() -> AsyncGenerator[AsyncEngine, None]:

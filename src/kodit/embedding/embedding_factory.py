@@ -32,7 +32,6 @@ def embedding_factory(
     """Create an embedding service."""
     embedding_repository = EmbeddingRepository(session=session)
     endpoint = _get_endpoint_configuration(app_context)
-    endpoint = app_context.embedding_endpoint or app_context.default_endpoint or None
 
     if endpoint and endpoint.type == "openai":
         from openai import AsyncOpenAI
