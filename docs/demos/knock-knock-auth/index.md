@@ -6,6 +6,7 @@ weight: 1
 tags:
 - demo
 - auth
+- cursor
 ---
 
 Another common feature of private codebases is proprietary code to achieve a certain
