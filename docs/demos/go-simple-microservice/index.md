@@ -29,7 +29,7 @@ Here is the prompt I used to build my new microservice:
 ## With Cline
 
 Without Kodit, the AI assistant attempted to rebuild a new mock microservice to test
-against, despite not asking for it. Here is a short extract from the [full transcript](#unaided-requestresponse-from-cline):
+against, despite not asking for it. Here is a short extract from the [full transcript](#full-transcript---unaided):
 
 > The Go microservice for the shipping department has been developed and is running on port 8082. It exposes two REST API endpoints:
 >
@@ -75,7 +75,7 @@ Now let's index the microservices and try again:
 
 With Kodit, cline is able to query for relevant microservices. The net result (with a
 few iterations of fixing the code!) is a new microservice that correctly calls the other
-microservices to obtain information.
+microservices to obtain information. ([Full transcript](#full-transcript---with-kodit))
 
 For example, here's the code generated to get users:
 
@@ -1004,8 +1004,6 @@ ACT MODE
 file:///Users/phil/.kodit/clones/https___gist.github.com_philwinder_7aa38185e20433c04c533f2b28f4e217.git/main.go
 The provided code snippet defines a function `NewOrderService` that constructs and returns a pointer to a new instance of `OrderService`. Within this function, an `OrderService` instance is initialized with a slice of `Order` objects. Each `Order` is populated with fields including `ID`, `UserID`, `Amount`, and `Status`. The function initializes the `orders` slice with three predefined orders, representing different states (pending, shipped, and delivered). This setup is likely used to manage orders in an e-commerce or similar application.
 
-```
-
 func NewOrderService() *OrderService {
  return &OrderService{
   orders: []Order{
@@ -1015,8 +1013,6 @@ func NewOrderService() *OrderService {
   },
  }
 }
-
-```
 
 file:///Users/phil/.kodit/clones/https___gist.github.com_philwinder_7aa38185e20433c04c533f2b28f4e217.git/main.go
 This Go code snippet sets up a simple web server to handle HTTP requests for an "orders" service. 
@@ -1029,8 +1025,6 @@ This Go code snippet sets up a simple web server to handle HTTP requests for an 
 
 Overall, this code sets up a basic HTTP server for managing orders with a custom handler.
 
-```
-
 func main() {
  orderService := NewOrderService()
  orderHandler := NewOrderHandler(orderService)
@@ -1040,18 +1034,14 @@ func main() {
  log.Fatal(http.ListenAndServe(":8081", nil))
 }
 
-```
-
 file:///Users/phil/.kodit/clones/https___gist.github.com_philwinder_7aa38185e20433c04c533f2b28f4e217.git/main.go
 The provided code snippet defines a function named `NewOrderHandler` that takes a pointer to an `OrderService` as its parameter. It returns a pointer to a new instance of `OrderHandler`, initializing it with the provided `OrderService`. This function is typically used to create and set up a new handler for order-related operations, enabling dependency injection for better testing and separation of concerns.
 
-```
 
 func NewOrderHandler(service *OrderService)*OrderHandler {
  return &OrderHandler{service: service}
 }
 
-```
 
 file:///Users/phil/.kodit/clones/https___gist.github.com_philwinder_db2e17413332844fa4b14971ae5adb34.git/main.go
 This Go code snippet defines the `main` function, which is the entry point of the application. 
@@ -1064,7 +1054,6 @@ This Go code snippet defines the `main` function, which is the entry point of th
 
 Overall, this code sets up a simple web server that serves user-related requests at the `/users` endpoint.
 
-```
 
 func main() {
  userService := NewUserService()
@@ -1075,12 +1064,10 @@ func main() {
  log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
-```
 
 file:///Users/phil/.kodit/clones/https___gist.github.com_philwinder_db2e17413332844fa4b14971ae5adb34.git/main.go
 The `NewUserService` function is a constructor in Go that creates and returns a pointer to a new instance of `UserService`. This instance is initialized with a predefined slice of `User` structs, each representing a user with an ID, name, and email address. The function essentially sets up the `UserService` with some initial user data right at the time of its creation.
 
-```
 
 func NewUserService() *UserService {
  return &UserService{
@@ -1092,18 +1079,15 @@ func NewUserService() *UserService {
  }
 }
 
-```
 
 file:///Users/phil/.kodit/clones/https___gist.github.com_philwinder_db2e17413332844fa4b14971ae5adb34.git/main.go
 The given code defines a function named `NewUserHandler` that creates a new instance of `UserHandler`. It takes a parameter `service`, which is a pointer to an instance of `UserService`. The function initializes a `UserHandler` struct with the provided `UserService` and returns a pointer to this new `UserHandler` instance. This is commonly used in Go (Golang) for dependency injection, allowing the `UserHandler` to use the `UserService` for its operations.
 
-```
 
 func NewUserHandler(service *UserService)*UserHandler {
  return &UserHandler{service: service}
 }
 
-```
 <environment_details>
 # VSCode Visible Files
 (No visible files)
