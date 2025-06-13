@@ -2,6 +2,7 @@
 
 from typing import Any, Literal
 
+import structlog
 from sqlalchemy import Result, TextClause, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -69,6 +70,7 @@ class VectorChordVectorSearchService(VectorSearchService):
         self._initialized = False
         self.table_name = f"vectorchord_{task_name}_embeddings"
         self.index_name = f"{self.table_name}_idx"
+        self.log = structlog.get_logger(__name__)
 
     async def _initialize(self) -> None:
         """Initialize the VectorChord environment."""
@@ -130,6 +132,10 @@ class VectorChordVectorSearchService(VectorSearchService):
 
     async def index(self, data: list[VectorSearchRequest]) -> None:
         """Embed a list of documents."""
+        if not data or len(data) == 0:
+            self.log.warning("Embedding data is empty, skipping embedding")
+            return
+
         embeddings = await self.embedding_provider.embed([doc.text for doc in data])
         # Execute inserts
         await self._execute(

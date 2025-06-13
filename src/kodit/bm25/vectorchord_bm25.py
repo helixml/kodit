@@ -2,6 +2,7 @@
 
 from typing import Any
 
+import structlog
 from sqlalchemy import Result, TextClause, bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -93,6 +94,7 @@ class VectorChordBM25(KeywordSearchProvider):
         """Initialize the VectorChord BM25."""
         self.__session = session
         self._initialized = False
+        self.log = structlog.get_logger(__name__)
 
     async def _initialize(self) -> None:
         """Initialize the VectorChord environment."""
@@ -149,7 +151,8 @@ class VectorChordBM25(KeywordSearchProvider):
             if doc.snippet_id is not None and doc.text is not None and doc.text != ""
         ]
 
-        if not corpus:
+        if not corpus or len(corpus) == 0:
+            self.log.warning("Corpus is empty, skipping bm25 index")
             return
 
         # Execute inserts

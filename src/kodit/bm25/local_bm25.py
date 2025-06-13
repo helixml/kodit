@@ -64,6 +64,10 @@ class BM25Service(KeywordSearchProvider):
     async def index(self, corpus: list[BM25Document]) -> None:
         """Index a new corpus."""
         self.log.debug("Indexing corpus")
+        if not corpus or len(corpus) == 0:
+            self.log.warning("Corpus is empty, skipping bm25 index")
+            return
+
         vocab = self._tokenize([doc.text for doc in corpus])
         self._retriever().index(vocab, show_progress=False)
         self._retriever().save(self.index_path)

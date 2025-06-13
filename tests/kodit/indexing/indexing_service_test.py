@@ -175,3 +175,44 @@ async def test_run_index_not_exists(service: IndexService) -> None:
     """Test running an index that doesn't exist."""
     with pytest.raises(ValueError, match="Index not found: 999"):
         await service.run(999)
+
+
+@pytest.mark.asyncio
+async def test_run_should_not_fail_if_no_snippets(
+    repository: IndexRepository,
+    service: IndexService,
+    session: AsyncSession,
+    tmp_path: Path,
+) -> None:
+    """Test running an index that doesn't have any snippets."""
+    # Create test files
+    test_dir = tmp_path / "test_folder"
+    test_dir.mkdir()
+    test_file = test_dir / "test.unknown"
+    test_file.write_text("print('hello')")
+
+    # Create test source
+    source = Source(uri=str(test_dir), cloned_path=str(test_dir))
+    session.add(source)
+    await session.commit()
+
+    # Create test files
+    file = File(
+        source_id=source.id,
+        cloned_path=str(test_file),
+        mime_type="unknown/unknown",
+        uri=str(test_file),
+        sha256="",
+    )
+    session.add(file)
+    await session.commit()
+
+    # Create index
+    index = await service.create(source.id)
+
+    # Run the index
+    await service.run(index.id)
+
+    # Verify no snippets were created
+    snippets = await repository.get_snippets_for_index(index.id)
+    assert len(snippets) == 0

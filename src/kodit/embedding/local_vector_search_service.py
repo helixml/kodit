@@ -29,6 +29,10 @@ class LocalVectorSearchService(VectorSearchService):
 
     async def index(self, data: list[VectorSearchRequest]) -> None:
         """Embed a list of documents."""
+        if not data or len(data) == 0:
+            self.log.warning("Embedding data is empty, skipping embedding")
+            return
+
         embeddings = await self.embedding_provider.embed([i.text for i in data])
         for i, x in zip(data, embeddings, strict=False):
             await self.embedding_repository.create_embedding(
