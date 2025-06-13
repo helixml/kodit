@@ -51,6 +51,7 @@ code. This index is used to build a snippet library, ready for ingestion into an
 - Build comprehensive snippet libraries for LLM ingestion
 - Support for multiple codebase types and languages
 - Efficient indexing and search capabilities
+- Privacy first: respects .gitignore and .noindex files.
 
 ### MCP Server
 
