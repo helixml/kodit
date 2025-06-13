@@ -4,25 +4,22 @@ description: Learn about what data is collected and how to disable it.
 weight: 99
 ---
 
-Kodit includes a very limited amount initial telemetry to help guide product
-development. At the moment Kodit uses [PostHog](https://posthog.com/) to capture anonymous
-usage metrics, although it will soon be migrated to
-[RudderStack](https://www.rudderstack.com/) for improved flexibility.
+Kodit includes a very limited amount anonymous telemetry to help guide product
+development. At the moment Kodit uses [Rudderstack](https://rudderstack.com) to capture
+anonymous usage metrics.
 
 ## What Kodit Captures
 
-> _this list will expand over time as we improve coverage_
-
 You can see what metrics are sent by searching for [use of the helper
-function](https://github.com/helixml/kodit/blob/main/src/kodit/log.py#L160) in the Kodit
+functions](https://github.com/helixml/kodit/blob/main/src/kodit/log.py#L169) in the Kodit
 codebase.
 
-Kodit currently captures:
+Kodit currently captures use of the following:
 
-- [Starting of the kodit MCP
-  server](https://github.com/helixml/kodit/blob/main/src/kodit/cli.py#L324)
+- When a user uses the CLI methods
+- When the indexing service is used or queried
 
-... and that's it!
+No user data is collected, only metadata about Kodit usage.
 
 ## Disabling Telemetry
 
