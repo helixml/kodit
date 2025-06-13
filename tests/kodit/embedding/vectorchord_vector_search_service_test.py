@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 import socket
 import subprocess
 import time
@@ -8,7 +9,7 @@ from kodit.embedding.vectorchord_vector_search_service import (
     VectorChordVectorSearchService,
 )
 from kodit.indexing.indexing_models import Index, Snippet
-from kodit.source.source_models import File, Source
+from kodit.source.source_models import File, Source, SourceType
 from sqlalchemy.ext.asyncio import AsyncEngine
 from typing import AsyncGenerator
 from sqlalchemy import text
@@ -112,7 +113,11 @@ async def vectorchord_session(
 
 async def create_dummy_db_file(vectorchord_session: AsyncSession):
     # Create test source
-    source = Source(uri="test_source", cloned_path="test_source")
+    source = Source(
+        uri="test_source",
+        cloned_path="test_source",
+        type=SourceType.FOLDER,
+    )
     vectorchord_session.add(source)
     await vectorchord_session.commit()
 
@@ -123,6 +128,8 @@ async def create_dummy_db_file(vectorchord_session: AsyncSession):
 
     # Create test files and snippets
     file1 = File(
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
         source_id=source.id,
         cloned_path="test1.txt",
         mime_type="text/plain",
@@ -146,7 +153,7 @@ def vector_search_service(
     vectorchord_session: AsyncSession, embedding_provider: EmbeddingProvider
 ):
     return VectorChordVectorSearchService(
-        task_name="test",
+        task_name="text",
         session=vectorchord_session,
         embedding_provider=embedding_provider,
     )

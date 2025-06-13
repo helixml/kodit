@@ -1,5 +1,6 @@
 """Tests for the indexing service module."""
 
+from datetime import datetime, UTC
 from pathlib import Path
 import tempfile
 from typing import Any, Generator
@@ -21,7 +22,7 @@ from kodit.embedding.vector_search_service import (
 from kodit.enrichment.enrichment_service import NullEnrichmentService
 from kodit.indexing.indexing_repository import IndexRepository
 from kodit.indexing.indexing_service import IndexService
-from kodit.source.source_models import File, Source
+from kodit.source.source_models import File, Source, SourceType
 from kodit.source.source_repository import SourceRepository
 from kodit.source.source_service import SourceService
 
@@ -80,7 +81,9 @@ async def test_create_index(
 ) -> None:
     """Test creating a new index through the service."""
     # Create a test source
-    source = Source(uri="test_folder", cloned_path="test_folder")
+    source = Source(
+        uri="test_folder", cloned_path="test_folder", type=SourceType.FOLDER
+    )
     session.add(source)
     await session.commit()
 
@@ -122,12 +125,16 @@ async def test_run_index(
     test_file.write_text("print('hello')")
 
     # Create test source
-    source = Source(uri=str(test_dir), cloned_path=str(test_dir))
+    source = Source(
+        uri=str(test_dir), cloned_path=str(test_dir), type=SourceType.FOLDER
+    )
     session.add(source)
     await session.commit()
 
     # Create test files
     file = File(
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
         source_id=source.id,
         cloned_path=str(test_file),
         mime_type="text/x-python",
@@ -136,6 +143,8 @@ async def test_run_index(
     )
     session.add(file)
     file = File(
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
         source_id=source.id,
         cloned_path=str(test_file),
         mime_type="unknown/unknown",  # This file will be ignored

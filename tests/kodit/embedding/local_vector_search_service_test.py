@@ -1,5 +1,5 @@
 import pytest
-
+from datetime import UTC, datetime
 from kodit.embedding.embedding_provider.embedding_provider import EmbeddingProvider
 from kodit.embedding.embedding_provider.hash_embedding_provider import (
     HashEmbeddingProvider,
@@ -14,12 +14,16 @@ from kodit.embedding.embedding_models import EmbeddingType
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.indexing.indexing_models import Index, Snippet
-from kodit.source.source_models import File, Source
+from kodit.source.source_models import File, Source, SourceType
 
 
 async def create_dummy_db_file(session: AsyncSession):
     # Create test source
-    source = Source(uri="test_source", cloned_path="test_source")
+    source = Source(
+        uri="test_source",
+        cloned_path="test_source",
+        type=SourceType.FOLDER,
+    )
     session.add(source)
     await session.commit()
 
@@ -30,6 +34,8 @@ async def create_dummy_db_file(session: AsyncSession):
 
     # Create test files and snippets
     file1 = File(
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
         source_id=source.id,
         cloned_path="test1.txt",
         mime_type="text/plain",

@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 import socket
 import subprocess
 import time
@@ -8,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from kodit.database import Base
 from kodit.indexing.indexing_models import Index, Snippet
-from kodit.source.source_models import File, Source
+from kodit.source.source_models import File, Source, SourceType
 from sqlalchemy.ext.asyncio import AsyncEngine
 from typing import AsyncGenerator
 from sqlalchemy import text
@@ -99,11 +100,16 @@ async def vectorchord_session(
 async def test_vectorchord_repository_bm25_search(vectorchord_session: AsyncSession):
     """Test the BM25 search capabilities of VectorChordRepository."""
     # Create test data
-    source = Source(uri="test", cloned_path="test")
+    source = Source(uri="test", cloned_path="test", type=SourceType.FOLDER)
     vectorchord_session.add(source)
     await vectorchord_session.flush()
 
-    file = File(source_id=source.id, cloned_path="test")
+    file = File(
+        source_id=source.id,
+        cloned_path="test",
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
     vectorchord_session.add(file)
     await vectorchord_session.flush()
 

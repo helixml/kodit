@@ -1,9 +1,10 @@
+from datetime import UTC, datetime
 from kodit.indexing.indexing_models import Snippet
 from kodit.indexing.indexing_repository import IndexRepository
 from sqlalchemy.ext.asyncio import AsyncSession
 import pytest
 
-from kodit.source.source_models import File, Source
+from kodit.source.source_models import File, Source, SourceType
 
 
 @pytest.fixture
@@ -17,11 +18,15 @@ async def test_should_allow_multiple_snippets_for_one_file(
     session: AsyncSession,
     indexing_repository: IndexRepository,
 ) -> None:
-    source = Source(uri="test_folder", cloned_path="test_folder")
+    source = Source(
+        uri="test_folder", cloned_path="test_folder", type=SourceType.FOLDER
+    )
     session.add(source)
     await session.commit()
 
     file = File(
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
         source_id=source.id,
         cloned_path="test.py",
     )
@@ -59,11 +64,17 @@ async def test_should_return_when_items_are_present(
     indexing_repository: IndexRepository,
 ) -> None:
     """Test that an error is raised if some IDs are not present."""
-    source = Source(uri="test_folder", cloned_path="test_folder")
+    source = Source(
+        uri="test_folder",
+        cloned_path="test_folder",
+        type=SourceType.FOLDER,
+    )
     session.add(source)
     await session.commit()
 
     file = File(
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
         source_id=source.id,
         cloned_path="test.py",
     )
