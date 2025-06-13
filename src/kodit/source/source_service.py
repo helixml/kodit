@@ -273,10 +273,8 @@ class SourceService:
 
             # Get or create the authors in the database
             for actor in actors:
-                if actor.name or actor.email:
-                    author = await self.repository.get_or_create_author(
-                        actor.name or "", actor.email or ""
-                    )
+                if actor.email:
+                    author = await self._get_or_create_author_from_actor(actor)
                     authors.append(author)
 
         # Create the file record
@@ -303,9 +301,33 @@ class SourceService:
 
             # Create mapping of authors to the file
             for author in authors:
-                await self.repository.get_or_create_author_file_mapping(
+                await self.repository.create_author_file_mapping(
                     author_id=author.id, file_id=file.id
                 )
+
+    async def _get_or_create_author_from_actor(self, actor: git.Actor) -> Author:
+        """Get or create an author from a git.Actor.
+
+        This method encapsulates the business logic for finding existing authors
+        or creating new ones from git commit information.
+
+        Args:
+            actor: The git.Actor to create/find an author for.
+
+        Returns:
+            The Author instance (either existing or newly created).
+
+        """
+        email = actor.email or ""
+
+        # First try to find an existing author
+        author = await self.repository.get_author_by_email(email)
+
+        # If not found, create a new one
+        if not author:
+            author = await self.repository.create_author(Author.from_actor(actor))
+
+        return author
 
     async def list_sources(self) -> list[SourceView]:
         """List all available sources.

@@ -178,9 +178,8 @@ async def test_create_git_source_with_authors(
     assert source.id is not None
 
     # Assert that the author exists in the database
-    author = await service.repository.get_or_create_author(
-        "Test Author", "test@example.com"
-    )
+    author = await service.repository.get_author_by_email("test@example.com")
+    assert author is not None
     assert author.id is not None
 
     # Assert there is a file in the database
@@ -190,10 +189,9 @@ async def test_create_git_source_with_authors(
     assert file.id is not None
 
     # Assert there is a mapping of the author to the file
-    mapping = await service.repository.get_or_create_author_file_mapping(
-        author.id, file.id
-    )
-    assert mapping.id is not None
+    files = await service.repository.list_files_for_author(author.id)
+    assert len(files) == 1
+    assert files[0].id == file.id
 
 
 @pytest.mark.asyncio

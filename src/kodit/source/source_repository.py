@@ -106,35 +106,33 @@ class SourceRepository:
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
 
-    async def get_or_create_author(self, name: str, email: str) -> Author:
-        """Get or create an author by name and email.
-
-        Args:
-            name: The name of the author.
-            email: The email of the author.
-
-        """
-        query = select(Author).where(Author.name == name, Author.email == email)
+    async def get_author_by_email(self, email: str) -> Author | None:
+        """Get an author by email."""
+        query = select(Author).where(Author.email == email)
         result = await self.session.execute(query)
-        author = result.scalar_one_or_none()
-        if not author:
-            author = Author(name=name, email=email)
-            self.session.add(author)
-            await self.session.commit()
+        return result.scalar_one_or_none()
+
+    async def create_author(self, author: Author) -> Author:
+        """Create a new author."""
+        self.session.add(author)
+        await self.session.commit()
         return author
 
-    async def get_or_create_author_file_mapping(
+    async def create_author_file_mapping(
         self, author_id: int, file_id: int
     ) -> AuthorFileMapping:
-        """Create a new author file mapping record in the database."""
-        query = select(AuthorFileMapping).where(
-            AuthorFileMapping.author_id == author_id,
-            AuthorFileMapping.file_id == file_id,
+        """Create a new author file mapping."""
+        mapping = AuthorFileMapping(author_id=author_id, file_id=file_id)
+        self.session.add(mapping)
+        await self.session.commit()
+        return mapping
+
+    async def list_files_for_author(self, author_id: int) -> list[File]:
+        """List all files for an author."""
+        query = (
+            select(File)
+            .join(AuthorFileMapping)
+            .where(AuthorFileMapping.author_id == author_id)
         )
         result = await self.session.execute(query)
-        mapping = result.scalar_one_or_none()
-        if not mapping:
-            mapping = AuthorFileMapping(author_id=author_id, file_id=file_id)
-            self.session.add(mapping)
-            await self.session.commit()
-        return mapping
+        return list(result.scalars())

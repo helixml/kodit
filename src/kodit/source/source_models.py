@@ -8,6 +8,7 @@ folders) and their relationships.
 import datetime
 from enum import Enum as EnumType
 
+from git import Actor
 from sqlalchemy import Enum, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -62,6 +63,11 @@ class Author(Base, CommonMixin):
 
     name: Mapped[str] = mapped_column(String(255), index=True, unique=True)
     email: Mapped[str] = mapped_column(String(255), index=True, unique=True)
+
+    @staticmethod
+    def from_actor(actor: Actor) -> "Author":
+        """Create an Author from an Actor."""
+        return Author(name=actor.name, email=actor.email)
 
 
 class AuthorFileMapping(Base, CommonMixin):
