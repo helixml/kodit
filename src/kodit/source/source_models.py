@@ -47,12 +47,12 @@ class Source(Base, CommonMixin):
         Enum(SourceType), default=SourceType.UNKNOWN, index=True
     )
 
-    def __init__(self, uri: str, cloned_path: str, type: SourceType) -> None:
+    def __init__(self, uri: str, cloned_path: str, source_type: SourceType) -> None:
         """Initialize a new Source instance for typing purposes."""
         super().__init__()
         self.uri = uri
         self.cloned_path = cloned_path
-        self.type = type
+        self.type = source_type
 
 
 class Author(Base, CommonMixin):
