@@ -289,6 +289,10 @@ class IndexService:
 
         """
         files = await self.repository.files_for_index(index_id)
+        if not files:
+            self.log.warning("No files to create snippets for")
+            return
+
         for file in tqdm(files, total=len(files), leave=False):
             # Skip unsupported file types
             if file.mime_type in MIME_BLACKLIST:

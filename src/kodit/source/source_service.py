@@ -246,10 +246,6 @@ class SourceService:
         if not cloned_file.is_file():
             return
 
-        # If this file is inside a .git directory, then skip it
-        if ".git" in cloned_file.as_posix():
-            return
-
         # If this file exists in a git repository, pull out the file's metadata
         authors: list[Author] = []
         first_modified_at: datetime | None = None

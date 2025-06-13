@@ -34,6 +34,10 @@ class LocalEnrichmentProvider(EnrichmentProvider):
 
     async def enrich(self, data: list[str]) -> list[str]:
         """Enrich a list of strings."""
+        if not data or len(data) == 0:
+            self.log.warning("Data is empty, skipping enrichment")
+            return []
+
         from transformers.models.auto.modeling_auto import (
             AutoModelForCausalLM,
         )

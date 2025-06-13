@@ -31,6 +31,10 @@ class OpenAIEnrichmentProvider(EnrichmentProvider):
 
     async def enrich(self, data: list[str]) -> list[str]:
         """Enrich a list of documents."""
+        if not data or len(data) == 0:
+            self.log.warning("Data is empty, skipping enrichment")
+            return []
+
         # Process batches in parallel with a semaphore to limit concurrent requests
         sem = asyncio.Semaphore(OPENAI_NUM_PARALLEL_TASKS)
 
