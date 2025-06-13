@@ -175,13 +175,13 @@ class SourceService:
             ValueError: If the repository cloning fails.
 
         """
-        # Normalise the uri by cloning it and getting the remote
+        self.log.debug("Normalising git uri", uri=uri)
         with tempfile.TemporaryDirectory() as temp_dir:
             git.Repo.clone_from(uri, temp_dir)
             remote = git.Repo(temp_dir).remote()
             uri = remote.url
 
-        # Check if the repository is already added
+        self.log.debug("Checking if source already exists", uri=uri)
         source = await self.repository.get_source_by_uri(uri)
 
         if source:
@@ -201,6 +201,7 @@ class SourceService:
                     msg = f"Failed to clone repository: {e}"
                     raise ValueError(msg) from e
 
+            self.log.debug("Creating source", uri=uri, clone_path=str(clone_path))
             source = await self.repository.create_source(
                 Source(
                     uri=uri,
@@ -210,12 +211,22 @@ class SourceService:
             )
 
             # Add all files to the source
+            files = list(clone_path.rglob("*"))
+
+            # Relative to the clone path, check to see if any of these files are .git
+            # files
+            files = [
+                f
+                for f in files
+                if not f.relative_to(clone_path).as_posix().startswith(".git")
+            ]
+
             # Count total files for progress bar
-            file_count = sum(1 for _ in clone_path.rglob("*") if _.is_file())
+            file_count = sum(1 for _ in files if _.is_file())
 
             # Process each file in the source directory
-            self.log.info("Inspecting files", source_id=source.id)
-            for path in tqdm(clone_path.rglob("*"), total=file_count, leave=False):
+            self.log.info("Inspecting files", source_id=source.id, num_files=file_count)
+            for path in tqdm(files, total=file_count, leave=False):
                 await self._process_file(source, path.absolute())
 
         return SourceView(
