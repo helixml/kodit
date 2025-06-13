@@ -20,6 +20,7 @@ import structlog
 from tqdm import tqdm
 
 from kodit.source.git import is_valid_clone_target
+from kodit.source.ignore import IgnorePatterns
 from kodit.source.source_models import (
     Author,
     File,
@@ -210,23 +211,17 @@ class SourceService:
                 ),
             )
 
-            # Add all files to the source
-            files = list(clone_path.rglob("*"))
+            # Get the ignore patterns for this source
+            ignore_patterns = IgnorePatterns(clone_path)
 
-            # Relative to the clone path, check to see if any of these files are .git
-            # files
+            # Get all files that are not ignored
             files = [
-                f
-                for f in files
-                if not f.relative_to(clone_path).as_posix().startswith(".git")
+                f for f in clone_path.rglob("*") if not ignore_patterns.should_ignore(f)
             ]
 
-            # Count total files for progress bar
-            file_count = sum(1 for _ in files if _.is_file())
-
             # Process each file in the source directory
-            self.log.info("Inspecting files", source_id=source.id, num_files=file_count)
-            for path in tqdm(files, total=file_count, leave=False):
+            self.log.info("Inspecting files", source_id=source.id, num_files=len(files))
+            for path in tqdm(files, total=len(files), leave=False):
                 await self._process_file(source, path.absolute())
 
         return SourceView(

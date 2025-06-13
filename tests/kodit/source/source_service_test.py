@@ -233,3 +233,90 @@ async def test_create_git_source_with_multiple_commits(
     assert file.created_at is not None
     assert file.updated_at is not None
     assert file.created_at < file.updated_at
+
+
+@pytest.mark.asyncio
+async def test_create_git_source_with_gitignore(
+    service: SourceService, tmp_path: Path
+) -> None:
+    """Test creating a git source with .gitignore file excludes ignored files."""
+    # Create a temporary git repository
+    repo_path = tmp_path / "test_repo"
+    repo = git.Repo.init(repo_path, mkdir=True)
+
+    # Create a .gitignore file with some patterns
+    gitignore_content = """# Ignore log files
+*.log
+*.tmp
+
+# Ignore build directory
+build/
+
+# Ignore specific files
+secret.txt
+config/private.conf
+"""
+    (repo_path / ".gitignore").write_text(gitignore_content)
+
+    # Create files that should be tracked
+    (repo_path / "main.py").write_text("print('main')")
+    (repo_path / "utils.py").write_text("def helper(): pass")
+    (repo_path / "config").mkdir()
+    (repo_path / "config" / "public.conf").write_text("public=true")
+    (repo_path / "README.md").write_text("# Test Project")
+
+    # Create files that should be ignored according to .gitignore
+    (repo_path / "debug.log").write_text("debug info")
+    (repo_path / "temp.tmp").write_text("temporary data")
+    (repo_path / "secret.txt").write_text("secret data")
+    (repo_path / "config" / "private.conf").write_text("private=secret")
+    (repo_path / "build").mkdir()
+    (repo_path / "build" / "output.js").write_text("compiled code")
+
+    # Add tracked files to git (excluding ignored files)
+    repo.index.add(
+        [".gitignore", "main.py", "utils.py", "config/public.conf", "README.md"]
+    )
+    repo.index.commit("Initial commit with .gitignore")
+
+    # Create a git source
+    source = await service.create(repo_path.as_uri())
+    assert source.id is not None
+    assert source.uri == repo_path.as_uri()
+    assert source.cloned_path.is_dir()
+    assert source.created_at is not None
+
+    # Get all files ingested by the service
+    files = await service.repository.list_files_for_source(source.id)
+    ingested_paths = [Path(f.cloned_path).name for f in files]
+
+    # Assert that tracked files are ingested
+    assert "main.py" in ingested_paths
+    assert "utils.py" in ingested_paths
+    assert "public.conf" in ingested_paths
+    assert "README.md" in ingested_paths
+
+    # Assert that ignored files are NOT ingested (this is the core test)
+    assert "debug.log" not in ingested_paths
+    assert "temp.tmp" not in ingested_paths
+    assert "secret.txt" not in ingested_paths
+    assert "private.conf" not in ingested_paths
+    assert "output.js" not in ingested_paths
+
+    # Verify that ignored files don't exist in the cloned directory
+    # (Git clone respects .gitignore for untracked files)
+    cloned_path = Path(source.cloned_path)
+    assert not (cloned_path / "debug.log").exists()
+    assert not (cloned_path / "temp.tmp").exists()
+    assert not (cloned_path / "secret.txt").exists()
+
+    # These tracked files should exist on disk and be ingested
+    assert (cloned_path / "main.py").exists()
+    assert (cloned_path / "utils.py").exists()
+    assert (cloned_path / "README.md").exists()
+
+    # Verify we only ingested the tracked files (not the ignored ones)
+    assert len(files) == 4  # main.py, utils.py, public.conf, README.md
+
+    # Clean up
+    shutil.rmtree(repo_path)
