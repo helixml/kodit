@@ -26,6 +26,7 @@ from kodit.enrichment.enrichment_service import EnrichmentService
 from kodit.indexing.fusion import FusionRequest, reciprocal_rank_fusion
 from kodit.indexing.indexing_models import Snippet
 from kodit.indexing.indexing_repository import IndexRepository
+from kodit.log import log_event
 from kodit.snippets.snippets import SnippetService
 from kodit.source.source_service import SourceService
 from kodit.util.spinner import Spinner
@@ -119,6 +120,8 @@ class IndexService:
             ValueError: If the source doesn't exist or already has an index.
 
         """
+        log_event("create_index")
+
         # Check if the source exists
         source = await self.source_service.get(source_id)
 
@@ -141,6 +144,9 @@ class IndexService:
         """
         indexes = await self.repository.list_indexes()
 
+        # Help Kodit by measuring how many indexes users are using
+        log_event("list_indexes", {"num_indexes": len(indexes)})
+
         # Transform database results into DTOs
         return [
             IndexView(
@@ -155,6 +161,8 @@ class IndexService:
 
     async def run(self, index_id: int) -> None:
         """Run the indexing process for a specific index."""
+        log_event("run_index")
+
         # Get and validate index
         index = await self.repository.get_by_id(index_id)
         if not index:
@@ -218,6 +226,8 @@ class IndexService:
 
     async def search(self, request: SearchRequest) -> list[SearchResult]:
         """Search for relevant data."""
+        log_event("search_index")
+
         fusion_list: list[list[FusionRequest]] = []
         if request.keywords:
             # Gather results for each keyword

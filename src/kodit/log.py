@@ -7,13 +7,19 @@ from enum import Enum
 from functools import lru_cache
 from typing import Any
 
+import rudderstack.analytics as rudder_analytics
 import structlog
-from posthog import Posthog
 from structlog.types import EventDict
 
+from kodit import _version
 from kodit.config import AppContext
 
 log = structlog.get_logger(__name__)
+
+rudder_analytics.write_key = "2wm1RmV2GnO92NGSs8yYtmSI0mi"
+rudder_analytics.dataPlaneUrl = (
+    "https://danbmedefzavzlslreyxjgcjwlf.dataplane.rudderstack.com"
+)
 
 
 def drop_color_message_key(_, __, event_dict: EventDict) -> EventDict:  # noqa: ANN001
@@ -131,12 +137,6 @@ def configure_logging(app_context: AppContext) -> None:
     sys.excepthook = handle_exception
 
 
-posthog = Posthog(
-    project_api_key="phc_JsX0yx8NLPcIxamfp4Zc7xyFykXjwmekKUQz060cSt3",
-    host="https://eu.i.posthog.com",
-)
-
-
 @lru_cache(maxsize=1)
 def get_mac_address() -> str:
     """Get the MAC address of the primary network interface.
@@ -154,12 +154,34 @@ def configure_telemetry(app_context: AppContext) -> None:
     """Configure telemetry for the application."""
     if app_context.disable_telemetry:
         structlog.stdlib.get_logger(__name__).info("Telemetry has been disabled")
-        posthog.disabled = True
+        rudder_analytics.send = False
+
+    rudder_analytics.identify(
+        anonymous_id=get_mac_address(),
+        traits={
+            "os_platform": sys.platform,
+            "os_version": sys.version,
+            "kodit_version": _version.version,
+        },
+    )
 
 
 def log_event(event: str, properties: dict[str, Any] | None = None) -> None:
-    """Log an event to PostHog."""
-    log.debug(
-        "Logging event", id=get_mac_address(), ph_event=event, ph_properties=properties
+    """Log an event to Rudderstack."""
+    rudder_analytics.track(
+        anonymous_id=get_mac_address(),
+        event=event,
+        properties=properties or {},
     )
-    posthog.capture(get_mac_address(), event, properties or {})
+
+
+def log_screen(
+    name: str, category: str, properties: dict[str, Any] | None = None
+) -> None:
+    """Log a screen view to Rudderstack."""
+    rudder_analytics.screen(
+        anonymous_id=get_mac_address(),
+        name=name,
+        category=category,
+        properties=properties or {},
+    )

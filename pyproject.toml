@@ -31,7 +31,6 @@ dependencies = [
     "httpx-retries>=0.3.2",
     "httpx>=0.28.1",
     "structlog>=25.3.0",
-    "posthog>=4.0.1",
     "sqlalchemy[asyncio]>=2.0.40",
     "alembic>=1.15.2",
     "aiosqlite>=0.20.0",
@@ -53,6 +52,7 @@ dependencies = [
     "asyncpg>=0.30.0",
     "transformers>=4.51.3",
     "accelerate>=1.7.0",
+    "rudder-sdk-python>=2.1.4",
 ]
 
 [dependency-groups]
