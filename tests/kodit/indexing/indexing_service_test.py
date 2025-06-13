@@ -201,12 +201,18 @@ async def test_run_should_not_fail_if_no_snippets(
     test_file.write_text("print('hello')")
 
     # Create test source
-    source = Source(uri=str(test_dir), cloned_path=str(test_dir))
+    source = Source(
+        uri=str(test_dir),
+        cloned_path=str(test_dir),
+        source_type=SourceType.FOLDER,
+    )
     session.add(source)
     await session.commit()
 
     # Create test files
     file = File(
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
         source_id=source.id,
         cloned_path=str(test_file),
         mime_type="unknown/unknown",
