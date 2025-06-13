@@ -22,7 +22,7 @@ async def create_dummy_db_file(session: AsyncSession):
     source = Source(
         uri="test_source",
         cloned_path="test_source",
-        type=SourceType.FOLDER,
+        source_type=SourceType.FOLDER,
     )
     session.add(source)
     await session.commit()

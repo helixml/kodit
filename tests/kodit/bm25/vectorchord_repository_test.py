@@ -100,7 +100,7 @@ async def vectorchord_session(
 async def test_vectorchord_repository_bm25_search(vectorchord_session: AsyncSession):
     """Test the BM25 search capabilities of VectorChordRepository."""
     # Create test data
-    source = Source(uri="test", cloned_path="test", type=SourceType.FOLDER)
+    source = Source(uri="test", cloned_path="test", source_type=SourceType.FOLDER)
     vectorchord_session.add(source)
     await vectorchord_session.flush()
 

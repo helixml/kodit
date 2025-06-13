@@ -19,7 +19,7 @@ async def test_should_allow_multiple_snippets_for_one_file(
     indexing_repository: IndexRepository,
 ) -> None:
     source = Source(
-        uri="test_folder", cloned_path="test_folder", type=SourceType.FOLDER
+        uri="test_folder", cloned_path="test_folder", source_type=SourceType.FOLDER
     )
     session.add(source)
     await session.commit()
@@ -67,7 +67,7 @@ async def test_should_return_when_items_are_present(
     source = Source(
         uri="test_folder",
         cloned_path="test_folder",
-        type=SourceType.FOLDER,
+        source_type=SourceType.FOLDER,
     )
     session.add(source)
     await session.commit()

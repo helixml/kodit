@@ -145,7 +145,7 @@ class SourceService:
                 Source(
                     uri=directory.as_uri(),
                     cloned_path=str(clone_path),
-                    type=SourceType.FOLDER,
+                    source_type=SourceType.FOLDER,
                 ),
             )
 
@@ -206,7 +206,7 @@ class SourceService:
                 Source(
                     uri=uri,
                     cloned_path=str(clone_path),
-                    type=SourceType.GIT,
+                    source_type=SourceType.GIT,
                 ),
             )
 

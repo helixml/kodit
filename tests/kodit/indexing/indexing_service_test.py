@@ -82,7 +82,7 @@ async def test_create_index(
     """Test creating a new index through the service."""
     # Create a test source
     source = Source(
-        uri="test_folder", cloned_path="test_folder", type=SourceType.FOLDER
+        uri="test_folder", cloned_path="test_folder", source_type=SourceType.FOLDER
     )
     session.add(source)
     await session.commit()
@@ -126,7 +126,7 @@ async def test_run_index(
 
     # Create test source
     source = Source(
-        uri=str(test_dir), cloned_path=str(test_dir), type=SourceType.FOLDER
+        uri=str(test_dir), cloned_path=str(test_dir), source_type=SourceType.FOLDER
     )
     session.add(source)
     await session.commit()

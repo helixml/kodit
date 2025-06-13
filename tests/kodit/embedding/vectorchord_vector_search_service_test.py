@@ -116,7 +116,7 @@ async def create_dummy_db_file(vectorchord_session: AsyncSession):
     source = Source(
         uri="test_source",
         cloned_path="test_source",
-        type=SourceType.FOLDER,
+        source_type=SourceType.FOLDER,
     )
     vectorchord_session.add(source)
     await vectorchord_session.commit()
