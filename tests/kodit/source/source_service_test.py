@@ -154,12 +154,82 @@ async def test_create_source_relative_path(
     """Test creating a source with a relative path, i.e. the current directory."""
 
     # Should not raise an error
-    await service.create(".")
+    await service.create("./tests/kodit/snippets")
 
 
 @pytest.mark.asyncio
-async def test_strip_trailing_slash_on_gh_url(service: SourceService) -> None:
-    """Test creating a source with a file URI."""
+async def test_create_git_source_with_authors(
+    service: SourceService, tmp_path: Path
+) -> None:
+    """Test creating a git source with authors."""
 
-    # Should work
-    await service.create("https://github.com/helixml/kodit/")
+    # Create a temporary git repository
+    repo_path = tmp_path / "test_repo"
+    repo = git.Repo.init(repo_path, mkdir=True)
+
+    # Commit a dummy file with a dummy author
+    (repo_path / "file1.txt").write_text("Hello, world!")
+    repo.index.add(["file1.txt"])
+    author = git.Actor("Test Author", "test@example.com")
+    repo.index.commit("Initial commit", author=author)
+
+    # Create a git source
+    source = await service.create(repo_path.as_uri())
+    assert source.id is not None
+
+    # Assert that the author exists in the database
+    author = await service.repository.get_or_create_author(
+        "Test Author", "test@example.com"
+    )
+    assert author.id is not None
+
+    # Assert there is a file in the database
+    files = await service.repository.list_files_for_source(source.id)
+    assert len(files) == 1
+    file = files[0]
+    assert file.id is not None
+
+    # Assert there is a mapping of the author to the file
+    mapping = await service.repository.get_or_create_author_file_mapping(
+        author.id, file.id
+    )
+    assert mapping.id is not None
+
+
+@pytest.mark.asyncio
+async def test_create_git_source_with_multiple_commits(
+    service: SourceService, tmp_path: Path
+) -> None:
+    """Test creating a git source with multiple commits."""
+
+    # Create a temporary git repository
+    repo_path = tmp_path / "test_repo"
+    repo = git.Repo.init(repo_path, mkdir=True)
+
+    # Commit a dummy file with a dummy author
+    (repo_path / "file1.txt").write_text("Hello, world!")
+    repo.index.add(["file1.txt"])
+    repo.index.commit(
+        "Initial commit",
+        commit_date=datetime.now(UTC) - timedelta(days=1),
+    )
+
+    # Add a second commit
+    (repo_path / "file1.txt").write_text("Hello, world 2!")
+    repo.index.add(["file1.txt"])
+    repo.index.commit("Second commit")
+
+    # Create a git source
+    source = await service.create(repo_path.as_uri())
+    assert source.id is not None
+
+    # Assert there is a file in the database
+    files = await service.repository.list_files_for_source(source.id)
+    assert len(files) == 1
+    file = files[0]
+    assert file.id is not None
+
+    # Assert that the file has the correct created_at and updated_at
+    assert file.created_at is not None
+    assert file.updated_at is not None
+    assert file.created_at < file.updated_at

@@ -3,7 +3,13 @@
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.source.source_models import File, Source
+from kodit.source.source_models import (
+    Author,
+    AuthorFileMapping,
+    File,
+    Source,
+    SourceType,
+)
 
 
 class SourceRepository:
@@ -22,22 +28,12 @@ class SourceRepository:
         self.session = session
 
     async def create_source(self, source: Source) -> Source:
-        """Create a new folder source record in the database.
+        """Add a new source to the database."""
+        # Validate the source
+        if source.type == SourceType.UNKNOWN:
+            msg = "Source type is required"
+            raise ValueError(msg)
 
-        This method creates both a Source record and a linked FolderSource record
-        in a single transaction.
-
-        Args:
-            path: The absolute path of the folder to create a source for.
-
-        Returns:
-            The created Source model instance.
-
-        Note:
-            This method commits the transaction to ensure the source.id is available
-            for creating the linked FolderSource record.
-
-        """
         self.session.add(source)
         await self.session.commit()
         return source
@@ -51,6 +47,12 @@ class SourceRepository:
         self.session.add(file)
         await self.session.commit()
         return file
+
+    async def list_files_for_source(self, source_id: int) -> list[File]:
+        """List all files for a source."""
+        query = select(File).where(File.source_id == source_id)
+        result = await self.session.execute(query)
+        return list(result.scalars())
 
     async def num_files_for_source(self, source_id: int) -> int:
         """Get the number of files for a source.
@@ -103,3 +105,36 @@ class SourceRepository:
         query = select(Source).where(Source.id == source_id)
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
+
+    async def get_or_create_author(self, name: str, email: str) -> Author:
+        """Get or create an author by name and email.
+
+        Args:
+            name: The name of the author.
+            email: The email of the author.
+
+        """
+        query = select(Author).where(Author.name == name, Author.email == email)
+        result = await self.session.execute(query)
+        author = result.scalar_one_or_none()
+        if not author:
+            author = Author(name=name, email=email)
+            self.session.add(author)
+            await self.session.commit()
+        return author
+
+    async def get_or_create_author_file_mapping(
+        self, author_id: int, file_id: int
+    ) -> AuthorFileMapping:
+        """Create a new author file mapping record in the database."""
+        query = select(AuthorFileMapping).where(
+            AuthorFileMapping.author_id == author_id,
+            AuthorFileMapping.file_id == file_id,
+        )
+        result = await self.session.execute(query)
+        mapping = result.scalar_one_or_none()
+        if not mapping:
+            mapping = AuthorFileMapping(author_id=author_id, file_id=file_id)
+            self.session.add(mapping)
+            await self.session.commit()
+        return mapping

@@ -8,7 +8,8 @@ source management.
 
 import mimetypes
 import shutil
-from datetime import datetime
+import tempfile
+from datetime import UTC, datetime
 from hashlib import sha256
 from pathlib import Path
 
@@ -17,9 +18,14 @@ import git
 import pydantic
 import structlog
 from tqdm import tqdm
-from uritools import isuri, urisplit
 
-from kodit.source.source_models import File, Source
+from kodit.source.git import is_valid_clone_target
+from kodit.source.source_models import (
+    Author,
+    File,
+    Source,
+    SourceType,
+)
 from kodit.source.source_repository import SourceRepository
 
 
@@ -83,19 +89,13 @@ class SourceService:
 
     async def create(self, uri_or_path_like: str) -> SourceView:
         """Create a new source from a URI or path."""
+        # If it's possible to clone it, then do so
+        if is_valid_clone_target(uri_or_path_like):
+            return await self._create_git_source(uri_or_path_like)
+
+        # Otherwise just treat it as a directory
         if Path(uri_or_path_like).is_dir():
             return await self._create_folder_source(Path(uri_or_path_like))
-        if isuri(uri_or_path_like):
-            parsed = urisplit(uri_or_path_like)
-            if parsed.scheme == "file":
-                return await self._create_folder_source(Path(parsed.path))
-            if parsed.scheme in ("git", "http", "https") and parsed.path.endswith(
-                ".git"
-            ):
-                return await self._create_git_source(uri_or_path_like)
-            if not uri_or_path_like.endswith(".git"):
-                uri_or_path_like = uri_or_path_like.strip("/") + ".git"
-                return await self._create_git_source(uri_or_path_like)
 
         msg = f"Unsupported source: {uri_or_path_like}"
         raise ValueError(msg)
@@ -142,7 +142,11 @@ class SourceService:
             )
 
             source = await self.repository.create_source(
-                Source(uri=directory.as_uri(), cloned_path=str(clone_path)),
+                Source(
+                    uri=directory.as_uri(),
+                    cloned_path=str(clone_path),
+                    type=SourceType.FOLDER,
+                ),
             )
 
             # Add all files to the source
@@ -151,7 +155,7 @@ class SourceService:
 
             # Process each file in the source directory
             for path in tqdm(clone_path.rglob("*"), total=file_count, leave=False):
-                await self._process_file(source.id, path.absolute())
+                await self._process_file(source, path.absolute())
 
         return SourceView(
             id=source.id,
@@ -171,6 +175,12 @@ class SourceService:
             ValueError: If the repository cloning fails.
 
         """
+        # Normalise the uri by cloning it and getting the remote
+        with tempfile.TemporaryDirectory() as temp_dir:
+            git.Repo.clone_from(uri, temp_dir)
+            remote = git.Repo(temp_dir).remote()
+            uri = remote.url
+
         # Check if the repository is already added
         source = await self.repository.get_source_by_uri(uri)
 
@@ -192,7 +202,11 @@ class SourceService:
                     raise ValueError(msg) from e
 
             source = await self.repository.create_source(
-                Source(uri=uri, cloned_path=str(clone_path)),
+                Source(
+                    uri=uri,
+                    cloned_path=str(clone_path),
+                    type=SourceType.GIT,
+                ),
             )
 
             # Add all files to the source
@@ -202,7 +216,7 @@ class SourceService:
             # Process each file in the source directory
             self.log.info("Inspecting files", source_id=source.id)
             for path in tqdm(clone_path.rglob("*"), total=file_count, leave=False):
-                await self._process_file(source.id, path.absolute())
+                await self._process_file(source, path.absolute())
 
         return SourceView(
             id=source.id,
@@ -214,31 +228,82 @@ class SourceService:
 
     async def _process_file(
         self,
-        source_id: int,
-        cloned_path: Path,
+        source: Source,
+        cloned_file: Path,
     ) -> None:
         """Process a single file for indexing."""
-        if not cloned_path.is_file():
+        if not cloned_file.is_file():
             return
 
-        async with aiofiles.open(cloned_path, "rb") as f:
+        # If this file is inside a .git directory, then skip it
+        if ".git" in cloned_file.as_posix():
+            return
+
+        # If this file exists in a git repository, pull out the file's metadata
+        authors: list[Author] = []
+        first_modified_at: datetime | None = None
+        last_modified_at: datetime | None = None
+        if source.type == SourceType.GIT:
+            # Get the git repository
+            git_repo = git.Repo(source.cloned_path)
+
+            # Get the last commit that touched this file
+            commits = list(
+                git_repo.iter_commits(
+                    paths=str(cloned_file),
+                    all=True,
+                )
+            )
+            if len(commits) > 0:
+                last_modified_at = commits[0].committed_datetime
+                first_modified_at = commits[-1].committed_datetime
+
+            # Get the file's blame
+            blames = git_repo.blame("HEAD", str(cloned_file))
+
+            # Extract the blame's authors
+            actors = [
+                commit.author
+                for blame in blames or []
+                for commit in blame
+                if isinstance(commit, git.Commit)
+            ]
+
+            # Get or create the authors in the database
+            for actor in actors:
+                if actor.name or actor.email:
+                    author = await self.repository.get_or_create_author(
+                        actor.name or "", actor.email or ""
+                    )
+                    authors.append(author)
+
+        # Create the file record
+        async with aiofiles.open(cloned_file, "rb") as f:
             content = await f.read()
-            mime_type = mimetypes.guess_type(cloned_path)
+            mime_type = mimetypes.guess_type(cloned_file)
             sha = sha256(content).hexdigest()
 
             # Create file record
             file = File(
-                source_id=source_id,
-                cloned_path=cloned_path.as_posix(),
+                created_at=first_modified_at or datetime.now(UTC),
+                updated_at=last_modified_at or datetime.now(UTC),
+                source_id=source.id,
+                cloned_path=str(cloned_file),
                 mime_type=mime_type[0]
                 if mime_type and mime_type[0]
                 else "application/octet-stream",
-                uri=cloned_path.as_uri(),
+                uri=cloned_file.as_uri(),
                 sha256=sha,
                 size_bytes=len(content),
             )
 
             await self.repository.create_file(file)
+
+            # Create mapping of authors to the file
+            for author in authors:
+                await self.repository.get_or_create_author_file_mapping(
+                    author_id=author.id, file_id=file.id
+                )
 
     async def list_sources(self) -> list[SourceView]:
         """List all available sources.

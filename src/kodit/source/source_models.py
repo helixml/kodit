@@ -5,13 +5,24 @@ It includes models for tracking different types of sources (git repositories and
 folders) and their relationships.
 """
 
-from sqlalchemy import ForeignKey, Integer, String
+import datetime
+from enum import Enum as EnumType
+
+from sqlalchemy import Enum, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from kodit.database import Base, CommonMixin
 
 # Enable proper type hints for SQLAlchemy models
 __all__ = ["File", "Source"]
+
+
+class SourceType(EnumType):
+    """The type of source."""
+
+    UNKNOWN = 0
+    FOLDER = 1
+    GIT = 2
 
 
 class Source(Base, CommonMixin):
@@ -32,12 +43,34 @@ class Source(Base, CommonMixin):
     __tablename__ = "sources"
     uri: Mapped[str] = mapped_column(String(1024), index=True, unique=True)
     cloned_path: Mapped[str] = mapped_column(String(1024), index=True)
+    type: Mapped[SourceType] = mapped_column(
+        Enum(SourceType), default=SourceType.UNKNOWN, index=True
+    )
 
-    def __init__(self, uri: str, cloned_path: str) -> None:
+    def __init__(self, uri: str, cloned_path: str, type: SourceType) -> None:
         """Initialize a new Source instance for typing purposes."""
         super().__init__()
         self.uri = uri
         self.cloned_path = cloned_path
+        self.type = type
+
+
+class Author(Base, CommonMixin):
+    """Author model."""
+
+    __tablename__ = "authors"
+
+    name: Mapped[str] = mapped_column(String(255), index=True, unique=True)
+    email: Mapped[str] = mapped_column(String(255), index=True, unique=True)
+
+
+class AuthorFileMapping(Base, CommonMixin):
+    """Author file mapping model."""
+
+    __tablename__ = "author_file_mappings"
+
+    author_id: Mapped[int] = mapped_column(ForeignKey("authors.id"))
+    file_id: Mapped[int] = mapped_column(ForeignKey("files.id"))
 
 
 class File(Base, CommonMixin):
@@ -51,9 +84,12 @@ class File(Base, CommonMixin):
     cloned_path: Mapped[str] = mapped_column(String(1024), index=True)
     sha256: Mapped[str] = mapped_column(String(64), default="", index=True)
     size_bytes: Mapped[int] = mapped_column(Integer, default=0)
+    extension: Mapped[str] = mapped_column(String(255), default="", index=True)
 
     def __init__(  # noqa: PLR0913
         self,
+        created_at: datetime.datetime,
+        updated_at: datetime.datetime,
         source_id: int,
         cloned_path: str,
         mime_type: str = "",
@@ -63,6 +99,8 @@ class File(Base, CommonMixin):
     ) -> None:
         """Initialize a new File instance for typing purposes."""
         super().__init__()
+        self.created_at = created_at
+        self.updated_at = updated_at
         self.source_id = source_id
         self.cloned_path = cloned_path
         self.mime_type = mime_type
