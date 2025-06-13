@@ -19,6 +19,7 @@ from kodit.embedding.vectorchord_vector_search_service import (
     TaskName,
     VectorChordVectorSearchService,
 )
+from kodit.log import log_event
 
 
 def _get_endpoint_configuration(app_context: AppContext) -> Endpoint | None:
@@ -34,6 +35,7 @@ def embedding_factory(
     endpoint = _get_endpoint_configuration(app_context)
 
     if endpoint and endpoint.type == "openai":
+        log_event("embedding_provider", {"provider": "openai"})
         from openai import AsyncOpenAI
 
         embedding_provider = OpenAIEmbeddingProvider(
@@ -44,11 +46,14 @@ def embedding_factory(
             model_name=endpoint.model or "text-embedding-3-small",
         )
     else:
+        log_event("embedding_provider", {"provider": "local"})
         embedding_provider = LocalEmbeddingProvider(CODE)
 
     if app_context.default_search.provider == "vectorchord":
+        log_event("database_provider", {"provider": "vectorchord"})
         return VectorChordVectorSearchService(task_name, session, embedding_provider)
     if app_context.default_search.provider == "sqlite":
+        log_event("database_provider", {"provider": "sqlite"})
         return LocalVectorSearchService(
             embedding_repository=embedding_repository,
             embedding_provider=embedding_provider,
