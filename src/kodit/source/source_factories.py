@@ -19,7 +19,13 @@ import structlog
 from tqdm import tqdm
 
 from kodit.source.ignore import IgnorePatterns
-from kodit.source.source_models import Author, File, Source, SourceType
+from kodit.source.source_models import (
+    Author,
+    AuthorFileMapping,
+    File,
+    Source,
+    SourceType,
+)
 from kodit.source.source_repository import SourceRepository
 
 
@@ -82,8 +88,11 @@ class SourceFactory(ABC):
             # Extract authors
             authors = await self.author_extractor.extract(path, source)
             for author in authors:
-                await self.repository.create_author_file_mapping(
-                    author_id=author.id, file_id=file_record.id
+                await self.repository.upsert_author_file_mapping(
+                    AuthorFileMapping(
+                        author_id=author.id,
+                        file_id=file_record.id,
+                    )
                 )
 
 
@@ -265,7 +274,7 @@ class BaseFileMetadataExtractor:
         self, path: Path, source: Source
     ) -> tuple[datetime, datetime]:
         """Get creation and modification timestamps. To be implemented by subclasses."""
-        raise NotImplementedError("Subclasses must implement _get_timestamps")
+        raise NotImplementedError
 
 
 class GitFileMetadataExtractor(BaseFileMetadataExtractor):
@@ -291,7 +300,9 @@ class FolderFileMetadataExtractor(BaseFileMetadataExtractor):
     """Folder-specific implementation for extracting file metadata."""
 
     async def _get_timestamps(
-        self, path: Path, source: Source
+        self,
+        path: Path,
+        source: Source,  # noqa: ARG002
     ) -> tuple[datetime, datetime]:
         """Get timestamps from file system."""
         stat = path.stat()
@@ -327,7 +338,8 @@ class GitAuthorExtractor:
             # Get or create the authors in the database
             for actor in actors:
                 if actor.email:
-                    author = await self._get_or_create_author_from_actor(actor)
+                    author = Author.from_actor(actor)
+                    author = await self.repository.upsert_author(author)
                     authors.append(author)
         except git.GitCommandError:
             # Handle cases where file might not be tracked
@@ -335,23 +347,10 @@ class GitAuthorExtractor:
 
         return authors
 
-    async def _get_or_create_author_from_actor(self, actor: git.Actor) -> Author:
-        """Get or create an author from a git.Actor."""
-        email = actor.email or ""
-
-        # First try to find an existing author
-        author = await self.repository.get_author_by_email(email)
-
-        # If not found, create a new one
-        if not author:
-            author = await self.repository.create_author(Author.from_actor(actor))
-
-        return author
-
 
 class NoOpAuthorExtractor:
     """No-op author extractor for sources that don't have author information."""
 
-    async def extract(self, path: Path, source: Source) -> list[Author]:
+    async def extract(self, path: Path, source: Source) -> list[Author]:  # noqa: ARG002
         """Return empty list of authors."""
         return []

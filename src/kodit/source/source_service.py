@@ -69,7 +69,6 @@ class SourceService:
         self._setup_factories()
 
     def _setup_factories(self) -> None:
-        """Setup the source factories with their dependencies."""
         # Git-specific dependencies
         git_working_copy = GitWorkingCopyProvider(self.clone_dir)
         git_metadata_extractor = GitFileMetadataExtractor()

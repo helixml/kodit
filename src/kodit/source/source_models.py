@@ -9,7 +9,7 @@ import datetime
 from enum import Enum as EnumType
 
 from git import Actor
-from sqlalchemy import Enum, ForeignKey, Integer, String
+from sqlalchemy import Enum, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from kodit.database import Base, CommonMixin
@@ -61,8 +61,10 @@ class Author(Base, CommonMixin):
 
     __tablename__ = "authors"
 
-    name: Mapped[str] = mapped_column(String(255), index=True, unique=True)
-    email: Mapped[str] = mapped_column(String(255), index=True, unique=True)
+    __table_args__ = (UniqueConstraint("name", "email", name="uix_author"),)
+
+    name: Mapped[str] = mapped_column(String(255), index=True)
+    email: Mapped[str] = mapped_column(String(255), index=True)
 
     @staticmethod
     def from_actor(actor: Actor) -> "Author":
@@ -75,8 +77,12 @@ class AuthorFileMapping(Base, CommonMixin):
 
     __tablename__ = "author_file_mappings"
 
-    author_id: Mapped[int] = mapped_column(ForeignKey("authors.id"))
-    file_id: Mapped[int] = mapped_column(ForeignKey("files.id"))
+    __table_args__ = (
+        UniqueConstraint("author_id", "file_id", name="uix_author_file_mapping"),
+    )
+
+    author_id: Mapped[int] = mapped_column(ForeignKey("authors.id"), index=True)
+    file_id: Mapped[int] = mapped_column(ForeignKey("files.id"), index=True)
 
 
 class File(Base, CommonMixin):

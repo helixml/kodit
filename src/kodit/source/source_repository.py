@@ -112,17 +112,48 @@ class SourceRepository:
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
 
-    async def create_author(self, author: Author) -> Author:
-        """Create a new author."""
+    async def upsert_author(self, author: Author) -> Author:
+        """Create a new author or return existing one if email already exists.
+
+        Args:
+            author: The Author instance to upsert.
+
+        Returns:
+            The existing Author if one with the same email exists, otherwise the newly
+            created Author.
+
+        """
+        # First check if author already exists with same name and email
+        query = select(Author).where(
+            Author.name == author.name, Author.email == author.email
+        )
+        result = await self.session.execute(query)
+        existing_author = result.scalar_one_or_none()
+
+        if existing_author:
+            return existing_author
+
+        # Author doesn't exist, create new one
         self.session.add(author)
         await self.session.commit()
         return author
 
-    async def create_author_file_mapping(
-        self, author_id: int, file_id: int
+    async def upsert_author_file_mapping(
+        self, mapping: AuthorFileMapping
     ) -> AuthorFileMapping:
-        """Create a new author file mapping."""
-        mapping = AuthorFileMapping(author_id=author_id, file_id=file_id)
+        """Create a new author file mapping or return existing one if already exists."""
+        # First check if mapping already exists with same author_id and file_id
+        query = select(AuthorFileMapping).where(
+            AuthorFileMapping.author_id == mapping.author_id,
+            AuthorFileMapping.file_id == mapping.file_id,
+        )
+        result = await self.session.execute(query)
+        existing_mapping = result.scalar_one_or_none()
+
+        if existing_mapping:
+            return existing_mapping
+
+        # Mapping doesn't exist, create new one
         self.session.add(mapping)
         await self.session.commit()
         return mapping
