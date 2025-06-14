@@ -1,9 +1,9 @@
 # ruff: noqa
 """add authors
 
-Revision ID: 42e836b21102
+Revision ID: 9e53ea8bb3b0
 Revises: c3f5137d30f5
-Create Date: 2025-06-13 14:48:50.152940
+Create Date: 2025-06-14 10:50:36.058114
 
 """
 
@@ -14,7 +14,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '42e836b21102'
+revision: str = '9e53ea8bb3b0'
 down_revision: Union[str, None] = 'c3f5137d30f5'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -29,10 +29,11 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('name', 'email', name='uix_author')
     )
-    op.create_index(op.f('ix_authors_email'), 'authors', ['email'], unique=True)
-    op.create_index(op.f('ix_authors_name'), 'authors', ['name'], unique=True)
+    op.create_index(op.f('ix_authors_email'), 'authors', ['email'], unique=False)
+    op.create_index(op.f('ix_authors_name'), 'authors', ['name'], unique=False)
     op.create_table('author_file_mappings',
     sa.Column('author_id', sa.Integer(), nullable=False),
     sa.Column('file_id', sa.Integer(), nullable=False),
@@ -41,8 +42,11 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
     sa.ForeignKeyConstraint(['author_id'], ['authors.id'], ),
     sa.ForeignKeyConstraint(['file_id'], ['files.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('author_id', 'file_id', name='uix_author_file_mapping')
     )
+    op.create_index(op.f('ix_author_file_mappings_author_id'), 'author_file_mappings', ['author_id'], unique=False)
+    op.create_index(op.f('ix_author_file_mappings_file_id'), 'author_file_mappings', ['file_id'], unique=False)
     op.add_column('files', sa.Column('extension', sa.String(length=255), nullable=False))
     op.create_index(op.f('ix_files_extension'), 'files', ['extension'], unique=False)
     op.add_column('sources', sa.Column('type', sa.Enum('UNKNOWN', 'FOLDER', 'GIT', name='sourcetype'), nullable=False))
@@ -57,6 +61,8 @@ def downgrade() -> None:
     op.drop_column('sources', 'type')
     op.drop_index(op.f('ix_files_extension'), table_name='files')
     op.drop_column('files', 'extension')
+    op.drop_index(op.f('ix_author_file_mappings_file_id'), table_name='author_file_mappings')
+    op.drop_index(op.f('ix_author_file_mappings_author_id'), table_name='author_file_mappings')
     op.drop_table('author_file_mappings')
     op.drop_index(op.f('ix_authors_name'), table_name='authors')
     op.drop_index(op.f('ix_authors_email'), table_name='authors')
