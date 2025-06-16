@@ -11,7 +11,7 @@ All database operations are handled by SQLAlchemy and Alembic.
 ### Creating a Database Migration
 
 1. Make changes to your models
-2. Ensure the model is referenced in [alembic's env.py](src/kodit/alembic/env.py)
+2. Ensure the model is referenced in [alembic's env.py](https://github.com/helixml/kodit/blob/main/src/kodit/migrations/env.py)
 3. Remove the temporary DB if it exists from a previous migration: `rm -f .kodit.db`
 4. Run `alembic upgrade head` to create a temporary DB to compute the upgrade
 5. Run `alembic revision --autogenerate -m "your message"`

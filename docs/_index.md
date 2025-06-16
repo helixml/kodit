@@ -90,7 +90,7 @@ The roadmap is currently maintained as a [Github Project](https://github.com/org
 
 ## 💬 Support
 
-For commercial support, please contact [Helix.ML](founders@helix.ml). To ask a question,
+For commercial support, please contact [Helix.ML](https://docs.helixml.tech/helix/help/). To ask a question,
 please [open a discussion](https://github.com/helixml/kodit/discussions).
 
 ## License
