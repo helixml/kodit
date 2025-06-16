@@ -13,4 +13,6 @@ def test_get_stable_mac_str_is_consistent():
 
     # It should be a valid 12-character lowercase hex string
     assert len(first) == 12
-    assert first.isalnum() and first.islower()
+    assert all(c in "0123456789abcdef" for c in first), (
+        "MAC string should be lowercase hexadecimal"
+    )
