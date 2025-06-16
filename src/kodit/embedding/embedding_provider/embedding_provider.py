@@ -62,17 +62,23 @@ def split_sub_batches(
             item_tokens = len(encoding.encode(next_item.text, disallowed_special=()))
 
             if item_tokens > max_context_window:
-                # Loop around trying to truncate the snippet until it fits in the max
-                # embedding size
-                while item_tokens > max_context_window:
-                    next_item.text = next_item.text[:-1]
-                    item_tokens = len(
-                        encoding.encode(next_item.text, disallowed_special=())
+                # Optimise truncation by operating on tokens directly instead of
+                # removing one character at a time and repeatedly re-encoding.
+                tokens = encoding.encode(next_item.text, disallowed_special=())
+                if len(tokens) > max_context_window:
+                    # Keep only the first *max_context_window* tokens.
+                    tokens = tokens[:max_context_window]
+                    # Convert back to text. This requires only one decode call and
+                    # guarantees that the resulting string fits the token budget.
+                    next_item.text = encoding.decode(tokens)
+                    item_tokens = max_context_window  # We know the exact size now
+
+                    data_to_process[0] = next_item
+
+                    log.warning(
+                        "Truncated snippet because it was too long to embed",
+                        snippet=next_item.text[:100] + "...",
                     )
-
-                data_to_process[0] = next_item
-
-                log.warning("Truncated snippet", snippet=next_item)
 
             if current_tokens + item_tokens > max_context_window:
                 break

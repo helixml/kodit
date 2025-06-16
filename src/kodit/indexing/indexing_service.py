@@ -200,13 +200,14 @@ class IndexService:
             )
 
         self.log.info("Creating semantic code index")
-        with Spinner():
-            await self.code_search_service.index(
+        with tqdm(total=len(snippets), leave=False) as pbar:
+            async for result in self.code_search_service.index(
                 [
                     VectorSearchRequest(snippet.id, snippet.content)
                     for snippet in snippets
                 ]
-            )
+            ):
+                pbar.update(len(result))
 
         self.log.info("Enriching snippets", num_snippets=len(snippets))
         enriched_contents = await self.enrichment_service.enrich(
@@ -214,16 +215,19 @@ class IndexService:
         )
 
         self.log.info("Creating semantic text index")
-        with Spinner():
-            await self.text_search_service.index(
+        with tqdm(total=len(snippets), leave=False) as pbar:
+            async for result in self.text_search_service.index(
                 [
                     VectorSearchRequest(snippet.id, enriched_content)
                     for snippet, enriched_content in zip(
                         snippets, enriched_contents, strict=True
                     )
                 ]
-            )
-            # Add the enriched text back to the snippets and write to the database
+            ):
+                pbar.update(len(result))
+
+        # Add the enriched text back to the snippets and write to the database
+        with Spinner():
             for snippet, enriched_content in zip(
                 snippets, enriched_contents, strict=True
             ):

@@ -118,6 +118,17 @@ async def test_split_sub_batches(provider):
     )
 
 
+@pytest.mark.asyncio
+async def test_split_sub_batches_performance_test(provider):
+    """Test that the embedding provider batches the text correctly."""
+    encoding = tiktoken.encoding_for_model("text-embedding-3-small")
+    requests = [
+        EmbeddingRequest(id=i, text="This is a test sentence. <|endoftext|>" * 1000)
+        for i in range(1)
+    ]
+    split_sub_batches(encoding, requests)
+
+
 # Utility to gather embeddings from the async generator returned by the provider.
 async def collect_embeddings(provider, requests: list[EmbeddingRequest]):
     """Collect embeddings from the provider while preserving request order."""
