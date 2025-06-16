@@ -95,7 +95,7 @@ async def test_retrieve_documents(
         VectorSearchRequest(snippet_id=snippet2.id, text=snippet2.content),
         VectorSearchRequest(snippet_id=snippet3.id, text=snippet3.content),
     ]
-    await vector_search_service.index(test_data)
+    [gen async for gen in vector_search_service.index(test_data)]
 
     results = await vector_search_service.retrieve(
         "python programming language", top_k=2
@@ -142,7 +142,7 @@ async def test_retrieve_with_custom_top_k(
         VectorSearchRequest(snippet_id=snippet2.id, text=snippet2.content),
         VectorSearchRequest(snippet_id=snippet3.id, text=snippet3.content),
     ]
-    await vector_search_service.index(test_data)
+    await anext(vector_search_service.index(test_data))
 
     results = await vector_search_service.retrieve("test", top_k=1)
 

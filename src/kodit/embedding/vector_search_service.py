@@ -1,6 +1,7 @@
 """Embedding service."""
 
 from abc import ABC, abstractmethod
+from collections.abc import AsyncGenerator
 from typing import NamedTuple
 
 
@@ -18,11 +19,19 @@ class VectorSearchRequest(NamedTuple):
     text: str
 
 
+class IndexResult(NamedTuple):
+    """Result of indexing."""
+
+    snippet_id: int
+
+
 class VectorSearchService(ABC):
     """Semantic search service interface."""
 
     @abstractmethod
-    async def index(self, data: list[VectorSearchRequest]) -> None:
+    def index(
+        self, data: list[VectorSearchRequest]
+    ) -> AsyncGenerator[list[IndexResult], None]:
         """Embed a list of documents.
 
         The embedding service accepts a massive list of id,strings to embed. Behind the

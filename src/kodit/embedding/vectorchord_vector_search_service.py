@@ -1,5 +1,6 @@
 """Vectorchord vector search."""
 
+from collections.abc import AsyncGenerator
 from typing import Any, Literal
 
 import structlog
@@ -11,6 +12,7 @@ from kodit.embedding.embedding_provider.embedding_provider import (
     EmbeddingRequest,
 )
 from kodit.embedding.vector_search_service import (
+    IndexResult,
     VectorSearchRequest,
     VectorSearchResponse,
     VectorSearchService,
@@ -141,49 +143,29 @@ class VectorChordVectorSearchService(VectorSearchService):
         """Commit the session."""
         await self._session.commit()
 
-    async def index(self, data: list[VectorSearchRequest]) -> None:
+    async def index(
+        self, data: list[VectorSearchRequest]
+    ) -> AsyncGenerator[list[IndexResult], None]:
         """Embed a list of documents."""
         if not data or len(data) == 0:
             self.log.warning("Embedding data is empty, skipping embedding")
             return
 
-        from kodit.embedding.embedding_provider.embedding_provider import (
-            EmbeddingRequest,
-        )
+        requests = [EmbeddingRequest(id=doc.snippet_id, text=doc.text) for doc in data]
 
-        requests = [
-            EmbeddingRequest(id=idx, text=doc.text) for idx, doc in enumerate(data)
-        ]
-
-        # Collect embeddings from provider
-        embeddings_map: dict[int, list[float]] = {}
         async for batch in self.embedding_provider.embed(requests):
-            for resp in batch:
-                embeddings_map[resp.id] = resp.embedding
-        embeddings_in_order = [embeddings_map.get(idx) for idx in range(len(data))]
-        # Filter out None (empty text etc.)
-        valid_pairs = [
-            (doc, emb)
-            for doc, emb in zip(data, embeddings_in_order, strict=False)
-            if emb is not None
-        ]
-
-        if not valid_pairs:
-            return
-
-        docs_ordered, embeddings = zip(*valid_pairs, strict=False)
-        # Execute inserts
-        await self._execute(
-            text(INSERT_QUERY.format(TABLE_NAME=self.table_name)),
-            [
-                {
-                    "snippet_id": doc.snippet_id,
-                    "embedding": str(embedding),
-                }
-                for doc, embedding in zip(docs_ordered, embeddings, strict=True)
-            ],
-        )
-        await self._commit()
+            await self._execute(
+                text(INSERT_QUERY.format(TABLE_NAME=self.table_name)),
+                [
+                    {
+                        "snippet_id": result.id,
+                        "embedding": str(result.embedding),
+                    }
+                    for result in batch
+                ],
+            )
+            await self._commit()
+            yield [IndexResult(snippet_id=result.id) for result in batch]
 
     async def retrieve(self, query: str, top_k: int = 10) -> list[VectorSearchResponse]:
         """Query the embedding model."""

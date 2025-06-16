@@ -1,5 +1,7 @@
 """Local vector search."""
 
+from collections.abc import AsyncGenerator
+
 import structlog
 import tiktoken
 
@@ -7,6 +9,7 @@ from kodit.embedding.embedding_models import Embedding, EmbeddingType
 from kodit.embedding.embedding_provider.embedding_provider import EmbeddingProvider
 from kodit.embedding.embedding_repository import EmbeddingRepository
 from kodit.embedding.vector_search_service import (
+    IndexResult,
     VectorSearchRequest,
     VectorSearchResponse,
     VectorSearchService,
@@ -27,7 +30,9 @@ class LocalVectorSearchService(VectorSearchService):
         self.embedding_provider = embedding_provider
         self.encoding = tiktoken.encoding_for_model("text-embedding-3-small")
 
-    async def index(self, data: list[VectorSearchRequest]) -> None:
+    async def index(
+        self, data: list[VectorSearchRequest]
+    ) -> AsyncGenerator[list[IndexResult], None]:
         """Embed a list of documents."""
         if not data or len(data) == 0:
             self.log.warning("Embedding data is empty, skipping embedding")
@@ -61,6 +66,7 @@ class LocalVectorSearchService(VectorSearchService):
                     type=EmbeddingType.CODE,
                 )
             )
+            yield [IndexResult(snippet_id=item.snippet_id)]
 
     async def retrieve(self, query: str, top_k: int = 10) -> list[VectorSearchResponse]:
         """Query the embedding model."""
