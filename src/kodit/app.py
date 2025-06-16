@@ -21,6 +21,12 @@ async def root() -> dict[str, str]:
     return {"message": "Hello, World!"}
 
 
+@app.get("/healthz")
+async def healthz() -> dict[str, str]:
+    """Return a health check for the kodit API."""
+    return {"status": "ok"}
+
+
 # Add mcp routes last, otherwise previous routes aren't added
 app.mount("", mcp_app)
 
