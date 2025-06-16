@@ -1,0 +1,40 @@
+version: "3.9"
+
+services:
+  kodit:
+    image: registry.helix.ml/helix/kodit:latest # Replace with a version
+    ports:
+      - "8080:8080" # Expose the MCP server
+    # Start the Kodit MCP server and bind to all interfaces
+    command: ["serve", "--host", "0.0.0.0", "--port", "8080"]
+    restart: unless-stopped
+    depends_on:
+      - vectorchord # Wait for VectorChord to start before Kodit
+    
+    # Configure Kodit
+    environment:
+      # Configure the database
+      DB_URL: postgresql+asyncpg://postgres:mysecretpassword@vectorchord:5432/kodit
+      DEFAULT_SEARCH_PROVIDER: vectorchord
+
+      # External embedding provider
+      EMBEDDING_ENDPOINT_TYPE: openai
+      EMBEDDING_ENDPOINT_BASE_URL: https://api.openai.com/v1
+      EMBEDDING_ENDPOINT_API_KEY: REPLACE_WITH_YOUR_API_KEY
+      EMBEDDING_ENDPOINT_MODEL: text-embedding-3-large
+
+      # External enrichment provider
+      ENRICHMENT_ENDPOINT_TYPE: openai
+      ENRICHMENT_ENDPOINT_BASE_URL: https://api.openai.com/v1
+      ENRICHMENT_ENDPOINT_API_KEY: REPLACE_WITH_YOUR_API_KEY
+      ENRICHMENT_ENDPOINT_MODEL: o3-mini
+
+
+  vectorchord:
+    image: tensorchord/vchord-suite:pg17-20250601
+    environment:
+      - POSTGRES_DB=kodit
+      - POSTGRES_PASSWORD=mysecretpassword
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
