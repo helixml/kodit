@@ -25,7 +25,7 @@ def enrichment_factory(app_context: AppContext) -> EnrichmentService:
     endpoint = app_context.enrichment_endpoint or app_context.default_endpoint or None
 
     if endpoint and endpoint.type == "openai":
-        log_event("enrichment_provider", {"provider": "openai"})
+        log_event("kodit.enrichment", {"provider": "openai"})
         from openai import AsyncOpenAI
 
         enrichment_provider = OpenAIEnrichmentProvider(
@@ -36,7 +36,7 @@ def enrichment_factory(app_context: AppContext) -> EnrichmentService:
             model_name=endpoint.model or "gpt-4o-mini",
         )
     else:
-        log_event("enrichment_provider", {"provider": "local"})
+        log_event("kodit.enrichment", {"provider": "local"})
         enrichment_provider = LocalEnrichmentProvider()
 
     return LLMEnrichmentService(enrichment_provider=enrichment_provider)

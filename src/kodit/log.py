@@ -168,20 +168,12 @@ def configure_telemetry(app_context: AppContext) -> None:
 
 def log_event(event: str, properties: dict[str, Any] | None = None) -> None:
     """Log an event to Rudderstack."""
+    p = properties or {}
+    p["$app_name"] = "kodit"
+    p["$app_version"] = _version.version
+    p["$device_id"] = get_mac_address()
     rudder_analytics.track(
         anonymous_id=get_mac_address(),
         event=event,
-        properties=properties or {},
-    )
-
-
-def log_screen(
-    name: str, category: str, properties: dict[str, Any] | None = None
-) -> None:
-    """Log a screen view to Rudderstack."""
-    rudder_analytics.screen(
-        anonymous_id=get_mac_address(),
-        name=name,
-        category=category,
-        properties=properties or {},
+        properties=p,
     )

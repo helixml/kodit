@@ -20,7 +20,7 @@ from kodit.embedding.embedding_factory import embedding_factory
 from kodit.enrichment.enrichment_factory import enrichment_factory
 from kodit.indexing.indexing_repository import IndexRepository
 from kodit.indexing.indexing_service import IndexService, SearchRequest
-from kodit.log import configure_logging, configure_telemetry, log_screen
+from kodit.log import configure_logging, configure_telemetry, log_event
 from kodit.source.source_repository import SourceRepository
 from kodit.source.source_service import SourceService
 
@@ -81,7 +81,7 @@ async def index(
     )
 
     if not sources:
-        log_screen("list_indexes", "index")
+        log_event("kodit.cli.index.list")
         # No source specified, list all indexes
         indexes = await service.list_indexes()
         headers: list[str | Cell] = [
@@ -110,7 +110,7 @@ async def index(
             raise click.UsageError(msg)
 
         # Index source
-        log_screen("index_source", "index")
+        log_event("kodit.cli.index.create")
         s = await source_service.create(source)
         index = await service.create(s.id)
         await service.run(index.id)
@@ -136,7 +136,7 @@ async def code(
 
     This works best if your query is code.
     """
-    log_screen("search_code", "search")
+    log_event("kodit.cli.search.code")
     source_repository = SourceRepository(session)
     source_service = SourceService(app_context.get_clone_dir(), source_repository)
     repository = IndexRepository(session)
@@ -180,7 +180,7 @@ async def keyword(
     top_k: int,
 ) -> None:
     """Search for snippets using keyword search."""
-    log_screen("search_keyword", "search")
+    log_event("kodit.cli.search.keyword")
     source_repository = SourceRepository(session)
     source_service = SourceService(app_context.get_clone_dir(), source_repository)
     repository = IndexRepository(session)
@@ -227,7 +227,7 @@ async def text(
 
     This works best if your query is text.
     """
-    log_screen("search_text", "search")
+    log_event("kodit.cli.search.text")
     source_repository = SourceRepository(session)
     source_service = SourceService(app_context.get_clone_dir(), source_repository)
     repository = IndexRepository(session)
@@ -275,7 +275,7 @@ async def hybrid(  # noqa: PLR0913
     text: str,
 ) -> None:
     """Search for snippets using hybrid search."""
-    log_screen("search_hybrid", "search")
+    log_event("kodit.cli.search.hybrid")
     source_repository = SourceRepository(session)
     source_service = SourceService(app_context.get_clone_dir(), source_repository)
     repository = IndexRepository(session)
@@ -327,7 +327,7 @@ def serve(
     """Start the kodit server, which hosts the MCP server and the kodit API."""
     log = structlog.get_logger(__name__)
     log.info("Starting kodit server", host=host, port=port)
-    log_screen("serve", "server")
+    log_event("kodit.cli.serve")
 
     # Configure uvicorn with graceful shutdown
     config = uvicorn.Config(
