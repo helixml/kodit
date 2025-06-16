@@ -6,7 +6,10 @@ import structlog
 from sqlalchemy import Result, TextClause, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.embedding.embedding_provider.embedding_provider import EmbeddingProvider
+from kodit.embedding.embedding_provider.embedding_provider import (
+    EmbeddingProvider,
+    EmbeddingRequest,
+)
 from kodit.embedding.vector_search_service import (
     VectorSearchRequest,
     VectorSearchResponse,
@@ -89,7 +92,15 @@ class VectorChordVectorSearchService(VectorSearchService):
 
     async def _create_tables(self) -> None:
         """Create the necessary tables."""
-        vector_dim = (await self.embedding_provider.embed(["dimension"]))[0]
+        req = EmbeddingRequest(id=0, text="dimension")
+        vector_dim: list[float] | None = None
+        async for batch in self.embedding_provider.embed([req]):
+            if batch:
+                vector_dim = batch[0].embedding
+                break
+        if vector_dim is None:
+            msg = "Failed to obtain embedding dimension from provider"
+            raise RuntimeError(msg)
         await self._session.execute(
             text(
                 f"""CREATE TABLE IF NOT EXISTS {self.table_name} (
@@ -136,25 +147,62 @@ class VectorChordVectorSearchService(VectorSearchService):
             self.log.warning("Embedding data is empty, skipping embedding")
             return
 
-        embeddings = await self.embedding_provider.embed([doc.text for doc in data])
+        from kodit.embedding.embedding_provider.embedding_provider import (
+            EmbeddingRequest,
+        )
+
+        requests = [
+            EmbeddingRequest(id=idx, text=doc.text) for idx, doc in enumerate(data)
+        ]
+
+        # Collect embeddings from provider
+        embeddings_map: dict[int, list[float]] = {}
+        async for batch in self.embedding_provider.embed(requests):
+            for resp in batch:
+                embeddings_map[resp.id] = resp.embedding
+        embeddings_in_order = [embeddings_map.get(idx) for idx in range(len(data))]
+        # Filter out None (empty text etc.)
+        valid_pairs = [
+            (doc, emb)
+            for doc, emb in zip(data, embeddings_in_order, strict=False)
+            if emb is not None
+        ]
+
+        if not valid_pairs:
+            return
+
+        docs_ordered, embeddings = zip(*valid_pairs, strict=False)
         # Execute inserts
         await self._execute(
             text(INSERT_QUERY.format(TABLE_NAME=self.table_name)),
             [
-                {"snippet_id": doc.snippet_id, "embedding": str(embedding)}
-                for doc, embedding in zip(data, embeddings, strict=True)
+                {
+                    "snippet_id": doc.snippet_id,
+                    "embedding": str(embedding),
+                }
+                for doc, embedding in zip(docs_ordered, embeddings, strict=True)
             ],
         )
         await self._commit()
 
     async def retrieve(self, query: str, top_k: int = 10) -> list[VectorSearchResponse]:
         """Query the embedding model."""
-        embedding = await self.embedding_provider.embed([query])
-        if len(embedding) == 0 or len(embedding[0]) == 0:
+        from kodit.embedding.embedding_provider.embedding_provider import (
+            EmbeddingRequest,
+        )
+
+        req = EmbeddingRequest(id=0, text=query)
+        embedding_vec: list[float] | None = None
+        async for batch in self.embedding_provider.embed([req]):
+            if batch:
+                embedding_vec = batch[0].embedding
+                break
+
+        if not embedding_vec:
             return []
         result = await self._execute(
             text(SEARCH_QUERY.format(TABLE_NAME=self.table_name)),
-            {"query": str(embedding[0]), "top_k": top_k},
+            {"query": str(embedding_vec), "top_k": top_k},
         )
         rows = result.mappings().all()
 

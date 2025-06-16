@@ -3,15 +3,16 @@
 from __future__ import annotations
 
 import os
+from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING
 
 import structlog
 import tiktoken
-from tqdm import tqdm
 
 from kodit.embedding.embedding_provider.embedding_provider import (
     EmbeddingProvider,
-    Vector,
+    EmbeddingRequest,
+    EmbeddingResponse,
     split_sub_batches,
 )
 
@@ -51,14 +52,22 @@ class LocalEmbeddingProvider(EmbeddingProvider):
             )
         return self.embedding_model
 
-    async def embed(self, data: list[str]) -> list[Vector]:
+    async def embed(
+        self, data: list[EmbeddingRequest]
+    ) -> AsyncGenerator[list[EmbeddingResponse], None]:
         """Embed a list of strings."""
         model = self._model()
 
         batched_data = split_sub_batches(self.encoding, data)
 
-        results: list[Vector] = []
-        for batch in tqdm(batched_data, total=len(batched_data), leave=False):
-            embeddings = model.encode(batch, show_progress_bar=False, batch_size=4)
-            results.extend([[float(x) for x in embedding] for embedding in embeddings])
-        return results
+        for batch in batched_data:
+            embeddings = model.encode(
+                [i.text for i in batch], show_progress_bar=False, batch_size=4
+            )
+            yield [
+                EmbeddingResponse(
+                    id=item.id,
+                    embedding=[float(x) for x in embedding],
+                )
+                for item, embedding in zip(batch, embeddings, strict=True)
+            ]

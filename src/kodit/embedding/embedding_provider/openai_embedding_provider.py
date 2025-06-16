@@ -1,6 +1,7 @@
 """OpenAI embedding service."""
 
 import asyncio
+from collections.abc import AsyncGenerator
 
 import structlog
 import tiktoken
@@ -8,7 +9,8 @@ from openai import AsyncOpenAI
 
 from kodit.embedding.embedding_provider.embedding_provider import (
     EmbeddingProvider,
-    Vector,
+    EmbeddingRequest,
+    EmbeddingResponse,
     split_sub_batches,
 )
 
@@ -31,7 +33,9 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
             "text-embedding-3-small"
         )  # Sensible default
 
-    async def embed(self, data: list[str]) -> list[Vector]:
+    async def embed(
+        self, data: list[EmbeddingRequest]
+    ) -> AsyncGenerator[list[EmbeddingResponse], None]:
         """Embed a list of documents."""
         # First split the list into a list of list where each sublist has fewer than
         # max tokens.
@@ -40,38 +44,30 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         # Process batches in parallel with a semaphore to limit concurrent requests
         sem = asyncio.Semaphore(OPENAI_NUM_PARALLEL_TASKS)
 
-        # Create a list of tuples with a temporary id for each batch
-        # We need to do this so that we can return the results in the same order as the
-        # input data
-        input_data = [(i, batch) for i, batch in enumerate(batched_data)]
-
         async def process_batch(
-            data: tuple[int, list[str]],
-        ) -> tuple[int, list[Vector]]:
-            batch_id, batch = data
+            data: list[EmbeddingRequest],
+        ) -> list[EmbeddingResponse]:
             async with sem:
                 try:
                     response = await self.openai_client.embeddings.create(
                         model=self.model_name,
-                        input=batch,
+                        input=[i.text for i in data],
                     )
-                    return batch_id, [
-                        [float(x) for x in embedding.embedding]
-                        for embedding in response.data
+                    return [
+                        EmbeddingResponse(
+                            id=item.id,
+                            embedding=embedding.embedding,
+                        )
+                        for item, embedding in zip(data, response.data, strict=True)
                     ]
                 except Exception as e:
                     self.log.exception("Error embedding batch", error=str(e))
-                    return batch_id, []
+                    return []
 
         # Create tasks for all batches
-        tasks = [process_batch(batch) for batch in input_data]
+        tasks = [process_batch(batch) for batch in batched_data]
 
         # Process all batches and yield results as they complete
-        results: list[tuple[int, list[Vector]]] = []
         for task in asyncio.as_completed(tasks):
             result = await task
-            results.append(result)
-
-        # Output in the same order as the input data
-        ordered_results = [result for _, result in sorted(results, key=lambda x: x[0])]
-        return [item for sublist in ordered_results for item in sublist]
+            yield result

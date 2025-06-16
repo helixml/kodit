@@ -1,6 +1,8 @@
 """Embedding provider."""
 
 from abc import ABC, abstractmethod
+from collections.abc import AsyncGenerator
+from dataclasses import dataclass
 
 import structlog
 import tiktoken
@@ -10,11 +12,29 @@ OPENAI_MAX_EMBEDDING_SIZE = 8192
 Vector = list[float]
 
 
+@dataclass
+class EmbeddingRequest:
+    """Embedding request."""
+
+    id: int
+    text: str
+
+
+@dataclass
+class EmbeddingResponse:
+    """Embedding response."""
+
+    id: int
+    embedding: Vector
+
+
 class EmbeddingProvider(ABC):
     """Embedding provider."""
 
     @abstractmethod
-    async def embed(self, data: list[str]) -> list[Vector]:
+    def embed(
+        self, data: list[EmbeddingRequest]
+    ) -> AsyncGenerator[list[EmbeddingResponse], None]:
         """Embed a list of strings.
 
         The embedding provider is responsible for embedding a list of strings into a
@@ -25,13 +45,13 @@ class EmbeddingProvider(ABC):
 
 def split_sub_batches(
     encoding: tiktoken.Encoding,
-    data: list[str],
+    data: list[EmbeddingRequest],
     max_context_window: int = OPENAI_MAX_EMBEDDING_SIZE,
-) -> list[list[str]]:
+) -> list[list[EmbeddingRequest]]:
     """Split a list of strings into smaller sub-batches."""
     log = structlog.get_logger(__name__)
     result = []
-    data_to_process = [s for s in data if s.strip()]  # Filter out empty strings
+    data_to_process = [s for s in data if s.text.strip()]  # Filter out empty strings
 
     while data_to_process:
         next_batch = []
@@ -39,14 +59,16 @@ def split_sub_batches(
 
         while data_to_process:
             next_item = data_to_process[0]
-            item_tokens = len(encoding.encode(next_item, disallowed_special=()))
+            item_tokens = len(encoding.encode(next_item.text, disallowed_special=()))
 
             if item_tokens > max_context_window:
                 # Loop around trying to truncate the snippet until it fits in the max
                 # embedding size
                 while item_tokens > max_context_window:
-                    next_item = next_item[:-1]
-                    item_tokens = len(encoding.encode(next_item, disallowed_special=()))
+                    next_item.text = next_item.text[:-1]
+                    item_tokens = len(
+                        encoding.encode(next_item.text, disallowed_special=())
+                    )
 
                 data_to_process[0] = next_item
 

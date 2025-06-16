@@ -33,21 +33,54 @@ class LocalVectorSearchService(VectorSearchService):
             self.log.warning("Embedding data is empty, skipping embedding")
             return
 
-        embeddings = await self.embedding_provider.embed([i.text for i in data])
-        for i, x in zip(data, embeddings, strict=False):
+        # Prepare requests for the embedding provider.
+        from kodit.embedding.embedding_provider.embedding_provider import (
+            EmbeddingRequest,
+        )
+
+        requests = [
+            EmbeddingRequest(id=idx, text=item.text) for idx, item in enumerate(data)
+        ]
+
+        # Collect embeddings from the async generator while preserving order.
+        embeddings_map: dict[int, list[float]] = {}
+        async for batch in self.embedding_provider.embed(requests):
+            for resp in batch:
+                embeddings_map[resp.id] = [float(v) for v in resp.embedding]
+
+        # Persist embeddings following the original data order.
+        for idx, item in enumerate(data):
+            embedding_vec = embeddings_map.get(idx)
+            if embedding_vec is None:
+                # Skip if the provider returned no embedding (e.g., empty text)
+                continue
             await self.embedding_repository.create_embedding(
                 Embedding(
-                    snippet_id=i.snippet_id,
-                    embedding=[float(y) for y in x],
+                    snippet_id=item.snippet_id,
+                    embedding=embedding_vec,
                     type=EmbeddingType.CODE,
                 )
             )
 
     async def retrieve(self, query: str, top_k: int = 10) -> list[VectorSearchResponse]:
         """Query the embedding model."""
-        embedding = (await self.embedding_provider.embed([query]))[0]
+        from kodit.embedding.embedding_provider.embedding_provider import (
+            EmbeddingRequest,
+        )
+
+        # Build a single-item request and collect its embedding.
+        req = EmbeddingRequest(id=0, text=query)
+        embedding_vec: list[float] | None = None
+        async for batch in self.embedding_provider.embed([req]):
+            if batch:
+                embedding_vec = [float(v) for v in batch[0].embedding]
+                break
+
+        if not embedding_vec:
+            return []
+
         results = await self.embedding_repository.list_semantic_results(
-            EmbeddingType.CODE, [float(x) for x in embedding], top_k
+            EmbeddingType.CODE, embedding_vec, top_k
         )
         return [
             VectorSearchResponse(snippet_id, score) for snippet_id, score in results

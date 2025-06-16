@@ -4,7 +4,9 @@ import pytest
 from sentence_transformers import SentenceTransformer
 import tiktoken
 
+# Helper imports
 from kodit.embedding.embedding_provider.embedding_provider import (
+    EmbeddingRequest,
     split_sub_batches,
 )
 from kodit.embedding.embedding_provider.local_embedding_provider import (
@@ -32,7 +34,7 @@ async def test_model_lazy_loading(provider):
 async def test_embed_single_text(provider):
     """Test embedding a single text."""
     text = "This is a test sentence."
-    embeddings = await provider.embed([text])
+    embeddings = await collect_embeddings(provider, [EmbeddingRequest(id=0, text=text)])
 
     assert len(embeddings) == 1
     assert isinstance(embeddings[0], list)
@@ -43,7 +45,9 @@ async def test_embed_single_text(provider):
 async def test_embed_multiple_texts(provider):
     """Test embedding multiple texts."""
     texts = ["First test sentence.", "Second test sentence.", "Third test sentence."]
-    embeddings = await provider.embed(texts)
+    embeddings = await collect_embeddings(
+        provider, [EmbeddingRequest(id=i, text=text) for i, text in enumerate(texts)]
+    )
 
     assert len(embeddings) == 3
     assert all(isinstance(emb, list) for emb in embeddings)
@@ -53,7 +57,7 @@ async def test_embed_multiple_texts(provider):
 @pytest.mark.asyncio
 async def test_embed_empty_list(provider):
     """Test embedding an empty list."""
-    embeddings = await provider.embed([])
+    embeddings = await collect_embeddings(provider, [EmbeddingRequest(id=0, text="")])
     assert len(embeddings) == 0
 
 
@@ -62,7 +66,9 @@ async def test_embed_large_text(provider):
     """Test embedding a large text that might need batching."""
     # Create a large text that exceeds typical token limits
     large_text = "This is a test sentence. " * 1000
-    embeddings = await provider.embed([large_text])
+    embeddings = await collect_embeddings(
+        provider, [EmbeddingRequest(id=0, text=large_text)]
+    )
 
     assert len(embeddings) == 1
     assert isinstance(embeddings[0], list)
@@ -78,7 +84,9 @@ async def test_embed_special_characters(provider):
         "Special chars: @#$%^&*()",
         "Unicode: 你好世界",
     ]
-    embeddings = await provider.embed(texts)
+    embeddings = await collect_embeddings(
+        provider, [EmbeddingRequest(id=i, text=text) for i, text in enumerate(texts)]
+    )
 
     assert len(embeddings) == 4
     assert all(isinstance(emb, list) for emb in embeddings)
@@ -89,12 +97,14 @@ async def test_embed_special_characters(provider):
 async def test_embed_consistency(provider):
     """Test that embedding the same text multiple times produces consistent results."""
     text = "This is a test sentence."
-    embeddings1 = await provider.embed([text])
-    embeddings2 = await provider.embed([text])
+    response1 = await anext(provider.embed([EmbeddingRequest(id=0, text=text)]))
+    response2 = await anext(provider.embed([EmbeddingRequest(id=0, text=text)]))
 
-    assert len(embeddings1) == len(embeddings2)
-    assert len(embeddings1[0]) == len(embeddings2[0])
-    assert all(abs(x - y) < 1e-6 for x, y in zip(embeddings1[0], embeddings2[0]))
+    assert len(response1) == len(response2)
+    # Extract embeddings and compare
+    embeddings1 = response1[0].embedding
+    embeddings2 = response2[0].embedding
+    assert all(abs(x - y) < 1e-6 for x, y in zip(embeddings1, embeddings2))
 
 
 @pytest.mark.asyncio
@@ -102,4 +112,20 @@ async def test_split_sub_batches(provider):
     """Test that the embedding provider batches the text correctly."""
     encoding = tiktoken.encoding_for_model("text-embedding-3-small")
     # Should not crash
-    split_sub_batches(encoding, ["This is a test sentence. <|endoftext|>"])
+    split_sub_batches(
+        encoding,
+        [EmbeddingRequest(id=0, text="This is a test sentence. <|endoftext|>")],
+    )
+
+
+# Utility to gather embeddings from the async generator returned by the provider.
+async def collect_embeddings(provider, requests: list[EmbeddingRequest]):
+    """Collect embeddings from the provider while preserving request order."""
+    # Map id -> embedding
+    embeddings_map: dict[int, list[float]] = {}
+    async for batch in provider.embed(requests):
+        for resp in batch:
+            embeddings_map[resp.id] = resp.embedding
+
+    # Return in order of request ids
+    return [embeddings_map[idx] for idx in sorted(embeddings_map.keys())]

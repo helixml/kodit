@@ -3,10 +3,12 @@
 import asyncio
 import hashlib
 import math
-from collections.abc import Generator, Sequence
+from collections.abc import AsyncGenerator, Generator, Sequence
 
 from kodit.embedding.embedding_provider.embedding_provider import (
     EmbeddingProvider,
+    EmbeddingRequest,
+    EmbeddingResponse,
     Vector,
 )
 
@@ -31,27 +33,34 @@ class HashEmbeddingProvider(EmbeddingProvider):
         self.dim = dim
         self.batch_size = batch_size
 
-    async def embed(self, data: list[str]) -> list[Vector]:
+    async def embed(
+        self, data: list[EmbeddingRequest]
+    ) -> AsyncGenerator[list[EmbeddingResponse], None]:
         """Embed every string in *data*, preserving order.
 
         Work is sliced into *batch_size* chunks and scheduled concurrently
         (still CPU-bound, but enough to cooperate with an asyncio loop).
         """
         if not data:
-            return []
+            yield []
 
         async def _embed_chunk(chunk: Sequence[str]) -> list[Vector]:
             return [self._string_to_vector(text) for text in chunk]
 
         tasks = [
             asyncio.create_task(_embed_chunk(chunk))
-            for chunk in self._chunked(data, self.batch_size)
+            for chunk in self._chunked([i.text for i in data], self.batch_size)
         ]
 
-        vectors: list[Vector] = []
         for task in tasks:
-            vectors.extend(await task)
-        return vectors
+            result = await task
+            yield [
+                EmbeddingResponse(
+                    id=item.id,
+                    embedding=embedding,
+                )
+                for item, embedding in zip(data, result, strict=True)
+            ]
 
     @staticmethod
     def _chunked(seq: Sequence[str], size: int) -> Generator[Sequence[str], None, None]:

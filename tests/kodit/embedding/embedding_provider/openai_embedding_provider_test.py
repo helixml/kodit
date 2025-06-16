@@ -8,6 +8,7 @@ from openai import AsyncOpenAI
 from kodit.embedding.embedding_provider.openai_embedding_provider import (
     OpenAIEmbeddingProvider,
 )
+from kodit.embedding.embedding_provider.embedding_provider import EmbeddingRequest
 
 
 def skip_if_no_api_key():
@@ -61,7 +62,7 @@ async def test_embed_single_text(provider):
     skip_if_no_api_key()
 
     text = "This is a test sentence."
-    embeddings = await provider.embed([text])
+    embeddings = await collect_embeddings(provider, [EmbeddingRequest(id=0, text=text)])
 
     assert len(embeddings) == 1
     assert isinstance(embeddings[0], list)
@@ -73,7 +74,9 @@ async def test_embed_multiple_texts(provider):
     """Test embedding multiple texts."""
 
     texts = ["First test sentence.", "Second test sentence.", "Third test sentence."]
-    embeddings = await provider.embed(texts)
+    embeddings = await collect_embeddings(
+        provider, [EmbeddingRequest(id=i, text=t) for i, t in enumerate(texts)]
+    )
 
     assert len(embeddings) == 3
     assert all(isinstance(emb, list) for emb in embeddings)
@@ -84,7 +87,7 @@ async def test_embed_multiple_texts(provider):
 async def test_embed_empty_list(provider):
     """Test embedding an empty list."""
 
-    embeddings = await provider.embed([])
+    embeddings = await collect_embeddings(provider, [])
     assert len(embeddings) == 0
 
 
@@ -94,7 +97,9 @@ async def test_embed_large_text(provider):
 
     # Create a large text that exceeds typical token limits
     large_text = "This is a test sentence. " * 1000
-    embeddings = await provider.embed([large_text])
+    embeddings = await collect_embeddings(
+        provider, [EmbeddingRequest(id=0, text=large_text)]
+    )
 
     assert len(embeddings) == 1
     assert isinstance(embeddings[0], list)
@@ -111,7 +116,9 @@ async def test_embed_special_characters(provider):
         "Special chars: @#$%^&*()",
         "Unicode: 你好世界",
     ]
-    embeddings = await provider.embed(texts)
+    embeddings = await collect_embeddings(
+        provider, [EmbeddingRequest(id=i, text=t) for i, t in enumerate(texts)]
+    )
 
     assert len(embeddings) == 4
     assert all(isinstance(emb, list) for emb in embeddings)
@@ -123,8 +130,12 @@ async def test_embed_consistency(provider):
     """Test that embedding the same text multiple times produces consistent results."""
 
     text = "This is a test sentence."
-    embeddings1 = await provider.embed([text])
-    embeddings2 = await provider.embed([text])
+    embeddings1 = await collect_embeddings(
+        provider, [EmbeddingRequest(id=0, text=text)]
+    )
+    embeddings2 = await collect_embeddings(
+        provider, [EmbeddingRequest(id=0, text=text)]
+    )
 
     assert len(embeddings1) == len(embeddings2)
     assert len(embeddings1[0]) == len(embeddings2[0])
@@ -137,10 +148,10 @@ async def test_embed_error_handling(provider):
 
     # Test with None
     with pytest.raises(Exception):
-        await provider.embed([None])  # type: ignore
+        await collect_embeddings(provider, [EmbeddingRequest(id=0, text=None)])  # type: ignore
 
     # Test with empty string
-    embeddings = await provider.embed([""])
+    embeddings = await collect_embeddings(provider, [EmbeddingRequest(id=0, text="")])
     assert len(embeddings) == 0
 
 
@@ -196,7 +207,10 @@ async def test_embed_order_consistency_with_many_tasks(mock_provider):
     mock_provider.openai_client.embeddings.create = AsyncMock(side_effect=mock_create)
 
     # Get embeddings
-    embeddings = await mock_provider.embed(test_strings)
+    embeddings = await collect_embeddings(
+        mock_provider,
+        [EmbeddingRequest(id=i, text=text) for i, text in enumerate(test_strings)],
+    )
 
     # Verify we got the correct number of embeddings
     assert len(embeddings) == num_strings
@@ -216,3 +230,17 @@ async def test_embed_order_consistency_with_many_tasks(mock_provider):
     print("\nRequest order:")
     for i, batch in enumerate(request_order):
         print(f"Batch {i}: {batch}")
+
+
+# Utility helper to collect embeddings from provider
+
+
+# Utility to gather embeddings from the async generator returned by the provider.
+async def collect_embeddings(provider, requests: list[EmbeddingRequest]):
+    """Collect embeddings while preserving order."""
+    embeddings_map: dict[int, list[float]] = {}
+    async for batch in provider.embed(requests):
+        for resp in batch:
+            embeddings_map[resp.id] = resp.embedding
+
+    return [embeddings_map[idx] for idx in sorted(embeddings_map.keys())]
