@@ -1,5 +1,6 @@
 # syntax=docker/dockerfile:1.9
-FROM python:3.13.4-slim-bookworm AS build
+ENV PYTHON_VERSION=3.13.5
+FROM python:${PYTHON_VERSION}-slim-bookworm AS build
 
 # The following does not work in Podman unless you build in Docker
 # compatibility mode: <https://github.com/containers/podman/issues/8477>
@@ -60,7 +61,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 ##########################################################################
 
-FROM python:3.13.4-slim-bookworm
+FROM python:${PYTHON_VERSION}-slim-bookworm
 SHELL ["sh", "-exc"]
 
 RUN <<EOT
