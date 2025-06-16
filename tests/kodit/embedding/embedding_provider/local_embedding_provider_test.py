@@ -2,7 +2,11 @@
 
 import pytest
 from sentence_transformers import SentenceTransformer
+import tiktoken
 
+from kodit.embedding.embedding_provider.embedding_provider import (
+    split_sub_batches,
+)
 from kodit.embedding.embedding_provider.local_embedding_provider import (
     LocalEmbeddingProvider,
     TINY,
@@ -91,3 +95,11 @@ async def test_embed_consistency(provider):
     assert len(embeddings1) == len(embeddings2)
     assert len(embeddings1[0]) == len(embeddings2[0])
     assert all(abs(x - y) < 1e-6 for x, y in zip(embeddings1[0], embeddings2[0]))
+
+
+@pytest.mark.asyncio
+async def test_split_sub_batches(provider):
+    """Test that the embedding provider batches the text correctly."""
+    encoding = tiktoken.encoding_for_model("text-embedding-3-small")
+    # Should not crash
+    split_sub_batches(encoding, ["This is a test sentence. <|endoftext|>"])

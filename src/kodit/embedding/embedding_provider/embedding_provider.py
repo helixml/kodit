@@ -39,14 +39,14 @@ def split_sub_batches(
 
         while data_to_process:
             next_item = data_to_process[0]
-            item_tokens = len(encoding.encode(next_item))
+            item_tokens = len(encoding.encode(next_item, disallowed_special=()))
 
             if item_tokens > max_context_window:
                 # Loop around trying to truncate the snippet until it fits in the max
                 # embedding size
                 while item_tokens > max_context_window:
                     next_item = next_item[:-1]
-                    item_tokens = len(encoding.encode(next_item))
+                    item_tokens = len(encoding.encode(next_item, disallowed_special=()))
 
                 data_to_process[0] = next_item
 
