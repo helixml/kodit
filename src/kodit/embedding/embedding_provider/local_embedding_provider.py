@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-from collections.abc import AsyncGenerator
 from time import time
 from typing import TYPE_CHECKING
 
@@ -17,8 +16,11 @@ from kodit.embedding.embedding_provider.embedding_provider import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
     from sentence_transformers import SentenceTransformer
     from tiktoken import Encoding
+
 
 TINY = "tiny"
 CODE = "code"
