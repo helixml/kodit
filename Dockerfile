@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.9
-ENV PYTHON_VERSION=3.13.5
+ARG PYTHON_VERSION=3.13.5
 FROM python:${PYTHON_VERSION}-slim-bookworm AS build
 
 # The following does not work in Podman unless you build in Docker
