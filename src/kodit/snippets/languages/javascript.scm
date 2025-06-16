@@ -22,3 +22,10 @@
   name: (property_identifier) @function.name
   body: (statement_block) @function.body
 )
+
+(variable_declarator
+  name: (identifier) @function.name
+  value: (arrow_function
+    body: (statement_block) @function.body
+  )
+)

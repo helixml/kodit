@@ -201,7 +201,7 @@ def test_extract_javascript_example() -> None:
         print(method)  # noqa: T201
         print("-" * 40)  # noqa: T201
 
-    assert len(extracted_methods) == 8
+    assert len(extracted_methods) == 9
     funcs = [m for m in extracted_methods if "formatCurrency(amount)" in m]
     assert len(funcs) == 1
     funcs = [m for m in extracted_methods if "removeItem(itemId) {" in m]

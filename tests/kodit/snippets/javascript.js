@@ -14,6 +14,14 @@ function formatCurrency(amount) {
     }).format(amount);
 }
 
+// Arrow function method definition
+const currencyFormatter = (amount) => {
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD'
+    }).format(amount);
+}
+
 // Class definition
 class ShoppingCart {
     constructor() {
@@ -67,6 +75,7 @@ console.log('Cart ID:', cart.id);
 console.log('Created on:', cart.getCreationDate());
 console.log('Total:', cart.getFormattedTotal());
 console.log('Number of items:', cart.items.length);
+console.log('Currency formatter:', currencyFormatter(100));
 
 // Remove an item
 const firstItemId = cart.items[0].id;
