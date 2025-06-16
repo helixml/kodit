@@ -1,7 +1,6 @@
 """Logging configuration for kodit."""
 
 import logging
-import os
 import platform
 import re
 import shutil
@@ -10,6 +9,7 @@ import sys
 import uuid
 from enum import Enum
 from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
 import rudderstack.analytics as rudder_analytics
@@ -175,28 +175,22 @@ def log_event(event: str, properties: dict[str, Any] | None = None) -> None:
 # Helper functions
 # ----------------------------------------------------------------------
 def _mac_int(mac: str) -> int:
-    """Convert 'aa:bb:cc:dd:ee:ff' → 0xaabbccddeeff"""
     return int(mac.replace(":", "").replace("-", ""), 16)
 
 
 def _is_globally_administered(mac_int: int) -> bool:
-    """Return True if the MAC address is *globally* unique:
-    - bit0 (multicast) == 0
-    - bit1 (locally-administered) == 0
-    """
     first_octet = (mac_int >> 40) & 0xFF
     return not (first_octet & 0b11)  # both bits must be 0
 
 
 def _from_sysfs() -> list[int]:
-    """Linux only – read /sys/class/net/<iface>/address files."""
-    base = "/sys/class/net"
-    if not os.path.isdir(base):
+    base = Path("/sys/class/net")
+    if not base.is_dir():
         return []
     macs: list[int] = []
-    for iface in os.listdir(base):
+    for iface in base.iterdir():
         try:
-            with open(os.path.join(base, iface, "address")) as f:
+            with (base / iface / "address").open() as f:
                 content = f.read().strip()
             if _MAC_RE.fullmatch(content):
                 macs.append(_mac_int(content))
@@ -206,16 +200,15 @@ def _from_sysfs() -> list[int]:
 
 
 def _from_command(cmd: str) -> list[int]:
-    """Run *cmd* and scrape all MAC-like strings from stdout."""
     try:
-        out = subprocess.check_output(
+        out = subprocess.check_output(  # noqa: S602
             cmd,
-            shell=True,  # shorter and good enough here
+            shell=True,
             text=True,
             stderr=subprocess.DEVNULL,
             encoding="utf-8",
         )
-    except Exception:
+    except Exception:  # noqa: BLE001
         return []
     return [_mac_int(m.group()) for m in _MAC_RE.finditer(out)]
 
