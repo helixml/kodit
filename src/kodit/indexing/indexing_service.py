@@ -46,7 +46,7 @@ class IndexView(pydantic.BaseModel):
     created_at: datetime
     updated_at: datetime | None = None
     source: str | None = None
-    num_snippets: int | None = None
+    num_snippets: int
 
 
 class SearchRequest(pydantic.BaseModel):
@@ -132,6 +132,8 @@ class IndexService:
         return IndexView(
             id=index.id,
             created_at=index.created_at,
+            num_snippets=await self.repository.num_snippets_for_index(index.id),
+            source=source.uri,
         )
 
     async def list_indexes(self) -> list[IndexView]:
@@ -144,20 +146,29 @@ class IndexService:
         """
         indexes = await self.repository.list_indexes()
 
-        # Help Kodit by measuring how many indexes users are using
-        log_event("kodit.index.list", {"num_indexes": len(indexes)})
-
         # Transform database results into DTOs
-        return [
+        indexes = [
             IndexView(
                 id=index.id,
                 created_at=index.created_at,
                 updated_at=index.updated_at,
-                num_snippets=await self.repository.num_snippets_for_index(index.id),
+                num_snippets=await self.repository.num_snippets_for_index(index.id)
+                or 0,
                 source=source.uri,
             )
             for index, source in indexes
         ]
+
+        # Help Kodit by measuring how much people are using indexes
+        log_event(
+            "kodit.index.list",
+            {
+                "num_indexes": len(indexes),
+                "num_snippets": sum([index.num_snippets for index in indexes]),
+            },
+        )
+
+        return indexes
 
     async def run(self, index_id: int) -> None:
         """Run the indexing process for a specific index."""

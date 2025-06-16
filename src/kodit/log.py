@@ -1,6 +1,11 @@
 """Logging configuration for kodit."""
 
 import logging
+import os
+import platform
+import re
+import shutil
+import subprocess
 import sys
 import uuid
 from enum import Enum
@@ -13,6 +18,8 @@ from structlog.types import EventDict
 
 from kodit import _version
 from kodit.config import AppContext
+
+_MAC_RE = re.compile(r"(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}")
 
 log = structlog.get_logger(__name__)
 
@@ -137,19 +144,6 @@ def configure_logging(app_context: AppContext) -> None:
     sys.excepthook = handle_exception
 
 
-@lru_cache(maxsize=1)
-def get_mac_address() -> str:
-    """Get the MAC address of the primary network interface.
-
-    Returns:
-        str: The MAC address or a fallback UUID if not available
-
-    """
-    # Get the MAC address of the primary network interface
-    mac = uuid.getnode()
-    return f"{mac:012x}" if mac != uuid.getnode() else str(uuid.uuid4())
-
-
 def configure_telemetry(app_context: AppContext) -> None:
     """Configure telemetry for the application."""
     if app_context.disable_telemetry:
@@ -157,23 +151,124 @@ def configure_telemetry(app_context: AppContext) -> None:
         rudder_analytics.send = False
 
     rudder_analytics.identify(
-        anonymous_id=get_mac_address(),
-        traits={
-            "os_platform": sys.platform,
-            "os_version": sys.version,
-            "kodit_version": _version.version,
-        },
+        anonymous_id=get_stable_mac_str(),
+        traits={},
     )
 
 
 def log_event(event: str, properties: dict[str, Any] | None = None) -> None:
     """Log an event to Rudderstack."""
     p = properties or {}
+    # Set default posthog properties
     p["$app_name"] = "kodit"
     p["$app_version"] = _version.version
-    p["$device_id"] = get_mac_address()
+    p["$os"] = sys.platform
+    p["$os_version"] = sys.version
     rudder_analytics.track(
-        anonymous_id=get_mac_address(),
+        anonymous_id=get_stable_mac_str(),
         event=event,
-        properties=p,
+        properties=properties or {},
     )
+
+
+# ----------------------------------------------------------------------
+# Helper functions
+# ----------------------------------------------------------------------
+def _mac_int(mac: str) -> int:
+    """Convert 'aa:bb:cc:dd:ee:ff' → 0xaabbccddeeff"""
+    return int(mac.replace(":", "").replace("-", ""), 16)
+
+
+def _is_globally_administered(mac_int: int) -> bool:
+    """Return True if the MAC address is *globally* unique:
+    - bit0 (multicast) == 0
+    - bit1 (locally-administered) == 0
+    """
+    first_octet = (mac_int >> 40) & 0xFF
+    return not (first_octet & 0b11)  # both bits must be 0
+
+
+def _from_sysfs() -> list[int]:
+    """Linux only – read /sys/class/net/<iface>/address files."""
+    base = "/sys/class/net"
+    if not os.path.isdir(base):
+        return []
+    macs: list[int] = []
+    for iface in os.listdir(base):
+        try:
+            with open(os.path.join(base, iface, "address")) as f:
+                content = f.read().strip()
+            if _MAC_RE.fullmatch(content):
+                macs.append(_mac_int(content))
+        except (FileNotFoundError, PermissionError):
+            pass
+    return macs
+
+
+def _from_command(cmd: str) -> list[int]:
+    """Run *cmd* and scrape all MAC-like strings from stdout."""
+    try:
+        out = subprocess.check_output(
+            cmd,
+            shell=True,  # shorter and good enough here
+            text=True,
+            stderr=subprocess.DEVNULL,
+            encoding="utf-8",
+        )
+    except Exception:
+        return []
+    return [_mac_int(m.group()) for m in _MAC_RE.finditer(out)]
+
+
+@lru_cache(maxsize=1)
+def get_stable_mac_int() -> int | None:
+    """Return a *hardware* MAC as an int, or None if none can be found.
+
+    Search order:
+        1. /sys/class/net (Linux)
+        2. `ip link show` (Linux), `ifconfig -a` (Linux+macOS)
+        3. `getmac` and `wmic nic` (Windows)
+    The first globally-administered, non-multicast address wins.
+    """
+    system = platform.system()
+    candidates: list[int] = []
+
+    if system == "Linux":
+        candidates += _from_sysfs()
+        if not candidates and shutil.which("ip"):
+            candidates += _from_command("ip link show")
+        if not candidates:  # fall back to ifconfig
+            candidates += _from_command("ifconfig -a")
+
+    elif system == "Darwin":  # macOS
+        candidates += _from_command("ifconfig -a")
+
+    elif system == "Windows":
+        # getmac is present on every supported Windows version
+        candidates += _from_command("getmac /v /fo list")
+        # wmic still exists through at least Win 11
+        candidates += _from_command(
+            'wmic nic where "MACAddress is not null" get MACAddress /format:list'
+        )
+
+    # Prefer globally administered, non-multicast addresses
+    for mac in candidates:
+        if _is_globally_administered(mac):
+            return mac
+
+    # If all we saw were locally-administered MACs, just return the first one
+    if candidates:
+        return candidates[0]
+
+    return None
+
+
+def get_stable_mac_str() -> str:
+    """Return a *stable* 12-digit hex string (lower-case, no separators).
+
+    Falls back to uuid.getnode() if necessary, so it never raises.
+    """
+    mac_int = get_stable_mac_int()
+    if mac_int is None:
+        mac_int = uuid.getnode()  # may still be random in VMs
+    return f"{mac_int:012x}"
