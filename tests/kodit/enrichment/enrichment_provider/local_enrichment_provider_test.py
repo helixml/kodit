@@ -56,20 +56,21 @@ class _DummyModel:  # pylint: disable=too-few-public-methods
         """
 
         class _DummyTensor(list):
-            """List-like object that mimics a torch Tensor for `.tolist()` calls."""
+            """List-like object that mimics a *torch.Tensor* for our use-case."""
 
-            def __getitem__(self, key):  # noqa: D401
-                result = super().__getitem__(key)
-                # Preserve DummyTensor behaviour for slices so `.tolist()` works.
-                if isinstance(key, slice):
-                    return _DummyTensor(result)
-                return result
-
+            # `.tolist()` should return the underlying Python list (possibly nested).
             def tolist(self):  # noqa: D401
                 return list(self)
 
-        input_ids = input_ids or []
-        return [_DummyTensor(ids + [999]) for ids in input_ids]
+            # Preserve behaviour for indexing & slicing so provider code can do
+            # `generated_ids.tolist()[0]` and still get a plain Python list.
+            def __getitem__(self, key):  # noqa: D401
+                result = super().__getitem__(key)
+                return _DummyTensor(result) if isinstance(result, list) else result
+
+        # Provider only cares about *generated_ids.tolist()[0]*; simulate that
+        # shape by returning a 2-level nested list wrapped in DummyTensor.
+        return _DummyTensor([[999]])
 
 
 @pytest.fixture(autouse=True)
