@@ -1,50 +1,69 @@
 """Tests for the OpenAI enrichment provider."""
 
-import os
 import pytest
 from unittest.mock import AsyncMock
+
+# The real OpenAI client is not required for unit tests; instead we mock it.
 from openai import AsyncOpenAI
 
+from kodit.enrichment.enrichment_provider.enrichment_provider import EnrichmentRequest
 from kodit.enrichment.enrichment_provider.openai_enrichment_provider import (
     OpenAIEnrichmentProvider,
 )
 
 
-def skip_if_no_api_key():
-    """Skip test if OPENAI_API_KEY is not set."""
-    if not os.getenv("OPENAI_API_KEY"):
-        pytest.skip("OPENAI_API_KEY environment variable is not set, skipping test")
+# ---------------------------------------------------------------------------
+# Fixtures & helpers
+# ---------------------------------------------------------------------------
+
+
+def _default_openai_response(content: str = "# Enriched\n"):
+    """Return a minimal mocked OpenAI chat completion response."""
+
+    mock_response = AsyncMock()
+    mock_choice = AsyncMock()
+    mock_choice.message = AsyncMock()
+    mock_choice.message.content = content
+    mock_response.choices = [mock_choice]
+    return mock_response
 
 
 @pytest.fixture
 def openai_client():
-    """Create an OpenAI client instance."""
-    skip_if_no_api_key()
-    return AsyncOpenAI()
+    """Return a mocked *AsyncOpenAI* instance with sensible defaults."""
+
+    client = AsyncMock(spec=AsyncOpenAI)
+
+    async def _create(*_args, **_kwargs):  # noqa: D401
+        return _default_openai_response()
+
+    # The provider calls: client.chat.completions.create(...)
+    client.chat.completions.create = AsyncMock(side_effect=_create)  # type: ignore[attr-defined]
+
+    return client
 
 
 @pytest.fixture
 def provider(openai_client):
-    """Create an OpenAIEnrichmentProvider instance."""
+    """Create an *OpenAIEnrichmentProvider* backed by mocked client."""
     return OpenAIEnrichmentProvider(openai_client)
 
 
 @pytest.fixture
 def mock_openai_client():
-    """Create a mock OpenAI client instance for testing without API key."""
+    """Return a fresh mocked *AsyncOpenAI* for explicit per-test customisation."""
     return AsyncMock(spec=AsyncOpenAI)
 
 
 @pytest.fixture
 def mock_provider(mock_openai_client):
-    """Create an OpenAIEnrichmentProvider instance with a mock client."""
+    """OpenAIEnrichmentProvider using *mock_openai_client* passed in."""
     return OpenAIEnrichmentProvider(mock_openai_client)
 
 
 @pytest.mark.asyncio
 async def test_initialization(openai_client):
-    """Test that the provider initializes correctly."""
-    skip_if_no_api_key()
+    """Provider initialises with correct default & custom model names."""
 
     # Test with default model
     provider = OpenAIEnrichmentProvider(openai_client)
@@ -58,71 +77,81 @@ async def test_initialization(openai_client):
 
 @pytest.mark.asyncio
 async def test_enrich_single_text(provider):
-    """Test enriching a single text."""
-    skip_if_no_api_key()
+    """Enrich a single snippet using mocked OpenAI API."""
 
     text = "def hello(): print('Hello, world!')"
-    enriched = await provider.enrich([text])
+    enriched = [
+        response
+        async for response in provider.enrich(
+            [EnrichmentRequest(snippet_id=0, text=text)]
+        )
+    ]
 
     assert len(enriched) == 1
-    assert isinstance(enriched[0], str)
-    assert len(enriched[0]) > 0
+    assert isinstance(enriched[0].text, str)
+    assert len(enriched[0].text) > 0
 
 
 @pytest.mark.asyncio
 async def test_enrich_multiple_texts(provider):
-    """Test enriching multiple texts."""
-    skip_if_no_api_key()
+    """Enrich multiple snippets via mocked OpenAI API."""
 
     texts = [
         "def hello(): print('Hello, world!')",
         "def add(a, b): return a + b",
         "def multiply(a, b): return a * b",
     ]
-    enriched = await provider.enrich(texts)
+    enriched = [
+        response
+        async for response in provider.enrich(
+            [EnrichmentRequest(snippet_id=i, text=text) for i, text in enumerate(texts)]
+        )
+    ]
 
     assert len(enriched) == 3
-    assert all(isinstance(text, str) for text in enriched)
-    assert all(len(text) > 0 for text in enriched)
+    assert all(isinstance(text.text, str) for text in enriched)
+    assert all(len(text.text) > 0 for text in enriched)
 
 
 @pytest.mark.asyncio
 async def test_enrich_empty_list(provider):
-    """Test enriching an empty list."""
-    skip_if_no_api_key()
+    """Enriching an empty list should yield no responses."""
 
-    enriched = await provider.enrich([])
+    enriched = [response async for response in provider.enrich([])]
     assert len(enriched) == 0
 
 
 @pytest.mark.asyncio
 async def test_enrich_error_handling(provider):
-    """Test error handling for invalid inputs."""
-    skip_if_no_api_key()
-
-    # Test with None
-    enriched = await provider.enrich([None])
-    assert len(enriched) == 1
-    assert enriched[0] == ""
+    """Provider returns empty text for empty snippet input."""
 
     # Test with empty string
-    enriched = await provider.enrich([""])
+    enriched = [
+        response
+        async for response in provider.enrich(
+            [EnrichmentRequest(snippet_id=0, text="")]
+        )
+    ]
     assert len(enriched) == 1
-    assert enriched[0] == ""
+    assert enriched[0].text == ""
 
 
 @pytest.mark.asyncio
 async def test_enrich_parallel_processing(provider):
-    """Test that multiple enrichments can be processed in parallel."""
-    skip_if_no_api_key()
+    """Ensure provider handles many requests concurrently (mocked)."""
 
     # Create multiple texts to test parallel processing
     texts = [f"def test{i}(): print('Test {i}')" for i in range(20)]
-    enriched = await provider.enrich(texts)
+    enriched = [
+        response
+        async for response in provider.enrich(
+            [EnrichmentRequest(snippet_id=i, text=text) for i, text in enumerate(texts)]
+        )
+    ]
 
     assert len(enriched) == 20
-    assert all(isinstance(text, str) for text in enriched)
-    assert all(len(text) > 0 for text in enriched)
+    assert all(isinstance(text.text, str) for text in enriched)
+    assert all(len(text.text) > 0 for text in enriched)
 
 
 @pytest.mark.asyncio
@@ -136,7 +165,9 @@ async def test_enrich_order_consistency_with_many_tasks(mock_provider):
     test_strings = []
     for i in range(num_strings):
         # Create a string with a very distinct pattern that will produce a unique enrichment
-        test_strings.append(f"def test_{i}(): print('Test {i}')")
+        test_strings.append(
+            EnrichmentRequest(snippet_id=i, text=f"def test_{i}(): print('Test {i}')")
+        )
 
     # Track the order of requests to verify batching
     request_order = []
@@ -181,20 +212,20 @@ async def test_enrich_order_consistency_with_many_tasks(mock_provider):
     )
 
     # Get enrichments
-    enriched = await mock_provider.enrich(test_strings)
+    enriched = [response async for response in mock_provider.enrich(test_strings)]
 
     # Verify we got the correct number of enrichments
     assert len(enriched) == num_strings
 
     # Verify each enrichment is valid
-    assert all(isinstance(text, str) for text in enriched)
-    assert all(len(text) > 0 for text in enriched)
+    assert all(isinstance(text.text, str) for text in enriched)
+    assert all(len(text.text) > 0 for text in enriched)
 
     # Verify that the enrichments are in the correct order
     # Each enrichment should contain its original index
-    for i, text in enumerate(enriched):
-        assert f"test_{i}" in text, (
-            f"Enrichment at position {i} does not contain expected test_{i}"
+    for response in enriched:
+        assert f"test_{response.snippet_id}" in response.text, (
+            f"Enrichment at position {response.snippet_id} does not contain expected test_{response.snippet_id}"
         )
 
     # Print the request order to help debug

@@ -1,24 +1,34 @@
 """Enrichment service."""
 
 from abc import ABC, abstractmethod
+from collections.abc import AsyncGenerator
 
-from kodit.enrichment.enrichment_provider.enrichment_provider import EnrichmentProvider
+from kodit.enrichment.enrichment_provider.enrichment_provider import (
+    EnrichmentProvider,
+    EnrichmentRequest,
+    EnrichmentResponse,
+)
 
 
 class EnrichmentService(ABC):
     """Enrichment service."""
 
     @abstractmethod
-    async def enrich(self, data: list[str]) -> list[str]:
+    def enrich(
+        self, data: list[EnrichmentRequest]
+    ) -> AsyncGenerator[EnrichmentResponse, None]:
         """Enrich a list of strings."""
 
 
 class NullEnrichmentService(EnrichmentService):
     """Null enrichment service."""
 
-    async def enrich(self, data: list[str]) -> list[str]:
+    async def enrich(
+        self, data: list[EnrichmentRequest]
+    ) -> AsyncGenerator[EnrichmentResponse, None]:
         """Enrich a list of strings."""
-        return [""] * len(data)
+        for request in data:
+            yield EnrichmentResponse(snippet_id=request.snippet_id, text="")
 
 
 class LLMEnrichmentService(EnrichmentService):
@@ -28,6 +38,8 @@ class LLMEnrichmentService(EnrichmentService):
         """Initialize the enrichment service."""
         self.enrichment_provider = enrichment_provider
 
-    async def enrich(self, data: list[str]) -> list[str]:
-        """Enrich a list of strings."""
-        return await self.enrichment_provider.enrich(data)
+    def enrich(
+        self, data: list[EnrichmentRequest]
+    ) -> AsyncGenerator[EnrichmentResponse, None]:
+        """Enrich a list of snippets."""
+        return self.enrichment_provider.enrich(data)

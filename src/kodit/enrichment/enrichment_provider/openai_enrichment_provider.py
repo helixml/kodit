@@ -1,15 +1,17 @@
 """OpenAI embedding service."""
 
 import asyncio
+from collections.abc import AsyncGenerator
 
 import structlog
 import tiktoken
 from openai import AsyncOpenAI
-from tqdm import tqdm
 
 from kodit.enrichment.enrichment_provider.enrichment_provider import (
     ENRICHMENT_SYSTEM_PROMPT,
     EnrichmentProvider,
+    EnrichmentRequest,
+    EnrichmentResponse,
 )
 
 OPENAI_NUM_PARALLEL_TASKS = 10
@@ -29,25 +31,24 @@ class OpenAIEnrichmentProvider(EnrichmentProvider):
         self.model_name = model_name
         self.encoding = tiktoken.encoding_for_model("gpt-4o-mini")  # Approximation
 
-    async def enrich(self, data: list[str]) -> list[str]:
+    async def enrich(
+        self, data: list[EnrichmentRequest]
+    ) -> AsyncGenerator[EnrichmentResponse, None]:
         """Enrich a list of documents."""
         if not data or len(data) == 0:
             self.log.warning("Data is empty, skipping enrichment")
-            return []
+            return
 
         # Process batches in parallel with a semaphore to limit concurrent requests
         sem = asyncio.Semaphore(OPENAI_NUM_PARALLEL_TASKS)
 
-        # Create a list of tuples with a temporary id for each snippet
-        # We need to do this so that we can return the results in the same order as the
-        # input data
-        input_data = [(i, snippet) for i, snippet in enumerate(data)]
-
-        async def process_data(data: tuple[int, str]) -> tuple[int, str]:
-            snippet_id, snippet = data
-            if not snippet:
-                return snippet_id, ""
+        async def process_data(data: EnrichmentRequest) -> EnrichmentResponse:
             async with sem:
+                if not data.text:
+                    return EnrichmentResponse(
+                        snippet_id=data.snippet_id,
+                        text="",
+                    )
                 try:
                     response = await self.openai_client.chat.completions.create(
                         model=self.model_name,
@@ -56,26 +57,23 @@ class OpenAIEnrichmentProvider(EnrichmentProvider):
                                 "role": "system",
                                 "content": ENRICHMENT_SYSTEM_PROMPT,
                             },
-                            {"role": "user", "content": snippet},
+                            {"role": "user", "content": data.text},
                         ],
                     )
-                    return snippet_id, response.choices[0].message.content or ""
+                    return EnrichmentResponse(
+                        snippet_id=data.snippet_id,
+                        text=response.choices[0].message.content or "",
+                    )
                 except Exception as e:
                     self.log.exception("Error enriching data", error=str(e))
-                    return snippet_id, ""
+                    return EnrichmentResponse(
+                        snippet_id=data.snippet_id,
+                        text="",
+                    )
 
         # Create tasks for all data
-        tasks = [process_data(snippet) for snippet in input_data]
+        tasks = [process_data(snippet) for snippet in data]
 
         # Process all data and yield results as they complete
-        results: list[tuple[int, str]] = []
-        for task in tqdm(
-            asyncio.as_completed(tasks),
-            total=len(tasks),
-            leave=False,
-        ):
-            result = await task
-            results.append(result)
-
-        # Output in the same order as the input data
-        return [result for _, result in sorted(results, key=lambda x: x[0])]
+        for task in asyncio.as_completed(tasks):
+            yield await task

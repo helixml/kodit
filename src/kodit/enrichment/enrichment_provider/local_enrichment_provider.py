@@ -1,15 +1,19 @@
 """Local embedding service."""
 
 import os
+from collections.abc import AsyncGenerator
 
 import structlog
 import tiktoken
-from tqdm import tqdm
 
-from kodit.embedding.embedding_provider.embedding_provider import split_sub_batches
+from kodit.embedding.embedding_provider.embedding_provider import (
+    EmbeddingRequest,
+)
 from kodit.enrichment.enrichment_provider.enrichment_provider import (
     ENRICHMENT_SYSTEM_PROMPT,
     EnrichmentProvider,
+    EnrichmentRequest,
+    EnrichmentResponse,
 )
 
 DEFAULT_ENRICHMENT_MODEL = "Qwen/Qwen3-0.6B"
@@ -32,11 +36,13 @@ class LocalEnrichmentProvider(EnrichmentProvider):
         self.tokenizer = None
         self.encoding = tiktoken.encoding_for_model("text-embedding-3-small")
 
-    async def enrich(self, data: list[str]) -> list[str]:
+    async def enrich(
+        self, data: list[EnrichmentRequest]
+    ) -> AsyncGenerator[EnrichmentResponse, None]:
         """Enrich a list of strings."""
         if not data or len(data) == 0:
             self.log.warning("Data is empty, skipping enrichment")
-            return []
+            return
 
         from transformers.models.auto.modeling_auto import (
             AutoModelForCausalLM,
@@ -57,27 +63,28 @@ class LocalEnrichmentProvider(EnrichmentProvider):
             )
 
         # Prepare prompts
-        prompts = [
-            self.tokenizer.apply_chat_template(
-                [
-                    {"role": "system", "content": ENRICHMENT_SYSTEM_PROMPT},
-                    {"role": "user", "content": snippet},
-                ],
-                tokenize=False,
-                add_generation_prompt=True,
-                enable_thinking=False,
+        prompts: list[EmbeddingRequest] = [
+            EmbeddingRequest(
+                id=snippet.snippet_id,
+                text=self.tokenizer.apply_chat_template(
+                    [
+                        {"role": "system", "content": ENRICHMENT_SYSTEM_PROMPT},
+                        {"role": "user", "content": snippet.text},
+                    ],
+                    tokenize=False,
+                    add_generation_prompt=True,
+                    enable_thinking=False,
+                ),
             )
             for snippet in data
         ]
 
-        # Batch prompts using split_sub_batches
-        batched_prompts = split_sub_batches(
-            self.encoding, prompts, max_context_window=self.context_window
-        )
-        results = []
-        for batch in tqdm(batched_prompts, leave=False, total=len(batched_prompts)):
+        for prompt in prompts:
             model_inputs = self.tokenizer(
-                batch, return_tensors="pt", padding=True, truncation=True
+                prompt.text,
+                return_tensors="pt",
+                padding=True,
+                truncation=True,
             ).to(self.model.device)
             generated_ids = self.model.generate(
                 **model_inputs, max_new_tokens=self.context_window
@@ -88,5 +95,7 @@ class LocalEnrichmentProvider(EnrichmentProvider):
                 content = self.tokenizer.decode(
                     output_ids, skip_special_tokens=True
                 ).strip("\n")
-                results.append(content)
-        return results
+                yield EnrichmentResponse(
+                    snippet_id=prompt.id,
+                    text=content,
+                )

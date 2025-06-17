@@ -22,6 +22,7 @@ from kodit.embedding.vector_search_service import (
     VectorSearchRequest,
     VectorSearchService,
 )
+from kodit.enrichment.enrichment_provider.enrichment_provider import EnrichmentRequest
 from kodit.enrichment.enrichment_service import EnrichmentService
 from kodit.indexing.fusion import FusionRequest, reciprocal_rank_fusion
 from kodit.indexing.indexing_models import Snippet
@@ -210,31 +211,32 @@ class IndexService:
                 pbar.update(len(result))
 
         self.log.info("Enriching snippets", num_snippets=len(snippets))
-        enriched_contents = await self.enrichment_service.enrich(
-            [snippet.content for snippet in snippets]
-        )
+        enriched_contents = []
+        with tqdm(total=len(snippets), leave=False) as pbar:
+            async for result in self.enrichment_service.enrich(
+                [
+                    EnrichmentRequest(snippet_id=snippet.id, text=snippet.content)
+                    for snippet in snippets
+                ]
+            ):
+                snippet = next(s for s in snippets if s.id == result.snippet_id)
+                if snippet:
+                    snippet.content = (
+                        result.text + "\n\n```\n" + snippet.content + "\n```"
+                    )
+                    await self.repository.add_snippet(snippet)
+                    enriched_contents.append(result)
+                pbar.update(1)
 
         self.log.info("Creating semantic text index")
         with tqdm(total=len(snippets), leave=False) as pbar:
             async for result in self.text_search_service.index(
                 [
-                    VectorSearchRequest(snippet.id, enriched_content)
-                    for snippet, enriched_content in zip(
-                        snippets, enriched_contents, strict=True
-                    )
+                    VectorSearchRequest(snippet.id, snippet.content)
+                    for snippet in snippets
                 ]
             ):
                 pbar.update(len(result))
-
-        # Add the enriched text back to the snippets and write to the database
-        with Spinner():
-            for snippet, enriched_content in zip(
-                snippets, enriched_contents, strict=True
-            ):
-                snippet.content = (
-                    enriched_content + "\n\n```\n" + snippet.content + "\n```"
-                )
-                await self.repository.add_snippet(snippet)
 
         # Update index timestamp
         await self.repository.update_index_timestamp(index)
