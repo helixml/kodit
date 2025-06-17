@@ -76,11 +76,10 @@ class _DummyModel:  # pylint: disable=too-few-public-methods
         return _DummyTensor([[999]])
 
 
-@pytest.fixture
-def _patch_transformers(request):  # noqa: D401
+@pytest.fixture(scope="function")
+def _patch_transformers(monkeypatch):  # noqa: D401
     """Patch *transformers* modules so no large downloads happen during tests."""
-    if "no_patch" in request.keywords:
-        return
+
     # Build module hierarchy expected by the provider.
     transformers_mod = ModuleType("transformers")
     models_mod = ModuleType("transformers.models")
@@ -103,14 +102,16 @@ def _patch_transformers(request):  # noqa: D401
     model_auto_mod.AutoModelForCausalLM = _DummyAutoModelForCausalLM  # type: ignore[attr-defined]
 
     # Register the modules so Python's import machinery can find them.
-    for mod in [
+    # Use *monkeypatch* so the modifications are automatically reverted after
+    # each test run.
+    for name, module in [
         ("transformers", transformers_mod),
         ("transformers.models", models_mod),
         ("transformers.models.auto", auto_mod),
         ("transformers.models.auto.tokenization_auto", tok_auto_mod),
         ("transformers.models.auto.modeling_auto", model_auto_mod),
     ]:
-        sys.modules[mod[0]] = mod[1]
+        monkeypatch.setitem(sys.modules, name, module)
 
 
 @pytest.fixture
@@ -125,6 +126,7 @@ def provider():  # noqa: D401
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("_patch_transformers")
 async def test_initialization_default():  # noqa: D401
     """Provider initialises with the correct default model."""
     prov = LocalEnrichmentProvider()
@@ -132,6 +134,7 @@ async def test_initialization_default():  # noqa: D401
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("_patch_transformers")
 async def test_initialization_custom():  # noqa: D401
     """Custom model name propagates correctly."""
     custom = "my-fancy-model"
@@ -140,6 +143,7 @@ async def test_initialization_custom():  # noqa: D401
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("_patch_transformers")
 async def test_enrich_single_text(provider):  # noqa: D401
     text = "def hello(): print('Hello, world!')"
     enriched = [
@@ -153,6 +157,7 @@ async def test_enrich_single_text(provider):  # noqa: D401
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("_patch_transformers")
 async def test_enrich_multiple_texts(provider):  # noqa: D401
     texts = [
         "def hello(): print('Hello, world!')",
@@ -172,12 +177,14 @@ async def test_enrich_multiple_texts(provider):  # noqa: D401
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("_patch_transformers")
 async def test_enrich_empty_list(provider):  # noqa: D401
     enriched = [resp async for resp in provider.enrich([])]
     assert len(enriched) == 0
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("_patch_transformers")
 async def test_enrich_empty_string_filtered(provider):  # noqa: D401
     """Empty strings should be ignored and return no enrichment."""
     enriched = [
@@ -188,6 +195,7 @@ async def test_enrich_empty_string_filtered(provider):  # noqa: D401
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("_patch_transformers")
 async def test_enrich_order_consistency(provider):  # noqa: D401
     """Ensure order of outputs matches order of inputs despite batching."""
     requests = [
@@ -200,7 +208,6 @@ async def test_enrich_order_consistency(provider):  # noqa: D401
 
 
 @pytest.mark.asyncio
-@pytest.mark.no_patch
 async def test_must_not_contain_system_prompt(provider):  # noqa: D401
     """The system prompt must not be included in the output."""
     text = "def hello(): print('Hello, world!')"
