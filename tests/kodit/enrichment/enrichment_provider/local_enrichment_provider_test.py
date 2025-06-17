@@ -76,7 +76,7 @@ class _DummyModel:  # pylint: disable=too-few-public-methods
         return _DummyTensor([[999]])
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def _patch_transformers(request):  # noqa: D401
     """Patch *transformers* modules so no large downloads happen during tests."""
     if "no_patch" in request.keywords:
