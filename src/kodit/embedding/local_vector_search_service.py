@@ -26,12 +26,14 @@ class LocalVectorSearchService(VectorSearchService):
         self,
         embedding_repository: EmbeddingRepository,
         embedding_provider: EmbeddingProvider,
+        embedding_type: EmbeddingType = EmbeddingType.CODE,
     ) -> None:
         """Initialize the local embedder."""
         self.log = structlog.get_logger(__name__)
         self.embedding_repository = embedding_repository
         self.embedding_provider = embedding_provider
         self.encoding = tiktoken.encoding_for_model("text-embedding-3-small")
+        self.embedding_type = embedding_type
 
     async def index(
         self, data: list[VectorSearchRequest]
@@ -48,7 +50,7 @@ class LocalVectorSearchService(VectorSearchService):
                     Embedding(
                         snippet_id=result.id,
                         embedding=result.embedding,
-                        type=EmbeddingType.CODE,
+                        type=self.embedding_type,
                     )
                 )
                 yield [IndexResult(snippet_id=result.id)]
@@ -67,7 +69,7 @@ class LocalVectorSearchService(VectorSearchService):
             return []
 
         results = await self.embedding_repository.list_semantic_results(
-            EmbeddingType.CODE, embedding_vec, top_k
+            self.embedding_type, embedding_vec, top_k
         )
         return [
             VectorSearchResponse(snippet_id, score) for snippet_id, score in results

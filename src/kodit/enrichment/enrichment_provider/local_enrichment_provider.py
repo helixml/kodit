@@ -92,9 +92,11 @@ class LocalEnrichmentProvider(EnrichmentProvider):
             generated_ids = self.model.generate(
                 **model_inputs, max_new_tokens=self.context_window
             )
-            content = self.tokenizer.decode(
-                generated_ids.tolist()[0], skip_special_tokens=True
-            ).strip("\n")
+            input_ids = model_inputs["input_ids"][0]
+            output_ids = generated_ids[0][len(input_ids) :].tolist()
+            content = self.tokenizer.decode(output_ids, skip_special_tokens=True).strip(
+                "\n"
+            )
             yield EnrichmentResponse(
                 snippet_id=prompt.id,
                 text=content,

@@ -3,6 +3,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.config import AppContext, Endpoint
+from kodit.embedding.embedding_models import EmbeddingType
 from kodit.embedding.embedding_provider.local_embedding_provider import (
     CODE,
     LocalEmbeddingProvider,
@@ -54,9 +55,14 @@ def embedding_factory(
         return VectorChordVectorSearchService(task_name, session, embedding_provider)
     if app_context.default_search.provider == "sqlite":
         log_event("kodit.database", {"provider": "sqlite"})
+        if task_name == "code":
+            embedding_type = EmbeddingType.CODE
+        elif task_name == "text":
+            embedding_type = EmbeddingType.TEXT
         return LocalVectorSearchService(
             embedding_repository=embedding_repository,
             embedding_provider=embedding_provider,
+            embedding_type=embedding_type,
         )
 
     msg = f"Invalid semantic search provider: {app_context.default_search.provider}"

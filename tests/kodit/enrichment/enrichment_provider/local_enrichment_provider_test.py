@@ -5,7 +5,10 @@ from types import ModuleType
 
 import pytest
 
-from kodit.enrichment.enrichment_provider.enrichment_provider import EnrichmentRequest
+from kodit.enrichment.enrichment_provider.enrichment_provider import (
+    ENRICHMENT_SYSTEM_PROMPT,
+    EnrichmentRequest,
+)
 from kodit.enrichment.enrichment_provider.local_enrichment_provider import (
     LocalEnrichmentProvider,
     DEFAULT_ENRICHMENT_MODEL,
@@ -74,9 +77,10 @@ class _DummyModel:  # pylint: disable=too-few-public-methods
 
 
 @pytest.fixture(autouse=True)
-def _patch_transformers(monkeypatch):  # noqa: D401
+def _patch_transformers(request):  # noqa: D401
     """Patch *transformers* modules so no large downloads happen during tests."""
-
+    if "no_patch" in request.keywords:
+        return
     # Build module hierarchy expected by the provider.
     transformers_mod = ModuleType("transformers")
     models_mod = ModuleType("transformers.models")
@@ -193,3 +197,15 @@ async def test_enrich_order_consistency(provider):  # noqa: D401
 
     assert [r.snippet_id for r in enriched] == list(range(20))
     assert all(isinstance(r.text, str) and r.text for r in enriched)
+
+
+@pytest.mark.asyncio
+@pytest.mark.no_patch
+async def test_must_not_contain_system_prompt(provider):  # noqa: D401
+    """The system prompt must not be included in the output."""
+    text = "def hello(): print('Hello, world!')"
+    enriched = [
+        resp
+        async for resp in provider.enrich([EnrichmentRequest(snippet_id=0, text=text)])
+    ]
+    assert ENRICHMENT_SYSTEM_PROMPT not in enriched[0].text
