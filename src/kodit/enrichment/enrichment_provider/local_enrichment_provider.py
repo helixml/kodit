@@ -40,6 +40,9 @@ class LocalEnrichmentProvider(EnrichmentProvider):
         self, data: list[EnrichmentRequest]
     ) -> AsyncGenerator[EnrichmentResponse, None]:
         """Enrich a list of strings."""
+        # Remove empty snippets
+        data = [snippet for snippet in data if snippet.text]
+
         if not data or len(data) == 0:
             self.log.warning("Data is empty, skipping enrichment")
             return
@@ -89,13 +92,10 @@ class LocalEnrichmentProvider(EnrichmentProvider):
             generated_ids = self.model.generate(
                 **model_inputs, max_new_tokens=self.context_window
             )
-            # For each prompt in the batch, decode only the generated part
-            for i, input_ids in enumerate(model_inputs["input_ids"]):
-                output_ids = generated_ids[i][len(input_ids) :].tolist()
-                content = self.tokenizer.decode(
-                    output_ids, skip_special_tokens=True
-                ).strip("\n")
-                yield EnrichmentResponse(
-                    snippet_id=prompt.id,
-                    text=content,
-                )
+            content = self.tokenizer.decode(
+                generated_ids, skip_special_tokens=True
+            ).strip("\n")
+            yield EnrichmentResponse(
+                snippet_id=prompt.id,
+                text=content,
+            )
