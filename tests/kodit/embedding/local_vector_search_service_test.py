@@ -10,7 +10,7 @@ from kodit.embedding.vector_search_service import (
     VectorSearchRequest,
     VectorSearchResponse,
 )
-from kodit.embedding.embedding_models import EmbeddingType
+from kodit.embedding.embedding_models import Embedding, EmbeddingType
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.indexing.indexing_models import Index, Snippet
@@ -147,3 +147,32 @@ async def test_retrieve_with_custom_top_k(
     results = await vector_search_service.retrieve("test", top_k=1)
 
     assert len(results) == 1
+
+
+@pytest.mark.asyncio
+async def test_has_embedding(
+    vector_search_service: LocalVectorSearchService,
+    session: AsyncSession,
+):
+    index_id, file_id = await create_dummy_db_file(session)
+
+    snippet1 = Snippet(
+        index_id=index_id, file_id=file_id, content="python programming language"
+    )
+
+    session.add(snippet1)
+    await session.commit()
+
+    assert not await vector_search_service.has_embedding(
+        snippet1.id, EmbeddingType.CODE
+    )
+
+    embedding = Embedding(
+        snippet_id=snippet1.id,
+        type=EmbeddingType.CODE,
+        embedding=[0.1, 0.2, 0.3],
+    )
+    session.add(embedding)
+    await session.commit()
+
+    assert await vector_search_service.has_embedding(snippet1.id, EmbeddingType.CODE)

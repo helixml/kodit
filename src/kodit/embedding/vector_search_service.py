@@ -4,6 +4,8 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator
 from typing import NamedTuple
 
+from kodit.embedding.embedding_models import EmbeddingType
+
 
 class VectorSearchResponse(NamedTuple):
     """Embedding result."""
@@ -45,3 +47,9 @@ class VectorSearchService(ABC):
     @abstractmethod
     async def retrieve(self, query: str, top_k: int = 10) -> list[VectorSearchResponse]:
         """Query the embedding model."""
+
+    @abstractmethod
+    async def has_embedding(
+        self, snippet_id: int, embedding_type: EmbeddingType
+    ) -> bool:
+        """Check if a snippet has an embedding."""

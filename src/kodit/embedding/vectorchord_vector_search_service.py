@@ -7,6 +7,7 @@ import structlog
 from sqlalchemy import Result, TextClause, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from kodit.embedding.embedding_models import EmbeddingType
 from kodit.embedding.embedding_provider.embedding_provider import (
     EmbeddingProvider,
     EmbeddingRequest,
@@ -55,6 +56,10 @@ SELECT snippet_id, embedding <=> :query as score
 FROM {TABLE_NAME}
 ORDER BY score ASC
 LIMIT :top_k;
+"""
+
+CHECK_VCHORD_EMBEDDING_EXISTS = """
+SELECT EXISTS(SELECT 1 FROM {TABLE_NAME} WHERE snippet_id = :snippet_id)
 """
 
 TaskName = Literal["code", "text"]
@@ -192,3 +197,15 @@ class VectorChordVectorSearchService(VectorSearchService):
             VectorSearchResponse(snippet_id=row["snippet_id"], score=row["score"])
             for row in rows
         ]
+
+    async def has_embedding(
+        self,
+        snippet_id: int,
+        embedding_type: EmbeddingType,  # noqa: ARG002
+    ) -> bool:
+        """Check if a snippet has an embedding."""
+        result = await self._execute(
+            text(CHECK_VCHORD_EMBEDDING_EXISTS.format(TABLE_NAME=self.table_name)),
+            {"snippet_id": snippet_id},
+        )
+        return result.scalar_one()

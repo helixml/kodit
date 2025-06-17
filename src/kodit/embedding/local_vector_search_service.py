@@ -38,7 +38,6 @@ class LocalVectorSearchService(VectorSearchService):
     ) -> AsyncGenerator[list[IndexResult], None]:
         """Embed a list of documents."""
         if not data or len(data) == 0:
-            self.log.warning("Embedding data is empty, skipping embedding")
             return
 
         requests = [EmbeddingRequest(id=doc.snippet_id, text=doc.text) for doc in data]
@@ -73,3 +72,14 @@ class LocalVectorSearchService(VectorSearchService):
         return [
             VectorSearchResponse(snippet_id, score) for snippet_id, score in results
         ]
+
+    async def has_embedding(
+        self, snippet_id: int, embedding_type: EmbeddingType
+    ) -> bool:
+        """Check if a snippet has an embedding."""
+        return (
+            await self.embedding_repository.get_embedding_by_snippet_id_and_type(
+                snippet_id, embedding_type
+            )
+            is not None
+        )
