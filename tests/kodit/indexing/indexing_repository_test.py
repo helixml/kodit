@@ -1,10 +1,10 @@
 from datetime import UTC, datetime
-from kodit.indexing.indexing_models import Snippet
 from kodit.indexing.indexing_repository import IndexRepository
 from sqlalchemy.ext.asyncio import AsyncSession
 import pytest
 
 from kodit.source.source_models import File, Source, SourceType
+from kodit.snippets.snippets_models import Snippet
 
 
 @pytest.fixture

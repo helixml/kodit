@@ -13,7 +13,8 @@ from kodit.embedding.vector_search_service import (
 from kodit.embedding.embedding_models import Embedding, EmbeddingType
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.indexing.indexing_models import Index, Snippet
+from kodit.indexing.indexing_models import Index
+from kodit.snippets.snippets_models import Snippet
 from kodit.source.source_models import File, Source, SourceType
 
 

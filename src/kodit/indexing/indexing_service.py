@@ -25,10 +25,10 @@ from kodit.embedding.vector_search_service import (
 from kodit.enrichment.enrichment_provider.enrichment_provider import EnrichmentRequest
 from kodit.enrichment.enrichment_service import EnrichmentService
 from kodit.indexing.fusion import FusionRequest, reciprocal_rank_fusion
-from kodit.indexing.indexing_models import Snippet
 from kodit.indexing.indexing_repository import IndexRepository
 from kodit.log import log_event
 from kodit.snippets.snippets import SnippetService
+from kodit.snippets.snippets_models import Snippet
 from kodit.source.source_service import SourceService
 from kodit.util.spinner import Spinner
 

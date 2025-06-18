@@ -8,7 +8,8 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from kodit.database import Base
-from kodit.indexing.indexing_models import Index, Snippet
+from kodit.indexing.indexing_models import Index
+from kodit.snippets.snippets_models import Snippet
 from kodit.source.source_models import File, Source, SourceType
 from sqlalchemy.ext.asyncio import AsyncEngine
 from typing import AsyncGenerator

@@ -9,7 +9,8 @@ from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 
 from kodit.embedding.embedding_models import Embedding, EmbeddingType
-from kodit.indexing.indexing_models import Index, Snippet
+from kodit.indexing.indexing_models import Index
+from kodit.snippets.snippets_models import Snippet
 from kodit.search.search_repository import SearchRepository
 from kodit.source.source_models import File, Source
 
