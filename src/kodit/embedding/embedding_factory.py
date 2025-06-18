@@ -3,7 +3,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.config import AppContext, Endpoint
-from kodit.embedding.embedding_models import EmbeddingType
+from kodit.domain.models import EmbeddingType
 from kodit.embedding.embedding_provider.local_embedding_provider import (
     CODE,
     LocalEmbeddingProvider,

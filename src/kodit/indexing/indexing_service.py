@@ -18,6 +18,8 @@ from kodit.bm25.keyword_search_service import (
     BM25Result,
     KeywordSearchProvider,
 )
+from kodit.domain.models import Snippet
+from kodit.domain.services.source_service import SourceService
 from kodit.embedding.vector_search_service import (
     VectorSearchRequest,
     VectorSearchService,
@@ -25,11 +27,9 @@ from kodit.embedding.vector_search_service import (
 from kodit.enrichment.enrichment_provider.enrichment_provider import EnrichmentRequest
 from kodit.enrichment.enrichment_service import EnrichmentService
 from kodit.indexing.fusion import FusionRequest, reciprocal_rank_fusion
-from kodit.indexing.indexing_models import Snippet
 from kodit.indexing.indexing_repository import IndexRepository
 from kodit.log import log_event
 from kodit.snippets.snippets import SnippetService
-from kodit.source.source_service import SourceService
 from kodit.util.spinner import Spinner
 
 # List of MIME types that are blacklisted from being indexed

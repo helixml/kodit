@@ -3,14 +3,6 @@
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.source.source_models import (
-    Author,
-    AuthorFileMapping,
-    File,
-    Source,
-    SourceType,
-)
-
 
 class SourceRepository:
     """Repository for managing source database operations.

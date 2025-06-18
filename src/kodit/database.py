@@ -1,39 +1,17 @@
 """Database configuration for kodit."""
 
-from datetime import UTC, datetime
 from pathlib import Path
 
 import structlog
 from alembic import command
 from alembic.config import Config as AlembicConfig
-from sqlalchemy import DateTime
 from sqlalchemy.ext.asyncio import (
-    AsyncAttrs,
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from kodit import migrations
-
-
-class Base(AsyncAttrs, DeclarativeBase):
-    """Base class for all models."""
-
-
-class CommonMixin:
-    """Common mixin for all models."""
-
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(UTC)
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        default=lambda: datetime.now(UTC),
-        onupdate=lambda: datetime.now(UTC),
-    )
 
 
 class Database:

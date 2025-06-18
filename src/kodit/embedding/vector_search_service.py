@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator
 from typing import NamedTuple
 
-from kodit.embedding.embedding_models import EmbeddingType
+from kodit.domain.models import EmbeddingType
 
 
 class VectorSearchResponse(NamedTuple):

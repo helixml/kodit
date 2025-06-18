@@ -8,10 +8,7 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-import kodit.embedding.embedding_models
-import kodit.indexing.indexing_models
-import kodit.source.source_models
-from kodit.database import Base
+from kodit.domain.models import Base
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

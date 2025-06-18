@@ -7,7 +7,7 @@ import structlog
 from sqlalchemy import Result, TextClause, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.embedding.embedding_models import EmbeddingType
+from kodit.domain.models import EmbeddingType
 from kodit.embedding.embedding_provider.embedding_provider import (
     EmbeddingProvider,
     EmbeddingRequest,

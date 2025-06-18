@@ -16,13 +16,12 @@ from kodit.config import (
     with_app_context,
     with_session,
 )
+from kodit.domain.services.source_service import SourceService
 from kodit.embedding.embedding_factory import embedding_factory
 from kodit.enrichment.enrichment_factory import enrichment_factory
 from kodit.indexing.indexing_repository import IndexRepository
 from kodit.indexing.indexing_service import IndexService, SearchRequest
 from kodit.log import configure_logging, configure_telemetry, log_event
-from kodit.source.source_repository import SourceRepository
-from kodit.source.source_service import SourceService
 
 
 @click.group(context_settings={"max_content_width": 100})
@@ -64,8 +63,10 @@ async def index(
     sources: list[str],
 ) -> None:
     """List indexes, or index data sources."""
-    source_repository = SourceRepository(session)
-    source_service = SourceService(app_context.get_clone_dir(), source_repository)
+    source_service = SourceService(
+        clone_dir=app_context.get_clone_dir(),
+        session_factory=lambda: session,
+    )
     repository = IndexRepository(session)
     service = IndexService(
         repository=repository,
@@ -137,8 +138,10 @@ async def code(
     This works best if your query is code.
     """
     log_event("kodit.cli.search.code")
-    source_repository = SourceRepository(session)
-    source_service = SourceService(app_context.get_clone_dir(), source_repository)
+    source_service = SourceService(
+        clone_dir=app_context.get_clone_dir(),
+        session_factory=lambda: session,
+    )
     repository = IndexRepository(session)
     service = IndexService(
         repository=repository,
@@ -181,8 +184,10 @@ async def keyword(
 ) -> None:
     """Search for snippets using keyword search."""
     log_event("kodit.cli.search.keyword")
-    source_repository = SourceRepository(session)
-    source_service = SourceService(app_context.get_clone_dir(), source_repository)
+    source_service = SourceService(
+        clone_dir=app_context.get_clone_dir(),
+        session_factory=lambda: session,
+    )
     repository = IndexRepository(session)
     service = IndexService(
         repository=repository,
@@ -228,8 +233,10 @@ async def text(
     This works best if your query is text.
     """
     log_event("kodit.cli.search.text")
-    source_repository = SourceRepository(session)
-    source_service = SourceService(app_context.get_clone_dir(), source_repository)
+    source_service = SourceService(
+        clone_dir=app_context.get_clone_dir(),
+        session_factory=lambda: session,
+    )
     repository = IndexRepository(session)
     service = IndexService(
         repository=repository,
@@ -276,8 +283,10 @@ async def hybrid(  # noqa: PLR0913
 ) -> None:
     """Search for snippets using hybrid search."""
     log_event("kodit.cli.search.hybrid")
-    source_repository = SourceRepository(session)
-    source_service = SourceService(app_context.get_clone_dir(), source_repository)
+    source_service = SourceService(
+        clone_dir=app_context.get_clone_dir(),
+        session_factory=lambda: session,
+    )
     repository = IndexRepository(session)
     service = IndexService(
         repository=repository,

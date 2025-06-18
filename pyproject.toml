@@ -117,6 +117,7 @@ ignore = [
   "TRY003", # Long exception messages in custom exception classes
   "S101", # Allow assert statements in test files
   "PGH004", # If I've disabled all, I mean disable all
+  "EM102", # Annoying because an extra msg just for a raise adds unnecessary lines
 ]
 select = ["ALL"]
 exclude = ["./tests/*"]

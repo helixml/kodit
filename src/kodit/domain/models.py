@@ -1,24 +1,42 @@
-"""Source models for managing code sources.
+"""SQLAlchemy models."""
 
-This module defines the SQLAlchemy models used for storing and managing code sources.
-It includes models for tracking different types of sources (git repositories and local
-folders) and their relationships.
-"""
-
-import datetime
-from enum import Enum as EnumType
+from datetime import UTC, datetime
+from enum import Enum
 
 from git import Actor
-from sqlalchemy import Enum, ForeignKey, Integer, String, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import (
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    UnicodeText,
+    UniqueConstraint,
+)
+from sqlalchemy import Enum as SQLAlchemyEnum
+from sqlalchemy.ext.asyncio import AsyncAttrs
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.types import JSON
 
-from kodit.database import Base, CommonMixin
 
-# Enable proper type hints for SQLAlchemy models
-__all__ = ["File", "Source"]
+class Base(AsyncAttrs, DeclarativeBase):
+    """Base class for all models."""
 
 
-class SourceType(EnumType):
+class CommonMixin:
+    """Common mixin for all models."""
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+
+class SourceType(Enum):
     """The type of source."""
 
     UNKNOWN = 0
@@ -45,7 +63,7 @@ class Source(Base, CommonMixin):
     uri: Mapped[str] = mapped_column(String(1024), index=True, unique=True)
     cloned_path: Mapped[str] = mapped_column(String(1024), index=True)
     type: Mapped[SourceType] = mapped_column(
-        Enum(SourceType), default=SourceType.UNKNOWN, index=True
+        SQLAlchemyEnum(SourceType), default=SourceType.UNKNOWN, index=True
     )
 
     def __init__(self, uri: str, cloned_path: str, source_type: SourceType) -> None:
@@ -100,8 +118,8 @@ class File(Base, CommonMixin):
 
     def __init__(  # noqa: PLR0913
         self,
-        created_at: datetime.datetime,
-        updated_at: datetime.datetime,
+        created_at: datetime,
+        updated_at: datetime,
         source_id: int,
         cloned_path: str,
         mime_type: str = "",
@@ -119,3 +137,54 @@ class File(Base, CommonMixin):
         self.uri = uri
         self.sha256 = sha256
         self.size_bytes = size_bytes
+
+
+class EmbeddingType(Enum):
+    """Embedding type."""
+
+    CODE = 1
+    TEXT = 2
+
+
+class Embedding(Base, CommonMixin):
+    """Embedding model."""
+
+    __tablename__ = "embeddings"
+
+    snippet_id: Mapped[int] = mapped_column(ForeignKey("snippets.id"), index=True)
+    type: Mapped[EmbeddingType] = mapped_column(
+        SQLAlchemyEnum(EmbeddingType), index=True
+    )
+    embedding: Mapped[list[float]] = mapped_column(JSON)
+
+
+class Index(Base, CommonMixin):
+    """Index model."""
+
+    __tablename__ = "indexes"
+
+    source_id: Mapped[int] = mapped_column(
+        ForeignKey("sources.id"), unique=True, index=True
+    )
+
+    def __init__(self, source_id: int) -> None:
+        """Initialize the index."""
+        super().__init__()
+        self.source_id = source_id
+
+
+class Snippet(Base, CommonMixin):
+    """Snippet model."""
+
+    __tablename__ = "snippets"
+
+    file_id: Mapped[int] = mapped_column(ForeignKey("files.id"), index=True)
+    index_id: Mapped[int] = mapped_column(ForeignKey("indexes.id"), index=True)
+    content: Mapped[str] = mapped_column(UnicodeText, default="")
+
+    def __init__(self, file_id: int, index_id: int, content: str) -> None:
+        """Initialize the snippet."""
+        super().__init__()
+        self.file_id = file_id
+        self.index_id = index_id
+        self.content = content

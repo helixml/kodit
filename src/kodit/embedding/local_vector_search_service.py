@@ -5,7 +5,7 @@ from collections.abc import AsyncGenerator
 import structlog
 import tiktoken
 
-from kodit.embedding.embedding_models import Embedding, EmbeddingType
+from kodit.domain.models import Embedding, EmbeddingType
 from kodit.embedding.embedding_provider.embedding_provider import (
     EmbeddingProvider,
     EmbeddingRequest,
