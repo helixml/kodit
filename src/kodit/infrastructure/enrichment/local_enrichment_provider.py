@@ -1,4 +1,4 @@
-"""Local embedding service."""
+"""Local enrichment provider implementation."""
 
 import os
 from collections.abc import AsyncGenerator
@@ -6,27 +6,33 @@ from collections.abc import AsyncGenerator
 import structlog
 import tiktoken
 
-from kodit.domain.models import EmbeddingRequest
-from kodit.enrichment.enrichment_provider.enrichment_provider import (
-    ENRICHMENT_SYSTEM_PROMPT,
-    EnrichmentProvider,
-    EnrichmentRequest,
-    EnrichmentResponse,
-)
+from kodit.domain.models import EnrichmentRequest, EnrichmentResponse
+from kodit.domain.services.enrichment_service import EnrichmentProvider
+
+ENRICHMENT_SYSTEM_PROMPT = """
+You are a professional software developer. You will be given a snippet of code.
+Please provide a concise explanation of the code.
+"""
 
 DEFAULT_ENRICHMENT_MODEL = "Qwen/Qwen3-0.6B"
 DEFAULT_CONTEXT_WINDOW_SIZE = 2048  # Small so it works even on low-powered devices
 
 
 class LocalEnrichmentProvider(EnrichmentProvider):
-    """Local embedder."""
+    """Local enrichment provider implementation."""
 
     def __init__(
         self,
         model_name: str = DEFAULT_ENRICHMENT_MODEL,
         context_window: int = DEFAULT_CONTEXT_WINDOW_SIZE,
     ) -> None:
-        """Initialize the local enrichment provider."""
+        """Initialize the local enrichment provider.
+
+        Args:
+            model_name: The model name to use for enrichment.
+            context_window: The context window size for the model.
+
+        """
         self.log = structlog.get_logger(__name__)
         self.model_name = model_name
         self.context_window = context_window
@@ -35,14 +41,22 @@ class LocalEnrichmentProvider(EnrichmentProvider):
         self.encoding = tiktoken.encoding_for_model("text-embedding-3-small")
 
     async def enrich(
-        self, data: list[EnrichmentRequest]
+        self, requests: list[EnrichmentRequest]
     ) -> AsyncGenerator[EnrichmentResponse, None]:
-        """Enrich a list of strings."""
-        # Remove empty snippets
-        data = [snippet for snippet in data if snippet.text]
+        """Enrich a list of requests using local model.
 
-        if not data or len(data) == 0:
-            self.log.warning("Data is empty, skipping enrichment")
+        Args:
+            requests: List of enrichment requests.
+
+        Yields:
+            Enrichment responses as they are processed.
+
+        """
+        # Remove empty snippets
+        requests = [req for req in requests if req.text]
+
+        if not requests:
+            self.log.warning("No valid requests for enrichment")
             return
 
         from transformers.models.auto.modeling_auto import (
@@ -64,25 +78,25 @@ class LocalEnrichmentProvider(EnrichmentProvider):
             )
 
         # Prepare prompts
-        prompts: list[EmbeddingRequest] = [
-            EmbeddingRequest(
-                id=snippet.snippet_id,
-                text=self.tokenizer.apply_chat_template(
+        prompts = [
+            {
+                "id": req.snippet_id,
+                "text": self.tokenizer.apply_chat_template(
                     [
                         {"role": "system", "content": ENRICHMENT_SYSTEM_PROMPT},
-                        {"role": "user", "content": snippet.text},
+                        {"role": "user", "content": req.text},
                     ],
                     tokenize=False,
                     add_generation_prompt=True,
                     enable_thinking=False,
                 ),
-            )
-            for snippet in data
+            }
+            for req in requests
         ]
 
         for prompt in prompts:
             model_inputs = self.tokenizer(
-                prompt.text,
+                prompt["text"],
                 return_tensors="pt",
                 padding=True,
                 truncation=True,
@@ -96,6 +110,6 @@ class LocalEnrichmentProvider(EnrichmentProvider):
                 "\n"
             )
             yield EnrichmentResponse(
-                snippet_id=prompt.id,
+                snippet_id=prompt["id"],
                 text=content,
             )

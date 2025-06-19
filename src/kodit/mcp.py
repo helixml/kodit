@@ -19,13 +19,13 @@ from kodit.config import AppContext
 from kodit.database import Database
 from kodit.domain.services.bm25_service import BM25DomainService
 from kodit.domain.services.source_service import SourceService
-from kodit.enrichment.enrichment_factory import enrichment_factory
 from kodit.indexing.indexing_repository import IndexRepository
 from kodit.indexing.indexing_service import IndexService, SearchRequest, SearchResult
 from kodit.infrastructure.bm25.bm25_factory import bm25_repository_factory
 from kodit.infrastructure.embedding.embedding_factory import (
     embedding_domain_service_factory,
 )
+from kodit.infrastructure.enrichment import create_enrichment_domain_service
 from kodit.infrastructure.snippet_extraction.snippet_extraction_factory import (
     create_snippet_extraction_domain_service,
     create_snippet_repositories,
@@ -185,7 +185,7 @@ async def search(
             mcp_context.app_context,
             mcp_context.session,
         ),
-        enrichment_service=enrichment_factory(mcp_context.app_context),
+        enrichment_service=create_enrichment_domain_service(mcp_context.app_context),
         snippet_application_service=snippet_application_service,
     )
 

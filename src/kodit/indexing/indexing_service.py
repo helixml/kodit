@@ -19,6 +19,8 @@ from kodit.application.services.snippet_application_service import (
 from kodit.domain.models import (
     BM25Document,
     BM25SearchResult,
+    EnrichmentIndexRequest,
+    EnrichmentRequest,
     SnippetExtractionStrategy,
     VectorIndexRequest,
     VectorSearchQueryRequest,
@@ -30,9 +32,8 @@ from kodit.domain.services.bm25_service import (
     BM25SearchRequest,
 )
 from kodit.domain.services.embedding_service import EmbeddingDomainService
+from kodit.domain.services.enrichment_service import EnrichmentDomainService
 from kodit.domain.services.source_service import SourceService
-from kodit.enrichment.enrichment_provider.enrichment_provider import EnrichmentRequest
-from kodit.enrichment.enrichment_service import EnrichmentService
 from kodit.indexing.fusion import FusionRequest, reciprocal_rank_fusion
 from kodit.indexing.indexing_repository import IndexRepository
 from kodit.log import log_event
@@ -93,7 +94,7 @@ class IndexService:
         bm25_service: BM25DomainService,
         code_search_service: EmbeddingDomainService,
         text_search_service: EmbeddingDomainService,
-        enrichment_service: EnrichmentService,
+        enrichment_service: EnrichmentDomainService,
         snippet_application_service: SnippetApplicationService,
     ) -> None:
         """Initialize the index service.
@@ -104,7 +105,7 @@ class IndexService:
             bm25_service: The BM25 domain service for keyword search.
             code_search_service: The code search domain service.
             text_search_service: The text search domain service.
-            enrichment_service: The enrichment service.
+            enrichment_service: The enrichment domain service.
             snippet_application_service: The snippet application service.
 
         """
@@ -232,11 +233,16 @@ class IndexService:
         self.log.info("Enriching snippets", num_snippets=len(snippets))
         enriched_contents = []
         with tqdm(total=len(snippets), leave=False) as pbar:
-            async for result in self.enrichment_service.enrich(
-                [
+            # Create domain request for enrichment
+            enrichment_request = EnrichmentIndexRequest(
+                requests=[
                     EnrichmentRequest(snippet_id=snippet.id, text=snippet.content)
                     for snippet in snippets
                 ]
+            )
+
+            async for result in self.enrichment_service.enrich_documents(
+                enrichment_request
             ):
                 snippet = next(s for s in snippets if s.id == result.snippet_id)
                 if snippet:

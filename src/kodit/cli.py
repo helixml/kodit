@@ -21,13 +21,13 @@ from kodit.config import (
 )
 from kodit.domain.services.bm25_service import BM25DomainService
 from kodit.domain.services.source_service import SourceService
-from kodit.enrichment.enrichment_factory import enrichment_factory
 from kodit.indexing.indexing_repository import IndexRepository
 from kodit.indexing.indexing_service import IndexService, SearchRequest
 from kodit.infrastructure.bm25.bm25_factory import bm25_repository_factory
 from kodit.infrastructure.embedding.embedding_factory import (
     embedding_domain_service_factory,
 )
+from kodit.infrastructure.enrichment import create_enrichment_domain_service
 from kodit.infrastructure.snippet_extraction.snippet_extraction_factory import (
     create_snippet_extraction_domain_service,
     create_snippet_repositories,
@@ -116,7 +116,7 @@ async def index(
         text_search_service=embedding_domain_service_factory(
             "text", app_context, session
         ),
-        enrichment_service=enrichment_factory(app_context),
+        enrichment_service=create_enrichment_domain_service(app_context),
         snippet_application_service=snippet_application_service,
     )
 
@@ -193,7 +193,7 @@ async def code(
         text_search_service=embedding_domain_service_factory(
             "text", app_context, session
         ),
-        enrichment_service=enrichment_factory(app_context),
+        enrichment_service=create_enrichment_domain_service(app_context),
         snippet_application_service=snippet_application_service,
     )
 
@@ -241,7 +241,7 @@ async def keyword(
         text_search_service=embedding_domain_service_factory(
             "text", app_context, session
         ),
-        enrichment_service=enrichment_factory(app_context),
+        enrichment_service=create_enrichment_domain_service(app_context),
         snippet_application_service=snippet_application_service,
     )
 
@@ -292,7 +292,7 @@ async def text(
         text_search_service=embedding_domain_service_factory(
             "text", app_context, session
         ),
-        enrichment_service=enrichment_factory(app_context),
+        enrichment_service=create_enrichment_domain_service(app_context),
         snippet_application_service=snippet_application_service,
     )
 
@@ -344,7 +344,7 @@ async def hybrid(  # noqa: PLR0913
         text_search_service=embedding_domain_service_factory(
             "text", app_context, session
         ),
-        enrichment_service=enrichment_factory(app_context),
+        enrichment_service=create_enrichment_domain_service(app_context),
         snippet_application_service=snippet_application_service,
     )
 

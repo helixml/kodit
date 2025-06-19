@@ -1,5 +1,6 @@
 """SQLAlchemy models."""
 
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
@@ -303,3 +304,34 @@ class VectorSearchQueryRequest:
     def __init__(self, query: str, top_k: int = 10):
         self.query = query
         self.top_k = top_k
+
+
+@dataclass
+class EnrichmentRequest:
+    """Domain model for enrichment request."""
+
+    snippet_id: int
+    text: str
+
+
+@dataclass
+class EnrichmentResponse:
+    """Domain model for enrichment response."""
+
+    snippet_id: int
+    text: str
+
+
+@dataclass
+class EnrichmentIndexRequest:
+    """Domain model for enrichment index request."""
+
+    requests: list[EnrichmentRequest]
+
+
+@dataclass
+class EnrichmentSearchRequest:
+    """Domain model for enrichment search request."""
+
+    query: str
+    top_k: int = 10
