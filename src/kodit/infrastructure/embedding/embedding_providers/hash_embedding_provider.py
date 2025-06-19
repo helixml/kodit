@@ -14,7 +14,7 @@ CODE = 1536
 
 
 class HashEmbeddingProvider(EmbeddingProvider):
-    """Hash-based embedding provider that generates deterministic embeddings for testing."""
+    """Hash-based embedding that generates deterministic embeddings for testing."""
 
     def __init__(self, embedding_size: int = CODE) -> None:
         """Initialize the hash embedding provider.

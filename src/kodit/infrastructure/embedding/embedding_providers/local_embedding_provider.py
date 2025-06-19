@@ -27,7 +27,7 @@ COMMON_EMBEDDING_MODELS = {
 
 
 class LocalEmbeddingProvider(EmbeddingProvider):
-    """Local embedding provider that uses sentence-transformers for actual embeddings."""
+    """Local embedding provider that uses sentence-transformers."""
 
     def __init__(self, model_name: str = CODE) -> None:
         """Initialize the local embedding provider.
