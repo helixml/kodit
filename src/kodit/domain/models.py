@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime
 from enum import Enum
+from pathlib import Path
 
 from git import Actor
 from sqlalchemy import (
@@ -188,3 +189,25 @@ class Snippet(Base, CommonMixin):
         self.file_id = file_id
         self.index_id = index_id
         self.content = content
+
+
+class SnippetExtractionStrategy(str, Enum):
+    """Different strategies for extracting snippets from files."""
+
+    METHOD_BASED = "method_based"
+
+
+class SnippetExtractionRequest:
+    """Domain model for snippet extraction request."""
+
+    def __init__(self, file_path: Path, strategy: SnippetExtractionStrategy):
+        self.file_path = file_path
+        self.strategy = strategy
+
+
+class SnippetExtractionResult:
+    """Domain model for snippet extraction result."""
+
+    def __init__(self, snippets: list[str], language: str):
+        self.snippets = snippets
+        self.language = language

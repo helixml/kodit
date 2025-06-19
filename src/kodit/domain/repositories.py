@@ -3,7 +3,14 @@
 from collections.abc import Sequence
 from typing import Protocol
 
-from kodit.domain.models import Author, AuthorFileMapping, File, Source, SourceType
+from kodit.domain.models import (
+    Author,
+    AuthorFileMapping,
+    File,
+    Snippet,
+    Source,
+    SourceType,
+)
 
 
 class SourceRepository(Protocol):
@@ -25,6 +32,10 @@ class SourceRepository(Protocol):
         """Add a source."""
         ...
 
+    async def create_source(self, source: Source) -> Source:
+        """Create a source and commit it."""
+        ...
+
     async def remove(self, source: Source) -> None:
         """Remove a source."""
         ...
@@ -38,8 +49,8 @@ class SourceRepository(Protocol):
         ...
 
     async def upsert_author_file_mapping(
-        self, mapping: AuthorFileMapping
-    ) -> AuthorFileMapping:
+        self, mapping: "AuthorFileMapping"
+    ) -> "AuthorFileMapping":
         """Create a new author file mapping or return existing one if already exists."""
         ...
 
@@ -69,4 +80,40 @@ class AuthorRepository(Protocol):
 
     async def remove(self, author: Author) -> None:
         """Remove an author."""
+        ...
+
+
+class SnippetRepository(Protocol):
+    """Snippet repository."""
+
+    async def save(self, snippet: Snippet) -> Snippet:
+        """Save a snippet."""
+        ...
+
+    async def get_by_id(self, snippet_id: int) -> Snippet | None:
+        """Get a snippet by ID."""
+        ...
+
+    async def get_by_index(self, index_id: int) -> Sequence[Snippet]:
+        """Get all snippets for an index."""
+        ...
+
+    async def delete_by_index(self, index_id: int) -> None:
+        """Delete all snippets for an index."""
+        ...
+
+
+class FileRepository(Protocol):
+    """File repository."""
+
+    async def get_files_for_index(self, index_id: int) -> Sequence[File]:
+        """Get all files for an index."""
+        ...
+
+    async def get_by_id(self, file_id: int) -> File | None:
+        """Get a file by ID."""
+        ...
+
+    async def save(self, file: File) -> File:
+        """Save a file."""
         ...

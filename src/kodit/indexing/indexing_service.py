@@ -7,18 +7,21 @@ index management.
 """
 
 from datetime import datetime
-from pathlib import Path
 
 import pydantic
 import structlog
 from tqdm.asyncio import tqdm
 
+from kodit.application.commands.snippet_commands import CreateIndexSnippetsCommand
+from kodit.application.services.snippet_application_service import (
+    SnippetApplicationService,
+)
 from kodit.bm25.keyword_search_service import (
     BM25Document,
     BM25Result,
     KeywordSearchProvider,
 )
-from kodit.domain.models import Snippet
+from kodit.domain.models import SnippetExtractionStrategy
 from kodit.domain.services.source_service import SourceService
 from kodit.embedding.vector_search_service import (
     VectorSearchRequest,
@@ -29,7 +32,6 @@ from kodit.enrichment.enrichment_service import EnrichmentService
 from kodit.indexing.fusion import FusionRequest, reciprocal_rank_fusion
 from kodit.indexing.indexing_repository import IndexRepository
 from kodit.log import log_event
-from kodit.snippets.snippets import SnippetService
 from kodit.util.spinner import Spinner
 
 # List of MIME types that are blacklisted from being indexed
@@ -88,17 +90,23 @@ class IndexService:
         code_search_service: VectorSearchService,
         text_search_service: VectorSearchService,
         enrichment_service: EnrichmentService,
+        snippet_application_service: SnippetApplicationService,  # New dependency
     ) -> None:
         """Initialize the index service.
 
         Args:
             repository: The repository instance to use for database operations.
             source_service: The source service instance to use for source validation.
+            keyword_search_provider: The keyword search provider.
+            code_search_service: The code search service.
+            text_search_service: The text search service.
+            enrichment_service: The enrichment service.
+            snippet_application_service: The snippet application service.
 
         """
         self.repository = repository
         self.source_service = source_service
-        self.snippet_service = SnippetService()
+        self.snippet_application_service = snippet_application_service  # New
         self.log = structlog.get_logger(__name__)
         self.keyword_search_provider = keyword_search_provider
         self.code_search_service = code_search_service
@@ -185,9 +193,12 @@ class IndexService:
         # which files have changed and only change those.
         await self.repository.delete_all_snippets(index.id)
 
-        # Create snippets for supported file types
+        # Create snippets for supported file types using the new application service
         self.log.info("Creating snippets for files", index_id=index.id)
-        await self._create_snippets(index.id)
+        command = CreateIndexSnippetsCommand(
+            index_id=index.id, strategy=SnippetExtractionStrategy.METHOD_BASED
+        )
+        await self.snippet_application_service.create_snippets_for_index(command)
 
         snippets = await self.repository.get_all_snippets(index.id)
 
@@ -302,43 +313,3 @@ class IndexService:
             )
             for (file, snippet), fr in zip(search_results, final_results, strict=True)
         ]
-
-    async def _create_snippets(
-        self,
-        index_id: int,
-    ) -> None:
-        """Create snippets for supported files.
-
-        Args:
-            index: The index to create snippets for.
-            file_list: List of files to create snippets from.
-            existing_snippets_set: Set of file IDs that already have snippets.
-
-        """
-        files = await self.repository.files_for_index(index_id)
-        if not files:
-            self.log.warning("No files to create snippets for")
-            return
-
-        for file in tqdm(files, total=len(files), leave=False):
-            # Skip unsupported file types
-            if file.mime_type in MIME_BLACKLIST:
-                self.log.debug("Skipping mime type", mime_type=file.mime_type)
-                continue
-
-            # Create snippet from file content
-            try:
-                snippets = self.snippet_service.snippets_for_file(
-                    Path(file.cloned_path)
-                )
-            except ValueError as e:
-                self.log.debug("Skipping file", file=file.cloned_path, error=e)
-                continue
-
-            for snippet in snippets:
-                s = Snippet(
-                    index_id=index_id,
-                    file_id=file.id,
-                    content=snippet.text,
-                )
-                await self.repository.add_snippet(s)

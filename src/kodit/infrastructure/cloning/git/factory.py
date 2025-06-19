@@ -51,12 +51,13 @@ class GitSourceFactory:
 
         # Create source record
         self.log.debug("Creating source", uri=uri, clone_path=str(clone_path))
-        source = Source(
-            uri=uri,
-            cloned_path=str(clone_path),
-            source_type=SourceType.GIT,
+        source = await self.repository.create_source(
+            Source(
+                uri=uri,
+                cloned_path=str(clone_path),
+                source_type=SourceType.GIT,
+            )
         )
-        await self.repository.add(source)
 
         # Get files to process using ignore patterns
         ignore_patterns = IgnorePatterns(clone_path)

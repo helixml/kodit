@@ -45,12 +45,13 @@ class FolderSourceFactory:
         clone_path = await self.working_copy.prepare(directory.as_uri())
 
         # Create source record
-        source = Source(
-            uri=directory.as_uri(),
-            cloned_path=str(clone_path),
-            source_type=SourceType.FOLDER,
+        source = await self.repository.create_source(
+            Source(
+                uri=directory.as_uri(),
+                cloned_path=str(clone_path),
+                source_type=SourceType.FOLDER,
+            )
         )
-        await self.repository.add(source)
 
         # Get all files to process
         files = [f for f in clone_path.rglob("*") if f.is_file()]

@@ -1,5 +1,6 @@
 """Command line interface for kodit."""
 
+import asyncio
 import signal
 from pathlib import Path
 from typing import Any
@@ -10,6 +11,9 @@ import uvicorn
 from pytable_formatter import Cell, Table
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from kodit.application.services.snippet_application_service import (
+    SnippetApplicationService,
+)
 from kodit.bm25.keyword_search_factory import keyword_search_factory
 from kodit.config import (
     AppContext,
@@ -21,7 +25,37 @@ from kodit.embedding.embedding_factory import embedding_factory
 from kodit.enrichment.enrichment_factory import enrichment_factory
 from kodit.indexing.indexing_repository import IndexRepository
 from kodit.indexing.indexing_service import IndexService, SearchRequest
+from kodit.infrastructure.snippet_extraction.snippet_extraction_factory import (
+    create_snippet_extraction_domain_service,
+    create_snippet_repositories,
+)
 from kodit.log import configure_logging, configure_telemetry, log_event
+
+
+def create_snippet_application_service(
+    session: AsyncSession,
+) -> SnippetApplicationService:
+    """Create a snippet application service with all dependencies.
+
+    Args:
+        session: SQLAlchemy session
+
+    Returns:
+        Configured snippet application service
+
+    """
+    # Create domain service
+    snippet_extraction_service = create_snippet_extraction_domain_service()
+
+    # Create repositories
+    snippet_repository, file_repository = create_snippet_repositories(session)
+
+    # Create application service
+    return SnippetApplicationService(
+        snippet_extraction_service=snippet_extraction_service,
+        snippet_repository=snippet_repository,
+        file_repository=file_repository,
+    )
 
 
 @click.group(context_settings={"max_content_width": 100})
@@ -68,6 +102,7 @@ async def index(
         session_factory=lambda: session,
     )
     repository = IndexRepository(session)
+    snippet_application_service = create_snippet_application_service(session)
     service = IndexService(
         repository=repository,
         source_service=source_service,
@@ -79,6 +114,7 @@ async def index(
             task_name="text", app_context=app_context, session=session
         ),
         enrichment_service=enrichment_factory(app_context),
+        snippet_application_service=snippet_application_service,
     )
 
     if not sources:
@@ -143,6 +179,7 @@ async def code(
         session_factory=lambda: session,
     )
     repository = IndexRepository(session)
+    snippet_application_service = create_snippet_application_service(session)
     service = IndexService(
         repository=repository,
         source_service=source_service,
@@ -154,6 +191,7 @@ async def code(
             task_name="text", app_context=app_context, session=session
         ),
         enrichment_service=enrichment_factory(app_context),
+        snippet_application_service=snippet_application_service,
     )
 
     snippets = await service.search(SearchRequest(code_query=query, top_k=top_k))
@@ -189,6 +227,7 @@ async def keyword(
         session_factory=lambda: session,
     )
     repository = IndexRepository(session)
+    snippet_application_service = create_snippet_application_service(session)
     service = IndexService(
         repository=repository,
         source_service=source_service,
@@ -200,6 +239,7 @@ async def keyword(
             task_name="text", app_context=app_context, session=session
         ),
         enrichment_service=enrichment_factory(app_context),
+        snippet_application_service=snippet_application_service,
     )
 
     snippets = await service.search(SearchRequest(keywords=keywords, top_k=top_k))
@@ -238,6 +278,7 @@ async def text(
         session_factory=lambda: session,
     )
     repository = IndexRepository(session)
+    snippet_application_service = create_snippet_application_service(session)
     service = IndexService(
         repository=repository,
         source_service=source_service,
@@ -249,6 +290,7 @@ async def text(
             task_name="text", app_context=app_context, session=session
         ),
         enrichment_service=enrichment_factory(app_context),
+        snippet_application_service=snippet_application_service,
     )
 
     snippets = await service.search(SearchRequest(text_query=query, top_k=top_k))
@@ -288,6 +330,7 @@ async def hybrid(  # noqa: PLR0913
         session_factory=lambda: session,
     )
     repository = IndexRepository(session)
+    snippet_application_service = create_snippet_application_service(session)
     service = IndexService(
         repository=repository,
         source_service=source_service,
@@ -299,6 +342,7 @@ async def hybrid(  # noqa: PLR0913
             task_name="text", app_context=app_context, session=session
         ),
         enrichment_service=enrichment_factory(app_context),
+        snippet_application_service=snippet_application_service,
     )
 
     # Parse keywords into a list of strings
@@ -371,4 +415,4 @@ def version() -> None:
 
 
 if __name__ == "__main__":
-    cli()
+    asyncio.run(cli())

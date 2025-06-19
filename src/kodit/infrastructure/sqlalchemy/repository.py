@@ -35,6 +35,13 @@ class SqlAlchemySourceRepository(SourceRepository):
     async def add(self, source: Source) -> None:
         """Add a source."""
         self._session.add(source)  # INSERT on flush
+        await self._session.flush()  # Flush to get the ID
+
+    async def create_source(self, source: Source) -> Source:
+        """Create a source and commit it."""
+        self._session.add(source)
+        await self._session.commit()
+        return source
 
     async def remove(self, source: Source) -> None:
         """Remove a source."""
