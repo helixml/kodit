@@ -44,7 +44,7 @@ class TestSqlAlchemyEmbeddingRepository:
         mock_session = MagicMock()
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = MagicMock()
-        mock_session.execute.return_value = mock_result
+        mock_session.execute = AsyncMock(return_value=mock_result)
 
         repository = SqlAlchemyEmbeddingRepository(session=mock_session)
 
@@ -61,7 +61,7 @@ class TestSqlAlchemyEmbeddingRepository:
         mock_session = MagicMock()
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = None
-        mock_session.execute.return_value = mock_result
+        mock_session.execute = AsyncMock(return_value=mock_result)
 
         repository = SqlAlchemyEmbeddingRepository(session=mock_session)
 
@@ -78,7 +78,7 @@ class TestSqlAlchemyEmbeddingRepository:
         mock_session = MagicMock()
         mock_result = MagicMock()
         mock_result.all.return_value = []
-        mock_session.execute.return_value = mock_result
+        mock_session.execute = AsyncMock(return_value=mock_result)
 
         repository = SqlAlchemyEmbeddingRepository(session=mock_session)
 
@@ -95,7 +95,7 @@ class TestSqlAlchemyEmbeddingRepository:
         mock_session = MagicMock()
         mock_result = MagicMock()
         mock_result.all.return_value = [(1, [0.1, 0.2, 0.3])]
-        mock_session.execute.return_value = mock_result
+        mock_session.execute = AsyncMock(return_value=mock_result)
 
         repository = SqlAlchemyEmbeddingRepository(session=mock_session)
 
@@ -120,7 +120,7 @@ class TestSqlAlchemyEmbeddingRepository:
             (2, [0.0, 1.0, 0.0]),  # Less similar
             (3, [0.0, 0.0, 1.0]),  # Least similar
         ]
-        mock_session.execute.return_value = mock_result
+        mock_session.execute = AsyncMock(return_value=mock_result)
 
         repository = SqlAlchemyEmbeddingRepository(session=mock_session)
 
@@ -140,7 +140,7 @@ class TestSqlAlchemyEmbeddingRepository:
         mock_session = MagicMock()
         mock_result = MagicMock()
         mock_result.all.return_value = [(i, [0.1, 0.2, 0.3]) for i in range(10)]
-        mock_session.execute.return_value = mock_result
+        mock_session.execute = AsyncMock(return_value=mock_result)
 
         repository = SqlAlchemyEmbeddingRepository(session=mock_session)
 
@@ -161,7 +161,7 @@ class TestSqlAlchemyEmbeddingRepository:
             (1, [0.1, 0.2, 0.3]),  # 3 dimensions
             (2, [0.1, 0.2]),  # 2 dimensions - different!
         ]
-        mock_session.execute.return_value = mock_result
+        mock_session.execute = AsyncMock(return_value=mock_result)
 
         repository = SqlAlchemyEmbeddingRepository(session=mock_session)
 
@@ -181,7 +181,7 @@ class TestSqlAlchemyEmbeddingRepository:
             (1, [0.0, 0.0, 0.0]),  # Zero vector
             (2, [0.1, 0.2, 0.3]),  # Non-zero vector
         ]
-        mock_session.execute.return_value = mock_result
+        mock_session.execute = AsyncMock(return_value=mock_result)
 
         repository = SqlAlchemyEmbeddingRepository(session=mock_session)
 
@@ -193,11 +193,13 @@ class TestSqlAlchemyEmbeddingRepository:
         )
 
         assert len(results) == 2
-        # The non-zero vector should have a meaningful similarity score
+        # Results should be sorted by similarity (highest first)
+        # Non-zero vector should be first (higher similarity)
+        assert results[0][0] == 2  # Non-zero vector snippet_id
+        assert results[0][1] > 0  # Should have positive similarity
+        # Zero vector should be second (lower similarity)
         assert results[1][0] == 1  # Zero vector snippet_id
-        assert isinstance(
-            results[1][1], float
-        )  # Should be a number (could be NaN or inf)
+        assert results[1][1] == 0.0  # Should have zero similarity
 
     def test_prepare_vectors(self):
         """Test vector preparation."""
@@ -269,7 +271,7 @@ class TestSqlAlchemyEmbeddingRepository:
             (1, [0.1, 0.2, 0.3]),
             (2, [0.4, 0.5, 0.6]),
         ]
-        mock_session.execute.return_value = mock_result
+        mock_session.execute = AsyncMock(return_value=mock_result)
 
         repository = SqlAlchemyEmbeddingRepository(session=mock_session)
 

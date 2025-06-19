@@ -178,7 +178,27 @@ class SqlAlchemyEmbeddingRepository:
         """
         stored_norms = np.linalg.norm(stored_vecs, axis=1)
         query_norm = np.linalg.norm(query_vec)
-        return np.dot(stored_vecs, query_vec) / (stored_norms * query_norm)
+
+        # Handle zero vectors to avoid division by zero
+        if query_norm == 0:
+            # If query vector is zero, return zeros for all similarities
+            return np.zeros(len(stored_vecs))
+
+        # Handle stored vectors with zero norms
+        zero_stored_mask = stored_norms == 0
+        similarities = np.zeros(len(stored_vecs))
+
+        # Only compute similarities for non-zero stored vectors
+        non_zero_mask = ~zero_stored_mask
+        if np.any(non_zero_mask):
+            non_zero_stored_vecs = stored_vecs[non_zero_mask]
+            non_zero_stored_norms = stored_norms[non_zero_mask]
+            non_zero_similarities = np.dot(non_zero_stored_vecs, query_vec) / (
+                non_zero_stored_norms * query_norm
+            )
+            similarities[non_zero_mask] = non_zero_similarities
+
+        return similarities
 
     def _get_top_k_results(
         self,
