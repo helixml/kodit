@@ -16,10 +16,8 @@ from kodit.domain.repositories import FileRepository, SnippetRepository
 from kodit.domain.services.snippet_extraction_service import (
     SnippetExtractionDomainService,
 )
-from kodit.domain.value_objects import (
-    ProgressEvent,
-    SnippetExtractionRequest,
-)
+from kodit.domain.value_objects import SnippetExtractionRequest
+from kodit.reporting import Reporter
 
 
 class SnippetApplicationService:
@@ -106,15 +104,10 @@ class SnippetApplicationService:
         """
         files = await self.file_repository.get_files_for_index(command.index_id)
 
-        if progress_callback:
-            await progress_callback.on_progress(
-                ProgressEvent(
-                    operation="create_snippets",
-                    current=0,
-                    total=len(files),
-                    message="Creating snippets from files...",
-                )
-            )
+        reporter = Reporter(self.log, progress_callback)
+        await reporter.start(
+            "create_snippets", len(files), "Creating snippets from files..."
+        )
 
         for i, file in enumerate(files, 1):
             try:
@@ -140,15 +133,11 @@ class SnippetApplicationService:
                 )
                 continue
 
-            if progress_callback:
-                await progress_callback.on_progress(
-                    ProgressEvent(
-                        operation="create_snippets",
-                        current=i,
-                        total=len(files),
-                        message=f"Processing {file.cloned_path}...",
-                    )
-                )
+            await reporter.step(
+                "create_snippets",
+                current=i,
+                total=len(files),
+                message=f"Processing {file.cloned_path}...",
+            )
 
-        if progress_callback:
-            await progress_callback.on_complete("create_snippets")
+        await reporter.done("create_snippets")

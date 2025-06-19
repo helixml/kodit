@@ -25,12 +25,12 @@ from kodit.domain.value_objects import (
     IndexView,
     MultiSearchRequest,
     MultiSearchResult,
-    ProgressEvent,
     VectorIndexRequest,
     VectorSearchQueryRequest,
     VectorSearchRequest,
 )
 from kodit.log import log_event
+from kodit.reporting import Reporter
 
 
 class IndexingApplicationService:
@@ -151,19 +151,35 @@ class IndexingApplicationService:
 
         # Create BM25 index
         self.log.info("Creating keyword index")
+        reporter = Reporter(self.log, progress_callback)
+        await reporter.start("bm25_index", len(snippets), "Creating keyword index...")
         await self._create_bm25_index(snippets, progress_callback)
+        await reporter.done("bm25_index", "Keyword index created")
 
         # Create code embeddings
         self.log.info("Creating semantic code index")
+        reporter = Reporter(self.log, progress_callback)
+        await reporter.start(
+            "code_embeddings", len(snippets), "Creating code embeddings..."
+        )
         await self._create_code_embeddings(snippets, progress_callback)
+        await reporter.done("code_embeddings")
 
         # Enrich snippets
         self.log.info("Enriching snippets", num_snippets=len(snippets))
+        reporter = Reporter(self.log, progress_callback)
+        await reporter.start("enrichment", len(snippets), "Enriching snippets...")
         await self._enrich_snippets(snippets, progress_callback)
+        await reporter.done("enrichment")
 
         # Create text embeddings
         self.log.info("Creating semantic text index")
+        reporter = Reporter(self.log, progress_callback)
+        await reporter.start(
+            "text_embeddings", len(snippets), "Creating text embeddings..."
+        )
         await self._create_text_embeddings(snippets, progress_callback)
+        await reporter.done("text_embeddings")
 
         # Update index timestamp
         await self.indexing_domain_service.update_index_timestamp(index.id)
@@ -172,16 +188,8 @@ class IndexingApplicationService:
         self, snippets: list[dict], progress_callback: ProgressCallback | None = None
     ) -> None:
         """Create BM25 keyword index."""
-        if progress_callback:
-            await progress_callback.on_progress(
-                ProgressEvent(
-                    operation="bm25_index",
-                    current=0,
-                    total=len(snippets),
-                    message="Creating keyword index...",
-                )
-            )
-
+        reporter = Reporter(self.log, progress_callback)
+        await reporter.start("bm25_index", len(snippets), "Creating keyword index...")
         await self.bm25_service.index_documents(
             BM25IndexRequest(
                 documents=[
@@ -190,32 +198,16 @@ class IndexingApplicationService:
                 ]
             )
         )
-
-        if progress_callback:
-            await progress_callback.on_progress(
-                ProgressEvent(
-                    operation="bm25_index",
-                    current=len(snippets),
-                    total=len(snippets),
-                    message="Keyword index created",
-                )
-            )
-            await progress_callback.on_complete("bm25_index")
+        await reporter.done("bm25_index", "Keyword index created")
 
     async def _create_code_embeddings(
         self, snippets: list[dict], progress_callback: ProgressCallback | None = None
     ) -> None:
         """Create code embeddings."""
-        if progress_callback:
-            await progress_callback.on_progress(
-                ProgressEvent(
-                    operation="code_embeddings",
-                    current=0,
-                    total=len(snippets),
-                    message="Creating code embeddings...",
-                )
-            )
-
+        reporter = Reporter(self.log, progress_callback)
+        await reporter.start(
+            "code_embeddings", len(snippets), "Creating code embeddings..."
+        )
         processed = 0
         async for result in self.code_search_service.index_documents(
             VectorIndexRequest(
@@ -226,33 +218,20 @@ class IndexingApplicationService:
             )
         ):
             processed += len(result)
-            if progress_callback:
-                await progress_callback.on_progress(
-                    ProgressEvent(
-                        operation="code_embeddings",
-                        current=processed,
-                        total=len(snippets),
-                        message="Creating code embeddings...",
-                    )
-                )
-
-        if progress_callback:
-            await progress_callback.on_complete("code_embeddings")
+            await reporter.step(
+                "code_embeddings",
+                processed,
+                len(snippets),
+                "Creating code embeddings...",
+            )
+        await reporter.done("code_embeddings")
 
     async def _enrich_snippets(
         self, snippets: list[dict], progress_callback: ProgressCallback | None = None
     ) -> None:
         """Enrich snippets with additional context."""
-        if progress_callback:
-            await progress_callback.on_progress(
-                ProgressEvent(
-                    operation="enrichment",
-                    current=0,
-                    total=len(snippets),
-                    message="Enriching snippets...",
-                )
-            )
-
+        reporter = Reporter(self.log, progress_callback)
+        await reporter.start("enrichment", len(snippets), "Enriching snippets...")
         enriched_contents = []
         enrichment_request = EnrichmentIndexRequest(
             requests=[
@@ -274,33 +253,20 @@ class IndexingApplicationService:
                 enriched_contents.append(result)
 
             processed += 1
-            if progress_callback:
-                await progress_callback.on_progress(
-                    ProgressEvent(
-                        operation="enrichment",
-                        current=processed,
-                        total=len(snippets),
-                        message="Enriching snippets...",
-                    )
-                )
+            await reporter.step(
+                "enrichment", processed, len(snippets), "Enriching snippets..."
+            )
 
-        if progress_callback:
-            await progress_callback.on_complete("enrichment")
+        await reporter.done("enrichment")
 
     async def _create_text_embeddings(
         self, snippets: list[dict], progress_callback: ProgressCallback | None = None
     ) -> None:
         """Create text embeddings."""
-        if progress_callback:
-            await progress_callback.on_progress(
-                ProgressEvent(
-                    operation="text_embeddings",
-                    current=0,
-                    total=len(snippets),
-                    message="Creating text embeddings...",
-                )
-            )
-
+        reporter = Reporter(self.log, progress_callback)
+        await reporter.start(
+            "text_embeddings", len(snippets), "Creating text embeddings..."
+        )
         processed = 0
         async for result in self.text_search_service.index_documents(
             VectorIndexRequest(
@@ -311,18 +277,13 @@ class IndexingApplicationService:
             )
         ):
             processed += len(result)
-            if progress_callback:
-                await progress_callback.on_progress(
-                    ProgressEvent(
-                        operation="text_embeddings",
-                        current=processed,
-                        total=len(snippets),
-                        message="Creating text embeddings...",
-                    )
-                )
-
-        if progress_callback:
-            await progress_callback.on_complete("text_embeddings")
+            await reporter.step(
+                "text_embeddings",
+                processed,
+                len(snippets),
+                "Creating text embeddings...",
+            )
+        await reporter.done("text_embeddings")
 
     async def search(self, request: MultiSearchRequest) -> list[MultiSearchResult]:
         """Search for relevant data.
