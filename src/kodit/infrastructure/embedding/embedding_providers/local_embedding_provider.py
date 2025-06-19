@@ -32,7 +32,9 @@ class LocalEmbeddingProvider(EmbeddingProvider):
         """Embed a list of strings using a simple hash-based approach."""
         if not data:
 
-            async def empty_generator():
+            async def empty_generator() -> AsyncGenerator[
+                list[EmbeddingResponse], None
+            ]:
                 if False:
                     yield []
 
@@ -41,7 +43,7 @@ class LocalEmbeddingProvider(EmbeddingProvider):
         # Process in batches
         batch_size = 10
 
-        async def _embed_batches():
+        async def _embed_batches() -> AsyncGenerator[list[EmbeddingResponse], None]:
             for i in range(0, len(data), batch_size):
                 batch = data[i : i + batch_size]
                 responses = []
@@ -50,7 +52,9 @@ class LocalEmbeddingProvider(EmbeddingProvider):
                     # Generate a deterministic embedding based on the text
                     embedding = self._generate_embedding(request.text)
                     responses.append(
-                        EmbeddingResponse(id=request.id, embedding=embedding)
+                        EmbeddingResponse(
+                            snippet_id=request.snippet_id, embedding=embedding
+                        )
                     )
 
                 yield responses

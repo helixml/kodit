@@ -10,7 +10,7 @@ from kodit.infrastructure.git import is_valid_clone_target
 
 
 class GitIgnorePatternProvider(IgnorePatternProvider):
-    """Infrastructure implementation of ignore pattern provider using git and .noindex files."""
+    """Ignore pattern provider for git repositories."""
 
     def __init__(self, base_dir: Path) -> None:
         """Initialize the ignore pattern provider.

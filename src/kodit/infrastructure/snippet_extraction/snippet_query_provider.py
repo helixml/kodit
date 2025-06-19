@@ -15,7 +15,7 @@ class SnippetQueryProvider(ABC):
 class FileSystemSnippetQueryProvider(SnippetQueryProvider):
     """Infrastructure implementation for loading snippet queries from files."""
 
-    def __init__(self, query_directory: Path):
+    def __init__(self, query_directory: Path) -> None:
         """Initialize the query provider.
 
         Args:

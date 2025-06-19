@@ -1,3 +1,5 @@
+"""Factory for creating git-based working copies."""
+
 import tempfile
 from pathlib import Path
 
@@ -16,7 +18,7 @@ from kodit.infrastructure.ignore import GitIgnorePatternProvider
 
 
 class GitSourceFactory:
-    """Factory for creating Git sources."""
+    """Factory for creating git-based working copies."""
 
     def __init__(
         self,

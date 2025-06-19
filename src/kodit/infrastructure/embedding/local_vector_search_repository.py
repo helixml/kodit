@@ -51,31 +51,33 @@ class LocalVectorSearchRepository(VectorSearchRepository):
         """Index documents for vector search."""
         if not request.documents:
 
-            async def empty_generator():
+            async def empty_generator() -> AsyncGenerator[list[IndexResult], None]:
                 if False:
                     yield []
 
             return empty_generator()
 
-        # Convert domain models to embedding provider models
+        # Convert to embedding requests
         requests = [
-            EmbeddingRequest(id=doc.snippet_id, text=doc.text)
+            EmbeddingRequest(snippet_id=doc.snippet_id, text=doc.text)
             for doc in request.documents
         ]
 
-        async def _index_batches():
+        async def _index_batches() -> AsyncGenerator[list[IndexResult], None]:
             async for batch in self.embedding_provider.embed(requests):
+                results = []
                 for result in batch:
                     from kodit.domain.models import Embedding
 
                     await self.embedding_repository.create_embedding(
                         Embedding(
-                            snippet_id=result.id,
+                            snippet_id=result.snippet_id,
                             embedding=result.embedding,
                             type=self.embedding_type,
                         )
                     )
-                yield [IndexResult(snippet_id=result.id) for result in batch]
+                    results.append(IndexResult(snippet_id=result.snippet_id))
+                yield results
 
         return _index_batches()
 

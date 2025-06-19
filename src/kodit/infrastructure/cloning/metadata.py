@@ -1,7 +1,10 @@
+"""Metadata extraction for cloned sources."""
+
 import mimetypes
 from datetime import UTC, datetime
 from hashlib import sha256
 from pathlib import Path
+from typing import Any
 
 import aiofiles
 import git
@@ -81,7 +84,7 @@ class FolderFileMetadataExtractor(BaseFileMetadataExtractor):
 class GitAuthorExtractor:
     """Author extractor for Git repositories."""
 
-    def __init__(self, repository) -> None:
+    def __init__(self, repository: Any) -> None:
         """Initialize the extractor."""
         self.repository = repository
         self.log = structlog.get_logger(__name__)

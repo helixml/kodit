@@ -15,8 +15,8 @@ class ReciprocalRankFusionService(FusionService):
         """Perform reciprocal rank fusion on search results.
 
         Args:
-            rankings: List of rankers, each containing a list of document ids. Top of the
-            list is considered to be the best result.
+            rankings: List of rankers, each containing a list of document ids.
+                Top of the list is considered to be the best result.
             k: Parameter for RRF.
 
         Returns:

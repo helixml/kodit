@@ -12,7 +12,7 @@ from kodit.domain.repositories import FileRepository
 class SqlAlchemyFileRepository(FileRepository):
     """SQLAlchemy implementation of file repository."""
 
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession) -> None:
         """Initialize the SQLAlchemy file repository.
 
         Args:

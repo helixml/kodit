@@ -1,9 +1,11 @@
+"""Working copy provider for folder-based sources."""
+
 import shutil
 from pathlib import Path
 
 
 class FolderWorkingCopyProvider:
-    """Working copy provider for local folders."""
+    """Working copy provider for folder-based sources."""
 
     def __init__(self, clone_dir: Path) -> None:
         """Initialize the provider."""

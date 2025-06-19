@@ -110,7 +110,11 @@ class BM25DomainService:
             raise ValueError("Cannot delete empty snippet ID list")
 
         # Domain logic: filter out invalid IDs
-        valid_ids = [id for id in request.snippet_ids if id is not None and id > 0]
+        valid_ids = [
+            snippet_id
+            for snippet_id in request.snippet_ids
+            if snippet_id is not None and snippet_id > 0
+        ]
 
         if not valid_ids:
             raise ValueError("No valid snippet IDs to delete")

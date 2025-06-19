@@ -1,9 +1,14 @@
 """Factory for creating indexing services."""
 
+from typing import Any
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.application.services.indexing_application_service import (
     IndexingApplicationService,
+)
+from kodit.application.services.snippet_application_service import (
+    SnippetApplicationService,
 )
 from kodit.domain.services.bm25_service import BM25DomainService
 from kodit.domain.services.indexing_service import IndexingDomainService
@@ -17,17 +22,25 @@ from kodit.infrastructure.indexing.fusion_service import ReciprocalRankFusionSer
 from kodit.infrastructure.indexing.index_repository import SQLAlchemyIndexRepository
 from kodit.infrastructure.snippet_extraction.snippet_extraction_factory import (
     create_snippet_extraction_domain_service,
-    create_snippet_repositories,
+)
+from kodit.infrastructure.sqlalchemy.file_repository import (
+    SqlAlchemyFileRepository,
+)
+from kodit.infrastructure.sqlalchemy.snippet_repository import (
+    SqlAlchemySnippetRepository,
 )
 
 
-def create_snippet_application_service(session: AsyncSession):
+def create_snippet_application_service(
+    session: AsyncSession,
+) -> SnippetApplicationService:
     """Create a snippet application service with all dependencies."""
     # Create domain service
     snippet_extraction_service = create_snippet_extraction_domain_service()
 
     # Create repositories
-    snippet_repository, file_repository = create_snippet_repositories(session)
+    snippet_repository = SqlAlchemySnippetRepository(session)
+    file_repository = SqlAlchemyFileRepository(session)
 
     # Create application service
     from kodit.application.services.snippet_application_service import (
@@ -61,9 +74,10 @@ def create_indexing_domain_service(session: AsyncSession) -> IndexingDomainServi
 
 
 def create_indexing_application_service(
-    app_context,
+    app_context: Any,
     session: AsyncSession,
     source_service: SourceService,
+    snippet_application_service: SnippetApplicationService,
 ) -> IndexingApplicationService:
     """Create an indexing application service.
 
@@ -71,6 +85,7 @@ def create_indexing_application_service(
         app_context: The application context.
         session: The database session.
         source_service: The source service.
+        snippet_application_service: The snippet application service.
 
     Returns:
         An indexing application service instance.
@@ -82,7 +97,6 @@ def create_indexing_application_service(
     code_search_service = embedding_domain_service_factory("code", app_context, session)
     text_search_service = embedding_domain_service_factory("text", app_context, session)
     enrichment_service = create_enrichment_domain_service(app_context)
-    snippet_application_service = create_snippet_application_service(session)
 
     return IndexingApplicationService(
         indexing_domain_service=indexing_domain_service,

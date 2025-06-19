@@ -125,5 +125,6 @@ class LocalBM25Repository(BM25Repository):
 
     async def delete_documents(self, request: BM25DeleteRequest) -> None:
         """Delete documents from the index."""
+        # request parameter is unused as deletion is not supported
+        # ruff: noqa: ARG002
         self.log.warning("Deletion not supported for local BM25 index")
-        # Note: Local BM25 doesn't support deletion, so this is a no-op

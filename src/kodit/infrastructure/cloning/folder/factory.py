@@ -1,3 +1,5 @@
+"""Factory for creating folder-based working copies."""
+
 from pathlib import Path
 
 import structlog

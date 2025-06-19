@@ -94,9 +94,7 @@ class IndexingApplicationService:
 
         # Create the index
         request = IndexCreateRequest(source_id=source.id)
-        index_view = await self.indexing_domain_service.create_index(request)
-
-        return index_view
+        return await self.indexing_domain_service.create_index(request)
 
     async def list_indexes(self) -> list[IndexView]:
         """List all available indexes with their details.

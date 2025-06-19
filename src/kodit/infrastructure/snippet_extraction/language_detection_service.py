@@ -8,7 +8,7 @@ from kodit.domain.services.snippet_extraction_service import LanguageDetectionSe
 class FileSystemLanguageDetectionService(LanguageDetectionService):
     """Infrastructure implementation for language detection."""
 
-    def __init__(self, language_map: dict[str, str]):
+    def __init__(self, language_map: dict[str, str]) -> None:
         """Initialize the language detection service.
 
         Args:

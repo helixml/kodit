@@ -2,6 +2,7 @@
 
 import asyncio
 from collections.abc import AsyncGenerator
+from typing import Any
 
 import structlog
 
@@ -19,7 +20,7 @@ OPENAI_NUM_PARALLEL_TASKS = 10
 class OpenAIEnrichmentProvider(EnrichmentProvider):
     """OpenAI enrichment provider implementation."""
 
-    def __init__(self, openai_client, model_name: str = "gpt-4o-mini") -> None:
+    def __init__(self, openai_client: Any, model_name: str = "gpt-4o-mini") -> None:
         """Initialize the OpenAI enrichment provider.
 
         Args:

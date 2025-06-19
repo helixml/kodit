@@ -107,7 +107,7 @@ class VectorChordVectorSearchRepository(VectorSearchRepository):
 
     async def _create_tables(self) -> None:
         """Create the necessary tables."""
-        req = EmbeddingRequest(id=0, text="dimension")
+        req = EmbeddingRequest(snippet_id=0, text="dimension")
         vector_dim: list[float] | None = None
         async for batch in self.embedding_provider.embed([req]):
             if batch:
@@ -162,32 +162,32 @@ class VectorChordVectorSearchRepository(VectorSearchRepository):
         """Index documents for vector search."""
         if not request.documents:
 
-            async def empty_generator():
+            async def empty_generator() -> AsyncGenerator[list[IndexResult], None]:
                 if False:
                     yield []
 
             return empty_generator()
 
-        # Convert domain models to embedding provider models
+        # Convert to embedding requests
         requests = [
-            EmbeddingRequest(id=doc.snippet_id, text=doc.text)
+            EmbeddingRequest(snippet_id=doc.snippet_id, text=doc.text)
             for doc in request.documents
         ]
 
-        async def _index_batches():
+        async def _index_batches() -> AsyncGenerator[list[IndexResult], None]:
             async for batch in self.embedding_provider.embed(requests):
                 await self._execute(
                     text(INSERT_QUERY.format(TABLE_NAME=self.table_name)),
                     [
                         {
-                            "snippet_id": result.id,
+                            "snippet_id": result.snippet_id,
                             "embedding": str(result.embedding),
                         }
                         for result in batch
                     ],
                 )
                 await self._commit()
-                yield [IndexResult(snippet_id=result.id) for result in batch]
+                yield [IndexResult(snippet_id=result.snippet_id) for result in batch]
 
         return _index_batches()
 
@@ -195,7 +195,7 @@ class VectorChordVectorSearchRepository(VectorSearchRepository):
         self, request: VectorSearchQueryRequest
     ) -> list[VectorSearchResult]:
         """Search documents using vector similarity."""
-        req = EmbeddingRequest(id=0, text=request.query)
+        req = EmbeddingRequest(snippet_id=0, text=request.query)
         embedding_vec: list[float] | None = None
         async for batch in self.embedding_provider.embed([req]):
             if batch:
@@ -220,9 +220,11 @@ class VectorChordVectorSearchRepository(VectorSearchRepository):
     ) -> bool:
         """Check if a snippet has an embedding."""
         # For VectorChord, we check if the snippet exists in the table
-        # Note: embedding_type is ignored since VectorChord uses separate tables per task
+        # Note: embedding_type is ignored since VectorChord uses separate
+        # tables per task
+        # ruff: noqa: ARG002
         result = await self._execute(
             text(CHECK_VCHORD_EMBEDDING_EXISTS.format(TABLE_NAME=self.table_name)),
             {"snippet_id": snippet_id},
         )
-        return result.scalar_one() is True
+        return bool(result.scalar())

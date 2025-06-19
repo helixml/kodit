@@ -49,7 +49,8 @@ class SnippetExtractionDomainService:
 
         Args:
             language_detector: Service for detecting programming languages
-            snippet_extractors: Dictionary mapping strategies to extractor implementations
+            snippet_extractors: Dictionary mapping strategies to extractor
+                implementations
 
         """
         self.language_detector = language_detector
@@ -58,16 +59,17 @@ class SnippetExtractionDomainService:
     async def extract_snippets(
         self, request: SnippetExtractionRequest
     ) -> SnippetExtractionResult:
-        """Extract snippets using domain business rules.
+        """Extract snippets from a file using the specified strategy.
 
         Args:
             request: The snippet extraction request
 
         Returns:
-            SnippetExtractionResult containing the extracted snippets and detected language
+            SnippetExtractionResult containing the extracted snippets and
+            detected language
 
         Raises:
-            ValueError: If the file doesn't exist or the strategy is not supported
+            ValueError: If the file doesn't exist or strategy is unsupported
 
         """
         # Domain logic: validate file exists

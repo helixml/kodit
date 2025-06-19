@@ -5,11 +5,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from kodit.config import AppContext, Endpoint
 from kodit.domain.models import EmbeddingType
 from kodit.domain.services.embedding_service import EmbeddingDomainService
-from kodit.infrastructure.embedding.embedding_providers.local_embedding_provider import (
+from kodit.infrastructure.embedding.embedding_providers.local_embedding_provider import (  # noqa: E501
     CODE,
     LocalEmbeddingProvider,
 )
-from kodit.infrastructure.embedding.embedding_providers.openai_embedding_provider import (
+from kodit.infrastructure.embedding.embedding_providers.openai_embedding_provider import (  # noqa: E501
     OpenAIEmbeddingProvider,
 )
 from kodit.infrastructure.embedding.local_vector_search_repository import (

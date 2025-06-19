@@ -201,7 +201,8 @@ class SnippetExtractionStrategy(str, Enum):
 class SnippetExtractionRequest:
     """Domain model for snippet extraction request."""
 
-    def __init__(self, file_path: Path, strategy: SnippetExtractionStrategy):
+    def __init__(self, file_path: Path, strategy: SnippetExtractionStrategy) -> None:
+        """Initialize the snippet extraction request."""
         self.file_path = file_path
         self.strategy = strategy
 
@@ -209,7 +210,8 @@ class SnippetExtractionRequest:
 class SnippetExtractionResult:
     """Domain model for snippet extraction result."""
 
-    def __init__(self, snippets: list[str], language: str):
+    def __init__(self, snippets: list[str], language: str) -> None:
+        """Initialize the snippet extraction result."""
         self.snippets = snippets
         self.language = language
 
@@ -217,7 +219,8 @@ class SnippetExtractionResult:
 class BM25Document:
     """Domain model for BM25 document."""
 
-    def __init__(self, snippet_id: int, text: str):
+    def __init__(self, snippet_id: int, text: str) -> None:
+        """Initialize the BM25 document."""
         self.snippet_id = snippet_id
         self.text = text
 
@@ -225,7 +228,8 @@ class BM25Document:
 class BM25SearchResult:
     """Domain model for BM25 search result."""
 
-    def __init__(self, snippet_id: int, score: float):
+    def __init__(self, snippet_id: int, score: float) -> None:
+        """Initialize the BM25 search result."""
         self.snippet_id = snippet_id
         self.score = score
 
@@ -233,14 +237,16 @@ class BM25SearchResult:
 class BM25IndexRequest:
     """Domain model for BM25 indexing request."""
 
-    def __init__(self, documents: list[BM25Document]):
+    def __init__(self, documents: list[BM25Document]) -> None:
+        """Initialize the BM25 indexing request."""
         self.documents = documents
 
 
 class BM25SearchRequest:
     """Domain model for BM25 search request."""
 
-    def __init__(self, query: str, top_k: int = 10):
+    def __init__(self, query: str, top_k: int = 10) -> None:
+        """Initialize the BM25 search request."""
         self.query = query
         self.top_k = top_k
 
@@ -248,14 +254,16 @@ class BM25SearchRequest:
 class BM25DeleteRequest:
     """Domain model for BM25 deletion request."""
 
-    def __init__(self, snippet_ids: list[int]):
+    def __init__(self, snippet_ids: list[int]) -> None:
+        """Initialize the BM25 deletion request."""
         self.snippet_ids = snippet_ids
 
 
 class VectorSearchRequest:
     """Domain model for vector search request."""
 
-    def __init__(self, snippet_id: int, text: str):
+    def __init__(self, snippet_id: int, text: str) -> None:
+        """Initialize the vector search request."""
         self.snippet_id = snippet_id
         self.text = text
 
@@ -263,7 +271,8 @@ class VectorSearchRequest:
 class VectorSearchResult:
     """Domain model for vector search result."""
 
-    def __init__(self, snippet_id: int, score: float):
+    def __init__(self, snippet_id: int, score: float) -> None:
+        """Initialize the vector search result."""
         self.snippet_id = snippet_id
         self.score = score
 
@@ -271,37 +280,42 @@ class VectorSearchResult:
 class EmbeddingRequest:
     """Domain model for embedding request."""
 
-    def __init__(self, id: int, text: str):
-        self.id = id
+    def __init__(self, snippet_id: int, text: str) -> None:
+        """Initialize the embedding request."""
+        self.snippet_id = snippet_id
         self.text = text
 
 
 class EmbeddingResponse:
     """Domain model for embedding response."""
 
-    def __init__(self, id: int, embedding: list[float]):
-        self.id = id
+    def __init__(self, snippet_id: int, embedding: list[float]) -> None:
+        """Initialize the embedding response."""
+        self.snippet_id = snippet_id
         self.embedding = embedding
 
 
 class IndexResult:
     """Domain model for indexing result."""
 
-    def __init__(self, snippet_id: int):
+    def __init__(self, snippet_id: int) -> None:
+        """Initialize the indexing result."""
         self.snippet_id = snippet_id
 
 
 class VectorIndexRequest:
     """Domain model for vector indexing request."""
 
-    def __init__(self, documents: list[VectorSearchRequest]):
+    def __init__(self, documents: list[VectorSearchRequest]) -> None:
+        """Initialize the vector indexing request."""
         self.documents = documents
 
 
 class VectorSearchQueryRequest:
     """Domain model for vector search query request."""
 
-    def __init__(self, query: str, top_k: int = 10):
+    def __init__(self, query: str, top_k: int = 10) -> None:
+        """Initialize the vector search query request."""
         self.query = query
         self.top_k = top_k
 

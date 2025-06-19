@@ -12,7 +12,7 @@ from kodit.domain.repositories import SnippetRepository
 class SqlAlchemySnippetRepository(SnippetRepository):
     """SQLAlchemy implementation of snippet repository."""
 
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession) -> None:
         """Initialize the SQLAlchemy snippet repository.
 
         Args:

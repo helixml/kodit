@@ -1,3 +1,5 @@
+"""Working copy provider for git-based sources."""
+
 from pathlib import Path
 
 import git
@@ -5,7 +7,7 @@ import structlog
 
 
 class GitWorkingCopyProvider:
-    """Working copy provider for Git repositories."""
+    """Working copy provider for git-based sources."""
 
     def __init__(self, clone_dir: Path) -> None:
         """Initialize the provider."""

@@ -159,6 +159,7 @@ async def search(
         clone_dir=mcp_context.app_context.get_clone_dir(),
         session_factory=lambda: mcp_context.session,
     )
+    # Create snippet application service
     snippet_application_service = create_snippet_application_service(
         mcp_context.session
     )
@@ -166,6 +167,7 @@ async def search(
         app_context=mcp_context.app_context,
         session=mcp_context.session,
         source_service=source_service,
+        snippet_application_service=snippet_application_service,
     )
 
     search_request = SearchRequest(

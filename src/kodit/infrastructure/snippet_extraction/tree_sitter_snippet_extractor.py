@@ -15,7 +15,7 @@ from kodit.infrastructure.snippet_extraction.snippet_query_provider import (
 class TreeSitterSnippetExtractor(SnippetExtractor):
     """Infrastructure implementation using tree-sitter for method extraction."""
 
-    def __init__(self, query_provider: SnippetQueryProvider):
+    def __init__(self, query_provider: SnippetQueryProvider) -> None:
         """Initialize the tree-sitter snippet extractor.
 
         Args:
