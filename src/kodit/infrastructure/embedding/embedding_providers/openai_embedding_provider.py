@@ -1,12 +1,24 @@
 """OpenAI embedding provider implementation."""
 
+import asyncio
 from collections.abc import AsyncGenerator
 from typing import Any
 
 import structlog
+import tiktoken
+from tiktoken import Encoding
 
 from kodit.domain.services.embedding_service import EmbeddingProvider
 from kodit.domain.value_objects import EmbeddingRequest, EmbeddingResponse
+
+from .batching import split_sub_batches
+
+# Constants
+MAX_TOKENS = 8192  # Conservative token limit for the embedding model
+BATCH_SIZE = (
+    10  # Maximum number of items per API call (keeps existing test expectations)
+)
+OPENAI_NUM_PARALLEL_TASKS = 10  # Semaphore limit for concurrent OpenAI requests
 
 
 class OpenAIEmbeddingProvider(EmbeddingProvider):
@@ -26,57 +38,76 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         self.model_name = model_name
         self.log = structlog.get_logger(__name__)
 
-    def embed(
+        # Lazily initialised token encoding
+        self._encoding: Encoding | None = None
+
+    # ---------------------------------------------------------------------
+    # Helper utilities
+    # ---------------------------------------------------------------------
+
+    def _get_encoding(self) -> "Encoding":
+        """Return (and cache) the tiktoken encoding for the chosen model."""
+        if self._encoding is None:
+            self._encoding = tiktoken.encoding_for_model(self.model_name)
+        return self._encoding
+
+    def _split_sub_batches(
+        self, encoding: "Encoding", data: list[EmbeddingRequest]
+    ) -> list[list[EmbeddingRequest]]:
+        """Proxy to the shared batching utility (kept for backward-compat)."""
+        return split_sub_batches(
+            encoding,
+            data,
+            max_tokens=MAX_TOKENS,
+            batch_size=BATCH_SIZE,
+        )
+
+    async def embed(
         self, data: list[EmbeddingRequest]
     ) -> AsyncGenerator[list[EmbeddingResponse], None]:
         """Embed a list of strings using OpenAI's API."""
         if not data:
+            yield []
 
-            async def empty_generator() -> AsyncGenerator[
-                list[EmbeddingResponse], None
-            ]:
-                if False:
-                    yield []
+        encoding = self._get_encoding()
 
-            return empty_generator()
+        # First, split by token limits (and max batch size)
+        batched_data = self._split_sub_batches(encoding, data)
 
-        # Process in batches
-        batch_size = 10
+        # -----------------------------------------------------------------
+        # Process batches concurrently (but bounded by a semaphore)
+        # -----------------------------------------------------------------
 
-        async def _embed_batches() -> AsyncGenerator[list[EmbeddingResponse], None]:
-            for i in range(0, len(data), batch_size):
-                batch = data[i : i + batch_size]
+        sem = asyncio.Semaphore(OPENAI_NUM_PARALLEL_TASKS)
+
+        async def _process_batch(
+            batch: list[EmbeddingRequest],
+        ) -> list[EmbeddingResponse]:
+            async with sem:
                 try:
-                    # Prepare the texts for embedding
-                    texts = [request.text for request in batch]
-
-                    # Call OpenAI API
                     response = await self.openai_client.embeddings.create(
-                        input=texts, model=self.model_name
+                        model=self.model_name,
+                        input=[item.text for item in batch],
                     )
 
-                    # Convert response to our format
-                    responses = []
-                    for j, embedding_data in enumerate(response.data):
-                        responses.append(
-                            EmbeddingResponse(
-                                snippet_id=batch[j].snippet_id,
-                                embedding=embedding_data.embedding,
-                            )
-                        )
-
-                    yield responses
-
-                except Exception:
-                    self.log.exception("Error calling OpenAI API")
-                    # Return empty embeddings on error
-                    responses = [
+                    return [
                         EmbeddingResponse(
-                            snippet_id=request.snippet_id,
-                            embedding=[0.0] * 1536,  # Default embedding size
+                            snippet_id=item.snippet_id,
+                            embedding=embedding.embedding,
                         )
-                        for request in batch
+                        for item, embedding in zip(batch, response.data, strict=True)
                     ]
-                    yield responses
+                except Exception as e:
+                    self.log.exception("Error embedding batch", error=str(e))
+                    # Fall back to zero embeddings so pipeline can continue
+                    return [
+                        EmbeddingResponse(
+                            snippet_id=item.snippet_id,
+                            embedding=[0.0] * 1536,  # Default OpenAI dim
+                        )
+                        for item in batch
+                    ]
 
-        return _embed_batches()
+        tasks = [_process_batch(batch) for batch in batched_data]
+        for task in asyncio.as_completed(tasks):
+            yield await task
