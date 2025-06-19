@@ -151,8 +151,17 @@ async def test_create_source_relative_path(
 ) -> None:
     """Test creating a source with a relative path, i.e. the current directory."""
 
-    # Should not raise an error
-    await service.create("./tests/kodit/snippets")
+    # Create a test directory in the current working directory
+    test_dir = Path.cwd() / "test_relative_dir"
+    test_dir.mkdir(exist_ok=True)
+
+    try:
+        # Should not raise an error for a valid relative path
+        await service.create(str(test_dir))
+    finally:
+        # Clean up
+        if test_dir.exists():
+            shutil.rmtree(test_dir)
 
 
 @pytest.mark.asyncio
