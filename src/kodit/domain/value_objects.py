@@ -10,7 +10,7 @@ from kodit.domain.enums import SnippetExtractionStrategy
 class SnippetExtractionRequest:
     """Domain model for snippet extraction request."""
 
-    def __init__(self, file_path: Path, strategy: "SnippetExtractionStrategy") -> None:
+    def __init__(self, file_path: Path, strategy: SnippetExtractionStrategy) -> None:
         """Initialize the snippet extraction request."""
         self.file_path = file_path
         self.strategy = strategy
