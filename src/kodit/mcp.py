@@ -15,14 +15,15 @@ from kodit._version import version
 from kodit.application.services.snippet_application_service import (
     SnippetApplicationService,
 )
-from kodit.bm25.keyword_search_factory import keyword_search_factory
 from kodit.config import AppContext
 from kodit.database import Database
+from kodit.domain.services.bm25_service import BM25DomainService
 from kodit.domain.services.source_service import SourceService
 from kodit.embedding.embedding_factory import embedding_factory
 from kodit.enrichment.enrichment_factory import enrichment_factory
 from kodit.indexing.indexing_repository import IndexRepository
 from kodit.indexing.indexing_service import IndexService, SearchRequest, SearchResult
+from kodit.infrastructure.bm25.bm25_factory import bm25_repository_factory
 from kodit.infrastructure.snippet_extraction.snippet_extraction_factory import (
     create_snippet_extraction_domain_service,
     create_snippet_repositories,
@@ -169,8 +170,8 @@ async def search(
     service = IndexService(
         repository=repository,
         source_service=source_service,
-        keyword_search_provider=keyword_search_factory(
-            mcp_context.app_context, mcp_context.session
+        bm25_service=BM25DomainService(
+            bm25_repository_factory(mcp_context.app_context, mcp_context.session)
         ),
         code_search_service=embedding_factory(
             task_name="code",

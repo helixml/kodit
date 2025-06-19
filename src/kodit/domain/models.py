@@ -211,3 +211,41 @@ class SnippetExtractionResult:
     def __init__(self, snippets: list[str], language: str):
         self.snippets = snippets
         self.language = language
+
+
+class BM25Document:
+    """Domain model for BM25 document."""
+
+    def __init__(self, snippet_id: int, text: str):
+        self.snippet_id = snippet_id
+        self.text = text
+
+
+class BM25SearchResult:
+    """Domain model for BM25 search result."""
+
+    def __init__(self, snippet_id: int, score: float):
+        self.snippet_id = snippet_id
+        self.score = score
+
+
+class BM25IndexRequest:
+    """Domain model for BM25 indexing request."""
+
+    def __init__(self, documents: list[BM25Document]):
+        self.documents = documents
+
+
+class BM25SearchRequest:
+    """Domain model for BM25 search request."""
+
+    def __init__(self, query: str, top_k: int = 10):
+        self.query = query
+        self.top_k = top_k
+
+
+class BM25DeleteRequest:
+    """Domain model for BM25 deletion request."""
+
+    def __init__(self, snippet_ids: list[int]):
+        self.snippet_ids = snippet_ids

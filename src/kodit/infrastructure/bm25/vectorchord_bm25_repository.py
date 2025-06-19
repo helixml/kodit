@@ -1,4 +1,4 @@
-"""VectorChord repository for document operations."""
+"""VectorChord BM25 repository implementation."""
 
 from typing import Any
 
@@ -6,11 +6,13 @@ import structlog
 from sqlalchemy import Result, TextClause, bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.bm25.keyword_search_service import (
-    BM25Document,
-    BM25Result,
-    KeywordSearchProvider,
+from kodit.domain.models import (
+    BM25DeleteRequest,
+    BM25IndexRequest,
+    BM25SearchRequest,
+    BM25SearchResult,
 )
+from kodit.domain.services.bm25_service import BM25Repository
 
 TABLE_NAME = "vectorchord_bm25_documents"
 INDEX_NAME = f"{TABLE_NAME}_idx"
@@ -84,14 +86,16 @@ WHERE snippet_id IN :snippet_ids
 """  # noqa: S608
 
 
-class VectorChordBM25(KeywordSearchProvider):
-    """BM25 using VectorChord."""
+class VectorChordBM25Repository(BM25Repository):
+    """VectorChord BM25 repository implementation."""
 
-    def __init__(
-        self,
-        session: AsyncSession,
-    ) -> None:
-        """Initialize the VectorChord BM25."""
+    def __init__(self, session: AsyncSession) -> None:
+        """Initialize the VectorChord BM25 repository.
+
+        Args:
+            session: The SQLAlchemy async session to use for database operations
+
+        """
         self.__session = session
         self._initialized = False
         self.log = structlog.get_logger(__name__)
@@ -142,55 +146,56 @@ class VectorChordBM25(KeywordSearchProvider):
         """Commit the session."""
         await self.__session.commit()
 
-    async def index(self, corpus: list[BM25Document]) -> None:
-        """Index a new corpus."""
+    async def index_documents(self, request: BM25IndexRequest) -> None:
+        """Index documents for BM25 search."""
         # Filter out any documents that don't have a snippet_id or text
-        corpus = [
+        valid_documents = [
             doc
-            for doc in corpus
+            for doc in request.documents
             if doc.snippet_id is not None and doc.text is not None and doc.text != ""
         ]
 
-        if not corpus or len(corpus) == 0:
+        if not valid_documents:
             self.log.warning("Corpus is empty, skipping bm25 index")
             return
 
         # Execute inserts
         await self._execute(
             text(INSERT_QUERY),
-            [{"snippet_id": doc.snippet_id, "passage": doc.text} for doc in corpus],
+            [
+                {"snippet_id": doc.snippet_id, "passage": doc.text}
+                for doc in valid_documents
+            ],
         )
 
         # Tokenize the new documents with schema qualification
         await self._execute(text(UPDATE_QUERY))
         await self._commit()
 
-    async def delete(self, snippet_ids: list[int]) -> None:
-        """Delete documents from the index."""
-        await self._execute(
-            text(DELETE_QUERY).bindparams(bindparam("snippet_ids", expanding=True)),
-            {"snippet_ids": snippet_ids},
-        )
-        await self._commit()
-
-    async def retrieve(
-        self,
-        query: str,
-        top_k: int = 10,
-    ) -> list[BM25Result]:
-        """Search documents using BM25 similarity."""
-        if not query or query == "":
+    async def search(self, request: BM25SearchRequest) -> list[BM25SearchResult]:
+        """Search documents using BM25."""
+        if not request.query or request.query == "":
             return []
 
-        sql = text(SEARCH_QUERY).bindparams(query_text=query, limit=top_k)
+        sql = text(SEARCH_QUERY).bindparams(
+            query_text=request.query, limit=request.top_k
+        )
         try:
             result = await self._execute(sql)
             rows = result.mappings().all()
 
             return [
-                BM25Result(snippet_id=row["snippet_id"], score=row["bm25_score"])
+                BM25SearchResult(snippet_id=row["snippet_id"], score=row["bm25_score"])
                 for row in rows
             ]
         except Exception as e:
             msg = f"Error during BM25 search: {e}"
             raise RuntimeError(msg) from e
+
+    async def delete_documents(self, request: BM25DeleteRequest) -> None:
+        """Delete documents from the index."""
+        await self._execute(
+            text(DELETE_QUERY).bindparams(bindparam("snippet_ids", expanding=True)),
+            {"snippet_ids": request.snippet_ids},
+        )
+        await self._commit()

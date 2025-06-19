@@ -16,12 +16,16 @@ from kodit.application.commands.snippet_commands import CreateIndexSnippetsComma
 from kodit.application.services.snippet_application_service import (
     SnippetApplicationService,
 )
-from kodit.bm25.keyword_search_service import (
+from kodit.domain.models import (
     BM25Document,
-    BM25Result,
-    KeywordSearchProvider,
+    BM25SearchResult,
+    SnippetExtractionStrategy,
 )
-from kodit.domain.models import SnippetExtractionStrategy
+from kodit.domain.services.bm25_service import (
+    BM25DomainService,
+    BM25IndexRequest,
+    BM25SearchRequest,
+)
 from kodit.domain.services.source_service import SourceService
 from kodit.embedding.vector_search_service import (
     VectorSearchRequest,
@@ -86,18 +90,18 @@ class IndexService:
         self,
         repository: IndexRepository,
         source_service: SourceService,
-        keyword_search_provider: KeywordSearchProvider,
+        bm25_service: BM25DomainService,
         code_search_service: VectorSearchService,
         text_search_service: VectorSearchService,
         enrichment_service: EnrichmentService,
-        snippet_application_service: SnippetApplicationService,  # New dependency
+        snippet_application_service: SnippetApplicationService,
     ) -> None:
         """Initialize the index service.
 
         Args:
             repository: The repository instance to use for database operations.
             source_service: The source service instance to use for source validation.
-            keyword_search_provider: The keyword search provider.
+            bm25_service: The BM25 domain service for keyword search.
             code_search_service: The code search service.
             text_search_service: The text search service.
             enrichment_service: The enrichment service.
@@ -106,9 +110,9 @@ class IndexService:
         """
         self.repository = repository
         self.source_service = source_service
-        self.snippet_application_service = snippet_application_service  # New
+        self.snippet_application_service = snippet_application_service
         self.log = structlog.get_logger(__name__)
-        self.keyword_search_provider = keyword_search_provider
+        self.bm25_service = bm25_service
         self.code_search_service = code_search_service
         self.text_search_service = text_search_service
         self.enrichment_service = enrichment_service
@@ -204,11 +208,13 @@ class IndexService:
 
         self.log.info("Creating keyword index")
         with Spinner():
-            await self.keyword_search_provider.index(
-                [
-                    BM25Document(snippet_id=snippet.id, text=snippet.content)
-                    for snippet in snippets
-                ]
+            await self.bm25_service.index_documents(
+                BM25IndexRequest(
+                    documents=[
+                        BM25Document(snippet_id=snippet.id, text=snippet.content)
+                        for snippet in snippets
+                    ]
+                )
             )
 
         self.log.info("Creating semantic code index")
@@ -259,10 +265,10 @@ class IndexService:
         fusion_list: list[list[FusionRequest]] = []
         if request.keywords:
             # Gather results for each keyword
-            result_ids: list[BM25Result] = []
+            result_ids: list[BM25SearchResult] = []
             for keyword in request.keywords:
-                results = await self.keyword_search_provider.retrieve(
-                    keyword, request.top_k
+                results = await self.bm25_service.search(
+                    BM25SearchRequest(query=keyword, top_k=request.top_k)
                 )
                 result_ids.extend(results)
 

@@ -1,4 +1,4 @@
-"""Locally hosted BM25 service primarily for use with SQLite."""
+"""Local BM25 repository implementation."""
 
 from __future__ import annotations
 
@@ -10,25 +10,31 @@ import aiofiles
 import Stemmer
 import structlog
 
-from kodit.bm25.keyword_search_service import (
-    BM25Document,
-    BM25Result,
-    KeywordSearchProvider,
+from kodit.domain.models import (
+    BM25DeleteRequest,
+    BM25IndexRequest,
+    BM25SearchRequest,
+    BM25SearchResult,
 )
+from kodit.domain.services.bm25_service import BM25Repository
 
 if TYPE_CHECKING:
     import bm25s
     from bm25s.tokenization import Tokenized
 
-
 SNIPPET_IDS_FILE = "snippet_ids.jsonl"
 
 
-class BM25Service(KeywordSearchProvider):
-    """LocalBM25 service."""
+class LocalBM25Repository(BM25Repository):
+    """Local BM25 repository implementation."""
 
     def __init__(self, data_dir: Path) -> None:
-        """Initialize the BM25 service."""
+        """Initialize the local BM25 repository.
+
+        Args:
+            data_dir: Directory to store BM25 index files
+
+        """
         self.log = structlog.get_logger(__name__)
         self.index_path = data_dir / "bm25s_index"
         self.snippet_ids: list[int] = []
@@ -51,6 +57,7 @@ class BM25Service(KeywordSearchProvider):
         return self.__retriever
 
     def _tokenize(self, corpus: list[str]) -> list[list[str]] | Tokenized:
+        """Tokenize text corpus."""
         from bm25s import tokenize
 
         return tokenize(
@@ -61,23 +68,25 @@ class BM25Service(KeywordSearchProvider):
             show_progress=True,
         )
 
-    async def index(self, corpus: list[BM25Document]) -> None:
-        """Index a new corpus."""
+    async def index_documents(self, request: BM25IndexRequest) -> None:
+        """Index documents for BM25 search."""
         self.log.debug("Indexing corpus")
-        if not corpus or len(corpus) == 0:
+        if not request.documents:
             self.log.warning("Corpus is empty, skipping bm25 index")
             return
 
-        vocab = self._tokenize([doc.text for doc in corpus])
+        vocab = self._tokenize([doc.text for doc in request.documents])
         self._retriever().index(vocab, show_progress=False)
         self._retriever().save(self.index_path)
-        self.snippet_ids = self.snippet_ids + [doc.snippet_id for doc in corpus]
+        self.snippet_ids = self.snippet_ids + [
+            doc.snippet_id for doc in request.documents
+        ]
         async with aiofiles.open(self.index_path / SNIPPET_IDS_FILE, "w") as f:
             await f.write(json.dumps(self.snippet_ids))
 
-    async def retrieve(self, query: str, top_k: int = 2) -> list[BM25Result]:
-        """Retrieve from the index."""
-        if top_k == 0:
+    async def search(self, request: BM25SearchRequest) -> list[BM25SearchResult]:
+        """Search documents using BM25."""
+        if request.top_k == 0:
             self.log.warning("Top k is 0, returning empty list")
             return []
 
@@ -91,14 +100,14 @@ class BM25Service(KeywordSearchProvider):
             return []
 
         # Adjust top_k to not exceed corpus size
-        top_k = min(top_k, num_docs)
+        top_k = min(request.top_k, num_docs)
         self.log.debug(
             "Retrieving from index",
-            query=query,
+            query=request.query,
             top_k=top_k,
         )
 
-        query_tokens = self._tokenize([query])
+        query_tokens = self._tokenize([request.query])
 
         self.log.debug("Query tokens", query_tokens=query_tokens)
 
@@ -109,11 +118,12 @@ class BM25Service(KeywordSearchProvider):
         )
         self.log.debug("Raw results", results=results, scores=scores)
         return [
-            BM25Result(snippet_id=int(result), score=float(score))
+            BM25SearchResult(snippet_id=int(result), score=float(score))
             for result, score in zip(results[0], scores[0], strict=False)
             if score > 0.0
         ]
 
-    async def delete(self, snippet_ids: list[int]) -> None:  # noqa: ARG002
+    async def delete_documents(self, request: BM25DeleteRequest) -> None:
         """Delete documents from the index."""
         self.log.warning("Deletion not supported for local BM25 index")
+        # Note: Local BM25 doesn't support deletion, so this is a no-op
