@@ -1,4 +1,4 @@
-"""Spinner for long-running tasks."""
+"""Spinner for long-running tasks in the UI layer."""
 
 import itertools
 import sys
@@ -7,10 +7,20 @@ import time
 
 
 class Spinner:
-    """Spinner for long-running tasks."""
+    """Spinner for long-running tasks.
+
+    This class provides visual feedback for long-running operations by displaying
+    a spinning animation in the terminal. It's designed to be used as a context
+    manager for operations that may take some time to complete.
+    """
 
     def __init__(self, delay: float = 0.1) -> None:
-        """Initialize the spinner."""
+        """Initialize the spinner.
+
+        Args:
+            delay: The delay between spinner updates in seconds.
+
+        """
         self.spinner = itertools.cycle(["-", "/", "|", "\\"])
         self.delay = delay
         self.busy = False
@@ -25,7 +35,12 @@ class Spinner:
                 sys.stdout.flush()
 
     def remove_spinner(self, cleanup: bool = False) -> None:  # noqa: FBT001, FBT002
-        """Remove the spinner."""
+        """Remove the spinner.
+
+        Args:
+            cleanup: Whether to clean up the spinner display.
+
+        """
         with self._screen_lock:
             if self.spinner_visible:
                 sys.stdout.write("\b")

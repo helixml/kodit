@@ -14,8 +14,8 @@ from kodit.infrastructure.cloning.git.factory import (
     GitSourceFactory,
     GitWorkingCopyProvider,
 )
+from kodit.infrastructure.git import is_valid_clone_target
 from kodit.infrastructure.sqlalchemy.repository import SqlAlchemySourceRepository
-from kodit.source.git import is_valid_clone_target
 
 
 class SourceService:

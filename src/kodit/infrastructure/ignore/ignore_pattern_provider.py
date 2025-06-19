@@ -1,18 +1,27 @@
-"""Ignore patterns."""
+"""Infrastructure implementation of ignore pattern provider."""
 
 from pathlib import Path
 
 import git
 import pathspec
 
-from kodit.source.git import is_valid_clone_target
+from kodit.domain.services.ignore_service import IgnorePatternProvider
+from kodit.infrastructure.git import is_valid_clone_target
 
 
-class IgnorePatterns:
-    """Ignore patterns."""
+class GitIgnorePatternProvider(IgnorePatternProvider):
+    """Infrastructure implementation of ignore pattern provider using git and .noindex files."""
 
     def __init__(self, base_dir: Path) -> None:
-        """Initialize the ignore patterns."""
+        """Initialize the ignore pattern provider.
+
+        Args:
+            base_dir: The base directory to check for ignore patterns.
+
+        Raises:
+            ValueError: If the base directory is not a directory.
+
+        """
         if not base_dir.is_dir():
             msg = f"Base directory is not a directory: {base_dir}"
             raise ValueError(msg)
@@ -25,7 +34,15 @@ class IgnorePatterns:
             self.git_repo = git.Repo(base_dir)
 
     def should_ignore(self, path: Path) -> bool:
-        """Check if a path should be ignored."""
+        """Check if a path should be ignored.
+
+        Args:
+            path: The path to check.
+
+        Returns:
+            True if the path should be ignored, False otherwise.
+
+        """
         if path.is_dir():
             return False
 

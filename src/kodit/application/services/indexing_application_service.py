@@ -31,8 +31,8 @@ from kodit.domain.services.embedding_service import EmbeddingDomainService
 from kodit.domain.services.enrichment_service import EnrichmentDomainService
 from kodit.domain.services.indexing_service import IndexingDomainService
 from kodit.domain.services.source_service import SourceService
+from kodit.infrastructure.ui import Spinner
 from kodit.log import log_event
-from kodit.util.spinner import Spinner
 
 
 class IndexingApplicationService:

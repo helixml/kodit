@@ -6,12 +6,13 @@ import structlog
 
 from kodit.domain.models import AuthorFileMapping, Source, SourceType
 from kodit.domain.repositories import SourceRepository
+from kodit.domain.services.ignore_service import IgnoreService
 from kodit.infrastructure.cloning.git.working_copy import GitWorkingCopyProvider
 from kodit.infrastructure.cloning.metadata import (
     GitAuthorExtractor,
     GitFileMetadataExtractor,
 )
-from kodit.source.ignore import IgnorePatterns
+from kodit.infrastructure.ignore import GitIgnorePatternProvider
 
 
 class GitSourceFactory:
@@ -60,11 +61,12 @@ class GitSourceFactory:
         )
 
         # Get files to process using ignore patterns
-        ignore_patterns = IgnorePatterns(clone_path)
+        ignore_provider = GitIgnorePatternProvider(clone_path)
+        ignore_service = IgnoreService(ignore_provider)
         files = [
             f
             for f in clone_path.rglob("*")
-            if f.is_file() and not ignore_patterns.should_ignore(f)
+            if f.is_file() and not ignore_service.should_ignore(f)
         ]
 
         # Process files
