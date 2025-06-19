@@ -6,6 +6,7 @@ from typing import Any
 import structlog
 
 from kodit.application.commands.snippet_commands import (
+    CreateIndexSnippetsCommand,
     ExtractSnippetsCommand,
 )
 from kodit.domain.models import (
@@ -78,29 +79,40 @@ class SnippetApplicationService:
         mime_blacklist = ["unknown/unknown"]
         return file.mime_type not in mime_blacklist
 
-    async def _extract_snippets_from_file(self, file: Any) -> list[str]:
+    async def _extract_snippets_from_file(
+        self, file: Any, strategy: SnippetExtractionStrategy
+    ) -> list[str]:
         """Extract snippets from a single file."""
         command = ExtractSnippetsCommand(
             file_path=Path(file.cloned_path),
-            strategy=SnippetExtractionStrategy.METHOD_BASED,
+            strategy=strategy,
         )
         snippets = await self.extract_snippets_from_file(command)
         return [snippet.content for snippet in snippets]
 
-    async def create_snippets_for_index(self, index_id: int) -> None:
-        """Create snippets for all files in an index."""
-        files = await self.file_repository.get_files_for_index(index_id)
+    async def create_snippets_for_index(
+        self, command: CreateIndexSnippetsCommand
+    ) -> None:
+        """Create snippets for all files in an index.
+
+        Args:
+            command: The create index snippets command
+
+        """
+        files = await self.file_repository.get_files_for_index(command.index_id)
 
         for file in files:
             try:
                 if not self._should_process_file(file):
                     continue
 
-                snippet_contents = await self._extract_snippets_from_file(file)
+                snippet_contents = await self._extract_snippets_from_file(
+                    file, command.strategy
+                )
                 for snippet_content in snippet_contents:
                     snippet = Snippet(
                         file_id=file.id,
-                        index_id=index_id,
+                        index_id=command.index_id,
                         content=snippet_content,
                     )
                     await self.snippet_repository.save(snippet)

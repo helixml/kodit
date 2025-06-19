@@ -98,10 +98,12 @@ async def index(
         clone_dir=app_context.get_clone_dir(),
         session_factory=lambda: session,
     )
+    snippet_service = create_snippet_application_service(session)
     service = create_indexing_application_service(
         app_context=app_context,
         session=session,
         source_service=source_service,
+        snippet_application_service=snippet_service,
     )
 
     if not sources:
@@ -165,10 +167,12 @@ async def code(
         clone_dir=app_context.get_clone_dir(),
         session_factory=lambda: session,
     )
+    snippet_service = create_snippet_application_service(session)
     service = create_indexing_application_service(
         app_context=app_context,
         session=session,
         source_service=source_service,
+        snippet_application_service=snippet_service,
     )
 
     snippets = await service.search(SearchRequest(code_query=query, top_k=top_k))
@@ -203,10 +207,12 @@ async def keyword(
         clone_dir=app_context.get_clone_dir(),
         session_factory=lambda: session,
     )
+    snippet_service = create_snippet_application_service(session)
     service = create_indexing_application_service(
         app_context=app_context,
         session=session,
         source_service=source_service,
+        snippet_application_service=snippet_service,
     )
 
     snippets = await service.search(SearchRequest(keywords=keywords, top_k=top_k))
@@ -244,10 +250,12 @@ async def text(
         clone_dir=app_context.get_clone_dir(),
         session_factory=lambda: session,
     )
+    snippet_service = create_snippet_application_service(session)
     service = create_indexing_application_service(
         app_context=app_context,
         session=session,
         source_service=source_service,
+        snippet_application_service=snippet_service,
     )
 
     snippets = await service.search(SearchRequest(text_query=query, top_k=top_k))
@@ -286,10 +294,12 @@ async def hybrid(  # noqa: PLR0913
         clone_dir=app_context.get_clone_dir(),
         session_factory=lambda: session,
     )
+    snippet_service = create_snippet_application_service(session)
     service = create_indexing_application_service(
         app_context=app_context,
         session=session,
         source_service=source_service,
+        snippet_application_service=snippet_service,
     )
 
     # Parse keywords into a list of strings
@@ -297,9 +307,9 @@ async def hybrid(  # noqa: PLR0913
 
     snippets = await service.search(
         SearchRequest(
-            text_query=text,
             keywords=keywords_list,
             code_query=code,
+            text_query=text,
             top_k=top_k,
         )
     )

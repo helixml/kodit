@@ -86,7 +86,7 @@ class LocalVectorSearchRepository(VectorSearchRepository):
     ) -> list[VectorSearchResult]:
         """Search documents using vector similarity."""
         # Build a single-item request and collect its embedding
-        req = EmbeddingRequest(id=0, text=request.query)
+        req = EmbeddingRequest(snippet_id=0, text=request.query)
         embedding_vec: list[float] | None = None
         async for batch in self.embedding_provider.embed([req]):
             if batch:
