@@ -6,13 +6,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from kodit.application.services.indexing_application_service import (
     IndexingApplicationService,
 )
-from kodit.config import AppContext
 from kodit.domain.value_objects import (
     EnrichmentIndexRequest,
     EnrichmentRequest,
     EnrichmentResponse,
-    SearchRequest,
-    SearchResult,
 )
 from kodit.domain.services.enrichment_service import (
     EnrichmentDomainService,

@@ -23,9 +23,9 @@ from kodit.domain.value_objects import (
     FusionRequest,
     IndexCreateRequest,
     IndexView,
+    MultiSearchRequest,
+    MultiSearchResult,
     ProgressEvent,
-    SearchRequest,
-    SearchResult,
     VectorIndexRequest,
     VectorSearchQueryRequest,
     VectorSearchRequest,
@@ -324,7 +324,7 @@ class IndexingApplicationService:
         if progress_callback:
             await progress_callback.on_complete("text_embeddings")
 
-    async def search(self, request: SearchRequest) -> list[SearchResult]:
+    async def search(self, request: MultiSearchRequest) -> list[MultiSearchResult]:
         """Search for relevant data.
 
         Args:
@@ -385,7 +385,7 @@ class IndexingApplicationService:
         )
 
         return [
-            SearchResult(
+            MultiSearchResult(
                 id=snippet["id"],
                 uri=file["uri"],
                 content=snippet["content"],

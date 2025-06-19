@@ -18,7 +18,7 @@ from kodit.application.services.snippet_application_service import (
 from kodit.config import AppContext
 from kodit.database import Database
 from kodit.domain.services.source_service import SourceService
-from kodit.domain.value_objects import SearchRequest, SearchResult
+from kodit.domain.value_objects import MultiSearchRequest, MultiSearchResult
 from kodit.infrastructure.indexing.indexing_factory import (
     create_indexing_application_service,
 )
@@ -172,7 +172,7 @@ async def search(
         snippet_application_service=snippet_application_service,
     )
 
-    search_request = SearchRequest(
+    search_request = MultiSearchRequest(
         keywords=keywords,
         code_query="\n".join(related_file_contents),
         text_query=user_intent,
@@ -188,7 +188,7 @@ async def search(
     return output
 
 
-def output_fusion(snippets: list[SearchResult]) -> str:
+def output_fusion(snippets: list[MultiSearchResult]) -> str:
     """Fuse the snippets into a single output."""
     return "\n\n".join(f"{snippet.uri}\n{snippet.content}" for snippet in snippets)
 

@@ -20,7 +20,7 @@ from kodit.config import (
     with_session,
 )
 from kodit.domain.services.source_service import SourceService
-from kodit.domain.value_objects import SearchRequest
+from kodit.domain.value_objects import MultiSearchRequest
 from kodit.infrastructure.indexing.indexing_factory import (
     create_indexing_application_service,
 )
@@ -188,7 +188,7 @@ async def code(
         snippet_application_service=snippet_service,
     )
 
-    snippets = await service.search(SearchRequest(code_query=query, top_k=top_k))
+    snippets = await service.search(MultiSearchRequest(code_query=query, top_k=top_k))
 
     if len(snippets) == 0:
         click.echo("No snippets found")
@@ -228,7 +228,7 @@ async def keyword(
         snippet_application_service=snippet_service,
     )
 
-    snippets = await service.search(SearchRequest(keywords=keywords, top_k=top_k))
+    snippets = await service.search(MultiSearchRequest(keywords=keywords, top_k=top_k))
 
     if len(snippets) == 0:
         click.echo("No snippets found")
@@ -271,7 +271,7 @@ async def text(
         snippet_application_service=snippet_service,
     )
 
-    snippets = await service.search(SearchRequest(text_query=query, top_k=top_k))
+    snippets = await service.search(MultiSearchRequest(text_query=query, top_k=top_k))
 
     if len(snippets) == 0:
         click.echo("No snippets found")
@@ -319,7 +319,7 @@ async def hybrid(  # noqa: PLR0913
     keywords_list = [k.strip().lower() for k in keywords.split(",")]
 
     snippets = await service.search(
-        SearchRequest(
+        MultiSearchRequest(
             keywords=keywords_list,
             code_query=code,
             text_query=text,
