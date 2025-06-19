@@ -65,18 +65,13 @@ def create_snippet_extraction_domain_service() -> SnippetExtractionDomainService
 
     # Create infrastructure services
     language_detector = FileSystemLanguageDetectionService(language_map)
-    query_provider = FileSystemSnippetQueryProvider(
-        Path(__file__).parent.parent.parent / "snippets" / "languages"
-    )
+    query_provider = FileSystemSnippetQueryProvider(Path(__file__).parent / "languages")
 
     # Create snippet extractors
     method_extractor = TreeSitterSnippetExtractor(query_provider)
 
     snippet_extractors = {
         SnippetExtractionStrategy.METHOD_BASED: method_extractor,
-        # TODO: Add other strategies as needed
-        # SnippetExtractionStrategy.LINE_BASED: line_extractor,
-        # SnippetExtractionStrategy.BLOCK_BASED: block_extractor,
     }
 
     # Create domain service
