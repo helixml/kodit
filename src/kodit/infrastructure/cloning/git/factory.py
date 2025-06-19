@@ -16,7 +16,7 @@ from kodit.infrastructure.cloning.metadata import (
     GitAuthorExtractor,
     GitFileMetadataExtractor,
 )
-from kodit.infrastructure.ignore import GitIgnorePatternProvider
+from kodit.infrastructure.ignore.ignore_pattern_provider import GitIgnorePatternProvider
 
 
 class GitSourceFactory:

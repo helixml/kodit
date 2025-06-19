@@ -17,7 +17,9 @@ from kodit.infrastructure.bm25.bm25_factory import bm25_repository_factory
 from kodit.infrastructure.embedding.embedding_factory import (
     embedding_domain_service_factory,
 )
-from kodit.infrastructure.enrichment import create_enrichment_domain_service
+from kodit.infrastructure.enrichment.enrichment_factory import (
+    create_enrichment_domain_service,
+)
 from kodit.infrastructure.indexing.fusion_service import ReciprocalRankFusionService
 from kodit.infrastructure.indexing.index_repository import SQLAlchemyIndexRepository
 from kodit.infrastructure.snippet_extraction.snippet_extraction_factory import (

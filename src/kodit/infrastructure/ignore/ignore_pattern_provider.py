@@ -6,7 +6,7 @@ import git
 import pathspec
 
 from kodit.domain.services.ignore_service import IgnorePatternProvider
-from kodit.infrastructure.git import is_valid_clone_target
+from kodit.infrastructure.git.git_utils import is_valid_clone_target
 
 
 class GitIgnorePatternProvider(IgnorePatternProvider):
