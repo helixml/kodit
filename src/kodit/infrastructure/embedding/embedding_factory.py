@@ -1,24 +1,26 @@
-"""Embedding service."""
+"""Factory for creating embedding services with DDD architecture."""
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.config import AppContext, Endpoint
 from kodit.domain.models import EmbeddingType
-from kodit.embedding.embedding_provider.local_embedding_provider import (
+from kodit.domain.services.embedding_service import EmbeddingDomainService
+from kodit.infrastructure.embedding.embedding_providers.local_embedding_provider import (
     CODE,
     LocalEmbeddingProvider,
 )
-from kodit.embedding.embedding_provider.openai_embedding_provider import (
+from kodit.infrastructure.embedding.embedding_providers.openai_embedding_provider import (
     OpenAIEmbeddingProvider,
 )
-from kodit.embedding.embedding_repository import EmbeddingRepository
-from kodit.embedding.local_vector_search_service import LocalVectorSearchService
-from kodit.embedding.vector_search_service import (
-    VectorSearchService,
+from kodit.infrastructure.embedding.local_vector_search_repository import (
+    LocalVectorSearchRepository,
 )
-from kodit.embedding.vectorchord_vector_search_service import (
+from kodit.infrastructure.embedding.vectorchord_vector_search_repository import (
     TaskName,
-    VectorChordVectorSearchService,
+    VectorChordVectorSearchRepository,
+)
+from kodit.infrastructure.sqlalchemy.embedding_repository import (
+    SqlAlchemyEmbeddingRepository,
 )
 from kodit.log import log_event
 
@@ -28,13 +30,15 @@ def _get_endpoint_configuration(app_context: AppContext) -> Endpoint | None:
     return app_context.embedding_endpoint or app_context.default_endpoint or None
 
 
-def embedding_factory(
+def embedding_domain_service_factory(
     task_name: TaskName, app_context: AppContext, session: AsyncSession
-) -> VectorSearchService:
-    """Create an embedding service."""
-    embedding_repository = EmbeddingRepository(session=session)
-    endpoint = _get_endpoint_configuration(app_context)
+) -> EmbeddingDomainService:
+    """Create an embedding domain service."""
+    # Create embedding repository
+    embedding_repository = SqlAlchemyEmbeddingRepository(session=session)
 
+    # Create embedding provider
+    endpoint = _get_endpoint_configuration(app_context)
     if endpoint and endpoint.type == "openai":
         log_event("kodit.embedding", {"provider": "openai"})
         from openai import AsyncOpenAI
@@ -50,20 +54,32 @@ def embedding_factory(
         log_event("kodit.embedding", {"provider": "local"})
         embedding_provider = LocalEmbeddingProvider(CODE)
 
+    # Create vector search repository based on configuration
     if app_context.default_search.provider == "vectorchord":
         log_event("kodit.database", {"provider": "vectorchord"})
-        return VectorChordVectorSearchService(task_name, session, embedding_provider)
-    if app_context.default_search.provider == "sqlite":
+        vector_search_repository = VectorChordVectorSearchRepository(
+            task_name, session, embedding_provider
+        )
+    elif app_context.default_search.provider == "sqlite":
         log_event("kodit.database", {"provider": "sqlite"})
         if task_name == "code":
             embedding_type = EmbeddingType.CODE
         elif task_name == "text":
             embedding_type = EmbeddingType.TEXT
-        return LocalVectorSearchService(
+        else:
+            raise ValueError(f"Invalid task name: {task_name}")
+
+        vector_search_repository = LocalVectorSearchRepository(
             embedding_repository=embedding_repository,
             embedding_provider=embedding_provider,
             embedding_type=embedding_type,
         )
+    else:
+        msg = f"Invalid semantic search provider: {app_context.default_search.provider}"
+        raise ValueError(msg)
 
-    msg = f"Invalid semantic search provider: {app_context.default_search.provider}"
-    raise ValueError(msg)
+    # Create and return domain service
+    return EmbeddingDomainService(
+        embedding_provider=embedding_provider,
+        vector_search_repository=vector_search_repository,
+    )

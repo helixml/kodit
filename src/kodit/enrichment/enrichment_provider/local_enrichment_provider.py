@@ -6,9 +6,7 @@ from collections.abc import AsyncGenerator
 import structlog
 import tiktoken
 
-from kodit.embedding.embedding_provider.embedding_provider import (
-    EmbeddingRequest,
-)
+from kodit.domain.models import EmbeddingRequest
 from kodit.enrichment.enrichment_provider.enrichment_provider import (
     ENRICHMENT_SYSTEM_PROMPT,
     EnrichmentProvider,

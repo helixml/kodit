@@ -249,3 +249,57 @@ class BM25DeleteRequest:
 
     def __init__(self, snippet_ids: list[int]):
         self.snippet_ids = snippet_ids
+
+
+class VectorSearchRequest:
+    """Domain model for vector search request."""
+
+    def __init__(self, snippet_id: int, text: str):
+        self.snippet_id = snippet_id
+        self.text = text
+
+
+class VectorSearchResult:
+    """Domain model for vector search result."""
+
+    def __init__(self, snippet_id: int, score: float):
+        self.snippet_id = snippet_id
+        self.score = score
+
+
+class EmbeddingRequest:
+    """Domain model for embedding request."""
+
+    def __init__(self, id: int, text: str):
+        self.id = id
+        self.text = text
+
+
+class EmbeddingResponse:
+    """Domain model for embedding response."""
+
+    def __init__(self, id: int, embedding: list[float]):
+        self.id = id
+        self.embedding = embedding
+
+
+class IndexResult:
+    """Domain model for indexing result."""
+
+    def __init__(self, snippet_id: int):
+        self.snippet_id = snippet_id
+
+
+class VectorIndexRequest:
+    """Domain model for vector indexing request."""
+
+    def __init__(self, documents: list[VectorSearchRequest]):
+        self.documents = documents
+
+
+class VectorSearchQueryRequest:
+    """Domain model for vector search query request."""
+
+    def __init__(self, query: str, top_k: int = 10):
+        self.query = query
+        self.top_k = top_k

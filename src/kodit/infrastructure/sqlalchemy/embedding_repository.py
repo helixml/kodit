@@ -1,4 +1,4 @@
-"""Repository for managing embeddings."""
+"""SQLAlchemy implementation of embedding repository."""
 
 import numpy as np
 from sqlalchemy import select
@@ -7,29 +7,26 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from kodit.domain.models import Embedding, EmbeddingType
 
 
-class EmbeddingRepository:
-    """Repository for managing embeddings.
-
-    This class provides methods for creating and retrieving embeddings from the
-    database. It handles the low-level database operations and transaction management.
-
-    Args:
-        session: The SQLAlchemy async session to use for database operations.
-
-    """
+class SqlAlchemyEmbeddingRepository:
+    """SQLAlchemy implementation of embedding repository."""
 
     def __init__(self, session: AsyncSession) -> None:
-        """Initialize the embedding repository."""
+        """Initialize the SQLAlchemy embedding repository.
+
+        Args:
+            session: The SQLAlchemy async session to use for database operations
+
+        """
         self.session = session
 
     async def create_embedding(self, embedding: Embedding) -> Embedding:
         """Create a new embedding record in the database.
 
         Args:
-            embedding: The Embedding instance to create.
+            embedding: The Embedding instance to create
 
         Returns:
-            The created Embedding instance.
+            The created Embedding instance
 
         """
         self.session.add(embedding)
@@ -42,11 +39,11 @@ class EmbeddingRepository:
         """Get an embedding by its snippet ID and type.
 
         Args:
-            snippet_id: The ID of the snippet to get the embedding for.
-            embedding_type: The type of embedding to get.
+            snippet_id: The ID of the snippet to get the embedding for
+            embedding_type: The type of embedding to get
 
         Returns:
-            The Embedding instance if found, None otherwise.
+            The Embedding instance if found, None otherwise
 
         """
         query = select(Embedding).where(
@@ -62,10 +59,10 @@ class EmbeddingRepository:
         """List all embeddings of a given type.
 
         Args:
-            embedding_type: The type of embeddings to list.
+            embedding_type: The type of embeddings to list
 
         Returns:
-            A list of Embedding instances.
+            A list of Embedding instances
 
         """
         query = select(Embedding).where(Embedding.type == embedding_type)
@@ -76,7 +73,7 @@ class EmbeddingRepository:
         """Delete all embeddings for a snippet.
 
         Args:
-            snippet_id: The ID of the snippet to delete embeddings for.
+            snippet_id: The ID of the snippet to delete embeddings for
 
         """
         query = select(Embedding).where(Embedding.snippet_id == snippet_id)
@@ -200,7 +197,6 @@ class EmbeddingRepository:
             List of (snippet_id, similarity_score) tuples
 
         """
+        # Get indices of top-k similarities
         top_indices = np.argsort(similarities)[::-1][:top_k]
-        return [
-            (embeddings[i][0], float(similarities[i])) for i in top_indices
-        ]  # Use index 0 to get snippet_id
+        return [(embeddings[i][0], float(similarities[i])) for i in top_indices]

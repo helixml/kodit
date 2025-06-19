@@ -21,11 +21,13 @@ from kodit.config import (
 )
 from kodit.domain.services.bm25_service import BM25DomainService
 from kodit.domain.services.source_service import SourceService
-from kodit.embedding.embedding_factory import embedding_factory
 from kodit.enrichment.enrichment_factory import enrichment_factory
 from kodit.indexing.indexing_repository import IndexRepository
 from kodit.indexing.indexing_service import IndexService, SearchRequest
 from kodit.infrastructure.bm25.bm25_factory import bm25_repository_factory
+from kodit.infrastructure.embedding.embedding_factory import (
+    embedding_domain_service_factory,
+)
 from kodit.infrastructure.snippet_extraction.snippet_extraction_factory import (
     create_snippet_extraction_domain_service,
     create_snippet_repositories,
@@ -108,11 +110,11 @@ async def index(
         repository=repository,
         source_service=source_service,
         bm25_service=BM25DomainService(bm25_repository_factory(app_context, session)),
-        code_search_service=embedding_factory(
-            task_name="code", app_context=app_context, session=session
+        code_search_service=embedding_domain_service_factory(
+            "code", app_context, session
         ),
-        text_search_service=embedding_factory(
-            task_name="text", app_context=app_context, session=session
+        text_search_service=embedding_domain_service_factory(
+            "text", app_context, session
         ),
         enrichment_service=enrichment_factory(app_context),
         snippet_application_service=snippet_application_service,
@@ -185,11 +187,11 @@ async def code(
         repository=repository,
         source_service=source_service,
         bm25_service=BM25DomainService(bm25_repository_factory(app_context, session)),
-        code_search_service=embedding_factory(
-            task_name="code", app_context=app_context, session=session
+        code_search_service=embedding_domain_service_factory(
+            "code", app_context, session
         ),
-        text_search_service=embedding_factory(
-            task_name="text", app_context=app_context, session=session
+        text_search_service=embedding_domain_service_factory(
+            "text", app_context, session
         ),
         enrichment_service=enrichment_factory(app_context),
         snippet_application_service=snippet_application_service,
@@ -233,11 +235,11 @@ async def keyword(
         repository=repository,
         source_service=source_service,
         bm25_service=BM25DomainService(bm25_repository_factory(app_context, session)),
-        code_search_service=embedding_factory(
-            task_name="code", app_context=app_context, session=session
+        code_search_service=embedding_domain_service_factory(
+            "code", app_context, session
         ),
-        text_search_service=embedding_factory(
-            task_name="text", app_context=app_context, session=session
+        text_search_service=embedding_domain_service_factory(
+            "text", app_context, session
         ),
         enrichment_service=enrichment_factory(app_context),
         snippet_application_service=snippet_application_service,
@@ -284,11 +286,11 @@ async def text(
         repository=repository,
         source_service=source_service,
         bm25_service=BM25DomainService(bm25_repository_factory(app_context, session)),
-        code_search_service=embedding_factory(
-            task_name="code", app_context=app_context, session=session
+        code_search_service=embedding_domain_service_factory(
+            "code", app_context, session
         ),
-        text_search_service=embedding_factory(
-            task_name="text", app_context=app_context, session=session
+        text_search_service=embedding_domain_service_factory(
+            "text", app_context, session
         ),
         enrichment_service=enrichment_factory(app_context),
         snippet_application_service=snippet_application_service,
@@ -336,11 +338,11 @@ async def hybrid(  # noqa: PLR0913
         repository=repository,
         source_service=source_service,
         bm25_service=BM25DomainService(bm25_repository_factory(app_context, session)),
-        code_search_service=embedding_factory(
-            task_name="code", app_context=app_context, session=session
+        code_search_service=embedding_domain_service_factory(
+            "code", app_context, session
         ),
-        text_search_service=embedding_factory(
-            task_name="text", app_context=app_context, session=session
+        text_search_service=embedding_domain_service_factory(
+            "text", app_context, session
         ),
         enrichment_service=enrichment_factory(app_context),
         snippet_application_service=snippet_application_service,

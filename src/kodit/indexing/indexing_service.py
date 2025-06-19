@@ -20,17 +20,17 @@ from kodit.domain.models import (
     BM25Document,
     BM25SearchResult,
     SnippetExtractionStrategy,
+    VectorIndexRequest,
+    VectorSearchQueryRequest,
+    VectorSearchRequest,
 )
 from kodit.domain.services.bm25_service import (
     BM25DomainService,
     BM25IndexRequest,
     BM25SearchRequest,
 )
+from kodit.domain.services.embedding_service import EmbeddingDomainService
 from kodit.domain.services.source_service import SourceService
-from kodit.embedding.vector_search_service import (
-    VectorSearchRequest,
-    VectorSearchService,
-)
 from kodit.enrichment.enrichment_provider.enrichment_provider import EnrichmentRequest
 from kodit.enrichment.enrichment_service import EnrichmentService
 from kodit.indexing.fusion import FusionRequest, reciprocal_rank_fusion
@@ -91,8 +91,8 @@ class IndexService:
         repository: IndexRepository,
         source_service: SourceService,
         bm25_service: BM25DomainService,
-        code_search_service: VectorSearchService,
-        text_search_service: VectorSearchService,
+        code_search_service: EmbeddingDomainService,
+        text_search_service: EmbeddingDomainService,
         enrichment_service: EnrichmentService,
         snippet_application_service: SnippetApplicationService,
     ) -> None:
@@ -102,8 +102,8 @@ class IndexService:
             repository: The repository instance to use for database operations.
             source_service: The source service instance to use for source validation.
             bm25_service: The BM25 domain service for keyword search.
-            code_search_service: The code search service.
-            text_search_service: The text search service.
+            code_search_service: The code search domain service.
+            text_search_service: The text search domain service.
             enrichment_service: The enrichment service.
             snippet_application_service: The snippet application service.
 
@@ -219,11 +219,13 @@ class IndexService:
 
         self.log.info("Creating semantic code index")
         with tqdm(total=len(snippets), leave=False) as pbar:
-            async for result in self.code_search_service.index(
-                [
-                    VectorSearchRequest(snippet.id, snippet.content)
-                    for snippet in snippets
-                ]
+            async for result in self.code_search_service.index_documents(
+                VectorIndexRequest(
+                    documents=[
+                        VectorSearchRequest(snippet.id, snippet.content)
+                        for snippet in snippets
+                    ]
+                )
             ):
                 pbar.update(len(result))
 
@@ -247,11 +249,13 @@ class IndexService:
 
         self.log.info("Creating semantic text index")
         with tqdm(total=len(snippets), leave=False) as pbar:
-            async for result in self.text_search_service.index(
-                [
-                    VectorSearchRequest(snippet.id, snippet.content)
-                    for snippet in snippets
-                ]
+            async for result in self.text_search_service.index_documents(
+                VectorIndexRequest(
+                    documents=[
+                        VectorSearchRequest(snippet.id, snippet.content)
+                        for snippet in snippets
+                    ]
+                )
             ):
                 pbar.update(len(result))
 
@@ -278,16 +282,16 @@ class IndexService:
 
         # Compute embedding for semantic query
         if request.code_query:
-            query_embedding = await self.code_search_service.retrieve(
-                request.code_query, top_k=request.top_k
+            query_embedding = await self.code_search_service.search(
+                VectorSearchQueryRequest(query=request.code_query, top_k=request.top_k)
             )
             fusion_list.append(
                 [FusionRequest(id=x.snippet_id, score=x.score) for x in query_embedding]
             )
 
         if request.text_query:
-            query_embedding = await self.text_search_service.retrieve(
-                request.text_query, top_k=request.top_k
+            query_embedding = await self.text_search_service.search(
+                VectorSearchQueryRequest(query=request.text_query, top_k=request.top_k)
             )
             fusion_list.append(
                 [FusionRequest(id=x.snippet_id, score=x.score) for x in query_embedding]
