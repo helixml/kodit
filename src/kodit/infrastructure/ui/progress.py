@@ -30,12 +30,12 @@ class TQDMProgressCallback(ProgressCallback):
             # Fix the event message to a specific size so it's not jumping around
             # If it's too small, add spaces
             # If it's too large, truncate
-            if len(event.message) < 20:
+            if len(event.message) < 30:
                 self.pbar.set_description(
-                    event.message + " " * (20 - len(event.message))
+                    " " * (30 - len(event.message)) + event.message
                 )
             else:
-                self.pbar.set_description(event.message[:20])
+                self.pbar.set_description("..." + event.message[:-27])
 
     async def on_complete(self, operation: str) -> None:
         """Complete the progress bar."""
