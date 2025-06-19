@@ -13,6 +13,7 @@ from kodit.mcp import mcp, search
 def mock_env_db(monkeypatch: pytest.MonkeyPatch) -> None:
     """Mock the database URL environment variable."""
     monkeypatch.setenv("DB_URL", "sqlite+aiosqlite:///:memory:")
+    monkeypatch.setenv("DEFAULT_SEARCH_PROVIDER", "sqlite")
 
 
 @pytest.mark.asyncio

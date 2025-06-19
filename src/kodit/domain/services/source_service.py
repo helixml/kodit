@@ -6,7 +6,7 @@ from pathlib import Path
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from kodit.domain.models import Source
+from kodit.domain.models import ProgressCallback, Source
 from kodit.domain.repositories import SourceRepository
 from kodit.infrastructure.cloning.folder.factory import FolderSourceFactory
 from kodit.infrastructure.cloning.folder.working_copy import FolderWorkingCopyProvider
@@ -42,16 +42,20 @@ class SourceService:
 
             return source
 
-    async def create(self, uri_or_path_like: str) -> Source:
+    async def create(
+        self, uri_or_path_like: str, progress_callback: ProgressCallback | None = None
+    ) -> Source:
         """Create a source."""
         async with self._session_factory() as session:
             repo = SqlAlchemySourceRepository(session)
             git_factory, folder_factory = self._build_factories(repo)
 
             if is_valid_clone_target(uri_or_path_like):
-                source = await git_factory.create(uri_or_path_like)
+                source = await git_factory.create(uri_or_path_like, progress_callback)
             elif Path(uri_or_path_like).is_dir():
-                source = await folder_factory.create(uri_or_path_like)
+                source = await folder_factory.create(
+                    uri_or_path_like, progress_callback
+                )
             else:
                 raise ValueError(f"Unsupported source: {uri_or_path_like}")
 

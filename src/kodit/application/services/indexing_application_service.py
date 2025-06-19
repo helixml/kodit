@@ -1,7 +1,6 @@
 """Application service for indexing operations."""
 
 import structlog
-from tqdm.asyncio import tqdm
 
 from kodit.application.commands.snippet_commands import CreateIndexSnippetsCommand
 from kodit.application.services.snippet_application_service import (
@@ -15,6 +14,8 @@ from kodit.domain.models import (
     FusionRequest,
     IndexCreateRequest,
     IndexView,
+    ProgressCallback,
+    ProgressEvent,
     SearchRequest,
     SearchResult,
     SnippetExtractionStrategy,
@@ -31,7 +32,6 @@ from kodit.domain.services.embedding_service import EmbeddingDomainService
 from kodit.domain.services.enrichment_service import EnrichmentDomainService
 from kodit.domain.services.indexing_service import IndexingDomainService
 from kodit.domain.services.source_service import SourceService
-from kodit.infrastructure.ui import Spinner
 from kodit.log import log_event
 
 
@@ -116,11 +116,14 @@ class IndexingApplicationService:
 
         return indexes
 
-    async def run_index(self, index_id: int) -> None:
+    async def run_index(
+        self, index_id: int, progress_callback: ProgressCallback | None = None
+    ) -> None:
         """Run the indexing process for a specific index.
 
         Args:
             index_id: The ID of the index to run.
+            progress_callback: Optional progress callback for reporting progress.
 
         Raises:
             ValueError: If the index doesn't exist.
@@ -142,70 +145,186 @@ class IndexingApplicationService:
         command = CreateIndexSnippetsCommand(
             index_id=index.id, strategy=SnippetExtractionStrategy.METHOD_BASED
         )
-        await self.snippet_application_service.create_snippets_for_index(command)
+        await self.snippet_application_service.create_snippets_for_index(
+            command, progress_callback
+        )
 
         snippets = await self.indexing_domain_service.get_snippets_for_index(index.id)
 
+        # Create BM25 index
         self.log.info("Creating keyword index")
-        with Spinner():
-            await self.bm25_service.index_documents(
-                BM25IndexRequest(
-                    documents=[
-                        BM25Document(snippet_id=snippet["id"], text=snippet["content"])
-                        for snippet in snippets
-                    ]
-                )
-            )
+        await self._create_bm25_index(snippets, progress_callback)
 
+        # Create code embeddings
         self.log.info("Creating semantic code index")
-        with tqdm(total=len(snippets), leave=False) as pbar:
-            async for result in self.code_search_service.index_documents(
-                VectorIndexRequest(
-                    documents=[
-                        VectorSearchRequest(snippet["id"], snippet["content"])
-                        for snippet in snippets
-                    ]
-                )
-            ):
-                pbar.update(len(result))
+        await self._create_code_embeddings(snippets, progress_callback)
 
+        # Enrich snippets
         self.log.info("Enriching snippets", num_snippets=len(snippets))
-        enriched_contents = []
-        with tqdm(total=len(snippets), leave=False) as pbar:
-            # Create domain request for enrichment
-            enrichment_request = EnrichmentIndexRequest(
-                requests=[
-                    EnrichmentRequest(snippet_id=snippet["id"], text=snippet["content"])
-                    for snippet in snippets
-                ]
-            )
+        await self._enrich_snippets(snippets, progress_callback)
 
-            async for result in self.enrichment_service.enrich_documents(
-                enrichment_request
-            ):
-                snippet = next(s for s in snippets if s["id"] == result.snippet_id)
-                if snippet:
-                    snippet["content"] = (
-                        result.text + "\n\n```\n" + snippet["content"] + "\n```"
-                    )
-                    await self.indexing_domain_service.add_snippet(snippet)
-                    enriched_contents.append(result)
-                pbar.update(1)
-
+        # Create text embeddings
         self.log.info("Creating semantic text index")
-        with tqdm(total=len(snippets), leave=False) as pbar:
-            async for result in self.text_search_service.index_documents(
-                VectorIndexRequest(
-                    documents=[
-                        VectorSearchRequest(snippet["id"], snippet["content"])
-                        for snippet in snippets
-                    ]
-                )
-            ):
-                pbar.update(len(result))
+        await self._create_text_embeddings(snippets, progress_callback)
 
         # Update index timestamp
         await self.indexing_domain_service.update_index_timestamp(index.id)
+
+    async def _create_bm25_index(
+        self, snippets: list[dict], progress_callback: ProgressCallback | None = None
+    ) -> None:
+        """Create BM25 keyword index."""
+        if progress_callback:
+            await progress_callback.on_progress(
+                ProgressEvent(
+                    operation="bm25_index",
+                    current=0,
+                    total=len(snippets),
+                    message="Creating keyword index...",
+                )
+            )
+
+        await self.bm25_service.index_documents(
+            BM25IndexRequest(
+                documents=[
+                    BM25Document(snippet_id=snippet["id"], text=snippet["content"])
+                    for snippet in snippets
+                ]
+            )
+        )
+
+        if progress_callback:
+            await progress_callback.on_progress(
+                ProgressEvent(
+                    operation="bm25_index",
+                    current=len(snippets),
+                    total=len(snippets),
+                    message="Keyword index created",
+                )
+            )
+            await progress_callback.on_complete("bm25_index")
+
+    async def _create_code_embeddings(
+        self, snippets: list[dict], progress_callback: ProgressCallback | None = None
+    ) -> None:
+        """Create code embeddings."""
+        if progress_callback:
+            await progress_callback.on_progress(
+                ProgressEvent(
+                    operation="code_embeddings",
+                    current=0,
+                    total=len(snippets),
+                    message="Creating code embeddings...",
+                )
+            )
+
+        processed = 0
+        async for result in self.code_search_service.index_documents(
+            VectorIndexRequest(
+                documents=[
+                    VectorSearchRequest(snippet["id"], snippet["content"])
+                    for snippet in snippets
+                ]
+            )
+        ):
+            processed += len(result)
+            if progress_callback:
+                await progress_callback.on_progress(
+                    ProgressEvent(
+                        operation="code_embeddings",
+                        current=processed,
+                        total=len(snippets),
+                        message="Creating code embeddings...",
+                    )
+                )
+
+        if progress_callback:
+            await progress_callback.on_complete("code_embeddings")
+
+    async def _enrich_snippets(
+        self, snippets: list[dict], progress_callback: ProgressCallback | None = None
+    ) -> None:
+        """Enrich snippets with additional context."""
+        if progress_callback:
+            await progress_callback.on_progress(
+                ProgressEvent(
+                    operation="enrichment",
+                    current=0,
+                    total=len(snippets),
+                    message="Enriching snippets...",
+                )
+            )
+
+        enriched_contents = []
+        enrichment_request = EnrichmentIndexRequest(
+            requests=[
+                EnrichmentRequest(snippet_id=snippet["id"], text=snippet["content"])
+                for snippet in snippets
+            ]
+        )
+
+        processed = 0
+        async for result in self.enrichment_service.enrich_documents(
+            enrichment_request
+        ):
+            snippet = next(s for s in snippets if s["id"] == result.snippet_id)
+            if snippet:
+                snippet["content"] = (
+                    result.text + "\n\n```\n" + snippet["content"] + "\n```"
+                )
+                await self.indexing_domain_service.add_snippet(snippet)
+                enriched_contents.append(result)
+
+            processed += 1
+            if progress_callback:
+                await progress_callback.on_progress(
+                    ProgressEvent(
+                        operation="enrichment",
+                        current=processed,
+                        total=len(snippets),
+                        message="Enriching snippets...",
+                    )
+                )
+
+        if progress_callback:
+            await progress_callback.on_complete("enrichment")
+
+    async def _create_text_embeddings(
+        self, snippets: list[dict], progress_callback: ProgressCallback | None = None
+    ) -> None:
+        """Create text embeddings."""
+        if progress_callback:
+            await progress_callback.on_progress(
+                ProgressEvent(
+                    operation="text_embeddings",
+                    current=0,
+                    total=len(snippets),
+                    message="Creating text embeddings...",
+                )
+            )
+
+        processed = 0
+        async for result in self.text_search_service.index_documents(
+            VectorIndexRequest(
+                documents=[
+                    VectorSearchRequest(snippet["id"], snippet["content"])
+                    for snippet in snippets
+                ]
+            )
+        ):
+            processed += len(result)
+            if progress_callback:
+                await progress_callback.on_progress(
+                    ProgressEvent(
+                        operation="text_embeddings",
+                        current=processed,
+                        total=len(snippets),
+                        message="Creating text embeddings...",
+                    )
+                )
+
+        if progress_callback:
+            await progress_callback.on_complete("text_embeddings")
 
     async def search(self, request: SearchRequest) -> list[SearchResult]:
         """Search for relevant data.

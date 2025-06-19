@@ -10,6 +10,8 @@ from kodit.application.commands.snippet_commands import (
     ExtractSnippetsCommand,
 )
 from kodit.domain.models import (
+    ProgressCallback,
+    ProgressEvent,
     Snippet,
     SnippetExtractionRequest,
     SnippetExtractionStrategy,
@@ -91,17 +93,30 @@ class SnippetApplicationService:
         return [snippet.content for snippet in snippets]
 
     async def create_snippets_for_index(
-        self, command: CreateIndexSnippetsCommand
+        self,
+        command: CreateIndexSnippetsCommand,
+        progress_callback: ProgressCallback | None = None,
     ) -> None:
         """Create snippets for all files in an index.
 
         Args:
             command: The create index snippets command
+            progress_callback: Optional progress callback for reporting progress
 
         """
         files = await self.file_repository.get_files_for_index(command.index_id)
 
-        for file in files:
+        if progress_callback:
+            await progress_callback.on_progress(
+                ProgressEvent(
+                    operation="create_snippets",
+                    current=0,
+                    total=len(files),
+                    message="Creating snippets from files...",
+                )
+            )
+
+        for i, file in enumerate(files, 1):
             try:
                 if not self._should_process_file(file):
                     continue
@@ -124,3 +139,16 @@ class SnippetApplicationService:
                     error=str(e),
                 )
                 continue
+
+            if progress_callback:
+                await progress_callback.on_progress(
+                    ProgressEvent(
+                        operation="create_snippets",
+                        current=i,
+                        total=len(files),
+                        message=f"Processing {file.cloned_path}...",
+                    )
+                )
+
+        if progress_callback:
+            await progress_callback.on_complete("create_snippets")

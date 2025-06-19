@@ -1,7 +1,7 @@
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.config import AppContext, Endpoint
+from kodit.config import AppContext, Endpoint, Search
 from kodit.infrastructure.embedding.embedding_factory import (
     embedding_domain_service_factory,
 )
@@ -20,6 +20,9 @@ from kodit.infrastructure.embedding.local_vector_search_repository import (
 async def test_embedding_domain_service_factory(
     app_context: AppContext, session: AsyncSession
 ) -> None:
+    # Set search provider to sqlite to override environment variable
+    app_context.default_search = Search(provider="sqlite")
+
     # With defaults, no settings
     app_context.default_endpoint = None
     app_context.embedding_endpoint = None

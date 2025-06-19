@@ -4,7 +4,13 @@ from pathlib import Path
 
 import structlog
 
-from kodit.domain.models import AuthorFileMapping, Source, SourceType
+from kodit.domain.models import (
+    AuthorFileMapping,
+    ProgressCallback,
+    ProgressEvent,
+    Source,
+    SourceType,
+)
 from kodit.domain.repositories import SourceRepository
 from kodit.infrastructure.cloning.folder.working_copy import FolderWorkingCopyProvider
 from kodit.infrastructure.cloning.metadata import (
@@ -28,8 +34,16 @@ class FolderSourceFactory:
         self.metadata_extractor = FolderFileMetadataExtractor()
         self.author_extractor = NoOpAuthorExtractor()
 
-    async def create(self, uri: str) -> Source:
+    async def create(
+        self, uri: str, progress_callback: ProgressCallback | None = None
+    ) -> Source:
         """Create a folder source from a path."""
+        # Use null callback if none provided
+        if progress_callback is None:
+            from kodit.domain.models import NullProgressCallback
+
+            progress_callback = NullProgressCallback()
+
         directory = Path(uri).expanduser().resolve()
 
         # Check if source already exists
@@ -59,13 +73,27 @@ class FolderSourceFactory:
         files = [f for f in clone_path.rglob("*") if f.is_file()]
 
         # Process files
-        await self._process_files(source, files)
+        await self._process_files(source, files, progress_callback)
 
         return source
 
-    async def _process_files(self, source: Source, files: list[Path]) -> None:
+    async def _process_files(
+        self, source: Source, files: list[Path], progress_callback: ProgressCallback
+    ) -> None:
         """Process files for a source."""
-        for path in files:
+        total_files = len(files)
+
+        # Notify start of operation
+        await progress_callback.on_progress(
+            ProgressEvent(
+                operation="process_files",
+                current=0,
+                total=total_files,
+                message="Processing files...",
+            )
+        )
+
+        for i, path in enumerate(files, 1):
             if not path.is_file():
                 continue
 
@@ -82,3 +110,16 @@ class FolderSourceFactory:
                         file_id=file_record.id,
                     )
                 )
+
+            # Update progress
+            await progress_callback.on_progress(
+                ProgressEvent(
+                    operation="process_files",
+                    current=i,
+                    total=total_files,
+                    message=f"Processing {path.name}...",
+                )
+            )
+
+        # Notify completion
+        await progress_callback.on_complete("process_files")

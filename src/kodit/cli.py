@@ -26,6 +26,10 @@ from kodit.infrastructure.snippet_extraction.snippet_extraction_factory import (
     create_snippet_extraction_domain_service,
     create_snippet_repositories,
 )
+from kodit.infrastructure.ui.progress import (
+    create_lazy_progress_callback,
+    create_multi_stage_progress_callback,
+)
 from kodit.log import configure_logging, configure_telemetry, log_event
 
 
@@ -135,11 +139,18 @@ async def index(
             msg = "File indexing is not implemented yet"
             raise click.UsageError(msg)
 
-        # Index source
+        # Index source with progress
         log_event("kodit.cli.index.create")
-        s = await source_service.create(source)
+
+        # Create a lazy progress callback that only shows progress when needed
+        progress_callback = create_lazy_progress_callback()
+        s = await source_service.create(source, progress_callback)
+
         index = await service.create_index(s.id)
-        await service.run_index(index.id)
+
+        # Create a new progress callback for the indexing operations
+        indexing_progress_callback = create_multi_stage_progress_callback()
+        await service.run_index(index.id, indexing_progress_callback)
 
 
 @cli.group()
