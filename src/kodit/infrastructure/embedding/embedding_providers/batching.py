@@ -50,10 +50,32 @@ def split_sub_batches(
     current_batch: list[EmbeddingRequest] = []
     current_tokens = 0
 
-    for item in data:
-        item_tokens = len(encoding.encode(item.text))
+    for original_item in data:
+        # ------------------------------------------------------------------
+        # Ensure **individual** requests never exceed the token limit.
+        # If they do, we *truncate* them rather than sending an oversized
+        # request to the embedding model (which would raise a 400 error).
+        # ------------------------------------------------------------------
 
-        # Determine whether adding the item would violate limits.
+        token_ids = encoding.encode(original_item.text, disallowed_special=())
+        if len(token_ids) > max_tokens:
+            # Keep only the first *max_tokens* tokens and decode back to text.
+            token_ids = token_ids[:max_tokens]
+            truncated_text = encoding.decode(token_ids)
+
+            # Create a *new* EmbeddingRequest to avoid mutating the caller's
+            # objects (side-effects can be surprising).
+            item = EmbeddingRequest(
+                snippet_id=original_item.snippet_id,
+                text=truncated_text,
+            )
+        else:
+            item = original_item
+
+        item_tokens = len(token_ids)
+
+        # Determine whether adding the item would violate limits for the
+        # *current* batch. Note: size constraint is optional.
         token_overflow = current_tokens + item_tokens > max_tokens
         size_overflow = batch_size is not None and len(current_batch) >= batch_size
 
