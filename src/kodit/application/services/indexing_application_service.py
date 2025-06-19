@@ -1,14 +1,5 @@
-"""Index service for managing code indexes.
+"""Application service for indexing operations."""
 
-This module provides the IndexService class which handles the business logic for
-creating, listing, and running code indexes. It orchestrates the interaction between the
-file system, database operations (via IndexRepository), and provides a clean API for
-index management.
-"""
-
-from datetime import datetime
-
-import pydantic
 import structlog
 from tqdm.asyncio import tqdm
 
@@ -21,6 +12,11 @@ from kodit.domain.models import (
     BM25SearchResult,
     EnrichmentIndexRequest,
     EnrichmentRequest,
+    FusionRequest,
+    IndexCreateRequest,
+    IndexView,
+    SearchRequest,
+    SearchResult,
     SnippetExtractionStrategy,
     VectorIndexRequest,
     VectorSearchQueryRequest,
@@ -33,63 +29,23 @@ from kodit.domain.services.bm25_service import (
 )
 from kodit.domain.services.embedding_service import EmbeddingDomainService
 from kodit.domain.services.enrichment_service import EnrichmentDomainService
+from kodit.domain.services.indexing_service import IndexingDomainService
 from kodit.domain.services.source_service import SourceService
-from kodit.indexing.fusion import FusionRequest, reciprocal_rank_fusion
-from kodit.indexing.indexing_repository import IndexRepository
 from kodit.log import log_event
 from kodit.util.spinner import Spinner
 
-# List of MIME types that are blacklisted from being indexed
-MIME_BLACKLIST = ["unknown/unknown"]
 
+class IndexingApplicationService:
+    """Application service for indexing operations.
 
-class IndexView(pydantic.BaseModel):
-    """Data transfer object for index information.
-
-    This model represents the public interface for index data, providing a clean
-    view of index information without exposing internal implementation details.
-    """
-
-    id: int
-    created_at: datetime
-    updated_at: datetime | None = None
-    source: str | None = None
-    num_snippets: int
-
-
-class SearchRequest(pydantic.BaseModel):
-    """Request for a search."""
-
-    text_query: str | None = None
-    code_query: str | None = None
-    keywords: list[str] | None = None
-    top_k: int = 10
-
-
-class SearchResult(pydantic.BaseModel):
-    """Data transfer object for search results.
-
-    This model represents a single search result, containing both the file path
-    and the matching snippet content.
-    """
-
-    id: int
-    uri: str
-    content: str
-    original_scores: list[float]
-
-
-class IndexService:
-    """Service for managing code indexes.
-
-    This service handles the business logic for creating, listing, and running code
-    indexes. It coordinates between file system operations, database operations (via
-    IndexRepository), and provides a clean API for index management.
+    This service orchestrates the business logic for creating, listing, and running
+    code indexes. It coordinates between domain services and provides a clean API
+    for index management.
     """
 
     def __init__(  # noqa: PLR0913
         self,
-        repository: IndexRepository,
+        indexing_domain_service: IndexingDomainService,
         source_service: SourceService,
         bm25_service: BM25DomainService,
         code_search_service: EmbeddingDomainService,
@@ -97,11 +53,11 @@ class IndexService:
         enrichment_service: EnrichmentDomainService,
         snippet_application_service: SnippetApplicationService,
     ) -> None:
-        """Initialize the index service.
+        """Initialize the indexing application service.
 
         Args:
-            repository: The repository instance to use for database operations.
-            source_service: The source service instance to use for source validation.
+            indexing_domain_service: The indexing domain service.
+            source_service: The source service for source validation.
             bm25_service: The BM25 domain service for keyword search.
             code_search_service: The code search domain service.
             text_search_service: The text search domain service.
@@ -109,7 +65,7 @@ class IndexService:
             snippet_application_service: The snippet application service.
 
         """
-        self.repository = repository
+        self.indexing_domain_service = indexing_domain_service
         self.source_service = source_service
         self.snippet_application_service = snippet_application_service
         self.log = structlog.get_logger(__name__)
@@ -118,20 +74,17 @@ class IndexService:
         self.text_search_service = text_search_service
         self.enrichment_service = enrichment_service
 
-    async def create(self, source_id: int) -> IndexView:
+    async def create_index(self, source_id: int) -> IndexView:
         """Create a new index for a source.
-
-        This method creates a new index for the specified source, after validating
-        that the source exists and doesn't already have an index.
 
         Args:
             source_id: The ID of the source to create an index for.
 
         Returns:
-            An Index object representing the newly created index.
+            An IndexView representing the newly created index.
 
         Raises:
-            ValueError: If the source doesn't exist or already has an index.
+            ValueError: If the source doesn't exist.
 
         """
         log_event("kodit.index.create")
@@ -139,39 +92,20 @@ class IndexService:
         # Check if the source exists
         source = await self.source_service.get(source_id)
 
-        # Check if the index already exists
-        index = await self.repository.get_by_source_id(source.id)
-        if not index:
-            index = await self.repository.create(source.id)
-        return IndexView(
-            id=index.id,
-            created_at=index.created_at,
-            num_snippets=await self.repository.num_snippets_for_index(index.id),
-            source=source.uri,
-        )
+        # Create the index
+        request = IndexCreateRequest(source_id=source.id)
+        index_view = await self.indexing_domain_service.create_index(request)
+
+        return index_view
 
     async def list_indexes(self) -> list[IndexView]:
         """List all available indexes with their details.
 
         Returns:
-            A list of Index objects containing information about each index,
-            including file and snippet counts.
+            A list of IndexView objects containing information about each index.
 
         """
-        indexes = await self.repository.list_indexes()
-
-        # Transform database results into DTOs
-        indexes = [
-            IndexView(
-                id=index.id,
-                created_at=index.created_at,
-                updated_at=index.updated_at,
-                num_snippets=await self.repository.num_snippets_for_index(index.id)
-                or 0,
-                source=source.uri,
-            )
-            for index, source in indexes
-        ]
+        indexes = await self.indexing_domain_service.list_indexes()
 
         # Help Kodit by measuring how much people are using indexes
         log_event(
@@ -184,35 +118,42 @@ class IndexService:
 
         return indexes
 
-    async def run(self, index_id: int) -> None:
-        """Run the indexing process for a specific index."""
+    async def run_index(self, index_id: int) -> None:
+        """Run the indexing process for a specific index.
+
+        Args:
+            index_id: The ID of the index to run.
+
+        Raises:
+            ValueError: If the index doesn't exist.
+
+        """
         log_event("kodit.index.run")
 
         # Get and validate index
-        index = await self.repository.get_by_id(index_id)
+        index = await self.indexing_domain_service.get_index(index_id)
         if not index:
             msg = f"Index not found: {index_id}"
             raise ValueError(msg)
 
-        # Delete old snippets so we don't duplicate. In the future should probably check
-        # which files have changed and only change those.
-        await self.repository.delete_all_snippets(index.id)
+        # Delete old snippets so we don't duplicate
+        await self.indexing_domain_service.delete_all_snippets(index.id)
 
-        # Create snippets for supported file types using the new application service
+        # Create snippets for supported file types using the snippet application service
         self.log.info("Creating snippets for files", index_id=index.id)
         command = CreateIndexSnippetsCommand(
             index_id=index.id, strategy=SnippetExtractionStrategy.METHOD_BASED
         )
         await self.snippet_application_service.create_snippets_for_index(command)
 
-        snippets = await self.repository.get_all_snippets(index.id)
+        snippets = await self.indexing_domain_service.get_snippets_for_index(index.id)
 
         self.log.info("Creating keyword index")
         with Spinner():
             await self.bm25_service.index_documents(
                 BM25IndexRequest(
                     documents=[
-                        BM25Document(snippet_id=snippet.id, text=snippet.content)
+                        BM25Document(snippet_id=snippet["id"], text=snippet["content"])
                         for snippet in snippets
                     ]
                 )
@@ -223,7 +164,7 @@ class IndexService:
             async for result in self.code_search_service.index_documents(
                 VectorIndexRequest(
                     documents=[
-                        VectorSearchRequest(snippet.id, snippet.content)
+                        VectorSearchRequest(snippet["id"], snippet["content"])
                         for snippet in snippets
                     ]
                 )
@@ -236,7 +177,7 @@ class IndexService:
             # Create domain request for enrichment
             enrichment_request = EnrichmentIndexRequest(
                 requests=[
-                    EnrichmentRequest(snippet_id=snippet.id, text=snippet.content)
+                    EnrichmentRequest(snippet_id=snippet["id"], text=snippet["content"])
                     for snippet in snippets
                 ]
             )
@@ -244,12 +185,12 @@ class IndexService:
             async for result in self.enrichment_service.enrich_documents(
                 enrichment_request
             ):
-                snippet = next(s for s in snippets if s.id == result.snippet_id)
+                snippet = next(s for s in snippets if s["id"] == result.snippet_id)
                 if snippet:
-                    snippet.content = (
-                        result.text + "\n\n```\n" + snippet.content + "\n```"
+                    snippet["content"] = (
+                        result.text + "\n\n```\n" + snippet["content"] + "\n```"
                     )
-                    await self.repository.add_snippet(snippet)
+                    await self.indexing_domain_service.add_snippet(snippet)
                     enriched_contents.append(result)
                 pbar.update(1)
 
@@ -258,7 +199,7 @@ class IndexService:
             async for result in self.text_search_service.index_documents(
                 VectorIndexRequest(
                     documents=[
-                        VectorSearchRequest(snippet.id, snippet.content)
+                        VectorSearchRequest(snippet["id"], snippet["content"])
                         for snippet in snippets
                     ]
                 )
@@ -266,10 +207,18 @@ class IndexService:
                 pbar.update(len(result))
 
         # Update index timestamp
-        await self.repository.update_index_timestamp(index)
+        await self.indexing_domain_service.update_index_timestamp(index.id)
 
     async def search(self, request: SearchRequest) -> list[SearchResult]:
-        """Search for relevant data."""
+        """Search for relevant data.
+
+        Args:
+            request: The search request.
+
+        Returns:
+            A list of search results.
+
+        """
         log_event("kodit.index.search")
 
         fusion_list: list[list[FusionRequest]] = []
@@ -307,7 +256,7 @@ class IndexService:
             return []
 
         # Combine all results together with RFF if required
-        final_results = reciprocal_rank_fusion(
+        final_results = self.indexing_domain_service.perform_fusion(
             rankings=fusion_list,
             k=60,
         )
@@ -316,15 +265,15 @@ class IndexService:
         final_results = final_results[: request.top_k]
 
         # Get snippets from database (up to top_k)
-        search_results = await self.repository.list_snippets_by_ids(
+        search_results = await self.indexing_domain_service.get_snippets_by_ids(
             [x.id for x in final_results]
         )
 
         return [
             SearchResult(
-                id=snippet.id,
-                uri=file.uri,
-                content=snippet.content,
+                id=snippet["id"],
+                uri=file["uri"],
+                content=snippet["content"],
                 original_scores=fr.original_scores,
             )
             for (file, snippet), fr in zip(search_results, final_results, strict=True)

@@ -335,3 +335,65 @@ class EnrichmentSearchRequest:
 
     query: str
     top_k: int = 10
+
+
+@dataclass
+class IndexView:
+    """Domain model for index information."""
+
+    id: int
+    created_at: datetime
+    num_snippets: int
+    updated_at: datetime | None = None
+    source: str | None = None
+
+
+@dataclass
+class SearchRequest:
+    """Domain model for search request."""
+
+    top_k: int = 10
+    text_query: str | None = None
+    code_query: str | None = None
+    keywords: list[str] | None = None
+
+
+@dataclass
+class SearchResult:
+    """Domain model for search result."""
+
+    id: int
+    uri: str
+    content: str
+    original_scores: list[float]
+
+
+@dataclass
+class FusionRequest:
+    """Domain model for fusion request."""
+
+    id: int
+    score: float
+
+
+@dataclass
+class FusionResult:
+    """Domain model for fusion result."""
+
+    id: int
+    score: float
+    original_scores: list[float]
+
+
+@dataclass
+class IndexCreateRequest:
+    """Domain model for index creation request."""
+
+    source_id: int
+
+
+@dataclass
+class IndexRunRequest:
+    """Domain model for index run request."""
+
+    index_id: int

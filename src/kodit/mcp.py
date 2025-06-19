@@ -17,15 +17,9 @@ from kodit.application.services.snippet_application_service import (
 )
 from kodit.config import AppContext
 from kodit.database import Database
-from kodit.domain.services.bm25_service import BM25DomainService
+from kodit.domain.models import SearchRequest, SearchResult
 from kodit.domain.services.source_service import SourceService
-from kodit.indexing.indexing_repository import IndexRepository
-from kodit.indexing.indexing_service import IndexService, SearchRequest, SearchResult
-from kodit.infrastructure.bm25.bm25_factory import bm25_repository_factory
-from kodit.infrastructure.embedding.embedding_factory import (
-    embedding_domain_service_factory,
-)
-from kodit.infrastructure.enrichment import create_enrichment_domain_service
+from kodit.infrastructure.indexing import create_indexing_application_service
 from kodit.infrastructure.snippet_extraction.snippet_extraction_factory import (
     create_snippet_extraction_domain_service,
     create_snippet_repositories,
@@ -165,28 +159,13 @@ async def search(
         clone_dir=mcp_context.app_context.get_clone_dir(),
         session_factory=lambda: mcp_context.session,
     )
-    repository = IndexRepository(mcp_context.session)
     snippet_application_service = create_snippet_application_service(
         mcp_context.session
     )
-    service = IndexService(
-        repository=repository,
+    service = create_indexing_application_service(
+        app_context=mcp_context.app_context,
+        session=mcp_context.session,
         source_service=source_service,
-        bm25_service=BM25DomainService(
-            bm25_repository_factory(mcp_context.app_context, mcp_context.session)
-        ),
-        code_search_service=embedding_domain_service_factory(
-            "code",
-            mcp_context.app_context,
-            mcp_context.session,
-        ),
-        text_search_service=embedding_domain_service_factory(
-            "text",
-            mcp_context.app_context,
-            mcp_context.session,
-        ),
-        enrichment_service=create_enrichment_domain_service(mcp_context.app_context),
-        snippet_application_service=snippet_application_service,
     )
 
     search_request = SearchRequest(

@@ -19,15 +19,9 @@ from kodit.config import (
     with_app_context,
     with_session,
 )
-from kodit.domain.services.bm25_service import BM25DomainService
+from kodit.domain.models import SearchRequest
 from kodit.domain.services.source_service import SourceService
-from kodit.indexing.indexing_repository import IndexRepository
-from kodit.indexing.indexing_service import IndexService, SearchRequest
-from kodit.infrastructure.bm25.bm25_factory import bm25_repository_factory
-from kodit.infrastructure.embedding.embedding_factory import (
-    embedding_domain_service_factory,
-)
-from kodit.infrastructure.enrichment import create_enrichment_domain_service
+from kodit.infrastructure.indexing import create_indexing_application_service
 from kodit.infrastructure.snippet_extraction.snippet_extraction_factory import (
     create_snippet_extraction_domain_service,
     create_snippet_repositories,
@@ -104,20 +98,10 @@ async def index(
         clone_dir=app_context.get_clone_dir(),
         session_factory=lambda: session,
     )
-    repository = IndexRepository(session)
-    snippet_application_service = create_snippet_application_service(session)
-    service = IndexService(
-        repository=repository,
+    service = create_indexing_application_service(
+        app_context=app_context,
+        session=session,
         source_service=source_service,
-        bm25_service=BM25DomainService(bm25_repository_factory(app_context, session)),
-        code_search_service=embedding_domain_service_factory(
-            "code", app_context, session
-        ),
-        text_search_service=embedding_domain_service_factory(
-            "text", app_context, session
-        ),
-        enrichment_service=create_enrichment_domain_service(app_context),
-        snippet_application_service=snippet_application_service,
     )
 
     if not sources:
@@ -152,8 +136,8 @@ async def index(
         # Index source
         log_event("kodit.cli.index.create")
         s = await source_service.create(source)
-        index = await service.create(s.id)
-        await service.run(index.id)
+        index = await service.create_index(s.id)
+        await service.run_index(index.id)
 
 
 @cli.group()
@@ -181,20 +165,10 @@ async def code(
         clone_dir=app_context.get_clone_dir(),
         session_factory=lambda: session,
     )
-    repository = IndexRepository(session)
-    snippet_application_service = create_snippet_application_service(session)
-    service = IndexService(
-        repository=repository,
+    service = create_indexing_application_service(
+        app_context=app_context,
+        session=session,
         source_service=source_service,
-        bm25_service=BM25DomainService(bm25_repository_factory(app_context, session)),
-        code_search_service=embedding_domain_service_factory(
-            "code", app_context, session
-        ),
-        text_search_service=embedding_domain_service_factory(
-            "text", app_context, session
-        ),
-        enrichment_service=create_enrichment_domain_service(app_context),
-        snippet_application_service=snippet_application_service,
     )
 
     snippets = await service.search(SearchRequest(code_query=query, top_k=top_k))
@@ -229,20 +203,10 @@ async def keyword(
         clone_dir=app_context.get_clone_dir(),
         session_factory=lambda: session,
     )
-    repository = IndexRepository(session)
-    snippet_application_service = create_snippet_application_service(session)
-    service = IndexService(
-        repository=repository,
+    service = create_indexing_application_service(
+        app_context=app_context,
+        session=session,
         source_service=source_service,
-        bm25_service=BM25DomainService(bm25_repository_factory(app_context, session)),
-        code_search_service=embedding_domain_service_factory(
-            "code", app_context, session
-        ),
-        text_search_service=embedding_domain_service_factory(
-            "text", app_context, session
-        ),
-        enrichment_service=create_enrichment_domain_service(app_context),
-        snippet_application_service=snippet_application_service,
     )
 
     snippets = await service.search(SearchRequest(keywords=keywords, top_k=top_k))
@@ -280,20 +244,10 @@ async def text(
         clone_dir=app_context.get_clone_dir(),
         session_factory=lambda: session,
     )
-    repository = IndexRepository(session)
-    snippet_application_service = create_snippet_application_service(session)
-    service = IndexService(
-        repository=repository,
+    service = create_indexing_application_service(
+        app_context=app_context,
+        session=session,
         source_service=source_service,
-        bm25_service=BM25DomainService(bm25_repository_factory(app_context, session)),
-        code_search_service=embedding_domain_service_factory(
-            "code", app_context, session
-        ),
-        text_search_service=embedding_domain_service_factory(
-            "text", app_context, session
-        ),
-        enrichment_service=create_enrichment_domain_service(app_context),
-        snippet_application_service=snippet_application_service,
     )
 
     snippets = await service.search(SearchRequest(text_query=query, top_k=top_k))
@@ -332,20 +286,10 @@ async def hybrid(  # noqa: PLR0913
         clone_dir=app_context.get_clone_dir(),
         session_factory=lambda: session,
     )
-    repository = IndexRepository(session)
-    snippet_application_service = create_snippet_application_service(session)
-    service = IndexService(
-        repository=repository,
+    service = create_indexing_application_service(
+        app_context=app_context,
+        session=session,
         source_service=source_service,
-        bm25_service=BM25DomainService(bm25_repository_factory(app_context, session)),
-        code_search_service=embedding_domain_service_factory(
-            "code", app_context, session
-        ),
-        text_search_service=embedding_domain_service_factory(
-            "text", app_context, session
-        ),
-        enrichment_service=create_enrichment_domain_service(app_context),
-        snippet_application_service=snippet_application_service,
     )
 
     # Parse keywords into a list of strings
