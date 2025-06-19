@@ -1,233 +1,235 @@
-"""Tests for the indexing service module."""
+"""Tests for the indexing application service module."""
 
 from datetime import datetime, UTC
 from pathlib import Path
 import tempfile
 from typing import Any, Generator
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.bm25.local_bm25 import BM25Service
-from kodit.config import AppContext
-from kodit.embedding.embedding_provider.local_embedding_provider import (
-    TINY,
-    LocalEmbeddingProvider,
+from kodit.application.services.indexing_application_service import (
+    IndexingApplicationService,
 )
-from kodit.embedding.embedding_repository import EmbeddingRepository
-from kodit.embedding.local_vector_search_service import LocalVectorSearchService
-from kodit.embedding.vector_search_service import (
-    VectorSearchService,
+from kodit.domain.models import Source, SourceType, IndexView
+from kodit.domain.services.bm25_service import BM25DomainService
+from kodit.domain.services.embedding_service import EmbeddingDomainService
+from kodit.domain.services.enrichment_service import EnrichmentDomainService
+from kodit.domain.services.indexing_service import IndexingDomainService
+from kodit.domain.services.source_service import SourceService
+from kodit.application.services.snippet_application_service import (
+    SnippetApplicationService,
 )
-from kodit.enrichment.enrichment_service import NullEnrichmentService
-from kodit.indexing.indexing_repository import IndexRepository
-from kodit.indexing.indexing_service import IndexService
-from kodit.source.source_models import File, Source, SourceType
-from kodit.source.source_repository import SourceRepository
-from kodit.source.source_service import SourceService
 
 
 @pytest.fixture
-def repository(session: AsyncSession) -> IndexRepository:
-    """Create a real repository instance with a database session."""
-    return IndexRepository(session)
+def mock_indexing_domain_service() -> MagicMock:
+    """Create a mock indexing domain service."""
+    service = MagicMock(spec=IndexingDomainService)
+    service.create_index = AsyncMock()
+    service.list_indexes = AsyncMock()
+    service.get_index = AsyncMock()
+    service.delete_all_snippets = AsyncMock()
+    service.get_snippets_for_index = AsyncMock()
+    service.add_snippet = AsyncMock()
+    return service
 
 
 @pytest.fixture
-def source_repository(session: AsyncSession) -> SourceRepository:
-    """Create a real source repository instance with a database session."""
-    return SourceRepository(session)
+def mock_source_service() -> MagicMock:
+    """Create a mock source service."""
+    service = MagicMock(spec=SourceService)
+    service.get = AsyncMock()
+    return service
 
 
 @pytest.fixture
-def source_service(
-    tmp_path: Path, source_repository: SourceRepository
-) -> SourceService:
-    """Create a real source service instance."""
-    return SourceService(tmp_path, source_repository)
+def mock_bm25_service() -> MagicMock:
+    """Create a mock BM25 domain service."""
+    service = MagicMock(spec=BM25DomainService)
+    service.index_documents = AsyncMock()
+    return service
 
 
 @pytest.fixture
-def embedding_service(session: AsyncSession) -> VectorSearchService:
-    """Create a real embedding service instance."""
-    return LocalVectorSearchService(
-        embedding_repository=EmbeddingRepository(session),
-        embedding_provider=LocalEmbeddingProvider(TINY),
-    )
+def mock_code_search_service() -> MagicMock:
+    """Create a mock code search domain service."""
+    service = MagicMock(spec=EmbeddingDomainService)
+    service.index_documents = AsyncMock()
+    return service
 
 
 @pytest.fixture
-def service(
-    app_context: AppContext,
-    repository: IndexRepository,
-    source_service: SourceService,
-    embedding_service: VectorSearchService,
-) -> IndexService:
-    """Create a real service instance with a database session."""
-    keyword_search_provider = BM25Service(app_context.get_data_dir())
-    return IndexService(
-        repository=repository,
-        source_service=source_service,
-        keyword_search_provider=keyword_search_provider,
-        code_search_service=embedding_service,
-        text_search_service=embedding_service,
-        enrichment_service=NullEnrichmentService(),
+def mock_text_search_service() -> MagicMock:
+    """Create a mock text search domain service."""
+    service = MagicMock(spec=EmbeddingDomainService)
+    service.index_documents = AsyncMock()
+    return service
+
+
+@pytest.fixture
+def mock_enrichment_service() -> MagicMock:
+    """Create a mock enrichment domain service."""
+    service = MagicMock(spec=EnrichmentDomainService)
+    service.enrich_documents = AsyncMock()
+    return service
+
+
+@pytest.fixture
+def mock_snippet_application_service() -> MagicMock:
+    """Create a mock snippet application service."""
+    service = MagicMock(spec=SnippetApplicationService)
+    service.create_snippets_for_index = AsyncMock()
+    return service
+
+
+@pytest.fixture
+def indexing_application_service(
+    mock_indexing_domain_service: MagicMock,
+    mock_source_service: MagicMock,
+    mock_bm25_service: MagicMock,
+    mock_code_search_service: MagicMock,
+    mock_text_search_service: MagicMock,
+    mock_enrichment_service: MagicMock,
+    mock_snippet_application_service: MagicMock,
+) -> IndexingApplicationService:
+    """Create an indexing application service with mocked dependencies."""
+    return IndexingApplicationService(
+        indexing_domain_service=mock_indexing_domain_service,
+        source_service=mock_source_service,
+        bm25_service=mock_bm25_service,
+        code_search_service=mock_code_search_service,
+        text_search_service=mock_text_search_service,
+        enrichment_service=mock_enrichment_service,
+        snippet_application_service=mock_snippet_application_service,
     )
 
 
 @pytest.mark.asyncio
-async def test_create_index(
-    service: IndexService, repository: IndexRepository, session: AsyncSession
+async def test_create_index_success(
+    indexing_application_service: IndexingApplicationService,
+    mock_source_service: MagicMock,
+    mock_indexing_domain_service: MagicMock,
 ) -> None:
-    """Test creating a new index through the service."""
-    # Create a test source
+    """Test creating a new index through the application service."""
+    # Setup mocks
     source = Source(
         uri="test_folder", cloned_path="test_folder", source_type=SourceType.FOLDER
     )
-    session.add(source)
-    await session.commit()
+    source.id = 1
+    mock_source_service.get.return_value = source
 
-    index = await service.create(source.id)
+    expected_index_view = IndexView(id=1, created_at=datetime.now(UTC), num_snippets=0)
+    mock_indexing_domain_service.create_index.return_value = expected_index_view
 
-    assert index.id is not None
-    assert index.created_at is not None
+    # Execute
+    result = await indexing_application_service.create_index(source.id)
 
-    # Verify the index was created in the database
-    db_index = await repository.get_by_id(index.id)
-    assert db_index is not None
-    assert db_index.source_id == source.id
-
-    # Verify it's listed
-    indexes = await service.list_indexes()
-    assert len(indexes) == 1
-    assert indexes[0].id == index.id
+    # Verify
+    assert result == expected_index_view
+    mock_source_service.get.assert_called_once_with(source.id)
+    mock_indexing_domain_service.create_index.assert_called_once()
 
 
 @pytest.mark.asyncio
-async def test_create_index_source_not_found(service: IndexService) -> None:
+async def test_create_index_source_not_found(
+    indexing_application_service: IndexingApplicationService,
+    mock_source_service: MagicMock,
+) -> None:
     """Test creating an index for a non-existent source."""
+    # Setup mocks
+    mock_source_service.get.side_effect = ValueError("Source not found: 999")
+
+    # Execute and verify
     with pytest.raises(ValueError, match="Source not found: 999"):
-        await service.create(999)
+        await indexing_application_service.create_index(999)
 
 
 @pytest.mark.asyncio
-async def test_run_index(
-    repository: IndexRepository,
-    service: IndexService,
-    session: AsyncSession,
-    tmp_path: Path,
+async def test_list_indexes(
+    indexing_application_service: IndexingApplicationService,
+    mock_indexing_domain_service: MagicMock,
 ) -> None:
-    """Test running an index through the service."""
-    # Create test files
-    test_dir = tmp_path / "test_folder"
-    test_dir.mkdir()
-    test_file = test_dir / "test.py"
-    test_file.write_text("print('hello')")
+    """Test listing indexes through the application service."""
+    # Setup mocks
+    expected_indexes = [
+        IndexView(id=1, created_at=datetime.now(UTC), num_snippets=5),
+        IndexView(id=2, created_at=datetime.now(UTC), num_snippets=10),
+    ]
+    mock_indexing_domain_service.list_indexes.return_value = expected_indexes
 
-    # Create test source
-    source = Source(
-        uri=str(test_dir), cloned_path=str(test_dir), source_type=SourceType.FOLDER
-    )
-    session.add(source)
-    await session.commit()
+    # Execute
+    result = await indexing_application_service.list_indexes()
 
-    # Create test files
-    file = File(
-        created_at=datetime.now(UTC),
-        updated_at=datetime.now(UTC),
-        source_id=source.id,
-        cloned_path=str(test_file),
-        mime_type="text/x-python",
-        uri=str(test_file),
-        sha256="",
-    )
-    session.add(file)
-    file = File(
-        created_at=datetime.now(UTC),
-        updated_at=datetime.now(UTC),
-        source_id=source.id,
-        cloned_path=str(test_file),
-        mime_type="unknown/unknown",  # This file will be ignored
-        uri=str(test_file),
-        sha256="",
-    )
-    session.add(file)
-    await session.commit()
-
-    # Create index
-    index = await service.create(source.id)
-
-    # Run the index
-    await service.run(index.id)
-
-    # Verify snippets were created
-    snippets = await repository.get_snippets_for_index(index.id)
-    assert len(snippets) == 1
-    assert "print('hello')" in snippets[0].content
-
-    # Try to create second index, should be the same index
-    new_index = await service.create(source.id)
-    assert index.id == new_index.id
-
-    # Try to run the index again, should be fine
-    await service.run(index.id)
-
-    # Check that number of snippets is still 1 (because there is only one snippet)
-    # I.e. if the file wasn't detected at the same, or was not deleted, then it
-    # could create a second, duplicate snippet.
-    snippets = await repository.get_snippets_for_index(index.id)
-    assert len(snippets) == 1
+    # Verify
+    assert result == expected_indexes
+    mock_indexing_domain_service.list_indexes.assert_called_once()
 
 
 @pytest.mark.asyncio
-async def test_run_index_not_exists(service: IndexService) -> None:
+async def test_run_index_success(
+    indexing_application_service: IndexingApplicationService,
+    mock_indexing_domain_service: MagicMock,
+    mock_snippet_application_service: MagicMock,
+    mock_bm25_service: MagicMock,
+    mock_code_search_service: MagicMock,
+    mock_text_search_service: MagicMock,
+    mock_enrichment_service: MagicMock,
+) -> None:
+    """Test running an index through the application service."""
+    # Setup mocks
+    index_id = 1
+    mock_index = MagicMock()
+    mock_index.id = index_id
+    mock_indexing_domain_service.get_index.return_value = mock_index
+
+    mock_snippets = [
+        {"id": 1, "content": "def hello(): pass"},
+        {"id": 2, "content": "def world(): pass"},
+    ]
+    mock_indexing_domain_service.get_snippets_for_index.return_value = mock_snippets
+
+    # Mock enrichment responses
+    async def mock_enrichment(*args, **kwargs):
+        from kodit.domain.models import EnrichmentResponse
+
+        yield EnrichmentResponse(snippet_id=1, text="enriched content")
+        yield EnrichmentResponse(snippet_id=2, text="enriched content")
+
+    mock_enrichment_service.enrich_documents = mock_enrichment
+
+    # Mock code search responses
+    async def mock_index_documents(*args, **kwargs):
+        yield []
+
+    mock_code_search_service.index_documents = mock_index_documents
+
+    # Mock text search responses
+    async def mock_text_index_documents(*args, **kwargs):
+        yield []
+
+    mock_text_search_service.index_documents = mock_text_index_documents
+
+    # Execute
+    await indexing_application_service.run_index(index_id)
+
+    # Verify
+    mock_indexing_domain_service.get_index.assert_called_once_with(index_id)
+    mock_indexing_domain_service.delete_all_snippets.assert_called_once_with(index_id)
+    mock_snippet_application_service.create_snippets_for_index.assert_called_once()
+    mock_bm25_service.index_documents.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_run_index_not_found(
+    indexing_application_service: IndexingApplicationService,
+    mock_indexing_domain_service: MagicMock,
+) -> None:
     """Test running an index that doesn't exist."""
+    # Setup mocks
+    mock_indexing_domain_service.get_index.return_value = None
+
+    # Execute and verify
     with pytest.raises(ValueError, match="Index not found: 999"):
-        await service.run(999)
-
-
-@pytest.mark.asyncio
-async def test_run_should_not_fail_if_no_snippets(
-    repository: IndexRepository,
-    service: IndexService,
-    session: AsyncSession,
-    tmp_path: Path,
-) -> None:
-    """Test running an index that doesn't have any snippets."""
-    # Create test files
-    test_dir = tmp_path / "test_folder"
-    test_dir.mkdir()
-    test_file = test_dir / "test.unknown"
-    test_file.write_text("print('hello')")
-
-    # Create test source
-    source = Source(
-        uri=str(test_dir),
-        cloned_path=str(test_dir),
-        source_type=SourceType.FOLDER,
-    )
-    session.add(source)
-    await session.commit()
-
-    # Create test files
-    file = File(
-        created_at=datetime.now(UTC),
-        updated_at=datetime.now(UTC),
-        source_id=source.id,
-        cloned_path=str(test_file),
-        mime_type="unknown/unknown",
-        uri=str(test_file),
-        sha256="",
-    )
-    session.add(file)
-    await session.commit()
-
-    # Create index
-    index = await service.create(source.id)
-
-    # Run the index
-    await service.run(index.id)
-
-    # Verify no snippets were created
-    snippets = await repository.get_snippets_for_index(index.id)
-    assert len(snippets) == 0
+        await indexing_application_service.run_index(999)

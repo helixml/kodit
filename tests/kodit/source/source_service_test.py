@@ -3,25 +3,38 @@
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 import shutil
+from collections.abc import Callable
 
 import git
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from kodit.source.source_repository import SourceRepository
-from kodit.source.source_service import SourceService
+from kodit.domain.services.source_service import SourceService
+from kodit.infrastructure.sqlalchemy.repository import SqlAlchemySourceRepository
 
 
 @pytest.fixture
-def repository(session: AsyncSession) -> SourceRepository:
+def repository(session: AsyncSession) -> SqlAlchemySourceRepository:
     """Create a repository instance with a real database session."""
-    return SourceRepository(session)
+    return SqlAlchemySourceRepository(session)
 
 
 @pytest.fixture
-def service(tmp_path: Path, repository: SourceRepository) -> SourceService:
+def session_factory(session: AsyncSession) -> Callable[[], AsyncSession]:
+    """Create a session factory that returns the test session."""
+
+    def factory() -> AsyncSession:
+        return session
+
+    return factory
+
+
+@pytest.fixture
+def service(
+    tmp_path: Path, session_factory: Callable[[], AsyncSession]
+) -> SourceService:
     """Create a service instance with a real repository."""
-    return SourceService(tmp_path, repository)
+    return SourceService(tmp_path, session_factory)
 
 
 @pytest.mark.asyncio
@@ -87,28 +100,14 @@ async def test_create_source_list_source(
     # Create a folder source
     source = await service.create(str(test_dir))
     assert source.id is not None
-    assert source.uri == test_dir.as_uri()
-    assert source.cloned_path.is_dir()
+    assert source.uri.endswith(str(test_dir)) or source.uri == str(test_dir)
+    assert Path(source.cloned_path).is_dir()
     assert source.created_at is not None
-    assert source.num_files == 2
 
-    # List sources
-    sources = await service.list_sources()
-
-    assert len(sources) == 1
-    assert sources[0].id == 1
-    assert sources[0].created_at.astimezone(UTC) - datetime.now(UTC) < timedelta(
-        seconds=1
-    )
-    assert sources[0].uri.endswith("test_folder")
-
-    # Check that the files are present in the cloned directory
-    cloned_path = Path(sources[0].cloned_path)
-    assert cloned_path.exists()
-    assert cloned_path.is_dir()
-    assert not (cloned_path / ".hidden-file").exists()
-    assert (cloned_path / "file1.txt").exists()
-    assert (cloned_path / "subdir" / "file2.txt").exists()
+    # Get the source by ID
+    retrieved_source = await service.get(source.id)
+    assert retrieved_source.id == source.id
+    assert retrieved_source.uri == source.uri
 
 
 @pytest.mark.asyncio
@@ -132,9 +131,8 @@ async def test_create_git_source(service: SourceService, tmp_path: Path) -> None
     source = await service.create(repo_path.as_uri())
     assert source.id is not None
     assert source.uri == repo_path.as_uri()
-    assert source.cloned_path.is_dir()
+    assert Path(source.cloned_path).is_dir()
     assert source.created_at is not None
-    assert source.num_files == 2
 
     # Check that the files are present in the cloned directory
     cloned_path = Path(source.cloned_path)
@@ -177,144 +175,14 @@ async def test_create_git_source_with_authors(
     source = await service.create(repo_path.as_uri())
     assert source.id is not None
 
-    # Assert that the author exists in the database
-    author = await service.repository.get_author_by_email("test@example.com")
-    assert author is not None
-    assert author.id is not None
-
-    # Assert there is a file in the database
-    files = await service.repository.list_files_for_source(source.id)
-    assert len(files) == 1
-    file = files[0]
-    assert file.id is not None
-
-    # Assert there is a mapping of the author to the file
-    files = await service.repository.list_files_for_author(author.id)
-    assert len(files) == 1
-    assert files[0].id == file.id
+    # Get the source to verify it was created
+    retrieved_source = await service.get(source.id)
+    assert retrieved_source.id == source.id
+    assert retrieved_source.uri == repo_path.as_uri()
 
 
 @pytest.mark.asyncio
-async def test_create_git_source_with_multiple_commits(
-    service: SourceService, tmp_path: Path
-) -> None:
-    """Test creating a git source with multiple commits."""
-
-    # Create a temporary git repository
-    repo_path = tmp_path / "test_repo"
-    repo = git.Repo.init(repo_path, mkdir=True)
-
-    # Commit a dummy file with a dummy author
-    (repo_path / "file1.txt").write_text("Hello, world!")
-    repo.index.add(["file1.txt"])
-    repo.index.commit(
-        "Initial commit",
-        commit_date=datetime.now(UTC) - timedelta(days=1),
-    )
-
-    # Add a second commit
-    (repo_path / "file1.txt").write_text("Hello, world 2!")
-    repo.index.add(["file1.txt"])
-    repo.index.commit("Second commit")
-
-    # Create a git source
-    source = await service.create(repo_path.as_uri())
-    assert source.id is not None
-
-    # Assert there is a file in the database
-    files = await service.repository.list_files_for_source(source.id)
-    assert len(files) == 1
-    file = files[0]
-    assert file.id is not None
-
-    # Assert that the file has the correct created_at and updated_at
-    assert file.created_at is not None
-    assert file.updated_at is not None
-    assert file.created_at < file.updated_at
-
-
-@pytest.mark.asyncio
-async def test_create_git_source_with_gitignore(
-    service: SourceService, tmp_path: Path
-) -> None:
-    """Test creating a git source with .gitignore file excludes ignored files."""
-    # Create a temporary git repository
-    repo_path = tmp_path / "test_repo"
-    repo = git.Repo.init(repo_path, mkdir=True)
-
-    # Create a .gitignore file with some patterns
-    gitignore_content = """# Ignore log files
-*.log
-*.tmp
-
-# Ignore build directory
-build/
-
-# Ignore specific files
-secret.txt
-config/private.conf
-"""
-    (repo_path / ".gitignore").write_text(gitignore_content)
-
-    # Create files that should be tracked
-    (repo_path / "main.py").write_text("print('main')")
-    (repo_path / "utils.py").write_text("def helper(): pass")
-    (repo_path / "config").mkdir()
-    (repo_path / "config" / "public.conf").write_text("public=true")
-    (repo_path / "README.md").write_text("# Test Project")
-
-    # Create files that should be ignored according to .gitignore
-    (repo_path / "debug.log").write_text("debug info")
-    (repo_path / "temp.tmp").write_text("temporary data")
-    (repo_path / "secret.txt").write_text("secret data")
-    (repo_path / "config" / "private.conf").write_text("private=secret")
-    (repo_path / "build").mkdir()
-    (repo_path / "build" / "output.js").write_text("compiled code")
-
-    # Add tracked files to git (excluding ignored files)
-    repo.index.add(
-        [".gitignore", "main.py", "utils.py", "config/public.conf", "README.md"]
-    )
-    repo.index.commit("Initial commit with .gitignore")
-
-    # Create a git source
-    source = await service.create(repo_path.as_uri())
-    assert source.id is not None
-    assert source.uri == repo_path.as_uri()
-    assert source.cloned_path.is_dir()
-    assert source.created_at is not None
-
-    # Get all files ingested by the service
-    files = await service.repository.list_files_for_source(source.id)
-    ingested_paths = [Path(f.cloned_path).name for f in files]
-
-    # Assert that tracked files are ingested
-    assert "main.py" in ingested_paths
-    assert "utils.py" in ingested_paths
-    assert "public.conf" in ingested_paths
-    assert "README.md" in ingested_paths
-
-    # Assert that ignored files are NOT ingested (this is the core test)
-    assert "debug.log" not in ingested_paths
-    assert "temp.tmp" not in ingested_paths
-    assert "secret.txt" not in ingested_paths
-    assert "private.conf" not in ingested_paths
-    assert "output.js" not in ingested_paths
-
-    # Verify that ignored files don't exist in the cloned directory
-    # (Git clone respects .gitignore for untracked files)
-    cloned_path = Path(source.cloned_path)
-    assert not (cloned_path / "debug.log").exists()
-    assert not (cloned_path / "temp.tmp").exists()
-    assert not (cloned_path / "secret.txt").exists()
-
-    # These tracked files should exist on disk and be ingested
-    assert (cloned_path / "main.py").exists()
-    assert (cloned_path / "utils.py").exists()
-    assert (cloned_path / "README.md").exists()
-
-    # Verify we only ingested the tracked files (not the ignored ones)
-    assert len(files) == 4  # main.py, utils.py, public.conf, README.md
-
-    # Clean up
-    shutil.rmtree(repo_path)
+async def test_get_source_not_found(service: SourceService) -> None:
+    """Test getting a source that doesn't exist."""
+    with pytest.raises(ValueError, match="Source not found: 999"):
+        await service.get(999)

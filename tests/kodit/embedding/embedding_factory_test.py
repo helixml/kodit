@@ -2,26 +2,32 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.config import AppContext, Endpoint
-from kodit.embedding.embedding_factory import embedding_factory
-from kodit.embedding.embedding_provider.local_embedding_provider import (
+from kodit.infrastructure.embedding.embedding_factory import (
+    embedding_domain_service_factory,
+)
+from kodit.infrastructure.embedding.embedding_providers.local_embedding_provider import (
     LocalEmbeddingProvider,
 )
-from kodit.embedding.embedding_provider.openai_embedding_provider import (
+from kodit.infrastructure.embedding.embedding_providers.openai_embedding_provider import (
     OpenAIEmbeddingProvider,
 )
-from kodit.embedding.local_vector_search_service import LocalVectorSearchService
+from kodit.infrastructure.embedding.local_vector_search_repository import (
+    LocalVectorSearchRepository,
+)
 
 
 @pytest.mark.asyncio
-async def test_embedding_factory(
+async def test_embedding_domain_service_factory(
     app_context: AppContext, session: AsyncSession
 ) -> None:
     # With defaults, no settings
     app_context.default_endpoint = None
     app_context.embedding_endpoint = None
-    e = embedding_factory("code", app_context=app_context, session=session)
-    assert isinstance(e, LocalVectorSearchService)
-    assert isinstance(e.embedding_provider, LocalEmbeddingProvider)
+    service = embedding_domain_service_factory(
+        "code", app_context=app_context, session=session
+    )
+    assert isinstance(service.vector_search_repository, LocalVectorSearchRepository)
+    assert isinstance(service.embedding_provider, LocalEmbeddingProvider)
 
     # With openai default endpoint
     app_context.default_endpoint = Endpoint(
@@ -31,9 +37,11 @@ async def test_embedding_factory(
         api_key="default",
     )
     app_context.embedding_endpoint = None
-    e = embedding_factory("code", app_context=app_context, session=session)
-    assert isinstance(e, LocalVectorSearchService)
-    assert isinstance(e.embedding_provider, OpenAIEmbeddingProvider)
+    service = embedding_domain_service_factory(
+        "code", app_context=app_context, session=session
+    )
+    assert isinstance(service.vector_search_repository, LocalVectorSearchRepository)
+    assert isinstance(service.embedding_provider, OpenAIEmbeddingProvider)
 
     # With empty default and embedding endpoint
     app_context.default_endpoint = None
@@ -43,9 +51,11 @@ async def test_embedding_factory(
         model="gpt-4o-mini",
         api_key="default",
     )
-    e = embedding_factory("code", app_context=app_context, session=session)
-    assert isinstance(e, LocalVectorSearchService)
-    assert isinstance(e.embedding_provider, OpenAIEmbeddingProvider)
+    service = embedding_domain_service_factory(
+        "code", app_context=app_context, session=session
+    )
+    assert isinstance(service.vector_search_repository, LocalVectorSearchRepository)
+    assert isinstance(service.embedding_provider, OpenAIEmbeddingProvider)
 
     # With default and override embedding endpoint
     app_context.default_endpoint = Endpoint(
@@ -61,7 +71,9 @@ async def test_embedding_factory(
         model="qwen/qwen3-8b",
         api_key="default",
     )
-    e = embedding_factory("code", app_context=app_context, session=session)
-    assert isinstance(e, LocalVectorSearchService)
-    assert isinstance(e.embedding_provider, OpenAIEmbeddingProvider)
-    assert e.embedding_provider.openai_client.base_url == test_base_url
+    service = embedding_domain_service_factory(
+        "code", app_context=app_context, session=session
+    )
+    assert isinstance(service.vector_search_repository, LocalVectorSearchRepository)
+    assert isinstance(service.embedding_provider, OpenAIEmbeddingProvider)
+    assert service.embedding_provider.openai_client.base_url == test_base_url
