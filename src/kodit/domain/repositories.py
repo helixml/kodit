@@ -3,7 +3,7 @@
 from collections.abc import Sequence
 from typing import Protocol
 
-from kodit.domain.models import (
+from kodit.domain.entities import (
     Author,
     AuthorFileMapping,
     File,

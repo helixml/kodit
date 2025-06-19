@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.models import File, Index
+from kodit.domain.entities import File, Index
 from kodit.domain.repositories import FileRepository
 
 

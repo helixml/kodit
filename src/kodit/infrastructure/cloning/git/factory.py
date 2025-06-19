@@ -6,15 +6,11 @@ from pathlib import Path
 import git
 import structlog
 
-from kodit.domain.models import (
-    AuthorFileMapping,
-    ProgressCallback,
-    ProgressEvent,
-    Source,
-    SourceType,
-)
+from kodit.domain.entities import AuthorFileMapping, Source, SourceType
+from kodit.domain.interfaces import NullProgressCallback, ProgressCallback
 from kodit.domain.repositories import SourceRepository
 from kodit.domain.services.ignore_service import IgnoreService
+from kodit.domain.value_objects import ProgressEvent
 from kodit.infrastructure.cloning.git.working_copy import GitWorkingCopyProvider
 from kodit.infrastructure.cloning.metadata import (
     GitAuthorExtractor,
@@ -44,8 +40,6 @@ class GitSourceFactory:
         """Create a git source from a URI."""
         # Use null callback if none provided
         if progress_callback is None:
-            from kodit.domain.models import NullProgressCallback
-
             progress_callback = NullProgressCallback()
 
         # Normalize the URI

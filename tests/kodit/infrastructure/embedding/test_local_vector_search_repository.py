@@ -4,22 +4,22 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 from datetime import datetime, UTC
 
-from kodit.domain.models import (
+from kodit.domain.value_objects import (
     EmbeddingRequest,
     EmbeddingResponse,
-    EmbeddingType,
     IndexResult,
     VectorIndexRequest,
     VectorSearchQueryRequest,
-    VectorSearchResult,
-    File,
 )
+from kodit.domain.entities import File, EmbeddingType
 from kodit.infrastructure.embedding.local_vector_search_repository import (
     LocalVectorSearchRepository,
 )
 from kodit.infrastructure.sqlalchemy.embedding_repository import (
     SqlAlchemyEmbeddingRepository,
 )
+from kodit.domain.value_objects import VectorSearchRequest, VectorSearchResult
+from kodit.domain.entities import Snippet, Index, Source, SourceType
 
 
 class TestLocalVectorSearchRepository:
@@ -91,8 +91,6 @@ class TestLocalVectorSearchRepository:
             embedding_provider=mock_provider,
         )
 
-        from kodit.domain.models import VectorSearchRequest
-
         request = VectorIndexRequest(
             documents=[VectorSearchRequest(snippet_id=1, text="python programming")]
         )
@@ -134,8 +132,6 @@ class TestLocalVectorSearchRepository:
             embedding_repository=mock_repository,
             embedding_provider=mock_provider,
         )
-
-        from kodit.domain.models import VectorSearchRequest
 
         request = VectorIndexRequest(
             documents=[
@@ -283,7 +279,7 @@ async def test_retrieve_documents(session):
     from kodit.infrastructure.sqlalchemy.embedding_repository import (
         SqlAlchemyEmbeddingRepository,
     )
-    from kodit.domain.models import Snippet, Index, File, Source, SourceType
+    from kodit.domain.entities import Snippet, Index, File, Source, SourceType
 
     # Create embedding repository
     embedding_repository = SqlAlchemyEmbeddingRepository(session=session)
@@ -336,15 +332,13 @@ async def test_retrieve_documents(session):
     await session.commit()
 
     # Index the snippets
-    from kodit.domain.models import VectorSearchRequest
-
-    test_data = [
-        VectorSearchRequest(snippet_id=snippet1.id, text=snippet1.content),
-        VectorSearchRequest(snippet_id=snippet2.id, text=snippet2.content),
-        VectorSearchRequest(snippet_id=snippet3.id, text=snippet3.content),
-    ]
-
-    request = VectorIndexRequest(documents=test_data)
+    request = VectorIndexRequest(
+        documents=[
+            VectorSearchRequest(snippet_id=snippet1.id, text=snippet1.content),
+            VectorSearchRequest(snippet_id=snippet2.id, text=snippet2.content),
+            VectorSearchRequest(snippet_id=snippet3.id, text=snippet3.content),
+        ]
+    )
     async for batch in vector_search_repository.index_documents(request):
         pass  # Process all batches
 

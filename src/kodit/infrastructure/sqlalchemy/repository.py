@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.models import Author, AuthorFileMapping, File, Source, SourceType
+from kodit.domain.entities import Author, AuthorFileMapping, File, Source, SourceType
 from kodit.domain.repositories import AuthorRepository, SourceRepository
 
 

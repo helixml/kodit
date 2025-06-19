@@ -6,32 +6,30 @@ from kodit.application.commands.snippet_commands import CreateIndexSnippetsComma
 from kodit.application.services.snippet_application_service import (
     SnippetApplicationService,
 )
-from kodit.domain.models import (
+from kodit.domain.enums import SnippetExtractionStrategy
+from kodit.domain.interfaces import ProgressCallback
+from kodit.domain.services.bm25_service import BM25DomainService
+from kodit.domain.services.embedding_service import EmbeddingDomainService
+from kodit.domain.services.enrichment_service import EnrichmentDomainService
+from kodit.domain.services.indexing_service import IndexingDomainService
+from kodit.domain.services.source_service import SourceService
+from kodit.domain.value_objects import (
     BM25Document,
+    BM25IndexRequest,
+    BM25SearchRequest,
     BM25SearchResult,
     EnrichmentIndexRequest,
     EnrichmentRequest,
     FusionRequest,
     IndexCreateRequest,
     IndexView,
-    ProgressCallback,
     ProgressEvent,
     SearchRequest,
     SearchResult,
-    SnippetExtractionStrategy,
     VectorIndexRequest,
     VectorSearchQueryRequest,
     VectorSearchRequest,
 )
-from kodit.domain.services.bm25_service import (
-    BM25DomainService,
-    BM25IndexRequest,
-    BM25SearchRequest,
-)
-from kodit.domain.services.embedding_service import EmbeddingDomainService
-from kodit.domain.services.enrichment_service import EnrichmentDomainService
-from kodit.domain.services.indexing_service import IndexingDomainService
-from kodit.domain.services.source_service import SourceService
 from kodit.log import log_event
 
 

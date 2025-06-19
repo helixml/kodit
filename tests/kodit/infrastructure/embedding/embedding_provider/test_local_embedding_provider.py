@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 import numpy as np
 
-from kodit.domain.models import EmbeddingRequest, EmbeddingResponse
+from kodit.domain.value_objects import EmbeddingRequest, EmbeddingResponse
 from kodit.infrastructure.embedding.embedding_providers.local_embedding_provider import (
     LocalEmbeddingProvider,
     CODE,

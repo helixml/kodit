@@ -5,17 +5,17 @@ from collections.abc import AsyncGenerator
 import structlog
 import tiktoken
 
-from kodit.domain.models import (
+from kodit.domain.entities import Embedding, EmbeddingType
+from kodit.domain.services.embedding_service import (
+    EmbeddingProvider,
+    VectorSearchRepository,
+)
+from kodit.domain.value_objects import (
     EmbeddingRequest,
-    EmbeddingType,
     IndexResult,
     VectorIndexRequest,
     VectorSearchQueryRequest,
     VectorSearchResult,
-)
-from kodit.domain.services.embedding_service import (
-    EmbeddingProvider,
-    VectorSearchRepository,
 )
 from kodit.infrastructure.sqlalchemy.embedding_repository import (
     SqlAlchemyEmbeddingRepository,
@@ -67,8 +67,6 @@ class LocalVectorSearchRepository(VectorSearchRepository):
             async for batch in self.embedding_provider.embed(requests):
                 results = []
                 for result in batch:
-                    from kodit.domain.models import Embedding
-
                     await self.embedding_repository.create_embedding(
                         Embedding(
                             snippet_id=result.snippet_id,

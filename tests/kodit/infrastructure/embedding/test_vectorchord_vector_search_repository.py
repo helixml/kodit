@@ -4,14 +4,15 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 from sqlalchemy import text
 
-from kodit.domain.models import (
+from kodit.domain.entities import Snippet, EmbeddingType
+from kodit.domain.value_objects import (
+    VectorSearchRequest,
+    VectorSearchResult,
     EmbeddingRequest,
     EmbeddingResponse,
-    EmbeddingType,
     IndexResult,
     VectorIndexRequest,
     VectorSearchQueryRequest,
-    VectorSearchResult,
 )
 from kodit.infrastructure.embedding.vectorchord_vector_search_repository import (
     VectorChordVectorSearchRepository,
@@ -152,8 +153,6 @@ class TestVectorChordVectorSearchRepository:
         # Mock initialization
         repository._initialized = True
 
-        from kodit.domain.models import VectorSearchRequest
-
         request = VectorIndexRequest(
             documents=[VectorSearchRequest(snippet_id=1, text="python programming")]
         )
@@ -201,8 +200,6 @@ class TestVectorChordVectorSearchRepository:
 
         # Mock initialization
         repository._initialized = True
-
-        from kodit.domain.models import VectorSearchRequest
 
         request = VectorIndexRequest(
             documents=[

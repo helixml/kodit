@@ -2,8 +2,8 @@
 
 from collections import defaultdict
 
-from kodit.domain.models import FusionRequest, FusionResult
 from kodit.domain.services.indexing_service import FusionService
+from kodit.domain.value_objects import FusionRequest, FusionResult
 
 
 class ReciprocalRankFusionService(FusionService):

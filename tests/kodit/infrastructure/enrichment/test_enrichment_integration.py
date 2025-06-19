@@ -7,7 +7,7 @@ from kodit.application.services.indexing_application_service import (
     IndexingApplicationService,
 )
 from kodit.config import AppContext
-from kodit.domain.models import (
+from kodit.domain.value_objects import (
     EnrichmentIndexRequest,
     EnrichmentRequest,
     EnrichmentResponse,

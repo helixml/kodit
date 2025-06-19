@@ -9,16 +9,16 @@ from kodit.application.commands.snippet_commands import (
     CreateIndexSnippetsCommand,
     ExtractSnippetsCommand,
 )
-from kodit.domain.models import (
-    ProgressCallback,
-    ProgressEvent,
-    Snippet,
-    SnippetExtractionRequest,
-    SnippetExtractionStrategy,
-)
+from kodit.domain.entities import Snippet
+from kodit.domain.enums import SnippetExtractionStrategy
+from kodit.domain.interfaces import ProgressCallback
 from kodit.domain.repositories import FileRepository, SnippetRepository
 from kodit.domain.services.snippet_extraction_service import (
     SnippetExtractionDomainService,
+)
+from kodit.domain.value_objects import (
+    ProgressEvent,
+    SnippetExtractionRequest,
 )
 
 

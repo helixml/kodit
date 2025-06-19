@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.models import Snippet
+from kodit.domain.entities import Snippet
 from kodit.domain.repositories import SnippetRepository
 
 

@@ -10,7 +10,7 @@ import aiofiles
 import git
 import structlog
 
-from kodit.domain.models import Author, File, Source
+from kodit.domain.entities import Author, File, Source
 
 
 class BaseFileMetadataExtractor:

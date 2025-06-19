@@ -16,17 +16,19 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import sessionmaker
 
 from kodit.config import AppContext
-from kodit.domain.models import Base
+from kodit.domain.entities import Base
 
 # Need to import these models to create the tables
-from kodit.domain.models import (
-    Source,
+from kodit.domain.entities import (
+    Author,
+    AuthorFileMapping,
+    Embedding,
+    EmbeddingType,
     File,
     Index,
     Snippet,
-    Embedding,
-    Author,
-    AuthorFileMapping,
+    Source,
+    SourceType,
 )
 
 

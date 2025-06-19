@@ -4,7 +4,7 @@ from pathlib import Path
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.models import SnippetExtractionStrategy
+from kodit.domain.enums import SnippetExtractionStrategy
 from kodit.domain.repositories import FileRepository, SnippetRepository
 from kodit.domain.services.snippet_extraction_service import (
     SnippetExtractionDomainService,

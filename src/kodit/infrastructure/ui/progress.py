@@ -4,7 +4,8 @@ from collections.abc import Callable
 
 from tqdm import tqdm
 
-from kodit.domain.models import ProgressCallback, ProgressEvent
+from kodit.domain.interfaces import ProgressCallback
+from kodit.domain.value_objects import ProgressEvent
 
 
 class TQDMProgressCallback(ProgressCallback):

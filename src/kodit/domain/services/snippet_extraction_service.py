@@ -4,11 +4,8 @@ from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from pathlib import Path
 
-from kodit.domain.models import (
-    SnippetExtractionRequest,
-    SnippetExtractionResult,
-    SnippetExtractionStrategy,
-)
+from kodit.domain.enums import SnippetExtractionStrategy
+from kodit.domain.value_objects import SnippetExtractionRequest, SnippetExtractionResult
 
 
 class LanguageDetectionService(ABC):

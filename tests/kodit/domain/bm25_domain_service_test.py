@@ -4,13 +4,14 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from kodit.domain.models import (
+from kodit.domain.value_objects import (
+    BM25DeleteRequest,
     BM25Document,
     BM25IndexRequest,
     BM25SearchRequest,
     BM25SearchResult,
-    BM25DeleteRequest,
 )
+from kodit.domain.entities import Snippet
 from kodit.domain.services.bm25_service import BM25DomainService, BM25Repository
 
 

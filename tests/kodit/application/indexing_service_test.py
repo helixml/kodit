@@ -12,7 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from kodit.application.services.indexing_application_service import (
     IndexingApplicationService,
 )
-from kodit.domain.models import Source, SourceType, IndexView
+from kodit.domain.entities import Source, SourceType
+from kodit.domain.value_objects import IndexView
 from kodit.domain.services.bm25_service import BM25DomainService
 from kodit.domain.services.embedding_service import EmbeddingDomainService
 from kodit.domain.services.enrichment_service import EnrichmentDomainService
@@ -21,6 +22,7 @@ from kodit.domain.services.source_service import SourceService
 from kodit.application.services.snippet_application_service import (
     SnippetApplicationService,
 )
+from kodit.domain.value_objects import EnrichmentResponse
 
 
 @pytest.fixture
@@ -192,8 +194,6 @@ async def test_run_index_success(
 
     # Mock enrichment responses
     async def mock_enrichment(*args, **kwargs):
-        from kodit.domain.models import EnrichmentResponse
-
         yield EnrichmentResponse(snippet_id=1, text="enriched content")
         yield EnrichmentResponse(snippet_id=2, text="enriched content")
 

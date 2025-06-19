@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from kodit.domain.models import Embedding, EmbeddingType
+from kodit.domain.entities import Embedding, EmbeddingType
 from kodit.infrastructure.sqlalchemy.embedding_repository import (
     SqlAlchemyEmbeddingRepository,
 )

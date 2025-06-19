@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-from kodit.domain.models import SnippetExtractionStrategy
+from kodit.domain.enums import SnippetExtractionStrategy
 
 
 @dataclass

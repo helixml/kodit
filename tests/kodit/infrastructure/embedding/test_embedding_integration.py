@@ -3,12 +3,17 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from kodit.domain.models import (
-    EmbeddingType,
+from kodit.domain.value_objects import (
+    EmbeddingRequest,
+    EmbeddingResponse,
+    IndexResult,
     VectorIndexRequest,
     VectorSearchQueryRequest,
-    VectorSearchResult,
     VectorSearchRequest,
+    VectorSearchResult,
+)
+from kodit.domain.entities import (
+    EmbeddingType,
     Source,
     SourceType,
     File,

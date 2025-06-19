@@ -19,8 +19,8 @@ from kodit.config import (
     with_app_context,
     with_session,
 )
-from kodit.domain.models import SearchRequest
 from kodit.domain.services.source_service import SourceService
+from kodit.domain.value_objects import SearchRequest
 from kodit.infrastructure.indexing import create_indexing_application_service
 from kodit.infrastructure.snippet_extraction.snippet_extraction_factory import (
     create_snippet_extraction_domain_service,

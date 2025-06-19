@@ -6,8 +6,9 @@ from typing import TypeVar
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.models import Embedding, File, Index, IndexView, Snippet, Source
+from kodit.domain.entities import Embedding, File, Index, Snippet, Source
 from kodit.domain.services.indexing_service import IndexRepository
+from kodit.domain.value_objects import IndexView
 
 T = TypeVar("T")
 

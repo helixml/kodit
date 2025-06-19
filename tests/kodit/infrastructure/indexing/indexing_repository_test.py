@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from kodit.domain.models import Snippet, File, Source, SourceType
+from kodit.domain.entities import Snippet, File, Source, SourceType
 from kodit.infrastructure.indexing.index_repository import SQLAlchemyIndexRepository
 from sqlalchemy.ext.asyncio import AsyncSession
 import pytest

@@ -2,8 +2,8 @@
 
 from collections.abc import AsyncGenerator
 
-from kodit.domain.models import EnrichmentRequest, EnrichmentResponse
 from kodit.domain.services.enrichment_service import EnrichmentProvider
+from kodit.domain.value_objects import EnrichmentRequest, EnrichmentResponse
 
 
 class NullEnrichmentProvider(EnrichmentProvider):

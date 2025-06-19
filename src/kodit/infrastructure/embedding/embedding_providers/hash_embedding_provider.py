@@ -5,8 +5,8 @@ from collections.abc import AsyncGenerator
 
 import structlog
 
-from kodit.domain.models import EmbeddingRequest, EmbeddingResponse
 from kodit.domain.services.embedding_service import EmbeddingProvider
+from kodit.domain.value_objects import EmbeddingRequest, EmbeddingResponse
 
 # Constants for different embedding sizes
 TINY = 64

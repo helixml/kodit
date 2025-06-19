@@ -3,15 +3,16 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from kodit.domain.models import (
+from kodit.domain.value_objects import (
     EmbeddingRequest,
     EmbeddingResponse,
-    EmbeddingType,
     IndexResult,
     VectorIndexRequest,
     VectorSearchQueryRequest,
+    VectorSearchRequest,
     VectorSearchResult,
 )
+from kodit.domain.entities import EmbeddingType
 from kodit.domain.services.embedding_service import (
     EmbeddingDomainService,
     EmbeddingProvider,
@@ -110,8 +111,6 @@ class TestEmbeddingDomainService:
             vector_search_repository=mock_repository,
         )
 
-        from kodit.domain.models import VectorSearchRequest
-
         request = VectorIndexRequest(
             documents=[
                 VectorSearchRequest(snippet_id=1, text="python programming"),
@@ -148,8 +147,6 @@ class TestEmbeddingDomainService:
             embedding_provider=mock_provider,
             vector_search_repository=mock_repository,
         )
-
-        from kodit.domain.models import VectorSearchRequest
 
         request = VectorIndexRequest(
             documents=[

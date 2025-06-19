@@ -4,14 +4,10 @@ from pathlib import Path
 
 import structlog
 
-from kodit.domain.models import (
-    AuthorFileMapping,
-    ProgressCallback,
-    ProgressEvent,
-    Source,
-    SourceType,
-)
+from kodit.domain.entities import AuthorFileMapping, Source, SourceType
+from kodit.domain.interfaces import NullProgressCallback, ProgressCallback
 from kodit.domain.repositories import SourceRepository
+from kodit.domain.value_objects import ProgressEvent
 from kodit.infrastructure.cloning.folder.working_copy import FolderWorkingCopyProvider
 from kodit.infrastructure.cloning.metadata import (
     FolderFileMetadataExtractor,
@@ -40,8 +36,6 @@ class FolderSourceFactory:
         """Create a folder source from a path."""
         # Use null callback if none provided
         if progress_callback is None:
-            from kodit.domain.models import NullProgressCallback
-
             progress_callback = NullProgressCallback()
 
         directory = Path(uri).expanduser().resolve()

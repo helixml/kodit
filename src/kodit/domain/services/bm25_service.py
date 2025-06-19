@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 
-from kodit.domain.models import (
+from kodit.domain.value_objects import (
     BM25DeleteRequest,
     BM25IndexRequest,
     BM25SearchRequest,

@@ -17,8 +17,8 @@ from kodit.application.services.snippet_application_service import (
 )
 from kodit.config import AppContext
 from kodit.database import Database
-from kodit.domain.models import SearchRequest, SearchResult
 from kodit.domain.services.source_service import SourceService
+from kodit.domain.value_objects import SearchRequest, SearchResult
 from kodit.infrastructure.indexing import create_indexing_application_service
 from kodit.infrastructure.snippet_extraction.snippet_extraction_factory import (
     create_snippet_extraction_domain_service,

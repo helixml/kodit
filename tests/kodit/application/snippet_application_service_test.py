@@ -12,11 +12,13 @@ from kodit.application.commands.snippet_commands import (
 from kodit.application.services.snippet_application_service import (
     SnippetApplicationService,
 )
-from kodit.domain.models import Snippet, SnippetExtractionStrategy
+from kodit.domain.entities import Snippet
+from kodit.domain.enums import SnippetExtractionStrategy
 from kodit.domain.repositories import FileRepository, SnippetRepository
 from kodit.domain.services.snippet_extraction_service import (
     SnippetExtractionDomainService,
 )
+from kodit.domain.value_objects import SnippetExtractionResult
 
 
 @pytest.fixture
@@ -69,8 +71,6 @@ async def test_extract_snippets_from_file_success(
     strategy = SnippetExtractionStrategy.METHOD_BASED
     command = ExtractSnippetsCommand(file_path=file_path, strategy=strategy)
 
-    from kodit.domain.models import SnippetExtractionResult
-
     mock_result = SnippetExtractionResult(
         snippets=["def hello(): pass", "def world(): pass"], language="python"
     )
@@ -113,8 +113,6 @@ async def test_create_snippets_for_index_success(
         MockFile(2, "file2.py"),
     ]
     mock_file_repository.get_files_for_index.return_value = mock_files
-
-    from kodit.domain.models import SnippetExtractionResult
 
     mock_result = SnippetExtractionResult(
         snippets=["def test(): pass"], language="python"

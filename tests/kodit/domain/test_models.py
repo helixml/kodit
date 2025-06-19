@@ -3,7 +3,7 @@
 import pytest
 from datetime import datetime, UTC
 
-from kodit.domain.models import (
+from kodit.domain.entities import (
     Source,
     SourceType,
     File,
@@ -13,6 +13,8 @@ from kodit.domain.models import (
     EmbeddingType,
     Author,
     AuthorFileMapping,
+)
+from kodit.domain.value_objects import (
     BM25Document,
     BM25SearchResult,
     VectorSearchRequest,

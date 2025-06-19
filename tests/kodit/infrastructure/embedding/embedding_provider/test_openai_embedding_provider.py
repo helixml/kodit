@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from kodit.domain.models import EmbeddingRequest, EmbeddingResponse
+from kodit.domain.value_objects import EmbeddingRequest, EmbeddingResponse
 from kodit.infrastructure.embedding.embedding_providers.openai_embedding_provider import (
     OpenAIEmbeddingProvider,
 )

@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from kodit.domain.models import EnrichmentRequest, EnrichmentResponse
+from kodit.domain.value_objects import EnrichmentRequest, EnrichmentResponse
 from kodit.infrastructure.enrichment.local_enrichment_provider import (
     LocalEnrichmentProvider,
 )

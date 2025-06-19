@@ -6,7 +6,8 @@ from pathlib import Path
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from kodit.domain.models import ProgressCallback, Source
+from kodit.domain.entities import Source
+from kodit.domain.interfaces import ProgressCallback
 from kodit.domain.repositories import SourceRepository
 from kodit.infrastructure.cloning.folder.factory import FolderSourceFactory
 from kodit.infrastructure.cloning.folder.working_copy import FolderWorkingCopyProvider

@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING
 
 import structlog
 
-from kodit.domain.models import EmbeddingRequest, EmbeddingResponse
 from kodit.domain.services.embedding_service import EmbeddingProvider
+from kodit.domain.value_objects import EmbeddingRequest, EmbeddingResponse
 
 if TYPE_CHECKING:
     from sentence_transformers import SentenceTransformer

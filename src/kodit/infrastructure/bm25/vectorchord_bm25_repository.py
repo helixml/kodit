@@ -6,13 +6,13 @@ import structlog
 from sqlalchemy import Result, TextClause, bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.models import (
+from kodit.domain.services.bm25_service import BM25Repository
+from kodit.domain.value_objects import (
     BM25DeleteRequest,
     BM25IndexRequest,
     BM25SearchRequest,
     BM25SearchResult,
 )
-from kodit.domain.services.bm25_service import BM25Repository
 
 TABLE_NAME = "vectorchord_bm25_documents"
 INDEX_NAME = f"{TABLE_NAME}_idx"
