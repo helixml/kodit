@@ -17,6 +17,7 @@ from kodit.infrastructure.cloning.metadata import (
     GitAuthorExtractor,
     GitFileMetadataExtractor,
 )
+from kodit.infrastructure.git.git_utils import sanitize_git_url
 from kodit.infrastructure.ignore.ignore_pattern_provider import GitIgnorePatternProvider
 
 
@@ -52,22 +53,28 @@ class GitSourceFactory:
             remote = git.Repo(temp_dir).remote()
             uri = remote.url
 
+        # Sanitize the URI to remove any credentials
+        sanitized_uri = sanitize_git_url(uri)
+        self.log.debug(
+            "Sanitized git uri", original_uri=uri, sanitized_uri=sanitized_uri
+        )
+
         # Check if source already exists
-        self.log.debug("Checking if source already exists", uri=uri)
-        source = await self.repository.get_by_uri(uri)
+        self.log.debug("Checking if source already exists", uri=sanitized_uri)
+        source = await self.repository.get_by_uri(sanitized_uri)
 
         if source:
             self.log.info("Source already exists, reusing...", source_id=source.id)
             return source
 
-        # Prepare working copy
+        # Prepare working copy (use original URI for cloning, sanitized for storage)
         clone_path = await self.working_copy.prepare(uri)
 
         # Create source record
-        self.log.debug("Creating source", uri=uri, clone_path=str(clone_path))
+        self.log.debug("Creating source", uri=sanitized_uri, clone_path=str(clone_path))
         source = await self.repository.save(
             Source(
-                uri=uri,
+                uri=sanitized_uri,
                 cloned_path=str(clone_path),
                 source_type=SourceType.GIT,
             )

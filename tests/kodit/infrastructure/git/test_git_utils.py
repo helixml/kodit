@@ -1,0 +1,127 @@
+"""Tests for git utilities."""
+
+import pytest
+
+from kodit.infrastructure.git.git_utils import sanitize_git_url
+
+
+def test_sanitize_git_url_with_username_password():
+    """Test sanitizing URLs with username and password."""
+    url = "https://phil:7lKCobJPAY1ekOS5kxxxxxxxx@dev.azure.com/winderai/private-test/_git/private-test"
+    expected = "https://dev.azure.com/winderai/private-test/_git/private-test"
+    assert sanitize_git_url(url) == expected
+
+
+def test_sanitize_git_url_with_username_only():
+    """Test sanitizing URLs with username only."""
+    url = "https://winderai@dev.azure.com/winderai/private-test/_git/private-test"
+    expected = "https://dev.azure.com/winderai/private-test/_git/private-test"
+    assert sanitize_git_url(url) == expected
+
+
+def test_sanitize_git_url_with_github_pat():
+    """Test sanitizing GitHub URLs with personal access tokens."""
+    url = "https://username:token123@github.com/username/repo.git"
+    expected = "https://github.com/username/repo.git"
+    assert sanitize_git_url(url) == expected
+
+
+def test_sanitize_git_url_with_gitlab_credentials():
+    """Test sanitizing GitLab URLs with credentials."""
+    url = "https://user:pass@gitlab.com/user/repo.git"
+    expected = "https://gitlab.com/user/repo.git"
+    assert sanitize_git_url(url) == expected
+
+
+def test_sanitize_git_url_with_port():
+    """Test sanitizing URLs with port numbers."""
+    url = "https://user:pass@github.com:443/username/repo.git"
+    expected = "https://github.com:443/username/repo.git"
+    assert sanitize_git_url(url) == expected
+
+
+def test_sanitize_git_url_with_query_params():
+    """Test sanitizing URLs with query parameters."""
+    url = "https://user:pass@github.com/username/repo.git?ref=main"
+    expected = "https://github.com/username/repo.git?ref=main"
+    assert sanitize_git_url(url) == expected
+
+
+def test_sanitize_git_url_with_fragment():
+    """Test sanitizing URLs with fragments."""
+    url = "https://user:pass@github.com/username/repo.git#main"
+    expected = "https://github.com/username/repo.git#main"
+    assert sanitize_git_url(url) == expected
+
+
+def test_sanitize_git_url_with_path_params():
+    """Test sanitizing URLs with path parameters."""
+    url = "https://user:pass@github.com/username/repo.git;param=value"
+    expected = "https://github.com/username/repo.git;param=value"
+    assert sanitize_git_url(url) == expected
+
+
+def test_sanitize_git_url_clean_urls_unchanged():
+    """Test that clean URLs without credentials remain unchanged."""
+    clean_urls = [
+        "https://github.com/username/repo.git",
+        "https://dev.azure.com/winderai/public-test/_git/public-test",
+        "https://gitlab.com/user/repo.git",
+    ]
+
+    for url in clean_urls:
+        assert sanitize_git_url(url) == url
+
+
+def test_sanitize_git_url_ssh_urls_unchanged():
+    """Test that SSH URLs remain unchanged."""
+    ssh_urls = [
+        "git@github.com:username/repo.git",
+        "ssh://git@github.com:2222/username/repo.git",
+        "ssh://user@host.com:22/path/to/repo.git",
+    ]
+
+    for url in ssh_urls:
+        assert sanitize_git_url(url) == url
+
+
+def test_sanitize_git_url_file_urls_unchanged():
+    """Test that file URLs remain unchanged."""
+    file_urls = [
+        "file:///path/to/repo.git",
+        "file://localhost/path/to/repo.git",
+    ]
+
+    for url in file_urls:
+        assert sanitize_git_url(url) == url
+
+
+def test_sanitize_git_url_invalid_urls():
+    """Test that invalid URLs are handled gracefully."""
+    invalid_urls = [
+        "not-a-url",
+        "ftp://invalid-scheme.com/repo.git",
+        "",
+        None,
+    ]
+
+    for url in invalid_urls:
+        if url is None:
+            # None should raise an exception
+            with pytest.raises(Exception):
+                sanitize_git_url(url)
+        else:
+            # Invalid URLs should return the original URL
+            assert sanitize_git_url(url) == url
+
+
+def test_sanitize_git_url_edge_cases():
+    """Test edge cases for URL sanitization."""
+    # URL with @ in the path (should not be confused with credentials)
+    url = "https://github.com/username/repo@main.git"
+    assert sanitize_git_url(url) == url
+
+    # URL with multiple @ symbols
+    url = "https://user:pass@host.com/path@with@ats"
+    expected = "https://host.com/path@with@ats"
+    assert sanitize_git_url(url) == expected
