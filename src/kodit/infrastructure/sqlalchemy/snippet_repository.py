@@ -21,19 +21,26 @@ class SqlAlchemySnippetRepository(SnippetRepository):
         """
         self.session = session
 
-    async def save(self, snippet: Snippet) -> Snippet:
-        """Save snippet using SQLAlchemy.
+    async def get(self, id: int) -> Snippet | None:  # noqa: A002
+        """Get a snippet by ID."""
+        return await self.session.get(Snippet, id)
 
-        Args:
-            snippet: The snippet to save
-
-        Returns:
-            The saved snippet
-
-        """
-        self.session.add(snippet)
+    async def save(self, entity: Snippet) -> Snippet:
+        """Save entity."""
+        self.session.add(entity)
         await self.session.commit()
-        return snippet
+        return entity
+
+    async def delete(self, id: int) -> None:  # noqa: A002
+        """Delete entity by ID."""
+        snippet = await self.get(id)
+        if snippet:
+            await self.session.delete(snippet)
+            await self.session.commit()
+
+    async def list(self) -> Sequence[Snippet]:
+        """List all entities."""
+        return (await self.session.scalars(select(Snippet))).all()
 
     async def get_by_id(self, snippet_id: int) -> Snippet | None:
         """Get a snippet by ID.

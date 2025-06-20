@@ -62,7 +62,7 @@ class GitSourceFactory:
 
         # Create source record
         self.log.debug("Creating source", uri=uri, clone_path=str(clone_path))
-        source = await self.repository.create_source(
+        source = await self.repository.save(
             Source(
                 uri=uri,
                 cloned_path=str(clone_path),

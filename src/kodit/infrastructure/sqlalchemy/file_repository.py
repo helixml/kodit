@@ -21,6 +21,27 @@ class SqlAlchemyFileRepository(FileRepository):
         """
         self.session = session
 
+    async def get(self, id: int) -> File | None:  # noqa: A002
+        """Get a file by ID."""
+        return await self.session.get(File, id)
+
+    async def save(self, entity: File) -> File:
+        """Save entity."""
+        self.session.add(entity)
+        await self.session.commit()
+        return entity
+
+    async def delete(self, id: int) -> None:  # noqa: A002
+        """Delete entity by ID."""
+        file = await self.get(id)
+        if file:
+            await self.session.delete(file)
+            await self.session.commit()
+
+    async def list(self) -> Sequence[File]:
+        """List all entities."""
+        return (await self.session.scalars(select(File))).all()
+
     async def get_files_for_index(self, index_id: int) -> Sequence[File]:
         """Get all files for an index.
 
@@ -57,17 +78,3 @@ class SqlAlchemyFileRepository(FileRepository):
         query = select(File).where(File.id == file_id)
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
-
-    async def save(self, file: File) -> File:
-        """Save file using SQLAlchemy.
-
-        Args:
-            file: The file to save
-
-        Returns:
-            The saved file
-
-        """
-        self.session.add(file)
-        await self.session.commit()
-        return file

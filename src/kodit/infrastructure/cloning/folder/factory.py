@@ -55,7 +55,7 @@ class FolderSourceFactory:
         clone_path = await self.working_copy.prepare(directory.as_uri())
 
         # Create source record
-        source = await self.repository.create_source(
+        source = await self.repository.save(
             Source(
                 uri=directory.as_uri(),
                 cloned_path=str(clone_path),
