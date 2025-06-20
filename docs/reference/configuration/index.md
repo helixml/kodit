@@ -1,7 +1,7 @@
 ---
 title: Configuration
 description: How to configure Kodit.
-weight: 1
+weight: 10
 ---
 
 Configuration of Kodit is performed by setting environmental variables or adding

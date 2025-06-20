@@ -1,7 +1,7 @@
 ---
 title: Deployment
 description: Deploying Kodit with Docker Compose and Kubernetes.
-weight: 10
+weight: 20
 ---
 
 Kodit is packaged as a Docker container so you can run it on any popular orchestration platform. This page describes how to deploy Kodit as a service.
@@ -32,4 +32,3 @@ Deploy with `kubectl -n kodit apply -f kubernetes.yaml`
 
 1. `kind create cluster`
 2. `kubectl -n kodit apply -f kubernetes.yaml`
-
