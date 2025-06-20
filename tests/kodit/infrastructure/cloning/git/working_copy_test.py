@@ -64,6 +64,42 @@ async def test_prepare_should_not_leak_credentials_in_directory_name(
 
 
 @pytest.mark.asyncio
+async def test_prepare_should_fail_when_directory_name_exceeds_windows_path_limit(
+    working_copy: GitWorkingCopyProvider, tmp_path: Path
+) -> None:
+    """Test that prepare fails when the resulting directory name exceeds Windows 256 character path limit."""
+    # Create a URL that, when sanitized and converted to directory name, will exceed 256 characters
+    # This URL is designed to be extremely long to trigger the Windows path limit issue
+    long_url = (
+        "https://extremely-long-domain-name-that-will-definitely-exceed-windows-path-limits-and-cause-issues.com/"
+        "very-long-organization-name-with-many-words-and-descriptive-text/"
+        "very-long-project-name-with-additional-descriptive-text/"
+        "_git/"
+        "extremely-long-repository-name-with-many-subdirectories-and-deeply-nested-paths-that-cause-issues-on-windows-systems-and-this-is-just-the-beginning-of-the-very-long-name-that-continues-for-many-more-characters-to-ensure-we-hit-the-limit"
+    )
+
+    # Mock git.Repo.clone_from to avoid actual cloning
+    with patch("git.Repo.clone_from") as mock_clone:
+        # Call the prepare method
+        result_path = await working_copy.prepare(long_url)
+
+        # Get the directory name that would be created
+        directory_name = result_path.name
+
+        # Print the actual directory name and its length for debugging
+        print(f"Directory name: {directory_name}")
+        print(f"Directory name length: {len(directory_name)}")
+
+        # This test should FAIL because the directory name exceeds 256 characters
+        # The directory name is created by replacing "/" and ":" with "_" in the sanitized URL
+        # Windows has a 256 character path limit, so this should cause issues
+        assert len(directory_name) <= 256, (
+            f"Directory name exceeds Windows 256 character path limit: "
+            f"{len(directory_name)} characters: {directory_name}"
+        )
+
+
+@pytest.mark.asyncio
 async def test_prepare_clean_urls_should_work_normally(
     working_copy: GitWorkingCopyProvider, tmp_path: Path
 ) -> None:
