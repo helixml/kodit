@@ -71,7 +71,7 @@ def sanitize_git_url(url: str) -> str:
         if parsed.port:
             sanitized_netloc = f"{parsed.hostname}:{parsed.port}"
 
-        sanitized_url = urlunparse(
+        return urlunparse(
             (
                 parsed.scheme,
                 sanitized_netloc,
@@ -82,7 +82,6 @@ def sanitize_git_url(url: str) -> str:
             )
         )
 
-        return sanitized_url
-    except Exception:
+    except Exception:  # noqa: BLE001
         # If URL parsing fails, return the original URL
         return url
