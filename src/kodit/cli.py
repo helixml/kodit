@@ -158,7 +158,7 @@ async def index(
         try:
             await service.run_index(index.id, indexing_progress_callback)
         except EmptySourceError as e:
-            log.error("Empty source error", error=e)
+            log.exception("Empty source error", error=e)
             msg = f"""{e}. This could mean:
 • The repository contains no supported file types
 • All files are excluded by ignore patterns
