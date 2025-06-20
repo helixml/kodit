@@ -47,7 +47,8 @@ class GitSourceFactory:
             progress_callback = NullProgressCallback()
 
         # Normalize the URI
-        self.log.debug("Normalising git uri", uri=uri)
+        # Never log the raw URI in production
+        self.log.debug("Normalising git uri", uri="[REDACTED]" + uri[-4:])
         with tempfile.TemporaryDirectory() as temp_dir:
             git.Repo.clone_from(uri, temp_dir)
             remote = git.Repo(temp_dir).remote()
@@ -55,9 +56,7 @@ class GitSourceFactory:
 
         # Sanitize the URI to remove any credentials
         sanitized_uri = sanitize_git_url(uri)
-        self.log.debug(
-            "Sanitized git uri", original_uri=uri, sanitized_uri=sanitized_uri
-        )
+        self.log.debug("Sanitized git uri", sanitized_uri=sanitized_uri)
 
         # Check if source already exists
         self.log.debug("Checking if source already exists", uri=sanitized_uri)
