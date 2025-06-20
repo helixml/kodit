@@ -46,6 +46,8 @@ def create_enrichment_domain_service(
             openai_client=AsyncOpenAI(
                 api_key=endpoint.api_key or "default",
                 base_url=endpoint.base_url or "https://api.openai.com/v1",
+                timeout=60,
+                max_retries=2,
             ),
             model_name=endpoint.model or "gpt-4o-mini",
         )

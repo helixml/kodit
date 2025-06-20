@@ -18,7 +18,7 @@ MAX_TOKENS = 8192  # Conservative token limit for the embedding model
 BATCH_SIZE = (
     10  # Maximum number of items per API call (keeps existing test expectations)
 )
-OPENAI_NUM_PARALLEL_TASKS = 10  # Semaphore limit for concurrent OpenAI requests
+OPENAI_NUM_PARALLEL_TASKS = 25  # Semaphore limit for concurrent OpenAI requests
 
 
 class OpenAIEmbeddingProvider(EmbeddingProvider):

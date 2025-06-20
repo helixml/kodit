@@ -32,7 +32,7 @@ class Reporter:
         self, operation: str, total: int, message: str | None = None
     ) -> None:
         """Log *operation.start* and emit initial ProgressEvent."""
-        self.log.info(
+        self.log.debug(
             "operation.start", operation=operation, total=total, message=message
         )
         await self.progress.on_progress(
@@ -55,7 +55,7 @@ class Reporter:
 
     async def done(self, operation: str, message: str | None = None) -> None:
         """Log *operation.done* and emit completion event."""
-        self.log.info("operation.done", operation=operation, message=message)
+        self.log.debug("operation.done", operation=operation, message=message)
         await self.progress.on_complete(operation)
 
     async def advance(

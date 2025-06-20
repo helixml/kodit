@@ -14,7 +14,8 @@ You are a professional software developer. You will be given a snippet of code.
 Please provide a concise explanation of the code.
 """
 
-OPENAI_NUM_PARALLEL_TASKS = 10
+# Default tuned to approximately fit within OpenAI's rate limit of 500 / RPM
+OPENAI_NUM_PARALLEL_TASKS = 40
 
 
 class OpenAIEnrichmentProvider(EnrichmentProvider):
