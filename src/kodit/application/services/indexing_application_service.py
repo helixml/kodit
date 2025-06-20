@@ -9,6 +9,7 @@ from kodit.application.services.snippet_application_service import (
 )
 from kodit.domain.entities import Snippet
 from kodit.domain.enums import SnippetExtractionStrategy
+from kodit.domain.errors import EmptySourceError
 from kodit.domain.interfaces import ProgressCallback
 from kodit.domain.services.bm25_service import BM25DomainService
 from kodit.domain.services.embedding_service import EmbeddingDomainService
@@ -134,7 +135,7 @@ class IndexingApplicationService:
             progress_callback: Optional progress callback for reporting progress.
 
         Raises:
-            ValueError: If the index doesn't exist.
+            ValueError: If the index doesn't exist or no indexable snippets are found.
 
         """
         log_event("kodit.index.run")
@@ -161,6 +162,11 @@ class IndexingApplicationService:
         )
 
         snippets = await self.indexing_domain_service.get_snippets_for_index(index.id)
+
+        # Check if any snippets were extracted
+        if not snippets:
+            msg = f"No indexable snippets found for index {index.id}"
+            raise EmptySourceError(msg)
 
         # Create BM25 index
         self.log.info("Creating keyword index")

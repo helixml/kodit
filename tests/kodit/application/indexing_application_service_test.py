@@ -13,6 +13,7 @@ from kodit.application.services.indexing_application_service import (
     IndexingApplicationService,
 )
 from kodit.domain.entities import Snippet, Source, SourceType
+from kodit.domain.errors import EmptySourceError
 from kodit.domain.value_objects import IndexView
 from kodit.domain.services.bm25_service import BM25DomainService
 from kodit.domain.services.embedding_service import EmbeddingDomainService
@@ -372,3 +373,44 @@ async def test_enrichment_duplicate_bug_with_database_simulation(
 
     # Verify the correct snippet IDs are present
     assert unique_ids == {1, 2}, f"Expected snippet IDs {{1, 2}}, got {unique_ids}"
+
+
+@pytest.mark.asyncio
+async def test_run_index_with_empty_snippets_list(
+    indexing_application_service: IndexingApplicationService,
+    mock_indexing_domain_service: MagicMock,
+    mock_snippet_application_service: MagicMock,
+    mock_bm25_service: MagicMock,
+    mock_code_search_service: MagicMock,
+    mock_text_search_service: MagicMock,
+    mock_enrichment_service: MagicMock,
+) -> None:
+    """Test running an index with an empty repository (no indexable snippets).
+
+    The system should detect when no snippets are found and provide a helpful
+    error message to the user instead of crashing with internal errors.
+    """
+    # Setup mocks
+    index_id = 1
+    mock_index = MagicMock()
+    mock_index.id = index_id
+    mock_indexing_domain_service.get_index.return_value = mock_index
+
+    # Simulate an empty repository - no snippets found after extraction
+    empty_snippets = []
+    mock_indexing_domain_service.get_snippets_for_index.return_value = empty_snippets
+
+    # Execute and verify that the system detects empty repositories and provides a helpful error
+    with pytest.raises(EmptySourceError) as exc_info:
+        await indexing_application_service.run_index(index_id)
+
+    # Verify the sequence of calls that should occur before the early failure
+    mock_indexing_domain_service.get_index.assert_called_once_with(index_id)
+    mock_indexing_domain_service.delete_all_snippets.assert_called_once_with(index_id)
+    mock_snippet_application_service.create_snippets_for_index.assert_called_once()
+
+    # Verify that the indexing services were not called due to the early failure
+    mock_bm25_service.index_documents.assert_not_called()
+    mock_code_search_service.index_documents.assert_not_called()
+    mock_text_search_service.index_documents.assert_not_called()
+    mock_enrichment_service.enrich_documents.assert_not_called()

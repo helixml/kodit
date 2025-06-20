@@ -19,6 +19,7 @@ from kodit.config import (
     with_app_context,
     with_session,
 )
+from kodit.domain.errors import EmptySourceError
 from kodit.domain.services.source_service import SourceService
 from kodit.domain.value_objects import MultiSearchRequest
 from kodit.infrastructure.indexing.indexing_factory import (
@@ -101,6 +102,7 @@ async def index(
     sources: list[str],
 ) -> None:
     """List indexes, or index data sources."""
+    log = structlog.get_logger(__name__)
     source_service = SourceService(
         clone_dir=app_context.get_clone_dir(),
         session_factory=lambda: session,
@@ -153,7 +155,17 @@ async def index(
 
         # Create a new progress callback for the indexing operations
         indexing_progress_callback = create_multi_stage_progress_callback()
-        await service.run_index(index.id, indexing_progress_callback)
+        try:
+            await service.run_index(index.id, indexing_progress_callback)
+        except EmptySourceError as e:
+            log.error("Empty source error", error=e)
+            msg = f"""{e}. This could mean:
+• The repository contains no supported file types
+• All files are excluded by ignore patterns
+• The files contain no extractable code snippets
+Please check the repository contents and try again.
+"""
+            click.echo(msg)
 
 
 @cli.group()
