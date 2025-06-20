@@ -22,7 +22,7 @@ class GitWorkingCopyProvider:
         # Sanitize the URI for directory name to prevent credential leaks
         sanitized_uri = sanitize_git_url(uri)
 
-        # Use a repeatable, short sha256 hash of the sanitized URI for the directory name
+        # Use a repeatable, short sha256 hash of the sanitized URI for the directory
         dir_hash = hashlib.sha256(sanitized_uri.encode("utf-8")).hexdigest()[:16]
         dir_name = f"repo-{dir_hash}"
         clone_path = self.clone_dir / dir_name
