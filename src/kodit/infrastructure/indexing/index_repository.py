@@ -210,6 +210,20 @@ class SQLAlchemyIndexRepository(IndexRepository):
             for snippet in snippets
         ]
 
+    async def get_snippet_entities_for_index(self, index_id: int) -> list[Snippet]:
+        """Get all snippet entities for an index.
+
+        Args:
+            index_id: The ID of the index to get snippet entities for.
+
+        Returns:
+            A list of Snippet entities.
+
+        """
+        query = select(Snippet).where(Snippet.index_id == index_id)
+        result = await self.session.execute(query)
+        return list(result.scalars())
+
     async def add_snippet(self, snippet: dict) -> None:
         """Add a snippet to the database.
 
@@ -224,6 +238,23 @@ class SQLAlchemyIndexRepository(IndexRepository):
         )
         self.session.add(db_snippet)
         await self.session.commit()
+
+    async def update_snippet_content(self, snippet_id: int, content: str) -> None:
+        """Update the content of an existing snippet.
+
+        Args:
+            snippet_id: The ID of the snippet to update.
+            content: The new content for the snippet.
+
+        """
+        query = select(Snippet).where(Snippet.id == snippet_id)
+        result = await self.session.execute(query)
+        snippet = result.scalar_one_or_none()
+
+        if snippet:
+            snippet.content = content
+            # SQLAlchemy will automatically track this change
+            await self.session.commit()
 
     async def list_snippets_by_ids(self, ids: list[int]) -> list[tuple[dict, dict]]:
         """List snippets by IDs.

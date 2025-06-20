@@ -42,8 +42,16 @@ class IndexRepository(ABC):
         """Get all snippets for an index."""
 
     @abstractmethod
+    async def get_snippet_entities_for_index(self, index_id: int) -> list:
+        """Get all snippet entities for an index."""
+
+    @abstractmethod
     async def add_snippet(self, snippet: dict) -> None:
         """Add a snippet to the database."""
+
+    @abstractmethod
+    async def update_snippet_content(self, snippet_id: int, content: str) -> None:
+        """Update the content of an existing snippet."""
 
     @abstractmethod
     async def list_snippets_by_ids(self, ids: list[int]) -> list[tuple[dict, dict]]:
@@ -141,6 +149,18 @@ class IndexingDomainService:
         """
         return await self.index_repository.get_snippets_for_index(index_id)
 
+    async def get_snippet_entities_for_index(self, index_id: int) -> list:
+        """Get all snippet entities for an index.
+
+        Args:
+            index_id: The ID of the index to get snippet entities for.
+
+        Returns:
+            A list of Snippet entities.
+
+        """
+        return await self.index_repository.get_snippet_entities_for_index(index_id)
+
     async def add_snippet(self, snippet: dict) -> None:
         """Add a snippet to the database.
 
@@ -149,6 +169,16 @@ class IndexingDomainService:
 
         """
         await self.index_repository.add_snippet(snippet)
+
+    async def update_snippet_content(self, snippet_id: int, content: str) -> None:
+        """Update the content of an existing snippet.
+
+        Args:
+            snippet_id: The ID of the snippet to update.
+            content: The new content for the snippet.
+
+        """
+        await self.index_repository.update_snippet_content(snippet_id, content)
 
     def perform_fusion(
         self, rankings: list[list[FusionRequest]], k: float = 60

@@ -244,12 +244,20 @@ class IndexingApplicationService:
         async for result in self.enrichment_service.enrich_documents(
             enrichment_request
         ):
+            # Find the snippet by ID
             snippet = next(s for s in snippets if s["id"] == result.snippet_id)
             if snippet:
-                snippet["content"] = (
+                # Update the content in the local dictionary for subsequent processing
+                enriched_content = (
                     result.text + "\n\n```\n" + snippet["content"] + "\n```"
                 )
-                await self.indexing_domain_service.add_snippet(snippet)
+                snippet["content"] = enriched_content
+
+                # UPDATE the existing snippet entity instead of creating a new one
+                # This follows DDD principles and avoids duplicates
+                await self.indexing_domain_service.update_snippet_content(
+                    snippet["id"], enriched_content
+                )
                 enriched_contents.append(result)
 
             processed += 1
