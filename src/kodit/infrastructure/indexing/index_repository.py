@@ -42,7 +42,6 @@ class SQLAlchemyIndexRepository(IndexRepository):
 
         index = Index(source_id=source_id)
         self.session.add(index)
-        await self.session.commit()
 
         # Get source for the view
         source_query = select(Source).where(Source.id == source_id)
@@ -158,7 +157,6 @@ class SQLAlchemyIndexRepository(IndexRepository):
 
         if index:
             index.updated_at = datetime.now(UTC)
-            await self.session.commit()
 
     async def delete_all_snippets(self, index_id: int) -> None:
         """Delete all snippets for an index.
@@ -178,7 +176,6 @@ class SQLAlchemyIndexRepository(IndexRepository):
         # Now delete the snippets
         query = delete(Snippet).where(Snippet.index_id == index_id)
         await self.session.execute(query)
-        await self.session.commit()
 
     async def get_snippets_for_index(self, index_id: int) -> list[Snippet]:
         """Get all snippets for an index.
@@ -207,7 +204,6 @@ class SQLAlchemyIndexRepository(IndexRepository):
             content=snippet["content"],
         )
         self.session.add(db_snippet)
-        await self.session.commit()
 
     async def update_snippet_content(self, snippet_id: int, content: str) -> None:
         """Update the content of an existing snippet.
@@ -224,7 +220,6 @@ class SQLAlchemyIndexRepository(IndexRepository):
         if snippet:
             snippet.content = content
             # SQLAlchemy will automatically track this change
-            await self.session.commit()
 
     async def list_snippets_by_ids(self, ids: list[int]) -> list[tuple[dict, dict]]:
         """List snippets by IDs.

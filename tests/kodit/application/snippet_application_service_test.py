@@ -47,16 +47,26 @@ def mock_file_repository() -> MagicMock:
 
 
 @pytest.fixture
+def mock_session() -> MagicMock:
+    """Create a mock session."""
+    session = MagicMock()
+    session.commit = AsyncMock()
+    return session
+
+
+@pytest.fixture
 def snippet_application_service(
     mock_snippet_extraction_service: MagicMock,
     mock_snippet_repository: MagicMock,
     mock_file_repository: MagicMock,
+    mock_session: MagicMock,
 ) -> SnippetApplicationService:
     """Create a snippet application service with mocked dependencies."""
     return SnippetApplicationService(
         snippet_extraction_service=mock_snippet_extraction_service,
         snippet_repository=mock_snippet_repository,
         file_repository=mock_file_repository,
+        session=mock_session,
     )
 
 
@@ -93,6 +103,7 @@ async def test_create_snippets_for_index_success(
     mock_file_repository: MagicMock,
     mock_snippet_repository: MagicMock,
     mock_snippet_extraction_service: MagicMock,
+    mock_session: MagicMock,
 ) -> None:
     """Test creating snippets for all files in an index."""
     # Setup
@@ -126,6 +137,8 @@ async def test_create_snippets_for_index_success(
     mock_file_repository.get_files_for_index.assert_called_once_with(index_id)
     assert mock_snippet_extraction_service.extract_snippets.call_count == 2
     assert mock_snippet_repository.save.call_count == 2
+    # Verify that commit is called at the application service level
+    mock_session.commit.assert_called_once()
 
 
 @pytest.mark.asyncio

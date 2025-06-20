@@ -36,7 +36,7 @@ class TestSqlAlchemyEmbeddingRepository:
 
         assert result == embedding
         mock_session.add.assert_called_once_with(embedding)
-        mock_session.commit.assert_called_once()
+        mock_session.commit.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_get_embedding_by_snippet_id_and_type_found(self):

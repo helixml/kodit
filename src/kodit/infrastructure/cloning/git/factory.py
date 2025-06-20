@@ -5,6 +5,7 @@ from pathlib import Path
 
 import git
 import structlog
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.domain.entities import AuthorFileMapping, Source, SourceType
 from kodit.domain.interfaces import NullProgressCallback, ProgressCallback
@@ -26,6 +27,7 @@ class GitSourceFactory:
         self,
         repository: SourceRepository,
         working_copy: GitWorkingCopyProvider,
+        session: AsyncSession,
     ) -> None:
         """Initialize the source factory."""
         self.log = structlog.get_logger(__name__)
@@ -33,6 +35,7 @@ class GitSourceFactory:
         self.working_copy = working_copy
         self.metadata_extractor = GitFileMetadataExtractor()
         self.author_extractor = GitAuthorExtractor(repository)
+        self.session = session
 
     async def create(
         self, uri: str, progress_callback: ProgressCallback | None = None
@@ -70,6 +73,9 @@ class GitSourceFactory:
             )
         )
 
+        # Commit source creation so we get an ID for foreign key relationships
+        await self.session.commit()
+
         # Get files to process using ignore patterns
         ignore_provider = GitIgnorePatternProvider(clone_path)
         ignore_service = IgnoreService(ignore_provider)
@@ -82,6 +88,9 @@ class GitSourceFactory:
         # Process files
         self.log.info("Inspecting files", source_id=source.id, num_files=len(files))
         await self._process_files(source, files, progress_callback)
+
+        # Commit file processing
+        await self.session.commit()
 
         return source
 
@@ -111,6 +120,11 @@ class GitSourceFactory:
 
             # Extract authors
             authors = await self.author_extractor.extract(path, source)
+
+            # Commit authors so they get IDs before creating mappings
+            if authors:
+                await self.session.commit()
+
             for author in authors:
                 await self.repository.upsert_author_file_mapping(
                     AuthorFileMapping(

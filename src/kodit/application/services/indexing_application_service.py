@@ -1,6 +1,7 @@
 """Application service for indexing operations."""
 
 import structlog
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.application.commands.snippet_commands import CreateIndexSnippetsCommand
 from kodit.application.services.snippet_application_service import (
@@ -51,6 +52,7 @@ class IndexingApplicationService:
         text_search_service: EmbeddingDomainService,
         enrichment_service: EnrichmentDomainService,
         snippet_application_service: SnippetApplicationService,
+        session: AsyncSession,
     ) -> None:
         """Initialize the indexing application service.
 
@@ -62,11 +64,13 @@ class IndexingApplicationService:
             text_search_service: The text search domain service.
             enrichment_service: The enrichment domain service.
             snippet_application_service: The snippet application service.
+            session: The database session for transaction management.
 
         """
         self.indexing_domain_service = indexing_domain_service
         self.source_service = source_service
         self.snippet_application_service = snippet_application_service
+        self.session = session
         self.log = structlog.get_logger(__name__)
         self.bm25_service = bm25_service
         self.code_search_service = code_search_service
@@ -93,7 +97,12 @@ class IndexingApplicationService:
 
         # Create the index
         request = IndexCreateRequest(source_id=source.id)
-        return await self.indexing_domain_service.create_index(request)
+        index_view = await self.indexing_domain_service.create_index(request)
+
+        # Commit the index creation
+        await self.session.commit()
+
+        return index_view
 
     async def list_indexes(self) -> list[IndexView]:
         """List all available indexes with their details.
@@ -138,8 +147,11 @@ class IndexingApplicationService:
 
         # Delete old snippets so we don't duplicate
         await self.indexing_domain_service.delete_all_snippets(index.id)
+        # Commit the deletion
+        await self.session.commit()
 
         # Create snippets for supported file types using the snippet application service
+        # (snippet_application_service handles its own commits)
         self.log.info("Creating snippets for files", index_id=index.id)
         command = CreateIndexSnippetsCommand(
             index_id=index.id, strategy=SnippetExtractionStrategy.METHOD_BASED
@@ -184,6 +196,8 @@ class IndexingApplicationService:
 
         # Update index timestamp
         await self.indexing_domain_service.update_index_timestamp(index.id)
+        # Commit the timestamp update
+        await self.session.commit()
 
     async def _create_bm25_index(
         self, snippets: list[Snippet], progress_callback: ProgressCallback | None = None
@@ -263,6 +277,10 @@ class IndexingApplicationService:
             await reporter.step(
                 "enrichment", processed, len(snippets), "Enriching snippets..."
             )
+
+        # Commit all snippet content updates as a single transaction
+        if enriched_contents:
+            await self.session.commit()
 
         await reporter.done("enrichment")
 

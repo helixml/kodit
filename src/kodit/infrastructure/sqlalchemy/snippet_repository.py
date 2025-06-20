@@ -28,7 +28,6 @@ class SqlAlchemySnippetRepository(SnippetRepository):
     async def save(self, entity: Snippet) -> Snippet:
         """Save entity."""
         self.session.add(entity)
-        await self.session.commit()
         return entity
 
     async def delete(self, id: int) -> None:  # noqa: A002
@@ -36,7 +35,6 @@ class SqlAlchemySnippetRepository(SnippetRepository):
         snippet = await self.get(id)
         if snippet:
             await self.session.delete(snippet)
-            await self.session.commit()
 
     async def list(self) -> Sequence[Snippet]:
         """List all entities."""
@@ -79,4 +77,3 @@ class SqlAlchemySnippetRepository(SnippetRepository):
         """
         query = delete(Snippet).where(Snippet.index_id == index_id)
         await self.session.execute(query)
-        await self.session.commit()

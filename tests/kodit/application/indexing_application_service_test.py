@@ -72,7 +72,7 @@ def mock_text_search_service() -> MagicMock:
 
 @pytest.fixture
 def mock_enrichment_service() -> MagicMock:
-    """Create a mock enrichment domain service."""
+    """Create a mock enrichment service."""
     service = MagicMock(spec=EnrichmentDomainService)
     service.enrich_documents = AsyncMock()
     return service
@@ -87,6 +87,14 @@ def mock_snippet_application_service() -> MagicMock:
 
 
 @pytest.fixture
+def mock_session() -> MagicMock:
+    """Create a mock session."""
+    session = MagicMock()
+    session.commit = AsyncMock()
+    return session
+
+
+@pytest.fixture
 def indexing_application_service(
     mock_indexing_domain_service: MagicMock,
     mock_source_service: MagicMock,
@@ -95,6 +103,7 @@ def indexing_application_service(
     mock_text_search_service: MagicMock,
     mock_enrichment_service: MagicMock,
     mock_snippet_application_service: MagicMock,
+    mock_session: MagicMock,
 ) -> IndexingApplicationService:
     """Create an indexing application service with mocked dependencies."""
     return IndexingApplicationService(
@@ -105,6 +114,7 @@ def indexing_application_service(
         text_search_service=mock_text_search_service,
         enrichment_service=mock_enrichment_service,
         snippet_application_service=mock_snippet_application_service,
+        session=mock_session,
     )
 
 
@@ -113,6 +123,7 @@ async def test_create_index_success(
     indexing_application_service: IndexingApplicationService,
     mock_source_service: MagicMock,
     mock_indexing_domain_service: MagicMock,
+    mock_session: MagicMock,
 ) -> None:
     """Test creating a new index through the application service."""
     # Setup mocks
@@ -132,6 +143,8 @@ async def test_create_index_success(
     assert result == expected_index_view
     mock_source_service.get.assert_called_once_with(source.id)
     mock_indexing_domain_service.create_index.assert_called_once()
+    # Verify that commit is called at the application service level
+    mock_session.commit.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -178,6 +191,7 @@ async def test_run_index_success(
     mock_code_search_service: MagicMock,
     mock_text_search_service: MagicMock,
     mock_enrichment_service: MagicMock,
+    mock_session: MagicMock,
 ) -> None:
     """Test running an index through the application service."""
     # Setup mocks
@@ -224,6 +238,9 @@ async def test_run_index_success(
     mock_indexing_domain_service.delete_all_snippets.assert_called_once_with(index_id)
     mock_snippet_application_service.create_snippets_for_index.assert_called_once()
     mock_bm25_service.index_documents.assert_called_once()
+    # Verify that commits are called at the application service level (3 times total:
+    # 1. After delete_all_snippets, 2. After enrichment updates, 3. After timestamp update)
+    assert mock_session.commit.call_count == 3
 
 
 @pytest.mark.asyncio

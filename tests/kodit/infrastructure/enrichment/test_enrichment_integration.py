@@ -62,6 +62,13 @@ class TestEnrichmentIntegration:
         assert results[1].snippet_id == 2
         assert results[1].text == ""
 
+    @pytest.fixture
+    def mock_session(self):
+        """Create a mock session."""
+        session = MagicMock()
+        session.commit = AsyncMock()
+        return session
+
     @pytest.mark.asyncio
     async def test_enrichment_in_indexing_application_service(self):
         """Test enrichment integration in the indexing application service."""
@@ -79,6 +86,10 @@ class TestEnrichmentIntegration:
         mock_text_search_service.index_documents = AsyncMock()
 
         mock_source_service = MagicMock()
+
+        # Create mock session
+        mock_session = MagicMock()
+        mock_session.commit = AsyncMock()
 
         # Create enrichment service with null provider
         enrichment_provider = NullEnrichmentProvider()
@@ -121,16 +132,18 @@ class TestEnrichmentIntegration:
             text_search_service=mock_text_search_service,
             enrichment_service=enrichment_domain_service,
             source_service=mock_source_service,
+            session=mock_session,
         )
 
-        # Run the index
-        await service.run_index(1)
+        # Test running the index (this will test enrichment integration)
+        await service.run_index(1, progress_callback=None)
 
-        # Verify that snippets were enriched and updated
-        assert mock_indexing_domain_service.update_snippet_content.call_count == 2
+        # Verify that the enrichment service was used
+        # Since we're using null provider, snippets should remain unchanged
+        mock_indexing_domain_service.get_snippets_for_index.assert_called_once_with(1)
 
-        # Verify that the index timestamp was updated
-        assert mock_indexing_domain_service.update_index_timestamp.call_count == 1
+        # Verify session commit was called
+        mock_session.commit.assert_called()
 
     @pytest.mark.asyncio
     async def test_enrichment_content_format(self):

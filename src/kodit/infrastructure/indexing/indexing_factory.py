@@ -53,6 +53,7 @@ def create_snippet_application_service(
         snippet_extraction_service=snippet_extraction_service,
         snippet_repository=snippet_repository,
         file_repository=file_repository,
+        session=session,
     )
 
 
@@ -108,4 +109,5 @@ def create_indexing_application_service(
         text_search_service=text_search_service,
         enrichment_service=enrichment_service,
         snippet_application_service=snippet_application_service,
+        session=session,
     )

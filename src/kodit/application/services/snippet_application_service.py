@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 import structlog
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.application.commands.snippet_commands import (
     CreateIndexSnippetsCommand,
@@ -28,6 +29,7 @@ class SnippetApplicationService:
         snippet_extraction_service: SnippetExtractionDomainService,
         snippet_repository: SnippetRepository,
         file_repository: FileRepository,
+        session: AsyncSession,
     ) -> None:
         """Initialize the snippet application service.
 
@@ -35,11 +37,13 @@ class SnippetApplicationService:
             snippet_extraction_service: Domain service for snippet extraction
             snippet_repository: Repository for snippet persistence
             file_repository: Repository for file operations
+            session: The database session for transaction management
 
         """
         self.snippet_extraction_service = snippet_extraction_service
         self.snippet_repository = snippet_repository
         self.file_repository = file_repository
+        self.session = session
         self.log = structlog.get_logger(__name__)
 
     async def extract_snippets_from_file(
@@ -140,4 +144,6 @@ class SnippetApplicationService:
                 message=f"Processing {file.cloned_path}...",
             )
 
+        # Commit all snippet creations in a single transaction
+        await self.session.commit()
         await reporter.done("create_snippets")

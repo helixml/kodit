@@ -30,7 +30,6 @@ class SqlAlchemyEmbeddingRepository:
 
         """
         self.session.add(embedding)
-        await self.session.commit()
         return embedding
 
     async def get_embedding_by_snippet_id_and_type(
@@ -81,7 +80,6 @@ class SqlAlchemyEmbeddingRepository:
         embeddings = result.scalars().all()
         for embedding in embeddings:
             await self.session.delete(embedding)
-        await self.session.commit()
 
     async def list_semantic_results(
         self, embedding_type: EmbeddingType, embedding: list[float], top_k: int = 10

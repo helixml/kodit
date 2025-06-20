@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import structlog
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.domain.entities import AuthorFileMapping, Source, SourceType
 from kodit.domain.interfaces import NullProgressCallback, ProgressCallback
@@ -22,6 +23,7 @@ class FolderSourceFactory:
         self,
         repository: SourceRepository,
         working_copy: FolderWorkingCopyProvider,
+        session: AsyncSession,
     ) -> None:
         """Initialize the source factory."""
         self.log = structlog.get_logger(__name__)
@@ -29,6 +31,7 @@ class FolderSourceFactory:
         self.working_copy = working_copy
         self.metadata_extractor = FolderFileMetadataExtractor()
         self.author_extractor = NoOpAuthorExtractor()
+        self.session = session
 
     async def create(
         self, uri: str, progress_callback: ProgressCallback | None = None
@@ -63,11 +66,17 @@ class FolderSourceFactory:
             )
         )
 
+        # Commit source creation so we get an ID for foreign key relationships
+        await self.session.commit()
+
         # Get all files to process
         files = [f for f in clone_path.rglob("*") if f.is_file()]
 
         # Process files
         await self._process_files(source, files, progress_callback)
+
+        # Commit file processing
+        await self.session.commit()
 
         return source
 

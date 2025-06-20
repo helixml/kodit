@@ -97,6 +97,7 @@ def create_snippet_application_service(
         snippet_extraction_service=snippet_extraction_service,
         snippet_repository=snippet_repository,
         file_repository=file_repository,
+        session=session,
     )
 
 

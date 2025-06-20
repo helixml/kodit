@@ -24,7 +24,6 @@ class SqlAlchemySourceRepository(SourceRepository):
     async def save(self, entity: Source) -> Source:
         """Save entity."""
         self._session.add(entity)
-        await self._session.commit()
         return entity
 
     async def delete(self, id: int) -> None:  # noqa: A002
@@ -32,7 +31,6 @@ class SqlAlchemySourceRepository(SourceRepository):
         source = await self.get(id)
         if source:
             await self._session.delete(source)
-            await self._session.commit()
 
     async def list(self) -> Sequence[Source]:
         """List all entities."""
@@ -56,7 +54,6 @@ class SqlAlchemySourceRepository(SourceRepository):
     async def create_file(self, file: File) -> File:
         """Create a new file record."""
         self._session.add(file)
-        await self._session.commit()
         return file
 
     async def upsert_author(self, author: Author) -> Author:
@@ -72,7 +69,6 @@ class SqlAlchemySourceRepository(SourceRepository):
 
         # Author doesn't exist, create new one
         self._session.add(author)
-        await self._session.commit()
         return author
 
     async def upsert_author_file_mapping(
@@ -93,7 +89,6 @@ class SqlAlchemySourceRepository(SourceRepository):
 
         # Mapping doesn't exist, create new one
         self._session.add(mapping)
-        await self._session.commit()
         return mapping
 
 
@@ -111,7 +106,6 @@ class SqlAlchemyAuthorRepository(AuthorRepository):
     async def save(self, entity: Author) -> Author:
         """Save entity."""
         self._session.add(entity)
-        await self._session.commit()
         return entity
 
     async def delete(self, id: int) -> None:  # noqa: A002
@@ -119,7 +113,6 @@ class SqlAlchemyAuthorRepository(AuthorRepository):
         author = await self.get(id)
         if author:
             await self._session.delete(author)
-            await self._session.commit()
 
     async def list(self) -> Sequence[Author]:
         """List authors."""

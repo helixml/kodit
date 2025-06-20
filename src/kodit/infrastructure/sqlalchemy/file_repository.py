@@ -28,7 +28,6 @@ class SqlAlchemyFileRepository(FileRepository):
     async def save(self, entity: File) -> File:
         """Save entity."""
         self.session.add(entity)
-        await self.session.commit()
         return entity
 
     async def delete(self, id: int) -> None:  # noqa: A002
@@ -36,7 +35,6 @@ class SqlAlchemyFileRepository(FileRepository):
         file = await self.get(id)
         if file:
             await self.session.delete(file)
-            await self.session.commit()
 
     async def list(self) -> Sequence[File]:
         """List all entities."""
