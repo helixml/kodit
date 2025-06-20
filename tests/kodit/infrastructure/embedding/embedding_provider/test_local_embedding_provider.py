@@ -301,7 +301,7 @@ class TestLocalEmbeddingProvider:
         with patch("tiktoken.encoding_for_model") as mock_encoding_for_model:
             # Mock the encoding
             mock_encoding = MagicMock()
-            mock_encoding.encode.side_effect = lambda text: [1] * len(
+            mock_encoding.encode.side_effect = lambda text, **kwargs: [1] * len(
                 text
             )  # Simple tokenization
             mock_encoding_for_model.return_value = mock_encoding

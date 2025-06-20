@@ -6,6 +6,7 @@ from kodit.application.commands.snippet_commands import CreateIndexSnippetsComma
 from kodit.application.services.snippet_application_service import (
     SnippetApplicationService,
 )
+from kodit.domain.entities import Snippet
 from kodit.domain.enums import SnippetExtractionStrategy
 from kodit.domain.interfaces import ProgressCallback
 from kodit.domain.services.bm25_service import BM25DomainService
@@ -185,7 +186,7 @@ class IndexingApplicationService:
         await self.indexing_domain_service.update_index_timestamp(index.id)
 
     async def _create_bm25_index(
-        self, snippets: list[dict], progress_callback: ProgressCallback | None = None
+        self, snippets: list[Snippet], progress_callback: ProgressCallback | None = None
     ) -> None:
         """Create BM25 keyword index."""
         reporter = Reporter(self.log, progress_callback)
@@ -193,7 +194,7 @@ class IndexingApplicationService:
         await self.bm25_service.index_documents(
             BM25IndexRequest(
                 documents=[
-                    BM25Document(snippet_id=snippet["id"], text=snippet["content"])
+                    BM25Document(snippet_id=snippet.id, text=snippet.content)
                     for snippet in snippets
                 ]
             )
@@ -201,7 +202,7 @@ class IndexingApplicationService:
         await reporter.done("bm25_index", "Keyword index created")
 
     async def _create_code_embeddings(
-        self, snippets: list[dict], progress_callback: ProgressCallback | None = None
+        self, snippets: list[Snippet], progress_callback: ProgressCallback | None = None
     ) -> None:
         """Create code embeddings."""
         reporter = Reporter(self.log, progress_callback)
@@ -212,7 +213,7 @@ class IndexingApplicationService:
         async for result in self.code_search_service.index_documents(
             VectorIndexRequest(
                 documents=[
-                    VectorSearchRequest(snippet["id"], snippet["content"])
+                    VectorSearchRequest(snippet.id, snippet.content)
                     for snippet in snippets
                 ]
             )
@@ -227,7 +228,7 @@ class IndexingApplicationService:
         await reporter.done("code_embeddings")
 
     async def _enrich_snippets(
-        self, snippets: list[dict], progress_callback: ProgressCallback | None = None
+        self, snippets: list[Snippet], progress_callback: ProgressCallback | None = None
     ) -> None:
         """Enrich snippets with additional context."""
         reporter = Reporter(self.log, progress_callback)
@@ -235,7 +236,7 @@ class IndexingApplicationService:
         enriched_contents = []
         enrichment_request = EnrichmentIndexRequest(
             requests=[
-                EnrichmentRequest(snippet_id=snippet["id"], text=snippet["content"])
+                EnrichmentRequest(snippet_id=snippet.id, text=snippet.content)
                 for snippet in snippets
             ]
         )
@@ -245,18 +246,16 @@ class IndexingApplicationService:
             enrichment_request
         ):
             # Find the snippet by ID
-            snippet = next(s for s in snippets if s["id"] == result.snippet_id)
+            snippet = next(s for s in snippets if s.id == result.snippet_id)
             if snippet:
-                # Update the content in the local dictionary for subsequent processing
-                enriched_content = (
-                    result.text + "\n\n```\n" + snippet["content"] + "\n```"
-                )
-                snippet["content"] = enriched_content
+                # Update the content in the local entity for subsequent processing
+                enriched_content = result.text + "\n\n```\n" + snippet.content + "\n```"
+                snippet.content = enriched_content
 
                 # UPDATE the existing snippet entity instead of creating a new one
                 # This follows DDD principles and avoids duplicates
                 await self.indexing_domain_service.update_snippet_content(
-                    snippet["id"], enriched_content
+                    snippet.id, enriched_content
                 )
                 enriched_contents.append(result)
 
@@ -268,7 +267,7 @@ class IndexingApplicationService:
         await reporter.done("enrichment")
 
     async def _create_text_embeddings(
-        self, snippets: list[dict], progress_callback: ProgressCallback | None = None
+        self, snippets: list[Snippet], progress_callback: ProgressCallback | None = None
     ) -> None:
         """Create text embeddings."""
         reporter = Reporter(self.log, progress_callback)
@@ -279,7 +278,7 @@ class IndexingApplicationService:
         async for result in self.text_search_service.index_documents(
             VectorIndexRequest(
                 documents=[
-                    VectorSearchRequest(snippet["id"], snippet["content"])
+                    VectorSearchRequest(snippet.id, snippet.content)
                     for snippet in snippets
                 ]
             )

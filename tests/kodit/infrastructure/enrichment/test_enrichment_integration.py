@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from kodit.application.services.indexing_application_service import (
     IndexingApplicationService,
 )
+from kodit.domain.entities import Snippet
 from kodit.domain.value_objects import (
     EnrichmentIndexRequest,
     EnrichmentRequest,
@@ -89,13 +90,19 @@ class TestEnrichmentIntegration:
         mock_index.id = 1
         mock_indexing_domain_service.get_index = AsyncMock(return_value=mock_index)
         mock_indexing_domain_service.delete_all_snippets = AsyncMock()
+        # Create mock Snippet entities
+        mock_snippet1 = MagicMock(spec=Snippet)
+        mock_snippet1.id = 1
+        mock_snippet1.content = "def hello(): pass"
+        mock_snippet2 = MagicMock(spec=Snippet)
+        mock_snippet2.id = 2
+        mock_snippet2.content = "def world(): pass"
+
         mock_indexing_domain_service.get_snippets_for_index = AsyncMock(
-            return_value=[
-                {"id": 1, "content": "def hello(): pass"},
-                {"id": 2, "content": "def world(): pass"},
-            ]
+            return_value=[mock_snippet1, mock_snippet2]
         )
         mock_indexing_domain_service.add_snippet = AsyncMock()
+        mock_indexing_domain_service.update_snippet_content = AsyncMock()
         mock_indexing_domain_service.update_index_timestamp = AsyncMock()
 
         # Mock the search methods to return empty results
@@ -119,18 +126,11 @@ class TestEnrichmentIntegration:
         # Run the index
         await service.run_index(1)
 
-        # Verify that snippets were enriched and added
-        assert mock_indexing_domain_service.add_snippet.call_count == 2
+        # Verify that snippets were enriched and updated
+        assert mock_indexing_domain_service.update_snippet_content.call_count == 2
 
-        # Verify the enriched content format
-        calls = mock_indexing_domain_service.add_snippet.call_args_list
-        for call in calls:
-            snippet = call[0][0]  # First argument is the snippet dict
-            assert "content" in snippet
-            # Content should be in format: "enriched_text\n\n```\noriginal_content\n```"
-            content = snippet["content"]
-            assert content.endswith("\n```")
-            assert "```\n" in content
+        # Verify that the index timestamp was updated
+        assert mock_indexing_domain_service.update_index_timestamp.call_count == 1
 
     @pytest.mark.asyncio
     async def test_enrichment_content_format(self):

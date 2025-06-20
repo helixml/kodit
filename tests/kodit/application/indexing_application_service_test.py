@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from kodit.application.services.indexing_application_service import (
     IndexingApplicationService,
 )
-from kodit.domain.entities import Source, SourceType
+from kodit.domain.entities import Snippet, Source, SourceType
 from kodit.domain.value_objects import IndexView
 from kodit.domain.services.bm25_service import BM25DomainService
 from kodit.domain.services.embedding_service import EmbeddingDomainService
@@ -186,10 +186,15 @@ async def test_run_index_success(
     mock_index.id = index_id
     mock_indexing_domain_service.get_index.return_value = mock_index
 
-    mock_snippets = [
-        {"id": 1, "content": "def hello(): pass"},
-        {"id": 2, "content": "def world(): pass"},
-    ]
+    # Create mock Snippet entities
+    mock_snippet1 = MagicMock(spec=Snippet)
+    mock_snippet1.id = 1
+    mock_snippet1.content = "def hello(): pass"
+    mock_snippet2 = MagicMock(spec=Snippet)
+    mock_snippet2.id = 2
+    mock_snippet2.content = "def world(): pass"
+
+    mock_snippets = [mock_snippet1, mock_snippet2]
     mock_indexing_domain_service.get_snippets_for_index.return_value = mock_snippets
 
     # Mock enrichment responses
@@ -259,14 +264,29 @@ async def test_enrichment_duplicate_bug_with_database_simulation(
     # Simulate a database that tracks all snippets (original + any duplicates)
     database_snippets = []
 
-    # Original snippets that exist after snippet creation
-    original_snippets = [
+    # Create mock Snippet entities
+    mock_snippet1 = MagicMock(spec=Snippet)
+    mock_snippet1.id = 1
+    mock_snippet1.file_id = 1
+    mock_snippet1.index_id = 1
+    mock_snippet1.content = "def hello(): pass"
+
+    mock_snippet2 = MagicMock(spec=Snippet)
+    mock_snippet2.id = 2
+    mock_snippet2.file_id = 1
+    mock_snippet2.index_id = 1
+    mock_snippet2.content = "def world(): pass"
+
+    original_snippets = [mock_snippet1, mock_snippet2]
+
+    # Original snippets as dicts for database simulation
+    original_snippets_dict = [
         {"id": 1, "file_id": 1, "index_id": 1, "content": "def hello(): pass"},
         {"id": 2, "file_id": 1, "index_id": 1, "content": "def world(): pass"},
     ]
 
     # Add original snippets to our simulated database
-    database_snippets.extend(original_snippets.copy())
+    database_snippets.extend(original_snippets_dict.copy())
 
     mock_indexing_domain_service.get_snippets_for_index.return_value = original_snippets
 

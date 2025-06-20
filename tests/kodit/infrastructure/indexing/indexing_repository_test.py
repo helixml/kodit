@@ -100,8 +100,8 @@ async def test_should_return_when_items_are_present(
 
     # Get the actual snippet IDs from the database
     snippets = await indexing_repository.get_snippets_for_index(index.id)
-    snippet1_id = snippets[0]["id"]
-    snippet2_id = snippets[1]["id"]
+    snippet1_id = snippets[0].id
+    snippet2_id = snippets[1].id
 
     result = await indexing_repository.list_snippets_by_ids([snippet1_id, snippet2_id])
     assert len(result) == 2

@@ -57,6 +57,26 @@ class SQLAlchemyIndexRepository(IndexRepository):
             num_snippets=0,
         )
 
+    async def _get_index_view(self, index: Index, source: Source) -> IndexView:
+        """Create an IndexView from Index and Source entities.
+
+        Args:
+            index: The index entity
+            source: The source entity
+
+        Returns:
+            The index view
+
+        """
+        num_snippets = await self.num_snippets_for_index(index.id)
+        return IndexView(
+            id=index.id,
+            created_at=index.created_at,
+            updated_at=index.updated_at,
+            source=source.uri,
+            num_snippets=num_snippets,
+        )
+
     async def get_index_by_id(self, index_id: int) -> IndexView | None:
         """Get an index by its ID.
 
@@ -79,15 +99,7 @@ class SQLAlchemyIndexRepository(IndexRepository):
             return None
 
         index, source = row
-        num_snippets = await self.num_snippets_for_index(index.id)
-
-        return IndexView(
-            id=index.id,
-            created_at=index.created_at,
-            updated_at=index.updated_at,
-            source=source.uri,
-            num_snippets=num_snippets,
-        )
+        return await self._get_index_view(index, source)
 
     async def get_index_by_source_id(self, source_id: int) -> IndexView | None:
         """Get an index by its source ID.
@@ -111,15 +123,7 @@ class SQLAlchemyIndexRepository(IndexRepository):
             return None
 
         index, source = row
-        num_snippets = await self.num_snippets_for_index(index.id)
-
-        return IndexView(
-            id=index.id,
-            created_at=index.created_at,
-            updated_at=index.updated_at,
-            source=source.uri,
-            num_snippets=num_snippets,
-        )
+        return await self._get_index_view(index, source)
 
     async def list_indexes(self) -> list[IndexView]:
         """List all indexes.
@@ -136,16 +140,8 @@ class SQLAlchemyIndexRepository(IndexRepository):
 
         indexes = []
         for index, source in rows:
-            num_snippets = await self.num_snippets_for_index(index.id)
-            indexes.append(
-                IndexView(
-                    id=index.id,
-                    created_at=index.created_at,
-                    updated_at=index.updated_at,
-                    source=source.uri,
-                    num_snippets=num_snippets,
-                )
-            )
+            index_view = await self._get_index_view(index, source)
+            indexes.append(index_view)
 
         return indexes
 
@@ -176,7 +172,7 @@ class SQLAlchemyIndexRepository(IndexRepository):
 
         # Delete all embeddings for these snippets, if there are any
         for snippet in snippets:
-            query = delete(Embedding).where(Embedding.snippet_id == snippet["id"])
+            query = delete(Embedding).where(Embedding.snippet_id == snippet.id)
             await self.session.execute(query)
 
         # Now delete the snippets
@@ -184,37 +180,11 @@ class SQLAlchemyIndexRepository(IndexRepository):
         await self.session.execute(query)
         await self.session.commit()
 
-    async def get_snippets_for_index(self, index_id: int) -> list[dict]:
+    async def get_snippets_for_index(self, index_id: int) -> list[Snippet]:
         """Get all snippets for an index.
 
         Args:
             index_id: The ID of the index to get snippets for.
-
-        Returns:
-            A list of snippet dictionaries.
-
-        """
-        query = select(Snippet).where(Snippet.index_id == index_id)
-        result = await self.session.execute(query)
-        snippets = result.scalars()
-
-        return [
-            {
-                "id": snippet.id,
-                "file_id": snippet.file_id,
-                "index_id": snippet.index_id,
-                "content": snippet.content,
-                "created_at": snippet.created_at,
-                "updated_at": snippet.updated_at,
-            }
-            for snippet in snippets
-        ]
-
-    async def get_snippet_entities_for_index(self, index_id: int) -> list[Snippet]:
-        """Get all snippet entities for an index.
-
-        Args:
-            index_id: The ID of the index to get snippet entities for.
 
         Returns:
             A list of Snippet entities.

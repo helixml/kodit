@@ -2,6 +2,7 @@
 
 from abc import ABC, abstractmethod
 
+from kodit.domain.entities import Snippet
 from kodit.domain.value_objects import (
     FusionRequest,
     FusionResult,
@@ -38,12 +39,8 @@ class IndexRepository(ABC):
         """Delete all snippets for an index."""
 
     @abstractmethod
-    async def get_snippets_for_index(self, index_id: int) -> list[dict]:
+    async def get_snippets_for_index(self, index_id: int) -> list[Snippet]:
         """Get all snippets for an index."""
-
-    @abstractmethod
-    async def get_snippet_entities_for_index(self, index_id: int) -> list:
-        """Get all snippet entities for an index."""
 
     @abstractmethod
     async def add_snippet(self, snippet: dict) -> None:
@@ -72,40 +69,29 @@ class IndexingDomainService:
     """Domain service for indexing operations."""
 
     def __init__(
-        self,
-        index_repository: IndexRepository,
-        fusion_service: FusionService,
+        self, index_repository: IndexRepository, fusion_service: FusionService
     ) -> None:
         """Initialize the indexing domain service.
 
         Args:
-            index_repository: The index repository to use.
-            fusion_service: The fusion service to use.
+            index_repository: Repository for index operations
+            fusion_service: Service for result fusion
 
         """
         self.index_repository = index_repository
         self.fusion_service = fusion_service
 
     async def create_index(self, request: IndexCreateRequest) -> IndexView:
-        """Create a new index for a source.
+        """Create a new index.
 
         Args:
-            request: The index creation request.
+            request: The index create request.
 
         Returns:
             The created index view.
 
         """
         return await self.index_repository.create_index(request.source_id)
-
-    async def list_indexes(self) -> list[IndexView]:
-        """List all available indexes.
-
-        Returns:
-            A list of index views.
-
-        """
-        return await self.index_repository.list_indexes()
 
     async def get_index(self, index_id: int) -> IndexView | None:
         """Get an index by its ID.
@@ -118,6 +104,27 @@ class IndexingDomainService:
 
         """
         return await self.index_repository.get_index_by_id(index_id)
+
+    async def get_index_by_source_id(self, source_id: int) -> IndexView | None:
+        """Get an index by its source ID.
+
+        Args:
+            source_id: The ID of the source to retrieve an index for.
+
+        Returns:
+            The index view if found, None otherwise.
+
+        """
+        return await self.index_repository.get_index_by_source_id(source_id)
+
+    async def list_indexes(self) -> list[IndexView]:
+        """List all indexes.
+
+        Returns:
+            A list of index views.
+
+        """
+        return await self.index_repository.list_indexes()
 
     async def update_index_timestamp(self, index_id: int) -> None:
         """Update the timestamp of an index.
@@ -137,29 +144,17 @@ class IndexingDomainService:
         """
         await self.index_repository.delete_all_snippets(index_id)
 
-    async def get_snippets_for_index(self, index_id: int) -> list[dict]:
+    async def get_snippets_for_index(self, index_id: int) -> list[Snippet]:
         """Get all snippets for an index.
 
         Args:
             index_id: The ID of the index to get snippets for.
 
         Returns:
-            A list of snippet dictionaries.
-
-        """
-        return await self.index_repository.get_snippets_for_index(index_id)
-
-    async def get_snippet_entities_for_index(self, index_id: int) -> list:
-        """Get all snippet entities for an index.
-
-        Args:
-            index_id: The ID of the index to get snippet entities for.
-
-        Returns:
             A list of Snippet entities.
 
         """
-        return await self.index_repository.get_snippet_entities_for_index(index_id)
+        return await self.index_repository.get_snippets_for_index(index_id)
 
     async def add_snippet(self, snippet: dict) -> None:
         """Add a snippet to the database.

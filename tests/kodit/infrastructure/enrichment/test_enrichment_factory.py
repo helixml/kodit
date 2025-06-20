@@ -53,10 +53,12 @@ class TestEnrichmentFactory:
             assert service.enrichment_provider.model_name == "gpt-4o-mini"
 
             # Verify OpenAI client was created with correct parameters
-            mock_openai.assert_called_once_with(
-                api_key="test-key",
-                base_url="https://api.openai.com/v1",
-            )
+        mock_openai.assert_called_once_with(
+            api_key="test-key",
+            base_url="https://api.openai.com/v1",
+            timeout=60,
+            max_retries=2,
+        )
 
     def test_create_enrichment_domain_service_enrichment_openai_endpoint(self):
         """Test creating enrichment service with enrichment-specific OpenAI endpoint."""
@@ -86,10 +88,12 @@ class TestEnrichmentFactory:
             assert service.enrichment_provider.model_name == "gpt-4"
 
             # Verify OpenAI client was created with enrichment endpoint parameters
-            mock_openai.assert_called_once_with(
-                api_key="enrichment-key",
-                base_url="https://custom.openai.com/v1",
-            )
+        mock_openai.assert_called_once_with(
+            api_key="enrichment-key",
+            base_url="https://custom.openai.com/v1",
+            timeout=60,
+            max_retries=2,
+        )
 
     def test_create_enrichment_domain_service_default_openai_endpoint_no_model(self):
         """Test creating enrichment service with OpenAI endpoint but no model specified."""
@@ -135,10 +139,12 @@ class TestEnrichmentFactory:
             assert isinstance(service.enrichment_provider, OpenAIEnrichmentProvider)
 
             # Verify OpenAI client was created with default base URL
-            mock_openai.assert_called_once_with(
-                api_key="test-key",
-                base_url="https://api.openai.com/v1",
-            )
+        mock_openai.assert_called_once_with(
+            api_key="test-key",
+            base_url="https://api.openai.com/v1",
+            timeout=60,
+            max_retries=2,
+        )
 
     def test_create_enrichment_domain_service_default_openai_endpoint_no_api_key(self):
         """Test creating enrichment service with OpenAI endpoint but no API key specified."""
@@ -161,10 +167,12 @@ class TestEnrichmentFactory:
             assert isinstance(service.enrichment_provider, OpenAIEnrichmentProvider)
 
             # Verify OpenAI client was created with default API key
-            mock_openai.assert_called_once_with(
-                api_key="default",
-                base_url="https://api.openai.com/v1",
-            )
+        mock_openai.assert_called_once_with(
+            api_key="default",
+            base_url="https://api.openai.com/v1",
+            timeout=60,
+            max_retries=2,
+        )
 
     def test_create_enrichment_domain_service_non_openai_endpoint(self):
         """Test creating enrichment service with non-OpenAI endpoint (should fall back to local)."""
