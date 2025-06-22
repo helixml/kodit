@@ -111,8 +111,8 @@ class SqlAlchemySnippetRepository(SnippetRepository):
         if file_path is not None:
             query = query.where(
                 or_(
-                    File.cloned_path.like(f"%{file_path}"),
-                    File.uri.like(f"%{file_path}"),
+                    File.cloned_path.like(f"%{file_path}%"),
+                    File.uri.like(f"%{file_path}%"),
                 )
             )
 
