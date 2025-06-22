@@ -20,3 +20,11 @@ class CreateIndexSnippetsCommand:
 
     index_id: int
     strategy: SnippetExtractionStrategy = SnippetExtractionStrategy.METHOD_BASED
+
+
+@dataclass
+class ListSnippetsCommand:
+    """Application command for listing snippets with optional filtering."""
+
+    file_path: str | None = None
+    source_uri: str | None = None

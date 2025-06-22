@@ -8,6 +8,7 @@ import pytest
 from kodit.application.commands.snippet_commands import (
     CreateIndexSnippetsCommand,
     ExtractSnippetsCommand,
+    ListSnippetsCommand,
 )
 from kodit.application.services.snippet_application_service import (
     SnippetApplicationService,
@@ -18,7 +19,7 @@ from kodit.domain.repositories import FileRepository, SnippetRepository
 from kodit.domain.services.snippet_extraction_service import (
     SnippetExtractionDomainService,
 )
-from kodit.domain.value_objects import SnippetExtractionResult
+from kodit.domain.value_objects import SnippetExtractionResult, SnippetListItem
 
 
 @pytest.fixture
@@ -159,3 +160,78 @@ async def test_create_snippets_for_index_no_files(
 
     # Verify
     mock_file_repository.get_files_for_index.assert_called_once_with(index_id)
+
+
+@pytest.mark.asyncio
+async def test_list_snippets():
+    """Test listing snippets with optional filtering."""
+    # Mock dependencies
+    mock_snippet_extraction_service = AsyncMock()
+    mock_snippet_repository = AsyncMock()
+    mock_file_repository = AsyncMock()
+    mock_session = AsyncMock()
+
+    # Create test data
+    test_snippets = [
+        SnippetListItem(
+            id=1,
+            file_path="test.py",
+            content="test snippet 1",
+            source_uri="https://github.com/test/repo.git",
+        ),
+        SnippetListItem(
+            id=2,
+            file_path="test2.py",
+            content="test snippet 2",
+            source_uri="https://github.com/test/repo.git",
+        ),
+    ]
+
+    # Mock the repository to return test data
+    mock_snippet_repository.list_snippets.return_value = test_snippets
+
+    # Create service
+    service = SnippetApplicationService(
+        snippet_extraction_service=mock_snippet_extraction_service,
+        snippet_repository=mock_snippet_repository,
+        file_repository=mock_file_repository,
+        session=mock_session,
+    )
+
+    # Test listing all snippets
+    command = ListSnippetsCommand()
+    result = await service.list_snippets(command)
+
+    assert len(result) == 2
+    assert result[0].id == 1
+    assert result[0].file_path == "test.py"
+    assert result[0].content == "test snippet 1"
+    assert result[0].source_uri == "https://github.com/test/repo.git"
+    assert result[1].id == 2
+    assert result[1].file_path == "test2.py"
+    assert result[1].content == "test snippet 2"
+    assert result[1].source_uri == "https://github.com/test/repo.git"
+
+    # Verify the repository was called correctly
+    mock_snippet_repository.list_snippets.assert_called_once_with(None, None)
+
+    # Test filtering by file path
+    command = ListSnippetsCommand(file_path="/tmp/test.py")
+    await service.list_snippets(command)
+    mock_snippet_repository.list_snippets.assert_called_with("/tmp/test.py", None)
+
+    # Test filtering by source URI
+    command = ListSnippetsCommand(source_uri="https://github.com/test/repo.git")
+    await service.list_snippets(command)
+    mock_snippet_repository.list_snippets.assert_called_with(
+        None, "https://github.com/test/repo.git"
+    )
+
+    # Test filtering by both
+    command = ListSnippetsCommand(
+        file_path="/tmp/test.py", source_uri="https://github.com/test/repo.git"
+    )
+    await service.list_snippets(command)
+    mock_snippet_repository.list_snippets.assert_called_with(
+        "/tmp/test.py", "https://github.com/test/repo.git"
+    )

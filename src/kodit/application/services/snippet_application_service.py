@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from kodit.application.commands.snippet_commands import (
     CreateIndexSnippetsCommand,
     ExtractSnippetsCommand,
+    ListSnippetsCommand,
 )
 from kodit.domain.entities import Snippet
 from kodit.domain.enums import SnippetExtractionStrategy
@@ -17,7 +18,7 @@ from kodit.domain.repositories import FileRepository, SnippetRepository
 from kodit.domain.services.snippet_extraction_service import (
     SnippetExtractionDomainService,
 )
-from kodit.domain.value_objects import SnippetExtractionRequest
+from kodit.domain.value_objects import SnippetExtractionRequest, SnippetListItem
 from kodit.reporting import Reporter
 
 
@@ -147,3 +148,21 @@ class SnippetApplicationService:
         # Commit all snippet creations in a single transaction
         await self.session.commit()
         await reporter.done("create_snippets")
+
+    async def list_snippets(
+        self, command: ListSnippetsCommand
+    ) -> list[SnippetListItem]:
+        """List snippets with optional filtering.
+
+        Args:
+            command: The list snippets command with optional file path and source URI filters
+
+        Returns:
+            List of SnippetListItem instances matching the criteria
+
+        """
+        return list(
+            await self.snippet_repository.list_snippets(
+                command.file_path, command.source_uri
+            )
+        )

@@ -11,6 +11,9 @@ import uvicorn
 from pytable_formatter import Cell, Table
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from kodit.application.commands.snippet_commands import (
+    ListSnippetsCommand,
+)
 from kodit.application.services.snippet_application_service import (
     SnippetApplicationService,
 )
@@ -350,6 +353,32 @@ async def hybrid(  # noqa: PLR0913
         click.echo(f"Original scores: {snippet.original_scores}")
         click.echo(snippet.content)
         click.echo("-" * 80)
+        click.echo()
+
+
+@cli.group()
+def show() -> None:
+    """Show information about elements in the database."""
+
+
+@show.command()
+@click.option("--by-path", help="File or directory path to search for snippets")
+@click.option("--by-source", help="Source URI to filter snippets by")
+@with_session
+async def snippets(
+    session: AsyncSession,
+    by_path: str | None,
+    by_source: str | None,
+) -> None:
+    """Show snippets with optional filtering by path or source."""
+    log_event("kodit.cli.show.snippets")
+    snippet_service = create_snippet_application_service(session)
+    snippets = await snippet_service.list_snippets(
+        ListSnippetsCommand(file_path=by_path, source_uri=by_source)
+    )
+    for snippet in snippets:
+        click.echo(f"{snippet.id}: [{snippet.source_uri}] {snippet.file_path}")
+        click.echo(f"  {snippet.content}")
         click.echo()
 
 

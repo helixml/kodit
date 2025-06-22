@@ -213,3 +213,13 @@ class IndexView:
     num_snippets: int
     updated_at: datetime | None = None
     source: str | None = None
+
+
+@dataclass
+class SnippetListItem:
+    """Domain model for snippet list item with file information."""
+
+    id: int
+    file_path: str
+    content: str
+    source_uri: str

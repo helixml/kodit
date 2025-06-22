@@ -1,12 +1,14 @@
 """SQLAlchemy implementation of snippet repository."""
 
 from collections.abc import Sequence
+from pathlib import Path
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.entities import Snippet
+from kodit.domain.entities import File, Snippet, Source
 from kodit.domain.repositories import SnippetRepository
+from kodit.domain.value_objects import SnippetListItem
 
 
 class SqlAlchemySnippetRepository(SnippetRepository):
@@ -77,3 +79,70 @@ class SqlAlchemySnippetRepository(SnippetRepository):
         """
         query = delete(Snippet).where(Snippet.index_id == index_id)
         await self.session.execute(query)
+
+    async def list_snippets(
+        self, file_path: str | None = None, source_uri: str | None = None
+    ) -> Sequence[SnippetListItem]:
+        """List snippets with optional filtering by file path and source URI.
+
+        Args:
+            file_path: Optional file or directory path to filter by. Can be relative (uri) or absolute (cloned_path).
+            source_uri: Optional source URI to filter by. If None, returns snippets from all sources.
+
+        Returns:
+            A sequence of SnippetListItem instances matching the criteria
+
+        """
+        # Build the base query
+        query = (
+            select(
+                Snippet,
+                File.cloned_path,
+                Source.cloned_path.label("source_cloned_path"),
+                Source.uri.label("source_uri"),
+            )
+            .join(File, Snippet.file_id == File.id)
+            .join(Source, File.source_id == Source.id)
+        )
+
+        # Apply filters
+        if file_path is not None:
+            query = query.where(
+                or_(
+                    File.cloned_path.like(f"%{file_path}"),
+                    File.uri.like(f"%{file_path}"),
+                )
+            )
+
+        if source_uri is not None:
+            query = query.where(Source.uri == source_uri)
+
+        result = await self.session.execute(query)
+        return [
+            SnippetListItem(
+                id=snippet.id,
+                file_path=self._get_relative_path(file_cloned_path, source_cloned_path),
+                content=snippet.content,
+                source_uri=source_uri_val,
+            )
+            for snippet, file_cloned_path, source_cloned_path, source_uri_val in result.all()
+        ]
+
+    def _get_relative_path(self, file_path: str, source_path: str) -> str:
+        """Calculate the relative path of a file from the source root.
+
+        Args:
+            file_path: The full path to the file
+            source_path: The full path to the source root
+
+        Returns:
+            The relative path from the source root
+
+        """
+        try:
+            file_path_obj = Path(file_path)
+            source_path_obj = Path(source_path)
+            return str(file_path_obj.relative_to(source_path_obj))
+        except ValueError:
+            # If the file is not relative to the source, return the filename
+            return Path(file_path).name
