@@ -86,8 +86,10 @@ class SqlAlchemySnippetRepository(SnippetRepository):
         """List snippets with optional filtering by file path and source URI.
 
         Args:
-            file_path: Optional file or directory path to filter by. Can be relative (uri) or absolute (cloned_path).
-            source_uri: Optional source URI to filter by. If None, returns snippets from all sources.
+            file_path: Optional file or directory path to filter by. Can be relative
+            (uri) or absolute (cloned_path).
+            source_uri: Optional source URI to filter by. If None, returns snippets from
+            all sources.
 
         Returns:
             A sequence of SnippetListItem instances matching the criteria
@@ -125,7 +127,12 @@ class SqlAlchemySnippetRepository(SnippetRepository):
                 content=snippet.content,
                 source_uri=source_uri_val,
             )
-            for snippet, file_cloned_path, source_cloned_path, source_uri_val in result.all()
+            for (
+                snippet,
+                file_cloned_path,
+                source_cloned_path,
+                source_uri_val,
+            ) in result.all()
         ]
 
     def _get_relative_path(self, file_path: str, source_path: str) -> str:

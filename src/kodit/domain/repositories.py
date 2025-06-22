@@ -93,9 +93,10 @@ class SnippetRepository(GenericRepository[Snippet]):
         """List snippets with optional filtering by file path and source URI.
 
         Args:
-            file_path: Optional file path to filter by. Can be a specific file or a directory path.
-                       If None, returns all snippets.
-            source_uri: Optional source URI to filter by. If None, returns snippets from all sources.
+            file_path: Optional file or directory path to filter by. Can be relative
+            (uri) or absolute (cloned_path).
+            source_uri: Optional source URI to filter by. If None, returns snippets from
+            all sources.
 
         Returns:
             A sequence of SnippetListItem instances matching the criteria

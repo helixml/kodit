@@ -155,7 +155,8 @@ class SnippetApplicationService:
         """List snippets with optional filtering.
 
         Args:
-            command: The list snippets command with optional file path and source URI filters
+            command: The list snippets command with optional file path and source URI
+            filters
 
         Returns:
             List of SnippetListItem instances matching the criteria
