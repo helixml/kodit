@@ -194,7 +194,7 @@ def search() -> None:
 )
 @with_app_context
 @with_session
-async def code(
+async def code(  # noqa: PLR0913
     session: AsyncSession,
     app_context: AppContext,
     query: str,
@@ -274,7 +274,7 @@ async def code(
 )
 @with_app_context
 @with_session
-async def keyword(
+async def keyword(  # noqa: PLR0913
     session: AsyncSession,
     app_context: AppContext,
     keywords: list[str],
@@ -351,7 +351,7 @@ async def keyword(
 )
 @with_app_context
 @with_session
-async def text(
+async def text(  # noqa: PLR0913
     session: AsyncSession,
     app_context: AppContext,
     query: str,

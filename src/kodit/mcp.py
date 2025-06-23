@@ -106,7 +106,7 @@ def create_snippet_application_service(
 
 
 @mcp.tool()
-async def search(
+async def search(  # noqa: PLR0913
     ctx: Context,
     user_intent: Annotated[
         str,
@@ -144,25 +144,35 @@ async def search(
     author: Annotated[
         str | None,
         Field(
-            description="Optional author filter to search for snippets by a specific author."
+            description=(
+                "Optional author filter to search for snippets by a specific author."
+            )
         ),
     ] = None,
     created_after: Annotated[
         str | None,
         Field(
-            description="Optional date filter for snippets created after this date (ISO format: YYYY-MM-DD)."
+            description=(
+                "Optional date filter for snippets created after this date "
+                "(ISO format: YYYY-MM-DD)."
+            )
         ),
     ] = None,
     created_before: Annotated[
         str | None,
         Field(
-            description="Optional date filter for snippets created before this date (ISO format: YYYY-MM-DD)."
+            description=(
+                "Optional date filter for snippets created before this date "
+                "(ISO format: YYYY-MM-DD)."
+            )
         ),
     ] = None,
     source_repo: Annotated[
         str | None,
         Field(
-            description="Optional source repository filter (e.g., 'github.com/example/repo')."
+            description=(
+                "Optional source repository filter (e.g., 'github.com/example/repo')."
+            )
         ),
     ] = None,
 ) -> str:
