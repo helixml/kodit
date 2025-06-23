@@ -9,6 +9,7 @@ from kodit.domain.repositories import FileRepository, SnippetRepository
 from kodit.domain.services.snippet_extraction_service import (
     SnippetExtractionDomainService,
 )
+from kodit.domain.value_objects import LanguageMapping
 from kodit.infrastructure.snippet_extraction.language_detection_service import (
     FileSystemLanguageDetectionService,
 )
@@ -31,37 +32,8 @@ def create_snippet_extraction_domain_service() -> SnippetExtractionDomainService
         Configured snippet extraction domain service
 
     """
-    # Language mapping from the existing languages module
-    language_map = {
-        # JavaScript/TypeScript
-        "js": "javascript",
-        "jsx": "javascript",
-        "ts": "typescript",
-        "tsx": "typescript",
-        # Python
-        "py": "python",
-        # Rust
-        "rs": "rust",
-        # Go
-        "go": "go",
-        # C/C++
-        "cpp": "cpp",
-        "hpp": "cpp",
-        "c": "c",
-        "h": "c",
-        # C#
-        "cs": "csharp",
-        # Ruby
-        "rb": "ruby",
-        # Java
-        "java": "java",
-        # PHP
-        "php": "php",
-        # Swift
-        "swift": "swift",
-        # Kotlin
-        "kt": "kotlin",
-    }
+    # Use the unified language mapping from the domain layer
+    language_map = LanguageMapping.get_extension_to_language_map()
 
     # Create infrastructure services
     language_detector = FileSystemLanguageDetectionService(language_map)
