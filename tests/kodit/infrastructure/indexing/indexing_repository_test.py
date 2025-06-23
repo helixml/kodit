@@ -26,7 +26,12 @@ async def test_should_allow_multiple_snippets_for_one_file(
         created_at=datetime.now(UTC),
         updated_at=datetime.now(UTC),
         source_id=source.id,
+        mime_type="text/plain",
+        uri="test.py",
         cloned_path="test.py",
+        sha256="abc123",
+        size_bytes=100,
+        extension="py",
     )
     session.add(file)
     await session.commit()
@@ -78,7 +83,12 @@ async def test_should_return_when_items_are_present(
         created_at=datetime.now(UTC),
         updated_at=datetime.now(UTC),
         source_id=source.id,
+        mime_type="text/plain",
+        uri="test.py",
         cloned_path="test.py",
+        sha256="abc123",
+        size_bytes=100,
+        extension="py",
     )
     session.add(file)
     await session.commit()

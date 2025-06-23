@@ -59,11 +59,12 @@ class TestFile:
             created_at=now,
             updated_at=now,
             source_id=1,
-            cloned_path="/tmp/test.txt",
             mime_type="text/plain",
             uri="file:///test.txt",
+            cloned_path="/tmp/test.txt",
             sha256="abc123",
             size_bytes=100,
+            extension="txt",
         )
 
         assert file.source_id == 1
@@ -72,6 +73,7 @@ class TestFile:
         assert file.cloned_path == "/tmp/test.txt"
         assert file.sha256 == "abc123"
         assert file.size_bytes == 100
+        assert file.extension == "txt"
 
 
 class TestSnippet:

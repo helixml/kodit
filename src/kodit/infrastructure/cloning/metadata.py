@@ -38,6 +38,7 @@ class BaseFileMetadataExtractor:
                 uri=path.as_uri(),
                 sha256=sha,
                 size_bytes=len(content),
+                extension=path.suffix.removeprefix(".").lower(),
             )
 
     async def _get_timestamps(

@@ -5,13 +5,22 @@ from pathlib import Path
 import random
 import time
 from typing import List
+from datetime import datetime, UTC
 
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 
-from kodit.embedding.embedding_models import Embedding, EmbeddingType
-from kodit.indexing.indexing_models import Index, Snippet
-from kodit.search.search_repository import SearchRepository
-from kodit.source.source_models import File, Source
+from kodit.domain.entities import (
+    Embedding,
+    EmbeddingType,
+    Index,
+    Snippet,
+    File,
+    Source,
+    SourceType,
+)
+from kodit.infrastructure.sqlalchemy.embedding_repository import (
+    SqlAlchemyEmbeddingRepository,
+)
 
 
 def generate_random_embedding(dim: int = 750) -> List[float]:
@@ -22,16 +31,23 @@ def generate_random_embedding(dim: int = 750) -> List[float]:
 async def setup_test_data(session: AsyncSession, num_embeddings: int = 5000) -> None:
     """Set up test data with random embeddings."""
     # Create a test index
-    source = Source(uri="test", cloned_path="test")
+    source = Source(uri="test", cloned_path="test", source_type=SourceType.FOLDER)
     session.add(source)
     await session.commit()
     index = Index(source_id=source.id)
     session.add(index)
     await session.commit()
+    now = datetime.now(UTC)
     file = File(
+        created_at=now,
+        updated_at=now,
+        source_id=source.id,
+        mime_type="text/plain",
         uri="test",
         cloned_path="test",
-        source_id=source.id,
+        sha256="abc123",
+        size_bytes=100,
+        extension="txt",
     )
     session.add(file)
     await session.commit()
@@ -46,11 +62,10 @@ async def setup_test_data(session: AsyncSession, num_embeddings: int = 5000) -> 
     # Create test embeddings
     embeddings = []
     for i in range(num_embeddings):
-        embedding = Embedding(
-            snippet_id=snippet.id,
-            type=EmbeddingType.CODE,
-            embedding=generate_random_embedding(),
-        )
+        embedding = Embedding()
+        embedding.snippet_id = snippet.id
+        embedding.type = EmbeddingType.CODE
+        embedding.embedding = generate_random_embedding()
         embeddings.append(embedding)
 
     session.add_all(embeddings)
@@ -64,7 +79,7 @@ async def run_benchmark(session: AsyncSession) -> None:
     await setup_test_data(session)
 
     # Create repository instance
-    repo = SearchRepository(session)
+    repo = SqlAlchemyEmbeddingRepository(session)
 
     # Generate a test query embedding
     query_embedding = generate_random_embedding()

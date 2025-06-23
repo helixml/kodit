@@ -68,9 +68,12 @@ class TestEmbeddingIntegration:
             created_at=datetime.now(UTC),
             updated_at=datetime.now(UTC),
             source_id=source.id,
-            cloned_path="/tmp/test_repo/test.py",
             mime_type="text/plain",
             uri="test.py",
+            cloned_path="/tmp/test_repo/test.py",
+            sha256="abc123",
+            size_bytes=100,
+            extension="py",
         )
         session.add(file)
         await session.commit()
@@ -171,9 +174,12 @@ class TestEmbeddingIntegration:
             created_at=datetime.now(UTC),
             updated_at=datetime.now(UTC),
             source_id=source.id,
-            cloned_path="/tmp/test_repo/test.py",
             mime_type="text/plain",
             uri="test.py",
+            cloned_path="/tmp/test_repo/test.py",
+            sha256="abc123",
+            size_bytes=100,
+            extension="py",
         )
         session.add(file)
         await session.commit()
@@ -269,9 +275,12 @@ class TestEmbeddingIntegration:
             created_at=datetime.now(UTC),
             updated_at=datetime.now(UTC),
             source_id=source.id,
-            cloned_path="/tmp/test_repo/test.py",
             mime_type="text/plain",
             uri="test.py",
+            cloned_path="/tmp/test_repo/test.py",
+            sha256="abc123",
+            size_bytes=100,
+            extension="py",
         )
         session.add(file)
         await session.commit()
@@ -369,9 +378,12 @@ class TestEmbeddingIntegration:
             created_at=datetime.now(UTC),
             updated_at=datetime.now(UTC),
             source_id=source.id,
-            cloned_path="/tmp/test_repo/test.py",
             mime_type="text/plain",
             uri="test.py",
+            cloned_path="/tmp/test_repo/test.py",
+            sha256="abc123",
+            size_bytes=100,
+            extension="py",
         )
         session.add(file)
         await session.commit()
@@ -460,9 +472,12 @@ class TestEmbeddingIntegration:
             created_at=datetime.now(UTC),
             updated_at=datetime.now(UTC),
             source_id=source.id,
-            cloned_path="/tmp/test_repo/test.py",
             mime_type="text/plain",
             uri="test.py",
+            cloned_path="/tmp/test_repo/test.py",
+            sha256="abc123",
+            size_bytes=100,
+            extension="py",
         )
         session.add(file)
         await session.commit()
@@ -540,9 +555,12 @@ class TestEmbeddingIntegration:
             created_at=datetime.now(UTC),
             updated_at=datetime.now(UTC),
             source_id=source.id,
-            cloned_path="/tmp/test_repo/test.py",
             mime_type="text/plain",
             uri="test.py",
+            cloned_path="/tmp/test_repo/test.py",
+            sha256="abc123",
+            size_bytes=100,
+            extension="py",
         )
         session.add(file)
         await session.commit()

@@ -121,22 +121,24 @@ class File(Base, CommonMixin):
         created_at: datetime,
         updated_at: datetime,
         source_id: int,
+        mime_type: str,
+        uri: str,
         cloned_path: str,
-        mime_type: str = "",
-        uri: str = "",
-        sha256: str = "",
-        size_bytes: int = 0,
+        sha256: str,
+        size_bytes: int,
+        extension: str,
     ) -> None:
         """Initialize a new File instance for typing purposes."""
         super().__init__()
         self.created_at = created_at
         self.updated_at = updated_at
         self.source_id = source_id
-        self.cloned_path = cloned_path
         self.mime_type = mime_type
         self.uri = uri
+        self.cloned_path = cloned_path
         self.sha256 = sha256
         self.size_bytes = size_bytes
+        self.extension = extension
 
 
 class EmbeddingType(Enum):

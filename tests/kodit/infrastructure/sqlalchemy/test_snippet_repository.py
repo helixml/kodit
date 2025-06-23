@@ -32,9 +32,12 @@ async def test_list_snippets_by_file_path(session: AsyncSession):
         created_at=datetime.now(UTC),
         updated_at=datetime.now(UTC),
         source_id=source.id,
-        cloned_path="/tmp/test_repo/test.py",
         mime_type="text/plain",
         uri="test.py",
+        cloned_path="/tmp/test_repo/test.py",
+        sha256="abc123",
+        size_bytes=100,
+        extension="py",
     )
     session.add(file)
     await session.commit()
@@ -90,17 +93,23 @@ async def test_list_snippets_by_source_uri(session: AsyncSession):
         created_at=datetime.now(UTC),
         updated_at=datetime.now(UTC),
         source_id=source1.id,
-        cloned_path="/tmp/test_repo1/file1.py",
         mime_type="text/plain",
         uri="file1.py",
+        cloned_path="/tmp/test_repo1/file1.py",
+        sha256="abc123",
+        size_bytes=100,
+        extension="py",
     )
     file2 = File(
         created_at=datetime.now(UTC),
         updated_at=datetime.now(UTC),
         source_id=source2.id,
-        cloned_path="/tmp/test_repo2/file2.py",
         mime_type="text/plain",
         uri="file2.py",
+        cloned_path="/tmp/test_repo2/file2.py",
+        sha256="abc123",
+        size_bytes=100,
+        extension="py",
     )
     session.add(file1)
     session.add(file2)
@@ -152,17 +161,23 @@ async def test_list_snippets_by_directory_path(session: AsyncSession):
         created_at=datetime.now(UTC),
         updated_at=datetime.now(UTC),
         source_id=source.id,
-        cloned_path="/tmp/test_repo/file1.py",
         mime_type="text/plain",
         uri="file1.py",
+        cloned_path="/tmp/test_repo/file1.py",
+        sha256="abc123",
+        size_bytes=100,
+        extension="py",
     )
     file2 = File(
         created_at=datetime.now(UTC),
         updated_at=datetime.now(UTC),
         source_id=source.id,
-        cloned_path="/tmp/test_repo/file2.py",
         mime_type="text/plain",
         uri="file2.py",
+        cloned_path="/tmp/test_repo/file2.py",
+        sha256="abc123",
+        size_bytes=100,
+        extension="py",
     )
     session.add(file1)
     session.add(file2)
@@ -213,9 +228,12 @@ async def test_list_snippets_no_filter(session: AsyncSession):
         created_at=datetime.now(UTC),
         updated_at=datetime.now(UTC),
         source_id=source.id,
-        cloned_path="/tmp/test_repo/test.py",
         mime_type="text/plain",
         uri="test.py",
+        cloned_path="/tmp/test_repo/test.py",
+        sha256="abc123",
+        size_bytes=100,
+        extension="py",
     )
     session.add(file)
     await session.commit()
@@ -262,9 +280,12 @@ async def test_list_snippets_no_results(session: AsyncSession):
         created_at=datetime.now(UTC),
         updated_at=datetime.now(UTC),
         source_id=source.id,
-        cloned_path="/tmp/test_repo/test.py",
         mime_type="text/plain",
         uri="test.py",
+        cloned_path="/tmp/test_repo/test.py",
+        sha256="abc123",
+        size_bytes=100,
+        extension="py",
     )
     session.add(file)
     await session.commit()
@@ -303,9 +324,12 @@ async def test_list_snippets_by_relative_path(session: AsyncSession):
         created_at=datetime.now(UTC),
         updated_at=datetime.now(UTC),
         source_id=source.id,
-        cloned_path="/tmp/test_repo/domain/Beer.js",
         mime_type="text/plain",
         uri="domain/Beer.js",
+        cloned_path="/tmp/test_repo/domain/Beer.js",
+        sha256="abc123",
+        size_bytes=100,
+        extension="js",
     )
     session.add(file)
     await session.commit()
