@@ -18,7 +18,11 @@ from kodit.application.services.snippet_application_service import (
 from kodit.config import AppContext
 from kodit.database import Database
 from kodit.domain.services.source_service import SourceService
-from kodit.domain.value_objects import MultiSearchRequest, MultiSearchResult
+from kodit.domain.value_objects import (
+    MultiSearchRequest,
+    MultiSearchResult,
+    SnippetSearchFilters,
+)
 from kodit.infrastructure.indexing.indexing_factory import (
     create_indexing_application_service,
 )
@@ -131,6 +135,36 @@ async def search(
             description="A list of keywords that are relevant to the desired outcome."
         ),
     ],
+    language: Annotated[
+        str | None,
+        Field(
+            description="Optional language filter (e.g., 'python', 'go', 'javascript')."
+        ),
+    ] = None,
+    author: Annotated[
+        str | None,
+        Field(
+            description="Optional author filter to search for snippets by a specific author."
+        ),
+    ] = None,
+    created_after: Annotated[
+        str | None,
+        Field(
+            description="Optional date filter for snippets created after this date (ISO format: YYYY-MM-DD)."
+        ),
+    ] = None,
+    created_before: Annotated[
+        str | None,
+        Field(
+            description="Optional date filter for snippets created before this date (ISO format: YYYY-MM-DD)."
+        ),
+    ] = None,
+    source_repo: Annotated[
+        str | None,
+        Field(
+            description="Optional source repository filter (e.g., 'github.com/example/repo')."
+        ),
+    ] = None,
 ) -> str:
     """Search for pre-existing examples of relevant code.
 
@@ -173,10 +207,30 @@ async def search(
         snippet_application_service=snippet_application_service,
     )
 
+    log.debug("Searching for snippets")
+
+    # Create filters if any filter parameters are provided
+    filters = None
+    if any([language, author, created_after, created_before, source_repo]):
+        from datetime import datetime
+
+        filters = SnippetSearchFilters(
+            language=language,
+            author=author,
+            created_after=datetime.fromisoformat(created_after)
+            if created_after
+            else None,
+            created_before=datetime.fromisoformat(created_before)
+            if created_before
+            else None,
+            source_repo=source_repo,
+        )
+
     search_request = MultiSearchRequest(
         keywords=keywords,
         code_query="\n".join(related_file_contents),
         text_query=user_intent,
+        filters=filters,
     )
 
     log.debug("Searching for snippets")

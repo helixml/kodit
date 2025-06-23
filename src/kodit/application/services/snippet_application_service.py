@@ -18,7 +18,11 @@ from kodit.domain.repositories import FileRepository, SnippetRepository
 from kodit.domain.services.snippet_extraction_service import (
     SnippetExtractionDomainService,
 )
-from kodit.domain.value_objects import SnippetExtractionRequest, SnippetListItem
+from kodit.domain.value_objects import (
+    MultiSearchRequest,
+    SnippetExtractionRequest,
+    SnippetListItem,
+)
 from kodit.reporting import Reporter
 
 
@@ -167,3 +171,15 @@ class SnippetApplicationService:
                 command.file_path, command.source_uri
             )
         )
+
+    async def search(self, request: MultiSearchRequest) -> list[SnippetListItem]:
+        """Search snippets with filters.
+
+        Args:
+            request: The search request containing queries and optional filters.
+
+        Returns:
+            List of SnippetListItem instances matching the search criteria.
+
+        """
+        return list(await self.snippet_repository.search(request))

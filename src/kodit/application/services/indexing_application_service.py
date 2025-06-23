@@ -328,6 +328,20 @@ class IndexingApplicationService:
         """
         log_event("kodit.index.search")
 
+        # If filters are provided, use the snippet repository search
+        if request.filters:
+            snippet_results = await self.snippet_application_service.search(request)
+            return [
+                MultiSearchResult(
+                    id=snippet.id,
+                    uri=snippet.source_uri,
+                    content=snippet.content,
+                    original_scores=[1.0],  # Default score for filtered results
+                )
+                for snippet in snippet_results
+            ]
+
+        # Otherwise use the existing fusion logic
         fusion_list: list[list[FusionRequest]] = []
         if request.keywords:
             # Gather results for each keyword
