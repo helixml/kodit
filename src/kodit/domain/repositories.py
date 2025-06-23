@@ -11,7 +11,10 @@ from kodit.domain.entities import (
     Source,
     SourceType,
 )
-from kodit.domain.value_objects import SnippetListItem
+from kodit.domain.value_objects import (
+    MultiSearchRequest,
+    SnippetListItem,
+)
 
 T = TypeVar("T")
 
@@ -100,6 +103,18 @@ class SnippetRepository(GenericRepository[Snippet]):
 
         Returns:
             A sequence of SnippetListItem instances matching the criteria
+
+        """
+        raise NotImplementedError
+
+    async def search(self, request: MultiSearchRequest) -> Sequence[SnippetListItem]:
+        """Search snippets with filters.
+
+        Args:
+            request: The search request containing queries and optional filters.
+
+        Returns:
+            A sequence of SnippetListItem instances matching the search criteria.
 
         """
         raise NotImplementedError
