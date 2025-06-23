@@ -34,7 +34,7 @@ To use Kodit with your AI coding assistant, you need to:
    kodit serve
    ```
 
-2. **Configure your AI assistant** to connect to the MCP server. See the [Integration Guide](../getting-started/integration/index.md) for detailed instructions for:
+2. **Configure your AI assistant** to connect to the MCP server. See the [Integration Guide](../../getting-started/integration/index.md) for detailed instructions for:
    - Cursor
    - Cline
    - Other MCP-compatible assistants
