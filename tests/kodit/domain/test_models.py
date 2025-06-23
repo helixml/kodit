@@ -2,6 +2,8 @@
 
 import pytest
 from datetime import datetime, UTC
+import tempfile
+from pathlib import Path
 
 from kodit.domain.entities import (
     Source,
@@ -47,6 +49,50 @@ class TestSource:
         """Test source type enum."""
         assert SourceType.GIT.value == 2
         assert SourceType.FOLDER.value == 1
+
+    @pytest.mark.asyncio
+    async def test_create_file_from_path(self):
+        """Test the Source.create_file_from_path method."""
+        # Create a temporary file with known content
+        content = "def hello(): pass"
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+            f.write(content)
+            temp_path = Path(f.name)
+
+        try:
+            # Create a source
+            source = Source(
+                uri="file:///test/repo",
+                cloned_path="/tmp/test/repo",
+                source_type=SourceType.FOLDER,
+            )
+
+            # Create timestamps
+            created_at = datetime.now(UTC)
+            updated_at = datetime.now(UTC)
+
+            # Use the aggregate root method
+            file = await source.create_file_from_path(temp_path, created_at, updated_at)
+
+            # Verify the file was created correctly
+            assert file.source_id == source.id
+            assert file.cloned_path == str(temp_path)
+            assert file.uri == temp_path.as_uri()
+            assert file.mime_type == "text/x-python"
+            assert file.size_bytes == len(content.encode("utf-8"))
+            assert file.extension == "py"
+            assert file.created_at == created_at
+            assert file.updated_at == updated_at
+
+            # Verify SHA256 was calculated correctly
+            import hashlib
+
+            expected_sha = hashlib.sha256(content.encode("utf-8")).hexdigest()
+            assert file.sha256 == expected_sha
+
+        finally:
+            # Clean up
+            temp_path.unlink(missing_ok=True)
 
 
 class TestFile:

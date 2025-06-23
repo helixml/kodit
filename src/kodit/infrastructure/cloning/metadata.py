@@ -1,12 +1,9 @@
 """Metadata extraction for cloned sources."""
 
-import mimetypes
 from datetime import UTC, datetime
-from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
-import aiofiles
 import git
 import structlog
 
@@ -21,25 +18,8 @@ class BaseFileMetadataExtractor:
         # Get timestamps - to be implemented by subclasses
         created_at, updated_at = await self._get_timestamps(path, source)
 
-        # Read file content and calculate metadata
-        async with aiofiles.open(path, "rb") as f:
-            content = await f.read()
-            mime_type = mimetypes.guess_type(path)
-            sha = sha256(content).hexdigest()
-
-            return File(
-                created_at=created_at,
-                updated_at=updated_at,
-                source_id=source.id,
-                cloned_path=str(path),
-                mime_type=mime_type[0]
-                if mime_type and mime_type[0]
-                else "application/octet-stream",
-                uri=path.as_uri(),
-                sha256=sha,
-                size_bytes=len(content),
-                extension=path.suffix.removeprefix(".").lower(),
-            )
+        # Use the aggregate root method to create the File entity
+        return await source.create_file_from_path(path, created_at, updated_at)
 
     async def _get_timestamps(
         self, path: Path, source: Source

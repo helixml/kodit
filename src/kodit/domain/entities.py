@@ -1,7 +1,10 @@
 """SQLAlchemy entities."""
 
+import mimetypes
 from datetime import UTC, datetime
 from enum import Enum
+from hashlib import sha256
+from pathlib import Path
 
 from git import Actor
 from sqlalchemy import (
@@ -73,6 +76,43 @@ class Source(Base, CommonMixin):
         self.cloned_path = cloned_path
         self.type = source_type
 
+    async def create_file_from_path(
+        self, path: Path, created_at: datetime, updated_at: datetime
+    ) -> "File":
+        """Create a File entity from a path within this source.
+
+        This method encapsulates the logic for creating File entities
+        from file system paths, following DDD principles where the
+        aggregate root is responsible for creating its child entities.
+
+        Args:
+            path: The file path within the source
+            created_at: Creation timestamp
+            updated_at: Last modification timestamp
+
+        Returns:
+            A new File instance with extracted metadata
+
+        """
+        # Read file content and calculate metadata
+        content = path.read_bytes()
+        mime_type = mimetypes.guess_type(str(path))
+        sha = sha256(content).hexdigest()
+
+        return File(
+            created_at=created_at,
+            updated_at=updated_at,
+            source_id=self.id,
+            cloned_path=str(path),
+            mime_type=mime_type[0]
+            if mime_type and mime_type[0]
+            else "application/octet-stream",
+            uri=path.as_uri(),
+            sha256=sha,
+            size_bytes=len(content),
+            extension=path.suffix.removeprefix(".").lower(),
+        )
+
 
 class Author(Base, CommonMixin):
     """Author model."""
@@ -115,30 +155,6 @@ class File(Base, CommonMixin):
     sha256: Mapped[str] = mapped_column(String(64), default="", index=True)
     size_bytes: Mapped[int] = mapped_column(Integer, default=0)
     extension: Mapped[str] = mapped_column(String(255), default="", index=True)
-
-    def __init__(  # noqa: PLR0913
-        self,
-        created_at: datetime,
-        updated_at: datetime,
-        source_id: int,
-        mime_type: str,
-        uri: str,
-        cloned_path: str,
-        sha256: str,
-        size_bytes: int,
-        extension: str,
-    ) -> None:
-        """Initialize a new File instance for typing purposes."""
-        super().__init__()
-        self.created_at = created_at
-        self.updated_at = updated_at
-        self.source_id = source_id
-        self.mime_type = mime_type
-        self.uri = uri
-        self.cloned_path = cloned_path
-        self.sha256 = sha256
-        self.size_bytes = size_bytes
-        self.extension = extension
 
 
 class EmbeddingType(Enum):
