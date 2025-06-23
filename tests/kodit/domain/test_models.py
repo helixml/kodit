@@ -21,6 +21,7 @@ from kodit.domain.value_objects import (
     VectorSearchResult,
     EnrichmentRequest,
     EnrichmentResponse,
+    SnippetSearchFilters,
 )
 
 
@@ -158,3 +159,28 @@ class TestEnrichmentModels:
         response = EnrichmentResponse(snippet_id=1, text="enriched content")
         assert response.snippet_id == 1
         assert response.text == "enriched content"
+
+
+class TestSnippetSearchFilters:
+    """Test SnippetSearchFilters value object."""
+
+    def test_create_filters(self):
+        filters = SnippetSearchFilters(
+            language="python",
+            author="alice",
+            created_after=datetime(2023, 1, 1),
+            created_before=datetime(2023, 12, 31),
+            source_repo="github.com/example/repo",
+        )
+        assert filters.language == "python"
+        assert filters.author == "alice"
+        assert filters.created_after == datetime(2023, 1, 1)
+        assert filters.created_before == datetime(2023, 12, 31)
+        assert filters.source_repo == "github.com/example/repo"
+
+    def test_equality(self):
+        f1 = SnippetSearchFilters(language="python", author="alice")
+        f2 = SnippetSearchFilters(language="python", author="alice")
+        f3 = SnippetSearchFilters(language="go", author="bob")
+        assert f1 == f2
+        assert f1 != f3

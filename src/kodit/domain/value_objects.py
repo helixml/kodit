@@ -91,6 +91,17 @@ VectorIndexRequest = IndexRequest
 VectorSearchQueryRequest = SimpleSearchRequest
 
 
+@dataclass(frozen=True)
+class SnippetSearchFilters:
+    """Value object for filtering snippet search results."""
+
+    language: str | None = None
+    author: str | None = None
+    created_after: datetime | None = None
+    created_before: datetime | None = None
+    source_repo: str | None = None
+
+
 @dataclass
 class MultiSearchRequest:
     """Domain model for multi-modal search request."""
@@ -99,6 +110,7 @@ class MultiSearchRequest:
     text_query: str | None = None
     code_query: str | None = None
     keywords: list[str] | None = None
+    filters: SnippetSearchFilters | None = None
 
 
 @dataclass
