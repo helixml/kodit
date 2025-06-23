@@ -117,11 +117,19 @@ class LocalBM25Repository(BM25Repository):
             k=top_k,
         )
         self.log.debug("Raw results", results=results, scores=scores)
-        return [
-            BM25SearchResult(snippet_id=int(result), score=float(score))
-            for result, score in zip(results[0], scores[0], strict=False)
-            if score > 0.0
-        ]
+
+        # Filter results by snippet_ids if provided
+        filtered_results = []
+        for result, score in zip(results[0], scores[0], strict=False):
+            snippet_id = int(result)
+            if score > 0.0 and (
+                request.snippet_ids is None or snippet_id in request.snippet_ids
+            ):
+                filtered_results.append(
+                    BM25SearchResult(snippet_id=snippet_id, score=float(score))
+                )
+
+        return filtered_results
 
     async def delete_documents(self, request: BM25DeleteRequest) -> None:
         """Delete documents from the index."""

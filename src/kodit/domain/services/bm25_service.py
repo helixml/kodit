@@ -88,12 +88,9 @@ class BM25DomainService:
             raise ValueError("Top-k must be positive")
 
         # Domain logic: normalize query
-        normalized_query = request.query.strip()
-        normalized_request = BM25SearchRequest(
-            query=normalized_query, top_k=request.top_k
-        )
+        request.query = request.query.strip()
 
-        return await self.repository.search(normalized_request)
+        return await self.repository.search(request)
 
     async def delete_documents(self, request: BM25DeleteRequest) -> None:
         """Delete documents using domain business rules.

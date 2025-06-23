@@ -80,6 +80,17 @@ SEARCH_QUERY = f"""
     ORDER BY bm25_score
     LIMIT :limit
 """  # noqa: S608
+SEARCH_QUERY_WITH_FILTER = f"""
+    SELECT
+        snippet_id,
+        embedding <&>
+            to_bm25query('{INDEX_NAME}', tokenize(:query_text, '{TOKENIZER_NAME}'))
+    AS bm25_score
+    FROM {TABLE_NAME}
+    WHERE snippet_id = ANY(:snippet_ids)
+    ORDER BY bm25_score
+    LIMIT :limit
+"""  # noqa: S608
 DELETE_QUERY = f"""
 DELETE FROM {TABLE_NAME}
 WHERE snippet_id IN :snippet_ids
@@ -177,9 +188,18 @@ class VectorChordBM25Repository(BM25Repository):
         if not request.query or request.query == "":
             return []
 
-        sql = text(SEARCH_QUERY).bindparams(
-            query_text=request.query, limit=request.top_k
-        )
+        if request.snippet_ids is not None:
+            sql = text(SEARCH_QUERY_WITH_FILTER).bindparams(
+                query_text=request.query,
+                limit=request.top_k,
+                snippet_ids=request.snippet_ids,
+            )
+        else:
+            sql = text(SEARCH_QUERY).bindparams(
+                query_text=request.query,
+                limit=request.top_k,
+            )
+
         try:
             result = await self._execute(sql)
             rows = result.mappings().all()

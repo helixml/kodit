@@ -67,6 +67,7 @@ class SimpleSearchRequest:
     query: str
     top_k: int = 10
     search_type: SearchType = SearchType.BM25
+    snippet_ids: list[int] | None = None
 
 
 @dataclass
