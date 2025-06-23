@@ -9,3 +9,5 @@ Please maintain the following coding standards while developing code:
    your code belongs.
 2. Run `uv run ruff check --fix` to lint the code.
 3. Run `uv run pytest ...` to test the code.
+4. Only write docstrings for public functions. Never document args and returns, the
+   linter enforces this. Keep it concise.
