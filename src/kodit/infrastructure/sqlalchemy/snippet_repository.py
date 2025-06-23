@@ -182,38 +182,38 @@ class SqlAlchemySnippetRepository(SnippetRepository):
 
             # Language filter (using file extension)
             if filters.language:
-                # Map common language names to file extensions
+                # Map common language names to file extensions (no leading dot)
                 language_extensions = {
-                    "python": [".py", ".pyw", ".pyx", ".pxd"],
-                    "go": [".go"],
-                    "javascript": [".js", ".jsx", ".mjs"],
-                    "typescript": [".ts", ".tsx"],
-                    "java": [".java"],
-                    "csharp": [".cs"],
-                    "cpp": [".cpp", ".cc", ".cxx", ".hpp", ".h"],
-                    "c": [".c", ".h"],
-                    "rust": [".rs"],
-                    "php": [".php"],
-                    "ruby": [".rb"],
-                    "swift": [".swift"],
-                    "kotlin": [".kt", ".kts"],
-                    "scala": [".scala"],
-                    "r": [".r", ".R"],
-                    "matlab": [".m"],
-                    "perl": [".pl", ".pm"],
-                    "bash": [".sh", ".bash"],
-                    "powershell": [".ps1"],
-                    "sql": [".sql"],
-                    "html": [".html", ".htm"],
-                    "css": [".css", ".scss", ".sass"],
-                    "yaml": [".yml", ".yaml"],
-                    "json": [".json"],
-                    "xml": [".xml"],
-                    "markdown": [".md", ".markdown"],
+                    "python": ["py", "pyw", "pyx", "pxd"],
+                    "go": ["go"],
+                    "javascript": ["js", "jsx", "mjs"],
+                    "typescript": ["ts", "tsx"],
+                    "java": ["java"],
+                    "csharp": ["cs"],
+                    "cpp": ["cpp", "cc", "cxx", "hpp", "h"],
+                    "c": ["c", "h"],
+                    "rust": ["rs"],
+                    "php": ["php"],
+                    "ruby": ["rb"],
+                    "swift": ["swift"],
+                    "kotlin": ["kt", "kts"],
+                    "scala": ["scala"],
+                    "r": ["r", "R"],
+                    "matlab": ["m"],
+                    "perl": ["pl", "pm"],
+                    "bash": ["sh", "bash"],
+                    "powershell": ["ps1"],
+                    "sql": ["sql"],
+                    "html": ["html", "htm"],
+                    "css": ["css", "scss", "sass"],
+                    "yaml": ["yml", "yaml"],
+                    "json": ["json"],
+                    "xml": ["xml"],
+                    "markdown": ["md", "markdown"],
                 }
 
                 extensions = language_extensions.get(
-                    filters.language.lower(), [f".{filters.language}"]
+                    filters.language.lower(), [filters.language.lower()]
                 )
                 query = query.where(File.extension.in_(extensions))
 
