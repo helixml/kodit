@@ -137,24 +137,17 @@ async def search(  # noqa: PLR0913
     ],
     language: Annotated[
         str | None,
-        Field(
-            description="Optional language filter (e.g., 'python', 'go', 'javascript')."
-        ),
+        Field(description="Filter by language (e.g., 'python', 'go', 'javascript')."),
     ] = None,
     author: Annotated[
         str | None,
-        Field(
-            description=(
-                "Optional author filter to search for snippets by a specific author."
-            )
-        ),
+        Field(description=("Filter to search for snippets by a specific author.")),
     ] = None,
     created_after: Annotated[
         str | None,
         Field(
             description=(
-                "Optional date filter for snippets created after this date "
-                "(ISO format: YYYY-MM-DD)."
+                "Filter for snippets created after this date (ISO format: YYYY-MM-DD)."
             )
         ),
     ] = None,
@@ -162,8 +155,7 @@ async def search(  # noqa: PLR0913
         str | None,
         Field(
             description=(
-                "Optional date filter for snippets created before this date "
-                "(ISO format: YYYY-MM-DD)."
+                "Filter for snippets created before this date (ISO format: YYYY-MM-DD)."
             )
         ),
     ] = None,
@@ -171,7 +163,8 @@ async def search(  # noqa: PLR0913
         str | None,
         Field(
             description=(
-                "Optional source repository filter (e.g., 'github.com/example/repo')."
+                "Filter results by project source repository (e.g., "
+                "github.com/example/repo)"
             )
         ),
     ] = None,
