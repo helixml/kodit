@@ -14,7 +14,14 @@ from kodit.application.services.indexing_application_service import (
 )
 from kodit.domain.entities import Snippet, Source, SourceType
 from kodit.domain.errors import EmptySourceError
-from kodit.domain.value_objects import IndexView
+from kodit.domain.value_objects import (
+    IndexView,
+    MultiSearchRequest,
+    SnippetSearchFilters,
+    BM25SearchResult,
+    FusionRequest,
+    FusionResult,
+)
 from kodit.domain.services.bm25_service import BM25DomainService
 from kodit.domain.services.embedding_service import EmbeddingDomainService
 from kodit.domain.services.enrichment_service import EnrichmentDomainService
@@ -414,3 +421,160 @@ async def test_run_index_with_empty_snippets_list(
     mock_code_search_service.index_documents.assert_not_called()
     mock_text_search_service.index_documents.assert_not_called()
     mock_enrichment_service.enrich_documents.assert_not_called()
+
+
+@pytest.mark.asyncio
+def test_keyword_search_with_filters_calls_bm25(
+    indexing_application_service,
+    mock_bm25_service,
+    mock_snippet_application_service,
+):
+    request = MultiSearchRequest(
+        keywords=["test"], top_k=10, filters=SnippetSearchFilters(language="python")
+    )
+    mock_bm25_service.search.return_value = []
+    mock_snippet_application_service.search.return_value = []
+
+    # Run
+    import asyncio
+
+    asyncio.run(indexing_application_service.search(request))
+    # Assert
+    mock_bm25_service.search.assert_called()
+
+
+@pytest.mark.asyncio
+def test_code_search_with_filters_calls_code_search(
+    indexing_application_service,
+    mock_code_search_service,
+    mock_snippet_application_service,
+):
+    request = MultiSearchRequest(
+        code_query="def foo(): pass",
+        top_k=10,
+        filters=SnippetSearchFilters(language="python"),
+    )
+    mock_code_search_service.search.return_value = []
+    mock_snippet_application_service.search.return_value = []
+    import asyncio
+
+    asyncio.run(indexing_application_service.search(request))
+    mock_code_search_service.search.assert_called()
+
+
+@pytest.mark.asyncio
+def test_text_search_with_filters_calls_text_search(
+    indexing_application_service,
+    mock_text_search_service,
+    mock_snippet_application_service,
+):
+    request = MultiSearchRequest(
+        text_query="find something",
+        top_k=10,
+        filters=SnippetSearchFilters(language="python"),
+    )
+    mock_text_search_service.search.return_value = []
+    mock_snippet_application_service.search.return_value = []
+    import asyncio
+
+    asyncio.run(indexing_application_service.search(request))
+    mock_text_search_service.search.assert_called()
+
+
+@pytest.mark.asyncio
+def test_hybrid_search_with_filters_calls_all_searches(
+    indexing_application_service,
+    mock_bm25_service,
+    mock_code_search_service,
+    mock_text_search_service,
+    mock_snippet_application_service,
+):
+    request = MultiSearchRequest(
+        keywords=["test"],
+        code_query="def foo(): pass",
+        text_query="find something",
+        top_k=10,
+        filters=SnippetSearchFilters(language="python"),
+    )
+    mock_bm25_service.search.return_value = []
+    mock_code_search_service.search.return_value = []
+    mock_text_search_service.search.return_value = []
+    mock_snippet_application_service.search.return_value = []
+    import asyncio
+
+    asyncio.run(indexing_application_service.search(request))
+    mock_bm25_service.search.assert_called()
+    mock_code_search_service.search.assert_called()
+    mock_text_search_service.search.assert_called()
+
+
+@pytest.mark.asyncio
+def test_filter_should_pre_filter_before_top_k(
+    indexing_application_service,
+    mock_bm25_service,
+    mock_snippet_application_service,
+    mock_indexing_domain_service,
+):
+    """
+    Test that filtering is now applied before top_k, so Python snippets can be returned
+    even if Java snippets would have higher scores in an unfiltered search.
+    """
+    # 10 java snippets (ids 1-10) match the keyword well, 10 python snippets (ids 11-20) do not match at all
+    # Only python snippets should be returned if filtering is correct
+    request = MultiSearchRequest(
+        keywords=["foobar"], top_k=10, filters=SnippetSearchFilters(language="python")
+    )
+
+    # BM25 now receives filters and should return only python snippet ids (11-20) as top_k
+    mock_bm25_service.search.return_value = [
+        MagicMock(snippet_id=i, score=1.0) for i in range(11, 21)
+    ]
+
+    # Mock the fusion results to return the filtered snippets
+    mock_fusion_results = [
+        MagicMock(id=i, score=1.0, original_scores=[1.0]) for i in range(11, 21)
+    ]
+    mock_indexing_domain_service.perform_fusion.return_value = mock_fusion_results
+
+    # Mock the DB to return the filtered snippets
+    mock_indexing_domain_service.get_snippets_by_ids.return_value = [
+        (
+            {
+                "id": i,
+                "source_id": 1,
+                "mime_type": "text/plain",
+                "uri": f"test{i}.py",
+                "cloned_path": f"/tmp/test_repo/test{i}.py",
+                "sha256": "abc123",
+                "size_bytes": 100,
+                "extension": "py",
+                "created_at": "2023-01-01",
+                "updated_at": "2023-01-01",
+                "source_uri": "https://github.com/test/repo.git",
+                "source_cloned_path": "/tmp/test_repo",
+            },
+            {
+                "id": i,
+                "file_id": 1,
+                "index_id": 1,
+                "content": f"def test{i}(): pass",
+                "created_at": "2023-01-01",
+                "updated_at": "2023-01-01",
+            },
+        )
+        for i in range(11, 21)
+    ]
+
+    # Run
+    import asyncio
+
+    result = asyncio.run(indexing_application_service.search(request))
+
+    # Should return 10 Python snippets (ids 11-20)
+    assert len(result) == 10
+    assert all(snippet.id >= 11 and snippet.id <= 20 for snippet in result)
+
+    # Verify that BM25 was called with filters
+    mock_bm25_service.search.assert_called_once()
+    call_args = mock_bm25_service.search.call_args[0][0]
+    assert call_args.filters == SnippetSearchFilters(language="python")
