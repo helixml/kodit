@@ -295,13 +295,18 @@ class SnippetView:
     def __str__(self) -> str:
         """Return string representation with separator lines and scores if present."""
         separator = "-" * 80
-        if self.original_scores is not None:
-            return (
-                f"{separator}\n{self.source_uri}\n"
-                f"Original scores: {self.original_scores}\n"
-                f"{self.content}\n{separator}"
-            )
-        return f"{self.id}: [{self.source_uri}] {self.file_path}\n  {self.content}"
+        original_scores_str = (
+            f"Original scores: {self.original_scores}\n"
+            if self.original_scores is not None
+            else ""
+        )
+        return (
+            f"{separator}\n"
+            f"{self.id}: [{self.source_uri}] {self.file_path}\n"
+            f"{original_scores_str}"
+            f"{self.content}\n"
+            f"{separator}"
+        )
 
 
 class LanguageMapping:
