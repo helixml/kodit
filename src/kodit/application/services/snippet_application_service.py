@@ -21,7 +21,7 @@ from kodit.domain.services.snippet_extraction_service import (
 from kodit.domain.value_objects import (
     MultiSearchRequest,
     SnippetExtractionRequest,
-    SnippetListItem,
+    SnippetView,
 )
 from kodit.reporting import Reporter
 
@@ -153,33 +153,14 @@ class SnippetApplicationService:
         await self.session.commit()
         await reporter.done("create_snippets")
 
-    async def list_snippets(
-        self, command: ListSnippetsCommand
-    ) -> list[SnippetListItem]:
-        """List snippets with optional filtering.
-
-        Args:
-            command: The list snippets command with optional file path and source URI
-            filters
-
-        Returns:
-            List of SnippetListItem instances matching the criteria
-
-        """
+    async def list_snippets(self, command: ListSnippetsCommand) -> list[SnippetView]:
+        """List snippets with optional filtering."""
         return list(
             await self.snippet_repository.list_snippets(
                 command.file_path, command.source_uri
             )
         )
 
-    async def search(self, request: MultiSearchRequest) -> list[SnippetListItem]:
-        """Search snippets with filters.
-
-        Args:
-            request: The search request containing queries and optional filters.
-
-        Returns:
-            List of SnippetListItem instances matching the search criteria.
-
-        """
+    async def search(self, request: MultiSearchRequest) -> list[SnippetView]:
+        """Search snippets with filters."""
         return list(await self.snippet_repository.search(request))

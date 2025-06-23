@@ -19,7 +19,7 @@ from kodit.domain.repositories import FileRepository, SnippetRepository
 from kodit.domain.services.snippet_extraction_service import (
     SnippetExtractionDomainService,
 )
-from kodit.domain.value_objects import SnippetExtractionResult, SnippetListItem
+from kodit.domain.value_objects import SnippetExtractionResult, SnippetView
 
 
 @pytest.fixture
@@ -173,13 +173,13 @@ async def test_list_snippets():
 
     # Create test data
     test_snippets = [
-        SnippetListItem(
+        SnippetView(
             id=1,
             file_path="test.py",
             content="test snippet 1",
             source_uri="https://github.com/test/repo.git",
         ),
-        SnippetListItem(
+        SnippetView(
             id=2,
             file_path="test2.py",
             content="test snippet 2",

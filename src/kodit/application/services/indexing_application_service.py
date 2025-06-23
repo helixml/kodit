@@ -27,7 +27,7 @@ from kodit.domain.value_objects import (
     IndexCreateRequest,
     IndexView,
     MultiSearchRequest,
-    MultiSearchResult,
+    SnippetView,
     VectorIndexRequest,
     VectorSearchQueryRequest,
     VectorSearchRequest,
@@ -316,26 +316,19 @@ class IndexingApplicationService:
             )
         await reporter.done("text_embeddings")
 
-    async def search(self, request: MultiSearchRequest) -> list[MultiSearchResult]:
-        """Search for relevant data.
-
-        Args:
-            request: The search request.
-
-        Returns:
-            A list of search results.
-
-        """
+    async def search(self, request: MultiSearchRequest) -> list[SnippetView]:
+        """Search for relevant data."""
         log_event("kodit.index.search")
 
         # If filters are provided, use the snippet repository search
         if request.filters:
             snippet_results = await self.snippet_application_service.search(request)
             return [
-                MultiSearchResult(
+                SnippetView(
                     id=snippet.id,
-                    uri=snippet.source_uri,
+                    file_path=snippet.file_path,
                     content=snippet.content,
+                    source_uri=snippet.source_uri,
                     original_scores=[1.0],  # Default score for filtered results
                 )
                 for snippet in snippet_results
@@ -391,10 +384,11 @@ class IndexingApplicationService:
         )
 
         return [
-            MultiSearchResult(
+            SnippetView(
                 id=snippet["id"],
-                uri=file["uri"],
+                file_path=file["uri"],
                 content=snippet["content"],
+                source_uri=file["uri"],
                 original_scores=fr.original_scores,
             )
             for (file, snippet), fr in zip(search_results, final_results, strict=True)

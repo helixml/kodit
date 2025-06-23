@@ -240,11 +240,7 @@ async def code(  # noqa: PLR0913
         return
 
     for snippet in snippets:
-        click.echo("-" * 80)
-        click.echo(f"{snippet.uri}")
-        click.echo(f"Original scores: {snippet.original_scores}")
-        click.echo(snippet.content)
-        click.echo("-" * 80)
+        click.echo(str(snippet))
         click.echo()
 
 
@@ -309,11 +305,7 @@ async def keyword(  # noqa: PLR0913
         return
 
     for snippet in snippets:
-        click.echo("-" * 80)
-        click.echo(f"{snippet.uri}")
-        click.echo(f"Original scores: {snippet.original_scores}")
-        click.echo(snippet.content)
-        click.echo("-" * 80)
+        click.echo(str(snippet))
         click.echo()
 
 
@@ -381,11 +373,7 @@ async def text(  # noqa: PLR0913
         return
 
     for snippet in snippets:
-        click.echo("-" * 80)
-        click.echo(f"{snippet.uri}")
-        click.echo(f"Original scores: {snippet.original_scores}")
-        click.echo(snippet.content)
-        click.echo("-" * 80)
+        click.echo(str(snippet))
         click.echo()
 
 
@@ -463,11 +451,7 @@ async def hybrid(  # noqa: PLR0913
         return
 
     for snippet in snippets:
-        click.echo("-" * 80)
-        click.echo(f"{snippet.uri}")
-        click.echo(f"Original scores: {snippet.original_scores}")
-        click.echo(snippet.content)
-        click.echo("-" * 80)
+        click.echo(str(snippet))
         click.echo()
 
 

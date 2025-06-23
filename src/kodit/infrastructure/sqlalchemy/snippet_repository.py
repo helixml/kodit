@@ -11,7 +11,7 @@ from kodit.domain.repositories import SnippetRepository
 from kodit.domain.value_objects import (
     LanguageMapping,
     MultiSearchRequest,
-    SnippetListItem,
+    SnippetView,
 )
 
 
@@ -86,19 +86,8 @@ class SqlAlchemySnippetRepository(SnippetRepository):
 
     async def list_snippets(
         self, file_path: str | None = None, source_uri: str | None = None
-    ) -> Sequence[SnippetListItem]:
-        """List snippets with optional filtering by file path and source URI.
-
-        Args:
-            file_path: Optional file or directory path to filter by. Can be relative
-            (uri) or absolute (cloned_path).
-            source_uri: Optional source URI to filter by. If None, returns snippets from
-            all sources.
-
-        Returns:
-            A sequence of SnippetListItem instances matching the criteria
-
-        """
+    ) -> Sequence[SnippetView]:
+        """List snippets with optional filtering by file path and source URI."""
         # Build the base query
         query = (
             select(
@@ -125,7 +114,7 @@ class SqlAlchemySnippetRepository(SnippetRepository):
 
         result = await self.session.execute(query)
         return [
-            SnippetListItem(
+            SnippetView(
                 id=snippet.id,
                 file_path=self._get_relative_path(file_cloned_path, source_cloned_path),
                 content=snippet.content,
@@ -158,16 +147,8 @@ class SqlAlchemySnippetRepository(SnippetRepository):
             # If the file is not relative to the source, return the filename
             return Path(file_path).name
 
-    async def search(self, request: MultiSearchRequest) -> Sequence[SnippetListItem]:
-        """Search snippets with filters.
-
-        Args:
-            request: The search request containing queries and optional filters.
-
-        Returns:
-            A sequence of SnippetListItem instances matching the search criteria.
-
-        """
+    async def search(self, request: MultiSearchRequest) -> Sequence[SnippetView]:
+        """Search snippets with filters."""
         # Build the base query with joins
         query = (
             select(
@@ -216,7 +197,7 @@ class SqlAlchemySnippetRepository(SnippetRepository):
 
         result = await self.session.execute(query)
         return [
-            SnippetListItem(
+            SnippetView(
                 id=snippet.id,
                 file_path=self._get_relative_path(file_cloned_path, source_cloned_path),
                 content=snippet.content,

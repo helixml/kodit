@@ -8,7 +8,7 @@ from kodit.domain.entities import Snippet, File, Source, SourceType, Index
 from kodit.infrastructure.sqlalchemy.snippet_repository import (
     SqlAlchemySnippetRepository,
 )
-from kodit.domain.value_objects import SnippetListItem
+from kodit.domain.value_objects import SnippetView
 
 
 @pytest.mark.asyncio

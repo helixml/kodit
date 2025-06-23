@@ -25,6 +25,7 @@ from kodit.domain.value_objects import (
     EnrichmentResponse,
     SnippetSearchFilters,
     MultiSearchRequest,
+    SnippetView,
 )
 
 
@@ -246,3 +247,57 @@ class TestSnippetSearchFilters:
         assert request.code_query == "def test(): pass"
         assert request.keywords == ["test", "python"]
         assert request.filters == filters
+
+
+class TestSnippetView:
+    """Test SnippetView value object."""
+
+    def test_create_snippet_view(self):
+        snippet = SnippetView(
+            id=1,
+            file_path="test.py",
+            content="def test(): pass",
+            source_uri="https://github.com/test/repo.git",
+        )
+        assert snippet.id == 1
+        assert snippet.file_path == "test.py"
+        assert snippet.content == "def test(): pass"
+        assert snippet.source_uri == "https://github.com/test/repo.git"
+        assert snippet.original_scores is None
+
+    def test_create_snippet_view_with_scores(self):
+        snippet = SnippetView(
+            id=1,
+            file_path="test.py",
+            content="def test(): pass",
+            source_uri="https://github.com/test/repo.git",
+            original_scores=[0.8, 0.6],
+        )
+        assert snippet.original_scores == [0.8, 0.6]
+
+    def test_str_representation_without_scores(self):
+        snippet = SnippetView(
+            id=1,
+            file_path="test.py",
+            content="def test(): pass",
+            source_uri="https://github.com/test/repo.git",
+        )
+        expected = "1: [https://github.com/test/repo.git] test.py\n  def test(): pass"
+        assert str(snippet) == expected
+
+    def test_str_representation_with_scores(self):
+        snippet = SnippetView(
+            id=1,
+            file_path="test.py",
+            content="def test(): pass",
+            source_uri="https://github.com/test/repo.git",
+            original_scores=[0.8, 0.6],
+        )
+        result = str(snippet)
+        assert (
+            "--------------------------------------------------------------------------------"
+            in result
+        )
+        assert "https://github.com/test/repo.git" in result
+        assert "Original scores: [0.8, 0.6]" in result
+        assert "def test(): pass" in result

@@ -179,16 +179,6 @@ class MultiSearchRequest:
 
 
 @dataclass
-class MultiSearchResult:
-    """Domain model for multi-modal search result."""
-
-    id: int
-    uri: str
-    content: str
-    original_scores: list[float]
-
-
-@dataclass
 class FusionRequest:
     """Domain model for fusion request."""
 
@@ -293,13 +283,25 @@ class IndexView:
 
 
 @dataclass
-class SnippetListItem:
-    """Domain model for snippet list item with file information."""
+class SnippetView:
+    """Domain model for snippet view with optional search scores."""
 
     id: int
     file_path: str
     content: str
     source_uri: str
+    original_scores: list[float] | None = None
+
+    def __str__(self) -> str:
+        """Return string representation with separator lines and scores if present."""
+        separator = "-" * 80
+        if self.original_scores is not None:
+            return (
+                f"{separator}\n{self.source_uri}\n"
+                f"Original scores: {self.original_scores}\n"
+                f"{self.content}\n{separator}"
+            )
+        return f"{self.id}: [{self.source_uri}] {self.file_path}\n  {self.content}"
 
 
 class LanguageMapping:

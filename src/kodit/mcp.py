@@ -20,8 +20,8 @@ from kodit.database import Database
 from kodit.domain.services.source_service import SourceService
 from kodit.domain.value_objects import (
     MultiSearchRequest,
-    MultiSearchResult,
     SnippetSearchFilters,
+    SnippetView,
 )
 from kodit.infrastructure.indexing.indexing_factory import (
     create_indexing_application_service,
@@ -238,9 +238,9 @@ async def search(  # noqa: PLR0913
     return output
 
 
-def output_fusion(snippets: list[MultiSearchResult]) -> str:
+def output_fusion(snippets: list[SnippetView]) -> str:
     """Fuse the snippets into a single output."""
-    return "\n\n".join(f"{snippet.uri}\n{snippet.content}" for snippet in snippets)
+    return "\n\n".join(str(snippet) for snippet in snippets)
 
 
 @mcp.tool()

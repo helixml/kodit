@@ -13,7 +13,7 @@ from kodit.domain.entities import (
 )
 from kodit.domain.value_objects import (
     MultiSearchRequest,
-    SnippetListItem,
+    SnippetView,
 )
 
 T = TypeVar("T")
@@ -92,31 +92,12 @@ class SnippetRepository(GenericRepository[Snippet]):
 
     async def list_snippets(
         self, file_path: str | None = None, source_uri: str | None = None
-    ) -> Sequence[SnippetListItem]:
-        """List snippets with optional filtering by file path and source URI.
-
-        Args:
-            file_path: Optional file or directory path to filter by. Can be relative
-            (uri) or absolute (cloned_path).
-            source_uri: Optional source URI to filter by. If None, returns snippets from
-            all sources.
-
-        Returns:
-            A sequence of SnippetListItem instances matching the criteria
-
-        """
+    ) -> Sequence[SnippetView]:
+        """List snippets with optional filtering by file path and source URI."""
         raise NotImplementedError
 
-    async def search(self, request: MultiSearchRequest) -> Sequence[SnippetListItem]:
-        """Search snippets with filters.
-
-        Args:
-            request: The search request containing queries and optional filters.
-
-        Returns:
-            A sequence of SnippetListItem instances matching the search criteria.
-
-        """
+    async def search(self, request: MultiSearchRequest) -> Sequence[SnippetView]:
+        """Search snippets with filters."""
         raise NotImplementedError
 
 
