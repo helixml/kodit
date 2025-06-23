@@ -296,7 +296,7 @@ class SnippetView:
         """Return string representation with separator lines and scores if present."""
         separator = "-" * 80
         original_scores_str = (
-            f"Original scores: {self.original_scores}\n"
+            f"Raw scores: {self.original_scores}\n"
             if self.original_scores is not None
             else ""
         )

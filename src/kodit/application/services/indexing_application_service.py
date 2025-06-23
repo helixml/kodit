@@ -1,5 +1,7 @@
 """Application service for indexing operations."""
 
+from pathlib import Path
+
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -386,10 +388,31 @@ class IndexingApplicationService:
         return [
             SnippetView(
                 id=snippet["id"],
-                file_path=file["uri"],
+                file_path=self._get_relative_path(
+                    file["cloned_path"], file["source_cloned_path"]
+                ),
                 content=snippet["content"],
-                source_uri=file["uri"],
+                source_uri=file["source_uri"],
                 original_scores=fr.original_scores,
             )
             for (file, snippet), fr in zip(search_results, final_results, strict=True)
         ]
+
+    def _get_relative_path(self, file_path: str, source_path: str) -> str:
+        """Calculate the relative path of a file from the source root.
+
+        Args:
+            file_path: The full path to the file
+            source_path: The full path to the source root
+
+        Returns:
+            The relative path from the source root
+
+        """
+        try:
+            file_path_obj = Path(file_path)
+            source_path_obj = Path(source_path)
+            return str(file_path_obj.relative_to(source_path_obj))
+        except ValueError:
+            # If the file is not relative to the source, return the filename
+            return Path(file_path).name

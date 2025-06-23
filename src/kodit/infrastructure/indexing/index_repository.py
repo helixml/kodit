@@ -232,15 +232,16 @@ class SQLAlchemyIndexRepository(IndexRepository):
 
         """
         query = (
-            select(Snippet, File)
+            select(Snippet, File, Source)
             .where(Snippet.id.in_(ids))
             .join(File, Snippet.file_id == File.id)
+            .join(Source, File.source_id == Source.id)
         )
         rows = await self.session.execute(query)
 
         # Create a dictionary for O(1) lookup of results by ID
         id_to_result = {}
-        for snippet, file in rows.all():
+        for snippet, file, source in rows.all():
             id_to_result[snippet.id] = (
                 {
                     "id": file.id,
@@ -253,6 +254,8 @@ class SQLAlchemyIndexRepository(IndexRepository):
                     "extension": file.extension,
                     "created_at": file.created_at,
                     "updated_at": file.updated_at,
+                    "source_uri": source.uri,
+                    "source_cloned_path": source.cloned_path,
                 },
                 {
                     "id": snippet.id,
