@@ -22,6 +22,7 @@ from kodit.domain.value_objects import (
     EnrichmentRequest,
     EnrichmentResponse,
     SnippetSearchFilters,
+    MultiSearchRequest,
 )
 
 
@@ -184,3 +185,16 @@ class TestSnippetSearchFilters:
         f3 = SnippetSearchFilters(language="go", author="bob")
         assert f1 == f2
         assert f1 != f3
+
+    def test_multi_search_request_with_filters(self):
+        filters = SnippetSearchFilters(language="python", author="alice")
+        request = MultiSearchRequest(
+            text_query="test query",
+            code_query="def test(): pass",
+            keywords=["test", "python"],
+            filters=filters,
+        )
+        assert request.text_query == "test query"
+        assert request.code_query == "def test(): pass"
+        assert request.keywords == ["test", "python"]
+        assert request.filters == filters
