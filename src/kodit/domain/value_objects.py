@@ -106,6 +106,66 @@ class SnippetSearchFilters:
     created_before: datetime | None = None
     source_repo: str | None = None
 
+    @classmethod
+    def from_cli_params(
+        cls,
+        language: str | None = None,
+        author: str | None = None,
+        created_after: str | None = None,
+        created_before: str | None = None,
+        source_repo: str | None = None,
+    ) -> "SnippetSearchFilters | None":
+        """Create SnippetSearchFilters from CLI parameters.
+
+        Args:
+            language: Programming language filter (e.g., python, go, javascript)
+            author: Author name filter
+            created_after: Date string in YYYY-MM-DD format for filtering snippets
+            created after
+            created_before: Date string in YYYY-MM-DD format for filtering snippets
+            created before
+            source_repo: Source repository filter (e.g., github.com/example/repo)
+
+        Returns:
+            SnippetSearchFilters instance if any filters are provided, None otherwise
+
+        Raises:
+            ValueError: If date strings are in invalid format
+
+        """
+        # Only create filters if at least one parameter is provided
+        if not any([language, author, created_after, created_before, source_repo]):
+            return None
+
+        # Parse date strings if provided
+        parsed_created_after = None
+        if created_after:
+            try:
+                parsed_created_after = datetime.fromisoformat(created_after)
+            except ValueError as e:
+                raise ValueError(
+                    f"Invalid date format for created_after: {created_after}. "
+                    "Expected ISO 8601 format (YYYY-MM-DD)"
+                ) from e
+
+        parsed_created_before = None
+        if created_before:
+            try:
+                parsed_created_before = datetime.fromisoformat(created_before)
+            except ValueError as e:
+                raise ValueError(
+                    f"Invalid date format for created_before: {created_before}. "
+                    "Expected ISO 8601 format (YYYY-MM-DD)"
+                ) from e
+
+        return cls(
+            language=language,
+            author=author,
+            created_after=parsed_created_after,
+            created_before=parsed_created_before,
+            source_repo=source_repo,
+        )
+
 
 @dataclass
 class MultiSearchRequest:

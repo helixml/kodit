@@ -1,8 +1,9 @@
 """Tests for LanguageMapping value object."""
 
 import pytest
+from datetime import datetime
 
-from kodit.domain.value_objects import LanguageMapping
+from kodit.domain.value_objects import LanguageMapping, SnippetSearchFilters
 
 
 class TestLanguageMapping:
@@ -123,3 +124,58 @@ class TestLanguageMapping:
         """Test fallback method returns [language.lower()] for unsupported language."""
         extensions = LanguageMapping.get_extensions_with_fallback("foobar")
         assert extensions == ["foobar"]
+
+
+class TestSnippetSearchFilters:
+    """Test cases for SnippetSearchFilters value object."""
+
+    def test_from_cli_params_no_filters(self):
+        """Test that None is returned when no filters are provided."""
+        filters = SnippetSearchFilters.from_cli_params()
+        assert filters is None
+
+    def test_from_cli_params_with_language(self):
+        """Test creating filters with language parameter."""
+        filters = SnippetSearchFilters.from_cli_params(language="python")
+        assert filters is not None
+        assert filters.language == "python"
+        assert filters.author is None
+        assert filters.created_after is None
+        assert filters.created_before is None
+        assert filters.source_repo is None
+
+    def test_from_cli_params_with_all_filters(self):
+        """Test creating filters with all parameters."""
+        filters = SnippetSearchFilters.from_cli_params(
+            language="python",
+            author="John Doe",
+            created_after="2023-01-01",
+            created_before="2023-12-31",
+            source_repo="github.com/example/repo",
+        )
+        assert filters is not None
+        assert filters.language == "python"
+        assert filters.author == "John Doe"
+        assert filters.created_after == datetime(2023, 1, 1)
+        assert filters.created_before == datetime(2023, 12, 31)
+        assert filters.source_repo == "github.com/example/repo"
+
+    def test_from_cli_params_invalid_date_format(self):
+        """Test that invalid date formats raise ValueError."""
+        with pytest.raises(ValueError, match="Invalid date format for created_after"):
+            SnippetSearchFilters.from_cli_params(created_after="invalid-date")
+
+        with pytest.raises(ValueError, match="Invalid date format for created_before"):
+            SnippetSearchFilters.from_cli_params(created_before="invalid-date")
+
+    def test_from_cli_params_partial_filters(self):
+        """Test creating filters with only some parameters."""
+        filters = SnippetSearchFilters.from_cli_params(
+            language="go", author="Jane Smith"
+        )
+        assert filters is not None
+        assert filters.language == "go"
+        assert filters.author == "Jane Smith"
+        assert filters.created_after is None
+        assert filters.created_before is None
+        assert filters.source_repo is None

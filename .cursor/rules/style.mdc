@@ -1,0 +1,11 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Please maintain the following coding standards while developing code:
+
+1. This project uses a domain-driven design approach. Please consider in which layer
+   your code belongs.
+2. Run `uv run ruff check --fix` to lint the code.
+3. Run `uv run pytest ...` to test the code.

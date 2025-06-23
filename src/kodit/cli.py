@@ -223,21 +223,13 @@ async def code(  # noqa: PLR0913
     )
 
     # Create filters if any filter parameters are provided
-    filters = None
-    if any([language, author, created_after, created_before, source_repo]):
-        from datetime import datetime
-
-        filters = SnippetSearchFilters(
-            language=language,
-            author=author,
-            created_after=datetime.fromisoformat(created_after)
-            if created_after
-            else None,
-            created_before=datetime.fromisoformat(created_before)
-            if created_before
-            else None,
-            source_repo=source_repo,
-        )
+    filters = SnippetSearchFilters.from_cli_params(
+        language=language,
+        author=author,
+        created_after=created_after,
+        created_before=created_before,
+        source_repo=source_repo,
+    )
 
     snippets = await service.search(
         MultiSearchRequest(code_query=query, top_k=top_k, filters=filters)
@@ -300,21 +292,13 @@ async def keyword(  # noqa: PLR0913
     )
 
     # Create filters if any filter parameters are provided
-    filters = None
-    if any([language, author, created_after, created_before, source_repo]):
-        from datetime import datetime
-
-        filters = SnippetSearchFilters(
-            language=language,
-            author=author,
-            created_after=datetime.fromisoformat(created_after)
-            if created_after
-            else None,
-            created_before=datetime.fromisoformat(created_before)
-            if created_before
-            else None,
-            source_repo=source_repo,
-        )
+    filters = SnippetSearchFilters.from_cli_params(
+        language=language,
+        author=author,
+        created_after=created_after,
+        created_before=created_before,
+        source_repo=source_repo,
+    )
 
     snippets = await service.search(
         MultiSearchRequest(keywords=keywords, top_k=top_k, filters=filters)
@@ -380,21 +364,13 @@ async def text(  # noqa: PLR0913
     )
 
     # Create filters if any filter parameters are provided
-    filters = None
-    if any([language, author, created_after, created_before, source_repo]):
-        from datetime import datetime
-
-        filters = SnippetSearchFilters(
-            language=language,
-            author=author,
-            created_after=datetime.fromisoformat(created_after)
-            if created_after
-            else None,
-            created_before=datetime.fromisoformat(created_before)
-            if created_before
-            else None,
-            source_repo=source_repo,
-        )
+    filters = SnippetSearchFilters.from_cli_params(
+        language=language,
+        author=author,
+        created_after=created_after,
+        created_before=created_before,
+        source_repo=source_repo,
+    )
 
     snippets = await service.search(
         MultiSearchRequest(text_query=query, top_k=top_k, filters=filters)
@@ -464,21 +440,13 @@ async def hybrid(  # noqa: PLR0913
     keywords_list = [k.strip().lower() for k in keywords.split(",")]
 
     # Create filters if any filter parameters are provided
-    filters = None
-    if any([language, author, created_after, created_before, source_repo]):
-        from datetime import datetime
-
-        filters = SnippetSearchFilters(
-            language=language,
-            author=author,
-            created_after=datetime.fromisoformat(created_after)
-            if created_after
-            else None,
-            created_before=datetime.fromisoformat(created_before)
-            if created_before
-            else None,
-            source_repo=source_repo,
-        )
+    filters = SnippetSearchFilters.from_cli_params(
+        language=language,
+        author=author,
+        created_after=created_after,
+        created_before=created_before,
+        source_repo=source_repo,
+    )
 
     snippets = await service.search(
         MultiSearchRequest(

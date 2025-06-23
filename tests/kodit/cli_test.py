@@ -486,7 +486,7 @@ def test_search_invalid_date_format(runner: CliRunner) -> None:
         )
         assert result.exit_code == 1  # Should fail with ValueError
         assert isinstance(result.exception, ValueError)
-        assert "Invalid isoformat string" in str(result.exception)
+        assert "Invalid date format for created_after" in str(result.exception)
 
         # Test with invalid date format for created-before
         result = runner.invoke(
@@ -494,7 +494,7 @@ def test_search_invalid_date_format(runner: CliRunner) -> None:
         )
         assert result.exit_code == 1  # Should fail with ValueError
         assert isinstance(result.exception, ValueError)
-        assert "Invalid isoformat string" in str(result.exception)
+        assert "Invalid date format for created_before" in str(result.exception)
 
 
 def test_search_filter_case_insensitivity(runner: CliRunner) -> None:
