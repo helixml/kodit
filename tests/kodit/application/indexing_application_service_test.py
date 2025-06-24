@@ -543,35 +543,33 @@ def test_filter_should_pre_filter_before_top_k(
     ]
     mock_indexing_domain_service.perform_fusion.return_value = mock_fusion_results
 
-    # Mock the DB to return only the top 3 snippets (matching top_k=3)
+    # Mock the DB to return the filtered snippets (10 Python snippets with IDs 11-20)
     mock_indexing_domain_service.get_snippets_by_ids.return_value = [
         (
             {
-                "id": 4,
-                "uri": "test4.py",
-                "content": "Python supports multiple programming paradigms",
-            },
-            {"id": 4, "content": "Python supports multiple programming paradigms"},
-        ),
-        (
-            {
-                "id": 2,
-                "uri": "test2.py",
-                "content": "Python is a high-level programming language",
-            },
-            {"id": 2, "content": "Python is a high-level programming language"},
-        ),
-        (
-            {
-                "id": 1,
-                "uri": "test1.py",
-                "content": "The Python programming language was created by Guido van Rossum",
+                "id": i,
+                "source_id": 1,
+                "mime_type": "text/plain",
+                "uri": f"test{i}.py",
+                "cloned_path": f"/tmp/test_repo/test{i}.py",
+                "sha256": "abc123",
+                "size_bytes": 100,
+                "extension": "py",
+                "created_at": "2023-01-01",
+                "updated_at": "2023-01-01",
+                "source_uri": "https://github.com/test/repo.git",
+                "source_cloned_path": "/tmp/test_repo",
             },
             {
-                "id": 1,
-                "content": "The Python programming language was created by Guido van Rossum",
+                "id": i,
+                "file_id": 1,
+                "index_id": 1,
+                "content": f"def test{i}(): pass",
+                "created_at": "2023-01-01",
+                "updated_at": "2023-01-01",
             },
-        ),
+        )
+        for i in range(11, 21)  # Python snippets (ids 11-20)
     ]
 
     # Run
