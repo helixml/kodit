@@ -125,7 +125,7 @@ class EmbeddingDomainService:
         # Domain logic: normalize query
         normalized_query = request.query.strip()
         normalized_request = VectorSearchQueryRequest(
-            query=normalized_query, top_k=request.top_k
+            query=normalized_query, top_k=request.top_k, snippet_ids=request.snippet_ids
         )
 
         return await self.vector_search_repository.search(normalized_request)

@@ -281,3 +281,123 @@ class TestSqlAlchemyEmbeddingRepository:
         assert results[0] == (1, [0.1, 0.2, 0.3])
         assert results[1] == (2, [0.4, 0.5, 0.6])
         mock_session.execute.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_list_semantic_results_with_snippet_ids_filtering(self):
+        """Test semantic search with snippet_ids filtering."""
+        mock_session = MagicMock()
+        mock_result = MagicMock()
+        # Only return embeddings for specific snippet IDs
+        mock_result.all.return_value = [(1, [0.1, 0.2, 0.3])]
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        repository = SqlAlchemyEmbeddingRepository(session=mock_session)
+
+        query_embedding = [0.1, 0.2, 0.3]
+        results = await repository.list_semantic_results(
+            EmbeddingType.CODE, query_embedding, top_k=10, snippet_ids=[1, 2]
+        )
+
+        assert len(results) == 1
+        assert results[0][0] == 1  # snippet_id
+        assert isinstance(results[0][1], float)  # score
+
+        # Verify the query was called with the correct filter
+        mock_session.execute.assert_called_once()
+        call_args = mock_session.execute.call_args[0][0]
+        # Check that the query includes the snippet_ids filter
+        assert "snippet_id" in str(call_args)
+
+    @pytest.mark.asyncio
+    async def test_list_semantic_results_with_none_snippet_ids_no_filtering(self):
+        """Test semantic search with None snippet_ids (no filtering)."""
+        mock_session = MagicMock()
+        mock_result = MagicMock()
+        mock_result.all.return_value = [
+            (1, [0.1, 0.2, 0.3]),
+            (2, [0.4, 0.5, 0.6]),
+        ]
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        repository = SqlAlchemyEmbeddingRepository(session=mock_session)
+
+        query_embedding = [0.1, 0.2, 0.3]
+        results = await repository.list_semantic_results(
+            EmbeddingType.CODE, query_embedding, top_k=10, snippet_ids=None
+        )
+
+        assert len(results) == 2
+        assert results[0][0] == 1  # snippet_id
+        assert results[1][0] == 2  # snippet_id
+
+        # Verify the query was called without snippet_ids filter
+        mock_session.execute.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_list_semantic_results_with_empty_snippet_ids_returns_no_results(
+        self,
+    ):
+        """Test semantic search with empty snippet_ids list returns no results."""
+        mock_session = MagicMock()
+        mock_result = MagicMock()
+        mock_result.all.return_value = []  # No results when filtering by empty list
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        repository = SqlAlchemyEmbeddingRepository(session=mock_session)
+
+        query_embedding = [0.1, 0.2, 0.3]
+        results = await repository.list_semantic_results(
+            EmbeddingType.CODE, query_embedding, top_k=10, snippet_ids=[]
+        )
+
+        assert results == []
+
+        # Verify the query was called with empty snippet_ids filter
+        mock_session.execute.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_list_embedding_values_with_snippet_ids_filtering(self):
+        """Test listing embedding values with snippet_ids filtering."""
+        mock_session = MagicMock()
+        mock_result = MagicMock()
+        mock_result.all.return_value = [(1, [0.1, 0.2, 0.3])]
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        repository = SqlAlchemyEmbeddingRepository(session=mock_session)
+
+        results = await repository._list_embedding_values(
+            EmbeddingType.CODE, snippet_ids=[1, 2]
+        )
+
+        assert len(results) == 1
+        assert results[0] == (1, [0.1, 0.2, 0.3])
+
+        # Verify the query was called with the correct filter
+        mock_session.execute.assert_called_once()
+        call_args = mock_session.execute.call_args[0][0]
+        # Check that the query includes the snippet_ids filter
+        assert "snippet_id" in str(call_args)
+
+    @pytest.mark.asyncio
+    async def test_list_embedding_values_with_none_snippet_ids_no_filtering(self):
+        """Test listing embedding values with None snippet_ids (no filtering)."""
+        mock_session = MagicMock()
+        mock_result = MagicMock()
+        mock_result.all.return_value = [
+            (1, [0.1, 0.2, 0.3]),
+            (2, [0.4, 0.5, 0.6]),
+        ]
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        repository = SqlAlchemyEmbeddingRepository(session=mock_session)
+
+        results = await repository._list_embedding_values(
+            EmbeddingType.CODE, snippet_ids=None
+        )
+
+        assert len(results) == 2
+        assert results[0] == (1, [0.1, 0.2, 0.3])
+        assert results[1] == (2, [0.4, 0.5, 0.6])
+
+        # Verify the query was called without snippet_ids filter
+        mock_session.execute.assert_called_once()

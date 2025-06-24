@@ -193,7 +193,7 @@ class TestLocalVectorSearchRepository:
 
         # Verify repository search was called
         mock_repository.list_semantic_results.assert_called_once_with(
-            EmbeddingType.CODE, [0.1, 0.2, 0.3], 10
+            EmbeddingType.CODE, [0.1, 0.2, 0.3], 10, None
         )
 
     @pytest.mark.asyncio
@@ -262,6 +262,120 @@ class TestLocalVectorSearchRepository:
         assert result is False
         mock_repository.get_embedding_by_snippet_id_and_type.assert_called_once_with(
             1, EmbeddingType.TEXT
+        )
+
+    @pytest.mark.asyncio
+    async def test_search_with_snippet_ids_filtering(self):
+        """Test search with snippet_ids filtering."""
+        mock_repository = MagicMock(spec=SqlAlchemyEmbeddingRepository)
+        mock_repository.list_semantic_results = AsyncMock(
+            return_value=[
+                (1, 0.95),
+            ]
+        )
+
+        mock_provider = MagicMock()
+
+        async def mock_embed(requests):
+            yield [EmbeddingResponse(snippet_id=0, embedding=[0.1, 0.2, 0.3])]
+
+        mock_provider.embed.return_value = mock_embed([])
+
+        repository = LocalVectorSearchRepository(
+            embedding_repository=mock_repository,
+            embedding_provider=mock_provider,
+        )
+
+        request = VectorSearchQueryRequest(
+            query="python programming", top_k=10, snippet_ids=[1, 2, 3]
+        )
+
+        results = await repository.search(request)
+
+        assert len(results) == 1
+        assert results[0].snippet_id == 1
+        assert results[0].score == 0.95
+
+        # Verify repository search was called with snippet_ids
+        mock_repository.list_semantic_results.assert_called_once_with(
+            EmbeddingType.CODE, [0.1, 0.2, 0.3], 10, [1, 2, 3]
+        )
+
+    @pytest.mark.asyncio
+    async def test_search_with_none_snippet_ids_no_filtering(self):
+        """Test search with None snippet_ids (no filtering)."""
+        mock_repository = MagicMock(spec=SqlAlchemyEmbeddingRepository)
+        mock_repository.list_semantic_results = AsyncMock(
+            return_value=[
+                (1, 0.95),
+                (2, 0.85),
+            ]
+        )
+
+        mock_provider = MagicMock()
+
+        async def mock_embed(requests):
+            yield [EmbeddingResponse(snippet_id=0, embedding=[0.1, 0.2, 0.3])]
+
+        mock_provider.embed.return_value = mock_embed([])
+
+        repository = LocalVectorSearchRepository(
+            embedding_repository=mock_repository,
+            embedding_provider=mock_provider,
+        )
+
+        request = VectorSearchQueryRequest(
+            query="python programming",
+            top_k=10,
+            snippet_ids=None,  # No filtering
+        )
+
+        results = await repository.search(request)
+
+        assert len(results) == 2
+        assert results[0].snippet_id == 1
+        assert results[0].score == 0.95
+        assert results[1].snippet_id == 2
+        assert results[1].score == 0.85
+
+        # Verify repository search was called with None snippet_ids
+        mock_repository.list_semantic_results.assert_called_once_with(
+            EmbeddingType.CODE, [0.1, 0.2, 0.3], 10, None
+        )
+
+    @pytest.mark.asyncio
+    async def test_search_with_empty_snippet_ids_returns_no_results(self):
+        """Test search with empty snippet_ids list returns no results."""
+        mock_repository = MagicMock(spec=SqlAlchemyEmbeddingRepository)
+        mock_repository.list_semantic_results = AsyncMock(
+            return_value=[]  # No results when filtering by empty list
+        )
+
+        mock_provider = MagicMock()
+
+        async def mock_embed(requests):
+            yield [EmbeddingResponse(snippet_id=0, embedding=[0.1, 0.2, 0.3])]
+
+        mock_provider.embed.return_value = mock_embed([])
+
+        repository = LocalVectorSearchRepository(
+            embedding_repository=mock_repository,
+            embedding_provider=mock_provider,
+        )
+
+        request = VectorSearchQueryRequest(
+            query="python programming",
+            top_k=10,
+            snippet_ids=[],  # Empty list - should return no results
+        )
+
+        results = await repository.search(request)
+
+        assert results == []
+
+        # Verify repository search was called with empty snippet_ids
+        mock_repository.list_semantic_results.assert_called_once_with(
+            EmbeddingType.CODE, [0.1, 0.2, 0.3], 10, []
         )
 
 

@@ -82,7 +82,11 @@ class SqlAlchemyEmbeddingRepository:
             await self.session.delete(embedding)
 
     async def list_semantic_results(
-        self, embedding_type: EmbeddingType, embedding: list[float], top_k: int = 10
+        self,
+        embedding_type: EmbeddingType,
+        embedding: list[float],
+        top_k: int = 10,
+        snippet_ids: list[int] | None = None,
     ) -> list[tuple[int, float]]:
         """List semantic results using cosine similarity.
 
@@ -93,13 +97,14 @@ class SqlAlchemyEmbeddingRepository:
             embedding_type: The type of embeddings to search
             embedding: The query embedding vector
             top_k: Number of results to return
+            snippet_ids: Optional list of snippet IDs to filter by
 
         Returns:
             List of (snippet_id, similarity_score) tuples, sorted by similarity
 
         """
         # Step 1: Fetch embeddings from database
-        embeddings = await self._list_embedding_values(embedding_type)
+        embeddings = await self._list_embedding_values(embedding_type, snippet_ids)
         if not embeddings:
             return []
 
@@ -113,12 +118,13 @@ class SqlAlchemyEmbeddingRepository:
         return self._get_top_k_results(similarities, embeddings, top_k)
 
     async def _list_embedding_values(
-        self, embedding_type: EmbeddingType
+        self, embedding_type: EmbeddingType, snippet_ids: list[int] | None = None
     ) -> list[tuple[int, list[float]]]:
         """List all embeddings of a given type from the database.
 
         Args:
             embedding_type: The type of embeddings to fetch
+            snippet_ids: Optional list of snippet IDs to filter by
 
         Returns:
             List of (snippet_id, embedding) tuples
@@ -128,6 +134,11 @@ class SqlAlchemyEmbeddingRepository:
         query = select(Embedding.snippet_id, Embedding.embedding).where(
             Embedding.type == embedding_type
         )
+
+        # Add snippet_ids filter if provided
+        if snippet_ids is not None:
+            query = query.where(Embedding.snippet_id.in_(snippet_ids))
+
         rows = await self.session.execute(query)
         return [tuple(row) for row in rows.all()]  # Convert Row objects to tuples
 

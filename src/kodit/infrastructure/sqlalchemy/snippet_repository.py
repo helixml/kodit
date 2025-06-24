@@ -210,8 +210,12 @@ class SqlAlchemySnippetRepository(SnippetRepository):
             if filters.source_repo:
                 query = query.where(Source.uri.like(f"%{filters.source_repo}%"))
 
-        # Apply top_k limit
-        if request.top_k:
+        # Only apply top_k limit if there are no search queries
+        # This ensures that when used for pre-filtering (with search queries),
+        # all matching snippets are returned for the search services to consider
+        if request.top_k and not any(
+            [request.keywords, request.code_query, request.text_query]
+        ):
             query = query.limit(request.top_k)
 
         result = await self.session.execute(query)

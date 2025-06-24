@@ -59,6 +59,15 @@ ORDER BY score ASC
 LIMIT :top_k;
 """
 
+# Filtered search query with snippet_ids
+SEARCH_QUERY_WITH_FILTER = """
+SELECT snippet_id, embedding <=> :query as score
+FROM {TABLE_NAME}
+WHERE snippet_id = ANY(:snippet_ids)
+ORDER BY score ASC
+LIMIT :top_k;
+"""
+
 CHECK_VCHORD_EMBEDDING_EXISTS = """
 SELECT EXISTS(SELECT 1 FROM {TABLE_NAME} WHERE snippet_id = :snippet_id)
 """
@@ -195,6 +204,9 @@ class VectorChordVectorSearchRepository(VectorSearchRepository):
         self, request: VectorSearchQueryRequest
     ) -> list[VectorSearchResult]:
         """Search documents using vector similarity."""
+        if not request.query or not request.query.strip():
+            return []
+
         req = EmbeddingRequest(snippet_id=0, text=request.query)
         embedding_vec: list[float] | None = None
         async for batch in self.embedding_provider.embed([req]):
@@ -204,10 +216,23 @@ class VectorChordVectorSearchRepository(VectorSearchRepository):
 
         if not embedding_vec:
             return []
-        result = await self._execute(
-            text(SEARCH_QUERY.format(TABLE_NAME=self.table_name)),
-            {"query": str(embedding_vec), "top_k": request.top_k},
-        )
+
+        # Use filtered query if snippet_ids are provided
+        if request.snippet_ids is not None:
+            result = await self._execute(
+                text(SEARCH_QUERY_WITH_FILTER.format(TABLE_NAME=self.table_name)),
+                {
+                    "query": str(embedding_vec),
+                    "top_k": request.top_k,
+                    "snippet_ids": request.snippet_ids,
+                },
+            )
+        else:
+            result = await self._execute(
+                text(SEARCH_QUERY.format(TABLE_NAME=self.table_name)),
+                {"query": str(embedding_vec), "top_k": request.top_k},
+            )
+
         rows = result.mappings().all()
 
         return [

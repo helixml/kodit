@@ -1,443 +1,657 @@
-"""Tests for the VectorChord vector search repository."""
+"""Tests for the VectorChord vector search repository with real database."""
+
+import socket
+import subprocess
+import time
+from datetime import UTC, datetime
+from typing import AsyncGenerator
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+import asyncio
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
-from kodit.domain.entities import Snippet, EmbeddingType
+from kodit.domain.entities import Base, Index, Snippet, File, Source, SourceType
 from kodit.domain.value_objects import (
-    VectorSearchRequest,
-    VectorSearchResult,
-    EmbeddingRequest,
-    EmbeddingResponse,
-    IndexResult,
-    VectorIndexRequest,
     VectorSearchQueryRequest,
+    VectorSearchResult,
+    VectorIndexRequest,
+    VectorSearchRequest,
 )
 from kodit.infrastructure.embedding.vectorchord_vector_search_repository import (
     VectorChordVectorSearchRepository,
 )
+from kodit.infrastructure.embedding.embedding_providers.hash_embedding_provider import (
+    HashEmbeddingProvider,
+)
+
+# Suppress the pytest-asyncio event_loop fixture deprecation warning
+pytestmark = [
+    pytest.mark.asyncio(loop_scope="module"),
+    pytest.mark.filterwarnings("ignore::DeprecationWarning:pytest_asyncio.*"),
+]
 
 
-class TestVectorChordVectorSearchRepository:
-    """Test the VectorChord vector search repository."""
+@pytest.fixture(scope="module")
+def event_loop():
+    """Create an event loop for module-scoped async tests."""
+    loop = asyncio.new_event_loop()
+    yield loop
+    loop.close()
 
-    def test_init(self):
-        """Test initialization."""
-        mock_session = MagicMock()
-        mock_provider = MagicMock()
 
-        repository = VectorChordVectorSearchRepository(
-            task_name="code",
-            session=mock_session,
-            embedding_provider=mock_provider,
+def find_free_port() -> int:
+    """Find a free port on the machine."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+# Global variables to store the database state
+_vectorchord_port: int | None = None
+_vectorchord_container_name: str | None = None
+
+
+@pytest.fixture(scope="module")
+async def vectorchord_engine() -> AsyncGenerator[AsyncEngine, None]:
+    """Create a test database engine for the entire test module."""
+    global _vectorchord_port, _vectorchord_container_name
+
+    _vectorchord_port = find_free_port()
+    _vectorchord_container_name = f"vectorchord_test_{_vectorchord_port}"
+
+    # Spin up a docker container for the vectorchord database
+    subprocess.run(
+        [
+            "docker",
+            "run",
+            "-d",
+            "-e",
+            "POSTGRES_DB=kodit",
+            "-e",
+            "POSTGRES_PASSWORD=mysecretpassword",
+            "--name",
+            _vectorchord_container_name,
+            "-p",
+            f"{_vectorchord_port}:5432",
+            "tensorchord/vchord-suite:pg17-20250601",
+        ],
+        check=True,
+    )
+
+    # Wait for the database to be ready
+    while True:
+        try:
+            engine = create_async_engine(
+                f"postgresql+asyncpg://postgres:mysecretpassword@localhost:{_vectorchord_port}/kodit",
+                echo=False,
+                future=True,
+            )
+            async with engine.connect() as conn:
+                await conn.execute(text("SELECT 1"))
+            break
+        except Exception as e:
+            time.sleep(1)
+
+    try:
+        engine = create_async_engine(
+            f"postgresql+asyncpg://postgres:mysecretpassword@localhost:{_vectorchord_port}/kodit",
+            echo=False,
+            future=True,
         )
 
-        assert repository.embedding_provider == mock_provider
-        assert repository._session == mock_session
-        assert repository._initialized is False
-        assert repository.table_name == "vectorchord_code_embeddings"
-        assert repository.index_name == "vectorchord_code_embeddings_idx"
-        assert repository.log is not None
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
 
-    def test_init_text_task(self):
-        """Test initialization with text task."""
-        mock_session = MagicMock()
-        mock_provider = MagicMock()
+        yield engine
 
-        repository = VectorChordVectorSearchRepository(
-            task_name="text",
-            session=mock_session,
-            embedding_provider=mock_provider,
-        )
+        await engine.dispose()
+    finally:
+        # Clean up the container at the end of the module
+        subprocess.run(["docker", "rm", "-f", _vectorchord_container_name], check=True)
 
-        assert repository.table_name == "vectorchord_text_embeddings"
-        assert repository.index_name == "vectorchord_text_embeddings_idx"
 
-    @pytest.mark.asyncio
-    async def test_initialize_success(self):
-        """Test successful initialization."""
-        mock_session = MagicMock()
-        mock_session.execute = AsyncMock()
-        mock_session.commit = AsyncMock()
+@pytest.fixture
+async def vectorchord_session(
+    vectorchord_engine: AsyncEngine,
+) -> AsyncGenerator[AsyncSession, None]:
+    """Create a test database session."""
+    async_session = async_sessionmaker(
+        vectorchord_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autocommit=False,
+        autoflush=False,
+    )
 
-        # Mock the result for dimension check
-        mock_result = MagicMock()
-        mock_result.scalar_one.return_value = 3  # Match the embedding size
-        mock_session.execute.return_value = mock_result
+    async with async_session() as session:
+        yield session
+        # Clean up tables after each test
+        await session.rollback()
+        # Clear all tables by truncating them
+        async with vectorchord_engine.begin() as conn:
+            # Get all table names and truncate them
+            result = await conn.execute(
+                text("""
+                SELECT tablename FROM pg_tables 
+                WHERE schemaname = 'public' 
+                AND tablename NOT LIKE 'pg_%' 
+                AND tablename NOT LIKE 'information_schema%'
+            """)
+            )
+            tables = [row[0] for row in result.fetchall()]
 
-        mock_provider = MagicMock()
+            # Disable foreign key checks temporarily
+            await conn.execute(text("SET session_replication_role = replica"))
 
-        async def mock_embed(requests):
-            yield [EmbeddingResponse(snippet_id=0, embedding=[0.1, 0.2, 0.3])]
+            # Truncate all tables
+            for table in tables:
+                await conn.execute(
+                    text(f"TRUNCATE TABLE {table} RESTART IDENTITY CASCADE")
+                )
 
-        mock_provider.embed.return_value = mock_embed([])
+            # Re-enable foreign key checks
+            await conn.execute(text("SET session_replication_role = DEFAULT"))
 
-        repository = VectorChordVectorSearchRepository(
-            task_name="code",
-            session=mock_session,
-            embedding_provider=mock_provider,
-        )
 
-        await repository._initialize()
+@pytest.fixture
+async def test_data(
+    vectorchord_session: AsyncSession,
+) -> tuple[list[Snippet], VectorChordVectorSearchRepository]:
+    """Create test data and repository."""
+    # Create test data
+    source = Source(uri="test", cloned_path="test", source_type=SourceType.FOLDER)
+    vectorchord_session.add(source)
+    await vectorchord_session.flush()
 
-        assert repository._initialized is True
-        # Verify extensions and tables were created
-        assert mock_session.execute.call_count >= 3  # At least 3 SQL calls
-        assert mock_session.commit.call_count >= 1
+    file = File(
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+        source_id=source.id,
+        mime_type="text/plain",
+        uri="test.py",
+        cloned_path="test",
+        sha256="",
+        size_bytes=0,
+        extension="py",
+    )
+    vectorchord_session.add(file)
+    await vectorchord_session.flush()
 
-    @pytest.mark.asyncio
-    async def test_initialize_embedding_provider_failure(self):
-        """Test initialization when embedding provider fails."""
-        mock_session = MagicMock()
-        mock_session.execute = AsyncMock()
-        mock_session.commit = AsyncMock()
+    index = Index(source_id=source.id)
+    vectorchord_session.add(index)
+    await vectorchord_session.flush()
 
-        mock_provider = MagicMock()
+    # Create snippets with varied content to test different aspects of vector search
+    snippets = [
+        Snippet(
+            file_id=file.id,
+            index_id=index.id,
+            content="Python is a high-level programming language known for its simplicity and readability.",
+        ),
+        Snippet(
+            file_id=file.id,
+            index_id=index.id,
+            content="Python supports multiple programming paradigms including procedural, object-oriented, and functional programming.",
+        ),
+        Snippet(
+            file_id=file.id,
+            index_id=index.id,
+            content="The Python programming language was created by Guido van Rossum and first released in 1991.",
+        ),
+        Snippet(
+            file_id=file.id,
+            index_id=index.id,
+            content="Python is widely used in data science, machine learning, and artificial intelligence applications.",
+        ),
+        Snippet(
+            file_id=file.id,
+            index_id=index.id,
+            content="Python's extensive standard library and third-party packages make it a versatile language for various applications.",
+        ),
+    ]
 
-        async def mock_embed(requests):
-            yield []  # No embeddings returned
+    for snippet in snippets:
+        vectorchord_session.add(snippet)
+    await vectorchord_session.commit()
 
-        mock_provider.embed.return_value = mock_embed([])
+    # Initialize repository
+    embedding_provider = HashEmbeddingProvider()
+    repository = VectorChordVectorSearchRepository(
+        task_name="code",
+        session=vectorchord_session,
+        embedding_provider=embedding_provider,
+    )
 
-        repository = VectorChordVectorSearchRepository(
-            task_name="code",
-            session=mock_session,
-            embedding_provider=mock_provider,
-        )
-
-        with pytest.raises(RuntimeError, match="Failed to obtain embedding dimension"):
-            await repository._initialize()
-
-    @pytest.mark.asyncio
-    async def test_index_documents_empty_request(self):
-        """Test indexing with empty request."""
-        mock_session = MagicMock()
-        mock_provider = MagicMock()
-
-        repository = VectorChordVectorSearchRepository(
-            task_name="code",
-            session=mock_session,
-            embedding_provider=mock_provider,
-        )
-
-        request = VectorIndexRequest(documents=[])
-
-        results = []
-        async for batch in repository.index_documents(request):
-            results.extend(batch)
-
-        assert len(results) == 0
-        mock_provider.embed.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_index_documents_single_document(self):
-        """Test indexing with a single document."""
-        mock_session = MagicMock()
-        mock_session.execute = AsyncMock()
-        mock_session.commit = AsyncMock()
-
-        mock_provider = MagicMock()
-
-        async def mock_embed(requests):
-            yield [EmbeddingResponse(snippet_id=1, embedding=[0.1, 0.2, 0.3])]
-
-        mock_provider.embed.return_value = mock_embed([])
-
-        repository = VectorChordVectorSearchRepository(
-            task_name="code",
-            session=mock_session,
-            embedding_provider=mock_provider,
-        )
-
-        # Mock initialization
-        repository._initialized = True
-
-        request = VectorIndexRequest(
-            documents=[VectorSearchRequest(snippet_id=1, text="python programming")]
-        )
-
-        results = []
-        async for batch in repository.index_documents(request):
-            results.extend(batch)
-
-        assert len(results) == 1
-        assert results[0].snippet_id == 1
-
-        # Verify embedding provider was called
-        mock_provider.embed.assert_called_once()
-        call_args = mock_provider.embed.call_args[0][0]
-        assert len(call_args) == 1
-        assert call_args[0].snippet_id == 1
-        assert call_args[0].text == "python programming"
-
-        # Verify database operations
-        mock_session.execute.assert_called_once()
-        mock_session.commit.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_index_documents_multiple_documents(self):
-        """Test indexing with multiple documents."""
-        mock_session = MagicMock()
-        mock_session.execute = AsyncMock()
-        mock_session.commit = AsyncMock()
-
-        mock_provider = MagicMock()
-
-        async def mock_embed(requests):
-            yield [
-                EmbeddingResponse(snippet_id=1, embedding=[0.1, 0.2, 0.3]),
-                EmbeddingResponse(snippet_id=2, embedding=[0.4, 0.5, 0.6]),
-            ]
-
-        mock_provider.embed.return_value = mock_embed([])
-
-        repository = VectorChordVectorSearchRepository(
-            task_name="code",
-            session=mock_session,
-            embedding_provider=mock_provider,
-        )
-
-        # Mock initialization
-        repository._initialized = True
-
-        request = VectorIndexRequest(
+    # Index the documents
+    async for batch in repository.index_documents(
+        VectorIndexRequest(
             documents=[
-                VectorSearchRequest(snippet_id=1, text="python programming"),
-                VectorSearchRequest(snippet_id=2, text="javascript development"),
+                VectorSearchRequest(snippet_id=s.id, text=s.content) for s in snippets
             ]
         )
+    ):
+        pass
 
-        results = []
-        async for batch in repository.index_documents(request):
-            results.extend(batch)
+    return snippets, repository
 
-        assert len(results) == 2
-        assert results[0].snippet_id == 1
-        assert results[1].snippet_id == 2
 
-        # Verify database operations
-        assert mock_session.execute.call_count == 1
-        assert mock_session.commit.call_count == 1
+@pytest.mark.asyncio
+async def test_search_with_none_snippet_ids_returns_all_results(
+    test_data: tuple[list[Snippet], VectorChordVectorSearchRepository],
+) -> None:
+    """Test that search with None snippet_ids returns all results (no filtering)."""
+    snippets, repository = test_data
 
-    @pytest.mark.asyncio
-    async def test_search_success(self):
-        """Test successful search."""
-        mock_session = MagicMock()
-        mock_session.execute = AsyncMock()
+    # Setup
+    request = VectorSearchQueryRequest(
+        query="Python programming",
+        top_k=10,
+        snippet_ids=None,  # No filtering
+    )
 
-        # Mock search results
-        mock_result = MagicMock()
-        mock_result.mappings.return_value.all.return_value = [
-            {"snippet_id": 1, "score": 0.1},
-            {"snippet_id": 2, "score": 0.2},
-        ]
-        mock_session.execute.return_value = mock_result
+    # Execute
+    results = await repository.search(request)
 
-        mock_provider = MagicMock()
+    # Verify
+    assert len(results) > 0
+    assert all(isinstance(result, VectorSearchResult) for result in results)
+    # Should return multiple results since "Python programming" matches multiple snippets
+    assert len(results) >= 3
 
-        async def mock_embed(requests):
-            yield [EmbeddingResponse(snippet_id=0, embedding=[0.1, 0.2, 0.3])]
 
-        mock_provider.embed.return_value = mock_embed([])
+@pytest.mark.asyncio
+async def test_search_with_empty_snippet_ids_returns_no_results(
+    test_data: tuple[list[Snippet], VectorChordVectorSearchRepository],
+) -> None:
+    """Test that search with empty snippet_ids list returns no results."""
+    snippets, repository = test_data
 
-        repository = VectorChordVectorSearchRepository(
-            task_name="code",
-            session=mock_session,
-            embedding_provider=mock_provider,
+    # Setup
+    request = VectorSearchQueryRequest(
+        query="Python programming",
+        top_k=10,
+        snippet_ids=[],  # Empty list - should return no results
+    )
+
+    # Execute
+    results = await repository.search(request)
+
+    # Verify
+    assert len(results) == 0
+    assert results == []
+
+
+@pytest.mark.asyncio
+async def test_search_with_filtered_snippet_ids_returns_matching_results(
+    test_data: tuple[list[Snippet], VectorChordVectorSearchRepository],
+) -> None:
+    """Test that search with specific snippet_ids returns only matching results."""
+    snippets, repository = test_data
+
+    # Setup - only search in snippets 0 and 2
+    request = VectorSearchQueryRequest(
+        query="Python programming",
+        top_k=10,
+        snippet_ids=[snippets[0].id, snippets[2].id],  # Only return snippets 0 and 2
+    )
+
+    # Execute
+    results = await repository.search(request)
+
+    # Verify
+    assert len(results) > 0
+    assert all(isinstance(result, VectorSearchResult) for result in results)
+    # All returned snippet_ids should be in our filtered list
+    returned_snippet_ids = [result.snippet_id for result in results]
+    assert all(
+        snippet_id in [snippets[0].id, snippets[2].id]
+        for snippet_id in returned_snippet_ids
+    )
+
+
+@pytest.mark.asyncio
+async def test_search_with_single_snippet_id_returns_one_result(
+    test_data: tuple[list[Snippet], VectorChordVectorSearchRepository],
+) -> None:
+    """Test that search with a single snippet_id returns only that result."""
+    snippets, repository = test_data
+
+    # Setup - only search in snippet 2 (which mentions "Guido van Rossum")
+    request = VectorSearchQueryRequest(
+        query="Guido van Rossum",
+        top_k=10,
+        snippet_ids=[snippets[2].id],  # Only return snippet 2
+    )
+
+    # Execute
+    results = await repository.search(request)
+
+    # Verify
+    assert len(results) == 1
+    assert results[0].snippet_id == snippets[2].id
+    assert isinstance(results[0].score, (int, float))
+
+
+@pytest.mark.asyncio
+async def test_search_with_nonexistent_snippet_ids_returns_no_results(
+    test_data: tuple[list[Snippet], VectorChordVectorSearchRepository],
+) -> None:
+    """Test that search with snippet_ids that don't exist returns no results."""
+    snippets, repository = test_data
+
+    # Setup
+    request = VectorSearchQueryRequest(
+        query="Python programming",
+        top_k=10,
+        snippet_ids=[99999, 100000],  # Non-existent snippet IDs
+    )
+
+    # Execute
+    results = await repository.search(request)
+
+    # Verify
+    assert len(results) == 0
+    assert results == []
+
+
+@pytest.mark.asyncio
+async def test_search_with_empty_query_returns_empty_list(
+    test_data: tuple[list[Snippet], VectorChordVectorSearchRepository],
+) -> None:
+    """Test that search with empty query returns empty list."""
+    snippets, repository = test_data
+
+    # Setup
+    request = VectorSearchQueryRequest(
+        query="",  # Empty query
+        top_k=10,
+        snippet_ids=None,
+    )
+
+    # Execute
+    results = await repository.search(request)
+
+    # Verify
+    assert results == []
+
+
+@pytest.mark.asyncio
+async def test_search_with_whitespace_query_returns_empty_list(
+    test_data: tuple[list[Snippet], VectorChordVectorSearchRepository],
+) -> None:
+    """Test that search with whitespace-only query returns empty list."""
+    snippets, repository = test_data
+
+    # Setup
+    request = VectorSearchQueryRequest(
+        query="   ",  # Whitespace-only query
+        top_k=10,
+        snippet_ids=None,
+    )
+
+    # Execute
+    results = await repository.search(request)
+
+    # Verify
+    assert results == []
+
+
+@pytest.mark.asyncio
+async def test_search_respects_top_k_limit(
+    test_data: tuple[list[Snippet], VectorChordVectorSearchRepository],
+) -> None:
+    """Test that search respects the top_k limit."""
+    snippets, repository = test_data
+
+    # Setup
+    request = VectorSearchQueryRequest(
+        query="Python",
+        top_k=2,  # Limit to 2 results
+        snippet_ids=None,
+    )
+
+    # Execute
+    results = await repository.search(request)
+
+    # Verify
+    assert len(results) == 2  # Should be limited by top_k
+    assert all(isinstance(result, VectorSearchResult) for result in results)
+
+
+@pytest.mark.asyncio
+async def test_search_result_structure(
+    test_data: tuple[list[Snippet], VectorChordVectorSearchRepository],
+) -> None:
+    """Test that search results have the correct structure."""
+    snippets, repository = test_data
+
+    # Setup
+    request = VectorSearchQueryRequest(
+        query="Guido van Rossum", top_k=1, snippet_ids=[snippets[2].id]
+    )
+
+    # Execute
+    results = await repository.search(request)
+
+    # Verify
+    assert len(results) == 1
+    result = results[0]
+    assert isinstance(result, VectorSearchResult)
+    assert hasattr(result, "snippet_id")
+    assert hasattr(result, "score")
+    assert result.snippet_id == snippets[2].id
+    assert isinstance(result.score, (int, float))
+
+
+@pytest.mark.asyncio
+async def test_search_with_mixed_existing_and_nonexistent_ids(
+    test_data: tuple[list[Snippet], VectorChordVectorSearchRepository],
+) -> None:
+    """Test that search with a mix of existing and non-existent snippet_ids works correctly."""
+    snippets, repository = test_data
+
+    # Setup - mix of existing and non-existent IDs
+    request = VectorSearchQueryRequest(
+        query="Python",
+        top_k=10,
+        snippet_ids=[
+            snippets[0].id,
+            99999,
+            snippets[2].id,
+            100000,
+        ],  # Mix of real and fake IDs
+    )
+
+    # Execute
+    results = await repository.search(request)
+
+    # Verify
+    assert len(results) > 0
+    # All returned snippet_ids should be in our filtered list (only the real ones)
+    returned_snippet_ids = [result.snippet_id for result in results]
+    assert all(
+        snippet_id in [snippets[0].id, snippets[2].id]
+        for snippet_id in returned_snippet_ids
+    )
+
+
+@pytest.mark.asyncio
+async def test_search_with_semantic_similarity_and_filtering(
+    test_data: tuple[list[Snippet], VectorChordVectorSearchRepository],
+) -> None:
+    """Test that semantic similarity works correctly with snippet filtering."""
+    snippets, repository = test_data
+
+    # Setup - search for "data science" which should match snippet 3 semantically
+    request = VectorSearchQueryRequest(
+        query="data science",
+        top_k=10,
+        snippet_ids=[snippets[3].id],  # Only snippet 3 mentions "data science"
+    )
+
+    # Execute
+    results = await repository.search(request)
+
+    # Verify
+    assert len(results) == 1
+    assert results[0].snippet_id == snippets[3].id
+    assert isinstance(results[0].score, (int, float))  # Should have a numeric score
+
+
+@pytest.mark.asyncio
+async def test_search_with_case_insensitive_filtering(
+    test_data: tuple[list[Snippet], VectorChordVectorSearchRepository],
+) -> None:
+    """Test that case insensitive search works with filtering."""
+    snippets, repository = test_data
+
+    # Setup - search for "PYTHON" (uppercase) with filtering
+    request = VectorSearchQueryRequest(
+        query="PYTHON",
+        top_k=10,
+        snippet_ids=[snippets[0].id, snippets[1].id],  # Only first two snippets
+    )
+
+    # Execute
+    results = await repository.search(request)
+
+    # Verify
+    assert len(results) > 0
+    # All returned snippet_ids should be in our filtered list
+    returned_snippet_ids = [result.snippet_id for result in results]
+    assert all(
+        snippet_id in [snippets[0].id, snippets[1].id]
+        for snippet_id in returned_snippet_ids
+    )
+
+
+@pytest.mark.asyncio
+async def test_search_results_consistency_with_filtering(
+    test_data: tuple[list[Snippet], VectorChordVectorSearchRepository],
+) -> None:
+    """Test that search results are consistent whether filtering is applied or not.
+
+    This test captures a bug where filtering by snippet_ids changes the vector search
+    results even when the original result matches the filter. The results should be
+    the same when:
+    1. Search without filtering, then filter results in Python
+    2. Search with filtering applied at the database level
+
+    The top result from the unfiltered search should still be the top result when
+    filtering is applied, if that result is in the filtered set.
+    """
+    snippets, repository = test_data
+
+    # First, search without any filtering
+    unfiltered_request = VectorSearchQueryRequest(
+        query="Python programming",
+        top_k=5,
+        snippet_ids=None,  # No filtering
+    )
+    unfiltered_results = await repository.search(unfiltered_request)
+
+    assert len(unfiltered_results) > 0
+    top_unfiltered_result = unfiltered_results[0]
+
+    # Get the snippet IDs that should be in our filtered set
+    # Let's filter to include the top result and a few others
+    filtered_snippet_ids = [top_unfiltered_result.snippet_id]
+    for result in unfiltered_results[1:3]:  # Add next 2 results
+        filtered_snippet_ids.append(result.snippet_id)
+
+    # Now search with filtering applied at the database level
+    filtered_request = VectorSearchQueryRequest(
+        query="Python programming",
+        top_k=5,
+        snippet_ids=filtered_snippet_ids,
+    )
+    filtered_results = await repository.search(filtered_request)
+
+    assert len(filtered_results) > 0
+
+    # The top result from the unfiltered search should still be the top result
+    # when filtering is applied, since it's in our filtered set
+    assert filtered_results[0].snippet_id == top_unfiltered_result.snippet_id, (
+        f"Top result changed when filtering was applied. "
+        f"Unfiltered top: {top_unfiltered_result.snippet_id} (score: {top_unfiltered_result.score}), "
+        f"Filtered top: {filtered_results[0].snippet_id} (score: {filtered_results[0].score})"
+    )
+
+    # The scores should also be the same (or very close due to floating point precision)
+    assert abs(filtered_results[0].score - top_unfiltered_result.score) < 1e-6, (
+        f"Score changed when filtering was applied. "
+        f"Unfiltered score: {top_unfiltered_result.score}, "
+        f"Filtered score: {filtered_results[0].score}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_search_with_application_level_filtering_bug(
+    test_data: tuple[list[Snippet], VectorChordVectorSearchRepository],
+) -> None:
+    """Test that demonstrates the bug where application-level filtering changes vector search results.
+
+    This test simulates what happens in the application service when language filters
+    are applied. The bug occurs because:
+    1. Application service calls snippet_application_service.search() to get filtered snippet IDs
+    2. This returns a limited set of snippets based on metadata filters (language, etc.)
+    3. Vector search is then performed only within this limited set
+    4. This can change the ranking because the vector search context is different
+
+    The issue is that the snippet_application_service.search() doesn't consider the actual
+    search query - it just filters by metadata and applies top_k, which can exclude
+    snippets that would be the top results from vector search.
+    """
+    snippets, repository = test_data
+
+    # Simulate what the application service does:
+    # 1. First, get all snippet IDs (this would be the "unfiltered" case)
+    all_snippet_ids = [s.id for s in snippets]
+
+    # 2. Search without any filtering (this is what should happen without language filter)
+    unfiltered_request = VectorSearchQueryRequest(
+        query="data science",  # This should match snippet 3 best
+        top_k=3,
+        snippet_ids=None,  # No filtering
+    )
+    unfiltered_results = await repository.search(unfiltered_request)
+
+    assert len(unfiltered_results) > 0
+    top_unfiltered_result = unfiltered_results[0]
+
+    # 3. Now simulate what happens with language filtering:
+    # The application service would call snippet_application_service.search()
+    # which returns a limited set of snippets based on metadata filters
+    # For this test, let's simulate that only the first 3 snippets are returned
+    # (as if they were the only Python files, for example)
+    limited_snippet_ids = [snippets[0].id, snippets[1].id, snippets[2].id]
+
+    # 4. Search with this limited set (this is what happens with language filter)
+    filtered_request = VectorSearchQueryRequest(
+        query="data science",
+        top_k=3,
+        snippet_ids=limited_snippet_ids,
+    )
+    filtered_results = await repository.search(filtered_request)
+
+    # 5. The bug: if the top result from unfiltered search is in our limited set,
+    # it should still be the top result when filtering is applied
+    if top_unfiltered_result.snippet_id in limited_snippet_ids:
+        # This should be the case, but the bug causes it to fail
+        assert filtered_results[0].snippet_id == top_unfiltered_result.snippet_id, (
+            f"BUG: Top result changed when filtering was applied even though "
+            f"the original top result ({top_unfiltered_result.snippet_id}) "
+            f"was in the filtered set. "
+            f"Unfiltered top: {top_unfiltered_result.snippet_id} (score: {top_unfiltered_result.score}), "
+            f"Filtered top: {filtered_results[0].snippet_id} (score: {filtered_results[0].score})"
         )
-
-        # Mock initialization
-        repository._initialized = True
-
-        request = VectorSearchQueryRequest(query="python programming", top_k=10)
-
-        results = await repository.search(request)
-
-        assert len(results) == 2
-        assert results[0].snippet_id == 1
-        assert results[0].score == 0.1
-        assert results[1].snippet_id == 2
-        assert results[1].score == 0.2
-
-        # Verify embedding provider was called
-        mock_provider.embed.assert_called_once()
-        call_args = mock_provider.embed.call_args[0][0]
-        assert len(call_args) == 1
-        assert call_args[0].snippet_id == 0
-        assert call_args[0].text == "python programming"
-
-        # Verify database search was called
-        mock_session.execute.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_search_no_embedding_generated(self):
-        """Test search when no embedding is generated."""
-        mock_session = MagicMock()
-
-        mock_provider = MagicMock()
-
-        async def mock_embed(requests):
-            yield []  # No embeddings returned
-
-        mock_provider.embed.return_value = mock_embed([])
-
-        repository = VectorChordVectorSearchRepository(
-            task_name="code",
-            session=mock_session,
-            embedding_provider=mock_provider,
-        )
-
-        # Mock initialization
-        repository._initialized = True
-
-        request = VectorSearchQueryRequest(query="python programming", top_k=10)
-
-        results = await repository.search(request)
-
-        assert results == []
-        mock_session.execute.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_has_embedding_true(self):
-        """Test has_embedding when embedding exists."""
-        mock_session = MagicMock()
-        mock_session.execute = AsyncMock()
-
-        # Mock result indicating embedding exists
-        mock_result = MagicMock()
-        mock_result.scalar.return_value = True
-        mock_session.execute.return_value = mock_result
-
-        mock_provider = MagicMock()
-
-        repository = VectorChordVectorSearchRepository(
-            task_name="code",
-            session=mock_session,
-            embedding_provider=mock_provider,
-        )
-
-        # Mock initialization
-        repository._initialized = True
-
-        result = await repository.has_embedding(1, EmbeddingType.CODE)
-
-        assert result is True
-        mock_session.execute.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_has_embedding_false(self):
-        """Test has_embedding when embedding doesn't exist."""
-        mock_session = MagicMock()
-        mock_session.execute = AsyncMock()
-
-        # Mock result indicating embedding doesn't exist
-        mock_result = MagicMock()
-        mock_result.scalar.return_value = False
-        mock_session.execute.return_value = mock_result
-
-        mock_provider = MagicMock()
-
-        repository = VectorChordVectorSearchRepository(
-            task_name="code",
-            session=mock_session,
-            embedding_provider=mock_provider,
-        )
-
-        # Mock initialization
-        repository._initialized = True
-
-        result = await repository.has_embedding(1, EmbeddingType.TEXT)
-
-        assert result is False
-        mock_session.execute.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_has_embedding_ignores_embedding_type(self):
-        """Test that has_embedding ignores embedding_type parameter."""
-        mock_session = MagicMock()
-        mock_session.execute = AsyncMock()
-
-        mock_result = MagicMock()
-        mock_result.scalar.return_value = True
-        mock_session.execute.return_value = mock_result
-
-        mock_provider = MagicMock()
-
-        repository = VectorChordVectorSearchRepository(
-            task_name="code",
-            session=mock_session,
-            embedding_provider=mock_provider,
-        )
-
-        # Mock initialization
-        repository._initialized = True
-
-        # Should work regardless of embedding_type since VectorChord uses separate tables
-        result1 = await repository.has_embedding(1, EmbeddingType.CODE)
-        result2 = await repository.has_embedding(1, EmbeddingType.TEXT)
-
-        assert result1 is True
-        assert result2 is True
-        # Both calls should use the same table (code table)
-        assert mock_session.execute.call_count == 2
-
-    @pytest.mark.asyncio
-    async def test_execute_auto_initializes(self):
-        """Test that _execute auto-initializes if not initialized."""
-        mock_session = MagicMock()
-        mock_session.execute = AsyncMock()
-        mock_session.commit = AsyncMock()
-
-        # Mock the result for dimension check
-        mock_result = MagicMock()
-        mock_result.scalar_one.return_value = 3  # Match the embedding size
-        mock_session.execute.return_value = mock_result
-
-        mock_provider = MagicMock()
-
-        async def mock_embed(requests):
-            yield [EmbeddingResponse(snippet_id=0, embedding=[0.1, 0.2, 0.3])]
-
-        mock_provider.embed.return_value = mock_embed([])
-
-        repository = VectorChordVectorSearchRepository(
-            task_name="code",
-            session=mock_session,
-            embedding_provider=mock_provider,
-        )
-
-        # Should auto-initialize
-        await repository._execute(text("SELECT 1"))
-
-        assert repository._initialized is True
-        mock_session.execute.assert_called()
-
-    @pytest.mark.asyncio
-    async def test_create_tables_dimension_mismatch(self):
-        """Test handling of dimension mismatch during table creation."""
-        mock_session = MagicMock()
-        mock_session.execute = AsyncMock()
-
-        mock_provider = MagicMock()
-
-        async def mock_embed(requests):
-            yield [EmbeddingResponse(snippet_id=0, embedding=[0.1, 0.2, 0.3])]
-
-        mock_provider.embed.return_value = mock_embed([])
-
-        # Mock dimension check to return different dimension
-        mock_result = MagicMock()
-        mock_result.scalar_one.return_value = 5  # Different from embedding size (3)
-        mock_session.execute.return_value = mock_result
-
-        repository = VectorChordVectorSearchRepository(
-            task_name="code",
-            session=mock_session,
-            embedding_provider=mock_provider,
-        )
-
-        with pytest.raises(
-            ValueError, match="Embedding vector dimension does not match"
-        ):
-            await repository._create_tables()
+    else:
+        # If the top result is not in the limited set, that's expected behavior
+        # But we should still get consistent results within the limited set
+        assert len(filtered_results) > 0

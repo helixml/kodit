@@ -1,5 +1,7 @@
 """Application service for indexing operations."""
 
+from dataclasses import replace
+
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -327,11 +329,14 @@ class IndexingApplicationService:
 
         """
         log_event("kodit.index.search")
-        print("top", request.filters)
+
         # Get filtered snippet IDs if filters are provided
         filtered_snippet_ids: list[int] | None = None
         if request.filters:
-            snippet_results = await self.snippet_application_service.search(request)
+            prefilter_request = replace(request, top_k=None)
+            snippet_results = await self.snippet_application_service.search(
+                prefilter_request
+            )
             filtered_snippet_ids = [snippet.id for snippet in snippet_results]
 
             # Note: We don't return early here even if filtered_snippet_ids is empty
@@ -359,30 +364,24 @@ class IndexingApplicationService:
         # Compute embedding for semantic query
         if request.code_query:
             query_embedding = await self.code_search_service.search(
-                VectorSearchQueryRequest(query=request.code_query, top_k=request.top_k)
+                VectorSearchQueryRequest(
+                    query=request.code_query,
+                    top_k=request.top_k,
+                    snippet_ids=filtered_snippet_ids,
+                )
             )
-            # Apply snippet filtering to vector results if needed
-            if filtered_snippet_ids:
-                query_embedding = [
-                    result
-                    for result in query_embedding
-                    if result.snippet_id in filtered_snippet_ids
-                ]
             fusion_list.append(
                 [FusionRequest(id=x.snippet_id, score=x.score) for x in query_embedding]
             )
 
         if request.text_query:
             query_embedding = await self.text_search_service.search(
-                VectorSearchQueryRequest(query=request.text_query, top_k=request.top_k)
+                VectorSearchQueryRequest(
+                    query=request.text_query,
+                    top_k=request.top_k,
+                    snippet_ids=filtered_snippet_ids,
+                )
             )
-            # Apply snippet filtering to vector results if needed
-            if filtered_snippet_ids:
-                query_embedding = [
-                    result
-                    for result in query_embedding
-                    if result.snippet_id in filtered_snippet_ids
-                ]
             fusion_list.append(
                 [FusionRequest(id=x.snippet_id, score=x.score) for x in query_embedding]
             )

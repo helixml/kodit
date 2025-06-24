@@ -95,7 +95,7 @@ class LocalVectorSearchRepository(VectorSearchRepository):
             return []
 
         results = await self.embedding_repository.list_semantic_results(
-            self.embedding_type, embedding_vec, request.top_k
+            self.embedding_type, embedding_vec, request.top_k, request.snippet_ids
         )
         return [
             VectorSearchResult(snippet_id=snippet_id, score=score)
