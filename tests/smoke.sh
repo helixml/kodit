@@ -38,5 +38,10 @@ $prefix kodit search hybrid --keywords "main" --code "def main()" --text "main"
 $prefix kodit show snippets --by-path test.py
 $prefix kodit show snippets --by-source https://github.com/winderai/analytics-ai-agent-demo
 
+# Test search command with filters
+$prefix kodit search keyword "Hello" --language=python
+$prefix kodit search code "Hello" --source-repo=winderai/analytics-ai-agent-demo
+$prefix kodit search hybrid --keywords "main" --code "def main()" --text "main" --language=python
+
 # Test serve command with timeout
 timeout 2s $prefix kodit serve || true
