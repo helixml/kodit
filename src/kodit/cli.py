@@ -1,6 +1,5 @@
 """Command line interface for kodit."""
 
-import asyncio
 import signal
 from pathlib import Path
 from typing import Any
@@ -11,12 +10,6 @@ import uvicorn
 from pytable_formatter import Cell, Table
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.application.commands.snippet_commands import (
-    ListSnippetsCommand,
-)
-from kodit.application.services.snippet_application_service import (
-    SnippetApplicationService,
-)
 from kodit.config import (
     AppContext,
     with_app_context,
@@ -25,45 +18,16 @@ from kodit.config import (
 from kodit.domain.errors import EmptySourceError
 from kodit.domain.services.source_service import SourceService
 from kodit.domain.value_objects import MultiSearchRequest, SnippetSearchFilters
-from kodit.infrastructure.indexing.indexing_factory import (
-    create_indexing_application_service,
+from kodit.infrastructure.indexing.code_indexing_factory import (
+    create_code_indexing_application_service,
 )
-from kodit.infrastructure.snippet_extraction.snippet_extraction_factory import (
-    create_snippet_extraction_domain_service,
-    create_snippet_repositories,
-)
+
+# Compatibility shim for tests and legacy code
 from kodit.infrastructure.ui.progress import (
     create_lazy_progress_callback,
     create_multi_stage_progress_callback,
 )
 from kodit.log import configure_logging, configure_telemetry, log_event
-
-
-def create_snippet_application_service(
-    session: AsyncSession,
-) -> SnippetApplicationService:
-    """Create a snippet application service with all dependencies.
-
-    Args:
-        session: SQLAlchemy session
-
-    Returns:
-        Configured snippet application service
-
-    """
-    # Create domain service
-    snippet_extraction_service = create_snippet_extraction_domain_service()
-
-    # Create repositories
-    snippet_repository, file_repository = create_snippet_repositories(session)
-
-    # Create application service
-    return SnippetApplicationService(
-        snippet_extraction_service=snippet_extraction_service,
-        snippet_repository=snippet_repository,
-        file_repository=file_repository,
-        session=session,
-    )
 
 
 @click.group(context_settings={"max_content_width": 100})
@@ -110,12 +74,10 @@ async def index(
         clone_dir=app_context.get_clone_dir(),
         session_factory=lambda: session,
     )
-    snippet_service = create_snippet_application_service(session)
-    service = create_indexing_application_service(
+    service = create_code_indexing_application_service(
         app_context=app_context,
         session=session,
         source_service=source_service,
-        snippet_application_service=snippet_service,
     )
 
     if not sources:
@@ -176,6 +138,43 @@ def search() -> None:
     """Search for snippets in the database."""
 
 
+# Utility for robust filter parsing
+def _parse_filters(language, author, created_after, created_before, source_repo):
+    from datetime import datetime
+
+    # Normalize language to lowercase if provided
+    norm_language = language.lower() if language else None
+    # Try to parse dates, warn and ignore if invalid
+    parsed_created_after = None
+    if created_after:
+        try:
+            parsed_created_after = datetime.fromisoformat(created_after)
+        except ValueError:
+            click.echo(
+                f"Warning: Ignoring invalid date for --created-after: {created_after}",
+                err=True,
+            )
+    parsed_created_before = None
+    if created_before:
+        try:
+            parsed_created_before = datetime.fromisoformat(created_before)
+        except ValueError:
+            click.echo(
+                f"Warning: Ignoring invalid date for --created-before: {created_before}",
+                err=True,
+            )
+    # If any filter argument was provided, always return a SnippetSearchFilters object
+    if any([language, author, created_after, created_before, source_repo]):
+        return SnippetSearchFilters(
+            language=norm_language,
+            author=author,
+            created_after=parsed_created_after,
+            created_before=parsed_created_before,
+            source_repo=source_repo,
+        )
+    return None
+
+
 @search.command()
 @click.argument("query")
 @click.option("--top-k", default=10, help="Number of snippets to retrieve")
@@ -214,21 +213,14 @@ async def code(  # noqa: PLR0913
         clone_dir=app_context.get_clone_dir(),
         session_factory=lambda: session,
     )
-    snippet_service = create_snippet_application_service(session)
-    service = create_indexing_application_service(
+    service = create_code_indexing_application_service(
         app_context=app_context,
         session=session,
         source_service=source_service,
-        snippet_application_service=snippet_service,
     )
 
-    # Create filters if any filter parameters are provided
-    filters = SnippetSearchFilters.from_cli_params(
-        language=language,
-        author=author,
-        created_after=created_after,
-        created_before=created_before,
-        source_repo=source_repo,
+    filters = _parse_filters(
+        language, author, created_after, created_before, source_repo
     )
 
     snippets = await service.search(
@@ -283,21 +275,14 @@ async def keyword(  # noqa: PLR0913
         clone_dir=app_context.get_clone_dir(),
         session_factory=lambda: session,
     )
-    snippet_service = create_snippet_application_service(session)
-    service = create_indexing_application_service(
+    service = create_code_indexing_application_service(
         app_context=app_context,
         session=session,
         source_service=source_service,
-        snippet_application_service=snippet_service,
     )
 
-    # Create filters if any filter parameters are provided
-    filters = SnippetSearchFilters.from_cli_params(
-        language=language,
-        author=author,
-        created_after=created_after,
-        created_before=created_before,
-        source_repo=source_repo,
+    filters = _parse_filters(
+        language, author, created_after, created_before, source_repo
     )
 
     snippets = await service.search(
@@ -355,21 +340,14 @@ async def text(  # noqa: PLR0913
         clone_dir=app_context.get_clone_dir(),
         session_factory=lambda: session,
     )
-    snippet_service = create_snippet_application_service(session)
-    service = create_indexing_application_service(
+    service = create_code_indexing_application_service(
         app_context=app_context,
         session=session,
         source_service=source_service,
-        snippet_application_service=snippet_service,
     )
 
-    # Create filters if any filter parameters are provided
-    filters = SnippetSearchFilters.from_cli_params(
-        language=language,
-        author=author,
-        created_after=created_after,
-        created_before=created_before,
-        source_repo=source_repo,
+    filters = _parse_filters(
+        language, author, created_after, created_before, source_repo
     )
 
     snippets = await service.search(
@@ -428,24 +406,17 @@ async def hybrid(  # noqa: PLR0913
         clone_dir=app_context.get_clone_dir(),
         session_factory=lambda: session,
     )
-    snippet_service = create_snippet_application_service(session)
-    service = create_indexing_application_service(
+    service = create_code_indexing_application_service(
         app_context=app_context,
         session=session,
         source_service=source_service,
-        snippet_application_service=snippet_service,
     )
 
     # Parse keywords into a list of strings
     keywords_list = [k.strip().lower() for k in keywords.split(",")]
 
-    # Create filters if any filter parameters are provided
-    filters = SnippetSearchFilters.from_cli_params(
-        language=language,
-        author=author,
-        created_after=created_after,
-        created_before=created_before,
-        source_repo=source_repo,
+    filters = _parse_filters(
+        language, author, created_after, created_before, source_repo
     )
 
     snippets = await service.search(
@@ -479,18 +450,26 @@ def show() -> None:
 @show.command()
 @click.option("--by-path", help="File or directory path to search for snippets")
 @click.option("--by-source", help="Source URI to filter snippets by")
+@with_app_context
 @with_session
 async def snippets(
     session: AsyncSession,
+    app_context: AppContext,
     by_path: str | None,
     by_source: str | None,
 ) -> None:
     """Show snippets with optional filtering by path or source."""
     log_event("kodit.cli.show.snippets")
-    snippet_service = create_snippet_application_service(session)
-    snippets = await snippet_service.list_snippets(
-        ListSnippetsCommand(file_path=by_path, source_uri=by_source)
+    source_service = SourceService(
+        clone_dir=app_context.get_clone_dir(),
+        session_factory=lambda: session,
     )
+    service = create_code_indexing_application_service(
+        app_context=app_context,
+        session=session,
+        source_service=source_service,
+    )
+    snippets = await service.list_snippets(file_path=by_path, source_uri=by_source)
     for snippet in snippets:
         click.echo(f"{snippet.id}: [{snippet.source_uri}] {snippet.file_path}")
         click.echo(f"  {snippet.content}")
@@ -537,9 +516,10 @@ def version() -> None:
         from kodit import _version
     except ImportError:
         print("unknown, try running `uv build`, which is what happens in ci")  # noqa: T201
-    else:
-        print(_version.version)  # noqa: T201
+        return
+
+    print(f"kodit {_version.__version__}")  # noqa: T201
 
 
 if __name__ == "__main__":
-    asyncio.run(cli())
+    cli()

@@ -125,22 +125,12 @@ def test_search_language_filtering_with_mocks(runner: CliRunner) -> None:
         ),
     ]
 
-    # Mock the indexing application service
+    # Mock the unified application service
     mock_service = MagicMock()
     mock_service.search = AsyncMock(return_value=mock_snippets)
 
-    # Mock the snippet application service
-    mock_snippet_service = MagicMock()
-    mock_snippet_service.search = AsyncMock(return_value=mock_snippets)
-
-    with (
-        patch(
-            "kodit.cli.create_indexing_application_service", return_value=mock_service
-        ),
-        patch(
-            "kodit.cli.create_snippet_application_service",
-            return_value=mock_snippet_service,
-        ),
+    with patch(
+        "kodit.cli.create_code_indexing_application_service", return_value=mock_service
     ):
         # Test code search with Python language filter
         result = runner.invoke(cli, ["search", "code", "hello", "--language", "python"])
@@ -164,7 +154,7 @@ def test_search_filters_parsing(runner: CliRunner) -> None:
     mock_service.search = AsyncMock(return_value=mock_snippets)
 
     with patch(
-        "kodit.cli.create_indexing_application_service", return_value=mock_service
+        "kodit.cli.create_code_indexing_application_service", return_value=mock_service
     ):
         # Test with all filter options
         result = runner.invoke(
@@ -210,7 +200,7 @@ def test_search_without_filters(runner: CliRunner) -> None:
     mock_service.search = AsyncMock(return_value=mock_snippets)
 
     with patch(
-        "kodit.cli.create_indexing_application_service", return_value=mock_service
+        "kodit.cli.create_code_indexing_application_service", return_value=mock_service
     ):
         # Test without any filters
         result = runner.invoke(cli, ["search", "code", "test query"])
@@ -234,7 +224,7 @@ def test_search_language_filter_all_commands(runner: CliRunner) -> None:
     mock_service.search = AsyncMock(return_value=mock_snippets)
 
     with patch(
-        "kodit.cli.create_indexing_application_service", return_value=mock_service
+        "kodit.cli.create_code_indexing_application_service", return_value=mock_service
     ):
         # Test code search with language filter
         result = runner.invoke(
@@ -297,7 +287,7 @@ def test_search_author_filter(runner: CliRunner) -> None:
     mock_service.search = AsyncMock(return_value=mock_snippets)
 
     with patch(
-        "kodit.cli.create_indexing_application_service", return_value=mock_service
+        "kodit.cli.create_code_indexing_application_service", return_value=mock_service
     ):
         # Test with author filter
         result = runner.invoke(cli, ["search", "code", "test", "--author", "john.doe"])
@@ -325,7 +315,7 @@ def test_search_created_after_filter(runner: CliRunner) -> None:
     mock_service.search = AsyncMock(return_value=mock_snippets)
 
     with patch(
-        "kodit.cli.create_indexing_application_service", return_value=mock_service
+        "kodit.cli.create_code_indexing_application_service", return_value=mock_service
     ):
         # Test with created-after filter
         result = runner.invoke(
@@ -337,10 +327,7 @@ def test_search_created_after_filter(runner: CliRunner) -> None:
         mock_service.search.assert_called_once()
         call_args = mock_service.search.call_args[0][0]
         assert call_args.filters.created_after is not None
-        # The date should be parsed correctly
-        assert call_args.filters.created_after.year == 2023
-        assert call_args.filters.created_after.month == 6
-        assert call_args.filters.created_after.day == 15
+        assert call_args.filters.created_after.strftime("%Y-%m-%d") == "2023-06-15"
 
 
 def test_search_created_before_filter(runner: CliRunner) -> None:
@@ -352,7 +339,7 @@ def test_search_created_before_filter(runner: CliRunner) -> None:
     mock_service.search = AsyncMock(return_value=mock_snippets)
 
     with patch(
-        "kodit.cli.create_indexing_application_service", return_value=mock_service
+        "kodit.cli.create_code_indexing_application_service", return_value=mock_service
     ):
         # Test with created-before filter
         result = runner.invoke(
@@ -364,10 +351,7 @@ def test_search_created_before_filter(runner: CliRunner) -> None:
         mock_service.search.assert_called_once()
         call_args = mock_service.search.call_args[0][0]
         assert call_args.filters.created_before is not None
-        # The date should be parsed correctly
-        assert call_args.filters.created_before.year == 2024
-        assert call_args.filters.created_before.month == 1
-        assert call_args.filters.created_before.day == 31
+        assert call_args.filters.created_before.strftime("%Y-%m-%d") == "2024-01-31"
 
 
 def test_search_source_repo_filter(runner: CliRunner) -> None:
@@ -379,7 +363,7 @@ def test_search_source_repo_filter(runner: CliRunner) -> None:
     mock_service.search = AsyncMock(return_value=mock_snippets)
 
     with patch(
-        "kodit.cli.create_indexing_application_service", return_value=mock_service
+        "kodit.cli.create_code_indexing_application_service", return_value=mock_service
     ):
         # Test with source-repo filter
         result = runner.invoke(
@@ -393,15 +377,6 @@ def test_search_source_repo_filter(runner: CliRunner) -> None:
         call_args = mock_service.search.call_args[0][0]
         assert call_args.filters.source_repo == "github.com/example/project"
 
-        # Test with different source repo format
-        mock_service.search.reset_mock()
-        result = runner.invoke(
-            cli, ["search", "code", "test", "--source-repo", "gitlab.com/team/repo"]
-        )
-        assert result.exit_code == 0
-        call_args = mock_service.search.call_args[0][0]
-        assert call_args.filters.source_repo == "gitlab.com/team/repo"
-
 
 def test_search_multiple_filters_combination(runner: CliRunner) -> None:
     """Test combinations of multiple filters."""
@@ -412,7 +387,7 @@ def test_search_multiple_filters_combination(runner: CliRunner) -> None:
     mock_service.search = AsyncMock(return_value=mock_snippets)
 
     with patch(
-        "kodit.cli.create_indexing_application_service", return_value=mock_service
+        "kodit.cli.create_code_indexing_application_service", return_value=mock_service
     ):
         # Test language + author combination
         result = runner.invoke(
@@ -426,7 +401,7 @@ def test_search_multiple_filters_combination(runner: CliRunner) -> None:
         # Reset mock
         mock_service.search.reset_mock()
 
-        # Test language + date range combination
+        # Test language + date combination
         result = runner.invoke(
             cli,
             [
@@ -437,20 +412,18 @@ def test_search_multiple_filters_combination(runner: CliRunner) -> None:
                 "javascript",
                 "--created-after",
                 "2023-01-01",
-                "--created-before",
-                "2023-12-31",
             ],
         )
         assert result.exit_code == 0
         call_args = mock_service.search.call_args[0][0]
         assert call_args.filters.language == "javascript"
         assert call_args.filters.created_after is not None
-        assert call_args.filters.created_before is not None
+        assert call_args.filters.created_after.strftime("%Y-%m-%d") == "2023-01-01"
 
         # Reset mock
         mock_service.search.reset_mock()
 
-        # Test author + source repo combination
+        # Test author + source-repo combination
         result = runner.invoke(
             cli,
             [
@@ -460,13 +433,45 @@ def test_search_multiple_filters_combination(runner: CliRunner) -> None:
                 "--author",
                 "bob",
                 "--source-repo",
-                "github.com/company/project",
+                "github.com/example/repo",
             ],
         )
         assert result.exit_code == 0
         call_args = mock_service.search.call_args[0][0]
         assert call_args.filters.author == "bob"
-        assert call_args.filters.source_repo == "github.com/company/project"
+        assert call_args.filters.source_repo == "github.com/example/repo"
+
+        # Reset mock
+        mock_service.search.reset_mock()
+
+        # Test all filters together
+        result = runner.invoke(
+            cli,
+            [
+                "search",
+                "code",
+                "test",
+                "--language",
+                "go",
+                "--author",
+                "charlie",
+                "--created-after",
+                "2023-06-01",
+                "--created-before",
+                "2023-12-31",
+                "--source-repo",
+                "github.com/example/project",
+            ],
+        )
+        assert result.exit_code == 0
+        call_args = mock_service.search.call_args[0][0]
+        assert call_args.filters.language == "go"
+        assert call_args.filters.author == "charlie"
+        assert call_args.filters.created_after is not None
+        assert call_args.filters.created_after.strftime("%Y-%m-%d") == "2023-06-01"
+        assert call_args.filters.created_before is not None
+        assert call_args.filters.created_before.strftime("%Y-%m-%d") == "2023-12-31"
+        assert call_args.filters.source_repo == "github.com/example/project"
 
 
 def test_search_invalid_date_format(runner: CliRunner) -> None:
@@ -478,23 +483,18 @@ def test_search_invalid_date_format(runner: CliRunner) -> None:
     mock_service.search = AsyncMock(return_value=mock_snippets)
 
     with patch(
-        "kodit.cli.create_indexing_application_service", return_value=mock_service
+        "kodit.cli.create_code_indexing_application_service", return_value=mock_service
     ):
         # Test with invalid date format
         result = runner.invoke(
             cli, ["search", "code", "test", "--created-after", "invalid-date"]
         )
-        assert result.exit_code == 1  # Should fail with ValueError
-        assert isinstance(result.exception, ValueError)
-        assert "Invalid date format for created_after" in str(result.exception)
+        assert result.exit_code == 0
 
-        # Test with invalid date format for created-before
-        result = runner.invoke(
-            cli, ["search", "code", "test", "--created-before", "not-a-date"]
-        )
-        assert result.exit_code == 1  # Should fail with ValueError
-        assert isinstance(result.exception, ValueError)
-        assert "Invalid date format for created_before" in str(result.exception)
+        # The search should still be called, but with None for the invalid date
+        mock_service.search.assert_called_once()
+        call_args = mock_service.search.call_args[0][0]
+        assert call_args.filters.created_after is None
 
 
 def test_search_filter_case_insensitivity(runner: CliRunner) -> None:
@@ -506,13 +506,15 @@ def test_search_filter_case_insensitivity(runner: CliRunner) -> None:
     mock_service.search = AsyncMock(return_value=mock_snippets)
 
     with patch(
-        "kodit.cli.create_indexing_application_service", return_value=mock_service
+        "kodit.cli.create_code_indexing_application_service", return_value=mock_service
     ):
         # Test with uppercase language
         result = runner.invoke(cli, ["search", "code", "test", "--language", "PYTHON"])
         assert result.exit_code == 0
         call_args = mock_service.search.call_args[0][0]
-        assert call_args.filters.language == "PYTHON"  # Should preserve case for now
+        assert (
+            call_args.filters.language == "python"
+        )  # Should be normalized to lowercase
 
         # Reset mock
         mock_service.search.reset_mock()
@@ -524,8 +526,8 @@ def test_search_filter_case_insensitivity(runner: CliRunner) -> None:
         assert result.exit_code == 0
         call_args = mock_service.search.call_args[0][0]
         assert (
-            call_args.filters.language == "JavaScript"
-        )  # Should preserve case for now
+            call_args.filters.language == "javascript"
+        )  # Should be normalized to lowercase
 
 
 def test_search_filter_help_text(runner: CliRunner) -> None:

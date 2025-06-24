@@ -1,4 +1,4 @@
-"""MCP server implementation for kodit."""
+"""MCP server for kodit."""
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -12,9 +12,6 @@ from pydantic import Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit._version import version
-from kodit.application.services.snippet_application_service import (
-    SnippetApplicationService,
-)
 from kodit.config import AppContext
 from kodit.database import Database
 from kodit.domain.services.source_service import SourceService
@@ -23,13 +20,12 @@ from kodit.domain.value_objects import (
     MultiSearchResult,
     SnippetSearchFilters,
 )
-from kodit.infrastructure.indexing.indexing_factory import (
-    create_indexing_application_service,
+from kodit.infrastructure.indexing.code_indexing_factory import (
+    create_code_indexing_application_service,
 )
-from kodit.infrastructure.snippet_extraction.snippet_extraction_factory import (
-    create_snippet_extraction_domain_service,
-    create_snippet_repositories,
-)
+
+# Global database connection for MCP server
+_mcp_db: Database | None = None
 
 
 @dataclass
@@ -40,14 +36,11 @@ class MCPContext:
     app_context: AppContext
 
 
-_mcp_db: Database | None = None
-
-
 @asynccontextmanager
 async def mcp_lifespan(_: FastMCP) -> AsyncIterator[MCPContext]:
-    """Lifespan for the MCP server.
+    """Lifespan context manager for the MCP server.
 
-    The MCP server is running with a completely separate lifecycle and event loop from
+    This is called for each request. The MCP server is designed to work with both
     the CLI and the FastAPI server. Therefore, we must carefully reconstruct the
     application context. uvicorn does not pass through CLI args, so we must rely on
     parsing env vars set in the CLI.
@@ -76,33 +69,6 @@ mcp = FastMCP(
         "Call search() to retrieve relevant code examples."
     ),
 )
-
-
-def create_snippet_application_service(
-    session: AsyncSession,
-) -> SnippetApplicationService:
-    """Create a snippet application service with all dependencies.
-
-    Args:
-        session: SQLAlchemy session
-
-    Returns:
-        Configured snippet application service
-
-    """
-    # Create domain service
-    snippet_extraction_service = create_snippet_extraction_domain_service()
-
-    # Create repositories
-    snippet_repository, file_repository = create_snippet_repositories(session)
-
-    # Create application service
-    return SnippetApplicationService(
-        snippet_extraction_service=snippet_extraction_service,
-        snippet_repository=snippet_repository,
-        file_repository=file_repository,
-        session=session,
-    )
 
 
 @mcp.tool()
@@ -199,15 +165,12 @@ async def search(  # noqa: PLR0913
         clone_dir=mcp_context.app_context.get_clone_dir(),
         session_factory=lambda: mcp_context.session,
     )
-    # Create snippet application service
-    snippet_application_service = create_snippet_application_service(
-        mcp_context.session
-    )
-    service = create_indexing_application_service(
+
+    # Use the unified application service
+    service = create_code_indexing_application_service(
         app_context=mcp_context.app_context,
         session=mcp_context.session,
         source_service=source_service,
-        snippet_application_service=snippet_application_service,
     )
 
     log.debug("Searching for snippets")
