@@ -6,7 +6,14 @@ from pathlib import Path
 from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.entities import Author, AuthorFileMapping, File, Snippet, Source
+from kodit.domain.entities import (
+    Author,
+    AuthorFileMapping,
+    Embedding,
+    File,
+    Snippet,
+    Source,
+)
 from kodit.domain.repositories import SnippetRepository
 from kodit.domain.value_objects import (
     LanguageMapping,
@@ -81,6 +88,15 @@ class SqlAlchemySnippetRepository(SnippetRepository):
             index_id: The ID of the index to delete snippets for
 
         """
+        # First get all snippets for this index
+        snippets = await self.get_by_index(index_id)
+
+        # Delete all embeddings for these snippets, if there are any
+        for snippet in snippets:
+            query = delete(Embedding).where(Embedding.snippet_id == snippet.id)
+            await self.session.execute(query)
+
+        # Now delete the snippets
         query = delete(Snippet).where(Snippet.index_id == index_id)
         await self.session.execute(query)
 

@@ -183,6 +183,9 @@ class CodeIndexingApplicationService:
             msg = f"No indexable snippets found for index {index.id}"
             raise EmptySourceError(msg)
 
+        # Commit snippets to ensure they have IDs for indexing
+        await self.session.commit()
+
         # Create BM25 index
         self.log.info("Creating keyword index")
         await self._create_bm25_index(snippets, progress_callback)
