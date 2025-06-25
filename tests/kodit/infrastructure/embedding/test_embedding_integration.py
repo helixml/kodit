@@ -7,10 +7,10 @@ from kodit.domain.value_objects import (
     EmbeddingRequest,
     EmbeddingResponse,
     IndexResult,
-    VectorIndexRequest,
-    VectorSearchQueryRequest,
-    VectorSearchRequest,
-    VectorSearchResult,
+    IndexRequest,
+    SimpleSearchRequest,
+    SearchResult,
+    Document,
 )
 from kodit.domain.entities import (
     EmbeddingType,
@@ -99,17 +99,11 @@ class TestEmbeddingIntegration:
         await session.commit()
 
         # Test indexing with real snippet IDs
-        index_request = VectorIndexRequest(
+        index_request = IndexRequest(
             documents=[
-                VectorSearchRequest(
-                    snippet_id=snippet1.id, text="python programming language"
-                ),
-                VectorSearchRequest(
-                    snippet_id=snippet2.id, text="javascript web development"
-                ),
-                VectorSearchRequest(
-                    snippet_id=snippet3.id, text="java enterprise applications"
-                ),
+                Document(snippet_id=snippet1.id, text="python programming language"),
+                Document(snippet_id=snippet2.id, text="javascript web development"),
+                Document(snippet_id=snippet3.id, text="java enterprise applications"),
             ]
         )
 
@@ -124,14 +118,14 @@ class TestEmbeddingIntegration:
         )
 
         # Test search
-        search_request = VectorSearchQueryRequest(
+        search_request = SimpleSearchRequest(
             query="python programming language", top_k=2
         )
 
         search_results = await domain_service.search(search_request)
 
         assert len(search_results) == 2
-        assert all(isinstance(r, VectorSearchResult) for r in search_results)
+        assert all(isinstance(r, SearchResult) for r in search_results)
         assert all(0 <= r.score <= 1 for r in search_results)
 
         # Test has_embedding
@@ -209,20 +203,12 @@ class TestEmbeddingIntegration:
         await session.commit()
 
         # Index documents with different content
-        index_request = VectorIndexRequest(
+        index_request = IndexRequest(
             documents=[
-                VectorSearchRequest(
-                    snippet_id=snippet1.id, text="python function definition"
-                ),
-                VectorSearchRequest(
-                    snippet_id=snippet2.id, text="javascript function definition"
-                ),
-                VectorSearchRequest(
-                    snippet_id=snippet3.id, text="java function definition"
-                ),
-                VectorSearchRequest(
-                    snippet_id=snippet4.id, text="database query optimization"
-                ),
+                Document(snippet_id=snippet1.id, text="python function definition"),
+                Document(snippet_id=snippet2.id, text="javascript function definition"),
+                Document(snippet_id=snippet3.id, text="java function definition"),
+                Document(snippet_id=snippet4.id, text="database query optimization"),
             ]
         )
 
@@ -230,7 +216,7 @@ class TestEmbeddingIntegration:
             pass
 
         # Search for python-related content
-        search_request = VectorSearchQueryRequest(query="python function", top_k=3)
+        search_request = SimpleSearchRequest(query="python function", top_k=3)
 
         results = await domain_service.search(search_request)
 
@@ -304,10 +290,10 @@ class TestEmbeddingIntegration:
         documents = []
         for i, snippet in enumerate(snippets):
             documents.append(
-                VectorSearchRequest(snippet_id=snippet.id, text=f"document {i} content")
+                Document(snippet_id=snippet.id, text=f"document {i} content")
             )
 
-        index_request = VectorIndexRequest(documents=documents)
+        index_request = IndexRequest(documents=documents)
 
         batch_count = 0
         total_results = []
@@ -337,11 +323,11 @@ class TestEmbeddingIntegration:
 
         # Test empty search query
         with pytest.raises(ValueError, match="Search query cannot be empty"):
-            await domain_service.search(VectorSearchQueryRequest(query="", top_k=10))
+            await domain_service.search(SimpleSearchRequest(query="", top_k=10))
 
         # Test invalid top_k
         with pytest.raises(ValueError, match="Top-k must be positive"):
-            await domain_service.search(VectorSearchQueryRequest(query="test", top_k=0))
+            await domain_service.search(SimpleSearchRequest(query="test", top_k=0))
 
         # Test invalid snippet_id
         with pytest.raises(ValueError, match="Snippet ID must be positive"):
@@ -401,9 +387,9 @@ class TestEmbeddingIntegration:
         await session.commit()
 
         # Index the same content twice
-        index_request = VectorIndexRequest(
+        index_request = IndexRequest(
             documents=[
-                VectorSearchRequest(snippet_id=snippet.id, text="python programming"),
+                Document(snippet_id=snippet.id, text="python programming"),
             ]
         )
 
@@ -412,7 +398,7 @@ class TestEmbeddingIntegration:
             pass
 
         # Search first time
-        search_request = VectorSearchQueryRequest(query="python programming", top_k=1)
+        search_request = SimpleSearchRequest(query="python programming", top_k=1)
         results1 = await domain_service.search(search_request)
 
         # Second indexing (should be idempotent)
@@ -495,9 +481,9 @@ class TestEmbeddingIntegration:
         await session.commit()
 
         # Index same content with different types
-        index_request = VectorIndexRequest(
+        index_request = IndexRequest(
             documents=[
-                VectorSearchRequest(snippet_id=snippet.id, text="python programming"),
+                Document(snippet_id=snippet.id, text="python programming"),
             ]
         )
 
@@ -514,7 +500,7 @@ class TestEmbeddingIntegration:
         assert await text_service.has_embedding(snippet.id, EmbeddingType.TEXT) is True
 
         # Search should work for both types
-        search_request = VectorSearchQueryRequest(query="python programming", top_k=1)
+        search_request = SimpleSearchRequest(query="python programming", top_k=1)
 
         code_results = await code_service.search(search_request)
         text_results = await text_service.search(search_request)
@@ -588,12 +574,10 @@ class TestEmbeddingIntegration:
         documents = []
         for i, snippet in enumerate(snippets):
             documents.append(
-                VectorSearchRequest(
-                    snippet_id=snippet.id, text=f"document {i} with some content"
-                )
+                Document(snippet_id=snippet.id, text=f"document {i} with some content")
             )
 
-        index_request = VectorIndexRequest(documents=documents)
+        index_request = IndexRequest(documents=documents)
 
         start_time = time.time()
         async for batch in domain_service.index_documents(index_request):
@@ -604,7 +588,7 @@ class TestEmbeddingIntegration:
         assert indexing_time < 10.0  # Should complete within 10 seconds
 
         # Test search performance
-        search_request = VectorSearchQueryRequest(query="document content", top_k=5)
+        search_request = SimpleSearchRequest(query="document content", top_k=5)
 
         start_time = time.time()
         results = await domain_service.search(search_request)

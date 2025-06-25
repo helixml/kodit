@@ -1,29 +1,31 @@
 """Tests for local vector search repository."""
 
-import pytest
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
-from datetime import datetime, UTC
 
-from kodit.domain.entities import Embedding, EmbeddingType
-from kodit.domain.services.embedding_service import EmbeddingProvider
+import pytest
+
+from kodit.domain.entities import (
+    EmbeddingType,
+    File,
+    Index,
+    Snippet,
+    Source,
+    SourceType,
+)
 from kodit.domain.value_objects import (
     Document,
-    EmbeddingRequest,
     EmbeddingResponse,
     IndexRequest,
-    IndexResult,
-    SimpleSearchRequest,
     SearchResult,
+    SimpleSearchRequest,
 )
-from kodit.domain.entities import File, EmbeddingType
 from kodit.infrastructure.embedding.local_vector_search_repository import (
     LocalVectorSearchRepository,
 )
 from kodit.infrastructure.sqlalchemy.embedding_repository import (
     SqlAlchemyEmbeddingRepository,
 )
-from kodit.domain.value_objects import Document, SearchResult
-from kodit.domain.entities import Snippet, Index, Source, SourceType
 
 
 class TestLocalVectorSearchRepository:
@@ -37,6 +39,7 @@ class TestLocalVectorSearchRepository:
         repository = LocalVectorSearchRepository(
             embedding_repository=mock_repository,
             embedding_provider=mock_provider,
+            embedding_type=EmbeddingType.CODE,
         )
 
         assert repository.embedding_repository == mock_repository
@@ -66,6 +69,7 @@ class TestLocalVectorSearchRepository:
         repository = LocalVectorSearchRepository(
             embedding_repository=mock_repository,
             embedding_provider=mock_provider,
+            embedding_type=EmbeddingType.CODE,
         )
 
         request = IndexRequest(documents=[])
@@ -93,6 +97,7 @@ class TestLocalVectorSearchRepository:
         repository = LocalVectorSearchRepository(
             embedding_repository=mock_repository,
             embedding_provider=mock_provider,
+            embedding_type=EmbeddingType.CODE,
         )
 
         request = IndexRequest(
@@ -135,6 +140,7 @@ class TestLocalVectorSearchRepository:
         repository = LocalVectorSearchRepository(
             embedding_repository=mock_repository,
             embedding_provider=mock_provider,
+            embedding_type=EmbeddingType.CODE,
         )
 
         request = IndexRequest(
@@ -176,6 +182,7 @@ class TestLocalVectorSearchRepository:
         repository = LocalVectorSearchRepository(
             embedding_repository=mock_repository,
             embedding_provider=mock_provider,
+            embedding_type=EmbeddingType.CODE,
         )
 
         request = SimpleSearchRequest(query="python programming", top_k=10)
@@ -215,6 +222,7 @@ class TestLocalVectorSearchRepository:
         repository = LocalVectorSearchRepository(
             embedding_repository=mock_repository,
             embedding_provider=mock_provider,
+            embedding_type=EmbeddingType.CODE,
         )
 
         request = SimpleSearchRequest(query="python programming", top_k=10)
@@ -237,6 +245,7 @@ class TestLocalVectorSearchRepository:
         repository = LocalVectorSearchRepository(
             embedding_repository=mock_repository,
             embedding_provider=mock_provider,
+            embedding_type=EmbeddingType.CODE,
         )
 
         result = await repository.has_embedding(1, EmbeddingType.CODE)
@@ -259,6 +268,7 @@ class TestLocalVectorSearchRepository:
         repository = LocalVectorSearchRepository(
             embedding_repository=mock_repository,
             embedding_provider=mock_provider,
+            embedding_type=EmbeddingType.CODE,
         )
 
         result = await repository.has_embedding(1, EmbeddingType.TEXT)
@@ -288,6 +298,7 @@ class TestLocalVectorSearchRepository:
         repository = LocalVectorSearchRepository(
             embedding_repository=mock_repository,
             embedding_provider=mock_provider,
+            embedding_type=EmbeddingType.CODE,
         )
 
         request = SimpleSearchRequest(
@@ -326,6 +337,7 @@ class TestLocalVectorSearchRepository:
         repository = LocalVectorSearchRepository(
             embedding_repository=mock_repository,
             embedding_provider=mock_provider,
+            embedding_type=EmbeddingType.CODE,
         )
 
         request = SimpleSearchRequest(
@@ -365,6 +377,7 @@ class TestLocalVectorSearchRepository:
         repository = LocalVectorSearchRepository(
             embedding_repository=mock_repository,
             embedding_provider=mock_provider,
+            embedding_type=EmbeddingType.CODE,
         )
 
         request = SimpleSearchRequest(
@@ -397,7 +410,6 @@ async def test_retrieve_documents(session):
     from kodit.infrastructure.sqlalchemy.embedding_repository import (
         SqlAlchemyEmbeddingRepository,
     )
-    from kodit.domain.entities import Snippet, Index, File, Source, SourceType
 
     # Create embedding repository
     embedding_repository = SqlAlchemyEmbeddingRepository(session=session)

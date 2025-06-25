@@ -46,6 +46,14 @@ class Document:
 
 
 @dataclass
+class DocumentSearchResult:
+    """Generic document search result model."""
+
+    snippet_id: int
+    score: float
+
+
+@dataclass
 class SearchResult:
     """Generic search result model."""
 
@@ -66,7 +74,6 @@ class SimpleSearchRequest:
 
     query: str
     top_k: int = 10
-    search_type: SearchType = SearchType.BM25
     snippet_ids: list[int] | None = None
 
 

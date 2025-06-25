@@ -4,13 +4,11 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 from kodit.domain.value_objects import (
-    EmbeddingRequest,
-    EmbeddingResponse,
+    Document,
+    IndexRequest,
     IndexResult,
-    VectorIndexRequest,
-    VectorSearchQueryRequest,
-    VectorSearchRequest,
-    VectorSearchResult,
+    SearchResult,
+    SimpleSearchRequest,
 )
 from kodit.domain.entities import EmbeddingType
 from kodit.domain.services.embedding_service import (
@@ -84,7 +82,7 @@ class TestEmbeddingDomainService:
             vector_search_repository=mock_repository,
         )
 
-        request = VectorIndexRequest(documents=[])
+        request = IndexRequest(documents=[])
 
         results = []
         async for result in service.index_documents(request):
@@ -111,10 +109,10 @@ class TestEmbeddingDomainService:
             vector_search_repository=mock_repository,
         )
 
-        request = VectorIndexRequest(
+        request = IndexRequest(
             documents=[
-                VectorSearchRequest(snippet_id=1, text="python programming"),
-                VectorSearchRequest(snippet_id=2, text="javascript development"),
+                Document(snippet_id=1, text="python programming"),
+                Document(snippet_id=2, text="javascript development"),
             ]
         )
 
@@ -148,11 +146,11 @@ class TestEmbeddingDomainService:
             vector_search_repository=mock_repository,
         )
 
-        request = VectorIndexRequest(
+        request = IndexRequest(
             documents=[
-                VectorSearchRequest(snippet_id=1, text="valid text"),
-                VectorSearchRequest(snippet_id=2, text=""),  # Empty text
-                VectorSearchRequest(snippet_id=3, text="   "),  # Whitespace only
+                Document(snippet_id=1, text="valid text"),
+                Document(snippet_id=2, text=""),  # Empty text
+                Document(snippet_id=3, text="   "),  # Whitespace only
                 # Note: VectorSearchRequest requires snippet_id to be int, so we can't test None
                 # This test case is handled by the domain service validation
             ]
@@ -180,8 +178,8 @@ class TestEmbeddingDomainService:
 
         # Mock repository response
         mock_repository.search.return_value = [
-            VectorSearchResult(snippet_id=1, score=0.95),
-            VectorSearchResult(snippet_id=2, score=0.85),
+            SearchResult(snippet_id=1, score=0.95),
+            SearchResult(snippet_id=2, score=0.85),
         ]
 
         service = EmbeddingDomainService(
@@ -189,7 +187,7 @@ class TestEmbeddingDomainService:
             vector_search_repository=mock_repository,
         )
 
-        request = VectorSearchQueryRequest(query="python programming", top_k=10)
+        request = SimpleSearchRequest(query="python programming", top_k=10)
 
         results = await service.search(request)
 
@@ -216,7 +214,7 @@ class TestEmbeddingDomainService:
             vector_search_repository=mock_repository,
         )
 
-        request = VectorSearchQueryRequest(query="", top_k=10)
+        request = SimpleSearchRequest(query="", top_k=10)
 
         with pytest.raises(ValueError, match="Search query cannot be empty"):
             await service.search(request)
@@ -234,7 +232,7 @@ class TestEmbeddingDomainService:
             vector_search_repository=mock_repository,
         )
 
-        request = VectorSearchQueryRequest(query="   ", top_k=10)
+        request = SimpleSearchRequest(query="   ", top_k=10)
 
         with pytest.raises(ValueError, match="Search query cannot be empty"):
             await service.search(request)
@@ -252,7 +250,7 @@ class TestEmbeddingDomainService:
             vector_search_repository=mock_repository,
         )
 
-        request = VectorSearchQueryRequest(query="python", top_k=0)
+        request = SimpleSearchRequest(query="python", top_k=0)
 
         with pytest.raises(ValueError, match="Top-k must be positive"):
             await service.search(request)
@@ -272,7 +270,7 @@ class TestEmbeddingDomainService:
             vector_search_repository=mock_repository,
         )
 
-        request = VectorSearchQueryRequest(query="  python programming  ", top_k=10)
+        request = SimpleSearchRequest(query="  python programming  ", top_k=10)
 
         await service.search(request)
 
