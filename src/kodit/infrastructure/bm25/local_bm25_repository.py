@@ -12,10 +12,10 @@ import structlog
 
 from kodit.domain.services.bm25_service import BM25Repository
 from kodit.domain.value_objects import (
-    BM25DeleteRequest,
-    BM25IndexRequest,
-    BM25SearchRequest,
-    BM25SearchResult,
+    DeleteRequest,
+    IndexRequest,
+    SearchResult,
+    SimpleSearchRequest,
 )
 
 if TYPE_CHECKING:
@@ -68,7 +68,7 @@ class LocalBM25Repository(BM25Repository):
             show_progress=True,
         )
 
-    async def index_documents(self, request: BM25IndexRequest) -> None:
+    async def index_documents(self, request: IndexRequest) -> None:
         """Index documents for BM25 search."""
         self.log.debug("Indexing corpus")
         if not request.documents:
@@ -84,7 +84,7 @@ class LocalBM25Repository(BM25Repository):
         async with aiofiles.open(self.index_path / SNIPPET_IDS_FILE, "w") as f:
             await f.write(json.dumps(self.snippet_ids))
 
-    async def search(self, request: BM25SearchRequest) -> list[BM25SearchResult]:
+    async def search(self, request: SimpleSearchRequest) -> list[SearchResult]:
         """Search documents using BM25."""
         if request.top_k == 0:
             self.log.warning("Top k is 0, returning empty list")
@@ -126,12 +126,12 @@ class LocalBM25Repository(BM25Repository):
                 request.snippet_ids is None or snippet_id in request.snippet_ids
             ):
                 filtered_results.append(
-                    BM25SearchResult(snippet_id=snippet_id, score=float(score))
+                    SearchResult(snippet_id=snippet_id, score=float(score))
                 )
 
         return filtered_results
 
-    async def delete_documents(self, request: BM25DeleteRequest) -> None:
+    async def delete_documents(self, request: DeleteRequest) -> None:
         """Delete documents from the index."""
         # request parameter is unused as deletion is not supported
         # ruff: noqa: ARG002

@@ -1,7 +1,8 @@
 """Tests for domain models."""
 
-import pytest
 from datetime import datetime, UTC
+
+import pytest
 
 from kodit.domain.entities import (
     Source,
@@ -14,15 +15,16 @@ from kodit.domain.entities import (
     Author,
     AuthorFileMapping,
 )
+from kodit.domain.enums import SnippetExtractionStrategy
 from kodit.domain.value_objects import (
-    BM25Document,
-    BM25SearchResult,
-    VectorSearchRequest,
-    VectorSearchResult,
+    Document,
+    SearchResult,
     EnrichmentRequest,
     EnrichmentResponse,
     SnippetSearchFilters,
     MultiSearchRequest,
+    SnippetExtractionRequest,
+    SnippetExtractionResult,
 )
 
 
@@ -116,18 +118,18 @@ class TestAuthor:
         assert author.email == "john@example.com"
 
 
-class TestBM25Models:
-    """Test BM25 domain models."""
+class TestDocumentModels:
+    """Test Document domain models."""
 
-    def test_bm25_document(self):
-        """Test BM25Document."""
-        doc = BM25Document(snippet_id=1, text="test content")
+    def test_document(self):
+        """Test Document."""
+        doc = Document(snippet_id=1, text="test content")
         assert doc.snippet_id == 1
         assert doc.text == "test content"
 
-    def test_bm25_search_result(self):
-        """Test BM25SearchResult."""
-        result = BM25SearchResult(snippet_id=1, score=0.85)
+    def test_search_result(self):
+        """Test SearchResult."""
+        result = SearchResult(snippet_id=1, score=0.85)
         assert result.snippet_id == 1
         assert result.score == 0.85
 
@@ -135,15 +137,15 @@ class TestBM25Models:
 class TestVectorModels:
     """Test vector search domain models."""
 
-    def test_vector_search_request(self):
-        """Test VectorSearchRequest."""
-        request = VectorSearchRequest(snippet_id=1, text="test content")
+    def test_document_as_vector_request(self):
+        """Test Document used as vector search request."""
+        request = Document(snippet_id=1, text="test content")
         assert request.snippet_id == 1
         assert request.text == "test content"
 
-    def test_vector_search_result(self):
-        """Test VectorSearchResult."""
-        result = VectorSearchResult(snippet_id=1, score=0.92)
+    def test_search_result_as_vector_result(self):
+        """Test SearchResult used as vector search result."""
+        result = SearchResult(snippet_id=1, score=0.92)
         assert result.snippet_id == 1
         assert result.score == 0.92
 

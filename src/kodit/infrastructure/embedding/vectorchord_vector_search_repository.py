@@ -14,10 +14,10 @@ from kodit.domain.services.embedding_service import (
 )
 from kodit.domain.value_objects import (
     EmbeddingRequest,
+    IndexRequest,
     IndexResult,
-    VectorIndexRequest,
-    VectorSearchQueryRequest,
-    VectorSearchResult,
+    SearchResult,
+    SimpleSearchRequest,
 )
 
 # SQL Queries
@@ -166,7 +166,7 @@ class VectorChordVectorSearchRepository(VectorSearchRepository):
         await self._session.commit()
 
     def index_documents(
-        self, request: VectorIndexRequest
+        self, request: IndexRequest
     ) -> AsyncGenerator[list[IndexResult], None]:
         """Index documents for vector search."""
         if not request.documents:
@@ -200,9 +200,7 @@ class VectorChordVectorSearchRepository(VectorSearchRepository):
 
         return _index_batches()
 
-    async def search(
-        self, request: VectorSearchQueryRequest
-    ) -> list[VectorSearchResult]:
+    async def search(self, request: SimpleSearchRequest) -> list[SearchResult]:
         """Search documents using vector similarity."""
         if not request.query or not request.query.strip():
             return []
@@ -217,28 +215,28 @@ class VectorChordVectorSearchRepository(VectorSearchRepository):
         if not embedding_vec:
             return []
 
-        # Use filtered query if snippet_ids are provided
         if request.snippet_ids is not None:
-            result = await self._execute(
-                text(SEARCH_QUERY_WITH_FILTER.format(TABLE_NAME=self.table_name)),
-                {
-                    "query": str(embedding_vec),
-                    "top_k": request.top_k,
-                    "snippet_ids": request.snippet_ids,
-                },
+            sql = text(SEARCH_QUERY_WITH_FILTER.format(TABLE_NAME=self.table_name))
+            sql = sql.bindparams(
+                query=embedding_vec,
+                top_k=request.top_k,
+                snippet_ids=request.snippet_ids,
             )
         else:
-            result = await self._execute(
-                text(SEARCH_QUERY.format(TABLE_NAME=self.table_name)),
-                {"query": str(embedding_vec), "top_k": request.top_k},
-            )
+            sql = text(SEARCH_QUERY.format(TABLE_NAME=self.table_name))
+            sql = sql.bindparams(query=embedding_vec, top_k=request.top_k)
 
-        rows = result.mappings().all()
+        try:
+            result = await self._execute(sql)
+            rows = result.mappings().all()
 
-        return [
-            VectorSearchResult(snippet_id=row["snippet_id"], score=row["score"])
-            for row in rows
-        ]
+            return [
+                SearchResult(snippet_id=row["snippet_id"], score=row["score"])
+                for row in rows
+            ]
+        except Exception as e:
+            msg = f"Error during vector search: {e}"
+            raise RuntimeError(msg) from e
 
     async def has_embedding(
         self, snippet_id: int, embedding_type: EmbeddingType

@@ -16,21 +16,18 @@ from kodit.domain.services.indexing_service import IndexingDomainService
 from kodit.domain.services.snippet_service import SnippetDomainService
 from kodit.domain.services.source_service import SourceService
 from kodit.domain.value_objects import (
-    BM25Document,
-    BM25IndexRequest,
-    BM25SearchRequest,
-    BM25SearchResult,
+    Document,
     EnrichmentIndexRequest,
     EnrichmentRequest,
     FusionRequest,
     IndexCreateRequest,
+    IndexRequest,
     IndexView,
     MultiSearchRequest,
     MultiSearchResult,
+    SearchResult,
+    SimpleSearchRequest,
     SnippetListItem,
-    VectorIndexRequest,
-    VectorSearchQueryRequest,
-    VectorSearchRequest,
 )
 from kodit.log import log_event
 from kodit.reporting import Reporter
@@ -248,10 +245,10 @@ class CodeIndexingApplicationService:
 
         # Keyword search
         if request.keywords:
-            result_ids: list[BM25SearchResult] = []
+            result_ids: list[SearchResult] = []
             for keyword in request.keywords:
                 results = await self.bm25_service.search(
-                    BM25SearchRequest(
+                    SimpleSearchRequest(
                         query=keyword,
                         top_k=request.top_k,
                         snippet_ids=filtered_snippet_ids,
@@ -266,7 +263,7 @@ class CodeIndexingApplicationService:
         # Semantic code search
         if request.code_query:
             query_results = await self.code_search_service.search(
-                VectorSearchQueryRequest(
+                SimpleSearchRequest(
                     query=request.code_query,
                     top_k=request.top_k,
                     snippet_ids=filtered_snippet_ids,
@@ -279,7 +276,7 @@ class CodeIndexingApplicationService:
         # Semantic text search
         if request.text_query:
             query_results = await self.text_search_service.search(
-                VectorSearchQueryRequest(
+                SimpleSearchRequest(
                     query=request.text_query,
                     top_k=request.top_k,
                     snippet_ids=filtered_snippet_ids,
@@ -343,9 +340,9 @@ class CodeIndexingApplicationService:
         await reporter.start("bm25_index", len(snippets), "Creating keyword index...")
 
         await self.bm25_service.index_documents(
-            BM25IndexRequest(
+            IndexRequest(
                 documents=[
-                    BM25Document(snippet_id=snippet.id, text=snippet.content)
+                    Document(snippet_id=snippet.id, text=snippet.content)
                     for snippet in snippets
                 ]
             )
@@ -364,9 +361,9 @@ class CodeIndexingApplicationService:
 
         processed = 0
         async for result in self.code_search_service.index_documents(
-            VectorIndexRequest(
+            IndexRequest(
                 documents=[
-                    VectorSearchRequest(snippet.id, snippet.content)
+                    Document(snippet_id=snippet.id, text=snippet.content)
                     for snippet in snippets
                 ]
             )
@@ -429,9 +426,9 @@ class CodeIndexingApplicationService:
 
         processed = 0
         async for result in self.text_search_service.index_documents(
-            VectorIndexRequest(
+            IndexRequest(
                 documents=[
-                    VectorSearchRequest(snippet.id, snippet.content)
+                    Document(snippet_id=snippet.id, text=snippet.content)
                     for snippet in snippets
                 ]
             )

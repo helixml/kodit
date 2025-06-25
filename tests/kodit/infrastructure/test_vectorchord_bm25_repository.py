@@ -18,10 +18,10 @@ from sqlalchemy.ext.asyncio import (
 
 from kodit.domain.entities import Base, Index, Snippet, File, Source, SourceType
 from kodit.domain.value_objects import (
-    BM25SearchRequest,
-    BM25SearchResult,
-    BM25IndexRequest,
-    BM25Document,
+    Document,
+    IndexRequest,
+    SimpleSearchRequest,
+    SearchResult,
 )
 from kodit.infrastructure.bm25.vectorchord_bm25_repository import (
     VectorChordBM25Repository,
@@ -222,8 +222,8 @@ async def test_data(
 
     # Index the documents
     await repository.index_documents(
-        BM25IndexRequest(
-            documents=[BM25Document(snippet_id=s.id, text=s.content) for s in snippets]
+        IndexRequest(
+            documents=[Document(snippet_id=s.id, text=s.content) for s in snippets]
         )
     )
 
@@ -238,7 +238,7 @@ async def test_search_with_none_snippet_ids_returns_all_results(
     snippets, repository = test_data
 
     # Setup
-    request = BM25SearchRequest(
+    request = SimpleSearchRequest(
         query="Python programming",
         top_k=10,
         snippet_ids=None,  # No filtering
@@ -249,7 +249,7 @@ async def test_search_with_none_snippet_ids_returns_all_results(
 
     # Verify
     assert len(results) > 0
-    assert all(isinstance(result, BM25SearchResult) for result in results)
+    assert all(isinstance(result, SearchResult) for result in results)
     # Should return multiple results since "Python programming" matches multiple snippets
     assert len(results) >= 3
 
@@ -262,7 +262,7 @@ async def test_search_with_empty_snippet_ids_returns_no_results(
     snippets, repository = test_data
 
     # Setup
-    request = BM25SearchRequest(
+    request = SimpleSearchRequest(
         query="Python programming",
         top_k=10,
         snippet_ids=[],  # Empty list - should return no results
@@ -284,7 +284,7 @@ async def test_search_with_filtered_snippet_ids_returns_matching_results(
     snippets, repository = test_data
 
     # Setup - only search in snippets 0 and 2
-    request = BM25SearchRequest(
+    request = SimpleSearchRequest(
         query="Python programming",
         top_k=10,
         snippet_ids=[snippets[0].id, snippets[2].id],  # Only return snippets 0 and 2
@@ -295,7 +295,7 @@ async def test_search_with_filtered_snippet_ids_returns_matching_results(
 
     # Verify
     assert len(results) > 0
-    assert all(isinstance(result, BM25SearchResult) for result in results)
+    assert all(isinstance(result, SearchResult) for result in results)
     # All returned snippet_ids should be in our filtered list
     returned_snippet_ids = [result.snippet_id for result in results]
     assert all(
@@ -312,7 +312,7 @@ async def test_search_with_single_snippet_id_returns_one_result(
     snippets, repository = test_data
 
     # Setup - only search in snippet 2 (which mentions "Guido van Rossum")
-    request = BM25SearchRequest(
+    request = SimpleSearchRequest(
         query="Guido van Rossum",
         top_k=10,
         snippet_ids=[snippets[2].id],  # Only return snippet 2
@@ -335,7 +335,7 @@ async def test_search_with_nonexistent_snippet_ids_returns_no_results(
     snippets, repository = test_data
 
     # Setup
-    request = BM25SearchRequest(
+    request = SimpleSearchRequest(
         query="Python programming",
         top_k=10,
         snippet_ids=[99999, 100000],  # Non-existent snippet IDs
@@ -357,7 +357,7 @@ async def test_search_with_empty_query_returns_empty_list(
     snippets, repository = test_data
 
     # Setup
-    request = BM25SearchRequest(
+    request = SimpleSearchRequest(
         query="",  # Empty query
         top_k=10,
         snippet_ids=None,
@@ -378,7 +378,7 @@ async def test_search_with_whitespace_query_returns_empty_list(
     snippets, repository = test_data
 
     # Setup
-    request = BM25SearchRequest(
+    request = SimpleSearchRequest(
         query="   ",  # Whitespace-only query
         top_k=10,
         snippet_ids=None,
@@ -399,7 +399,7 @@ async def test_search_respects_top_k_limit(
     snippets, repository = test_data
 
     # Setup
-    request = BM25SearchRequest(
+    request = SimpleSearchRequest(
         query="Python",
         top_k=2,  # Limit to 2 results
         snippet_ids=None,
@@ -410,7 +410,7 @@ async def test_search_respects_top_k_limit(
 
     # Verify
     assert len(results) == 2  # Should be limited by top_k
-    assert all(isinstance(result, BM25SearchResult) for result in results)
+    assert all(isinstance(result, SearchResult) for result in results)
 
 
 @pytest.mark.asyncio
@@ -421,7 +421,7 @@ async def test_search_result_structure(
     snippets, repository = test_data
 
     # Setup
-    request = BM25SearchRequest(
+    request = SimpleSearchRequest(
         query="Guido van Rossum", top_k=1, snippet_ids=[snippets[2].id]
     )
 
@@ -431,7 +431,7 @@ async def test_search_result_structure(
     # Verify
     assert len(results) == 1
     result = results[0]
-    assert isinstance(result, BM25SearchResult)
+    assert isinstance(result, SearchResult)
     assert hasattr(result, "snippet_id")
     assert hasattr(result, "score")
     assert result.snippet_id == snippets[2].id
@@ -446,7 +446,7 @@ async def test_search_with_mixed_existing_and_nonexistent_ids(
     snippets, repository = test_data
 
     # Setup - mix of existing and non-existent IDs
-    request = BM25SearchRequest(
+    request = SimpleSearchRequest(
         query="Python",
         top_k=10,
         snippet_ids=[
@@ -478,7 +478,7 @@ async def test_search_with_phrase_matching_and_filtering(
     snippets, repository = test_data
 
     # Setup - search for "data science" which should match snippet 3
-    request = BM25SearchRequest(
+    request = SimpleSearchRequest(
         query="data science",
         top_k=10,
         snippet_ids=[snippets[3].id],  # Only snippet 3 mentions "data science"
@@ -503,7 +503,7 @@ async def test_search_with_case_insensitive_filtering(
     snippets, repository = test_data
 
     # Setup - search for "PYTHON" (uppercase) with filtering
-    request = BM25SearchRequest(
+    request = SimpleSearchRequest(
         query="PYTHON",
         top_k=10,
         snippet_ids=[snippets[0].id, snippets[1].id],  # Only first two snippets

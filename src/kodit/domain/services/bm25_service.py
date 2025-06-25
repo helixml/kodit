@@ -4,10 +4,10 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 
 from kodit.domain.value_objects import (
-    BM25DeleteRequest,
-    BM25IndexRequest,
-    BM25SearchRequest,
-    BM25SearchResult,
+    DeleteRequest,
+    IndexRequest,
+    SearchResult,
+    SimpleSearchRequest,
 )
 
 
@@ -15,15 +15,15 @@ class BM25Repository(ABC):
     """Abstract interface for BM25 repository."""
 
     @abstractmethod
-    async def index_documents(self, request: BM25IndexRequest) -> None:
+    async def index_documents(self, request: IndexRequest) -> None:
         """Index documents for BM25 search."""
 
     @abstractmethod
-    async def search(self, request: BM25SearchRequest) -> Sequence[BM25SearchResult]:
+    async def search(self, request: SimpleSearchRequest) -> Sequence[SearchResult]:
         """Search documents using BM25."""
 
     @abstractmethod
-    async def delete_documents(self, request: BM25DeleteRequest) -> None:
+    async def delete_documents(self, request: DeleteRequest) -> None:
         """Delete documents from the BM25 index."""
 
 
@@ -39,7 +39,7 @@ class BM25DomainService:
         """
         self.repository = repository
 
-    async def index_documents(self, request: BM25IndexRequest) -> None:
+    async def index_documents(self, request: IndexRequest) -> None:
         """Index documents using domain business rules.
 
         Args:
@@ -64,10 +64,10 @@ class BM25DomainService:
             raise ValueError("No valid documents to index")
 
         # Domain logic: create new request with validated documents
-        validated_request = BM25IndexRequest(documents=valid_documents)
+        validated_request = IndexRequest(documents=valid_documents)
         await self.repository.index_documents(validated_request)
 
-    async def search(self, request: BM25SearchRequest) -> Sequence[BM25SearchResult]:
+    async def search(self, request: SimpleSearchRequest) -> Sequence[SearchResult]:
         """Search documents using domain business rules.
 
         Args:
@@ -92,7 +92,7 @@ class BM25DomainService:
 
         return await self.repository.search(request)
 
-    async def delete_documents(self, request: BM25DeleteRequest) -> None:
+    async def delete_documents(self, request: DeleteRequest) -> None:
         """Delete documents using domain business rules.
 
         Args:
@@ -117,5 +117,5 @@ class BM25DomainService:
             raise ValueError("No valid snippet IDs to delete")
 
         # Domain logic: create new request with validated IDs
-        validated_request = BM25DeleteRequest(snippet_ids=valid_ids)
+        validated_request = DeleteRequest(snippet_ids=valid_ids)
         await self.repository.delete_documents(validated_request)

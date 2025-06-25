@@ -8,10 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.domain.services.bm25_service import BM25Repository
 from kodit.domain.value_objects import (
-    BM25DeleteRequest,
-    BM25IndexRequest,
-    BM25SearchRequest,
-    BM25SearchResult,
+    DeleteRequest,
+    IndexRequest,
+    SearchResult,
+    SimpleSearchRequest,
 )
 
 TABLE_NAME = "vectorchord_bm25_documents"
@@ -157,7 +157,7 @@ class VectorChordBM25Repository(BM25Repository):
         """Commit the session."""
         await self.__session.commit()
 
-    async def index_documents(self, request: BM25IndexRequest) -> None:
+    async def index_documents(self, request: IndexRequest) -> None:
         """Index documents for BM25 search."""
         # Filter out any documents that don't have a snippet_id or text
         valid_documents = [
@@ -183,7 +183,7 @@ class VectorChordBM25Repository(BM25Repository):
         await self._execute(text(UPDATE_QUERY))
         await self._commit()
 
-    async def search(self, request: BM25SearchRequest) -> list[BM25SearchResult]:
+    async def search(self, request: SimpleSearchRequest) -> list[SearchResult]:
         """Search documents using BM25."""
         if not request.query or request.query == "":
             return []
@@ -205,14 +205,14 @@ class VectorChordBM25Repository(BM25Repository):
             rows = result.mappings().all()
 
             return [
-                BM25SearchResult(snippet_id=row["snippet_id"], score=row["bm25_score"])
+                SearchResult(snippet_id=row["snippet_id"], score=row["bm25_score"])
                 for row in rows
             ]
         except Exception as e:
             msg = f"Error during BM25 search: {e}"
             raise RuntimeError(msg) from e
 
-    async def delete_documents(self, request: BM25DeleteRequest) -> None:
+    async def delete_documents(self, request: DeleteRequest) -> None:
         """Delete documents from the index."""
         await self._execute(
             text(DELETE_QUERY).bindparams(bindparam("snippet_ids", expanding=True)),

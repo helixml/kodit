@@ -84,19 +84,6 @@ class IndexResult:
     snippet_id: int
 
 
-# Legacy aliases for backward compatibility
-BM25Document = Document
-BM25SearchResult = SearchResult
-BM25IndexRequest = IndexRequest
-BM25SearchRequest = SimpleSearchRequest
-BM25DeleteRequest = DeleteRequest
-
-VectorSearchRequest = Document
-VectorSearchResult = SearchResult
-VectorIndexRequest = IndexRequest
-VectorSearchQueryRequest = SimpleSearchRequest
-
-
 @dataclass(frozen=True)
 class SnippetSearchFilters:
     """Value object for filtering snippet search results."""

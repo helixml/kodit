@@ -7,10 +7,10 @@ from kodit.domain.entities import EmbeddingType
 from kodit.domain.value_objects import (
     EmbeddingRequest,
     EmbeddingResponse,
+    IndexRequest,
     IndexResult,
-    VectorIndexRequest,
-    VectorSearchQueryRequest,
-    VectorSearchResult,
+    SearchResult,
+    SimpleSearchRequest,
 )
 
 
@@ -29,14 +29,12 @@ class VectorSearchRepository(ABC):
 
     @abstractmethod
     def index_documents(
-        self, request: VectorIndexRequest
+        self, request: IndexRequest
     ) -> AsyncGenerator[list[IndexResult], None]:
         """Index documents for vector search."""
 
     @abstractmethod
-    async def search(
-        self, request: VectorSearchQueryRequest
-    ) -> Sequence[VectorSearchResult]:
+    async def search(self, request: SimpleSearchRequest) -> Sequence[SearchResult]:
         """Search documents using vector similarity."""
 
     @abstractmethod
@@ -65,7 +63,7 @@ class EmbeddingDomainService:
         self.vector_search_repository = vector_search_repository
 
     async def index_documents(
-        self, request: VectorIndexRequest
+        self, request: IndexRequest
     ) -> AsyncGenerator[list[IndexResult], None]:
         """Index documents using domain business rules.
 
@@ -94,15 +92,13 @@ class EmbeddingDomainService:
             return
 
         # Domain logic: create new request with validated documents
-        validated_request = VectorIndexRequest(documents=valid_documents)
+        validated_request = IndexRequest(documents=valid_documents)
         async for result in self.vector_search_repository.index_documents(
             validated_request
         ):
             yield result
 
-    async def search(
-        self, request: VectorSearchQueryRequest
-    ) -> Sequence[VectorSearchResult]:
+    async def search(self, request: SimpleSearchRequest) -> Sequence[SearchResult]:
         """Search documents using domain business rules.
 
         Args:
@@ -124,7 +120,7 @@ class EmbeddingDomainService:
 
         # Domain logic: normalize query
         normalized_query = request.query.strip()
-        normalized_request = VectorSearchQueryRequest(
+        normalized_request = SimpleSearchRequest(
             query=normalized_query, top_k=request.top_k, snippet_ids=request.snippet_ids
         )
 
