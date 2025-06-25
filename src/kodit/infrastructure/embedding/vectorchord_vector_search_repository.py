@@ -165,17 +165,12 @@ class VectorChordVectorSearchRepository(VectorSearchRepository):
         """Commit the session."""
         await self._session.commit()
 
-    def index_documents(
+    async def index_documents(
         self, request: IndexRequest
     ) -> AsyncGenerator[list[IndexResult], None]:
         """Index documents for vector search."""
         if not request.documents:
-
-            async def empty_generator() -> AsyncGenerator[list[IndexResult], None]:
-                if False:
-                    yield []
-
-            return empty_generator()
+            yield []
 
         # Convert to embedding requests
         requests = [
@@ -183,22 +178,19 @@ class VectorChordVectorSearchRepository(VectorSearchRepository):
             for doc in request.documents
         ]
 
-        async def _index_batches() -> AsyncGenerator[list[IndexResult], None]:
-            async for batch in self.embedding_provider.embed(requests):
-                await self._execute(
-                    text(INSERT_QUERY.format(TABLE_NAME=self.table_name)),
-                    [
-                        {
-                            "snippet_id": result.snippet_id,
-                            "embedding": str(result.embedding),
-                        }
-                        for result in batch
-                    ],
-                )
-                await self._commit()
-                yield [IndexResult(snippet_id=result.snippet_id) for result in batch]
-
-        return _index_batches()
+        async for batch in self.embedding_provider.embed(requests):
+            await self._execute(
+                text(INSERT_QUERY.format(TABLE_NAME=self.table_name)),
+                [
+                    {
+                        "snippet_id": result.snippet_id,
+                        "embedding": str(result.embedding),
+                    }
+                    for result in batch
+                ],
+            )
+            await self._commit()
+            yield [IndexResult(snippet_id=result.snippet_id) for result in batch]
 
     async def search(self, request: SearchRequest) -> list[SearchResult]:
         """Search documents using vector similarity."""

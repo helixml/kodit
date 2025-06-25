@@ -43,17 +43,12 @@ class LocalVectorSearchRepository(VectorSearchRepository):
         self.embedding_type = embedding_type
         self.log = structlog.get_logger(__name__)
 
-    def index_documents(
+    async def index_documents(
         self, request: IndexRequest
     ) -> AsyncGenerator[list[IndexResult], None]:
         """Index documents for vector search."""
         if not request.documents:
-
-            async def empty_generator() -> AsyncGenerator[list[IndexResult], None]:
-                if False:
-                    yield []
-
-            return empty_generator()
+            yield []
 
         # Convert to embedding requests
         requests = [
@@ -61,21 +56,18 @@ class LocalVectorSearchRepository(VectorSearchRepository):
             for doc in request.documents
         ]
 
-        async def _index_batches() -> AsyncGenerator[list[IndexResult], None]:
-            async for batch in self.embedding_provider.embed(requests):
-                results = []
-                for result in batch:
-                    await self.embedding_repository.create_embedding(
-                        Embedding(
-                            snippet_id=result.snippet_id,
-                            embedding=result.embedding,
-                            type=self.embedding_type,
-                        )
+        async for batch in self.embedding_provider.embed(requests):
+            results = []
+            for result in batch:
+                await self.embedding_repository.create_embedding(
+                    Embedding(
+                        snippet_id=result.snippet_id,
+                        embedding=result.embedding,
+                        type=self.embedding_type,
                     )
-                    results.append(IndexResult(snippet_id=result.snippet_id))
-                yield results
-
-        return _index_batches()
+                )
+                results.append(IndexResult(snippet_id=result.snippet_id))
+            yield results
 
     async def search(self, request: SearchRequest) -> list[SearchResult]:
         """Search documents using vector similarity."""

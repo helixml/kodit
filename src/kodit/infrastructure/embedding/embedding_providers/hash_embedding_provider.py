@@ -26,40 +26,29 @@ class HashEmbeddingProvider(EmbeddingProvider):
         self.embedding_size = embedding_size
         self.log = structlog.get_logger(__name__)
 
-    def embed(
+    async def embed(
         self, data: list[EmbeddingRequest]
     ) -> AsyncGenerator[list[EmbeddingResponse], None]:
         """Embed a list of strings using a simple hash-based approach."""
         if not data:
-
-            async def empty_generator() -> AsyncGenerator[
-                list[EmbeddingResponse], None
-            ]:
-                if False:
-                    yield []
-
-            return empty_generator()
+            yield []
 
         # Process in batches
         batch_size = 10
+        for i in range(0, len(data), batch_size):
+            batch = data[i : i + batch_size]
+            responses = []
 
-        async def _embed_batches() -> AsyncGenerator[list[EmbeddingResponse], None]:
-            for i in range(0, len(data), batch_size):
-                batch = data[i : i + batch_size]
-                responses = []
-
-                for request in batch:
-                    # Generate a deterministic embedding based on the text
-                    embedding = self._generate_embedding(request.text)
-                    responses.append(
-                        EmbeddingResponse(
-                            snippet_id=request.snippet_id, embedding=embedding
-                        )
+            for request in batch:
+                # Generate a deterministic embedding based on the text
+                embedding = self._generate_embedding(request.text)
+                responses.append(
+                    EmbeddingResponse(
+                        snippet_id=request.snippet_id, embedding=embedding
                     )
+                )
 
-                yield responses
-
-        return _embed_batches()
+            yield responses
 
     def _generate_embedding(self, text: str) -> list[float]:
         """Generate a deterministic embedding for the given text."""
