@@ -21,8 +21,6 @@ from kodit.config import (
 from kodit.domain.errors import EmptySourceError
 from kodit.domain.services.source_service import SourceService
 from kodit.domain.value_objects import MultiSearchRequest, SnippetSearchFilters
-
-# Compatibility shim for tests and legacy code
 from kodit.infrastructure.ui.progress import (
     create_lazy_progress_callback,
     create_multi_stage_progress_callback,
