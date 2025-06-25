@@ -139,7 +139,13 @@ def search() -> None:
 
 
 # Utility for robust filter parsing
-def _parse_filters(language, author, created_after, created_before, source_repo):
+def _parse_filters(
+    language: str | None,
+    author: str | None,
+    created_after: str | None,
+    created_before: str | None,
+    source_repo: str | None,
+) -> SnippetSearchFilters | None:
     from datetime import datetime
 
     # Normalize language to lowercase if provided
@@ -160,11 +166,20 @@ def _parse_filters(language, author, created_after, created_before, source_repo)
             parsed_created_before = datetime.fromisoformat(created_before)
         except ValueError:
             click.echo(
-                f"Warning: Ignoring invalid date for --created-before: {created_before}",
+                f"Warning: Ignoring invalid date for --created-before: "
+                f"{created_before}",
                 err=True,
             )
-    # If any filter argument was provided, always return a SnippetSearchFilters object
-    if any([language, author, created_after, created_before, source_repo]):
+    # Return None if no filters provided, otherwise return SnippetSearchFilters
+    if any(
+        [
+            norm_language,
+            author,
+            parsed_created_after,
+            parsed_created_before,
+            source_repo,
+        ]
+    ):
         return SnippetSearchFilters(
             language=norm_language,
             author=author,
