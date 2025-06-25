@@ -34,20 +34,7 @@ from kodit.reporting import Reporter
 
 
 class CodeIndexingApplicationService:
-    """Unified application service for all code indexing operations.
-
-    This service provides a cohesive interface for:
-    - Creating and managing indexes
-    - Extracting and indexing code snippets
-    - Searching across multiple indexes
-    - Managing snippet lifecycle
-
-    Key improvements over the previous split design:
-    - Single transaction boundary per operation
-    - No circular dependencies between application services
-    - Consistent command/query pattern
-    - Clear separation between orchestration (application) and logic (domain)
-    """
+    """Unified application service for all code indexing operations."""
 
     def __init__(  # noqa: PLR0913
         self,
@@ -60,19 +47,7 @@ class CodeIndexingApplicationService:
         enrichment_service: EnrichmentDomainService,
         session: AsyncSession,
     ) -> None:
-        """Initialize the code indexing application service.
-
-        Args:
-            indexing_domain_service: Domain service for index management
-            snippet_domain_service: Domain service for snippet operations
-            source_service: Service for source validation
-            bm25_service: Domain service for keyword search
-            code_search_service: Domain service for semantic code search
-            text_search_service: Domain service for semantic text search
-            enrichment_service: Domain service for snippet enrichment
-            session: Database session for transaction management
-
-        """
+        """Initialize the code indexing application service."""
         self.indexing_domain_service = indexing_domain_service
         self.snippet_domain_service = snippet_domain_service
         self.source_service = source_service
@@ -83,21 +58,8 @@ class CodeIndexingApplicationService:
         self.session = session
         self.log = structlog.get_logger(__name__)
 
-    # Index Management Operations
-
     async def create_index(self, source_id: int) -> IndexView:
-        """Create a new index for a source.
-
-        Args:
-            source_id: The ID of the source to create an index for
-
-        Returns:
-            An IndexView representing the newly created index
-
-        Raises:
-            ValueError: If the source doesn't exist
-
-        """
+        """Create a new index for a source."""
         log_event("kodit.index.create")
 
         # Validate source exists
@@ -113,12 +75,7 @@ class CodeIndexingApplicationService:
         return index_view
 
     async def list_indexes(self) -> list[IndexView]:
-        """List all available indexes with their details.
-
-        Returns:
-            A list of IndexView objects containing information about each index
-
-        """
+        """List all available indexes with their details."""
         indexes = await self.indexing_domain_service.list_indexes()
 
         # Telemetry
@@ -135,27 +92,7 @@ class CodeIndexingApplicationService:
     async def run_index(
         self, index_id: int, progress_callback: ProgressCallback | None = None
     ) -> None:
-        """Run the complete indexing process for a specific index.
-
-        This orchestrates the entire indexing workflow:
-        1. Validate index exists
-        2. Delete old snippets
-        3. Extract and create new snippets
-        4. Create search indexes (BM25, embeddings)
-        5. Enrich snippets
-        6. Update index timestamp
-
-        All operations are performed within a single transaction boundary.
-
-        Args:
-            index_id: The ID of the index to run
-            progress_callback: Optional callback for progress reporting
-
-        Raises:
-            ValueError: If the index doesn't exist
-            EmptySourceError: If no indexable snippets are found
-
-        """
+        """Run the complete indexing process for a specific index."""
         log_event("kodit.index.run")
 
         # Validate index
@@ -164,7 +101,8 @@ class CodeIndexingApplicationService:
             msg = f"Index not found: {index_id}"
             raise ValueError(msg)
 
-        # Delete old snippets
+        # Delete old snippets to make way for reindexing
+        # In the future we will only reindex snippets that have changed
         await self.snippet_domain_service.delete_snippets_for_index(index.id)
 
         # Extract and create snippets (domain service handles progress)
@@ -208,26 +146,8 @@ class CodeIndexingApplicationService:
         # Single transaction commit for the entire operation
         await self.session.commit()
 
-    # Search Operations
-
     async def search(self, request: MultiSearchRequest) -> list[MultiSearchResult]:
-        """Search for relevant snippets across all indexes.
-
-        Supports multiple search modes:
-        - Keyword search (BM25)
-        - Semantic code search
-        - Semantic text search
-        - Hybrid search (combination of above)
-
-        Filters can be applied to narrow results.
-
-        Args:
-            request: The multi-modal search request
-
-        Returns:
-            List of search results ranked by relevance
-
-        """
+        """Search for relevant snippets across all indexes."""
         log_event("kodit.index.search")
 
         # Apply filters if provided
@@ -292,7 +212,7 @@ class CodeIndexingApplicationService:
         # Fusion ranking
         final_results = self.indexing_domain_service.perform_fusion(
             rankings=fusion_list,
-            k=60,
+            k=60,  # This is a parameter in the RRF algorithm, not top_k
         )
 
         # Keep only top_k results
@@ -313,29 +233,16 @@ class CodeIndexingApplicationService:
             for (file, snippet), fr in zip(search_results, final_results, strict=True)
         ]
 
-    # Snippet Operations
-
     async def list_snippets(
         self, file_path: str | None = None, source_uri: str | None = None
     ) -> list[SnippetListItem]:
-        """List snippets with optional filtering.
-
-        Args:
-            file_path: Optional file path to filter by
-            source_uri: Optional source URI to filter by
-
-        Returns:
-            List of snippet items matching the criteria
-
-        """
+        """List snippets with optional filtering."""
+        log_event("kodit.index.list_snippets")
         return await self.snippet_domain_service.list_snippets(file_path, source_uri)
-
-    # Private helper methods
 
     async def _create_bm25_index(
         self, snippets: list[Snippet], progress_callback: ProgressCallback | None = None
     ) -> None:
-        """Create BM25 keyword index for snippets."""
         reporter = Reporter(self.log, progress_callback)
         await reporter.start("bm25_index", len(snippets), "Creating keyword index...")
 
@@ -353,7 +260,6 @@ class CodeIndexingApplicationService:
     async def _create_code_embeddings(
         self, snippets: list[Snippet], progress_callback: ProgressCallback | None = None
     ) -> None:
-        """Create semantic code embeddings for snippets."""
         reporter = Reporter(self.log, progress_callback)
         await reporter.start(
             "code_embeddings", len(snippets), "Creating code embeddings..."
@@ -381,7 +287,6 @@ class CodeIndexingApplicationService:
     async def _enrich_snippets(
         self, snippets: list[Snippet], progress_callback: ProgressCallback | None = None
     ) -> None:
-        """Enrich snippets with additional context."""
         reporter = Reporter(self.log, progress_callback)
         await reporter.start("enrichment", len(snippets), "Enriching snippets...")
 
@@ -418,7 +323,6 @@ class CodeIndexingApplicationService:
     async def _create_text_embeddings(
         self, snippets: list[Snippet], progress_callback: ProgressCallback | None = None
     ) -> None:
-        """Create semantic text embeddings for enriched snippets."""
         reporter = Reporter(self.log, progress_callback)
         await reporter.start(
             "text_embeddings", len(snippets), "Creating text embeddings..."
