@@ -150,33 +150,33 @@ def _parse_filters(
 
     # Normalize language to lowercase if provided
     norm_language = language.lower() if language else None
-    # Try to parse dates, warn and ignore if invalid
+    # Try to parse dates, raise error if invalid
     parsed_created_after = None
     if created_after:
         try:
             parsed_created_after = datetime.fromisoformat(created_after)
-        except ValueError:
-            click.echo(
-                f"Warning: Ignoring invalid date for --created-after: {created_after}",
-                err=True,
-            )
+        except ValueError as err:
+            raise ValueError(
+                f"Invalid date format for --created-after: {created_after}. "
+                "Expected ISO 8601 format (YYYY-MM-DD)"
+            ) from err
     parsed_created_before = None
     if created_before:
         try:
             parsed_created_before = datetime.fromisoformat(created_before)
-        except ValueError:
-            click.echo(
-                f"Warning: Ignoring invalid date for --created-before: "
-                f"{created_before}",
-                err=True,
-            )
+        except ValueError as err:
+            raise ValueError(
+                f"Invalid date format for --created-before: {created_before}. "
+                "Expected ISO 8601 format (YYYY-MM-DD)"
+            ) from err
     # Return None if no filters provided, otherwise return SnippetSearchFilters
+    # Check if any original parameters were provided (not just the parsed values)
     if any(
         [
-            norm_language,
+            language,
             author,
-            parsed_created_after,
-            parsed_created_before,
+            created_after,
+            created_before,
             source_repo,
         ]
     ):

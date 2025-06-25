@@ -475,26 +475,25 @@ def test_search_multiple_filters_combination(runner: CliRunner) -> None:
 
 
 def test_search_invalid_date_format(runner: CliRunner) -> None:
-    """Test that invalid date formats are handled gracefully."""
+    """Test that invalid date formats raise an error."""
 
-    # Mock the search functionality
-    mock_snippets = [MagicMock(id=1, content="test snippet")]
-    mock_service = MagicMock()
-    mock_service.search = AsyncMock(return_value=mock_snippets)
+    # Test with invalid date format
+    result = runner.invoke(
+        cli, ["search", "code", "test", "--created-after", "invalid-date"]
+    )
+    assert result.exit_code != 0
+    assert result.exception is not None
+    assert "Invalid date format for --created-after" in str(result.exception)
+    assert "Expected ISO 8601 format (YYYY-MM-DD)" in str(result.exception)
 
-    with patch(
-        "kodit.cli.create_code_indexing_application_service", return_value=mock_service
-    ):
-        # Test with invalid date format
-        result = runner.invoke(
-            cli, ["search", "code", "test", "--created-after", "invalid-date"]
-        )
-        assert result.exit_code == 0
-
-        # The search should still be called, but with None for the invalid date
-        mock_service.search.assert_called_once()
-        call_args = mock_service.search.call_args[0][0]
-        assert call_args.filters.created_after is None
+    # Test with invalid created-before date format
+    result = runner.invoke(
+        cli, ["search", "code", "test", "--created-before", "not-a-date"]
+    )
+    assert result.exit_code != 0
+    assert result.exception is not None
+    assert "Invalid date format for --created-before" in str(result.exception)
+    assert "Expected ISO 8601 format (YYYY-MM-DD)" in str(result.exception)
 
 
 def test_search_filter_case_insensitivity(runner: CliRunner) -> None:
