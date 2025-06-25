@@ -1,1 +1,0 @@
-"""Application commands for Kodit."""
