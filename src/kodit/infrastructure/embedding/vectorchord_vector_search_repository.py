@@ -16,8 +16,8 @@ from kodit.domain.value_objects import (
     EmbeddingRequest,
     IndexRequest,
     IndexResult,
+    SearchRequest,
     SearchResult,
-    SimpleSearchRequest,
 )
 
 # SQL Queries
@@ -200,7 +200,7 @@ class VectorChordVectorSearchRepository(VectorSearchRepository):
 
         return _index_batches()
 
-    async def search(self, request: SimpleSearchRequest) -> list[SearchResult]:
+    async def search(self, request: SearchRequest) -> list[SearchResult]:
         """Search documents using vector similarity."""
         if not request.query or not request.query.strip():
             return []

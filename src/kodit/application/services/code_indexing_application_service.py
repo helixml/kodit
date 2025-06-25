@@ -25,8 +25,8 @@ from kodit.domain.value_objects import (
     IndexView,
     MultiSearchRequest,
     MultiSearchResult,
+    SearchRequest,
     SearchResult,
-    SimpleSearchRequest,
     SnippetListItem,
 )
 from kodit.log import log_event
@@ -248,7 +248,7 @@ class CodeIndexingApplicationService:
             result_ids: list[SearchResult] = []
             for keyword in request.keywords:
                 results = await self.bm25_service.search(
-                    SimpleSearchRequest(
+                    SearchRequest(
                         query=keyword,
                         top_k=request.top_k,
                         snippet_ids=filtered_snippet_ids,
@@ -263,7 +263,7 @@ class CodeIndexingApplicationService:
         # Semantic code search
         if request.code_query:
             query_results = await self.code_search_service.search(
-                SimpleSearchRequest(
+                SearchRequest(
                     query=request.code_query,
                     top_k=request.top_k,
                     snippet_ids=filtered_snippet_ids,
@@ -276,7 +276,7 @@ class CodeIndexingApplicationService:
         # Semantic text search
         if request.text_query:
             query_results = await self.text_search_service.search(
-                SimpleSearchRequest(
+                SearchRequest(
                     query=request.text_query,
                     top_k=request.top_k,
                     snippet_ids=filtered_snippet_ids,

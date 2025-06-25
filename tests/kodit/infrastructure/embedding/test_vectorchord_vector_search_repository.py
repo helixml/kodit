@@ -21,7 +21,7 @@ from kodit.domain.value_objects import (
     Document,
     IndexRequest,
     SearchResult,
-    SimpleSearchRequest,
+    SearchRequest,
 )
 from kodit.infrastructure.embedding.vectorchord_vector_search_repository import (
     VectorChordVectorSearchRepository,
@@ -247,7 +247,7 @@ async def test_search_with_none_snippet_ids_returns_all_results(
     snippets, repository = test_data
 
     # Setup
-    request = SimpleSearchRequest(
+    request = SearchRequest(
         query="Python programming",
         top_k=10,
         snippet_ids=None,  # No filtering
@@ -271,7 +271,7 @@ async def test_search_with_empty_snippet_ids_returns_no_results(
     snippets, repository = test_data
 
     # Setup
-    request = SimpleSearchRequest(
+    request = SearchRequest(
         query="Python programming",
         top_k=10,
         snippet_ids=[],  # Empty list - should return no results
@@ -293,7 +293,7 @@ async def test_search_with_filtered_snippet_ids_returns_matching_results(
     snippets, repository = test_data
 
     # Setup - only search in snippets 0 and 2
-    request = SimpleSearchRequest(
+    request = SearchRequest(
         query="Python programming",
         top_k=10,
         snippet_ids=[snippets[0].id, snippets[2].id],  # Only return snippets 0 and 2
@@ -321,7 +321,7 @@ async def test_search_with_single_snippet_id_returns_one_result(
     snippets, repository = test_data
 
     # Setup - only search in snippet 2 (which mentions "Guido van Rossum")
-    request = SimpleSearchRequest(
+    request = SearchRequest(
         query="Guido van Rossum",
         top_k=10,
         snippet_ids=[snippets[2].id],  # Only return snippet 2
@@ -344,7 +344,7 @@ async def test_search_with_nonexistent_snippet_ids_returns_no_results(
     snippets, repository = test_data
 
     # Setup
-    request = SimpleSearchRequest(
+    request = SearchRequest(
         query="Python programming",
         top_k=10,
         snippet_ids=[99999, 100000],  # Non-existent snippet IDs
@@ -366,7 +366,7 @@ async def test_search_with_empty_query_returns_empty_list(
     snippets, repository = test_data
 
     # Setup
-    request = SimpleSearchRequest(
+    request = SearchRequest(
         query="",  # Empty query
         top_k=10,
         snippet_ids=None,
@@ -387,7 +387,7 @@ async def test_search_with_whitespace_query_returns_empty_list(
     snippets, repository = test_data
 
     # Setup
-    request = SimpleSearchRequest(
+    request = SearchRequest(
         query="   ",  # Whitespace-only query
         top_k=10,
         snippet_ids=None,
@@ -408,7 +408,7 @@ async def test_search_respects_top_k_limit(
     snippets, repository = test_data
 
     # Setup
-    request = SimpleSearchRequest(
+    request = SearchRequest(
         query="Python",
         top_k=2,  # Limit to 2 results
         snippet_ids=None,
@@ -430,7 +430,7 @@ async def test_search_result_structure(
     snippets, repository = test_data
 
     # Setup
-    request = SimpleSearchRequest(
+    request = SearchRequest(
         query="Guido van Rossum", top_k=1, snippet_ids=[snippets[2].id]
     )
 
@@ -455,7 +455,7 @@ async def test_search_with_mixed_existing_and_nonexistent_ids(
     snippets, repository = test_data
 
     # Setup - mix of existing and non-existent IDs
-    request = SimpleSearchRequest(
+    request = SearchRequest(
         query="Python",
         top_k=10,
         snippet_ids=[
@@ -487,7 +487,7 @@ async def test_search_with_semantic_similarity_and_filtering(
     snippets, repository = test_data
 
     # Setup - search for "data science" which should match snippet 3 semantically
-    request = SimpleSearchRequest(
+    request = SearchRequest(
         query="data science",
         top_k=10,
         snippet_ids=[snippets[3].id],  # Only snippet 3 mentions "data science"
@@ -510,7 +510,7 @@ async def test_search_with_case_insensitive_filtering(
     snippets, repository = test_data
 
     # Setup - search for "PYTHON" (uppercase) with filtering
-    request = SimpleSearchRequest(
+    request = SearchRequest(
         query="PYTHON",
         top_k=10,
         snippet_ids=[snippets[0].id, snippets[1].id],  # Only first two snippets
@@ -547,7 +547,7 @@ async def test_search_results_consistency_with_filtering(
     snippets, repository = test_data
 
     # First, search without any filtering
-    unfiltered_request = SimpleSearchRequest(
+    unfiltered_request = SearchRequest(
         query="Python programming",
         top_k=5,
         snippet_ids=None,  # No filtering
@@ -564,7 +564,7 @@ async def test_search_results_consistency_with_filtering(
         filtered_snippet_ids.append(result.snippet_id)
 
     # Now search with filtering applied at the database level
-    filtered_request = SimpleSearchRequest(
+    filtered_request = SearchRequest(
         query="Python programming",
         top_k=5,
         snippet_ids=filtered_snippet_ids,
@@ -613,7 +613,7 @@ async def test_search_with_application_level_filtering_bug(
     all_snippet_ids = [s.id for s in snippets]
 
     # 2. Search without any filtering (this is what should happen without language filter)
-    unfiltered_request = SimpleSearchRequest(
+    unfiltered_request = SearchRequest(
         query="data science",  # This should match snippet 3 best
         top_k=3,
         snippet_ids=None,  # No filtering
@@ -631,7 +631,7 @@ async def test_search_with_application_level_filtering_bug(
     limited_snippet_ids = [snippets[0].id, snippets[1].id, snippets[2].id]
 
     # 4. Search with this limited set (this is what happens with language filter)
-    filtered_request = SimpleSearchRequest(
+    filtered_request = SearchRequest(
         query="data science",
         top_k=3,
         snippet_ids=limited_snippet_ids,

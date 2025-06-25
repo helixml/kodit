@@ -13,8 +13,8 @@ from kodit.domain.value_objects import (
     EmbeddingRequest,
     IndexRequest,
     IndexResult,
+    SearchRequest,
     SearchResult,
-    SimpleSearchRequest,
 )
 from kodit.infrastructure.sqlalchemy.embedding_repository import (
     SqlAlchemyEmbeddingRepository,
@@ -77,7 +77,7 @@ class LocalVectorSearchRepository(VectorSearchRepository):
 
         return _index_batches()
 
-    async def search(self, request: SimpleSearchRequest) -> list[SearchResult]:
+    async def search(self, request: SearchRequest) -> list[SearchResult]:
         """Search documents using vector similarity."""
         # Build a single-item request and collect its embedding
         req = EmbeddingRequest(snippet_id=0, text=request.query)

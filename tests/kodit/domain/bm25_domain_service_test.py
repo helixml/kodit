@@ -8,7 +8,7 @@ from kodit.domain.value_objects import (
     DeleteRequest,
     Document,
     IndexRequest,
-    SimpleSearchRequest,
+    SearchRequest,
     SearchResult,
 )
 from kodit.domain.entities import Snippet
@@ -107,7 +107,7 @@ async def test_search_success(
     ]
     mock_repository.search.return_value = expected_results
 
-    request = SimpleSearchRequest(query="test query", top_k=10)
+    request = SearchRequest(query="test query", top_k=10)
 
     # Execute
     results = await bm25_domain_service.search(request)
@@ -124,7 +124,7 @@ async def test_search_success(
 async def test_search_empty_query(bm25_domain_service: BM25DomainService) -> None:
     """Test search with empty query."""
     # Setup
-    request = SimpleSearchRequest(query="", top_k=10)
+    request = SearchRequest(query="", top_k=10)
 
     # Execute and verify
     with pytest.raises(ValueError, match="Search query cannot be empty"):
@@ -135,7 +135,7 @@ async def test_search_empty_query(bm25_domain_service: BM25DomainService) -> Non
 async def test_search_invalid_top_k(bm25_domain_service: BM25DomainService) -> None:
     """Test search with invalid top_k."""
     # Setup
-    request = SimpleSearchRequest(query="test query", top_k=0)
+    request = SearchRequest(query="test query", top_k=0)
 
     # Execute and verify
     with pytest.raises(ValueError, match="Top-k must be positive"):

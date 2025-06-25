@@ -8,7 +8,7 @@ from kodit.domain.value_objects import (
     IndexRequest,
     IndexResult,
     SearchResult,
-    SimpleSearchRequest,
+    SearchRequest,
 )
 from kodit.domain.entities import EmbeddingType
 from kodit.domain.services.embedding_service import (
@@ -187,7 +187,7 @@ class TestEmbeddingDomainService:
             vector_search_repository=mock_repository,
         )
 
-        request = SimpleSearchRequest(query="python programming", top_k=10)
+        request = SearchRequest(query="python programming", top_k=10)
 
         results = await service.search(request)
 
@@ -214,7 +214,7 @@ class TestEmbeddingDomainService:
             vector_search_repository=mock_repository,
         )
 
-        request = SimpleSearchRequest(query="", top_k=10)
+        request = SearchRequest(query="", top_k=10)
 
         with pytest.raises(ValueError, match="Search query cannot be empty"):
             await service.search(request)
@@ -232,7 +232,7 @@ class TestEmbeddingDomainService:
             vector_search_repository=mock_repository,
         )
 
-        request = SimpleSearchRequest(query="   ", top_k=10)
+        request = SearchRequest(query="   ", top_k=10)
 
         with pytest.raises(ValueError, match="Search query cannot be empty"):
             await service.search(request)
@@ -250,7 +250,7 @@ class TestEmbeddingDomainService:
             vector_search_repository=mock_repository,
         )
 
-        request = SimpleSearchRequest(query="python", top_k=0)
+        request = SearchRequest(query="python", top_k=0)
 
         with pytest.raises(ValueError, match="Top-k must be positive"):
             await service.search(request)
@@ -270,7 +270,7 @@ class TestEmbeddingDomainService:
             vector_search_repository=mock_repository,
         )
 
-        request = SimpleSearchRequest(query="  python programming  ", top_k=10)
+        request = SearchRequest(query="  python programming  ", top_k=10)
 
         await service.search(request)
 

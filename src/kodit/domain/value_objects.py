@@ -69,7 +69,7 @@ class IndexRequest:
 
 
 @dataclass
-class SimpleSearchRequest:
+class SearchRequest:
     """Generic search request (single query string)."""
 
     query: str

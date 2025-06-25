@@ -8,7 +8,7 @@ from kodit.domain.value_objects import (
     EmbeddingResponse,
     IndexResult,
     IndexRequest,
-    SimpleSearchRequest,
+    SearchRequest,
     SearchResult,
     Document,
 )
@@ -118,9 +118,7 @@ class TestEmbeddingIntegration:
         )
 
         # Test search
-        search_request = SimpleSearchRequest(
-            query="python programming language", top_k=2
-        )
+        search_request = SearchRequest(query="python programming language", top_k=2)
 
         search_results = await domain_service.search(search_request)
 
@@ -216,7 +214,7 @@ class TestEmbeddingIntegration:
             pass
 
         # Search for python-related content
-        search_request = SimpleSearchRequest(query="python function", top_k=3)
+        search_request = SearchRequest(query="python function", top_k=3)
 
         results = await domain_service.search(search_request)
 
@@ -323,11 +321,11 @@ class TestEmbeddingIntegration:
 
         # Test empty search query
         with pytest.raises(ValueError, match="Search query cannot be empty"):
-            await domain_service.search(SimpleSearchRequest(query="", top_k=10))
+            await domain_service.search(SearchRequest(query="", top_k=10))
 
         # Test invalid top_k
         with pytest.raises(ValueError, match="Top-k must be positive"):
-            await domain_service.search(SimpleSearchRequest(query="test", top_k=0))
+            await domain_service.search(SearchRequest(query="test", top_k=0))
 
         # Test invalid snippet_id
         with pytest.raises(ValueError, match="Snippet ID must be positive"):
@@ -398,7 +396,7 @@ class TestEmbeddingIntegration:
             pass
 
         # Search first time
-        search_request = SimpleSearchRequest(query="python programming", top_k=1)
+        search_request = SearchRequest(query="python programming", top_k=1)
         results1 = await domain_service.search(search_request)
 
         # Second indexing (should be idempotent)
@@ -500,7 +498,7 @@ class TestEmbeddingIntegration:
         assert await text_service.has_embedding(snippet.id, EmbeddingType.TEXT) is True
 
         # Search should work for both types
-        search_request = SimpleSearchRequest(query="python programming", top_k=1)
+        search_request = SearchRequest(query="python programming", top_k=1)
 
         code_results = await code_service.search(search_request)
         text_results = await text_service.search(search_request)
@@ -588,7 +586,7 @@ class TestEmbeddingIntegration:
         assert indexing_time < 10.0  # Should complete within 10 seconds
 
         # Test search performance
-        search_request = SimpleSearchRequest(query="document content", top_k=5)
+        search_request = SearchRequest(query="document content", top_k=5)
 
         start_time = time.time()
         results = await domain_service.search(search_request)

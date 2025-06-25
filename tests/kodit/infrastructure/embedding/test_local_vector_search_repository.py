@@ -18,7 +18,7 @@ from kodit.domain.value_objects import (
     EmbeddingResponse,
     IndexRequest,
     SearchResult,
-    SimpleSearchRequest,
+    SearchRequest,
 )
 from kodit.infrastructure.embedding.local_vector_search_repository import (
     LocalVectorSearchRepository,
@@ -185,7 +185,7 @@ class TestLocalVectorSearchRepository:
             embedding_type=EmbeddingType.CODE,
         )
 
-        request = SimpleSearchRequest(query="python programming", top_k=10)
+        request = SearchRequest(query="python programming", top_k=10)
 
         results = await repository.search(request)
 
@@ -225,7 +225,7 @@ class TestLocalVectorSearchRepository:
             embedding_type=EmbeddingType.CODE,
         )
 
-        request = SimpleSearchRequest(query="python programming", top_k=10)
+        request = SearchRequest(query="python programming", top_k=10)
 
         results = await repository.search(request)
 
@@ -301,7 +301,7 @@ class TestLocalVectorSearchRepository:
             embedding_type=EmbeddingType.CODE,
         )
 
-        request = SimpleSearchRequest(
+        request = SearchRequest(
             query="python programming", top_k=10, snippet_ids=[1, 2, 3]
         )
 
@@ -340,7 +340,7 @@ class TestLocalVectorSearchRepository:
             embedding_type=EmbeddingType.CODE,
         )
 
-        request = SimpleSearchRequest(
+        request = SearchRequest(
             query="python programming",
             top_k=10,
             snippet_ids=None,  # No filtering
@@ -380,7 +380,7 @@ class TestLocalVectorSearchRepository:
             embedding_type=EmbeddingType.CODE,
         )
 
-        request = SimpleSearchRequest(
+        request = SearchRequest(
             query="python programming",
             top_k=10,
             snippet_ids=[],  # Empty list - should return no results
@@ -477,7 +477,7 @@ async def test_retrieve_documents(session):
 
     # Search for similar content
     results = await vector_search_repository.search(
-        SimpleSearchRequest(query="python programming language", top_k=2)
+        SearchRequest(query="python programming language", top_k=2)
     )
 
     assert len(results) == 2

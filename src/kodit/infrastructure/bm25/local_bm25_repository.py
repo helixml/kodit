@@ -14,8 +14,8 @@ from kodit.domain.services.bm25_service import BM25Repository
 from kodit.domain.value_objects import (
     DeleteRequest,
     IndexRequest,
+    SearchRequest,
     SearchResult,
-    SimpleSearchRequest,
 )
 
 if TYPE_CHECKING:
@@ -84,7 +84,7 @@ class LocalBM25Repository(BM25Repository):
         async with aiofiles.open(self.index_path / SNIPPET_IDS_FILE, "w") as f:
             await f.write(json.dumps(self.snippet_ids))
 
-    async def search(self, request: SimpleSearchRequest) -> list[SearchResult]:
+    async def search(self, request: SearchRequest) -> list[SearchResult]:
         """Search documents using BM25."""
         if request.top_k == 0:
             self.log.warning("Top k is 0, returning empty list")

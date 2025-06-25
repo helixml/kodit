@@ -6,8 +6,8 @@ from collections.abc import Sequence
 from kodit.domain.value_objects import (
     DeleteRequest,
     IndexRequest,
+    SearchRequest,
     SearchResult,
-    SimpleSearchRequest,
 )
 
 
@@ -19,7 +19,7 @@ class BM25Repository(ABC):
         """Index documents for BM25 search."""
 
     @abstractmethod
-    async def search(self, request: SimpleSearchRequest) -> Sequence[SearchResult]:
+    async def search(self, request: SearchRequest) -> Sequence[SearchResult]:
         """Search documents using BM25."""
 
     @abstractmethod
@@ -67,7 +67,7 @@ class BM25DomainService:
         validated_request = IndexRequest(documents=valid_documents)
         await self.repository.index_documents(validated_request)
 
-    async def search(self, request: SimpleSearchRequest) -> Sequence[SearchResult]:
+    async def search(self, request: SearchRequest) -> Sequence[SearchResult]:
         """Search documents using domain business rules.
 
         Args:

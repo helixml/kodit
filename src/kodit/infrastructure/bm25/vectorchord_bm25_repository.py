@@ -10,8 +10,8 @@ from kodit.domain.services.bm25_service import BM25Repository
 from kodit.domain.value_objects import (
     DeleteRequest,
     IndexRequest,
+    SearchRequest,
     SearchResult,
-    SimpleSearchRequest,
 )
 
 TABLE_NAME = "vectorchord_bm25_documents"
@@ -183,7 +183,7 @@ class VectorChordBM25Repository(BM25Repository):
         await self._execute(text(UPDATE_QUERY))
         await self._commit()
 
-    async def search(self, request: SimpleSearchRequest) -> list[SearchResult]:
+    async def search(self, request: SearchRequest) -> list[SearchResult]:
         """Search documents using BM25."""
         if not request.query or request.query == "":
             return []

@@ -9,8 +9,8 @@ from kodit.domain.value_objects import (
     EmbeddingResponse,
     IndexRequest,
     IndexResult,
+    SearchRequest,
     SearchResult,
-    SimpleSearchRequest,
 )
 
 
@@ -34,7 +34,7 @@ class VectorSearchRepository(ABC):
         """Index documents for vector search."""
 
     @abstractmethod
-    async def search(self, request: SimpleSearchRequest) -> Sequence[SearchResult]:
+    async def search(self, request: SearchRequest) -> Sequence[SearchResult]:
         """Search documents using vector similarity."""
 
     @abstractmethod
@@ -98,7 +98,7 @@ class EmbeddingDomainService:
         ):
             yield result
 
-    async def search(self, request: SimpleSearchRequest) -> Sequence[SearchResult]:
+    async def search(self, request: SearchRequest) -> Sequence[SearchResult]:
         """Search documents using domain business rules.
 
         Args:
@@ -120,7 +120,7 @@ class EmbeddingDomainService:
 
         # Domain logic: normalize query
         normalized_query = request.query.strip()
-        normalized_request = SimpleSearchRequest(
+        normalized_request = SearchRequest(
             query=normalized_query, top_k=request.top_k, snippet_ids=request.snippet_ids
         )
 
