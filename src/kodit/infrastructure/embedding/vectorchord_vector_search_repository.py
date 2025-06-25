@@ -14,10 +14,10 @@ from kodit.domain.services.embedding_service import (
 )
 from kodit.domain.value_objects import (
     EmbeddingRequest,
+    IndexRequest,
     IndexResult,
-    VectorIndexRequest,
-    VectorSearchQueryRequest,
-    VectorSearchResult,
+    SearchResult,
+    SimpleSearchRequest,
 )
 
 # SQL Queries
@@ -166,7 +166,7 @@ class VectorChordVectorSearchRepository(VectorSearchRepository):
         await self._session.commit()
 
     def index_documents(
-        self, request: VectorIndexRequest
+        self, request: IndexRequest
     ) -> AsyncGenerator[list[IndexResult], None]:
         """Index documents for vector search."""
         if not request.documents:
@@ -200,9 +200,7 @@ class VectorChordVectorSearchRepository(VectorSearchRepository):
 
         return _index_batches()
 
-    async def search(
-        self, request: VectorSearchQueryRequest
-    ) -> list[VectorSearchResult]:
+    async def search(self, request: SimpleSearchRequest) -> list[SearchResult]:
         """Search documents using vector similarity."""
         if not request.query or not request.query.strip():
             return []
@@ -236,7 +234,7 @@ class VectorChordVectorSearchRepository(VectorSearchRepository):
         rows = result.mappings().all()
 
         return [
-            VectorSearchResult(snippet_id=row["snippet_id"], score=row["score"])
+            SearchResult(snippet_id=row["snippet_id"], score=row["score"])
             for row in rows
         ]
 
