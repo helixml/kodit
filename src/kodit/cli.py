@@ -10,6 +10,9 @@ import uvicorn
 from pytable_formatter import Cell, Table
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from kodit.application.factories.code_indexing_factory import (
+    create_code_indexing_application_service,
+)
 from kodit.config import (
     AppContext,
     with_app_context,
@@ -18,9 +21,6 @@ from kodit.config import (
 from kodit.domain.errors import EmptySourceError
 from kodit.domain.services.source_service import SourceService
 from kodit.domain.value_objects import MultiSearchRequest, SnippetSearchFilters
-from kodit.infrastructure.indexing.code_indexing_factory import (
-    create_code_indexing_application_service,
-)
 
 # Compatibility shim for tests and legacy code
 from kodit.infrastructure.ui.progress import (

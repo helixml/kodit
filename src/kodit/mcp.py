@@ -12,6 +12,9 @@ from pydantic import Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit._version import version
+from kodit.application.factories.code_indexing_factory import (
+    create_code_indexing_application_service,
+)
 from kodit.config import AppContext
 from kodit.database import Database
 from kodit.domain.services.source_service import SourceService
@@ -19,9 +22,6 @@ from kodit.domain.value_objects import (
     MultiSearchRequest,
     MultiSearchResult,
     SnippetSearchFilters,
-)
-from kodit.infrastructure.indexing.code_indexing_factory import (
-    create_code_indexing_application_service,
 )
 
 # Global database connection for MCP server
