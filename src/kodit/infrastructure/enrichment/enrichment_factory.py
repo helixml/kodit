@@ -24,7 +24,7 @@ def _get_endpoint_configuration(app_context: AppContext) -> Endpoint | None:
     return app_context.enrichment_endpoint or app_context.default_endpoint or None
 
 
-def create_enrichment_domain_service(
+def enrichment_domain_service_factory(
     app_context: AppContext,
 ) -> EnrichmentDomainService:
     """Create an enrichment domain service.

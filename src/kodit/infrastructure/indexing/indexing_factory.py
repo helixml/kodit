@@ -7,7 +7,7 @@ from kodit.infrastructure.indexing.fusion_service import ReciprocalRankFusionSer
 from kodit.infrastructure.indexing.index_repository import SQLAlchemyIndexRepository
 
 
-def create_indexing_domain_service(session: AsyncSession) -> IndexingDomainService:
+def indexing_domain_service_factory(session: AsyncSession) -> IndexingDomainService:
     """Create an indexing domain service with all dependencies.
 
     Args:

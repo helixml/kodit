@@ -12,7 +12,7 @@ from kodit.infrastructure.sqlalchemy.snippet_repository import (
 )
 
 
-def create_snippet_domain_service(session: AsyncSession) -> SnippetDomainService:
+def snippet_domain_service_factory(session: AsyncSession) -> SnippetDomainService:
     """Create a snippet domain service with all dependencies.
 
     Args:

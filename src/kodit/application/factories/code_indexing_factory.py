@@ -1,12 +1,11 @@
 """Factory for creating the unified code indexing application service."""
 
-from typing import Any
-
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.application.services.code_indexing_application_service import (
     CodeIndexingApplicationService,
 )
+from kodit.config import AppContext
 from kodit.domain.services.bm25_service import BM25DomainService
 from kodit.domain.services.source_service import SourceService
 from kodit.infrastructure.bm25.bm25_factory import bm25_repository_factory
@@ -14,18 +13,18 @@ from kodit.infrastructure.embedding.embedding_factory import (
     embedding_domain_service_factory,
 )
 from kodit.infrastructure.enrichment.enrichment_factory import (
-    create_enrichment_domain_service,
+    enrichment_domain_service_factory,
 )
 from kodit.infrastructure.indexing.indexing_factory import (
-    create_indexing_domain_service,
+    indexing_domain_service_factory,
 )
 from kodit.infrastructure.indexing.snippet_domain_service_factory import (
-    create_snippet_domain_service,
+    snippet_domain_service_factory,
 )
 
 
 def create_code_indexing_application_service(
-    app_context: Any,
+    app_context: AppContext,
     session: AsyncSession,
     source_service: SourceService,
 ) -> CodeIndexingApplicationService:
@@ -44,12 +43,12 @@ def create_code_indexing_application_service(
 
     """
     # Create domain services
-    indexing_domain_service = create_indexing_domain_service(session)
-    snippet_domain_service = create_snippet_domain_service(session)
+    indexing_domain_service = indexing_domain_service_factory(session)
+    snippet_domain_service = snippet_domain_service_factory(session)
     bm25_service = BM25DomainService(bm25_repository_factory(app_context, session))
     code_search_service = embedding_domain_service_factory("code", app_context, session)
     text_search_service = embedding_domain_service_factory("text", app_context, session)
-    enrichment_service = create_enrichment_domain_service(app_context)
+    enrichment_service = enrichment_domain_service_factory(app_context)
 
     # Create and return the unified application service
     return CodeIndexingApplicationService(

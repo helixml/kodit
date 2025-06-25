@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 from kodit.config import AppContext, Endpoint
 from kodit.domain.services.enrichment_service import EnrichmentDomainService
 from kodit.infrastructure.enrichment.enrichment_factory import (
-    create_enrichment_domain_service,
+    enrichment_domain_service_factory,
 )
 from kodit.infrastructure.enrichment.local_enrichment_provider import (
     LocalEnrichmentProvider,
@@ -25,7 +25,7 @@ class TestEnrichmentFactory:
         app_context.default_endpoint = None
         app_context.enrichment_endpoint = None
 
-        service = create_enrichment_domain_service(app_context)
+        service = enrichment_domain_service_factory(app_context)
 
         assert isinstance(service, EnrichmentDomainService)
         assert isinstance(service.enrichment_provider, LocalEnrichmentProvider)
@@ -45,7 +45,7 @@ class TestEnrichmentFactory:
             mock_client = MagicMock()
             mock_openai.return_value = mock_client
 
-            service = create_enrichment_domain_service(app_context)
+            service = enrichment_domain_service_factory(app_context)
 
             assert isinstance(service, EnrichmentDomainService)
             assert isinstance(service.enrichment_provider, OpenAIEnrichmentProvider)
@@ -80,7 +80,7 @@ class TestEnrichmentFactory:
             mock_client = MagicMock()
             mock_openai.return_value = mock_client
 
-            service = create_enrichment_domain_service(app_context)
+            service = enrichment_domain_service_factory(app_context)
 
             assert isinstance(service, EnrichmentDomainService)
             assert isinstance(service.enrichment_provider, OpenAIEnrichmentProvider)
@@ -110,7 +110,7 @@ class TestEnrichmentFactory:
             mock_client = MagicMock()
             mock_openai.return_value = mock_client
 
-            service = create_enrichment_domain_service(app_context)
+            service = enrichment_domain_service_factory(app_context)
 
             assert isinstance(service, EnrichmentDomainService)
             assert isinstance(service.enrichment_provider, OpenAIEnrichmentProvider)
@@ -133,7 +133,7 @@ class TestEnrichmentFactory:
             mock_client = MagicMock()
             mock_openai.return_value = mock_client
 
-            service = create_enrichment_domain_service(app_context)
+            service = enrichment_domain_service_factory(app_context)
 
             assert isinstance(service, EnrichmentDomainService)
             assert isinstance(service.enrichment_provider, OpenAIEnrichmentProvider)
@@ -161,7 +161,7 @@ class TestEnrichmentFactory:
             mock_client = MagicMock()
             mock_openai.return_value = mock_client
 
-            service = create_enrichment_domain_service(app_context)
+            service = enrichment_domain_service_factory(app_context)
 
             assert isinstance(service, EnrichmentDomainService)
             assert isinstance(service.enrichment_provider, OpenAIEnrichmentProvider)
@@ -185,7 +185,7 @@ class TestEnrichmentFactory:
         )
         app_context.enrichment_endpoint = None
 
-        service = create_enrichment_domain_service(app_context)
+        service = enrichment_domain_service_factory(app_context)
 
         assert isinstance(service, EnrichmentDomainService)
         assert isinstance(service.enrichment_provider, LocalEnrichmentProvider)
@@ -206,7 +206,7 @@ class TestEnrichmentFactory:
             model="other-model",
         )
 
-        service = create_enrichment_domain_service(app_context)
+        service = enrichment_domain_service_factory(app_context)
 
         assert isinstance(service, EnrichmentDomainService)
         assert isinstance(service.enrichment_provider, LocalEnrichmentProvider)
