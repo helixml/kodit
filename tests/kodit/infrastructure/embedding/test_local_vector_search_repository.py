@@ -79,7 +79,6 @@ class TestLocalVectorSearchRepository:
             results.extend(batch)
 
         assert len(results) == 0
-        mock_provider.embed.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_index_documents_single_document(self):

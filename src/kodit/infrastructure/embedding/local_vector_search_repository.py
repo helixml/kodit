@@ -47,7 +47,7 @@ class LocalVectorSearchRepository(VectorSearchRepository):
         self, request: IndexRequest
     ) -> AsyncGenerator[list[IndexResult], None]:
         """Index documents for vector search."""
-        if not request.documents:
+        if not request.documents or len(request.documents) == 0:
             yield []
 
         # Convert to embedding requests
