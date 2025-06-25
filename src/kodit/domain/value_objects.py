@@ -269,14 +269,6 @@ class EnrichmentIndexRequest:
 
 
 @dataclass
-class EnrichmentSearchRequest:
-    """Domain model for enrichment search request."""
-
-    query: str
-    top_k: int = 10
-
-
-@dataclass
 class IndexView:
     """Domain model for index information."""
 
