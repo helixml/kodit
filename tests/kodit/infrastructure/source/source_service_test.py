@@ -44,7 +44,7 @@ async def test_create_source_nonexistent_path(service: SourceService) -> None:
     uri = nonexistent_path.as_uri()
 
     # Try to create a source with the nonexistent path
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError):  # noqa: PT011
         await service.create(uri)
 
 
@@ -53,7 +53,7 @@ async def test_create_source_invalid_path_and_uri(service: SourceService) -> Non
     """Test creating a source with an invalid path that is also not a valid URI."""
     # Try to create a source with an invalid path that is also not a valid URI
     invalid_path = "not/a/valid/path/or/uri"
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError):  # noqa: PT011
         await service.create(invalid_path)
 
 
@@ -77,7 +77,7 @@ async def test_create_source_already_added(
 async def test_create_source_unsupported_uri(service: SourceService) -> None:
     """Test creating a source with an unsupported URI."""
     # Try to create a source with an unsupported URI (e.g., http)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError):  # noqa: PT011
         await service.create("http://example.com")
 
 
@@ -145,9 +145,7 @@ async def test_create_git_source(service: SourceService, tmp_path: Path) -> None
 
 
 @pytest.mark.asyncio
-async def test_create_source_relative_path(
-    service: SourceService, tmp_path: Path
-) -> None:
+async def test_create_source_relative_path(service: SourceService) -> None:
     """Test creating a source with a relative path, i.e. the current directory."""
     # Create a test directory in the current working directory
     test_dir = Path.cwd() / "test_relative_dir"
