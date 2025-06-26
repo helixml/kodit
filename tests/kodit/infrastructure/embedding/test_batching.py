@@ -1,3 +1,5 @@
+"""Batching tests."""
+
 import math
 
 import tiktoken
@@ -16,7 +18,7 @@ def test_split_sub_batches_handles_endoftext_token() -> None:
     # Single request that is just the special token
     data = [EmbeddingRequest(snippet_id=1, text="<|endoftext|>")]
 
-    # Perform batching – any reasonable token limit should keep this in one batch
+    # Perform batching - any reasonable token limit should keep this in one batch
     batches = split_sub_batches(encoding, data, max_tokens=10)
 
     assert len(batches) == 1, "Expected a single batch for one short request"

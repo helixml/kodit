@@ -15,19 +15,19 @@ from kodit.infrastructure.embedding.embedding_providers.hash_embedding_provider 
 class TestHashEmbeddingProvider:
     """Test the hash embedding provider."""
 
-    def test_init_default_values(self):
+    def test_init_default_values(self) -> None:
         """Test initialization with default values."""
         provider = HashEmbeddingProvider()
         assert provider.embedding_size == CODE
         assert provider.log is not None
 
-    def test_init_custom_values(self):
+    def test_init_custom_values(self) -> None:
         """Test initialization with custom values."""
         provider = HashEmbeddingProvider(embedding_size=TINY)
         assert provider.embedding_size == TINY
 
     @pytest.mark.asyncio
-    async def test_embed_empty_requests(self):
+    async def test_embed_empty_requests(self) -> None:
         """Test embedding with empty requests."""
         provider = HashEmbeddingProvider()
         requests = []
@@ -39,7 +39,7 @@ class TestHashEmbeddingProvider:
         assert len(results) == 0
 
     @pytest.mark.asyncio
-    async def test_embed_single_request(self):
+    async def test_embed_single_request(self) -> None:
         """Test embedding with a single request."""
         provider = HashEmbeddingProvider()
         requests = [EmbeddingRequest(snippet_id=1, text="python programming")]
@@ -55,7 +55,7 @@ class TestHashEmbeddingProvider:
         assert all(-1 <= v <= 1 for v in results[0].embedding)
 
     @pytest.mark.asyncio
-    async def test_embed_multiple_requests(self):
+    async def test_embed_multiple_requests(self) -> None:
         """Test embedding with multiple requests."""
         provider = HashEmbeddingProvider()
         requests = [
@@ -76,7 +76,7 @@ class TestHashEmbeddingProvider:
             assert all(-1 <= v <= 1 for v in result.embedding)
 
     @pytest.mark.asyncio
-    async def test_embed_deterministic(self):
+    async def test_embed_deterministic(self) -> None:
         """Test that embeddings are deterministic for the same text."""
         provider = HashEmbeddingProvider()
         text = "python programming language"
@@ -93,7 +93,7 @@ class TestHashEmbeddingProvider:
         assert results[0].embedding == results[1].embedding
 
     @pytest.mark.asyncio
-    async def test_embed_different_texts_different_embeddings(self):
+    async def test_embed_different_texts_different_embeddings(self) -> None:
         """Test that different texts produce different embeddings."""
         provider = HashEmbeddingProvider()
         requests = [
@@ -109,7 +109,7 @@ class TestHashEmbeddingProvider:
         assert results[0].embedding != results[1].embedding
 
     @pytest.mark.asyncio
-    async def test_embed_batch_processing(self):
+    async def test_embed_batch_processing(self) -> None:
         """Test that requests are processed in batches."""
         provider = HashEmbeddingProvider()
         # Create more than batch_size requests
@@ -128,7 +128,7 @@ class TestHashEmbeddingProvider:
         assert batch_count == 2  # Should be 2 batches: 10 + 5
 
     @pytest.mark.asyncio
-    async def test_embed_tiny_size(self):
+    async def test_embed_tiny_size(self) -> None:
         """Test embedding with tiny size."""
         provider = HashEmbeddingProvider(embedding_size=TINY)
         requests = [EmbeddingRequest(snippet_id=1, text="test text")]
@@ -140,7 +140,7 @@ class TestHashEmbeddingProvider:
         assert len(results) == 1
         assert len(results[0].embedding) == TINY
 
-    def test_generate_embedding_manual(self):
+    def test_generate_embedding_manual(self) -> None:
         """Test the embedding generation logic manually."""
         provider = HashEmbeddingProvider(embedding_size=4)
         text = "test"
@@ -155,11 +155,11 @@ class TestHashEmbeddingProvider:
             value = (hash_bytes[byte_index] - 128) / 128.0
             expected_embedding.append(value)
 
-        actual_embedding = provider._generate_embedding(text)
+        actual_embedding = provider._generate_embedding(text)  # noqa: SLF001
         assert actual_embedding == expected_embedding
 
     @pytest.mark.asyncio
-    async def test_embed_similarity_scores(self):
+    async def test_embed_similarity_scores(self) -> None:
         """Test that similar texts have higher similarity scores."""
         provider = HashEmbeddingProvider()
 
@@ -187,11 +187,12 @@ class TestHashEmbeddingProvider:
             different_embeddings.extend(batch)
 
         # Calculate cosine similarities
-        def cosine_similarity(vec1, vec2):
+        def cosine_similarity(in1: list[float], in2: list[float]) -> float:
+            """Calculate cosine similarity between two vectors."""
             import numpy as np
 
-            vec1 = np.array(vec1)
-            vec2 = np.array(vec2)
+            vec1 = np.array(in1)
+            vec2 = np.array(in2)
             return np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
 
         # Similar texts should have higher similarity
@@ -210,7 +211,7 @@ class TestHashEmbeddingProvider:
         assert -1 <= different_sim <= 1
 
     @pytest.mark.asyncio
-    async def test_embed_empty_text(self):
+    async def test_embed_empty_text(self) -> None:
         """Test embedding with empty text."""
         provider = HashEmbeddingProvider()
         requests = [EmbeddingRequest(snippet_id=1, text="")]
@@ -225,7 +226,7 @@ class TestHashEmbeddingProvider:
         assert all(isinstance(v, float) for v in results[0].embedding)
 
     @pytest.mark.asyncio
-    async def test_embed_unicode_text(self):
+    async def test_embed_unicode_text(self) -> None:
         """Test embedding with unicode text."""
         provider = HashEmbeddingProvider()
         requests = [EmbeddingRequest(snippet_id=1, text="python 🐍 programming")]
@@ -239,7 +240,7 @@ class TestHashEmbeddingProvider:
         assert all(isinstance(v, float) for v in results[0].embedding)
 
     @pytest.mark.asyncio
-    async def test_embed_large_embedding_size(self):
+    async def test_embed_large_embedding_size(self) -> None:
         """Test embedding with a large embedding size."""
         large_size = 2048
         provider = HashEmbeddingProvider(embedding_size=large_size)
@@ -254,24 +255,24 @@ class TestHashEmbeddingProvider:
         assert all(isinstance(v, float) for v in results[0].embedding)
         assert all(-1 <= v <= 1 for v in results[0].embedding)
 
-    def test_generate_embedding_edge_cases(self):
+    def test_generate_embedding_edge_cases(self) -> None:
         """Test embedding generation with edge cases."""
         provider = HashEmbeddingProvider(embedding_size=10)
 
         # Test with very long text
         long_text = "x" * 10000
-        embedding = provider._generate_embedding(long_text)
+        embedding = provider._generate_embedding(long_text)  # noqa: SLF001
         assert len(embedding) == 10
         assert all(isinstance(v, float) for v in embedding)
 
         # Test with special characters
         special_text = "!@#$%^&*()_+-=[]{}|;':\",./<>?"
-        embedding = provider._generate_embedding(special_text)
+        embedding = provider._generate_embedding(special_text)  # noqa: SLF001
         assert len(embedding) == 10
         assert all(isinstance(v, float) for v in embedding)
 
         # Test with numbers
         number_text = "1234567890"
-        embedding = provider._generate_embedding(number_text)
+        embedding = provider._generate_embedding(number_text)  # noqa: SLF001
         assert len(embedding) == 10
         assert all(isinstance(v, float) for v in embedding)
