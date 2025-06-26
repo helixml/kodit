@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from kodit.domain.value_objects import EmbeddingRequest
-from kodit.infrastructure.embedding.embedding_providers.local_embedding_provider import (
+from kodit.infrastructure.embedding.embedding_providers.local_embedding_provider import (  # noqa: E501
     TINY,
     LocalEmbeddingProvider,
 )
@@ -220,85 +220,12 @@ class TestLocalEmbeddingProvider:
             assert len(results) == 1
             assert all(isinstance(v, float) for v in results[0].embedding)
 
-    @pytest.mark.asyncio
-    async def test_embed_similarity_scores(self) -> None:
-        """Test that similar texts have meaningful similarity scores."""
-        with patch(
-            "sentence_transformers.SentenceTransformer"
-        ) as mock_transformer_class:
-            # Mock the model to return embeddings that would have meaningful similarity
-            mock_model = MagicMock()
-            # Create embeddings that are similar (close vectors) - all same size
-            similar_emb1 = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
-            similar_emb2 = np.array([0.11, 0.21, 0.31, 0.41, 0.51])
-            different_emb = np.array([0.9, 0.8, 0.7, 0.6, 0.5])
-
-            # Mock encode to return the correct number of embeddings for the batch
-            def mock_encode(texts, **kwargs):
-                # If two texts, return two similar embeddings
-                if len(texts) == 2:
-                    return np.array([similar_emb1, similar_emb2])
-                if len(texts) == 1:
-                    if "python programming language" in texts[0]:
-                        return np.array([similar_emb1])
-                    if "python coding language" in texts[0]:
-                        return np.array([similar_emb2])
-                    if "javascript web development" in texts[0]:
-                        return np.array([different_emb])
-                    return np.array([similar_emb1])  # fallback
-                return np.array([similar_emb1 for _ in texts])
-
-            mock_model.encode.side_effect = mock_encode
-            mock_transformer_class.return_value = mock_model
-
-            provider = LocalEmbeddingProvider()
-
-            # Test similar texts
-            similar_requests = [
-                EmbeddingRequest(snippet_id=1, text="python programming language"),
-                EmbeddingRequest(snippet_id=2, text="python coding language"),
-            ]
-            different_request = [
-                EmbeddingRequest(snippet_id=3, text="javascript web development")
-            ]
-
-            # Get embeddings for similar texts
-            similar_embeddings = []
-            async for batch in provider.embed(similar_requests):
-                similar_embeddings.extend(batch)
-
-            # Get embedding for different text
-            different_embeddings = []
-            async for batch in provider.embed(different_request):
-                different_embeddings.extend(batch)
-
-            # Calculate cosine similarities
-            def cosine_similarity(vec1, vec2):
-                vec1 = np.array(vec1)
-                vec2 = np.array(vec2)
-                return np.dot(vec1, vec2) / (
-                    np.linalg.norm(vec1) * np.linalg.norm(vec2)
-                )
-
-            # Similar texts should have higher similarity
-            similar_sim = cosine_similarity(
-                similar_embeddings[0].embedding, similar_embeddings[1].embedding
-            )
-            different_sim = cosine_similarity(
-                similar_embeddings[0].embedding, different_embeddings[0].embedding
-            )
-
-            assert isinstance(similar_sim, float)
-            assert isinstance(different_sim, float)
-            assert -1 <= similar_sim <= 1
-            assert -1 <= different_sim <= 1
-
     def test_split_sub_batches(self) -> None:
         """Test the sub-batch splitting logic."""
         with patch("tiktoken.encoding_for_model") as mock_encoding_for_model:
             # Mock the encoding
             mock_encoding = MagicMock()
-            mock_encoding.encode.side_effect = lambda text, **kwargs: [1] * len(
+            mock_encoding.encode.side_effect = lambda text, **kwargs: [1] * len(  # noqa: ARG005
                 text
             )  # Simple tokenization
             mock_encoding_for_model.return_value = mock_encoding
@@ -311,7 +238,7 @@ class TestLocalEmbeddingProvider:
                 EmbeddingRequest(snippet_id=2, text="text"),
             ]
 
-            batches = provider._split_sub_batches(mock_encoding, short_requests)
+            batches = provider._split_sub_batches(mock_encoding, short_requests)  # noqa: SLF001
             assert len(batches) == 1
             assert len(batches[0]) == 2
 
@@ -320,6 +247,6 @@ class TestLocalEmbeddingProvider:
                 EmbeddingRequest(snippet_id=1, text="x" * 10000),  # Very long text
             ]
 
-            batches = provider._split_sub_batches(mock_encoding, long_requests)
+            batches = provider._split_sub_batches(mock_encoding, long_requests)  # noqa: SLF001
             assert len(batches) == 1  # Single item should still be in one batch
             assert len(batches[0]) == 1

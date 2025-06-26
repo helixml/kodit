@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from kodit.domain.value_objects import EmbeddingRequest
-from kodit.infrastructure.embedding.embedding_providers.openai_embedding_provider import (
+from kodit.infrastructure.embedding.embedding_providers.openai_embedding_provider import (  # noqa: E501
     OpenAIEmbeddingProvider,
 )
 

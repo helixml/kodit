@@ -1,3 +1,5 @@
+"""Test the embedding domain service factory."""
+
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -5,10 +7,10 @@ from kodit.config import AppContext, Endpoint, Search
 from kodit.infrastructure.embedding.embedding_factory import (
     embedding_domain_service_factory,
 )
-from kodit.infrastructure.embedding.embedding_providers.local_embedding_provider import (
+from kodit.infrastructure.embedding.embedding_providers.local_embedding_provider import (  # noqa: E501
     LocalEmbeddingProvider,
 )
-from kodit.infrastructure.embedding.embedding_providers.openai_embedding_provider import (
+from kodit.infrastructure.embedding.embedding_providers.openai_embedding_provider import (  # noqa: E501
     OpenAIEmbeddingProvider,
 )
 from kodit.infrastructure.embedding.local_vector_search_repository import (
@@ -20,6 +22,7 @@ from kodit.infrastructure.embedding.local_vector_search_repository import (
 async def test_embedding_domain_service_factory(
     app_context: AppContext, session: AsyncSession
 ) -> None:
+    """Test the embedding domain service factory."""
     # Set search provider to sqlite to override environment variable
     app_context.default_search = Search(provider="sqlite")
 
