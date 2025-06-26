@@ -22,9 +22,7 @@ class TestNullEnrichmentProvider:
         provider = NullEnrichmentProvider()
         requests = []
 
-        results = []
-        async for result in provider.enrich(requests):
-            results.append(result)
+        results = [result async for result in provider.enrich(requests)]
 
         assert len(results) == 0
 
@@ -34,9 +32,7 @@ class TestNullEnrichmentProvider:
         provider = NullEnrichmentProvider()
         requests = [EnrichmentRequest(snippet_id=1, text="def test(): pass")]
 
-        results = []
-        async for result in provider.enrich(requests):
-            results.append(result)
+        results = [result async for result in provider.enrich(requests)]
 
         assert len(results) == 1
         assert results[0].snippet_id == 1
@@ -52,9 +48,7 @@ class TestNullEnrichmentProvider:
             EnrichmentRequest(snippet_id=3, text=""),
         ]
 
-        results = []
-        async for result in provider.enrich(requests):
-            results.append(result)
+        results = [result async for result in provider.enrich(requests)]
 
         assert len(results) == 3
         assert results[0].snippet_id == 1
@@ -73,9 +67,7 @@ class TestNullEnrichmentProvider:
             EnrichmentRequest(snippet_id=123, text="def another(): pass"),
         ]
 
-        results = []
-        async for result in provider.enrich(requests):
-            results.append(result)
+        results = [result async for result in provider.enrich(requests)]
 
         assert len(results) == 2
         assert results[0].snippet_id == 42
@@ -92,9 +84,7 @@ class TestNullEnrichmentProvider:
             EnrichmentRequest(snippet_id=4, text="complex code with imports and logic"),
         ]
 
-        results = []
-        async for result in provider.enrich(requests):
-            results.append(result)
+        results = [result async for result in provider.enrich(requests)]
 
         assert len(results) == 4
         for result in results:
