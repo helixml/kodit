@@ -212,7 +212,7 @@ class TestSqlAlchemyEmbeddingRepository:
         ]
         query_embedding = [0.7, 0.8, 0.9]
 
-        stored_vecs, query_vec = repository._prepare_vectors(
+        stored_vecs, query_vec = repository._prepare_vectors(  # noqa: SLF001
             embeddings, query_embedding
         )
 
@@ -233,7 +233,7 @@ class TestSqlAlchemyEmbeddingRepository:
         )
         query_vec = np.array([1.0, 0.0, 0.0])  # Unit vector in x direction
 
-        similarities = repository._compute_similarities(stored_vecs, query_vec)
+        similarities = repository._compute_similarities(stored_vecs, query_vec)  # noqa: SLF001
 
         assert isinstance(similarities, np.ndarray)
         assert len(similarities) == 2
@@ -252,7 +252,7 @@ class TestSqlAlchemyEmbeddingRepository:
             (4, [1.0, 1.1, 1.2]),
         ]
 
-        results = repository._get_top_k_results(similarities, embeddings, top_k=3)
+        results = repository._get_top_k_results(similarities, embeddings, top_k=3)  # noqa: SLF001
 
         assert len(results) == 3
         # Should be sorted by similarity (highest first)
@@ -276,7 +276,7 @@ class TestSqlAlchemyEmbeddingRepository:
 
         repository = SqlAlchemyEmbeddingRepository(session=mock_session)
 
-        results = await repository._list_embedding_values(EmbeddingType.CODE)
+        results = await repository._list_embedding_values(EmbeddingType.CODE)  # noqa: SLF001
 
         assert len(results) == 2
         assert results[0] == (1, [0.1, 0.2, 0.3])
@@ -310,7 +310,9 @@ class TestSqlAlchemyEmbeddingRepository:
         assert "snippet_id" in str(call_args)
 
     @pytest.mark.asyncio
-    async def test_list_semantic_results_with_none_snippet_ids_no_filtering(self) -> None:
+    async def test_list_semantic_results_with_none_snippet_ids_no_filtering(
+        self,
+    ) -> None:
         """Test semantic search with None snippet_ids (no filtering)."""
         mock_session = MagicMock()
         mock_result = MagicMock()
@@ -366,7 +368,7 @@ class TestSqlAlchemyEmbeddingRepository:
 
         repository = SqlAlchemyEmbeddingRepository(session=mock_session)
 
-        results = await repository._list_embedding_values(
+        results = await repository._list_embedding_values(  # noqa: SLF001
             EmbeddingType.CODE, snippet_ids=[1, 2]
         )
 
@@ -380,7 +382,9 @@ class TestSqlAlchemyEmbeddingRepository:
         assert "snippet_id" in str(call_args)
 
     @pytest.mark.asyncio
-    async def test_list_embedding_values_with_none_snippet_ids_no_filtering(self) -> None:
+    async def test_list_embedding_values_with_none_snippet_ids_no_filtering(
+        self,
+    ) -> None:
         """Test listing embedding values with None snippet_ids (no filtering)."""
         mock_session = MagicMock()
         mock_result = MagicMock()
@@ -392,7 +396,7 @@ class TestSqlAlchemyEmbeddingRepository:
 
         repository = SqlAlchemyEmbeddingRepository(session=mock_session)
 
-        results = await repository._list_embedding_values(
+        results = await repository._list_embedding_values(  # noqa: SLF001
             EmbeddingType.CODE, snippet_ids=None
         )
 
