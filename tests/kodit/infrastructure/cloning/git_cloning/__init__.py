@@ -1,0 +1,1 @@
+"""Git cloning infrastructure tests."""

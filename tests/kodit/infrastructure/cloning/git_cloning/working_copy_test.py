@@ -26,7 +26,7 @@ def get_expected_directory_name(uri: str) -> str:
 
 @pytest.mark.asyncio
 async def test_prepare_should_not_leak_credentials_in_directory_name(
-    working_copy: GitWorkingCopyProvider, tmp_path: Path
+    working_copy: GitWorkingCopyProvider,
 ) -> None:
     """Test that directory names don't contain sensitive credentials."""
     # URLs with PATs that should not appear in directory names
@@ -68,10 +68,10 @@ async def test_prepare_should_not_leak_credentials_in_directory_name(
 
 @pytest.mark.asyncio
 async def test_prepare_should_not_exceed_windows_path_limit(
-    working_copy: GitWorkingCopyProvider, tmp_path: Path
+    working_copy: GitWorkingCopyProvider,
 ) -> None:
     """Test that directory names never exceed Windows 256 character path limit."""
-    # Create a URL that, when sanitized and converted to directory name, would exceed 256 characters
+    # Create a URL that, when sanitized, exceeds 256 characters
     # This URL is designed to be extremely long to trigger the Windows path limit issue
     long_url = (
         "https://extremely-long-domain-name-that-will-definitely-exceed-windows-path-limits-and-cause-issues.com/"
@@ -92,7 +92,7 @@ async def test_prepare_should_not_exceed_windows_path_limit(
         # Print the actual directory name and its length for debugging
 
         # This test should PASS because the directory name is now a short hash
-        # The directory name should be in format "repo-<16-char-hash>" (21 characters total)
+        # The directory should be in format "repo-<16-char-hash>" (21 characters total)
         assert len(directory_name) <= 256, (
             f"Directory name exceeds Windows 256 character path limit: "
             f"{len(directory_name)} characters: {directory_name}"
@@ -107,7 +107,7 @@ async def test_prepare_should_not_exceed_windows_path_limit(
 
 @pytest.mark.asyncio
 async def test_prepare_clean_urls_should_work_normally(
-    working_copy: GitWorkingCopyProvider, tmp_path: Path
+    working_copy: GitWorkingCopyProvider,
 ) -> None:
     """Test that clean URLs work normally without any issues."""
     clean_urls = [
@@ -136,7 +136,7 @@ async def test_prepare_clean_urls_should_work_normally(
 
 @pytest.mark.asyncio
 async def test_prepare_ssh_urls_should_work_normally(
-    working_copy: GitWorkingCopyProvider, tmp_path: Path
+    working_copy: GitWorkingCopyProvider,
 ) -> None:
     """Test that SSH URLs work normally."""
     ssh_urls = [
@@ -164,7 +164,7 @@ async def test_prepare_ssh_urls_should_work_normally(
 
 @pytest.mark.asyncio
 async def test_prepare_handles_clone_errors_gracefully(
-    working_copy: GitWorkingCopyProvider, tmp_path: Path
+    working_copy: GitWorkingCopyProvider,
 ) -> None:
     """Test that clone errors are handled gracefully."""
     url = "https://github.com/username/repo.git"
@@ -182,7 +182,7 @@ async def test_prepare_handles_clone_errors_gracefully(
 
 @pytest.mark.asyncio
 async def test_prepare_handles_already_exists_error(
-    working_copy: GitWorkingCopyProvider, tmp_path: Path
+    working_copy: GitWorkingCopyProvider,
 ) -> None:
     """Test that 'already exists' errors are handled gracefully."""
     url = "https://github.com/username/repo.git"
