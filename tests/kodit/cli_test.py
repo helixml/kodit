@@ -110,7 +110,9 @@ def test_search_language_filtering_with_mocks(runner: CliRunner) -> None:
         ),
         MagicMock(
             id=2,
-            content="function helloWorld() {\n    console.log('Hello from JavaScript!');\n}",
+            content=(
+                "function helloWorld() {\n    console.log('Hello from JavaScript!');\n}"
+            ),
             file=MagicMock(extension="js"),
         ),
         MagicMock(

@@ -17,7 +17,7 @@ async def test_list_snippets_by_file_path(session: AsyncSession) -> None:
     # Create test data
     source = Source(
         uri="https://github.com/test/repo.git",
-        cloned_path="/tmp/test_repo",
+        cloned_path="/tmp/test_repo",  # noqa: S108
         source_type=SourceType.GIT,
     )
     session.add(source)
@@ -34,7 +34,7 @@ async def test_list_snippets_by_file_path(session: AsyncSession) -> None:
         source_id=source.id,
         mime_type="text/plain",
         uri="test.py",
-        cloned_path="/tmp/test_repo/test.py",
+        cloned_path="/tmp/test_repo/test.py",  # noqa: S108
         sha256="abc123",
         size_bytes=100,
         extension="py",
@@ -51,7 +51,7 @@ async def test_list_snippets_by_file_path(session: AsyncSession) -> None:
 
     # Create repository and test
     repository = SqlAlchemySnippetRepository(session)
-    result = await repository.list_snippets("/tmp/test_repo/test.py")
+    result = await repository.list_snippets("/tmp/test_repo/test.py")  # noqa: S108
 
     # Verify results
     assert len(result) == 2
@@ -69,12 +69,12 @@ async def test_list_snippets_by_source_uri(session: AsyncSession) -> None:
     # Create test data
     source1 = Source(
         uri="https://github.com/test/repo1.git",
-        cloned_path="/tmp/test_repo1",
+        cloned_path="/tmp/test_repo1",  # noqa: S108
         source_type=SourceType.GIT,
     )
     source2 = Source(
         uri="https://github.com/test/repo2.git",
-        cloned_path="/tmp/test_repo2",
+        cloned_path="/tmp/test_repo2",  # noqa: S108
         source_type=SourceType.GIT,
     )
     session.add(source1)
@@ -95,7 +95,7 @@ async def test_list_snippets_by_source_uri(session: AsyncSession) -> None:
         source_id=source1.id,
         mime_type="text/plain",
         uri="file1.py",
-        cloned_path="/tmp/test_repo1/file1.py",
+        cloned_path="/tmp/test_repo1/file1.py",  # noqa: S108
         sha256="abc123",
         size_bytes=100,
         extension="py",
@@ -106,7 +106,7 @@ async def test_list_snippets_by_source_uri(session: AsyncSession) -> None:
         source_id=source2.id,
         mime_type="text/plain",
         uri="file2.py",
-        cloned_path="/tmp/test_repo2/file2.py",
+        cloned_path="/tmp/test_repo2/file2.py",  # noqa: S108
         sha256="abc123",
         size_bytes=100,
         extension="py",
@@ -145,7 +145,7 @@ async def test_list_snippets_by_directory_path(session: AsyncSession) -> None:
     # Create test data
     source = Source(
         uri="https://github.com/test/repo.git",
-        cloned_path="/tmp/test_repo",
+        cloned_path="/tmp/test_repo",  # noqa: S108
         source_type=SourceType.GIT,
     )
     session.add(source)
@@ -163,7 +163,7 @@ async def test_list_snippets_by_directory_path(session: AsyncSession) -> None:
         source_id=source.id,
         mime_type="text/plain",
         uri="file1.py",
-        cloned_path="/tmp/test_repo/file1.py",
+        cloned_path="/tmp/test_repo/file1.py",  # noqa: S108
         sha256="abc123",
         size_bytes=100,
         extension="py",
@@ -174,7 +174,7 @@ async def test_list_snippets_by_directory_path(session: AsyncSession) -> None:
         source_id=source.id,
         mime_type="text/plain",
         uri="file2.py",
-        cloned_path="/tmp/test_repo/file2.py",
+        cloned_path="/tmp/test_repo/file2.py",  # noqa: S108
         sha256="abc123",
         size_bytes=100,
         extension="py",
@@ -196,7 +196,7 @@ async def test_list_snippets_by_directory_path(session: AsyncSession) -> None:
 
     # Create repository and test
     repository = SqlAlchemySnippetRepository(session)
-    result = await repository.list_snippets("/tmp/test_repo/")
+    result = await repository.list_snippets("/tmp/test_repo/")  # noqa: S108
 
     # Verify results - should get snippets from both files
     assert len(result) == 2
@@ -213,7 +213,7 @@ async def test_list_snippets_no_filter(session: AsyncSession) -> None:
     # Create test data
     source = Source(
         uri="https://github.com/test/repo.git",
-        cloned_path="/tmp/test_repo",
+        cloned_path="/tmp/test_repo",  # noqa: S108
         source_type=SourceType.GIT,
     )
     session.add(source)
@@ -230,7 +230,7 @@ async def test_list_snippets_no_filter(session: AsyncSession) -> None:
         source_id=source.id,
         mime_type="text/plain",
         uri="test.py",
-        cloned_path="/tmp/test_repo/test.py",
+        cloned_path="/tmp/test_repo/test.py",  # noqa: S108
         sha256="abc123",
         size_bytes=100,
         extension="py",
@@ -265,7 +265,7 @@ async def test_list_snippets_no_results(session: AsyncSession) -> None:
     # Create test data
     source = Source(
         uri="https://github.com/test/repo.git",
-        cloned_path="/tmp/test_repo",
+        cloned_path="/tmp/test_repo",  # noqa: S108
         source_type=SourceType.GIT,
     )
     session.add(source)
@@ -282,7 +282,7 @@ async def test_list_snippets_no_results(session: AsyncSession) -> None:
         source_id=source.id,
         mime_type="text/plain",
         uri="test.py",
-        cloned_path="/tmp/test_repo/test.py",
+        cloned_path="/tmp/test_repo/test.py",  # noqa: S108
         sha256="abc123",
         size_bytes=100,
         extension="py",
@@ -305,11 +305,11 @@ async def test_list_snippets_no_results(session: AsyncSession) -> None:
 
 @pytest.mark.asyncio
 async def test_list_snippets_by_relative_path(session: AsyncSession) -> None:
-    """Test listing snippets by relative path (should match relative, not full, path)."""
+    """Test listing by relative path (should match relative, not full, path)."""
     # Create test data
     source = Source(
         uri="https://dev.azure.com/winderai/public-test/_git/simple-ddd-brewing-demo",
-        cloned_path="/tmp/test_repo",
+        cloned_path="/tmp/test_repo",  # noqa: S108
         source_type=SourceType.GIT,
     )
     session.add(source)
@@ -326,7 +326,7 @@ async def test_list_snippets_by_relative_path(session: AsyncSession) -> None:
         source_id=source.id,
         mime_type="text/plain",
         uri="domain/Beer.js",
-        cloned_path="/tmp/test_repo/domain/Beer.js",
+        cloned_path="/tmp/test_repo/domain/Beer.js",  # noqa: S108
         sha256="abc123",
         size_bytes=100,
         extension="js",

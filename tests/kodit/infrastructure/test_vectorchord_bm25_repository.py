@@ -4,7 +4,7 @@ import asyncio
 import socket
 import subprocess
 import time
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Generator
 from datetime import UTC, datetime
 
 import pytest
@@ -35,7 +35,7 @@ pytestmark = [
 
 
 @pytest.fixture(scope="module")
-def event_loop():
+def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
     """Create an event loop for module-scoped async tests."""
     loop = asyncio.new_event_loop()
     yield loop
@@ -57,14 +57,14 @@ _vectorchord_container_name: str | None = None
 @pytest.fixture(scope="module")
 async def vectorchord_engine() -> AsyncGenerator[AsyncEngine, None]:
     """Create a test database engine for the entire test module."""
-    global _vectorchord_port, _vectorchord_container_name
+    global _vectorchord_port, _vectorchord_container_name  # noqa: PLW0603
 
     _vectorchord_port = find_free_port()
     _vectorchord_container_name = f"vectorchord_test_{_vectorchord_port}"
 
     # Spin up a docker container for the vectorchord database
-    subprocess.run(
-        [
+    subprocess.run(  # noqa: S603,ASYNC221
+        [  # noqa: S607
             "docker",
             "run",
             "-d",
@@ -92,8 +92,8 @@ async def vectorchord_engine() -> AsyncGenerator[AsyncEngine, None]:
             async with engine.connect() as conn:
                 await conn.execute(text("SELECT 1"))
             break
-        except Exception:
-            time.sleep(1)
+        except Exception:  # noqa: BLE001
+            time.sleep(1)  # noqa: ASYNC251
 
     try:
         engine = create_async_engine(
@@ -110,7 +110,10 @@ async def vectorchord_engine() -> AsyncGenerator[AsyncEngine, None]:
         await engine.dispose()
     finally:
         # Clean up the container at the end of the module
-        subprocess.run(["docker", "rm", "-f", _vectorchord_container_name], check=True)
+        subprocess.run(  # noqa: S603,ASYNC221
+            ["docker", "rm", "-f", _vectorchord_container_name],  # noqa: S607
+            check=True,
+        )
 
 
 @pytest.fixture
@@ -189,27 +192,42 @@ async def test_data(
         Snippet(
             file_id=file.id,
             index_id=index.id,
-            content="Python is a high-level programming language known for its simplicity and readability.",
+            content=(
+                "Python is a high-level programming language "
+                "known for its simplicity and readability."
+            ),
         ),
         Snippet(
             file_id=file.id,
             index_id=index.id,
-            content="Python supports multiple programming paradigms including procedural, object-oriented, and functional programming.",
+            content=(
+                "Python supports multiple programming paradigms including "
+                "procedural, object-oriented, and functional programming."
+            ),
         ),
         Snippet(
             file_id=file.id,
             index_id=index.id,
-            content="The Python programming language was created by Guido van Rossum and first released in 1991.",
+            content=(
+                "The Python programming language was created by "
+                "Guido van Rossum and first released in 1991."
+            ),
         ),
         Snippet(
             file_id=file.id,
             index_id=index.id,
-            content="Python is widely used in data science, machine learning, and artificial intelligence applications.",
+            content=(
+                "Python is widely used in data science, machine learning, "
+                "and artificial intelligence applications."
+            ),
         ),
         Snippet(
             file_id=file.id,
             index_id=index.id,
-            content="Python's extensive standard library and third-party packages make it a versatile language for various applications.",
+            content=(
+                "Python's extensive standard library and third-party packages "
+                "make it a versatile language for various applications."
+            ),
         ),
     ]
 
@@ -250,7 +268,7 @@ async def test_search_with_none_snippet_ids_returns_all_results(
     # Verify
     assert len(results) > 0
     assert all(isinstance(result, SearchResult) for result in results)
-    # Should return multiple results since "Python programming" matches multiple snippets
+    # Should return multiple results since "Python programming" matches multiple snips
     assert len(results) >= 3
 
 
@@ -442,7 +460,7 @@ async def test_search_result_structure(
 async def test_search_with_mixed_existing_and_nonexistent_ids(
     test_data: tuple[list[Snippet], VectorChordBM25Repository],
 ) -> None:
-    """Test that search with a mix of existing and non-existent snippet_ids works correctly."""
+    """Test that search with a mix of existing and non-existent snippet_ids works."""
     snippets, repository = test_data
 
     # Setup - mix of existing and non-existent IDs
