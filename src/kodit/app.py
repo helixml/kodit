@@ -1,14 +1,49 @@
 """FastAPI application for kodit API."""
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from asgi_correlation_id import CorrelationIdMiddleware
 from fastapi import FastAPI
 
+from kodit.config import AppContext
+from kodit.infrastructure.indexing.auto_indexing_service import AutoIndexingService
 from kodit.mcp import mcp
 from kodit.middleware import ASGICancelledErrorMiddleware, logging_middleware
 
+# Global auto-indexing service
+_auto_indexing_service: AutoIndexingService | None = None
+
+
+@asynccontextmanager
+async def app_lifespan(_: FastAPI) -> AsyncIterator[None]:
+    """Manage application lifespan for auto-indexing."""
+    global _auto_indexing_service  # noqa: PLW0603
+    # Start auto-indexing service
+    app_context = AppContext()
+    db = await app_context.get_db()
+    _auto_indexing_service = AutoIndexingService(
+        app_context=app_context,
+        session_factory=db.session_factory,
+    )
+    await _auto_indexing_service.start_background_indexing()
+    yield
+    if _auto_indexing_service:
+        await _auto_indexing_service.stop()
+
+
 # See https://gofastmcp.com/deployment/asgi#fastapi-integration
 mcp_app = mcp.sse_app()
-app = FastAPI(title="kodit API", lifespan=mcp_app.router.lifespan_context)
+
+
+@asynccontextmanager
+async def combined_lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Combine app and MCP lifespans."""
+    async with app_lifespan(app), mcp_app.router.lifespan_context(app):
+        yield
+
+
+app = FastAPI(title="kodit API", lifespan=combined_lifespan)
 
 # Add middleware
 app.middleware("http")(logging_middleware)

@@ -59,12 +59,17 @@ def cli(
 
 @cli.command()
 @click.argument("sources", nargs=-1)
+@click.option(
+    "--auto-index", is_flag=True, help="Index all configured auto-index sources"
+)
 @with_app_context
 @with_session
 async def index(
     session: AsyncSession,
     app_context: AppContext,
     sources: list[str],
+    *,  # Force keyword-only arguments
+    auto_index: bool,
 ) -> None:
     """List indexes, or index data sources."""
     log = structlog.get_logger(__name__)
@@ -77,6 +82,16 @@ async def index(
         session=session,
         source_service=source_service,
     )
+
+    if auto_index:
+        log.info("Auto-indexing configuration", config=app_context.auto_indexing)
+        auto_sources = app_context.auto_indexing.sources
+        if not auto_sources:
+            click.echo("No auto-index sources configured.")
+            return
+
+        click.echo(f"Auto-indexing {len(auto_sources)} configured sources...")
+        sources = [source.uri for source in auto_sources]
 
     if not sources:
         log_event("kodit.cli.index.list")

@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, TypeVar
 
 import click
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 if TYPE_CHECKING:
@@ -37,9 +37,43 @@ class Endpoint(BaseModel):
 
 
 class Search(BaseModel):
-    """Search provides configuration for a search engine."""
+    """Search configuration."""
 
     provider: Literal["sqlite", "vectorchord"] = Field(default="sqlite")
+
+
+class AutoIndexingSource(BaseModel):
+    """Configuration for a single auto-indexing source."""
+
+    uri: str = Field(description="URI of the source to index (git URL or local path)")
+
+
+class AutoIndexingConfig(BaseModel):
+    """Configuration for auto-indexing."""
+
+    sources: list[AutoIndexingSource] = Field(
+        default_factory=list, description="List of sources to auto-index"
+    )
+
+    @field_validator("sources", mode="before")
+    @classmethod
+    def parse_sources(cls, v: Any) -> list[AutoIndexingSource]:
+        """Parse sources from environment variables or other formats."""
+        if v is None:
+            return []
+        if isinstance(v, list):
+            return v
+        if isinstance(v, dict):
+            # Handle case where env vars are parsed as numbered keys like {'0': {'uri': '...'}}
+            sources = []
+            i = 0
+            while str(i) in v:
+                source_data = v[str(i)]
+                if isinstance(source_data, dict) and "uri" in source_data:
+                    sources.append(AutoIndexingSource(uri=source_data["uri"]))
+                i += 1
+            return sources
+        return v
 
 
 class AppContext(BaseSettings):
@@ -50,7 +84,7 @@ class AppContext(BaseSettings):
         env_file_encoding="utf-8",
         env_nested_delimiter="_",
         nested_model_default_partial_update=True,
-        env_nested_max_split=1,
+        extra="ignore",
     )
 
     data_dir: Path = Field(default=DEFAULT_BASE_DIR)
@@ -75,6 +109,9 @@ class AppContext(BaseSettings):
     )
     default_search: Search = Field(
         default=Search(),
+    )
+    auto_indexing: AutoIndexingConfig | None = Field(
+        default=AutoIndexingConfig(), description="Auto-indexing configuration"
     )
     _db: Database | None = None
 
