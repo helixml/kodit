@@ -42,7 +42,7 @@ Kodit can index local directories on your filesystem:
 
 ## Basic Usage
 
-### Indexing a Source
+### Manual Indexing
 
 To index a source, use the `kodit index` command followed by the source location:
 
@@ -74,6 +74,61 @@ This will display a table showing:
 - Creation and update timestamps
 - Source URI
 - Number of snippets extracted
+
+### Auto-Indexing
+
+If you're running Kodit as a shared server, you need to configure what gets indexed.
+Auto-indexing is a simple indexing configuration powered by environmental variables.
+
+#### Configuration via Environment Variables
+
+Configure auto-indexing sources using environment variables with the `AUTO_INDEXING_SOURCES_{X}_` prefix:
+
+```sh
+# Configure a single auto-index source
+export AUTO_INDEXING_SOURCES_0_URI="https://github.com/pydantic/pydantic"
+
+# Configure multiple auto-index sources
+export AUTO_INDEXING_SOURCES_0_URI="https://github.com/pydantic/pydantic"
+export AUTO_INDEXING_SOURCES_1_URI="https://github.com/fastapi/fastapi"
+export AUTO_INDEXING_SOURCES_2_URI="/path/to/local/project"
+
+# Or use a .env file
+echo "AUTO_INDEXING_SOURCES_0_URI=https://github.com/pydantic/pydantic" >> .env
+echo "AUTO_INDEXING_SOURCES_1_URI=https://github.com/fastapi/fastapi" >> .env
+echo "AUTO_INDEXING_SOURCES_2_URI=/path/to/local/project" >> .env
+```
+
+**Configuration Format:**
+
+- Use `AUTO_INDEXING_SOURCES_N_URI` where `N` is a zero-based index
+- Sources are indexed in numerical order (0, 1, 2, etc.)
+- Supports all source types: Git repositories (HTTPS/SSH) and local directories
+- Gaps in numbering are allowed (e.g., 0, 2, 5 will work)
+
+#### Using Auto-Indexing
+
+To manually index all configured auto-index sources:
+
+```sh
+kodit index --auto-index
+```
+
+This command will:
+
+1. Read the auto-indexing configuration from environment variables
+2. Index each configured source in sequence
+3. Show progress for each source being indexed
+4. Handle errors gracefully and continue with remaining sources
+
+If no auto-index sources are configured, the command will display a message indicating
+that no sources are configured.
+
+To automatically run index all configured auto-index sources:
+
+```sh
+kodit serve
+```
 
 ## Git Protocol Support
 
@@ -226,15 +281,6 @@ Kodit shows progress during indexing operations:
 - Snippet extraction progress
 - Index building progress (BM25, embeddings)
 
-### Error Handling
-
-Common issues and solutions:
-
-1. **Authentication Errors**: Ensure your credentials are correct
-2. **Network Issues**: Check your internet connection and firewall settings
-3. **Permission Errors**: Ensure you have read access to the source
-4. **Unsupported Files**: Kodit will skip unsupported file types automatically
-
 ## Privacy and Security
 
 ### Local Processing
@@ -265,6 +311,8 @@ Kodit respects privacy by honoring:
 2. **"Unsupported source"**: Ensure the path or URL is valid and accessible
 3. **"No snippets found"**: Check if the source contains supported file types
 4. **"Permission denied"**: Ensure you have read access to the source
+5. **"No auto-index sources configured"**: Check your environment variables are set correctly
+6. **"Auto-indexing configuration error"**: Verify the environment variable format uses `AUTO_INDEXING_SOURCES_N_URI`
 
 ### Checking Index Status
 
