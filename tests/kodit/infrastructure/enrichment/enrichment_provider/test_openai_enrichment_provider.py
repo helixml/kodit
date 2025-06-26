@@ -1,10 +1,11 @@
 """Tests for the OpenAI enrichment provider."""
 
 import asyncio
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
-from kodit.domain.value_objects import EnrichmentRequest, EnrichmentResponse
+import pytest
+
+from kodit.domain.value_objects import EnrichmentRequest
 from kodit.infrastructure.enrichment.openai_enrichment_provider import (
     OpenAIEnrichmentProvider,
 )

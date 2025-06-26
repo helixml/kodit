@@ -4,14 +4,14 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from kodit.domain.value_objects import (
-    EnrichmentRequest,
-    EnrichmentResponse,
-    EnrichmentIndexRequest,
-)
 from kodit.domain.services.enrichment_service import (
     EnrichmentDomainService,
     EnrichmentProvider,
+)
+from kodit.domain.value_objects import (
+    EnrichmentIndexRequest,
+    EnrichmentRequest,
+    EnrichmentResponse,
 )
 
 

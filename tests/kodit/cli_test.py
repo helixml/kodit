@@ -1,18 +1,15 @@
 """Test the CLI."""
 
-import asyncio
-from datetime import datetime, UTC
-from pathlib import Path
 import tempfile
-from typing import Generator
+from collections.abc import Generator
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
 from click.testing import CliRunner
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from unittest.mock import patch, AsyncMock, MagicMock
 
 from kodit.cli import cli
-from kodit.domain.entities import File, Index, Snippet, Source, SourceType
-from kodit.domain.value_objects import SnippetSearchFilters, MultiSearchRequest
+from kodit.domain.value_objects import MultiSearchRequest
 
 
 @pytest.fixture
@@ -23,7 +20,7 @@ def tmp_data_dir() -> Generator[Path, None, None]:
 
 
 @pytest.fixture
-def runner(tmp_data_dir: Path) -> Generator[CliRunner, None, None]:
+def runner(tmp_data_dir: Path) -> CliRunner:
     """Create a CliRunner instance."""
     runner = CliRunner()
     runner.env = {
@@ -31,7 +28,7 @@ def runner(tmp_data_dir: Path) -> Generator[CliRunner, None, None]:
         "DATA_DIR": str(tmp_data_dir),
         "DB_URL": f"sqlite+aiosqlite:///{tmp_data_dir}/test.db",
     }
-    yield runner
+    return runner
 
 
 def test_version_command(runner: CliRunner) -> None:
@@ -77,7 +74,6 @@ def test_dotenv_file_not_found(runner: CliRunner) -> None:
 
 def test_search_language_filtering_help(runner: CliRunner) -> None:
     """Test that language filtering options are available in search commands."""
-
     # Test that language filter option is available in code search
     result = runner.invoke(cli, ["search", "code", "--help"])
     assert result.exit_code == 0
@@ -105,7 +101,6 @@ def test_search_language_filtering_help(runner: CliRunner) -> None:
 
 def test_search_language_filtering_with_mocks(runner: CliRunner) -> None:
     """Test that language filtering works in search commands using mocks."""
-
     # Mock the search functionality
     mock_snippets = [
         MagicMock(
@@ -147,7 +142,6 @@ def test_search_language_filtering_with_mocks(runner: CliRunner) -> None:
 
 def test_search_filters_parsing(runner: CliRunner) -> None:
     """Test that search filters are properly parsed from CLI arguments."""
-
     # Mock the search functionality
     mock_snippets = [MagicMock(id=1, content="test snippet")]
     mock_service = MagicMock()
@@ -193,7 +187,6 @@ def test_search_filters_parsing(runner: CliRunner) -> None:
 
 def test_search_without_filters(runner: CliRunner) -> None:
     """Test that search works without filters."""
-
     # Mock the search functionality
     mock_snippets = [MagicMock(id=1, content="test snippet")]
     mock_service = MagicMock()
@@ -217,7 +210,6 @@ def test_search_without_filters(runner: CliRunner) -> None:
 
 def test_search_language_filter_all_commands(runner: CliRunner) -> None:
     """Test language filtering across all search command types."""
-
     # Mock the search functionality
     mock_snippets = [MagicMock(id=1, content="test snippet")]
     mock_service = MagicMock()
@@ -280,7 +272,6 @@ def test_search_language_filter_all_commands(runner: CliRunner) -> None:
 
 def test_search_author_filter(runner: CliRunner) -> None:
     """Test author filtering functionality."""
-
     # Mock the search functionality
     mock_snippets = [MagicMock(id=1, content="test snippet")]
     mock_service = MagicMock()
@@ -308,7 +299,6 @@ def test_search_author_filter(runner: CliRunner) -> None:
 
 def test_search_created_after_filter(runner: CliRunner) -> None:
     """Test created-after date filtering functionality."""
-
     # Mock the search functionality
     mock_snippets = [MagicMock(id=1, content="test snippet")]
     mock_service = MagicMock()
@@ -332,7 +322,6 @@ def test_search_created_after_filter(runner: CliRunner) -> None:
 
 def test_search_created_before_filter(runner: CliRunner) -> None:
     """Test created-before date filtering functionality."""
-
     # Mock the search functionality
     mock_snippets = [MagicMock(id=1, content="test snippet")]
     mock_service = MagicMock()
@@ -356,7 +345,6 @@ def test_search_created_before_filter(runner: CliRunner) -> None:
 
 def test_search_source_repo_filter(runner: CliRunner) -> None:
     """Test source repository filtering functionality."""
-
     # Mock the search functionality
     mock_snippets = [MagicMock(id=1, content="test snippet")]
     mock_service = MagicMock()
@@ -380,7 +368,6 @@ def test_search_source_repo_filter(runner: CliRunner) -> None:
 
 def test_search_multiple_filters_combination(runner: CliRunner) -> None:
     """Test combinations of multiple filters."""
-
     # Mock the search functionality
     mock_snippets = [MagicMock(id=1, content="test snippet")]
     mock_service = MagicMock()
@@ -476,7 +463,6 @@ def test_search_multiple_filters_combination(runner: CliRunner) -> None:
 
 def test_search_invalid_date_format(runner: CliRunner) -> None:
     """Test that invalid date formats raise an error."""
-
     # Test with invalid date format
     result = runner.invoke(
         cli, ["search", "code", "test", "--created-after", "invalid-date"]
@@ -498,7 +484,6 @@ def test_search_invalid_date_format(runner: CliRunner) -> None:
 
 def test_search_filter_case_insensitivity(runner: CliRunner) -> None:
     """Test that language filters are case insensitive."""
-
     # Mock the search functionality
     mock_snippets = [MagicMock(id=1, content="test snippet")]
     mock_service = MagicMock()
@@ -531,7 +516,6 @@ def test_search_filter_case_insensitivity(runner: CliRunner) -> None:
 
 def test_search_filter_help_text(runner: CliRunner) -> None:
     """Test that all filter options show up in help text."""
-
     # Test code search help
     result = runner.invoke(cli, ["search", "code", "--help"])
     assert result.exit_code == 0

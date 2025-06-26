@@ -1,16 +1,14 @@
 """End-to-end tests."""
 
-import os
-import shutil
 import tempfile
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator
 
 import pytest
 from click.testing import CliRunner
 
 from kodit.cli import cli
-from kodit.config import reset_config, get_config
+from kodit.config import reset_config
 
 
 @pytest.fixture
@@ -21,7 +19,7 @@ def tmp_data_dir() -> Generator[Path, None, None]:
 
 
 @pytest.fixture
-def runner(tmp_data_dir: Path) -> Generator[CliRunner, None, None]:
+def runner(tmp_data_dir: Path) -> CliRunner:
     """Create a CliRunner instance."""
     reset_config()
     runner = CliRunner()
@@ -30,7 +28,7 @@ def runner(tmp_data_dir: Path) -> Generator[CliRunner, None, None]:
         "DB_URL": f"sqlite+aiosqlite:///{tmp_data_dir}/test.db",
         "DISABLE_TELEMETRY": "true",
     }
-    yield runner
+    return runner
 
 
 @pytest.fixture
@@ -41,7 +39,7 @@ def tmp_repo_dir() -> Generator[Path, None, None]:
 
 
 @pytest.fixture
-def test_repo(tmp_repo_dir: Path) -> Generator[Path, None, None]:
+def test_repo(tmp_repo_dir: Path) -> Path:
     """Create a temporary test repository with some sample code."""
     # Create a sample Python file
     sample_file = tmp_repo_dir / "sample.py"
@@ -61,7 +59,7 @@ def add_numbers(a: int, b: int) -> int:
         "# Test Repository\n\nThis is a test repository for kodit e2e tests."
     )
 
-    yield tmp_repo_dir
+    return tmp_repo_dir
 
 
 def test_source_management(runner: CliRunner, test_repo: Path) -> None:

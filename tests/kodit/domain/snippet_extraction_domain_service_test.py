@@ -5,13 +5,13 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from kodit.domain.value_objects import SnippetExtractionRequest, SnippetExtractionResult
 from kodit.domain.enums import SnippetExtractionStrategy
 from kodit.domain.services.snippet_extraction_service import (
-    SnippetExtractionDomainService,
     LanguageDetectionService,
+    SnippetExtractionDomainService,
     SnippetExtractor,
 )
+from kodit.domain.value_objects import SnippetExtractionRequest, SnippetExtractionResult
 
 
 class MockLanguageDetectionService(MagicMock):

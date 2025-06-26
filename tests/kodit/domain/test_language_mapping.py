@@ -1,7 +1,8 @@
 """Tests for LanguageMapping value object."""
 
-import pytest
 from datetime import datetime
+
+import pytest
 
 from kodit.domain.value_objects import LanguageMapping, SnippetSearchFilters
 

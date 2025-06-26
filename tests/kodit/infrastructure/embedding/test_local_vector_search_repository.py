@@ -17,8 +17,8 @@ from kodit.domain.value_objects import (
     Document,
     EmbeddingResponse,
     IndexRequest,
-    SearchResult,
     SearchRequest,
+    SearchResult,
 )
 from kodit.infrastructure.embedding.local_vector_search_repository import (
     LocalVectorSearchRepository,

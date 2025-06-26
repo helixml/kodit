@@ -1,13 +1,13 @@
 """Tests for the VectorChord vector search repository with real database."""
 
+import asyncio
 import socket
 import subprocess
 import time
+from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
-from typing import AsyncGenerator
 
 import pytest
-import asyncio
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -16,18 +16,18 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from kodit.domain.entities import Base, Index, Snippet, File, Source, SourceType
+from kodit.domain.entities import Base, File, Index, Snippet, Source, SourceType
 from kodit.domain.value_objects import (
     Document,
     IndexRequest,
-    SearchResult,
     SearchRequest,
-)
-from kodit.infrastructure.embedding.vectorchord_vector_search_repository import (
-    VectorChordVectorSearchRepository,
+    SearchResult,
 )
 from kodit.infrastructure.embedding.embedding_providers.hash_embedding_provider import (
     HashEmbeddingProvider,
+)
+from kodit.infrastructure.embedding.vectorchord_vector_search_repository import (
+    VectorChordVectorSearchRepository,
 )
 
 # Suppress the pytest-asyncio event_loop fixture deprecation warning
@@ -95,7 +95,7 @@ async def vectorchord_engine() -> AsyncGenerator[AsyncEngine, None]:
             async with engine.connect() as conn:
                 await conn.execute(text("SELECT 1"))
             break
-        except Exception as e:
+        except Exception:
             time.sleep(1)
 
     try:

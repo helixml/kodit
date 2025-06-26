@@ -70,7 +70,7 @@ async def sample_source(
     session.add(source)
     await session.commit()
     await session.refresh(source)
-    yield source
+    return source
 
 
 @pytest.fixture
@@ -93,7 +93,7 @@ async def sample_file(
     session.add(file)
     await session.commit()
     await session.refresh(file)
-    yield file
+    return file
 
 
 @pytest.fixture
@@ -106,7 +106,7 @@ async def sample_author(session: AsyncSession) -> AsyncGenerator[Author, None]:
     session.add(author)
     await session.commit()
     await session.refresh(author)
-    yield author
+    return author
 
 
 @pytest.fixture
@@ -120,7 +120,7 @@ async def sample_index(
     session.add(index)
     await session.commit()
     await session.refresh(index)
-    yield index
+    return index
 
 
 @pytest.fixture

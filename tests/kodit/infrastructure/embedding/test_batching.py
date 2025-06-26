@@ -10,7 +10,6 @@ from kodit.infrastructure.embedding.embedding_providers.batching import (
 
 def test_split_sub_batches_handles_endoftext_token() -> None:
     """Ensure the special ``<|endoftext|>`` token is batched without errors."""
-
     # Use the same encoding as the OpenAI embedding models
     encoding = tiktoken.encoding_for_model("text-embedding-3-small")
 
@@ -29,7 +28,6 @@ def test_split_sub_batches_handles_endoftext_token() -> None:
 
 def test_split_sub_batches_respects_token_limit() -> None:
     """Verify that batches never exceed the *max_tokens* constraint."""
-
     encoding = tiktoken.encoding_for_model("text-embedding-3-small")
 
     sample_text = "hello world"
@@ -60,7 +58,6 @@ def test_split_sub_batches_respects_token_limit() -> None:
 
 def test_split_sub_batches_truncates_long_items() -> None:
     """Items exceeding *max_tokens* should be truncated to the limit."""
-
     encoding = tiktoken.encoding_for_model("text-embedding-3-small")
 
     max_tokens = 50  # small for test purposes

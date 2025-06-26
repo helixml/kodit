@@ -1,13 +1,12 @@
 """Tests for the source service module."""
 
-from datetime import UTC, datetime, timedelta
-from pathlib import Path
 import shutil
 from collections.abc import Callable
+from pathlib import Path
 
 import git
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.domain.services.source_service import SourceService
 from kodit.infrastructure.sqlalchemy.repository import SqlAlchemySourceRepository
@@ -150,7 +149,6 @@ async def test_create_source_relative_path(
     service: SourceService, tmp_path: Path
 ) -> None:
     """Test creating a source with a relative path, i.e. the current directory."""
-
     # Create a test directory in the current working directory
     test_dir = Path.cwd() / "test_relative_dir"
     test_dir.mkdir(exist_ok=True)
@@ -169,7 +167,6 @@ async def test_create_git_source_with_authors(
     service: SourceService, tmp_path: Path
 ) -> None:
     """Test creating a git source with authors."""
-
     # Create a temporary git repository
     repo_path = tmp_path / "test_repo"
     repo = git.Repo.init(repo_path, mkdir=True)

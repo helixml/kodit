@@ -1,20 +1,20 @@
 """Benchmark script for semantic similarity search performance."""
 
 import asyncio
-from pathlib import Path
 import random
 import time
-from typing import List
-from datetime import datetime, UTC
+from datetime import UTC, datetime
+from pathlib import Path
 
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+import structlog
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from kodit.domain.entities import (
     Embedding,
     EmbeddingType,
+    File,
     Index,
     Snippet,
-    File,
     Source,
     SourceType,
 )
@@ -22,10 +22,12 @@ from kodit.infrastructure.sqlalchemy.embedding_repository import (
     SqlAlchemyEmbeddingRepository,
 )
 
+log = structlog.get_logger(__name__)
 
-def generate_random_embedding(dim: int = 750) -> List[float]:
+
+def generate_random_embedding(dim: int = 750) -> list[float]:
     """Generate a random embedding vector of specified dimension."""
-    return [random.uniform(-1, 1) for _ in range(dim)]
+    return [random.uniform(-1, 1) for _ in range(dim)]  # noqa: S311
 
 
 async def setup_test_data(session: AsyncSession, num_embeddings: int = 5000) -> None:
@@ -61,7 +63,7 @@ async def setup_test_data(session: AsyncSession, num_embeddings: int = 5000) -> 
 
     # Create test embeddings
     embeddings = []
-    for i in range(num_embeddings):
+    for _ in range(num_embeddings):
         embedding = Embedding()
         embedding.snippet_id = snippet.id
         embedding.type = EmbeddingType.CODE
@@ -75,7 +77,7 @@ async def setup_test_data(session: AsyncSession, num_embeddings: int = 5000) -> 
 async def run_benchmark(session: AsyncSession) -> None:
     """Run the semantic search benchmark."""
     # Setup test data
-    print("Setting up test data...")
+    log.info("Setting up test data...")
     await setup_test_data(session)
 
     # Create repository instance
@@ -89,13 +91,13 @@ async def run_benchmark(session: AsyncSession) -> None:
     total_time = 0
     results = []  # Initialize results list
 
-    print("Running warm-up query...")
+    log.info("Running warm-up query...")
     # Warm up
     await repo.list_semantic_results(
         embedding_type=EmbeddingType.CODE, embedding=query_embedding, top_k=10
     )
 
-    print(f"\nRunning {num_runs} benchmark queries...")
+    log.info("Running benchmark queries...", num_runs=num_runs)
 
     # Actual benchmark
     for i in range(num_runs):
@@ -106,24 +108,26 @@ async def run_benchmark(session: AsyncSession) -> None:
         end_time = time.perf_counter()
         run_time = end_time - start_time
         total_time += run_time
-        print(f"\nRun {i + 1}/{num_runs}: {run_time * 1000:.2f}ms")
+        log.info("Run", run_number=i + 1, num_runs=num_runs, run_time=run_time * 1000)
 
     # Calculate average time per run
     avg_time = total_time / num_runs
 
-    print(f"\nSemantic Search Performance Results:")
-    print(f"Number of runs: {num_runs}")
-    print(f"Total execution time: {total_time:.2f} seconds")
-    print(f"Average time per query: {avg_time * 1000:.2f} ms")
+    log.info(
+        "Semantic Search Performance Results",
+        num_runs=num_runs,
+        total_time=total_time,
+        avg_time=avg_time * 1000,
+    )
 
     # Print sample results
-    print(f"\nSample query returned {len(results)} results")
+    log.info("Sample query returned results", num_results=len(results))
     if results:  # Add safety check
-        print(f"First result score: {results[0][1]:.4f}")
+        log.info("First result score", score=results[0][1])
 
 
-async def main():
-    """Main entry point for the benchmark."""
+async def main() -> None:
+    """Run the benchmark."""
     # Remove the database file if it exists
     if Path("benchmark.db").exists():
         Path("benchmark.db").unlink()

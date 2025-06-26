@@ -1,9 +1,10 @@
 """Tests for the local enrichment provider."""
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
-from kodit.domain.value_objects import EnrichmentRequest, EnrichmentResponse
+import pytest
+
+from kodit.domain.value_objects import EnrichmentRequest
 from kodit.infrastructure.enrichment.local_enrichment_provider import (
     LocalEnrichmentProvider,
 )

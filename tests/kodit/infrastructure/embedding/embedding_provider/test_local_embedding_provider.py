@@ -1,15 +1,14 @@
 """Tests for the local embedding provider."""
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-import numpy as np
+from unittest.mock import MagicMock, patch
 
-from kodit.domain.value_objects import EmbeddingRequest, EmbeddingResponse
+import numpy as np
+import pytest
+
+from kodit.domain.value_objects import EmbeddingRequest
 from kodit.infrastructure.embedding.embedding_providers.local_embedding_provider import (
-    LocalEmbeddingProvider,
-    CODE,
     TINY,
-    TEST,
+    LocalEmbeddingProvider,
 )
 
 
@@ -239,17 +238,15 @@ class TestLocalEmbeddingProvider:
                 # If two texts, return two similar embeddings
                 if len(texts) == 2:
                     return np.array([similar_emb1, similar_emb2])
-                elif len(texts) == 1:
+                if len(texts) == 1:
                     if "python programming language" in texts[0]:
                         return np.array([similar_emb1])
-                    elif "python coding language" in texts[0]:
+                    if "python coding language" in texts[0]:
                         return np.array([similar_emb2])
-                    elif "javascript web development" in texts[0]:
+                    if "javascript web development" in texts[0]:
                         return np.array([different_emb])
-                    else:
-                        return np.array([similar_emb1])  # fallback
-                else:
-                    return np.array([similar_emb1 for _ in texts])
+                    return np.array([similar_emb1])  # fallback
+                return np.array([similar_emb1 for _ in texts])
 
             mock_model.encode.side_effect = mock_encode
             mock_transformer_class.return_value = mock_model

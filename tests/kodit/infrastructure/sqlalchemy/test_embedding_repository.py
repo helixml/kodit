@@ -1,8 +1,9 @@
 """Tests for the SQLAlchemy embedding repository."""
 
+from unittest.mock import AsyncMock, MagicMock
+
 import numpy as np
 import pytest
-from unittest.mock import AsyncMock, MagicMock
 
 from kodit.domain.entities import Embedding, EmbeddingType
 from kodit.infrastructure.sqlalchemy.embedding_repository import (

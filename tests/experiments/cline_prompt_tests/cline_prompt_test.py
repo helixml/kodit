@@ -1,11 +1,17 @@
 """Tests for the Cline prompt integration with user prompts."""
 
 import os
-import pytest
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
 import openai
-from typing import List, Dict, Any, Tuple
-from openai.types.chat import ChatCompletionMessageParam
+import pytest
+import structlog
+
+if TYPE_CHECKING:
+    from openai.types.chat import ChatCompletionMessageParam
+
+log = structlog.get_logger(__name__)
 
 # Load OpenAI API key from environment variable
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -23,10 +29,10 @@ def load_cline_prompt() -> str:
     return prompt
 
 
-def create_code_prompts() -> List[str]:
-    """Create a list of code-related test prompts that should trigger kodit tool usage."""
+def create_code_prompts() -> list[str]:
+    """Create a list of code-related test prompts that should trigger kodit usage."""
     return [
-        "Using the kodit mcp tool, develop a new pydantic-ai example that demonstrates tools and agents.",
+        "Using the kodit mcp tool, develop a new pydantic-ai example with tools.",
         "Write a Python function to calculate fibonacci numbers",
         "Create a React component that displays a todo list",
         "Implement a binary search algorithm in JavaScript",
@@ -34,8 +40,8 @@ def create_code_prompts() -> List[str]:
     ]
 
 
-def create_non_code_prompts() -> List[str]:
-    """Create a list of non-code test prompts that should not trigger kodit tool usage."""
+def create_non_code_prompts() -> list[str]:
+    """Create a list of non-code test prompts that should not trigger kodit tool."""
     return [
         "What is the capital of France?",
         "Tell me about the history of artificial intelligence",
@@ -44,12 +50,12 @@ def create_non_code_prompts() -> List[str]:
     ]
 
 
-def create_test_prompts() -> List[str]:
+def create_test_prompts() -> list[str]:
     """Create a list of test prompts to evaluate."""
     return create_code_prompts() + create_non_code_prompts()
 
 
-def analyze_response(response: str) -> Dict[str, Any]:
+def analyze_response(response: str) -> dict[str, Any]:
     """Analyze the response to determine if kodit tool was used."""
     return {
         "used_kodit_tool": "<use_mcp_tool>" in response
@@ -58,9 +64,9 @@ def analyze_response(response: str) -> Dict[str, Any]:
     }
 
 
-async def process_prompt(prompt: str, cline_prompt: str) -> Dict[str, Any]:
+async def process_prompt(prompt: str, cline_prompt: str) -> dict[str, Any]:
     """Process a single prompt and return the analysis results."""
-    messages: List[ChatCompletionMessageParam] = [
+    messages: list[ChatCompletionMessageParam] = [
         {"role": "developer", "content": cline_prompt},
         {"role": "user", "content": prompt},
     ]
@@ -69,7 +75,7 @@ async def process_prompt(prompt: str, cline_prompt: str) -> Dict[str, Any]:
     response = openai.chat.completions.create(
         model="o4-mini-2025-04-16",
         messages=messages,
-        reasoning_effort="medium",  # Default set in cline request, can be altered by the user
+        reasoning_effort="medium",  # Default set in cline request, user configurable
         stream=False,  # Cline streams, but this makes it easier to parse
     )
 
@@ -80,14 +86,18 @@ async def process_prompt(prompt: str, cline_prompt: str) -> Dict[str, Any]:
 
     # Analyze the response
     analysis = analyze_response(response_content)
-    print(f"Prompt: {prompt}, result: {analysis['used_kodit_tool']}")
+    log.info(
+        "Prompt",
+        prompt=prompt,
+        result=analysis["used_kodit_tool"],
+    )
 
     return {"prompt": prompt, "analysis": analysis, "response": response_content}
 
 
 async def process_prompts(
-    prompts: List[str], cline_prompt: str
-) -> List[Dict[str, Any]]:
+    prompts: list[str], cline_prompt: str
+) -> list[dict[str, Any]]:
     """Process a list of prompts and return the analysis results."""
     results = []
     for prompt in prompts:
@@ -96,19 +106,23 @@ async def process_prompts(
     return results
 
 
-def print_results(results: List[Dict[str, Any]], category: str) -> None:
+def print_results(results: list[dict[str, Any]], category: str) -> None:
     """Print the analysis results for a category of prompts."""
-    print(f"\n{category} Results:")
-    print("=" * 80)
+    log.info("Results", category=category)
+    log.info("=" * 80)
     for result in results:
-        print(f"\nPrompt: {result['prompt']}")
-        print(f"Used kodit tool: {result['analysis']['used_kodit_tool']}")
-        print(f"Response length: {result['analysis']['response_length']}")
-        print("-" * 80)
+        log.info("Prompt", prompt=result["prompt"])
+        log.info(
+            "Used kodit tool", used_kodit_tool=result["analysis"]["used_kodit_tool"]
+        )
+        log.info(
+            "Response length", response_length=result["analysis"]["response_length"]
+        )
+        log.info("-" * 80)
 
 
 @pytest.mark.asyncio
-async def test_cline_prompt_integration():
+async def test_cline_prompt_integration() -> None:
     """Test the integration between Cline prompt and user prompts."""
     cline_prompt = load_cline_prompt()
 

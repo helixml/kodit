@@ -1,14 +1,14 @@
 """Tests for the hash embedding provider."""
 
 import hashlib
-import pytest
-from unittest.mock import AsyncMock, MagicMock
 
-from kodit.domain.value_objects import EmbeddingRequest, EmbeddingResponse
+import pytest
+
+from kodit.domain.value_objects import EmbeddingRequest
 from kodit.infrastructure.embedding.embedding_providers.hash_embedding_provider import (
-    HashEmbeddingProvider,
     CODE,
     TINY,
+    HashEmbeddingProvider,
 )
 
 

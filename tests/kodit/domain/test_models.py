@@ -1,30 +1,23 @@
 """Tests for domain models."""
 
-from datetime import datetime, UTC
-
-import pytest
+from datetime import UTC, datetime
 
 from kodit.domain.entities import (
-    Source,
-    SourceType,
-    File,
-    Index,
-    Snippet,
+    Author,
     Embedding,
     EmbeddingType,
-    Author,
-    AuthorFileMapping,
+    File,
+    Snippet,
+    Source,
+    SourceType,
 )
-from kodit.domain.enums import SnippetExtractionStrategy
 from kodit.domain.value_objects import (
     Document,
-    SearchResult,
     EnrichmentRequest,
     EnrichmentResponse,
-    SnippetSearchFilters,
     MultiSearchRequest,
-    SnippetExtractionRequest,
-    SnippetExtractionResult,
+    SearchResult,
+    SnippetSearchFilters,
 )
 
 

@@ -1,9 +1,10 @@
 """Tests for the OpenAI embedding provider."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from kodit.domain.value_objects import EmbeddingRequest, EmbeddingResponse
+import pytest
+
+from kodit.domain.value_objects import EmbeddingRequest
 from kodit.infrastructure.embedding.embedding_providers.openai_embedding_provider import (
     OpenAIEmbeddingProvider,
 )

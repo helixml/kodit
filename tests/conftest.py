@@ -1,34 +1,23 @@
 """Test configuration and fixtures."""
 
-from collections.abc import AsyncGenerator
-from pathlib import Path
 import tempfile
-from typing import Generator
+from collections.abc import AsyncGenerator, Generator
+from pathlib import Path
 
 import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
-    create_async_engine,
     async_sessionmaker,
+    create_async_engine,
 )
-from sqlalchemy.orm import sessionmaker
 
 from kodit.config import AppContext
-from kodit.domain.entities import Base
 
 # Need to import these models to create the tables
 from kodit.domain.entities import (
-    Author,
-    AuthorFileMapping,
-    Embedding,
-    EmbeddingType,
-    File,
-    Index,
-    Snippet,
-    Source,
-    SourceType,
+    Base,
 )
 
 

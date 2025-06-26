@@ -1,6 +1,5 @@
 """Tests for the enrichment factory."""
 
-import pytest
 from unittest.mock import MagicMock, patch
 
 from kodit.config import AppContext, Endpoint

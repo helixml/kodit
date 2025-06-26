@@ -1,20 +1,21 @@
 """Tests for the embedding domain service."""
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
-from kodit.domain.value_objects import (
-    Document,
-    IndexRequest,
-    IndexResult,
-    SearchResult,
-    SearchRequest,
-)
+import pytest
+
 from kodit.domain.entities import EmbeddingType
 from kodit.domain.services.embedding_service import (
     EmbeddingDomainService,
     EmbeddingProvider,
     VectorSearchRepository,
+)
+from kodit.domain.value_objects import (
+    Document,
+    IndexRequest,
+    IndexResult,
+    SearchRequest,
+    SearchResult,
 )
 
 

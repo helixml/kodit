@@ -1,14 +1,14 @@
 """Tests for SQLAlchemy snippet repository."""
 
+from datetime import UTC, datetime
+
 import pytest
-from datetime import datetime, UTC
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.entities import Snippet, File, Source, SourceType, Index
+from kodit.domain.entities import File, Index, Snippet, Source, SourceType
 from kodit.infrastructure.sqlalchemy.snippet_repository import (
     SqlAlchemySnippetRepository,
 )
-from kodit.domain.value_objects import SnippetListItem
 
 
 @pytest.mark.asyncio

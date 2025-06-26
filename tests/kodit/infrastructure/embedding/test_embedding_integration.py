@@ -1,26 +1,23 @@
 """Integration tests for embedding functionality."""
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock
 
-from kodit.domain.value_objects import (
-    EmbeddingRequest,
-    EmbeddingResponse,
-    IndexResult,
-    IndexRequest,
-    SearchRequest,
-    SearchResult,
-    Document,
-)
+import pytest
+
 from kodit.domain.entities import (
     EmbeddingType,
-    Source,
-    SourceType,
     File,
     Index,
     Snippet,
+    Source,
+    SourceType,
 )
 from kodit.domain.services.embedding_service import EmbeddingDomainService
+from kodit.domain.value_objects import (
+    Document,
+    IndexRequest,
+    SearchRequest,
+    SearchResult,
+)
 from kodit.infrastructure.embedding.embedding_providers.hash_embedding_provider import (
     HashEmbeddingProvider,
 )
@@ -54,7 +51,7 @@ class TestEmbeddingIntegration:
         )
 
         # Create actual snippets in the database first
-        from datetime import datetime, UTC
+        from datetime import UTC, datetime
 
         # Create source
         source = Source(
@@ -152,7 +149,7 @@ class TestEmbeddingIntegration:
         )
 
         # Create actual snippets in the database first
-        from datetime import datetime, UTC
+        from datetime import UTC, datetime
 
         # Create source
         source = Source(
@@ -245,7 +242,7 @@ class TestEmbeddingIntegration:
         )
 
         # Create actual snippets in the database first
-        from datetime import datetime, UTC
+        from datetime import UTC, datetime
 
         # Create source
         source = Source(
@@ -348,7 +345,7 @@ class TestEmbeddingIntegration:
         )
 
         # Create actual snippets in the database first
-        from datetime import datetime, UTC
+        from datetime import UTC, datetime
 
         # Create source
         source = Source(
@@ -442,7 +439,7 @@ class TestEmbeddingIntegration:
         )
 
         # Create actual snippets in the database first
-        from datetime import datetime, UTC
+        from datetime import UTC, datetime
 
         # Create source
         source = Source(
@@ -525,7 +522,7 @@ class TestEmbeddingIntegration:
         )
 
         # Create actual snippets in the database first
-        from datetime import datetime, UTC
+        from datetime import UTC, datetime
 
         # Create source
         source = Source(
