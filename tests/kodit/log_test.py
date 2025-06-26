@@ -1,7 +1,9 @@
+"""Tests for the log module."""
+
 from kodit.log import get_stable_mac_str
 
 
-def test_get_stable_mac_str_is_consistent():
+def test_get_stable_mac_str_is_consistent() -> None:
     """Ensure that the MAC address returned is stable across repeated calls."""
     first = get_stable_mac_str()
     second = get_stable_mac_str()
