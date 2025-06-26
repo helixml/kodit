@@ -108,7 +108,7 @@ def test_sanitize_git_url_invalid_urls() -> None:
     for url in invalid_urls:
         if url is None:
             # None should raise an exception
-            with pytest.raises(Exception):
+            with pytest.raises(Exception):  # noqa: B017,PT011
                 sanitize_git_url(url)
         else:
             # Invalid URLs should return the original URL

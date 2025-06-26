@@ -1,3 +1,5 @@
+"""Test the indexing repository."""
+
 from datetime import UTC, datetime
 
 import pytest
@@ -18,6 +20,7 @@ async def test_should_allow_multiple_snippets_for_one_file(
     session: AsyncSession,
     indexing_repository: SQLAlchemyIndexRepository,
 ) -> None:
+    """Test all snippets for a file are added to the index."""
     source = Source(
         uri="test_folder", cloned_path="test_folder", source_type=SourceType.FOLDER
     )
