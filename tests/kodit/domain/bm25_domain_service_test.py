@@ -17,7 +17,8 @@ from kodit.domain.value_objects import (
 class MockBM25Repository(MagicMock):
     """Mock BM25 repository for testing."""
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize the mock BM25 repository."""
         super().__init__(spec=BM25Repository)
         self.index_documents = AsyncMock()
         self.search = AsyncMock()

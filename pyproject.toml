@@ -121,7 +121,6 @@ ignore = [
   "EM102", # As above
 ]
 select = ["ALL"]
-exclude = ["./tests/*"]
 
 [[tool.uv.index]]
 name = "pypi"

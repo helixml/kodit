@@ -17,7 +17,8 @@ from kodit.domain.value_objects import SnippetExtractionRequest, SnippetExtracti
 class MockLanguageDetectionService(MagicMock):
     """Mock language detection service for testing."""
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize the mock language detection service."""
         super().__init__(spec=LanguageDetectionService)
         self.detect_language = AsyncMock()
 
@@ -25,7 +26,8 @@ class MockLanguageDetectionService(MagicMock):
 class MockSnippetExtractor(MagicMock):
     """Mock snippet extractor for testing."""
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize the mock snippet extractor."""
         super().__init__(spec=SnippetExtractor)
         self.extract = AsyncMock()
 
@@ -114,7 +116,7 @@ async def test_extract_snippets_unsupported_strategy(
     # Create request with unsupported strategy
     request = SnippetExtractionRequest(
         file_path=test_file,
-        strategy="unsupported_strategy",  # type: ignore
+        strategy="unsupported_strategy",  # type: ignore[arg-type]
     )
 
     # Execute and verify

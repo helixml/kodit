@@ -1,6 +1,5 @@
 """End-to-end tests for CodeIndexingApplicationService."""
 
-from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -58,9 +57,7 @@ class MockProgressCallback(ProgressCallback):
 
 
 @pytest.fixture
-async def sample_source(
-    session: AsyncSession, tmp_path: Path
-) -> AsyncGenerator[Source, None]:
+async def sample_source(session: AsyncSession, tmp_path: Path) -> Source:
     """Create a sample source for testing."""
     source = Source(
         uri=f"file://{tmp_path}/test-repo",
@@ -76,7 +73,7 @@ async def sample_source(
 @pytest.fixture
 async def sample_file(
     session: AsyncSession, sample_source: Source, tmp_path: Path
-) -> AsyncGenerator[File, None]:
+) -> File:
     """Create a sample file for testing."""
     now = datetime.now(UTC)
     file = File(
@@ -97,7 +94,7 @@ async def sample_file(
 
 
 @pytest.fixture
-async def sample_author(session: AsyncSession) -> AsyncGenerator[Author, None]:
+async def sample_author(session: AsyncSession) -> Author:
     """Create a sample author for testing."""
     author = Author(
         name="Test Author",
@@ -110,9 +107,7 @@ async def sample_author(session: AsyncSession) -> AsyncGenerator[Author, None]:
 
 
 @pytest.fixture
-async def sample_index(
-    session: AsyncSession, sample_source: Source
-) -> AsyncGenerator[Index, None]:
+async def sample_index(session: AsyncSession, sample_source: Source) -> Index:
     """Create a sample index for testing."""
     index = Index(
         source_id=sample_source.id,

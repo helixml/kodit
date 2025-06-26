@@ -1,5 +1,6 @@
 """Tests for the enrichment domain service."""
 
+from collections.abc import AsyncGenerator
 from unittest.mock import MagicMock
 
 import pytest
@@ -18,7 +19,8 @@ from kodit.domain.value_objects import (
 class MockEnrichmentProvider(MagicMock):
     """Mock enrichment provider for testing."""
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize the mock enrichment provider."""
         super().__init__(spec=EnrichmentProvider)
         # enrich will be set per test
 
@@ -51,18 +53,19 @@ async def test_enrich_documents_success(
     enrichment_request = EnrichmentIndexRequest(requests=requests)
 
     # Mock enrichment responses
-    async def mock_enrichment():
+    async def mock_enrichment() -> AsyncGenerator[EnrichmentResponse, None]:
         yield EnrichmentResponse(snippet_id=1, text="enriched: def hello(): pass")
         yield EnrichmentResponse(snippet_id=2, text="enriched: def world(): pass")
 
     mock_enrichment_provider.enrich = lambda _: mock_enrichment()
 
     # Execute
-    results = []
-    async for response in enrichment_domain_service.enrich_documents(
-        enrichment_request
-    ):
-        results.append(response)
+    results = [
+        response
+        async for response in enrichment_domain_service.enrich_documents(
+            enrichment_request
+        )
+    ]
 
     # Verify
     assert len(results) == 2
@@ -70,7 +73,6 @@ async def test_enrich_documents_success(
     assert results[0].text == "enriched: def hello(): pass"
     assert results[1].snippet_id == 2
     assert results[1].text == "enriched: def world(): pass"
-    # Can't use assert_called_once_with because it's not a mock anymore
 
 
 @pytest.mark.asyncio
@@ -82,18 +84,19 @@ async def test_enrich_documents_empty_requests(
     # Setup
     enrichment_request = EnrichmentIndexRequest(requests=[])
 
-    async def mock_enrichment():
+    async def mock_enrichment() -> AsyncGenerator[EnrichmentResponse, None]:
         if False:
             yield  # This is just to make it an async generator
 
     mock_enrichment_provider.enrich = lambda _: mock_enrichment()
 
     # Execute
-    results = []
-    async for response in enrichment_domain_service.enrich_documents(
-        enrichment_request
-    ):
-        results.append(response)
+    results = [
+        response
+        async for response in enrichment_domain_service.enrich_documents(
+            enrichment_request
+        )
+    ]
 
     # Verify
     assert len(results) == 0
@@ -109,17 +112,18 @@ async def test_enrich_documents_single_request(
     requests = [EnrichmentRequest(snippet_id=1, text="def test(): pass")]
     enrichment_request = EnrichmentIndexRequest(requests=requests)
 
-    async def mock_enrichment():
+    async def mock_enrichment() -> AsyncGenerator[EnrichmentResponse, None]:
         yield EnrichmentResponse(snippet_id=1, text="enriched: def test(): pass")
 
     mock_enrichment_provider.enrich = lambda _: mock_enrichment()
 
     # Execute
-    results = []
-    async for response in enrichment_domain_service.enrich_documents(
-        enrichment_request
-    ):
-        results.append(response)
+    results = [
+        response
+        async for response in enrichment_domain_service.enrich_documents(
+            enrichment_request
+        )
+    ]
 
     # Verify
     assert len(results) == 1
