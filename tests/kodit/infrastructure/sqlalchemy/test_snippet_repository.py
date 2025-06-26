@@ -12,7 +12,7 @@ from kodit.infrastructure.sqlalchemy.snippet_repository import (
 
 
 @pytest.mark.asyncio
-async def test_list_snippets_by_file_path(session: AsyncSession):
+async def test_list_snippets_by_file_path(session: AsyncSession) -> None:
     """Test listing snippets by specific file path."""
     # Create test data
     source = Source(
@@ -64,7 +64,7 @@ async def test_list_snippets_by_file_path(session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_list_snippets_by_source_uri(session: AsyncSession):
+async def test_list_snippets_by_source_uri(session: AsyncSession) -> None:
     """Test listing snippets by source URI."""
     # Create test data
     source1 = Source(
@@ -140,7 +140,7 @@ async def test_list_snippets_by_source_uri(session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_list_snippets_by_directory_path(session: AsyncSession):
+async def test_list_snippets_by_directory_path(session: AsyncSession) -> None:
     """Test listing snippets by directory path."""
     # Create test data
     source = Source(
@@ -208,7 +208,7 @@ async def test_list_snippets_by_directory_path(session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_list_snippets_no_filter(session: AsyncSession):
+async def test_list_snippets_no_filter(session: AsyncSession) -> None:
     """Test listing all snippets when no filter is provided."""
     # Create test data
     source = Source(
@@ -260,7 +260,7 @@ async def test_list_snippets_no_filter(session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_list_snippets_no_results(session: AsyncSession):
+async def test_list_snippets_no_results(session: AsyncSession) -> None:
     """Test listing snippets when no results match the filter."""
     # Create test data
     source = Source(
@@ -304,7 +304,7 @@ async def test_list_snippets_no_results(session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_list_snippets_by_relative_path(session: AsyncSession):
+async def test_list_snippets_by_relative_path(session: AsyncSession) -> None:
     """Test listing snippets by relative path (should match relative, not full, path)."""
     # Create test data
     source = Source(

@@ -15,7 +15,7 @@ from kodit.infrastructure.embedding.embedding_providers.local_embedding_provider
 class TestLocalEmbeddingProvider:
     """Test the local embedding provider."""
 
-    def test_init_default_values(self):
+    def test_init_default_values(self) -> None:
         """Test initialization with default values."""
         provider = LocalEmbeddingProvider()
         assert (
@@ -24,19 +24,19 @@ class TestLocalEmbeddingProvider:
         )
         assert provider.log is not None
 
-    def test_init_custom_values(self):
+    def test_init_custom_values(self) -> None:
         """Test initialization with custom values."""
         provider = LocalEmbeddingProvider(model_name=TINY)
         assert provider.model_name == "ibm-granite/granite-embedding-30m-english"
 
-    def test_init_full_model_name(self):
+    def test_init_full_model_name(self) -> None:
         """Test initialization with a full model name."""
         custom_model = "sentence-transformers/all-MiniLM-L6-v2"
         provider = LocalEmbeddingProvider(model_name=custom_model)
         assert provider.model_name == custom_model
 
     @pytest.mark.asyncio
-    async def test_embed_empty_requests(self):
+    async def test_embed_empty_requests(self) -> None:
         """Test embedding with empty requests."""
         provider = LocalEmbeddingProvider()
         requests = []
@@ -48,7 +48,7 @@ class TestLocalEmbeddingProvider:
         assert len(results) == 0
 
     @pytest.mark.asyncio
-    async def test_embed_single_request(self):
+    async def test_embed_single_request(self) -> None:
         """Test embedding with a single request."""
         with patch(
             "sentence_transformers.SentenceTransformer"
@@ -71,7 +71,7 @@ class TestLocalEmbeddingProvider:
             assert all(isinstance(v, float) for v in results[0].embedding)
 
     @pytest.mark.asyncio
-    async def test_embed_multiple_requests(self):
+    async def test_embed_multiple_requests(self) -> None:
         """Test embedding with multiple requests."""
         with patch(
             "sentence_transformers.SentenceTransformer"
@@ -101,7 +101,7 @@ class TestLocalEmbeddingProvider:
                 assert all(isinstance(v, float) for v in result.embedding)
 
     @pytest.mark.asyncio
-    async def test_embed_different_texts_different_embeddings(self):
+    async def test_embed_different_texts_different_embeddings(self) -> None:
         """Test that different texts produce different embeddings."""
         with patch(
             "sentence_transformers.SentenceTransformer"
@@ -130,7 +130,7 @@ class TestLocalEmbeddingProvider:
             assert results[0].embedding != results[1].embedding
 
     @pytest.mark.asyncio
-    async def test_embed_batch_processing(self):
+    async def test_embed_batch_processing(self) -> None:
         """Test that requests are processed in batches based on token limits."""
         with patch(
             "sentence_transformers.SentenceTransformer"
@@ -156,7 +156,7 @@ class TestLocalEmbeddingProvider:
             # Should be at least 1 batch, but exact count depends on tokenization
 
     @pytest.mark.asyncio
-    async def test_embed_error_handling(self):
+    async def test_embed_error_handling(self) -> None:
         """Test error handling during embedding."""
         with patch(
             "sentence_transformers.SentenceTransformer"
@@ -179,7 +179,7 @@ class TestLocalEmbeddingProvider:
             assert len(results[0].embedding) == 1536  # Default size
 
     @pytest.mark.asyncio
-    async def test_embed_empty_text(self):
+    async def test_embed_empty_text(self) -> None:
         """Test embedding with empty text."""
         with patch(
             "sentence_transformers.SentenceTransformer"
@@ -200,7 +200,7 @@ class TestLocalEmbeddingProvider:
             assert all(isinstance(v, float) for v in results[0].embedding)
 
     @pytest.mark.asyncio
-    async def test_embed_unicode_text(self):
+    async def test_embed_unicode_text(self) -> None:
         """Test embedding with unicode text."""
         with patch(
             "sentence_transformers.SentenceTransformer"
@@ -221,7 +221,7 @@ class TestLocalEmbeddingProvider:
             assert all(isinstance(v, float) for v in results[0].embedding)
 
     @pytest.mark.asyncio
-    async def test_embed_similarity_scores(self):
+    async def test_embed_similarity_scores(self) -> None:
         """Test that similar texts have meaningful similarity scores."""
         with patch(
             "sentence_transformers.SentenceTransformer"
@@ -293,7 +293,7 @@ class TestLocalEmbeddingProvider:
             assert -1 <= similar_sim <= 1
             assert -1 <= different_sim <= 1
 
-    def test_split_sub_batches(self):
+    def test_split_sub_batches(self) -> None:
         """Test the sub-batch splitting logic."""
         with patch("tiktoken.encoding_for_model") as mock_encoding_for_model:
             # Mock the encoding

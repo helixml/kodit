@@ -10,7 +10,7 @@ console = Console()
 
 
 class KnockAuthHandler(BaseHTTPRequestHandler):
-    def _set_headers(self, status_code=200):
+    def _set_headers(self, status_code=200) -> None:
         self.send_response(status_code)
         self.send_header("Content-type", "application/json")
         self.end_headers()
@@ -21,7 +21,7 @@ class KnockAuthHandler(BaseHTTPRequestHandler):
             return auth_header.split(" ")[1]
         return ""
 
-    def do_POST(self):
+    def do_POST(self) -> None:
         if self.path == "/knock":
             token = self._get_token_from_header()
             if not token:
@@ -45,7 +45,7 @@ class KnockAuthHandler(BaseHTTPRequestHandler):
             self._set_headers(404)
             self.wfile.write(json.dumps({"error": "Not found"}).encode())
 
-    def do_GET(self):
+    def do_GET(self) -> None:
         if self.path == "/secret":
             token = self._get_token_from_header()
             if not token or knock_counts.get(token, 0) < 3:
@@ -74,7 +74,7 @@ class KnockAuthHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({"error": "Not found"}).encode())
 
 
-def run_server(port=8000):
+def run_server(port=8000) -> None:
     server_address = ("", port)
     httpd = HTTPServer(server_address, KnockAuthHandler)
     console.print(f"[bold blue]Starting server on port {port}[/bold blue]")

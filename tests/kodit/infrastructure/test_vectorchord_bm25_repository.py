@@ -135,9 +135,9 @@ async def vectorchord_session(
             # Get all table names and truncate them
             result = await conn.execute(
                 text("""
-                SELECT tablename FROM pg_tables 
-                WHERE schemaname = 'public' 
-                AND tablename NOT LIKE 'pg_%' 
+                SELECT tablename FROM pg_tables
+                WHERE schemaname = 'public'
+                AND tablename NOT LIKE 'pg_%'
                 AND tablename NOT LIKE 'information_schema%'
             """)
             )

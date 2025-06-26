@@ -14,14 +14,14 @@ from kodit.infrastructure.sqlalchemy.embedding_repository import (
 class TestSqlAlchemyEmbeddingRepository:
     """Test the SQLAlchemy embedding repository."""
 
-    def test_init(self):
+    def test_init(self) -> None:
         """Test initialization."""
         mock_session = MagicMock()
         repository = SqlAlchemyEmbeddingRepository(session=mock_session)
         assert repository.session == mock_session
 
     @pytest.mark.asyncio
-    async def test_create_embedding(self):
+    async def test_create_embedding(self) -> None:
         """Test creating an embedding."""
         mock_session = MagicMock()
         mock_session.commit = AsyncMock()
@@ -40,7 +40,7 @@ class TestSqlAlchemyEmbeddingRepository:
         mock_session.commit.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_get_embedding_by_snippet_id_and_type_found(self):
+    async def test_get_embedding_by_snippet_id_and_type_found(self) -> None:
         """Test getting an embedding that exists."""
         mock_session = MagicMock()
         mock_result = MagicMock()
@@ -57,7 +57,7 @@ class TestSqlAlchemyEmbeddingRepository:
         mock_session.execute.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_get_embedding_by_snippet_id_and_type_not_found(self):
+    async def test_get_embedding_by_snippet_id_and_type_not_found(self) -> None:
         """Test getting an embedding that doesn't exist."""
         mock_session = MagicMock()
         mock_result = MagicMock()
@@ -74,7 +74,7 @@ class TestSqlAlchemyEmbeddingRepository:
         mock_session.execute.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_list_semantic_results_empty_database(self):
+    async def test_list_semantic_results_empty_database(self) -> None:
         """Test semantic search with empty database."""
         mock_session = MagicMock()
         mock_result = MagicMock()
@@ -91,7 +91,7 @@ class TestSqlAlchemyEmbeddingRepository:
         assert results == []
 
     @pytest.mark.asyncio
-    async def test_list_semantic_results_single_embedding(self):
+    async def test_list_semantic_results_single_embedding(self) -> None:
         """Test semantic search with a single embedding."""
         mock_session = MagicMock()
         mock_result = MagicMock()
@@ -111,7 +111,7 @@ class TestSqlAlchemyEmbeddingRepository:
         assert 0 <= results[0][1] <= 1  # cosine similarity should be in [0, 1]
 
     @pytest.mark.asyncio
-    async def test_list_semantic_results_multiple_embeddings(self):
+    async def test_list_semantic_results_multiple_embeddings(self) -> None:
         """Test semantic search with multiple embeddings."""
         mock_session = MagicMock()
         mock_result = MagicMock()
@@ -136,7 +136,7 @@ class TestSqlAlchemyEmbeddingRepository:
         assert results[0][1] == pytest.approx(1.0, abs=1e-6)  # Perfect similarity
 
     @pytest.mark.asyncio
-    async def test_list_semantic_results_top_k_limit(self):
+    async def test_list_semantic_results_top_k_limit(self) -> None:
         """Test that top_k limits the number of results."""
         mock_session = MagicMock()
         mock_result = MagicMock()
@@ -153,7 +153,7 @@ class TestSqlAlchemyEmbeddingRepository:
         assert len(results) == 5
 
     @pytest.mark.asyncio
-    async def test_list_semantic_results_inhomogeneous_embeddings(self):
+    async def test_list_semantic_results_inhomogeneous_embeddings(self) -> None:
         """Test handling of embeddings with different dimensions."""
         mock_session = MagicMock()
         mock_result = MagicMock()
@@ -174,7 +174,7 @@ class TestSqlAlchemyEmbeddingRepository:
             )
 
     @pytest.mark.asyncio
-    async def test_list_semantic_results_zero_vectors(self):
+    async def test_list_semantic_results_zero_vectors(self) -> None:
         """Test handling of zero vectors."""
         mock_session = MagicMock()
         mock_result = MagicMock()
@@ -202,7 +202,7 @@ class TestSqlAlchemyEmbeddingRepository:
         assert results[1][0] == 1  # Zero vector snippet_id
         assert results[1][1] == 0.0  # Should have zero similarity
 
-    def test_prepare_vectors(self):
+    def test_prepare_vectors(self) -> None:
         """Test vector preparation."""
         repository = SqlAlchemyEmbeddingRepository(session=MagicMock())
 
@@ -221,7 +221,7 @@ class TestSqlAlchemyEmbeddingRepository:
         assert stored_vecs.shape == (2, 3)
         assert query_vec.shape == (3,)
 
-    def test_compute_similarities(self):
+    def test_compute_similarities(self) -> None:
         """Test similarity computation."""
         repository = SqlAlchemyEmbeddingRepository(session=MagicMock())
 
@@ -240,7 +240,7 @@ class TestSqlAlchemyEmbeddingRepository:
         assert similarities[0] == pytest.approx(1.0, abs=1e-6)  # Perfect similarity
         assert similarities[1] == pytest.approx(0.0, abs=1e-6)  # Orthogonal
 
-    def test_get_top_k_results(self):
+    def test_get_top_k_results(self) -> None:
         """Test top-k result selection."""
         repository = SqlAlchemyEmbeddingRepository(session=MagicMock())
 
@@ -264,7 +264,7 @@ class TestSqlAlchemyEmbeddingRepository:
         assert results[2][1] == pytest.approx(0.5, abs=1e-6)
 
     @pytest.mark.asyncio
-    async def test_list_embedding_values(self):
+    async def test_list_embedding_values(self) -> None:
         """Test listing embedding values from database."""
         mock_session = MagicMock()
         mock_result = MagicMock()
@@ -284,7 +284,7 @@ class TestSqlAlchemyEmbeddingRepository:
         mock_session.execute.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_list_semantic_results_with_snippet_ids_filtering(self):
+    async def test_list_semantic_results_with_snippet_ids_filtering(self) -> None:
         """Test semantic search with snippet_ids filtering."""
         mock_session = MagicMock()
         mock_result = MagicMock()
@@ -310,7 +310,7 @@ class TestSqlAlchemyEmbeddingRepository:
         assert "snippet_id" in str(call_args)
 
     @pytest.mark.asyncio
-    async def test_list_semantic_results_with_none_snippet_ids_no_filtering(self):
+    async def test_list_semantic_results_with_none_snippet_ids_no_filtering(self) -> None:
         """Test semantic search with None snippet_ids (no filtering)."""
         mock_session = MagicMock()
         mock_result = MagicMock()
@@ -337,7 +337,7 @@ class TestSqlAlchemyEmbeddingRepository:
     @pytest.mark.asyncio
     async def test_list_semantic_results_with_empty_snippet_ids_returns_no_results(
         self,
-    ):
+    ) -> None:
         """Test semantic search with empty snippet_ids list returns no results."""
         mock_session = MagicMock()
         mock_result = MagicMock()
@@ -357,7 +357,7 @@ class TestSqlAlchemyEmbeddingRepository:
         mock_session.execute.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_list_embedding_values_with_snippet_ids_filtering(self):
+    async def test_list_embedding_values_with_snippet_ids_filtering(self) -> None:
         """Test listing embedding values with snippet_ids filtering."""
         mock_session = MagicMock()
         mock_result = MagicMock()
@@ -380,7 +380,7 @@ class TestSqlAlchemyEmbeddingRepository:
         assert "snippet_id" in str(call_args)
 
     @pytest.mark.asyncio
-    async def test_list_embedding_values_with_none_snippet_ids_no_filtering(self):
+    async def test_list_embedding_values_with_none_snippet_ids_no_filtering(self) -> None:
         """Test listing embedding values with None snippet_ids (no filtering)."""
         mock_session = MagicMock()
         mock_result = MagicMock()

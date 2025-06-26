@@ -138,9 +138,9 @@ async def vectorchord_session(
             # Get all table names and truncate them
             result = await conn.execute(
                 text("""
-                SELECT tablename FROM pg_tables 
-                WHERE schemaname = 'public' 
-                AND tablename NOT LIKE 'pg_%' 
+                SELECT tablename FROM pg_tables
+                WHERE schemaname = 'public'
+                AND tablename NOT LIKE 'pg_%'
                 AND tablename NOT LIKE 'information_schema%'
             """)
             )
@@ -229,7 +229,7 @@ async def test_data(
     )
 
     # Index the documents
-    async for batch in repository.index_documents(
+    async for _batch in repository.index_documents(
         IndexRequest(
             documents=[Document(snippet_id=s.id, text=s.content) for s in snippets]
         )
@@ -610,7 +610,7 @@ async def test_search_with_application_level_filtering_bug(
 
     # Simulate what the application service does:
     # 1. First, get all snippet IDs (this would be the "unfiltered" case)
-    all_snippet_ids = [s.id for s in snippets]
+    [s.id for s in snippets]
 
     # 2. Search without any filtering (this is what should happen without language filter)
     unfiltered_request = SearchRequest(

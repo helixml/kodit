@@ -13,7 +13,7 @@ from kodit.infrastructure.embedding.embedding_providers.openai_embedding_provide
 class TestOpenAIEmbeddingProvider:
     """Test the OpenAI embedding provider."""
 
-    def test_init_default_values(self):
+    def test_init_default_values(self) -> None:
         """Test initialization with default values."""
         mock_client = MagicMock()
         provider = OpenAIEmbeddingProvider(openai_client=mock_client)
@@ -21,7 +21,7 @@ class TestOpenAIEmbeddingProvider:
         assert provider.model_name == "text-embedding-3-small"
         assert provider.log is not None
 
-    def test_init_custom_values(self):
+    def test_init_custom_values(self) -> None:
         """Test initialization with custom values."""
         mock_client = MagicMock()
         provider = OpenAIEmbeddingProvider(
@@ -31,7 +31,7 @@ class TestOpenAIEmbeddingProvider:
         assert provider.model_name == "text-embedding-3-large"
 
     @pytest.mark.asyncio
-    async def test_embed_empty_requests(self):
+    async def test_embed_empty_requests(self) -> None:
         """Test embedding with empty requests."""
         mock_client = MagicMock()
         provider = OpenAIEmbeddingProvider(openai_client=mock_client)
@@ -44,7 +44,7 @@ class TestOpenAIEmbeddingProvider:
         mock_client.embeddings.create.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_embed_single_request_success(self):
+    async def test_embed_single_request_success(self) -> None:
         """Test successful embedding with a single request."""
         mock_client = MagicMock()
         mock_response = MagicMock()
@@ -70,7 +70,7 @@ class TestOpenAIEmbeddingProvider:
         )
 
     @pytest.mark.asyncio
-    async def test_embed_multiple_requests_success(self):
+    async def test_embed_multiple_requests_success(self) -> None:
         """Test successful embedding with multiple requests."""
         mock_client = MagicMock()
         mock_response = MagicMock()
@@ -105,7 +105,7 @@ class TestOpenAIEmbeddingProvider:
         )
 
     @pytest.mark.asyncio
-    async def test_embed_batch_processing(self):
+    async def test_embed_batch_processing(self) -> None:
         """Test that requests are processed in batches."""
         mock_client = MagicMock()
         mock_response = MagicMock()
@@ -130,7 +130,7 @@ class TestOpenAIEmbeddingProvider:
         assert mock_client.embeddings.create.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_embed_api_error_handling(self):
+    async def test_embed_api_error_handling(self) -> None:
         """Test handling of API errors."""
         mock_client = MagicMock()
         mock_client.embeddings.create = AsyncMock(side_effect=Exception("API Error"))
@@ -149,7 +149,7 @@ class TestOpenAIEmbeddingProvider:
         assert all(v == 0.0 for v in results[0].embedding)
 
     @pytest.mark.asyncio
-    async def test_embed_custom_model(self):
+    async def test_embed_custom_model(self) -> None:
         """Test embedding with a custom model."""
         mock_client = MagicMock()
         mock_response = MagicMock()
@@ -171,7 +171,7 @@ class TestOpenAIEmbeddingProvider:
         )
 
     @pytest.mark.asyncio
-    async def test_embed_empty_text(self):
+    async def test_embed_empty_text(self) -> None:
         """Test embedding with empty text."""
         mock_client = MagicMock()
         mock_response = MagicMock()
@@ -192,7 +192,7 @@ class TestOpenAIEmbeddingProvider:
         )
 
     @pytest.mark.asyncio
-    async def test_embed_unicode_text(self):
+    async def test_embed_unicode_text(self) -> None:
         """Test embedding with unicode text."""
         mock_client = MagicMock()
         mock_response = MagicMock()
@@ -213,7 +213,7 @@ class TestOpenAIEmbeddingProvider:
         )
 
     @pytest.mark.asyncio
-    async def test_embed_large_batch_error_handling(self):
+    async def test_embed_large_batch_error_handling(self) -> None:
         """Test error handling with large batches."""
         mock_client = MagicMock()
         mock_client.embeddings.create = AsyncMock(side_effect=Exception("Batch Error"))
@@ -232,7 +232,7 @@ class TestOpenAIEmbeddingProvider:
             assert all(v == 0.0 for v in result.embedding)
 
     @pytest.mark.asyncio
-    async def test_embed_response_structure_validation(self):
+    async def test_embed_response_structure_validation(self) -> None:
         """Test validation of API response structure."""
         mock_client = MagicMock()
         # Create a malformed response

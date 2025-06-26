@@ -39,7 +39,7 @@ async def test_prepare_should_not_leak_credentials_in_directory_name(
 
     for pat_url in pat_urls:
         # Mock git.Repo.clone_from to avoid actual cloning
-        with patch("git.Repo.clone_from") as mock_clone:
+        with patch("git.Repo.clone_from"):
             # Call the prepare method
             result_path = await working_copy.prepare(pat_url)
 
@@ -82,7 +82,7 @@ async def test_prepare_should_not_exceed_windows_path_limit(
     )
 
     # Mock git.Repo.clone_from to avoid actual cloning
-    with patch("git.Repo.clone_from") as mock_clone:
+    with patch("git.Repo.clone_from"):
         # Call the prepare method
         result_path = await working_copy.prepare(long_url)
 
@@ -90,8 +90,6 @@ async def test_prepare_should_not_exceed_windows_path_limit(
         directory_name = result_path.name
 
         # Print the actual directory name and its length for debugging
-        print(f"Directory name: {directory_name}")
-        print(f"Directory name length: {len(directory_name)}")
 
         # This test should PASS because the directory name is now a short hash
         # The directory name should be in format "repo-<16-char-hash>" (21 characters total)
@@ -120,7 +118,7 @@ async def test_prepare_clean_urls_should_work_normally(
 
     for clean_url in clean_urls:
         # Mock git.Repo.clone_from to avoid actual cloning
-        with patch("git.Repo.clone_from") as mock_clone:
+        with patch("git.Repo.clone_from"):
             # Call the prepare method
             result_path = await working_copy.prepare(clean_url)
 
@@ -148,7 +146,7 @@ async def test_prepare_ssh_urls_should_work_normally(
 
     for ssh_url in ssh_urls:
         # Mock git.Repo.clone_from to avoid actual cloning
-        with patch("git.Repo.clone_from") as mock_clone:
+        with patch("git.Repo.clone_from"):
             # Call the prepare method
             result_path = await working_copy.prepare(ssh_url)
 

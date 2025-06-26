@@ -89,7 +89,7 @@ async def test_url_normalization_with_pat_should_sanitize_credentials(
             with patch.object(repo, "remote") as mock_remote:
                 mock_remote.return_value.url = pat_url
 
-                with patch("git.Repo.clone_from") as mock_clone:
+                with patch("git.Repo.clone_from"):
                     with patch("git.Repo") as mock_git_repo:
                         mock_git_repo.return_value = repo
 
@@ -147,7 +147,7 @@ async def test_url_normalization_without_credentials_should_remain_unchanged(
             with patch.object(repo, "remote") as mock_remote:
                 mock_remote.return_value.url = clean_url
 
-                with patch("git.Repo.clone_from") as mock_clone:
+                with patch("git.Repo.clone_from"):
                     with patch("git.Repo") as mock_git_repo:
                         mock_git_repo.return_value = repo
 
@@ -202,7 +202,7 @@ async def test_url_normalization_ssh_urls_should_remain_unchanged(
             with patch.object(repo, "remote") as mock_remote:
                 mock_remote.return_value.url = ssh_url
 
-                with patch("git.Repo.clone_from") as mock_clone:
+                with patch("git.Repo.clone_from"):
                     with patch("git.Repo") as mock_git_repo:
                         mock_git_repo.return_value = repo
 

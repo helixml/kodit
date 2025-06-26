@@ -11,13 +11,13 @@ from kodit.infrastructure.enrichment.null_enrichment_provider import (
 class TestNullEnrichmentProvider:
     """Test the null enrichment provider."""
 
-    def test_init(self):
+    def test_init(self) -> None:
         """Test initialization."""
         provider = NullEnrichmentProvider()
         assert provider is not None
 
     @pytest.mark.asyncio
-    async def test_enrich_empty_requests(self):
+    async def test_enrich_empty_requests(self) -> None:
         """Test enrichment with empty requests."""
         provider = NullEnrichmentProvider()
         requests = []
@@ -29,7 +29,7 @@ class TestNullEnrichmentProvider:
         assert len(results) == 0
 
     @pytest.mark.asyncio
-    async def test_enrich_single_request(self):
+    async def test_enrich_single_request(self) -> None:
         """Test enrichment with a single request."""
         provider = NullEnrichmentProvider()
         requests = [EnrichmentRequest(snippet_id=1, text="def test(): pass")]
@@ -43,7 +43,7 @@ class TestNullEnrichmentProvider:
         assert results[0].text == ""
 
     @pytest.mark.asyncio
-    async def test_enrich_multiple_requests(self):
+    async def test_enrich_multiple_requests(self) -> None:
         """Test enrichment with multiple requests."""
         provider = NullEnrichmentProvider()
         requests = [
@@ -65,7 +65,7 @@ class TestNullEnrichmentProvider:
         assert results[2].text == ""
 
     @pytest.mark.asyncio
-    async def test_enrich_preserves_snippet_ids(self):
+    async def test_enrich_preserves_snippet_ids(self) -> None:
         """Test that snippet IDs are preserved correctly."""
         provider = NullEnrichmentProvider()
         requests = [
@@ -82,7 +82,7 @@ class TestNullEnrichmentProvider:
         assert results[1].snippet_id == 123
 
     @pytest.mark.asyncio
-    async def test_enrich_always_returns_empty_text(self):
+    async def test_enrich_always_returns_empty_text(self) -> None:
         """Test that the provider always returns empty text regardless of input."""
         provider = NullEnrichmentProvider()
         requests = [
