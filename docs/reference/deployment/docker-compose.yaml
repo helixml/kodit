@@ -29,6 +29,10 @@ services:
       ENRICHMENT_ENDPOINT_API_KEY: REPLACE_WITH_YOUR_API_KEY
       ENRICHMENT_ENDPOINT_MODEL: o3-mini
 
+      # Auto-indexing configuration
+      AUTO_INDEXING_SOURCES_0_URI: https://github.com/pydantic/pydantic
+      AUTO_INDEXING_SOURCES_1_URI: https://github.com/fastapi/fastapi
+      AUTO_INDEXING_SOURCES_2_URI: https://github.com/helix-ml/kodit
 
   vectorchord:
     image: tensorchord/vchord-suite:pg17-20250601

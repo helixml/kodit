@@ -77,6 +77,10 @@ spec:
               value: "REPLACE_WITH_YOUR_API_KEY"
             - name: ENRICHMENT_ENDPOINT_MODEL
               value: "o3-mini"
+            - name: AUTO_INDEXING_SOURCES_0_URI
+              value: "https://github.com/pydantic/pydantic"
+            - name: AUTO_INDEXING_SOURCES_1_URI
+              value: "https://github.com/helix-ml/kodit"
           ports:
             - containerPort: 8080
           readinessProbe:
