@@ -64,7 +64,7 @@ class AutoIndexingConfig(BaseModel):
         if isinstance(v, list):
             return v
         if isinstance(v, dict):
-            # Handle case where env vars are parsed as numbered keys like {'0': {'uri': '...'}}
+            # Handle case where env vars are numbered keys like {'0': {'uri': '...'}}
             sources = []
             i = 0
             while str(i) in v:
