@@ -1,9 +1,11 @@
 """Tests for local vector search repository."""
 
+from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.domain.entities import (
     EmbeddingType,
@@ -16,9 +18,13 @@ from kodit.domain.entities import (
 from kodit.domain.value_objects import (
     Document,
     EmbeddingResponse,
+    EnrichmentRequest,
     IndexRequest,
     SearchRequest,
     SearchResult,
+)
+from kodit.infrastructure.embedding.embedding_providers.local_embedding_provider import (  # noqa: E501
+    LocalEmbeddingProvider,
 )
 from kodit.infrastructure.embedding.local_vector_search_repository import (
     LocalVectorSearchRepository,
@@ -88,7 +94,9 @@ class TestLocalVectorSearchRepository:
 
         mock_provider = MagicMock()
 
-        async def mock_embed(requests):
+        async def mock_embed(
+            _: list[EnrichmentRequest],
+        ) -> AsyncGenerator[list[EmbeddingResponse], None]:
             yield [EmbeddingResponse(snippet_id=1, embedding=[0.1, 0.2, 0.3])]
 
         mock_provider.embed.return_value = mock_embed([])
@@ -128,7 +136,9 @@ class TestLocalVectorSearchRepository:
 
         mock_provider = MagicMock()
 
-        async def mock_embed(requests):
+        async def mock_embed(
+            _: list[EnrichmentRequest],
+        ) -> AsyncGenerator[list[EmbeddingResponse], None]:
             yield [
                 EmbeddingResponse(snippet_id=1, embedding=[0.1, 0.2, 0.3]),
                 EmbeddingResponse(snippet_id=2, embedding=[0.4, 0.5, 0.6]),
@@ -173,7 +183,9 @@ class TestLocalVectorSearchRepository:
 
         mock_provider = MagicMock()
 
-        async def mock_embed(requests):
+        async def mock_embed(
+            _: list[EnrichmentRequest],
+        ) -> AsyncGenerator[list[EmbeddingResponse], None]:
             yield [EmbeddingResponse(snippet_id=0, embedding=[0.1, 0.2, 0.3])]
 
         mock_provider.embed.return_value = mock_embed([])
@@ -213,7 +225,9 @@ class TestLocalVectorSearchRepository:
 
         mock_provider = MagicMock()
 
-        async def mock_embed(requests):
+        async def mock_embed(
+            _: list[EnrichmentRequest],
+        ) -> AsyncGenerator[list[EmbeddingResponse], None]:
             yield []  # No embeddings returned
 
         mock_provider.embed.return_value = mock_embed([])
@@ -289,7 +303,9 @@ class TestLocalVectorSearchRepository:
 
         mock_provider = MagicMock()
 
-        async def mock_embed(requests):
+        async def mock_embed(
+            _: list[EnrichmentRequest],
+        ) -> AsyncGenerator[list[EmbeddingResponse], None]:
             yield [EmbeddingResponse(snippet_id=0, embedding=[0.1, 0.2, 0.3])]
 
         mock_provider.embed.return_value = mock_embed([])
@@ -328,7 +344,9 @@ class TestLocalVectorSearchRepository:
 
         mock_provider = MagicMock()
 
-        async def mock_embed(requests):
+        async def mock_embed(
+            _: list[EnrichmentRequest],
+        ) -> AsyncGenerator[list[EmbeddingResponse], None]:
             yield [EmbeddingResponse(snippet_id=0, embedding=[0.1, 0.2, 0.3])]
 
         mock_provider.embed.return_value = mock_embed([])
@@ -368,7 +386,9 @@ class TestLocalVectorSearchRepository:
 
         mock_provider = MagicMock()
 
-        async def mock_embed(requests):
+        async def mock_embed(
+            _: list[EnrichmentRequest],
+        ) -> AsyncGenerator[list[EmbeddingResponse], None]:
             yield [EmbeddingResponse(snippet_id=0, embedding=[0.1, 0.2, 0.3])]
 
         mock_provider.embed.return_value = mock_embed([])
@@ -396,20 +416,12 @@ class TestLocalVectorSearchRepository:
 
 
 @pytest.mark.asyncio
-async def test_retrieve_documents(session) -> None:
+async def test_retrieve_documents(session: AsyncSession) -> None:
     """Test retrieving documents with actual embedding values.
 
     This test is based on the user's example and tests the actual embedding
     functionality with real data.
     """
-    # Create a real embedding provider and repository for this test
-    from kodit.infrastructure.embedding.embedding_providers.local_embedding_provider import (
-        LocalEmbeddingProvider,
-    )
-    from kodit.infrastructure.sqlalchemy.embedding_repository import (
-        SqlAlchemyEmbeddingRepository,
-    )
-
     # Create embedding repository
     embedding_repository = SqlAlchemyEmbeddingRepository(session=session)
 
@@ -425,7 +437,9 @@ async def test_retrieve_documents(session) -> None:
 
     # Create dummy source, file, and index
     source = Source(
-        uri="test_repo", cloned_path="/tmp/test_repo", source_type=SourceType.GIT
+        uri="test_repo",
+        cloned_path="/tmp/test_repo",  # noqa: S108
+        source_type=SourceType.GIT,
     )
     session.add(source)
     await session.commit()
@@ -436,7 +450,7 @@ async def test_retrieve_documents(session) -> None:
         source_id=source.id,
         mime_type="text/plain",
         uri="test.py",
-        cloned_path="/tmp/test_repo/test.py",
+        cloned_path="/tmp/test_repo/test.py",  # noqa: S108
         sha256="abc123",
         size_bytes=100,
         extension="py",

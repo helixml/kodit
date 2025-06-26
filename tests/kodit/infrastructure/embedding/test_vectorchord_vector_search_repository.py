@@ -4,7 +4,7 @@ import asyncio
 import socket
 import subprocess
 import time
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Generator
 from datetime import UTC, datetime
 
 import pytest
@@ -38,7 +38,7 @@ pytestmark = [
 
 
 @pytest.fixture(scope="module")
-def event_loop():
+def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
     """Create an event loop for module-scoped async tests."""
     loop = asyncio.new_event_loop()
     yield loop
@@ -60,14 +60,14 @@ _vectorchord_container_name: str | None = None
 @pytest.fixture(scope="module")
 async def vectorchord_engine() -> AsyncGenerator[AsyncEngine, None]:
     """Create a test database engine for the entire test module."""
-    global _vectorchord_port, _vectorchord_container_name
+    global _vectorchord_port, _vectorchord_container_name  # noqa: PLW0603
 
     _vectorchord_port = find_free_port()
     _vectorchord_container_name = f"vectorchord_test_{_vectorchord_port}"
 
     # Spin up a docker container for the vectorchord database
-    subprocess.run(
-        [
+    subprocess.run(  # noqa: S603,ASYNC221
+        [  # noqa: S607
             "docker",
             "run",
             "-d",
@@ -95,8 +95,8 @@ async def vectorchord_engine() -> AsyncGenerator[AsyncEngine, None]:
             async with engine.connect() as conn:
                 await conn.execute(text("SELECT 1"))
             break
-        except Exception:
-            time.sleep(1)
+        except Exception:  # noqa: BLE001
+            time.sleep(1)  # noqa: ASYNC251
 
     try:
         engine = create_async_engine(
@@ -113,7 +113,10 @@ async def vectorchord_engine() -> AsyncGenerator[AsyncEngine, None]:
         await engine.dispose()
     finally:
         # Clean up the container at the end of the module
-        subprocess.run(["docker", "rm", "-f", _vectorchord_container_name], check=True)
+        subprocess.run(  # noqa: S603,ASYNC221
+            ["docker", "rm", "-f", _vectorchord_container_name],  # noqa: S607
+            check=True,
+        )
 
 
 @pytest.fixture
@@ -192,27 +195,42 @@ async def test_data(
         Snippet(
             file_id=file.id,
             index_id=index.id,
-            content="Python is a high-level programming language known for its simplicity and readability.",
+            content=(
+                "Python is a high-level programming language "
+                "known for its simplicity and readability."
+            ),
         ),
         Snippet(
             file_id=file.id,
             index_id=index.id,
-            content="Python supports multiple programming paradigms including procedural, object-oriented, and functional programming.",
+            content=(
+                "Python supports multiple programming paradigms including "
+                "procedural, object-oriented, and functional programming."
+            ),
         ),
         Snippet(
             file_id=file.id,
             index_id=index.id,
-            content="The Python programming language was created by Guido van Rossum and first released in 1991.",
+            content=(
+                "The Python programming language was created by Guido van Rossum "
+                "and first released in 1991."
+            ),
         ),
         Snippet(
             file_id=file.id,
             index_id=index.id,
-            content="Python is widely used in data science, machine learning, and artificial intelligence applications.",
+            content=(
+                "Python is widely used in data science, machine learning, and "
+                "artificial intelligence applications."
+            ),
         ),
         Snippet(
             file_id=file.id,
             index_id=index.id,
-            content="Python's extensive standard library and third-party packages make it a versatile language for various applications.",
+            content=(
+                "Python's extensive standard library and third-party packages make "
+                "it a versatile language for various applications."
+            ),
         ),
     ]
 
@@ -259,7 +277,7 @@ async def test_search_with_none_snippet_ids_returns_all_results(
     # Verify
     assert len(results) > 0
     assert all(isinstance(result, SearchResult) for result in results)
-    # Should return multiple results since "Python programming" matches multiple snippets
+    # Should return multiple results since "Python programming" matches multiple snips
     assert len(results) >= 3
 
 
@@ -451,7 +469,7 @@ async def test_search_result_structure(
 async def test_search_with_mixed_existing_and_nonexistent_ids(
     test_data: tuple[list[Snippet], VectorChordVectorSearchRepository],
 ) -> None:
-    """Test that search with a mix of existing and non-existent snippet_ids works correctly."""
+    """Test that search with a mix of existing and non-existent snippet_ids works."""
     snippets, repository = test_data
 
     # Setup - mix of existing and non-existent IDs
@@ -561,7 +579,7 @@ async def test_search_results_consistency_with_filtering(
     # Let's filter to include the top result and a few others
     filtered_snippet_ids = [top_unfiltered_result.snippet_id]
     for result in unfiltered_results[1:3]:  # Add next 2 results
-        filtered_snippet_ids.append(result.snippet_id)
+        filtered_snippet_ids.extend([result.snippet_id])
 
     # Now search with filtering applied at the database level
     filtered_request = SearchRequest(
@@ -577,8 +595,10 @@ async def test_search_results_consistency_with_filtering(
     # when filtering is applied, since it's in our filtered set
     assert filtered_results[0].snippet_id == top_unfiltered_result.snippet_id, (
         f"Top result changed when filtering was applied. "
-        f"Unfiltered top: {top_unfiltered_result.snippet_id} (score: {top_unfiltered_result.score}), "
-        f"Filtered top: {filtered_results[0].snippet_id} (score: {filtered_results[0].score})"
+        f"Unfiltered top: {top_unfiltered_result.snippet_id} "
+        "(score: {top_unfiltered_result.score}), "
+        f"Filtered top: {filtered_results[0].snippet_id} "
+        "(score: {filtered_results[0].score})"
     )
 
     # The scores should also be the same (or very close due to floating point precision)
@@ -593,16 +613,16 @@ async def test_search_results_consistency_with_filtering(
 async def test_search_with_application_level_filtering_bug(
     test_data: tuple[list[Snippet], VectorChordVectorSearchRepository],
 ) -> None:
-    """Test that demonstrates the bug where application-level filtering changes vector search results.
+    """Test that demonstrates application-level should not change vector search results.
 
     This test simulates what happens in the application service when language filters
     are applied. The bug occurs because:
-    1. Application service calls snippet_application_service.search() to get filtered snippet IDs
+    1. Application service calls snippet_application_service.search()
     2. This returns a limited set of snippets based on metadata filters (language, etc.)
     3. Vector search is then performed only within this limited set
     4. This can change the ranking because the vector search context is different
 
-    The issue is that the snippet_application_service.search() doesn't consider the actual
+    The issue is that the snippet_application_service.search() doesn't consider the
     search query - it just filters by metadata and applies top_k, which can exclude
     snippets that would be the top results from vector search.
     """
@@ -612,7 +632,7 @@ async def test_search_with_application_level_filtering_bug(
     # 1. First, get all snippet IDs (this would be the "unfiltered" case)
     [s.id for s in snippets]
 
-    # 2. Search without any filtering (this is what should happen without language filter)
+    # 2. Search without any filtering (this is what should happen without filter)
     unfiltered_request = SearchRequest(
         query="data science",  # This should match snippet 3 best
         top_k=3,
@@ -646,8 +666,10 @@ async def test_search_with_application_level_filtering_bug(
             f"BUG: Top result changed when filtering was applied even though "
             f"the original top result ({top_unfiltered_result.snippet_id}) "
             f"was in the filtered set. "
-            f"Unfiltered top: {top_unfiltered_result.snippet_id} (score: {top_unfiltered_result.score}), "
-            f"Filtered top: {filtered_results[0].snippet_id} (score: {filtered_results[0].score})"
+            f"Unfiltered top: {top_unfiltered_result.snippet_id} "
+            "(score: {top_unfiltered_result.score}), "
+            f"Filtered top: {filtered_results[0].snippet_id} "
+            "(score: {filtered_results[0].score})"
         )
     else:
         # If the top result is not in the limited set, that's expected behavior

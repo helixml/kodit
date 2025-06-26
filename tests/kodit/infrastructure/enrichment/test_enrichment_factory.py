@@ -94,8 +94,10 @@ class TestEnrichmentFactory:
             max_retries=2,
         )
 
-    def test_create_enrichment_domain_service_default_openai_endpoint_no_model(self) -> None:
-        """Test creating enrichment service with OpenAI endpoint but no model specified."""
+    def test_create_enrichment_domain_service_default_openai_endpoint_no_model(
+        self,
+    ) -> None:
+        """Test creating enrichment service with OpenAI endpoint but no model."""
         app_context = AppContext()
         app_context.default_endpoint = Endpoint(
             type="openai",
@@ -117,8 +119,10 @@ class TestEnrichmentFactory:
                 service.enrichment_provider.model_name == "gpt-4o-mini"
             )  # Default model
 
-    def test_create_enrichment_domain_service_default_openai_endpoint_no_base_url(self) -> None:
-        """Test creating enrichment service with OpenAI endpoint but no base URL specified."""
+    def test_create_enrichment_domain_service_default_openai_endpoint_no_base_url(
+        self,
+    ) -> None:
+        """Test creating enrichment service with OpenAI endpoint but no base URL."""
         app_context = AppContext()
         app_context.default_endpoint = Endpoint(
             type="openai",
@@ -145,8 +149,10 @@ class TestEnrichmentFactory:
             max_retries=2,
         )
 
-    def test_create_enrichment_domain_service_default_openai_endpoint_no_api_key(self) -> None:
-        """Test creating enrichment service with OpenAI endpoint but no API key specified."""
+    def test_create_enrichment_domain_service_default_openai_endpoint_no_api_key(
+        self,
+    ) -> None:
+        """Test creating enrichment service with OpenAI endpoint but no API key."""
         app_context = AppContext()
         app_context.default_endpoint = Endpoint(
             type="openai",
@@ -174,7 +180,7 @@ class TestEnrichmentFactory:
         )
 
     def test_create_enrichment_domain_service_non_openai_endpoint(self) -> None:
-        """Test creating enrichment service with non-OpenAI endpoint (should fall back to local)."""
+        """Test creating enrichment service with non-OpenAI endpoint."""
         app_context = AppContext()
         app_context.default_endpoint = Endpoint(
             type=None,
@@ -189,8 +195,10 @@ class TestEnrichmentFactory:
         assert isinstance(service, EnrichmentDomainService)
         assert isinstance(service.enrichment_provider, LocalEnrichmentProvider)
 
-    def test_create_enrichment_domain_service_enrichment_non_openai_endpoint(self) -> None:
-        """Test creating enrichment service with enrichment-specific non-OpenAI endpoint."""
+    def test_create_enrichment_domain_service_enrichment_non_openai_endpoint(
+        self,
+    ) -> None:
+        """Test creating enrichment service with non-OpenAI endpoint."""
         app_context = AppContext()
         app_context.default_endpoint = Endpoint(
             type="openai",

@@ -37,9 +37,7 @@ class TestOpenAIEnrichmentProvider:
         provider = OpenAIEnrichmentProvider(openai_client=mock_client)
         requests = []
 
-        results = []
-        async for result in provider.enrich(requests):
-            results.append(result)
+        results = [result async for result in provider.enrich(requests)]
 
         assert len(results) == 0
         mock_client.chat.completions.create.assert_not_called()
@@ -60,9 +58,7 @@ class TestOpenAIEnrichmentProvider:
             EnrichmentRequest(snippet_id=2, text="   "),
         ]
 
-        results = []
-        async for result in provider.enrich(requests):
-            results.append(result)
+        results = [result async for result in provider.enrich(requests)]
 
         # Should return responses for all requests
         assert len(results) == 2
@@ -93,21 +89,23 @@ class TestOpenAIEnrichmentProvider:
         provider = OpenAIEnrichmentProvider(openai_client=mock_client)
         requests = [EnrichmentRequest(snippet_id=1, text="def test(): pass")]
 
-        results = []
-        async for result in provider.enrich(requests):
-            results.append(result)
+        results = [result async for result in provider.enrich(requests)]
 
         assert len(results) == 1
         assert results[0].snippet_id == 1
         assert results[0].text == "This is a test function"
 
-        # Verify the API was called correctly - note the extra newlines in the actual prompt
+        # Verify the API was called correctly - note the extra newlines in the prompt
         mock_client.chat.completions.create.assert_called_once_with(
             model="gpt-4o-mini",
             messages=[
                 {
                     "role": "system",
-                    "content": "\nYou are a professional software developer. You will be given a snippet of code.\nPlease provide a concise explanation of the code.\n",
+                    "content": (
+                        "\nYou are a professional software developer. "
+                        "You will be given a snippet of code.\nPlease provide "
+                        "a concise explanation of the code.\n"
+                    ),
                 },
                 {"role": "user", "content": "def test(): pass"},
             ],
@@ -138,9 +136,7 @@ class TestOpenAIEnrichmentProvider:
             EnrichmentRequest(snippet_id=2, text="def world(): pass"),
         ]
 
-        results = []
-        async for result in provider.enrich(requests):
-            results.append(result)
+        results = [result async for result in provider.enrich(requests)]
 
         assert len(results) == 2
         # Results come back in completion order, so we need to check by snippet_id
@@ -176,9 +172,7 @@ class TestOpenAIEnrichmentProvider:
             EnrichmentRequest(snippet_id=3, text="   "),  # Whitespace only
         ]
 
-        results = []
-        async for result in provider.enrich(requests):
-            results.append(result)
+        results = [result async for result in provider.enrich(requests)]
 
         # Should return responses for all requests
         assert len(results) == 3
@@ -215,9 +209,7 @@ class TestOpenAIEnrichmentProvider:
         provider = OpenAIEnrichmentProvider(openai_client=mock_client)
         requests = [EnrichmentRequest(snippet_id=1, text="def test(): pass")]
 
-        results = []
-        async for result in provider.enrich(requests):
-            results.append(result)
+        results = [result async for result in provider.enrich(requests)]
 
         # Should return empty response on error
         assert len(results) == 1
@@ -236,9 +228,7 @@ class TestOpenAIEnrichmentProvider:
         provider = OpenAIEnrichmentProvider(openai_client=mock_client)
         requests = [EnrichmentRequest(snippet_id=1, text="def test(): pass")]
 
-        results = []
-        async for result in provider.enrich(requests):
-            results.append(result)
+        results = [result async for result in provider.enrich(requests)]
 
         # Should return empty string for null content
         assert len(results) == 1
@@ -253,7 +243,7 @@ class TestOpenAIEnrichmentProvider:
         # Track call order to verify concurrency
         call_order = []
 
-        async def mock_create(*args, **kwargs):
+        async def mock_create(*args, **kwargs) -> MagicMock:  # noqa: ANN002, ANN003, ARG001
             # Simulate some processing time
             await asyncio.sleep(0.1)
             call_order.append(kwargs.get("messages", [{}])[1].get("content", ""))
@@ -277,9 +267,7 @@ class TestOpenAIEnrichmentProvider:
         ]
 
         start_time = asyncio.get_event_loop().time()
-        results = []
-        async for result in provider.enrich(requests):
-            results.append(result)
+        results = [result async for result in provider.enrich(requests)]
         end_time = asyncio.get_event_loop().time()
 
         # Should process all requests
@@ -297,7 +285,7 @@ class TestOpenAIEnrichmentProvider:
         active_requests = 0
         max_concurrent = 0
 
-        async def mock_create(*args, **kwargs):
+        async def mock_create(*args, **kwargs) -> MagicMock:  # noqa: ANN002, ANN003, ARG001
             nonlocal active_requests, max_concurrent
             active_requests += 1
             max_concurrent = max(max_concurrent, active_requests)
@@ -320,9 +308,7 @@ class TestOpenAIEnrichmentProvider:
             for i in range(10)  # More than the semaphore limit
         ]
 
-        results = []
-        async for result in provider.enrich(requests):
-            results.append(result)
+        results = [result async for result in provider.enrich(requests)]
 
         # Should process all requests
         assert len(results) == 10
@@ -344,9 +330,7 @@ class TestOpenAIEnrichmentProvider:
         )
         requests = [EnrichmentRequest(snippet_id=1, text="def test(): pass")]
 
-        results = []
-        async for result in provider.enrich(requests):
-            results.append(result)
+        [result async for result in provider.enrich(requests)]
 
         # Verify the custom model was used
         mock_client.chat.completions.create.assert_called_once_with(
@@ -354,7 +338,11 @@ class TestOpenAIEnrichmentProvider:
             messages=[
                 {
                     "role": "system",
-                    "content": "\nYou are a professional software developer. You will be given a snippet of code.\nPlease provide a concise explanation of the code.\n",
+                    "content": (
+                        "\nYou are a professional software developer. "
+                        "You will be given a snippet of code.\nPlease provide "
+                        "a concise explanation of the code.\n"
+                    ),
                 },
                 {"role": "user", "content": "def test(): pass"},
             ],
