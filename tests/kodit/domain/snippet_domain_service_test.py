@@ -94,7 +94,8 @@ async def test_extract_and_create_snippets_success(
     # Mock saved snippets
     saved_snippets = []
 
-    async def mock_save(snippet):
+    async def mock_save(snippet: Snippet) -> Snippet:
+        """Mock the save method."""
         saved = MagicMock(spec=Snippet)
         saved.id = len(saved_snippets) + 1
         saved.file_id = snippet.file_id

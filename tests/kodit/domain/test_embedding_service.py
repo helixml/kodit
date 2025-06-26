@@ -1,5 +1,6 @@
 """Tests for the embedding domain service."""
 
+from collections.abc import AsyncGenerator
 from unittest.mock import MagicMock
 
 import pytest
@@ -12,6 +13,8 @@ from kodit.domain.services.embedding_service import (
 )
 from kodit.domain.value_objects import (
     Document,
+    EmbeddingRequest,
+    EmbeddingResponse,
     IndexRequest,
     IndexResult,
     SearchRequest,
@@ -22,37 +25,51 @@ from kodit.domain.value_objects import (
 class MockEmbeddingProvider(EmbeddingProvider):
     """Mock embedding provider for testing."""
 
-    def __init__(self, responses=None) -> None:
+    def __init__(self, responses: list[EmbeddingResponse] | None = None) -> None:
+        """Initialize the mock embedding provider."""
         super().__init__()
         self.responses = responses or []
 
-    async def embed(self, data):
-        for response in self.responses:
-            yield response
+    async def embed(
+        self,
+        data: list[EmbeddingRequest],  # noqa: ARG002
+    ) -> AsyncGenerator[list[EmbeddingResponse], None]:
+        """Embed the data."""
+        yield self.responses
 
 
 class MockVectorSearchRepository(VectorSearchRepository):
     """Mock vector search repository for testing."""
 
     def __init__(
-        self, index_results=None, search_results=None, has_embedding_result=True
+        self,
+        index_results: list[IndexResult] | None = None,
+        search_results: list[SearchResult] | None = None,
+        has_embedding_result: bool = True,  # noqa: FBT001, FBT002
     ) -> None:
+        """Initialize the mock vector search repository."""
         super().__init__()
         self.index_results = index_results or []
         self.search_results = search_results or []
         self.has_embedding_result = has_embedding_result
 
-    def index_documents(self, request):
-        async def _index():
-            for result in self.index_results:
-                yield result
+    async def index_documents(
+        self,
+        request: IndexRequest,  # noqa: ARG002
+    ) -> AsyncGenerator[list[IndexResult], None]:
+        """Index the documents."""
+        yield self.index_results
 
-        return _index()
-
-    async def search(self, request):
+    async def search(self, request: SearchRequest) -> list[SearchResult]:  # noqa: ARG002
+        """Search the documents."""
         return self.search_results
 
-    async def has_embedding(self, snippet_id, embedding_type):
+    async def has_embedding(
+        self,
+        snippet_id: int,  # noqa: ARG002
+        embedding_type: EmbeddingType,  # noqa: ARG002
+    ) -> bool:
+        """Check if the snippet has an embedding."""
         return self.has_embedding_result
 
 
@@ -99,7 +116,7 @@ class TestEmbeddingDomainService:
         mock_repository = MagicMock(spec=VectorSearchRepository)
 
         # Mock repository response
-        async def mock_index():
+        async def mock_index() -> AsyncGenerator[list[IndexResult], None]:
             yield [IndexResult(snippet_id=1)]
             yield [IndexResult(snippet_id=2)]
 
@@ -137,7 +154,7 @@ class TestEmbeddingDomainService:
         mock_repository = MagicMock(spec=VectorSearchRepository)
 
         # Mock repository response
-        async def mock_index():
+        async def mock_index() -> AsyncGenerator[list[IndexResult], None]:
             yield [IndexResult(snippet_id=1)]
 
         mock_repository.index_documents.return_value = mock_index()
@@ -152,7 +169,7 @@ class TestEmbeddingDomainService:
                 Document(snippet_id=1, text="valid text"),
                 Document(snippet_id=2, text=""),  # Empty text
                 Document(snippet_id=3, text="   "),  # Whitespace only
-                # Note: VectorSearchRequest requires snippet_id to be int, so we can't test None
+                # Note: VectorSearchRequest requires snippet_id to be int
                 # This test case is handled by the domain service validation
             ]
         )
