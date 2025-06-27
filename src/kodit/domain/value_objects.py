@@ -289,6 +289,29 @@ class SnippetListItem:
     source_uri: str
 
 
+@dataclass
+class FileInfo:
+    """Domain model for file information."""
+
+    uri: str
+
+
+@dataclass
+class SnippetInfo:
+    """Domain model for snippet information."""
+
+    id: int
+    content: str
+
+
+@dataclass
+class SnippetWithFile:
+    """Domain model for snippet with associated file information."""
+
+    file: FileInfo
+    snippet: SnippetInfo
+
+
 class LanguageMapping:
     """Value object for language-to-extension mappings.
 

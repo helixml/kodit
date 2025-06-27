@@ -225,12 +225,12 @@ class CodeIndexingApplicationService:
 
         return [
             MultiSearchResult(
-                id=snippet["id"],
-                uri=file["uri"],
-                content=snippet["content"],
+                id=result.snippet.id,
+                uri=result.file.uri,
+                content=result.snippet.content,
                 original_scores=fr.original_scores,
             )
-            for (file, snippet), fr in zip(search_results, final_results, strict=True)
+            for result, fr in zip(search_results, final_results, strict=True)
         ]
 
     async def list_snippets(

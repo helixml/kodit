@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.domain.entities import Embedding, File, Index, Snippet, Source
 from kodit.domain.services.indexing_service import IndexRepository
-from kodit.domain.value_objects import IndexView
+from kodit.domain.value_objects import FileInfo, IndexView, SnippetInfo, SnippetWithFile
 
 T = TypeVar("T")
 
@@ -221,14 +221,14 @@ class SQLAlchemyIndexRepository(IndexRepository):
             snippet.content = content
             # SQLAlchemy will automatically track this change
 
-    async def list_snippets_by_ids(self, ids: list[int]) -> list[tuple[dict, dict]]:
+    async def list_snippets_by_ids(self, ids: list[int]) -> list[SnippetWithFile]:
         """List snippets by IDs.
 
         Args:
             ids: List of snippet IDs to retrieve.
 
         Returns:
-            List of (file, snippet) tuples.
+            List of SnippetWithFile objects containing file and snippet information.
 
         """
         query = (
@@ -241,27 +241,9 @@ class SQLAlchemyIndexRepository(IndexRepository):
         # Create a dictionary for O(1) lookup of results by ID
         id_to_result = {}
         for snippet, file in rows.all():
-            id_to_result[snippet.id] = (
-                {
-                    "id": file.id,
-                    "source_id": file.source_id,
-                    "mime_type": file.mime_type,
-                    "uri": file.uri,
-                    "cloned_path": file.cloned_path,
-                    "sha256": file.sha256,
-                    "size_bytes": file.size_bytes,
-                    "extension": file.extension,
-                    "created_at": file.created_at,
-                    "updated_at": file.updated_at,
-                },
-                {
-                    "id": snippet.id,
-                    "file_id": snippet.file_id,
-                    "index_id": snippet.index_id,
-                    "content": snippet.content,
-                    "created_at": snippet.created_at,
-                    "updated_at": snippet.updated_at,
-                },
+            id_to_result[snippet.id] = SnippetWithFile(
+                file=FileInfo(uri=file.uri),
+                snippet=SnippetInfo(id=snippet.id, content=snippet.content)
             )
 
         # Check that all IDs are present
