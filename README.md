@@ -30,7 +30,7 @@ If you're an engineer working with AI-powered coding assistants, Kodit helps by
 providing relevant and up-to-date examples of your task so that LLMs make less mistakes
 and produce fewer hallucinations.
 
-## ✨ Features
+## Features
 
 ### Codebase Indexing
 
@@ -41,7 +41,11 @@ code. This index is used to build a snippet library, ready for ingestion into an
 - Build comprehensive snippet libraries for LLM ingestion
 - Support for multiple codebase types and languages
 - Efficient indexing and search capabilities
-- Privacy first: respects .gitignore and .noindex files.
+- Privacy first: respects .gitignore and .noindex files
+- **NEW in 0.3**: Auto-indexing configuration for shared server deployments
+- **NEW in 0.3**: Enhanced Git provider support including Azure DevOps
+- **NEW in 0.3**: Index private repositories via a PAT
+- **NEW in 0.3**: Improved progress monitoring and reporting during indexing
 
 ### MCP Server
 
@@ -54,6 +58,7 @@ intent. Kodit has been tested to work well with:
   - [Cursor](https://docs.helix.ml/kodit/getting-started/integration/#integration-with-cursor)
   - [Cline](https://docs.helix.ml/kodit/getting-started/integration/#integration-with-cline)
 - Please contribute more instructions! ... any other assistant is likely to work ...
+- **New in 0.3**: Filter snippets by source, language, author or timestamp.
 
 ### Enterprise Ready
 
@@ -74,7 +79,12 @@ Supported providers:
 - Secure, private LLM enclave with [Helix](https://helix.ml).
 - Any other OpenAI compatible API
 
-## 🚀 Quick Start
+**NEW in 0.3**: Enhanced deployment options:
+
+- Docker Compose configurations with VectorChord
+- Kubernetes manifests for production deployments
+
+## Quick Start
 
 1. [Install Kodit](https://docs.helix.ml/kodit/getting-started/installation/)
 2. [Index codebases](https://docs.helix.ml/kodit/getting-started/quick-start/)
