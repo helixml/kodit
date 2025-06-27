@@ -14,6 +14,7 @@ from kodit.domain.services.snippet_extraction_service import (
 )
 from kodit.domain.value_objects import (
     MultiSearchRequest,
+    MultiSearchResult,
     SnippetExtractionRequest,
     SnippetListItem,
 )
@@ -170,7 +171,7 @@ class SnippetDomainService:
 
     async def list_snippets(
         self, file_path: str | None = None, source_uri: str | None = None
-    ) -> list[SnippetListItem]:
+    ) -> list[MultiSearchResult]:
         """List snippets with optional filtering.
 
         Args:
@@ -178,10 +179,22 @@ class SnippetDomainService:
             source_uri: Optional source URI to filter by
 
         Returns:
-            List of snippet items matching the criteria
+            List of search results matching the criteria
 
         """
-        return list(await self.snippet_repository.list_snippets(file_path, source_uri))
+        snippet_items = await self.snippet_repository.list_snippets(
+            file_path, source_uri
+        )
+        # Convert SnippetListItem to MultiSearchResult for unified display format
+        return [
+            MultiSearchResult(
+                id=item.id,
+                uri=item.source_uri,
+                content=item.content,
+                original_scores=[],
+            )
+            for item in snippet_items
+        ]
 
     def _should_process_file(self, file: Any) -> bool:
         """Check if a file should be processed for snippet extraction.

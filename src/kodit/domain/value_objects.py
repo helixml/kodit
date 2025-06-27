@@ -182,6 +182,18 @@ class MultiSearchResult:
     content: str
     original_scores: list[float]
 
+    def __str__(self) -> str:
+        """Return formatted string representation for all snippet display."""
+        lines = [
+            "-" * 80,
+            f"ID: {self.id} | {self.uri}",
+            f"Original scores: {self.original_scores}",
+            self.content,
+            "-" * 80,
+            "",
+        ]
+        return "\n".join(lines)
+
 
 @dataclass
 class FusionRequest:

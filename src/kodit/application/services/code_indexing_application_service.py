@@ -27,7 +27,6 @@ from kodit.domain.value_objects import (
     MultiSearchResult,
     SearchRequest,
     SearchResult,
-    SnippetListItem,
 )
 from kodit.log import log_event
 from kodit.reporting import Reporter
@@ -235,7 +234,7 @@ class CodeIndexingApplicationService:
 
     async def list_snippets(
         self, file_path: str | None = None, source_uri: str | None = None
-    ) -> list[SnippetListItem]:
+    ) -> list[MultiSearchResult]:
         """List snippets with optional filtering."""
         log_event("kodit.index.list_snippets")
         return await self.snippet_domain_service.list_snippets(file_path, source_uri)

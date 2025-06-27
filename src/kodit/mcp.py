@@ -203,7 +203,7 @@ async def search(  # noqa: PLR0913
 
 def output_fusion(snippets: list[MultiSearchResult]) -> str:
     """Fuse the snippets into a single output."""
-    return "\n\n".join(f"{snippet.uri}\n{snippet.content}" for snippet in snippets)
+    return "\n\n".join(str(snippet) for snippet in snippets)
 
 
 @mcp.tool()

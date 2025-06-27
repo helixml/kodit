@@ -260,12 +260,7 @@ async def code(  # noqa: PLR0913
         return
 
     for snippet in snippets:
-        click.echo("-" * 80)
-        click.echo(f"{snippet.uri}")
-        click.echo(f"Original scores: {snippet.original_scores}")
-        click.echo(snippet.content)
-        click.echo("-" * 80)
-        click.echo()
+        click.echo(str(snippet))
 
 
 @search.command()
@@ -322,12 +317,7 @@ async def keyword(  # noqa: PLR0913
         return
 
     for snippet in snippets:
-        click.echo("-" * 80)
-        click.echo(f"{snippet.uri}")
-        click.echo(f"Original scores: {snippet.original_scores}")
-        click.echo(snippet.content)
-        click.echo("-" * 80)
-        click.echo()
+        click.echo(str(snippet))
 
 
 @search.command()
@@ -387,12 +377,7 @@ async def text(  # noqa: PLR0913
         return
 
     for snippet in snippets:
-        click.echo("-" * 80)
-        click.echo(f"{snippet.uri}")
-        click.echo(f"Original scores: {snippet.original_scores}")
-        click.echo(snippet.content)
-        click.echo("-" * 80)
-        click.echo()
+        click.echo(str(snippet))
 
 
 @search.command()
@@ -462,12 +447,7 @@ async def hybrid(  # noqa: PLR0913
         return
 
     for snippet in snippets:
-        click.echo("-" * 80)
-        click.echo(f"{snippet.uri}")
-        click.echo(f"Original scores: {snippet.original_scores}")
-        click.echo(snippet.content)
-        click.echo("-" * 80)
-        click.echo()
+        click.echo(str(snippet))
 
 
 @cli.group()
@@ -499,9 +479,7 @@ async def snippets(
     )
     snippets = await service.list_snippets(file_path=by_path, source_uri=by_source)
     for snippet in snippets:
-        click.echo(f"{snippet.id}: [{snippet.source_uri}] {snippet.file_path}")
-        click.echo(f"  {snippet.content}")
-        click.echo()
+        click.echo(str(snippet))
 
 
 @cli.command()

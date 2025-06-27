@@ -13,6 +13,7 @@ from kodit.domain.services.snippet_extraction_service import (
 from kodit.domain.services.snippet_service import SnippetDomainService
 from kodit.domain.value_objects import (
     MultiSearchRequest,
+    MultiSearchResult,
     SnippetExtractionResult,
     SnippetListItem,
 )
@@ -252,15 +253,30 @@ async def test_list_snippets(
     # Setup
     file_path = "/test/path"
     source_uri = "https://github.com/test/repo"
-    mock_results = [
-        MagicMock(spec=SnippetListItem),
-        MagicMock(spec=SnippetListItem),
+    mock_snippet_items = [
+        SnippetListItem(
+            id=1,
+            file_path="test.py",
+            content="test content 1",
+            source_uri=source_uri
+        ),
+        SnippetListItem(
+            id=2,
+            file_path="test2.py",
+            content="test content 2",
+            source_uri=source_uri
+        ),
     ]
-    mock_snippet_repository.list_snippets.return_value = mock_results
+    mock_snippet_repository.list_snippets.return_value = mock_snippet_items
 
     # Execute
     result = await snippet_domain_service.list_snippets(file_path, source_uri)
 
-    # Verify
-    assert result == mock_results
+    # Verify - should return MultiSearchResult objects
+    assert len(result) == 2
+    assert all(isinstance(item, MultiSearchResult) for item in result)
+    assert result[0].id == 1
+    assert result[0].content == "test content 1"
+    assert result[1].id == 2
+    assert result[1].content == "test content 2"
     mock_snippet_repository.list_snippets.assert_called_once_with(file_path, source_uri)
