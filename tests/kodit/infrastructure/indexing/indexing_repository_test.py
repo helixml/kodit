@@ -120,10 +120,10 @@ async def test_should_return_when_items_are_present(
 
     result = await indexing_repository.list_snippets_by_ids([snippet1_id, snippet2_id])
     assert len(result) == 2
-    assert result[0][1]["content"] == snippet1["content"]
-    assert result[1][1]["content"] == snippet2["content"]
+    assert result[0].snippet.content == snippet1["content"]
+    assert result[1].snippet.content == snippet2["content"]
 
     result = await indexing_repository.list_snippets_by_ids([snippet2_id, snippet1_id])
     assert len(result) == 2
-    assert result[0][1]["content"] == snippet2["content"]
-    assert result[1][1]["content"] == snippet1["content"]
+    assert result[0].snippet.content == snippet2["content"]
+    assert result[1].snippet.content == snippet1["content"]
