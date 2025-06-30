@@ -183,10 +183,10 @@ async def test_update_snippet_content_success(
     mock_snippet_repository.save.return_value = mock_snippet
 
     # Execute
-    await snippet_domain_service.update_snippet_content(snippet_id, new_content)
+    await snippet_domain_service.update_snippet_summary(snippet_id, new_content)
 
     # Verify
-    assert mock_snippet.content == new_content
+    assert mock_snippet.summary == new_content
     mock_snippet_repository.get.assert_called_once_with(snippet_id)
     mock_snippet_repository.save.assert_called_once_with(mock_snippet)
 
@@ -203,7 +203,7 @@ async def test_update_snippet_content_not_found(
 
     # Execute and verify
     with pytest.raises(ValueError, match="Snippet not found: 999"):
-        await snippet_domain_service.update_snippet_content(snippet_id, "new content")
+        await snippet_domain_service.update_snippet_summary(snippet_id, "new content")
 
 
 @pytest.mark.asyncio
@@ -255,16 +255,10 @@ async def test_list_snippets(
     source_uri = "https://github.com/test/repo"
     mock_snippet_items = [
         SnippetListItem(
-            id=1,
-            file_path="test.py",
-            content="test content 1",
-            source_uri=source_uri
+            id=1, file_path="test.py", content="test content 1", source_uri=source_uri
         ),
         SnippetListItem(
-            id=2,
-            file_path="test2.py",
-            content="test content 2",
-            source_uri=source_uri
+            id=2, file_path="test2.py", content="test content 2", source_uri=source_uri
         ),
     ]
     mock_snippet_repository.list_snippets.return_value = mock_snippet_items

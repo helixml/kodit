@@ -188,7 +188,7 @@ class MultiSearchResult:
     created_at: datetime | None = None
 
     # Optional fields for LLM-optimized JSON output
-    summary: str = ""
+    summary: str = ""  # Will be populated from snippet.summary
     key_points: list[str] = field(default_factory=list)
 
     def __str__(self) -> str:

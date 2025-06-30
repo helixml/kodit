@@ -84,13 +84,22 @@ class TestEmbeddingIntegration:
 
         # Create snippets
         snippet1 = Snippet(
-            file_id=file.id, index_id=index.id, content="python programming language"
+            file_id=file.id,
+            index_id=index.id,
+            content="python programming language",
+            summary="",
         )
         snippet2 = Snippet(
-            file_id=file.id, index_id=index.id, content="javascript web development"
+            file_id=file.id,
+            index_id=index.id,
+            content="javascript web development",
+            summary="",
         )
         snippet3 = Snippet(
-            file_id=file.id, index_id=index.id, content="java enterprise applications"
+            file_id=file.id,
+            index_id=index.id,
+            content="java enterprise applications",
+            summary="",
         )
         session.add(snippet1)
         session.add(snippet2)
@@ -184,16 +193,28 @@ class TestEmbeddingIntegration:
 
         # Create snippets
         snippet1 = Snippet(
-            file_id=file.id, index_id=index.id, content="python function definition"
+            file_id=file.id,
+            index_id=index.id,
+            content="python function definition",
+            summary="",
         )
         snippet2 = Snippet(
-            file_id=file.id, index_id=index.id, content="javascript function definition"
+            file_id=file.id,
+            index_id=index.id,
+            content="javascript function definition",
+            summary="",
         )
         snippet3 = Snippet(
-            file_id=file.id, index_id=index.id, content="java function definition"
+            file_id=file.id,
+            index_id=index.id,
+            content="java function definition",
+            summary="",
         )
         snippet4 = Snippet(
-            file_id=file.id, index_id=index.id, content="database query optimization"
+            file_id=file.id,
+            index_id=index.id,
+            content="database query optimization",
+            summary="",
         )
         session.add(snippet1)
         session.add(snippet2)
@@ -281,7 +302,10 @@ class TestEmbeddingIntegration:
         snippets = []
         for i in range(25):
             snippet = Snippet(
-                file_id=file.id, index_id=index.id, content=f"document {i} content"
+                file_id=file.id,
+                index_id=index.id,
+                content=f"document {i} content",
+                summary="",
             )
             snippets.append(snippet)
             session.add(snippet)
@@ -386,7 +410,7 @@ class TestEmbeddingIntegration:
 
         # Create snippet
         snippet = Snippet(
-            file_id=file.id, index_id=index.id, content="python programming"
+            file_id=file.id, index_id=index.id, content="python programming", summary=""
         )
         session.add(snippet)
         await session.commit()
@@ -482,7 +506,7 @@ class TestEmbeddingIntegration:
 
         # Create snippet
         snippet = Snippet(
-            file_id=file.id, index_id=index.id, content="python programming"
+            file_id=file.id, index_id=index.id, content="python programming", summary=""
         )
         session.add(snippet)
         await session.commit()
@@ -574,6 +598,7 @@ class TestEmbeddingIntegration:
                 file_id=file.id,
                 index_id=index.id,
                 content=f"document {i} with some content",
+                summary="",
             )
             snippets.append(snippet)
             session.add(snippet)

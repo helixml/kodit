@@ -57,6 +57,7 @@ async def setup_test_data(session: AsyncSession, num_embeddings: int = 5000) -> 
         file_id=file.id,
         index_id=index.id,
         content="This is a test snippet",
+        summary="",
     )
     session.add(snippet)
     await session.commit()

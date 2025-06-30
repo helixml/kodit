@@ -464,13 +464,22 @@ async def test_retrieve_documents(session: AsyncSession) -> None:
 
     # Create snippets
     snippet1 = Snippet(
-        index_id=index.id, file_id=file.id, content="python programming language"
+        index_id=index.id,
+        file_id=file.id,
+        content="python programming language",
+        summary="",
     )
     snippet2 = Snippet(
-        index_id=index.id, file_id=file.id, content="javascript web development"
+        index_id=index.id,
+        file_id=file.id,
+        content="javascript web development",
+        summary="",
     )
     snippet3 = Snippet(
-        index_id=index.id, file_id=file.id, content="java enterprise applications"
+        index_id=index.id,
+        file_id=file.id,
+        content="java enterprise applications",
+        summary="",
     )
     session.add(snippet1)
     session.add(snippet2)

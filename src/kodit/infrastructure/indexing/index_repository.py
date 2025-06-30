@@ -213,6 +213,7 @@ class SQLAlchemyIndexRepository(IndexRepository):
             file_id=snippet["file_id"],
             index_id=snippet["index_id"],
             content=snippet["content"],
+            summary=snippet.get("summary", ""),
         )
         self.session.add(db_snippet)
 

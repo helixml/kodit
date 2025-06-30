@@ -183,10 +183,18 @@ class Snippet(Base, CommonMixin):
     file_id: Mapped[int] = mapped_column(ForeignKey("files.id"), index=True)
     index_id: Mapped[int] = mapped_column(ForeignKey("indexes.id"), index=True)
     content: Mapped[str] = mapped_column(UnicodeText, default="")
+    summary: Mapped[str] = mapped_column(UnicodeText, default="")
 
-    def __init__(self, file_id: int, index_id: int, content: str) -> None:
+    def __init__(
+        self,
+        file_id: int,
+        index_id: int,
+        content: str,
+        summary: str = "",
+    ) -> None:
         """Initialize the snippet."""
         super().__init__()
         self.file_id = file_id
         self.index_id = index_id
         self.content = content
+        self.summary = summary

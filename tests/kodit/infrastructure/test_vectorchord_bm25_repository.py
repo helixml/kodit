@@ -196,6 +196,7 @@ async def test_data(
                 "Python is a high-level programming language "
                 "known for its simplicity and readability."
             ),
+            summary="",
         ),
         Snippet(
             file_id=file.id,
@@ -204,6 +205,7 @@ async def test_data(
                 "Python supports multiple programming paradigms including "
                 "procedural, object-oriented, and functional programming."
             ),
+            summary="",
         ),
         Snippet(
             file_id=file.id,
@@ -212,6 +214,7 @@ async def test_data(
                 "The Python programming language was created by "
                 "Guido van Rossum and first released in 1991."
             ),
+            summary="",
         ),
         Snippet(
             file_id=file.id,
@@ -220,6 +223,7 @@ async def test_data(
                 "Python is widely used in data science, machine learning, "
                 "and artificial intelligence applications."
             ),
+            summary="",
         ),
         Snippet(
             file_id=file.id,
@@ -228,6 +232,7 @@ async def test_data(
                 "Python's extensive standard library and third-party packages "
                 "make it a versatile language for various applications."
             ),
+            summary="",
         ),
     ]
 

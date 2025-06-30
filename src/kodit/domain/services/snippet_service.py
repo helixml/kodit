@@ -93,6 +93,7 @@ class SnippetDomainService:
                         file_id=file.id,
                         index_id=index_id,
                         content=snippet_content,
+                        summary="",  # Initially empty, will be populated by enrichment
                     )
                     saved_snippet = await self.snippet_repository.save(snippet)
                     created_snippets.append(saved_snippet)
@@ -128,22 +129,16 @@ class SnippetDomainService:
         # This delegates to the repository but provides a domain-level interface
         return list(await self.snippet_repository.get_by_index(index_id))
 
-    async def update_snippet_content(self, snippet_id: int, content: str) -> None:
-        """Update the content of an existing snippet.
-
-        Args:
-            snippet_id: The ID of the snippet to update
-            content: The new content for the snippet
-
-        """
+    async def update_snippet_summary(self, snippet_id: int, summary: str) -> None:
+        """Update the summary of an existing snippet."""
         # Get the snippet first to ensure it exists
         snippet = await self.snippet_repository.get(snippet_id)
         if not snippet:
             msg = f"Snippet not found: {snippet_id}"
             raise ValueError(msg)
 
-        # Update the content
-        snippet.content = content
+        # Update the summary
+        snippet.summary = summary
         await self.snippet_repository.save(snippet)
 
     async def delete_snippets_for_index(self, index_id: int) -> None:

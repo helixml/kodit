@@ -237,6 +237,8 @@ class CodeIndexingApplicationService:
                 ),
                 authors=[author.name for author in result.authors],
                 created_at=result.snippet.created_at,
+                # Summary from snippet entity
+                summary=result.snippet.summary,
             )
             for result, fr in zip(search_results, final_results, strict=True)
         ]
@@ -309,16 +311,8 @@ class CodeIndexingApplicationService:
         async for result in self.enrichment_service.enrich_documents(
             enrichment_request
         ):
-            # Update snippet content through domain service
-            enriched_content = (
-                result.text
-                + "\n\n```\n"
-                + next(s.content for s in snippets if s.id == result.snippet_id)
-                + "\n```"
-            )
-
-            await self.snippet_domain_service.update_snippet_content(
-                result.snippet_id, enriched_content
+            await self.snippet_domain_service.update_snippet_summary(
+                result.snippet_id, result.text
             )
 
             processed += 1
