@@ -157,7 +157,7 @@ class CodeIndexingApplicationService:
             snippet_results = await self.snippet_domain_service.search_snippets(
                 prefilter_request
             )
-            filtered_snippet_ids = [snippet.id for snippet in snippet_results]
+            filtered_snippet_ids = [snippet.snippet.id for snippet in snippet_results]
 
         # Gather results from different search modes
         fusion_list: list[list[FusionRequest]] = []

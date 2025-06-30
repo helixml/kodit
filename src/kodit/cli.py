@@ -20,7 +20,11 @@ from kodit.config import (
 )
 from kodit.domain.errors import EmptySourceError
 from kodit.domain.services.source_service import SourceService
-from kodit.domain.value_objects import MultiSearchRequest, SnippetSearchFilters
+from kodit.domain.value_objects import (
+    MultiSearchRequest,
+    MultiSearchResult,
+    SnippetSearchFilters,
+)
 from kodit.infrastructure.ui.progress import (
     create_lazy_progress_callback,
     create_multi_stage_progress_callback,
@@ -458,6 +462,7 @@ def show() -> None:
 @show.command()
 @click.option("--by-path", help="File or directory path to search for snippets")
 @click.option("--by-source", help="Source URI to filter snippets by")
+@click.option("--output-format", default="text", help="Format to display snippets in")
 @with_app_context
 @with_session
 async def snippets(
@@ -465,6 +470,7 @@ async def snippets(
     app_context: AppContext,
     by_path: str | None,
     by_source: str | None,
+    output_format: str,
 ) -> None:
     """Show snippets with optional filtering by path or source."""
     log_event("kodit.cli.show.snippets")
@@ -478,8 +484,10 @@ async def snippets(
         source_service=source_service,
     )
     snippets = await service.list_snippets(file_path=by_path, source_uri=by_source)
-    for snippet in snippets:
-        click.echo(str(snippet))
+    if output_format == "text":
+        click.echo(MultiSearchResult.to_string(snippets))
+    elif output_format == "json":
+        click.echo(MultiSearchResult.to_jsonlines(snippets))
 
 
 @cli.command()

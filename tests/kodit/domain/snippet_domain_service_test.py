@@ -1,5 +1,6 @@
 """Tests for the snippet domain service."""
 
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -13,9 +14,8 @@ from kodit.domain.services.snippet_extraction_service import (
 from kodit.domain.services.snippet_service import SnippetDomainService
 from kodit.domain.value_objects import (
     MultiSearchRequest,
-    MultiSearchResult,
     SnippetExtractionResult,
-    SnippetListItem,
+    SnippetWithContext,
 )
 
 
@@ -231,8 +231,8 @@ async def test_search_snippets(
     # Setup
     request = MultiSearchRequest(keywords=["test"], top_k=10)
     mock_results = [
-        MagicMock(spec=SnippetListItem),
-        MagicMock(spec=SnippetListItem),
+        MagicMock(spec=SnippetWithContext),
+        MagicMock(spec=SnippetWithContext),
     ]
     mock_snippet_repository.search.return_value = mock_results
 
@@ -253,12 +253,43 @@ async def test_list_snippets(
     # Setup
     file_path = "/test/path"
     source_uri = "https://github.com/test/repo"
+
+    # Create mock entities
+    mock_source = MagicMock()
+    mock_source.uri = source_uri
+    mock_source.cloned_path = "/tmp/test_repo"  # noqa: S108
+
+    mock_file = MagicMock()
+    mock_file.cloned_path = "/tmp/test_repo/test.py"  # noqa: S108
+    mock_file.extension = "py"
+
+    mock_snippet1 = MagicMock()
+    mock_snippet1.id = 1
+    mock_snippet1.content = "test content 1"
+    mock_snippet1.created_at = datetime.now(UTC)
+    mock_snippet1.summary = "summary 1"
+
+    mock_snippet2 = MagicMock()
+    mock_snippet2.id = 2
+    mock_snippet2.content = "test content 2"
+    mock_snippet2.created_at = datetime.now(UTC)
+    mock_snippet2.summary = "summary 2"
+
+    mock_author = MagicMock()
+    mock_author.name = "Test Author"
+
     mock_snippet_items = [
-        SnippetListItem(
-            id=1, file_path="test.py", content="test content 1", source_uri=source_uri
+        SnippetWithContext(
+            snippet=mock_snippet1,
+            file=mock_file,
+            source=mock_source,
+            authors=[mock_author],
         ),
-        SnippetListItem(
-            id=2, file_path="test2.py", content="test content 2", source_uri=source_uri
+        SnippetWithContext(
+            snippet=mock_snippet2,
+            file=mock_file,
+            source=mock_source,
+            authors=[mock_author],
         ),
     ]
     mock_snippet_repository.list_snippets.return_value = mock_snippet_items
@@ -266,11 +297,18 @@ async def test_list_snippets(
     # Execute
     result = await snippet_domain_service.list_snippets(file_path, source_uri)
 
-    # Verify - should return MultiSearchResult objects
+    # Verify
     assert len(result) == 2
-    assert all(isinstance(item, MultiSearchResult) for item in result)
     assert result[0].id == 1
     assert result[0].content == "test content 1"
+    assert result[0].source_uri == source_uri
+    assert result[0].relative_path == "test.py"
+    assert result[0].language == "Python"
+    assert result[0].authors == ["Test Author"]
+    assert result[0].summary == "summary 1"
+
     assert result[1].id == 2
     assert result[1].content == "test content 2"
+    assert result[1].summary == "summary 2"
+
     mock_snippet_repository.list_snippets.assert_called_once_with(file_path, source_uri)

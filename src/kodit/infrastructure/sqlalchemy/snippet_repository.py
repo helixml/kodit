@@ -1,7 +1,9 @@
 """SQLAlchemy implementation of snippet repository."""
 
+import builtins
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,7 +20,7 @@ from kodit.domain.repositories import SnippetRepository
 from kodit.domain.value_objects import (
     LanguageMapping,
     MultiSearchRequest,
-    SnippetListItem,
+    SnippetWithContext,
 )
 
 
@@ -102,7 +104,7 @@ class SqlAlchemySnippetRepository(SnippetRepository):
 
     async def list_snippets(
         self, file_path: str | None = None, source_uri: str | None = None
-    ) -> Sequence[SnippetListItem]:
+    ) -> Sequence[SnippetWithContext]:
         """List snippets with optional filtering by file path and source URI.
 
         Args:
@@ -112,20 +114,11 @@ class SqlAlchemySnippetRepository(SnippetRepository):
             all sources.
 
         Returns:
-            A sequence of SnippetListItem instances matching the criteria
+            A sequence of SnippetWithContext instances matching the criteria
 
         """
-        # Build the base query
-        query = (
-            select(
-                Snippet,
-                File.cloned_path,
-                Source.cloned_path.label("source_cloned_path"),
-                Source.uri.label("source_uri"),
-            )
-            .join(File, Snippet.file_id == File.id)
-            .join(Source, File.source_id == Source.id)
-        )
+        # Build the base query with joins for all required entities
+        query = self._build_base_query()
 
         # Apply filters
         if file_path is not None:
@@ -140,20 +133,7 @@ class SqlAlchemySnippetRepository(SnippetRepository):
             query = query.where(Source.uri == source_uri)
 
         result = await self.session.execute(query)
-        return [
-            SnippetListItem(
-                id=snippet.id,
-                file_path=self._get_relative_path(file_cloned_path, source_cloned_path),
-                content=snippet.content,
-                source_uri=source_uri_val,
-            )
-            for (
-                snippet,
-                file_cloned_path,
-                source_cloned_path,
-                source_uri_val,
-            ) in result.all()
-        ]
+        return self._process_results(result)
 
     def _get_relative_path(self, file_path: str, source_path: str) -> str:
         """Calculate the relative path of a file from the source root.
@@ -174,57 +154,98 @@ class SqlAlchemySnippetRepository(SnippetRepository):
             # If the file is not relative to the source, return the filename
             return Path(file_path).name
 
-    async def search(self, request: MultiSearchRequest) -> Sequence[SnippetListItem]:
+    def _apply_filters(self, query: Any, filters: Any) -> Any:
+        """Apply filters to the query.
+
+        Args:
+            query: The base query to apply filters to
+            filters: The filters to apply
+
+        Returns:
+            The modified query with filters applied
+
+        """
+        if not filters:
+            return query
+
+        # Language filter (using file extension)
+        if filters.language:
+            extensions = LanguageMapping.get_extensions_with_fallback(filters.language)
+            query = query.where(File.extension.in_(extensions))
+
+        # Author filter
+        if filters.author:
+            query = query.where(Author.name.ilike(f"%{filters.author}%"))
+
+        # Date filters
+        if filters.created_after:
+            query = query.where(Snippet.created_at >= filters.created_after)
+
+        if filters.created_before:
+            query = query.where(Snippet.created_at <= filters.created_before)
+
+        # Source repository filter
+        if filters.source_repo:
+            query = query.where(Source.uri.like(f"%{filters.source_repo}%"))
+
+        return query
+
+    def _build_base_query(self) -> Any:
+        """Build the base query with joins for all required entities.
+
+        Returns:
+            The base query with joins
+
+        """
+        return (
+            select(Snippet, File, Source, Author)
+            .join(File, Snippet.file_id == File.id)
+            .join(Source, File.source_id == Source.id)
+            .outerjoin(AuthorFileMapping, AuthorFileMapping.file_id == File.id)
+            .outerjoin(Author, AuthorFileMapping.author_id == Author.id)
+        )
+
+    def _process_results(self, result: Any) -> builtins.list[SnippetWithContext]:
+        """Process query results into SnippetWithContext objects.
+
+        Args:
+            result: The query result
+
+        Returns:
+            List of SnippetWithContext objects
+
+        """
+        # Group results by snippet ID and collect authors
+        id_to_result: dict[int, SnippetWithContext] = {}
+        for snippet, file, source, author in result.all():
+            if snippet.id not in id_to_result:
+                id_to_result[snippet.id] = SnippetWithContext(
+                    snippet=snippet,
+                    file=file,
+                    source=source,
+                    authors=[],
+                )
+            # Add author if it exists (outer join might return None)
+            if author is not None:
+                id_to_result[snippet.id].authors.append(author)
+
+        return list(id_to_result.values())
+
+    async def search(self, request: MultiSearchRequest) -> Sequence[SnippetWithContext]:
         """Search snippets with filters.
 
         Args:
             request: The search request containing queries and optional filters.
 
         Returns:
-            A sequence of SnippetListItem instances matching the search criteria.
+            A sequence of SnippetWithContext instances matching the search criteria.
 
         """
-        # Build the base query with joins
-        query = (
-            select(
-                Snippet,
-                File.cloned_path,
-                Source.cloned_path.label("source_cloned_path"),
-                Source.uri.label("source_uri"),
-            )
-            .join(File, Snippet.file_id == File.id)
-            .join(Source, File.source_id == Source.id)
-        )
+        # Build the base query with joins for all required entities
+        query = self._build_base_query()
 
         # Apply filters if provided
-        if request.filters:
-            filters = request.filters
-
-            # Language filter (using file extension)
-            if filters.language:
-                extensions = LanguageMapping.get_extensions_with_fallback(
-                    filters.language
-                )
-                query = query.where(File.extension.in_(extensions))
-
-            # Author filter
-            if filters.author:
-                query = (
-                    query.join(AuthorFileMapping, File.id == AuthorFileMapping.file_id)
-                    .join(Author, AuthorFileMapping.author_id == Author.id)
-                    .where(Author.name.ilike(f"%{filters.author}%"))
-                )
-
-            # Date filters
-            if filters.created_after:
-                query = query.where(Snippet.created_at >= filters.created_after)
-
-            if filters.created_before:
-                query = query.where(Snippet.created_at <= filters.created_before)
-
-            # Source repository filter
-            if filters.source_repo:
-                query = query.where(Source.uri.like(f"%{filters.source_repo}%"))
+        query = self._apply_filters(query, request.filters)
 
         # Only apply top_k limit if there are no search queries
         # This ensures that when used for pre-filtering (with search queries),
@@ -235,17 +256,4 @@ class SqlAlchemySnippetRepository(SnippetRepository):
             query = query.limit(request.top_k)
 
         result = await self.session.execute(query)
-        return [
-            SnippetListItem(
-                id=snippet.id,
-                file_path=self._get_relative_path(file_cloned_path, source_cloned_path),
-                content=snippet.content,
-                source_uri=source_uri_val,
-            )
-            for (
-                snippet,
-                file_cloned_path,
-                source_cloned_path,
-                source_uri_val,
-            ) in result.all()
-        ]
+        return self._process_results(result)

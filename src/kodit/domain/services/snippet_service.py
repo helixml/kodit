@@ -16,7 +16,7 @@ from kodit.domain.value_objects import (
     MultiSearchRequest,
     MultiSearchResult,
     SnippetExtractionRequest,
-    SnippetListItem,
+    SnippetWithContext,
 )
 from kodit.reporting import Reporter
 
@@ -152,14 +152,14 @@ class SnippetDomainService:
 
     async def search_snippets(
         self, request: MultiSearchRequest
-    ) -> list[SnippetListItem]:
+    ) -> list[SnippetWithContext]:
         """Search snippets with filters.
 
         Args:
             request: The search request containing filters
 
         Returns:
-            List of matching snippet items
+            List of matching snippet items with context
 
         """
         return list(await self.snippet_repository.search(request))
@@ -180,16 +180,22 @@ class SnippetDomainService:
         snippet_items = await self.snippet_repository.list_snippets(
             file_path, source_uri
         )
-        # Convert SnippetListItem to MultiSearchResult for unified display format
+        # Convert SnippetWithContext to MultiSearchResult for unified display format
         return [
             MultiSearchResult(
-                id=item.id,
-                content=item.content,
-                original_scores=[],
-                # Populate available fields from SnippetListItem
-                source_uri=item.source_uri,
-                relative_path=item.file_path,
-                # Note: language, author, created_at not available in SnippetListItem
+                id=item.snippet.id,
+                content=item.snippet.content,
+                original_scores=[],  # No scores for list operation
+                source_uri=item.source.uri,
+                relative_path=MultiSearchResult.calculate_relative_path(
+                    item.file.cloned_path, item.source.cloned_path
+                ),
+                language=MultiSearchResult.detect_language_from_extension(
+                    item.file.extension
+                ),
+                authors=[author.name for author in item.authors],
+                created_at=item.snippet.created_at,
+                summary=item.snippet.summary,
             )
             for item in snippet_items
         ]

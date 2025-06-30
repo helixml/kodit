@@ -1,7 +1,7 @@
 """Domain value objects and DTOs."""
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -181,94 +181,50 @@ class MultiSearchResult:
     id: int
     content: str
     original_scores: list[float]
-    source_uri: str = ""
-    relative_path: str = ""
-    language: str = "Unknown"
-    authors: list[str] = field(default_factory=list)
-    created_at: datetime | None = None
-
-    # Optional fields for LLM-optimized JSON output
-    summary: str = ""  # Will be populated from snippet.summary
-    key_points: list[str] = field(default_factory=list)
+    source_uri: str
+    relative_path: str
+    language: str
+    authors: list[str]
+    created_at: datetime
+    summary: str
 
     def __str__(self) -> str:
         """Return enhanced formatted string representation."""
-        # Use enhanced format if we have the data, otherwise fall back to simple format
-        if self.source_uri and self.relative_path and self.created_at:
-            # Format timestamp for display
-            timestamp_str = self.created_at.isoformat()
-
-            # Build authors display
-            if self.authors:
-                if len(self.authors) == 1:
-                    author_display = f" | Author: {self.authors[0]}"
-                else:
-                    author_display = f" | Authors: {', '.join(self.authors)}"
-            else:
-                author_display = ""
-
-            lines = [
-                "-" * 80,
-                f"Source: {self.source_uri}",
-                f"ID: {self.id} | Path: {self.relative_path} | Lang: {self.language}",
-                f"Created: {timestamp_str}{author_display}",
-                f"Scores: {self.original_scores}",
-                "",
-                self.content,
-                "-" * 80,
-                "",
-            ]
-        else:
-            # Fall back to simplified format for backward compatibility
-            # Use relative_path if available, otherwise just show ID
-            path_display = self.relative_path if self.relative_path else "snippet"
-            lines = [
-                "-" * 80,
-                f"ID: {self.id} | {path_display}",
-                f"Original scores: {self.original_scores}",
-                self.content,
-                "-" * 80,
-                "",
-            ]
+        lines = [
+            "---",
+            f"id: {self.id}",
+            f"source: {self.source_uri}",
+            f"path: {self.relative_path}",
+            f"lang: {self.language}",
+            f"created: {self.created_at.isoformat()}",
+            f"authors: {', '.join(self.authors)}",
+            f"scores: {self.original_scores}",
+            "---",
+            f"{self.summary}\n",
+            f"```{self.language}",
+            f"{self.content}",
+            "```\n",
+        ]
         return "\n".join(lines)
 
-    def to_json(self, *, include_summary: bool = False) -> str:
-        """Return LLM-optimized JSON representation following the compact schema.
-
-        Args:
-            include_summary: Whether to include summary and key_points fields
-
-        Returns:
-            JSON string with compact field names optimized for LLM consumption
-
-        """
-        # Handle multiple authors - join with comma or use first author
-        author_str = ", ".join(self.authors) if self.authors else ""
-
-        # Build the base JSON object
+    def to_json(self) -> str:
+        """Return LLM-optimized JSON representation following the compact schema."""
         json_obj = {
             "id": self.id,
+            "source": self.source_uri,
             "path": self.relative_path,
             "lang": self.language.lower(),
             "created": self.created_at.isoformat() if self.created_at else "",
-            "author": author_str,
+            "author": ", ".join(self.authors),
             "score": self.original_scores,
             "code": self.content,
+            "summary": self.summary,
         }
-
-        # Add summary fields if requested and available
-        if include_summary:
-            if self.summary:
-                json_obj["summary"] = self.summary
-            if self.key_points:
-                json_obj["key_points"] = self.key_points
 
         return json.dumps(json_obj, separators=(",", ":"))
 
     @classmethod
-    def to_jsonlines(
-        cls, results: list["MultiSearchResult"], *, include_summary: bool = False
-    ) -> str:
+    def to_jsonlines(cls, results: list["MultiSearchResult"]) -> str:
         """Convert multiple MultiSearchResult objects to JSON Lines format.
 
         Args:
@@ -279,9 +235,12 @@ class MultiSearchResult:
             JSON Lines string (one JSON object per line)
 
         """
-        return "\n".join(
-            result.to_json(include_summary=include_summary) for result in results
-        )
+        return "\n".join(result.to_json() for result in results)
+
+    @classmethod
+    def to_string(cls, results: list["MultiSearchResult"]) -> str:
+        """Convert multiple MultiSearchResult objects to a string."""
+        return "\n\n".join(str(result) for result in results)
 
     @staticmethod
     def calculate_relative_path(file_path: str, source_path: str) -> str:
@@ -396,16 +355,6 @@ class IndexView:
     num_snippets: int
     updated_at: datetime | None = None
     source: str | None = None
-
-
-@dataclass
-class SnippetListItem:
-    """Domain model for snippet list item with file information."""
-
-    id: int
-    file_path: str
-    content: str
-    source_uri: str
 
 
 @dataclass
