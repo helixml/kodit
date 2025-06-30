@@ -8,7 +8,7 @@ from kodit.domain.value_objects import (
     FusionResult,
     IndexCreateRequest,
     IndexView,
-    SnippetWithFile,
+    SnippetWithContext,
 )
 
 
@@ -52,7 +52,7 @@ class IndexRepository(ABC):
         """Update the content of an existing snippet."""
 
     @abstractmethod
-    async def list_snippets_by_ids(self, ids: list[int]) -> list[SnippetWithFile]:
+    async def list_snippets_by_ids(self, ids: list[int]) -> list[SnippetWithContext]:
         """List snippets by IDs."""
 
 
@@ -191,7 +191,7 @@ class IndexingDomainService:
         """
         return self.fusion_service.reciprocal_rank_fusion(rankings, k)
 
-    async def get_snippets_by_ids(self, ids: list[int]) -> list[SnippetWithFile]:
+    async def get_snippets_by_ids(self, ids: list[int]) -> list[SnippetWithContext]:
         """Get snippets by IDs.
 
         Args:

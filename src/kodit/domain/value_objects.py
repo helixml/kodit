@@ -9,7 +9,7 @@ from typing import Any, ClassVar
 from sqlalchemy import JSON, DateTime, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from kodit.domain.entities import Base
+from kodit.domain.entities import Author, Base, File, Snippet, Source
 from kodit.domain.enums import SnippetExtractionStrategy
 
 
@@ -302,26 +302,13 @@ class SnippetListItem:
 
 
 @dataclass
-class FileInfo:
-    """Domain model for file information."""
+class SnippetWithContext:
+    """Domain model for snippet with associated context information."""
 
-    uri: str
-
-
-@dataclass
-class SnippetInfo:
-    """Domain model for snippet information."""
-
-    id: int
-    content: str
-
-
-@dataclass
-class SnippetWithFile:
-    """Domain model for snippet with associated file information."""
-
-    file: FileInfo
-    snippet: SnippetInfo
+    source: Source
+    file: File
+    authors: list[Author]
+    snippet: Snippet
 
 
 class LanguageMapping:

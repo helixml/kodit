@@ -6,9 +6,20 @@ from typing import TypeVar
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.entities import Embedding, File, Index, Snippet, Source
+from kodit.domain.entities import (
+    Author,
+    AuthorFileMapping,
+    Embedding,
+    File,
+    Index,
+    Snippet,
+    Source,
+)
 from kodit.domain.services.indexing_service import IndexRepository
-from kodit.domain.value_objects import FileInfo, IndexView, SnippetInfo, SnippetWithFile
+from kodit.domain.value_objects import (
+    IndexView,
+    SnippetWithContext,
+)
 
 T = TypeVar("T")
 
@@ -221,30 +232,31 @@ class SQLAlchemyIndexRepository(IndexRepository):
             snippet.content = content
             # SQLAlchemy will automatically track this change
 
-    async def list_snippets_by_ids(self, ids: list[int]) -> list[SnippetWithFile]:
-        """List snippets by IDs.
-
-        Args:
-            ids: List of snippet IDs to retrieve.
-
-        Returns:
-            List of SnippetWithFile objects containing file and snippet information.
-
-        """
+    async def list_snippets_by_ids(self, ids: list[int]) -> list[SnippetWithContext]:
+        """List snippets by IDs."""
         query = (
-            select(Snippet, File)
+            select(Snippet, File, Source, Author)
             .where(Snippet.id.in_(ids))
             .join(File, Snippet.file_id == File.id)
+            .join(Source, File.source_id == Source.id)
+            .outerjoin(AuthorFileMapping, AuthorFileMapping.file_id == File.id)
+            .outerjoin(Author, AuthorFileMapping.author_id == Author.id)
         )
         rows = await self.session.execute(query)
 
-        # Create a dictionary for O(1) lookup of results by ID
-        id_to_result = {}
-        for snippet, file in rows.all():
-            id_to_result[snippet.id] = SnippetWithFile(
-                file=FileInfo(uri=file.uri),
-                snippet=SnippetInfo(id=snippet.id, content=snippet.content)
-            )
+        # Group results by snippet ID and collect authors
+        id_to_result: dict[int, SnippetWithContext] = {}
+        for snippet, file, source, author in rows.all():
+            if snippet.id not in id_to_result:
+                id_to_result[snippet.id] = SnippetWithContext(
+                    snippet=snippet,
+                    file=file,
+                    source=source,
+                    authors=[],
+                )
+            # Add author if it exists (outer join might return None)
+            if author is not None:
+                id_to_result[snippet.id].authors.append(author)
 
         # Check that all IDs are present
         if len(id_to_result) != len(ids):
