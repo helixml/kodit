@@ -223,6 +223,7 @@ def _parse_filters(
 @click.option(
     "--source-repo", help="Filter by source repository (e.g., github.com/example/repo)"
 )
+@click.option("--output-format", default="text", help="Format to display snippets in")
 @with_app_context
 @with_session
 async def code(  # noqa: PLR0913
@@ -235,6 +236,7 @@ async def code(  # noqa: PLR0913
     created_after: str | None,
     created_before: str | None,
     source_repo: str | None,
+    output_format: str,
 ) -> None:
     """Search for snippets using semantic code search.
 
@@ -263,8 +265,10 @@ async def code(  # noqa: PLR0913
         click.echo("No snippets found")
         return
 
-    for snippet in snippets:
-        click.echo(str(snippet))
+    if output_format == "text":
+        click.echo(MultiSearchResult.to_string(snippets))
+    elif output_format == "json":
+        click.echo(MultiSearchResult.to_jsonlines(snippets))
 
 
 @search.command()
@@ -283,6 +287,7 @@ async def code(  # noqa: PLR0913
 @click.option(
     "--source-repo", help="Filter by source repository (e.g., github.com/example/repo)"
 )
+@click.option("--output-format", default="text", help="Format to display snippets in")
 @with_app_context
 @with_session
 async def keyword(  # noqa: PLR0913
@@ -295,6 +300,7 @@ async def keyword(  # noqa: PLR0913
     created_after: str | None,
     created_before: str | None,
     source_repo: str | None,
+    output_format: str,
 ) -> None:
     """Search for snippets using keyword search."""
     log_event("kodit.cli.search.keyword")
@@ -320,8 +326,10 @@ async def keyword(  # noqa: PLR0913
         click.echo("No snippets found")
         return
 
-    for snippet in snippets:
-        click.echo(str(snippet))
+    if output_format == "text":
+        click.echo(MultiSearchResult.to_string(snippets))
+    elif output_format == "json":
+        click.echo(MultiSearchResult.to_jsonlines(snippets))
 
 
 @search.command()
@@ -340,6 +348,7 @@ async def keyword(  # noqa: PLR0913
 @click.option(
     "--source-repo", help="Filter by source repository (e.g., github.com/example/repo)"
 )
+@click.option("--output-format", default="text", help="Format to display snippets in")
 @with_app_context
 @with_session
 async def text(  # noqa: PLR0913
@@ -352,6 +361,7 @@ async def text(  # noqa: PLR0913
     created_after: str | None,
     created_before: str | None,
     source_repo: str | None,
+    output_format: str,
 ) -> None:
     """Search for snippets using semantic text search.
 
@@ -380,8 +390,10 @@ async def text(  # noqa: PLR0913
         click.echo("No snippets found")
         return
 
-    for snippet in snippets:
-        click.echo(str(snippet))
+    if output_format == "text":
+        click.echo(MultiSearchResult.to_string(snippets))
+    elif output_format == "json":
+        click.echo(MultiSearchResult.to_jsonlines(snippets))
 
 
 @search.command()
@@ -402,6 +414,7 @@ async def text(  # noqa: PLR0913
 @click.option(
     "--source-repo", help="Filter by source repository (e.g., github.com/example/repo)"
 )
+@click.option("--output-format", default="text", help="Format to display snippets in")
 @with_app_context
 @with_session
 async def hybrid(  # noqa: PLR0913
@@ -416,6 +429,7 @@ async def hybrid(  # noqa: PLR0913
     created_after: str | None,
     created_before: str | None,
     source_repo: str | None,
+    output_format: str,
 ) -> None:
     """Search for snippets using hybrid search."""
     log_event("kodit.cli.search.hybrid")
@@ -450,8 +464,10 @@ async def hybrid(  # noqa: PLR0913
         click.echo("No snippets found")
         return
 
-    for snippet in snippets:
-        click.echo(str(snippet))
+    if output_format == "text":
+        click.echo(MultiSearchResult.to_string(snippets))
+    elif output_format == "json":
+        click.echo(MultiSearchResult.to_jsonlines(snippets))
 
 
 @cli.group()

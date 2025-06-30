@@ -2,6 +2,7 @@
 
 import tempfile
 from collections.abc import Generator
+from datetime import UTC
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -553,3 +554,285 @@ def test_search_filter_help_text(runner: CliRunner) -> None:
     assert "--created-after TEXT" in result.output
     assert "--created-before TEXT" in result.output
     assert "--source-repo TEXT" in result.output
+
+
+def test_search_output_format_text_default(runner: CliRunner) -> None:
+    """Test that search commands default to text output format."""
+    from datetime import datetime
+
+    from kodit.domain.value_objects import MultiSearchResult
+
+    # Create mock search results
+    mock_snippets = [
+        MultiSearchResult(
+            id=1,
+            content="def hello():\n    print('Hello, World!')",
+            original_scores=[0.95, 0.78],
+            source_uri="https://github.com/example/repo",
+            relative_path="src/hello.py",
+            language="python",
+            authors=["alice"],
+            created_at=datetime(2023, 6, 15, 10, 30, 45, tzinfo=UTC),
+            summary="A simple hello world function",
+        ),
+        MultiSearchResult(
+            id=2,
+            content="function greet() {\n    console.log('Hello!');\n}",
+            original_scores=[0.87, 0.92],
+            source_uri="https://github.com/example/frontend",
+            relative_path="src/greet.js",
+            language="javascript",
+            authors=["bob"],
+            created_at=datetime(2023, 7, 20, 14, 15, 30, tzinfo=UTC),
+            summary="A greeting function",
+        ),
+    ]
+
+    mock_service = MagicMock()
+    mock_service.search = AsyncMock(return_value=mock_snippets)
+
+    with patch(
+        "kodit.cli.create_code_indexing_application_service", return_value=mock_service
+    ):
+        # Test code search with default output format (text)
+        result = runner.invoke(cli, ["search", "code", "hello"])
+        assert result.exit_code == 0
+
+        # Should contain text-formatted output
+        assert "id: 1" in result.output
+        assert "id: 2" in result.output
+        assert "```python" in result.output
+        assert "```javascript" in result.output
+        assert "def hello():" in result.output
+        assert "function greet()" in result.output
+        assert "---" in result.output  # Text format separator
+
+
+def test_search_output_format_text_explicit(runner: CliRunner) -> None:
+    """Test search commands with explicit text output format."""
+    from datetime import datetime
+
+    from kodit.domain.value_objects import MultiSearchResult
+
+    # Create mock search results
+    mock_snippets = [
+        MultiSearchResult(
+            id=3,
+            content=(
+                'package main\n\nimport "fmt"\n\n'
+                'func main() {\n    fmt.Println("Hello, Go!")\n}'
+            ),
+            original_scores=[0.91],
+            source_uri="https://github.com/example/go-app",
+            relative_path="main.go",
+            language="go",
+            authors=["charlie", "dave"],
+            created_at=datetime(2023, 8, 1, 9, 0, 0, tzinfo=UTC),
+            summary="Go hello world program",
+        ),
+    ]
+
+    mock_service = MagicMock()
+    mock_service.search = AsyncMock(return_value=mock_snippets)
+
+    with patch(
+        "kodit.cli.create_code_indexing_application_service", return_value=mock_service
+    ):
+        # Test with explicit --output-format text
+        result = runner.invoke(
+            cli, ["search", "code", "hello", "--output-format", "text"]
+        )
+        assert result.exit_code == 0
+
+        # Should contain text-formatted output
+        assert "id: 3" in result.output
+        assert "source: https://github.com/example/go-app" in result.output
+        assert "path: main.go" in result.output
+        assert "lang: go" in result.output
+        assert "authors: charlie, dave" in result.output
+        assert "```go" in result.output
+        assert "package main" in result.output
+        assert "---" in result.output
+
+
+def test_search_output_format_json(runner: CliRunner) -> None:
+    """Test search commands with JSON output format."""
+    import json
+    from datetime import datetime
+
+    from kodit.domain.value_objects import MultiSearchResult
+
+    # Create mock search results
+    mock_snippets = [
+        MultiSearchResult(
+            id=4,
+            content='fn greet(name: &str) {\n    println!("Hello, {}!", name);\n}',
+            original_scores=[0.88, 0.74],
+            source_uri="https://github.com/example/rust-app",
+            relative_path="src/lib.rs",
+            language="rust",
+            authors=["eve"],
+            created_at=datetime(2023, 9, 10, 16, 45, 0, tzinfo=UTC),
+            summary="Rust greeting function",
+        ),
+        MultiSearchResult(
+            id=5,
+            content=(
+                "class Greeter:\n    def say_hello(self, name):\n"
+                '        return f"Hello, {name}!"'
+            ),
+            original_scores=[0.93],
+            source_uri="https://github.com/example/py-app",
+            relative_path="greeter.py",
+            language="python",
+            authors=["frank"],
+            created_at=datetime(2023, 10, 5, 11, 20, 0, tzinfo=UTC),
+            summary="Python greeter class",
+        ),
+    ]
+
+    mock_service = MagicMock()
+    mock_service.search = AsyncMock(return_value=mock_snippets)
+
+    with patch(
+        "kodit.cli.create_code_indexing_application_service", return_value=mock_service
+    ):
+        # Test with --output-format json
+        result = runner.invoke(
+            cli, ["search", "code", "greet", "--output-format", "json"]
+        )
+        assert result.exit_code == 0
+
+        # Should contain JSON Lines output (one JSON object per line)
+        # Filter out log lines and keep only JSON lines
+        lines = [
+            line for line in result.output.strip().split("\n") if line.startswith("{")
+        ]
+        assert len(lines) == 2
+
+        # Parse first JSON object
+        json1 = json.loads(lines[0])
+        assert json1["id"] == 4
+        assert json1["source"] == "https://github.com/example/rust-app"
+        assert json1["path"] == "src/lib.rs"
+        assert json1["lang"] == "rust"
+        assert json1["author"] == "eve"
+        assert json1["score"] == [0.88, 0.74]
+        assert "fn greet" in json1["code"]
+        assert json1["summary"] == "Rust greeting function"
+
+        # Parse second JSON object
+        json2 = json.loads(lines[1])
+        assert json2["id"] == 5
+        assert json2["source"] == "https://github.com/example/py-app"
+        assert json2["path"] == "greeter.py"
+        assert json2["lang"] == "python"
+        assert json2["author"] == "frank"
+        assert json2["score"] == [0.93]
+        assert "class Greeter" in json2["code"]
+        assert json2["summary"] == "Python greeter class"
+
+
+def test_search_output_format_all_commands(runner: CliRunner) -> None:
+    """Test that all search commands support output format options."""
+    import json
+    from datetime import datetime
+
+    from kodit.domain.value_objects import MultiSearchResult
+
+    # Create a simple mock result
+    mock_snippets = [
+        MultiSearchResult(
+            id=6,
+            content="console.log('test');",
+            original_scores=[0.8],
+            source_uri="https://github.com/example/test",
+            relative_path="test.js",
+            language="javascript",
+            authors=["tester"],
+            created_at=datetime(2023, 1, 1, tzinfo=UTC),
+            summary="Test snippet",
+        ),
+    ]
+
+    mock_service = MagicMock()
+    mock_service.search = AsyncMock(return_value=mock_snippets)
+
+    with patch(
+        "kodit.cli.create_code_indexing_application_service", return_value=mock_service
+    ):
+        # Test keyword search with JSON output
+        result = runner.invoke(
+            cli, ["search", "keyword", "test", "--output-format", "json"]
+        )
+        assert result.exit_code == 0
+        # Should be valid JSON - filter out log lines
+        json_lines = [
+            line for line in result.output.strip().split("\n") if line.startswith("{")
+        ]
+        assert len(json_lines) == 1
+        json.loads(json_lines[0])
+
+        # Reset mock
+        mock_service.search.reset_mock()
+
+        # Test text search with text output
+        result = runner.invoke(
+            cli, ["search", "text", "test", "--output-format", "text"]
+        )
+        assert result.exit_code == 0
+        assert "id: 6" in result.output
+        assert "```javascript" in result.output
+
+        # Reset mock
+        mock_service.search.reset_mock()
+
+        # Test hybrid search with JSON output
+        result = runner.invoke(
+            cli,
+            [
+                "search",
+                "hybrid",
+                "--keywords",
+                "test",
+                "--code",
+                "console.log",
+                "--text",
+                "test function",
+                "--output-format",
+                "json",
+            ],
+        )
+        assert result.exit_code == 0
+        # Should be valid JSON - filter out log lines
+        json_lines = [
+            line for line in result.output.strip().split("\n") if line.startswith("{")
+        ]
+        assert len(json_lines) == 1
+        json.loads(json_lines[0])
+
+
+def test_search_output_format_no_results(runner: CliRunner) -> None:
+    """Test output format handling when no results are found."""
+    mock_service = MagicMock()
+    mock_service.search = AsyncMock(return_value=[])  # Empty results
+
+    with patch(
+        "kodit.cli.create_code_indexing_application_service", return_value=mock_service
+    ):
+        # Test with text format
+        result = runner.invoke(
+            cli, ["search", "code", "nonexistent", "--output-format", "text"]
+        )
+        assert result.exit_code == 0
+        assert "No snippets found" in result.output
+
+        # Reset mock
+        mock_service.search.reset_mock()
+
+        # Test with JSON format
+        result = runner.invoke(
+            cli, ["search", "code", "nonexistent", "--output-format", "json"]
+        )
+        assert result.exit_code == 0
+        assert "No snippets found" in result.output

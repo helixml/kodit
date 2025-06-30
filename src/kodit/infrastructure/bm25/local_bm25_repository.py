@@ -81,6 +81,7 @@ class LocalBM25Repository(BM25Repository):
         self.snippet_ids = self.snippet_ids + [
             doc.snippet_id for doc in request.documents
         ]
+        
         async with aiofiles.open(self.index_path / SNIPPET_IDS_FILE, "w") as f:
             await f.write(json.dumps(self.snippet_ids))
 
@@ -121,7 +122,9 @@ class LocalBM25Repository(BM25Repository):
         # Filter results by snippet_ids if provided
         filtered_results = []
         for result, score in zip(results[0], scores[0], strict=False):
-            snippet_id = int(result)
+            # result is an index into the corpus, not the snippet ID
+            corpus_index = int(result)
+            snippet_id = self.snippet_ids[corpus_index]
             if score > 0.0 and (
                 request.snippet_ids is None or snippet_id in request.snippet_ids
             ):
