@@ -58,12 +58,27 @@ async def session(engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
 @pytest.fixture
 def app_context() -> Generator[AppContext, None, None]:
     """Create a test app context."""
+    import os
+    from unittest.mock import patch
+
+    # Create a minimal environment with only essential env vars
+    essential_prefixes = (
+        "PATH", "HOME", "USER", "PWD", "LANG", "LC_", "TERM", "SHELL", "TMPDIR"
+    )
+    minimal_env = {
+        key: value
+        for key, value in os.environ.items()
+        if key.startswith(essential_prefixes)
+    }
+
     with tempfile.TemporaryDirectory() as data_dir:
-        app_context = AppContext(
-            data_dir=Path(data_dir),
-            db_url="sqlite+aiosqlite:///:memory:",
-            log_level="DEBUG",
-            log_format="json",
-            disable_telemetry=True,
-        )
+        # Patch os.environ to use minimal environment during AppContext creation
+        with patch.dict(os.environ, minimal_env, clear=True):
+            app_context = AppContext(
+                data_dir=Path(data_dir),
+                db_url="sqlite+aiosqlite:///:memory:",
+                log_level="DEBUG",
+                log_format="json",
+                disable_telemetry=True,
+            )
         yield app_context
