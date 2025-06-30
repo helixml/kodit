@@ -39,9 +39,21 @@ class TestAppContextAutoIndexing:
 
     def test_get_auto_index_sources_empty(self) -> None:
         """Test getting auto-index sources when none are configured."""
-        app_context = AppContext()
-        sources = app_context.auto_indexing.sources
-        assert sources == []
+        # Ensure no AUTO_INDEXING env vars are set
+        env_vars_to_clean = [k for k in os.environ if k.startswith("AUTO_INDEXING")]
+        saved_env_vars = {k: os.environ[k] for k in env_vars_to_clean}
+
+        try:
+            for k in env_vars_to_clean:
+                del os.environ[k]
+
+            app_context = AppContext()
+            sources = app_context.auto_indexing.sources
+            assert sources == []
+        finally:
+            # Restore original env vars
+            for k, v in saved_env_vars.items():
+                os.environ[k] = v
 
     def test_get_auto_index_sources_with_config(self) -> None:
         """Test getting auto-index sources when configured."""
@@ -71,3 +83,28 @@ class TestAppContextAutoIndexing:
             # Clean up environment variables
             del os.environ["AUTO_INDEXING_SOURCES_0_URI"]
             del os.environ["AUTO_INDEXING_SOURCES_1_URI"]
+
+    def test_combined_environment_variable_parsing(self) -> None:
+        """Test both auto-indexing and endpoint configuration from env vars."""
+        # Set environment variables
+        os.environ["AUTO_INDEXING_SOURCES_0_URI"] = "/local/path/to/code"
+        os.environ["DEFAULT_ENDPOINT_API_KEY"] = "sk-test-key-12345"
+
+        try:
+            app_context = AppContext()
+
+            # Test auto-indexing parsing
+            sources = app_context.auto_indexing.sources
+            assert len(sources) == 1
+            assert sources[0].uri == "/local/path/to/code"
+
+            # Test default endpoint API key parsing
+            assert app_context.default_endpoint is not None
+            assert app_context.default_endpoint.api_key == "sk-test-key-12345"
+
+        finally:
+            # Clean up environment variables
+            if "AUTO_INDEXING_SOURCES_0_URI" in os.environ:
+                del os.environ["AUTO_INDEXING_SOURCES_0_URI"]
+            if "DEFAULT_ENDPOINT_API_KEY" in os.environ:
+                del os.environ["DEFAULT_ENDPOINT_API_KEY"]
