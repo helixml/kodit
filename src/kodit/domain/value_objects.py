@@ -1,6 +1,6 @@
 """Domain value objects and DTOs."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -175,24 +175,75 @@ class MultiSearchRequest:
 
 @dataclass
 class MultiSearchResult:
-    """Domain model for multi-modal search result."""
+    """Enhanced search result with comprehensive snippet metadata."""
 
     id: int
-    uri: str
     content: str
     original_scores: list[float]
+    source_uri: str = ""
+    relative_path: str = ""
+    language: str = "Unknown"
+    authors: list[str] = field(default_factory=list)
+    created_at: datetime | None = None
 
     def __str__(self) -> str:
-        """Return formatted string representation for all snippet display."""
-        lines = [
-            "-" * 80,
-            f"ID: {self.id} | {self.uri}",
-            f"Original scores: {self.original_scores}",
-            self.content,
-            "-" * 80,
-            "",
-        ]
+        """Return enhanced formatted string representation."""
+        # Use enhanced format if we have the data, otherwise fall back to simple format
+        if self.source_uri and self.relative_path and self.created_at:
+            # Format timestamp for display
+            timestamp_str = self.created_at.isoformat()
+
+            # Build authors display
+            if self.authors:
+                if len(self.authors) == 1:
+                    author_display = f" | Author: {self.authors[0]}"
+                else:
+                    author_display = f" | Authors: {', '.join(self.authors)}"
+            else:
+                author_display = ""
+
+            lines = [
+                "-" * 80,
+                f"Source: {self.source_uri}",
+                f"ID: {self.id} | Path: {self.relative_path} | Language: {self.language}",
+                f"Created: {timestamp_str}{author_display}",
+                f"Scores: {self.original_scores}",
+                "",
+                self.content,
+                "-" * 80,
+                "",
+            ]
+        else:
+            # Fall back to simplified format for backward compatibility
+            # Use relative_path if available, otherwise just show ID
+            path_display = self.relative_path if self.relative_path else "snippet"
+            lines = [
+                "-" * 80,
+                f"ID: {self.id} | {path_display}",
+                f"Original scores: {self.original_scores}",
+                self.content,
+                "-" * 80,
+                "",
+            ]
         return "\n".join(lines)
+
+    @staticmethod
+    def calculate_relative_path(file_path: str, source_path: str) -> str:
+        """Calculate relative path from source root."""
+        try:
+            return str(Path(file_path).relative_to(Path(source_path)))
+        except ValueError:
+            # If file_path is not relative to source_path, return the file name
+            return Path(file_path).name
+
+    @staticmethod
+    def detect_language_from_extension(extension: str) -> str:
+        """Detect programming language from file extension."""
+        try:
+            return LanguageMapping.get_language_for_extension(extension).title()
+        except ValueError:
+            # Unknown extension, return a default
+            return "Unknown"
 
 
 @dataclass

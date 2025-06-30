@@ -189,9 +189,12 @@ class SnippetDomainService:
         return [
             MultiSearchResult(
                 id=item.id,
-                uri=item.source_uri,
                 content=item.content,
                 original_scores=[],
+                # Populate available fields from SnippetListItem
+                source_uri=item.source_uri,
+                relative_path=item.file_path,
+                # Note: language, author, created_at not available in SnippetListItem
             )
             for item in snippet_items
         ]

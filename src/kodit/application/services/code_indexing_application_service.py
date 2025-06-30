@@ -225,9 +225,18 @@ class CodeIndexingApplicationService:
         return [
             MultiSearchResult(
                 id=result.snippet.id,
-                uri=result.file.uri,
                 content=result.snippet.content,
                 original_scores=fr.original_scores,
+                # Enhanced fields
+                source_uri=result.source.uri,
+                relative_path=MultiSearchResult.calculate_relative_path(
+                    result.file.cloned_path, result.source.cloned_path
+                ),
+                language=MultiSearchResult.detect_language_from_extension(
+                    result.file.extension
+                ),
+                authors=[author.name for author in result.authors],
+                created_at=result.snippet.created_at,
             )
             for result, fr in zip(search_results, final_results, strict=True)
         ]
