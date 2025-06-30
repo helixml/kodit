@@ -77,7 +77,7 @@ def test_multi_search_result_to_json(sample_search_result: MultiSearchResult) ->
     assert json_obj["source"] == "https://github.com/example/repo"
     assert json_obj["path"] == "src/hello.py"
     assert json_obj["lang"] == "python"
-    assert json_obj["created"] == "2023-06-15T10:30:45"
+    assert json_obj["created"] == "2023-06-15T10:30:45+00:00"
     assert json_obj["author"] == "alice, bob"
     assert json_obj["score"] == [0.95, 0.78]
     assert json_obj["code"] == "def hello_world():\n    print('Hello, World!')"
