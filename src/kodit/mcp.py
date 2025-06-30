@@ -195,15 +195,10 @@ async def search(  # noqa: PLR0913
     snippets = await service.search(request=search_request)
 
     log.debug("Fusing output")
-    output = output_fusion(snippets=snippets)
+    output = MultiSearchResult.to_jsonlines(results=snippets)
 
     log.debug("Output", output=output)
     return output
-
-
-def output_fusion(snippets: list[MultiSearchResult]) -> str:
-    """Fuse the snippets into a single output."""
-    return "\n\n".join(str(snippet) for snippet in snippets)
 
 
 @mcp.tool()

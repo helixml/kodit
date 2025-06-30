@@ -1,5 +1,6 @@
 """Domain value objects and DTOs."""
 
+import json
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -186,6 +187,10 @@ class MultiSearchResult:
     authors: list[str] = field(default_factory=list)
     created_at: datetime | None = None
 
+    # Optional fields for LLM-optimized JSON output
+    summary: str = ""
+    key_points: list[str] = field(default_factory=list)
+
     def __str__(self) -> str:
         """Return enhanced formatted string representation."""
         # Use enhanced format if we have the data, otherwise fall back to simple format
@@ -205,7 +210,7 @@ class MultiSearchResult:
             lines = [
                 "-" * 80,
                 f"Source: {self.source_uri}",
-                f"ID: {self.id} | Path: {self.relative_path} | Language: {self.language}",
+                f"ID: {self.id} | Path: {self.relative_path} | Lang: {self.language}",
                 f"Created: {timestamp_str}{author_display}",
                 f"Scores: {self.original_scores}",
                 "",
@@ -226,6 +231,57 @@ class MultiSearchResult:
                 "",
             ]
         return "\n".join(lines)
+
+    def to_json(self, *, include_summary: bool = False) -> str:
+        """Return LLM-optimized JSON representation following the compact schema.
+
+        Args:
+            include_summary: Whether to include summary and key_points fields
+
+        Returns:
+            JSON string with compact field names optimized for LLM consumption
+
+        """
+        # Handle multiple authors - join with comma or use first author
+        author_str = ", ".join(self.authors) if self.authors else ""
+
+        # Build the base JSON object
+        json_obj = {
+            "id": self.id,
+            "path": self.relative_path,
+            "lang": self.language.lower(),
+            "created": self.created_at.isoformat() if self.created_at else "",
+            "author": author_str,
+            "score": self.original_scores,
+            "code": self.content,
+        }
+
+        # Add summary fields if requested and available
+        if include_summary:
+            if self.summary:
+                json_obj["summary"] = self.summary
+            if self.key_points:
+                json_obj["key_points"] = self.key_points
+
+        return json.dumps(json_obj, separators=(",", ":"))
+
+    @classmethod
+    def to_jsonlines(
+        cls, results: list["MultiSearchResult"], *, include_summary: bool = False
+    ) -> str:
+        """Convert multiple MultiSearchResult objects to JSON Lines format.
+
+        Args:
+            results: List of MultiSearchResult objects
+            include_summary: Whether to include summary fields
+
+        Returns:
+            JSON Lines string (one JSON object per line)
+
+        """
+        return "\n".join(
+            result.to_json(include_summary=include_summary) for result in results
+        )
 
     @staticmethod
     def calculate_relative_path(file_path: str, source_path: str) -> str:
