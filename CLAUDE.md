@@ -86,7 +86,7 @@ Uses SQLAlchemy with async support. Supports:
 - SQLite (default, local development)
 - PostgreSQL with Vectorchord (production)
 
-Migrations managed with Alembic in `migrations/` directory.
+Migrations managed with Alembic in `migrations/` directory. DO NOT EDIT THESE FILES.
 
 ## Testing Strategy
 
