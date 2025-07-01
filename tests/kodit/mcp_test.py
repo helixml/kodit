@@ -20,7 +20,7 @@ async def test_mcp_server_basic_functionality(
     # Create test data
     source = Source(
         uri="file:///test/repo",
-        cloned_path="/tmp/test/repo",
+        cloned_path="/tmp/test/repo",  # noqa: S108
         source_type=SourceType.FOLDER,
     )
     session.add(source)
@@ -36,7 +36,7 @@ async def test_mcp_server_basic_functionality(
         source_id=source.id,
         mime_type="text/plain",
         uri="file:///test/repo/example.py",
-        cloned_path="/tmp/test/repo/example.py",
+        cloned_path="/tmp/test/repo/example.py",  # noqa: S108
         sha256="abc123",
         size_bytes=100,
         extension="py",
