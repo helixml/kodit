@@ -78,10 +78,9 @@ class LocalBM25Repository(BM25Repository):
         vocab = self._tokenize([doc.text for doc in request.documents])
         self._retriever().index(vocab, show_progress=False)
         self._retriever().save(self.index_path)
-        self.snippet_ids = self.snippet_ids + [
-            doc.snippet_id for doc in request.documents
-        ]
-        
+        # Reset snippet_ids to match the current index corpus
+        self.snippet_ids = [doc.snippet_id for doc in request.documents]
+
         async with aiofiles.open(self.index_path / SNIPPET_IDS_FILE, "w") as f:
             await f.write(json.dumps(self.snippet_ids))
 
@@ -124,6 +123,14 @@ class LocalBM25Repository(BM25Repository):
         for result, score in zip(results[0], scores[0], strict=False):
             # result is an index into the corpus, not the snippet ID
             corpus_index = int(result)
+            # Bounds check to prevent index out of range errors
+            if corpus_index >= len(self.snippet_ids):
+                self.log.warning(
+                    "Corpus index out of range",
+                    corpus_index=corpus_index,
+                    snippet_ids_length=len(self.snippet_ids),
+                )
+                continue
             snippet_id = self.snippet_ids[corpus_index]
             if score > 0.0 and (
                 request.snippet_ids is None or snippet_id in request.snippet_ids
