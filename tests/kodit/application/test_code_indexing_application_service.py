@@ -385,14 +385,12 @@ def validate_input(value: str) -> bool:
     )
     session.add(source)
     await session.commit()
-    await session.refresh(source)
 
     index = Index(
         source_id=source.id,
     )
     session.add(index)
     await session.commit()
-    await session.refresh(index)
 
     # Create file record
     now = datetime.now(UTC)
@@ -409,7 +407,6 @@ def validate_input(value: str) -> bool:
     )
     session.add(file)
     await session.commit()
-    await session.refresh(file)
 
     # Run indexing to create snippets and search indexes
     await code_indexing_service.run_index(index.id)
