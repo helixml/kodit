@@ -9,8 +9,8 @@ import aiofiles
 import git
 from pydantic import AnyUrl
 
-from kodit.domain.models.entities import Author, File
-from kodit.domain.models.value_objects import SourceType
+from kodit.domain.entities import Author, File
+from kodit.domain.value_objects import SourceType
 
 
 class FileMetadataExtractor:

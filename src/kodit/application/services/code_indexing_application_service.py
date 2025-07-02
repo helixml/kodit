@@ -6,10 +6,15 @@ from datetime import UTC, datetime
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from kodit.domain.entities import Index, Snippet
 from kodit.domain.errors import EmptySourceError
 from kodit.domain.interfaces import ProgressCallback
-from kodit.domain.models.entities import Index, Snippet
-from kodit.domain.models.value_objects import (
+from kodit.domain.services.bm25_service import BM25DomainService
+from kodit.domain.services.embedding_service import EmbeddingDomainService
+from kodit.domain.services.enrichment_service import EnrichmentDomainService
+from kodit.domain.services.index_query_service import IndexQueryService
+from kodit.domain.services.index_service import IndexDomainService
+from kodit.domain.value_objects import (
     Document,
     FusionRequest,
     IndexRequest,
@@ -19,11 +24,6 @@ from kodit.domain.models.value_objects import (
     SearchResult,
     SnippetSearchFilters,
 )
-from kodit.domain.services.bm25_service import BM25DomainService
-from kodit.domain.services.embedding_service import EmbeddingDomainService
-from kodit.domain.services.enrichment_service import EnrichmentDomainService
-from kodit.domain.services.index_query_service import IndexQueryService
-from kodit.domain.services.index_service import IndexDomainService
 from kodit.log import log_event
 from kodit.reporting import Reporter
 

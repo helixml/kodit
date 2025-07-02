@@ -5,8 +5,8 @@ from typing import Protocol
 
 from pydantic import AnyUrl
 
-from kodit.domain.models.entities import Index, Snippet, SnippetWithContext, WorkingCopy
-from kodit.domain.models.value_objects import MultiSearchRequest
+from kodit.domain.entities import Index, Snippet, SnippetWithContext, WorkingCopy
+from kodit.domain.value_objects import MultiSearchRequest
 
 
 class IndexRepository(Protocol):

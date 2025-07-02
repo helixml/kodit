@@ -6,9 +6,9 @@ from pydantic import AnyUrl
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.models.entities import Index as DomainIndex
-from kodit.domain.models.entities import WorkingCopy
-from kodit.domain.models.protocols import IndexRepository
+from kodit.domain.entities import Index as DomainIndex
+from kodit.domain.entities import WorkingCopy
+from kodit.domain.protocols import IndexRepository
 from kodit.infrastructure.mappers.index_mapper import IndexMapper
 from kodit.infrastructure.sqlalchemy.entities import (
     AuthorFileMapping,
@@ -47,7 +47,7 @@ class SQLAlchemyIndexRepository(IndexRepository):
             return existing_index
 
         # Create domain index with working copy
-        from kodit.domain.models.entities import Source as DomainSource
+        from kodit.domain.entities import Source as DomainSource
 
         domain_source = DomainSource(working_copy=working_copy)
         domain_index = DomainIndex(source=domain_source)

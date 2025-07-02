@@ -19,12 +19,12 @@ from kodit.config import (
     with_session,
 )
 from kodit.domain.errors import EmptySourceError
-from kodit.domain.models.value_objects import (
+from kodit.domain.services.index_query_service import IndexQueryService
+from kodit.domain.value_objects import (
     MultiSearchRequest,
     MultiSearchResult,
     SnippetSearchFilters,
 )
-from kodit.domain.services.index_query_service import IndexQueryService
 from kodit.infrastructure.indexing.fusion_service import ReciprocalRankFusionService
 from kodit.infrastructure.sqlalchemy.index_repository import SqlAlchemyIndexRepository
 from kodit.infrastructure.ui.progress import (

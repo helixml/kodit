@@ -7,10 +7,10 @@ from pydantic import AnyUrl
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.models import entities as domain_entities
-from kodit.domain.models.entities import SnippetWithContext
-from kodit.domain.models.protocols import IndexRepository
-from kodit.domain.models.value_objects import (
+from kodit.domain import entities as domain_entities
+from kodit.domain.entities import SnippetWithContext
+from kodit.domain.protocols import IndexRepository
+from kodit.domain.value_objects import (
     MultiSearchRequest,
     SnippetContentType,
 )
@@ -100,9 +100,9 @@ class SqlAlchemyIndexRepository(IndexRepository):
         # 8. Return the new index
         return await self._mapper.to_domain_index(db_index)
 
-    async def get(self, id: int) -> domain_entities.Index | None:  # noqa: A002
+    async def get(self, index_id: int) -> domain_entities.Index | None:
         """Get an index by ID."""
-        db_index = await self._session.get(db_entities.Index, id)
+        db_index = await self._session.get(db_entities.Index, index_id)
         if not db_index:
             return None
 

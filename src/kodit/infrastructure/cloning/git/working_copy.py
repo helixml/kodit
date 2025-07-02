@@ -6,7 +6,7 @@ from pathlib import Path
 import git
 import structlog
 
-from kodit.domain.models.entities import WorkingCopy
+from kodit.domain.entities import WorkingCopy
 
 
 class GitWorkingCopyProvider:

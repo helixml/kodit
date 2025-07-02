@@ -10,7 +10,7 @@ Using Reporter removes boiler-plate and guarantees consistent telemetry.
 import structlog
 
 from kodit.domain.interfaces import NullProgressCallback, ProgressCallback
-from kodit.domain.models.value_objects import ProgressEvent
+from kodit.domain.value_objects import ProgressEvent
 
 
 class Reporter:

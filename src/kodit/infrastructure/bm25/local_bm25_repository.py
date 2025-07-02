@@ -10,13 +10,13 @@ import aiofiles
 import Stemmer
 import structlog
 
-from kodit.domain.models.value_objects import (
+from kodit.domain.services.bm25_service import BM25Repository
+from kodit.domain.value_objects import (
     DeleteRequest,
     IndexRequest,
     SearchRequest,
     SearchResult,
 )
-from kodit.domain.services.bm25_service import BM25Repository
 
 if TYPE_CHECKING:
     import bm25s

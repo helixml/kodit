@@ -2,9 +2,9 @@
 
 from abc import ABC, abstractmethod
 
-from kodit.domain.models.entities import Index, SnippetWithContext
-from kodit.domain.models.protocols import IndexRepository
-from kodit.domain.models.value_objects import (
+from kodit.domain.entities import Index, SnippetWithContext
+from kodit.domain.protocols import IndexRepository
+from kodit.domain.value_objects import (
     FusionRequest,
     FusionResult,
     MultiSearchRequest,

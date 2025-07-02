@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator, Sequence
 
-from kodit.domain.models.value_objects import (
+from kodit.domain.value_objects import (
     EmbeddingRequest,
     EmbeddingResponse,
     IndexRequest,

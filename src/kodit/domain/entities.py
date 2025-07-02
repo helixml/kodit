@@ -7,7 +7,7 @@ from urllib.parse import urlparse, urlunparse
 
 from pydantic import AnyUrl, BaseModel
 
-from kodit.domain.models.value_objects import (
+from kodit.domain.value_objects import (
     SnippetContent,
     SnippetContentType,
     SourceType,

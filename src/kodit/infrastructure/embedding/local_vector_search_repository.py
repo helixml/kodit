@@ -4,16 +4,16 @@ from collections.abc import AsyncGenerator
 
 import structlog
 
-from kodit.domain.models.value_objects import (
+from kodit.domain.services.embedding_service import (
+    EmbeddingProvider,
+    VectorSearchRepository,
+)
+from kodit.domain.value_objects import (
     EmbeddingRequest,
     IndexRequest,
     IndexResult,
     SearchRequest,
     SearchResult,
-)
-from kodit.domain.services.embedding_service import (
-    EmbeddingProvider,
-    VectorSearchRepository,
 )
 from kodit.infrastructure.sqlalchemy.embedding_repository import (
     SqlAlchemyEmbeddingRepository,
