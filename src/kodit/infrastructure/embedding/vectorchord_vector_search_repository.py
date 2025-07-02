@@ -7,16 +7,16 @@ import structlog
 from sqlalchemy import Result, TextClause, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.services.embedding_service import (
-    EmbeddingProvider,
-    VectorSearchRepository,
-)
-from kodit.domain.value_objects import (
+from kodit.domain.models.value_objects import (
     EmbeddingRequest,
     IndexRequest,
     IndexResult,
     SearchRequest,
     SearchResult,
+)
+from kodit.domain.services.embedding_service import (
+    EmbeddingProvider,
+    VectorSearchRepository,
 )
 from kodit.infrastructure.sqlalchemy.entities import EmbeddingType
 

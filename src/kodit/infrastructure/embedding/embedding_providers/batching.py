@@ -8,7 +8,7 @@ this functionality.
 
 from tiktoken import Encoding
 
-from kodit.domain.value_objects import EmbeddingRequest
+from kodit.domain.models.value_objects import EmbeddingRequest
 
 __all__ = [
     "split_sub_batches",

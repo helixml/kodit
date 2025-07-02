@@ -1,5 +1,6 @@
 """Pure domain entities using Pydantic."""
 
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
@@ -191,3 +192,14 @@ class Index(BaseModel):
         """Pydantic model configuration."""
 
         frozen = True
+
+
+# FUTURE: Remove this type, use the domain to get the required information.
+@dataclass(frozen=True)
+class SnippetWithContext:
+    """Domain model for snippet with associated context information."""
+
+    source: Source
+    file: File
+    authors: list[Author]
+    snippet: Snippet

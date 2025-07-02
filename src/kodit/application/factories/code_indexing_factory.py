@@ -6,13 +6,12 @@ from kodit.application.services.code_indexing_application_service import (
     CodeIndexingApplicationService,
 )
 from kodit.config import AppContext
-from kodit.domain.enums import SnippetExtractionStrategy
+from kodit.domain.models.value_objects import LanguageMapping, SnippetExtractionStrategy
 from kodit.domain.services.bm25_service import BM25DomainService
 from kodit.domain.services.index_query_service import IndexQueryService
 from kodit.domain.services.index_service import (
     IndexDomainService,
 )
-from kodit.domain.value_objects import LanguageMapping
 from kodit.infrastructure.bm25.bm25_factory import bm25_repository_factory
 from kodit.infrastructure.embedding.embedding_factory import (
     embedding_domain_service_factory,

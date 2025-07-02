@@ -8,22 +8,20 @@ from pathlib import Path
 import structlog
 from pydantic import AnyUrl
 
-from kodit.domain.enums import SnippetExtractionStrategy
 from kodit.domain.interfaces import ProgressCallback
 from kodit.domain.models import entities as domain_entities
 from kodit.domain.models.protocols import IndexRepository
 from kodit.domain.models.value_objects import (
+    EnrichmentIndexRequest,
+    EnrichmentRequest,
     SnippetContent,
     SnippetContentType,
+    SnippetExtractionRequest,
+    SnippetExtractionResult,
+    SnippetExtractionStrategy,
 )
 from kodit.domain.services.enrichment_service import EnrichmentDomainService
 from kodit.domain.services.ignore_service import IgnoreService
-from kodit.domain.value_objects import (
-    EnrichmentIndexRequest,
-    EnrichmentRequest,
-    SnippetExtractionRequest,
-    SnippetExtractionResult,
-)
 from kodit.infrastructure.cloning.git.working_copy import GitWorkingCopyProvider
 from kodit.infrastructure.cloning.metadata import FileMetadataExtractor
 from kodit.infrastructure.git.git_utils import is_valid_clone_target

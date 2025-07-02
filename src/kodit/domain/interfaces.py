@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 
-from kodit.domain.value_objects import ProgressEvent
+from kodit.domain.models.value_objects import ProgressEvent
 
 
 class ProgressCallback(ABC):

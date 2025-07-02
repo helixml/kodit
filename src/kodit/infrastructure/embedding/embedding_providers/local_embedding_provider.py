@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING
 
 import structlog
 
+from kodit.domain.models.value_objects import EmbeddingRequest, EmbeddingResponse
 from kodit.domain.services.embedding_service import EmbeddingProvider
-from kodit.domain.value_objects import EmbeddingRequest, EmbeddingResponse
 
 from .batching import split_sub_batches
 

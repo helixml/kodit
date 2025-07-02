@@ -6,8 +6,8 @@ from collections.abc import AsyncGenerator
 import structlog
 import tiktoken
 
+from kodit.domain.models.value_objects import EnrichmentRequest, EnrichmentResponse
 from kodit.domain.services.enrichment_service import EnrichmentProvider
-from kodit.domain.value_objects import EnrichmentRequest, EnrichmentResponse
 
 ENRICHMENT_SYSTEM_PROMPT = """
 You are a professional software developer. You will be given a snippet of code.

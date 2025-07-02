@@ -8,9 +8,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.domain.models import entities as domain_entities
+from kodit.domain.models.entities import SnippetWithContext
 from kodit.domain.models.protocols import IndexRepository
-from kodit.domain.models.value_objects import SnippetContentType
-from kodit.domain.value_objects import MultiSearchRequest, SnippetWithContext
+from kodit.domain.models.value_objects import (
+    MultiSearchRequest,
+    SnippetContentType,
+)
 from kodit.infrastructure.mappers.index_mapper import IndexMapper
 from kodit.infrastructure.sqlalchemy import entities as db_entities
 
