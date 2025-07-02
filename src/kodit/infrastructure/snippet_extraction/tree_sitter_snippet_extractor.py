@@ -6,7 +6,7 @@ from typing import cast
 from tree_sitter import Node, Query
 from tree_sitter_language_pack import SupportedLanguage, get_language, get_parser
 
-from kodit.domain.services.snippet_extraction_service import SnippetExtractor
+from kodit.domain.services.index_service import SnippetExtractor
 from kodit.infrastructure.snippet_extraction.snippet_query_provider import (
     SnippetQueryProvider,
 )

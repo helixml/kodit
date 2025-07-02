@@ -1,0 +1,56 @@
+"""Index query service."""
+
+from kodit.domain.models.entities import Index
+from kodit.domain.models.protocols import IndexRepository
+from kodit.domain.services.indexing_service import FusionService
+from kodit.domain.value_objects import (
+    FusionRequest,
+    FusionResult,
+    MultiSearchRequest,
+    SnippetWithContext,
+)
+
+
+class IndexQueryService:
+    """Index query service."""
+
+    def __init__(
+        self,
+        index_repository: IndexRepository,
+        fusion_service: FusionService,
+    ) -> None:
+        """Initialize the index query service."""
+        self.index_repository = index_repository
+        self.fusion_service = fusion_service
+
+    async def get_index_by_id(self, index_id: int) -> Index | None:
+        """Get an index by its ID."""
+        return await self.index_repository.get(index_id)
+
+    async def list_indexes(self) -> list[Index]:
+        """List all indexes."""
+        return await self.index_repository.all()
+
+    async def search_snippets(
+        self, request: MultiSearchRequest
+    ) -> list[SnippetWithContext]:
+        """Search snippets with filters.
+
+        Args:
+            request: The search request containing filters
+
+        Returns:
+            List of matching snippet items with context
+
+        """
+        return list(await self.index_repository.search(request))
+
+    async def perform_fusion(
+        self, rankings: list[list[FusionRequest]], k: float = 60
+    ) -> list[FusionResult]:
+        """Perform reciprocal rank fusion on search results."""
+        return self.fusion_service.reciprocal_rank_fusion(rankings, k)
+
+    async def get_snippets_by_ids(self, ids: list[int]) -> list[SnippetWithContext]:
+        """Get snippets by their IDs."""
+        return await self.index_repository.get_snippets_by_ids(ids)

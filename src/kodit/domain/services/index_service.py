@@ -1,7 +1,9 @@
 """Pure domain service for Index aggregate operations."""
 
+from abc import ABC, abstractmethod
+from collections.abc import Mapping
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import structlog
 from pydantic import AnyUrl
@@ -13,15 +15,46 @@ from kodit.domain.models.protocols import IndexRepository
 from kodit.domain.models.value_objects import (
     SnippetContent,
     SnippetContentType,
-    SourceType,
 )
-from kodit.domain.value_objects import SnippetExtractionRequest
+from kodit.domain.services.enrichment_service import EnrichmentDomainService
+from kodit.domain.services.ignore_service import IgnoreService
+from kodit.domain.value_objects import (
+    EnrichmentIndexRequest,
+    EnrichmentRequest,
+    SnippetExtractionRequest,
+    SnippetExtractionResult,
+)
+from kodit.infrastructure.cloning.git.working_copy import GitWorkingCopyProvider
+from kodit.infrastructure.cloning.metadata import FileMetadataExtractor
+from kodit.infrastructure.git.git_utils import is_valid_clone_target
+from kodit.infrastructure.ignore.ignore_pattern_provider import GitIgnorePatternProvider
 from kodit.reporting import Reporter
 
-if TYPE_CHECKING:
-    from kodit.domain.services.snippet_extraction_service import (
-        SnippetExtractionDomainService,
-    )
+
+class LanguageDetectionService(ABC):
+    """Abstract interface for language detection service."""
+
+    @abstractmethod
+    async def detect_language(self, file_path: Path) -> str:
+        """Detect the programming language of a file."""
+
+
+class SnippetExtractor(ABC):
+    """Abstract interface for snippet extraction."""
+
+    @abstractmethod
+    async def extract(self, file_path: Path, language: str) -> list[str]:
+        """Extract snippets from a file."""
+
+
+class SnippetExtractionService(ABC):
+    """Domain service for extracting snippets from source code."""
+
+    @abstractmethod
+    async def extract_snippets(
+        self, request: SnippetExtractionRequest
+    ) -> SnippetExtractionResult:
+        """Extract snippets from a file using the specified strategy."""
 
 
 class IndexDomainService:
@@ -37,7 +70,10 @@ class IndexDomainService:
     def __init__(
         self,
         index_repository: IndexRepository,
-        snippet_extraction_service: "SnippetExtractionDomainService",
+        language_detector: LanguageDetectionService,
+        snippet_extractors: Mapping[SnippetExtractionStrategy, SnippetExtractor],
+        enrichment_service: EnrichmentDomainService,
+        clone_dir: Path,
     ) -> None:
         """Initialize the index domain service.
 
@@ -47,131 +83,112 @@ class IndexDomainService:
 
         """
         self._index_repository = index_repository
-        self._snippet_extraction_service = snippet_extraction_service
+        self._clone_dir = clone_dir
+        self._language_detector = language_detector
+        self._snippet_extractors = snippet_extractors
+        self._enrichment_service = enrichment_service
         self.log = structlog.get_logger(__name__)
 
-    async def create_index(self, uri: AnyUrl) -> domain_entities.Index:
-        """Create a new index for a source repository.
+    def _sanitize_uri(self, uri_or_path_like: str) -> AnyUrl:
+        """Convert a URI or path-like string to a URI."""
+        # If it's git-clonable, it's valid
+        if is_valid_clone_target(uri_or_path_like):
+            return domain_entities.WorkingCopy.sanitize_git_url(uri_or_path_like)
+        # If it's a local directory, it's valid
+        if Path(uri_or_path_like).is_dir():
+            return domain_entities.WorkingCopy.sanitize_local_path(uri_or_path_like)
+        raise ValueError(f"Unsupported source: {uri_or_path_like}")
 
-        Args:
-            uri: The URI of the source repository to index
-
-        Returns:
-            The created Index aggregate with minimal structure
-
-        """
-        self.log.info("Creating index", uri=str(uri))
+    async def create_index(
+        self,
+        uri_or_path_like: str,  # Must include user/pass, etc
+        progress_callback: ProgressCallback | None = None,
+    ) -> domain_entities.Index:
+        """Create a new index and populate the working copy with files."""
+        sanitized_uri = self._sanitize_uri(uri_or_path_like)
+        self.log.debug("Creating index", uri=str(sanitized_uri))
 
         # Check if index already exists
-        existing_index = await self._index_repository.get_by_uri(uri)
+        existing_index = await self._index_repository.get_by_uri(sanitized_uri)
         if existing_index:
-            self.log.info(
-                "Index already exists", uri=str(uri), index_id=existing_index.id
+            self.log.debug(
+                "Index already exists",
+                uri=str(sanitized_uri),
+                index_id=existing_index.id,
             )
             return existing_index
 
-        # Create new index
-        index = await self._index_repository.create(uri)
-        self.log.info("Index created", uri=str(uri), index_id=index.id)
+        # Clone the source repository
+        if is_valid_clone_target(uri_or_path_like):
+            source_type = domain_entities.SourceType.GIT
+            sanitized_uri = domain_entities.WorkingCopy.sanitize_git_url(
+                uri_or_path_like
+            )
+            git_working_copy_provider = GitWorkingCopyProvider(self._clone_dir)
+            local_path = await git_working_copy_provider.prepare(uri_or_path_like)
+        elif Path(uri_or_path_like).is_dir():
+            source_type = domain_entities.SourceType.FOLDER
+            sanitized_uri = domain_entities.WorkingCopy.sanitize_local_path(
+                uri_or_path_like
+            )
+            local_path = Path.from_uri(str(sanitized_uri))
+        else:
+            raise ValueError(f"Unsupported source: {uri_or_path_like}")
 
-        return index
-
-    async def clone_and_populate_working_copy(
-        self,
-        index: domain_entities.Index,
-        local_path: Path,
-        source_type: SourceType,
-        progress_callback: ProgressCallback | None = None,
-    ) -> domain_entities.Index:
-        """Clone the source repository and populate the working copy with files.
-
-        Args:
-            index: The Index aggregate to populate
-            local_path: Local path where the source should be cloned
-            source_type: Type of the source (GIT, FOLDER, etc.)
-            progress_callback: Optional callback for progress reporting
-
-        Returns:
-            Updated Index aggregate with populated working copy
-
-        """
-        from datetime import UTC, datetime
-
-        self.log.info(
-            "Cloning and populating working copy",
-            index_id=index.id,
-            uri=str(index.source.working_copy.remote_uri),
-            local_path=str(local_path)
-        )
+        # Get files to process using ignore patterns
+        ignore_provider = GitIgnorePatternProvider(local_path)
+        ignore_service = IgnoreService(ignore_provider)
+        files: list[domain_entities.File] = []
+        file_paths = [
+            f
+            for f in local_path.rglob("*")
+            if f.is_file() and not ignore_service.should_ignore(f)
+        ]
+        file_count = len(file_paths)
+        if file_count == 0:
+            self.log.info("No files to index", uri=str(sanitized_uri))
+            raise ValueError("No files to index")
 
         reporter = Reporter(self.log, progress_callback)
-        await reporter.start("clone_source", 100, "Cloning source repository...")
+        await reporter.start("scan_files", file_count, "Scanning files...")
 
-        # TODO: Implement actual cloning logic here
-        # For now, we'll assume the source is already available at local_path
+        metadata_extractor = FileMetadataExtractor(source_type)
 
-        # Scan for files in the cloned directory
-        files = []
-        if local_path.exists():
-            file_paths = list(local_path.rglob("*"))
-            file_count = len([p for p in file_paths if p.is_file()])
+        for i, file_path in enumerate(file_paths):
+            # Create domain file entity
+            try:
+                files.append(await metadata_extractor.extract(file_path=file_path))
+            except (OSError, ValueError) as e:
+                self.log.debug("Skipping file", file=str(file_path), error=str(e))
+                continue
 
-            await reporter.start("scan_files", file_count, "Scanning files...")
-
-            for i, file_path in enumerate(file_paths):
-                if not file_path.is_file():
-                    continue
-
-                # Create domain file entity
-                try:
-                    relative_path = file_path.relative_to(local_path)
-                    now = datetime.now(UTC)
-
-                    # Calculate file hash
-                    import hashlib
-                    sha256_hash = hashlib.sha256()
-                    with file_path.open("rb") as f:
-                        for chunk in iter(lambda: f.read(4096), b""):
-                            sha256_hash.update(chunk)
-
-                    domain_file = domain_entities.File(
-                        id=0,  # Will be assigned by repository
-                        created_at=now,
-                        updated_at=now,
-                        uri=AnyUrl(f"file://{relative_path}"),
-                        sha256=sha256_hash.hexdigest(),
-                        authors=[]  # Will be populated later via git blame or similar
-                    )
-                    files.append(domain_file)
-
-                except (OSError, ValueError) as e:
-                    self.log.debug("Skipping file", file=str(file_path), error=str(e))
-                    continue
-
-                await reporter.step(
-                    "scan_files", i + 1, file_count, f"Scanned {file_path.name}"
-                )
+            await reporter.step(
+                "scan_files", i + 1, file_count, f"Scanned {file_path.name}"
+            )
 
         await reporter.done("scan_files")
 
         # Create updated working copy
         now = datetime.now(UTC)
-        updated_working_copy = domain_entities.WorkingCopy(
-            created_at=index.source.working_copy.created_at,
-            updated_at=now,
-            remote_uri=index.source.working_copy.remote_uri,
+        working_copy = domain_entities.WorkingCopy(
+            remote_uri=sanitized_uri,
             cloned_path=local_path,
             source_type=source_type,
-            files=files
+            files=files,
+            created_at=now,
+            updated_at=now,
         )
 
-        # Set the working copy in the repository
-        await self._index_repository.set_working_copy(index.id, updated_working_copy)
+        return await self._index_repository.create(sanitized_uri, working_copy)
 
-        await reporter.done("clone_source")
+    async def update_index_timestamp(self, index_id: int) -> None:
+        """Update the timestamp of an index.
 
-        # Return updated index
-        return await self._index_repository.get(index.id) or index
+        Args:
+            index_id: The ID of the index to update.
+
+        """
+        await self._index_repository.update_index_timestamp(index_id)
 
     async def extract_snippets(
         self,
@@ -190,11 +207,19 @@ class IndexDomainService:
             Updated Index aggregate with extracted snippets
 
         """
+        if not index.id:
+            raise ValueError("Index has no ID")
+
+        file_count = len(index.source.working_copy.files)
+        if file_count == 0:
+            self.log.info("No files to extract snippets from", index_id=index.id)
+            raise ValueError("No files to extract snippets from")
+
         self.log.info(
             "Extracting snippets",
             index_id=index.id,
-            file_count=len(index.source.working_copy.files),
-            strategy=strategy.value
+            file_count=file_count,
+            strategy=strategy.value,
         )
 
         files = index.source.working_copy.files
@@ -207,24 +232,27 @@ class IndexDomainService:
 
         for i, domain_file in enumerate(files, 1):
             try:
-                # Determine file path for extraction
-                file_path = (
-                    index.source.working_copy.cloned_path
-                    / Path(domain_file.uri.path or "")
-                )
+                if not self._should_process_file(
+                    domain_file.as_path().parent, domain_file.as_path()
+                ):
+                    self.log.debug(
+                        "Skipping file",
+                        relative_path=str(domain_file.as_path()),
+                    )
 
-                if not self._should_process_file(file_path):
+                    await reporter.step(
+                        "extract_snippets",
+                        i,
+                        len(files),
+                        f"Skipping {domain_file.uri.path}",
+                    )
                     continue
 
                 # Extract snippets from file
-                request = SnippetExtractionRequest(file_path, strategy)
-                result = await self._snippet_extraction_service.extract_snippets(
-                    request
+                request = SnippetExtractionRequest(
+                    file_path=domain_file.as_path(), strategy=strategy
                 )
-
-                # Create snippet entities
-                from datetime import UTC, datetime
-                now = datetime.now(UTC)
+                result = await self._extract_snippets(request)
 
                 for snippet_text in result.snippets:
                     # Create snippet contents
@@ -232,15 +260,13 @@ class IndexDomainService:
                         SnippetContent(
                             type=SnippetContentType.ORIGINAL,
                             value=snippet_text,
-                            language=result.language
+                            language=result.language,
                         )
                     ]
 
                     snippet = domain_entities.Snippet(
-                        id=0,  # Will be assigned by repository
-                        created_at=now,
-                        updated_at=now,
-                        contents=contents
+                        contents=contents,
+                        derives_from=[domain_file],
                     )
                     snippets.append(snippet)
 
@@ -248,15 +274,12 @@ class IndexDomainService:
                 self.log.debug(
                     "Skipping file for snippet extraction",
                     file_uri=str(domain_file.uri),
-                    error=str(e)
+                    error=str(e),
                 )
                 continue
 
             await reporter.step(
-                "extract_snippets",
-                i,
-                len(files),
-                f"Processed {domain_file.uri.path}"
+                "extract_snippets", i, len(files), f"Processed {domain_file.uri.path}"
             )
 
         # Add snippets to the index
@@ -267,38 +290,6 @@ class IndexDomainService:
 
         # Return updated index
         return await self._index_repository.get(index.id) or index
-
-    async def enrich_snippets_with_summaries(
-        self,
-        index: domain_entities.Index,
-        progress_callback: ProgressCallback | None = None,
-    ) -> domain_entities.Index:
-        """Enrich snippets with AI-generated summaries.
-
-        Args:
-            index: The Index aggregate containing snippets to enrich
-            progress_callback: Optional callback for progress reporting
-
-        Returns:
-            Updated Index aggregate with enriched snippets
-
-        """
-        self.log.info("Enriching snippets with summaries", index_id=index.id)
-
-        # TODO: Implement summary generation
-        # This would involve:
-        # 1. Loading snippets from the index
-        # 2. Generating summaries using an AI service
-        # 3. Creating new SnippetContent with type SUMMARY
-        # 4. Updating the snippets in the repository
-
-        reporter = Reporter(self.log, progress_callback)
-        await reporter.start("enrich_snippets", 1, "Enriching snippets...")
-
-        # Placeholder implementation
-        await reporter.done("enrich_snippets")
-
-        return index
 
     async def get_index_by_uri(self, uri: AnyUrl) -> domain_entities.Index | None:
         """Get an index by source URI.
@@ -324,7 +315,59 @@ class IndexDomainService:
         """
         return await self._index_repository.get(index_id)
 
-    def _should_process_file(self, file_path: Path) -> bool:
+    async def enrich_snippets(
+        self,
+        index: domain_entities.Index,
+        progress_callback: ProgressCallback | None = None,
+    ) -> domain_entities.Index:
+        """Enrich snippets with AI-generated summaries."""
+        if not index.id:
+            raise ValueError("Index has no ID")
+
+        if not index.snippets or len(index.snippets) == 0:
+            return index
+
+        reporter = Reporter(self.log, progress_callback)
+        await reporter.start("enrichment", len(index.snippets), "Enriching snippets...")
+
+        snippet_map = {snippet.id: snippet for snippet in index.snippets if snippet.id}
+
+        enrichment_request = EnrichmentIndexRequest(
+            requests=[
+                EnrichmentRequest(
+                    snippet_id=snippet_id, text=snippet.original_content()
+                )
+                for snippet_id, snippet in snippet_map.items()
+            ]
+        )
+
+        processed = 0
+        async for result in self._enrichment_service.enrich_documents(
+            enrichment_request
+        ):
+            snippet_map[result.snippet_id].contents.append(
+                SnippetContent(
+                    type=SnippetContentType.SUMMARY,
+                    value=result.text,
+                    language="markdown",
+                )
+            )
+
+            processed += 1
+            await reporter.step(
+                "enrichment", processed, len(index.snippets), "Enriching snippets..."
+            )
+
+        await self._index_repository.update_snippets(
+            index.id, list(snippet_map.values())
+        )
+        await reporter.done("enrichment")
+        new_index = await self._index_repository.get(index.id)
+        if not new_index:
+            raise ValueError("Index not found after enrichment")
+        return new_index
+
+    def _should_process_file(self, base_path: Path, file_path: Path) -> bool:
         """Check if a file should be processed for snippet extraction.
 
         Args:
@@ -335,7 +378,7 @@ class IndexDomainService:
 
         """
         # Skip hidden files and directories
-        if any(part.startswith(".") for part in file_path.parts):
+        if any(part.startswith(".") for part in file_path.relative_to(base_path).parts):
             return False
 
         # Skip binary files (basic check)
@@ -346,3 +389,24 @@ class IndexDomainService:
         except (UnicodeDecodeError, OSError):
             return False
 
+    async def _extract_snippets(
+        self, request: SnippetExtractionRequest
+    ) -> SnippetExtractionResult:
+        # Domain logic: validate file exists
+        if not request.file_path.exists():
+            raise ValueError(f"File does not exist: {request.file_path}")
+
+        # Domain logic: detect language
+        language = await self._language_detector.detect_language(request.file_path)
+
+        # Domain logic: choose strategy and extractor
+        if request.strategy not in self._snippet_extractors:
+            raise ValueError(f"Unsupported extraction strategy: {request.strategy}")
+
+        extractor = self._snippet_extractors[request.strategy]
+        snippets = await extractor.extract(request.file_path, language)
+
+        # Domain logic: filter out empty snippets
+        filtered_snippets = [snippet for snippet in snippets if snippet.strip()]
+
+        return SnippetExtractionResult(snippets=filtered_snippets, language=language)

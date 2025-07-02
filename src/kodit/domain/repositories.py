@@ -82,12 +82,12 @@ class AuthorRepository(GenericRepository[Author]):
 class SnippetRepository(GenericRepository[Snippet]):
     """Snippet repository with specific methods."""
 
-    async def get_by_index(self, index_id: int) -> Sequence[Snippet]:
-        """Get all snippets for an index."""
-        raise NotImplementedError
-
     async def delete_by_index(self, index_id: int) -> None:
         """Delete all snippets for an index."""
+        raise NotImplementedError
+
+    async def get_by_index(self, index_id: int) -> Sequence[Snippet]:
+        """Get all snippets for an index."""
         raise NotImplementedError
 
     async def list_snippets(

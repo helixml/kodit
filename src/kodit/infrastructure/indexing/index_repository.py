@@ -1,27 +1,20 @@
 """Infrastructure implementation of the index repository."""
 
 from datetime import UTC, datetime
-from typing import TypeVar
 
-from sqlalchemy import delete, func, select
+from pydantic import AnyUrl
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.domain.entities import (
-    Author,
     AuthorFileMapping,
-    Embedding,
-    File,
     Index,
-    Snippet,
     Source,
 )
-from kodit.domain.services.indexing_service import IndexRepository
-from kodit.domain.value_objects import (
-    IndexView,
-    SnippetWithContext,
-)
-
-T = TypeVar("T")
+from kodit.domain.models.entities import Index as DomainIndex
+from kodit.domain.models.entities import WorkingCopy
+from kodit.domain.models.protocols import IndexRepository
+from kodit.infrastructure.mappers.index_mapper import IndexMapper
 
 
 class SQLAlchemyIndexRepository(IndexRepository):
@@ -35,125 +28,141 @@ class SQLAlchemyIndexRepository(IndexRepository):
 
         """
         self.session = session
+        self.mapper = IndexMapper(session)
 
-    async def create_index(self, source_id: int) -> IndexView:
-        """Create a new index for a source.
+    async def create(self, uri: AnyUrl, working_copy: WorkingCopy) -> DomainIndex:
+        """Create an index for a source.
 
         Args:
-            source_id: The ID of the source to create an index for.
+            uri: The URI of the source
+            working_copy: The working copy containing files and authors
 
         Returns:
-            The created index view.
+            The created domain index.
 
         """
         # Check if index already exists
-        existing_index = await self.get_index_by_source_id(source_id)
+        existing_index = await self.get_by_uri(uri)
         if existing_index:
             return existing_index
 
-        index = Index(source_id=source_id)
-        self.session.add(index)
+        # Create domain index with working copy
+        from kodit.domain.models.entities import Source as DomainSource
 
-        # Get source for the view
-        source_query = select(Source).where(Source.id == source_id)
-        source_result = await self.session.execute(source_query)
-        source = source_result.scalar_one()
+        domain_source = DomainSource(working_copy=working_copy)
+        domain_index = DomainIndex(source=domain_source)
 
-        return IndexView(
-            id=index.id,
-            created_at=index.created_at,
-            updated_at=index.updated_at,
-            source=source.uri,
-            num_snippets=0,
+        # Convert to database entities and save in hierarchical order
+        db_index, db_source, db_files, db_authors = await self.mapper.from_domain_index(
+            domain_index
         )
 
-    async def _get_index_view(self, index: Index, source: Source) -> IndexView:
-        """Create an IndexView from Index and Source entities.
+        # Save authors first (no dependencies)
+        for db_author in db_authors:
+            self.session.add(db_author)
+        await self.session.flush()  # Get author IDs
 
-        Args:
-            index: The index entity
-            source: The source entity
+        # Save source (no dependencies)
+        self.session.add(db_source)
+        await self.session.flush()  # Get source ID
 
-        Returns:
-            The index view
+        # Update file source_ids and save files
+        for db_file in db_files:
+            db_file.source_id = db_source.id
+            self.session.add(db_file)
+        await self.session.flush()  # Get file IDs
 
-        """
-        num_snippets = await self.num_snippets_for_index(index.id)
-        return IndexView(
-            id=index.id,
-            created_at=index.created_at,
-            updated_at=index.updated_at,
-            source=source.uri,
-            num_snippets=num_snippets,
-        )
+        # Create author-file mappings
+        for domain_file in working_copy.files:
+            db_file = next(f for f in db_files if f.uri == str(domain_file.uri))
+            for domain_author in domain_file.authors:
+                db_author = next(
+                    a
+                    for a in db_authors
+                    if a.name == domain_author.name and a.email == domain_author.email
+                )
+                mapping = AuthorFileMapping(author_id=db_author.id, file_id=db_file.id)
+                self.session.add(mapping)
 
-    async def get_index_by_id(self, index_id: int) -> IndexView | None:
+        # Save index (depends on source)
+        db_index.source_id = db_source.id
+        self.session.add(db_index)
+        await self.session.flush()  # Get index ID
+
+        # Update domain objects with generated IDs
+        domain_index.id = db_index.id
+        domain_source.id = db_source.id
+        for i, domain_file in enumerate(working_copy.files):
+            domain_file.id = db_files[i].id
+        # Create unique authors list (Authors are not hashable, so use dict)
+        unique_authors_dict = {}
+        for file in working_copy.files:
+            for author in file.authors:
+                key = (author.name, author.email)
+                if key not in unique_authors_dict:
+                    unique_authors_dict[key] = author
+
+        for i, domain_author in enumerate(unique_authors_dict.values()):
+            domain_author.id = db_authors[i].id
+
+        return domain_index
+
+    async def get(self, id: int) -> DomainIndex | None:  # noqa: A002
         """Get an index by its ID.
 
         Args:
-            index_id: The ID of the index to retrieve.
+            id: The ID of the index to retrieve.
 
         Returns:
-            The index view if found, None otherwise.
+            The domain index if found, None otherwise.
 
         """
-        query = (
-            select(Index, Source)
-            .join(Source, Index.source_id == Source.id)
-            .where(Index.id == index_id)
-        )
-        result = await self.session.execute(query)
-        row = result.first()
-
-        if not row:
+        db_index = await self.session.get(Index, id)
+        if not db_index:
             return None
 
-        index, source = row
-        return await self._get_index_view(index, source)
+        return await self.mapper.to_domain_index(db_index)
 
-    async def get_index_by_source_id(self, source_id: int) -> IndexView | None:
-        """Get an index by its source ID.
+    async def get_by_uri(self, uri: AnyUrl) -> DomainIndex | None:
+        """Get an index by source URI.
 
         Args:
-            source_id: The ID of the source to retrieve an index for.
+            uri: The URI of the source to retrieve an index for.
 
         Returns:
-            The index view if found, None otherwise.
+            The domain index if found, None otherwise.
 
         """
         query = (
-            select(Index, Source)
+            select(Index)
             .join(Source, Index.source_id == Source.id)
-            .where(Index.source_id == source_id)
+            .where(Source.uri == str(uri))
         )
         result = await self.session.execute(query)
-        row = result.first()
+        db_index = result.scalar_one_or_none()
 
-        if not row:
+        if not db_index:
             return None
 
-        index, source = row
-        return await self._get_index_view(index, source)
+        return await self.mapper.to_domain_index(db_index)
 
-    async def list_indexes(self) -> list[IndexView]:
+    async def list(self) -> list[DomainIndex]:
         """List all indexes.
 
         Returns:
-            A list of index views.
+            A list of domain indexes.
 
         """
-        query = select(Index, Source).join(
-            Source, Index.source_id == Source.id, full=True
-        )
+        query = select(Index)
         result = await self.session.execute(query)
-        rows = result.tuples()
+        db_indexes = result.scalars().all()
 
-        indexes = []
-        for index, source in rows:
-            index_view = await self._get_index_view(index, source)
-            indexes.append(index_view)
+        domain_indexes = []
+        for db_index in db_indexes:
+            domain_index = await self.mapper.to_domain_index(db_index)
+            domain_indexes.append(domain_index)
 
-        return indexes
+        return domain_indexes
 
     async def update_index_timestamp(self, index_id: int) -> None:
         """Update the timestamp of an index.
@@ -168,119 +177,3 @@ class SQLAlchemyIndexRepository(IndexRepository):
 
         if index:
             index.updated_at = datetime.now(UTC)
-
-    async def delete_all_snippets(self, index_id: int) -> None:
-        """Delete all snippets for an index.
-
-        Args:
-            index_id: The ID of the index to delete snippets for.
-
-        """
-        # First get all snippets for this index
-        snippets = await self.get_snippets_for_index(index_id)
-
-        # Delete all embeddings for these snippets, if there are any
-        for snippet in snippets:
-            query = delete(Embedding).where(Embedding.snippet_id == snippet.id)
-            await self.session.execute(query)
-
-        # Now delete the snippets
-        query = delete(Snippet).where(Snippet.index_id == index_id)
-        await self.session.execute(query)
-
-    async def get_snippets_for_index(self, index_id: int) -> list[Snippet]:
-        """Get all snippets for an index.
-
-        Args:
-            index_id: The ID of the index to get snippets for.
-
-        Returns:
-            A list of Snippet entities.
-
-        """
-        query = select(Snippet).where(Snippet.index_id == index_id)
-        result = await self.session.execute(query)
-        return list(result.scalars())
-
-    async def add_snippet(self, snippet: dict) -> None:
-        """Add a snippet to the database.
-
-        Args:
-            snippet: The snippet to add.
-
-        """
-        db_snippet = Snippet(
-            file_id=snippet["file_id"],
-            index_id=snippet["index_id"],
-            content=snippet["content"],
-            summary=snippet.get("summary", ""),
-        )
-        self.session.add(db_snippet)
-
-    async def update_snippet_content(self, snippet_id: int, content: str) -> None:
-        """Update the content of an existing snippet.
-
-        Args:
-            snippet_id: The ID of the snippet to update.
-            content: The new content for the snippet.
-
-        """
-        query = select(Snippet).where(Snippet.id == snippet_id)
-        result = await self.session.execute(query)
-        snippet = result.scalar_one_or_none()
-
-        if snippet:
-            snippet.content = content
-            # SQLAlchemy will automatically track this change
-
-    async def list_snippets_by_ids(self, ids: list[int]) -> list[SnippetWithContext]:
-        """List snippets by IDs."""
-        query = (
-            select(Snippet, File, Source, Author)
-            .where(Snippet.id.in_(ids))
-            .join(File, Snippet.file_id == File.id)
-            .join(Source, File.source_id == Source.id)
-            .outerjoin(AuthorFileMapping, AuthorFileMapping.file_id == File.id)
-            .outerjoin(Author, AuthorFileMapping.author_id == Author.id)
-        )
-        rows = await self.session.execute(query)
-
-        # Group results by snippet ID and collect authors
-        id_to_result: dict[int, SnippetWithContext] = {}
-        for snippet, file, source, author in rows.all():
-            if snippet.id not in id_to_result:
-                id_to_result[snippet.id] = SnippetWithContext(
-                    snippet=snippet,
-                    file=file,
-                    source=source,
-                    authors=[],
-                )
-            # Add author if it exists (outer join might return None)
-            if author is not None:
-                id_to_result[snippet.id].authors.append(author)
-
-        # Check that all IDs are present
-        if len(id_to_result) != len(ids):
-            # Create a list of missing IDs
-            missing_ids = [
-                snippet_id for snippet_id in ids if snippet_id not in id_to_result
-            ]
-            msg = f"Some IDs are not present: {missing_ids}"
-            raise ValueError(msg)
-
-        # Rebuild the list in the same order that it was passed in
-        return [id_to_result[i] for i in ids]
-
-    async def num_snippets_for_index(self, index_id: int) -> int:
-        """Get the number of snippets for an index.
-
-        Args:
-            index_id: The ID of the index.
-
-        Returns:
-            The number of snippets.
-
-        """
-        query = select(func.count()).where(Snippet.index_id == index_id)
-        result = await self.session.execute(query)
-        return result.scalar_one()

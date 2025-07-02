@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from kodit.domain.services.snippet_extraction_service import LanguageDetectionService
+from kodit.domain.services.index_service import LanguageDetectionService
 
 
 class FileSystemLanguageDetectionService(LanguageDetectionService):

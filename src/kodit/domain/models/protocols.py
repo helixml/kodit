@@ -1,16 +1,18 @@
 """Repository protocol interfaces for the domain layer."""
 
+from collections.abc import Sequence
 from typing import Protocol
 
 from pydantic import AnyUrl
 
-from .entities import File, Index, Snippet, WorkingCopy
+from kodit.domain.models.entities import Index, Snippet, WorkingCopy
+from kodit.domain.value_objects import MultiSearchRequest, SnippetWithContext
 
 
 class IndexRepository(Protocol):
     """Repository interface for Index entities."""
 
-    async def create(self, uri: AnyUrl) -> Index:
+    async def create(self, uri: AnyUrl, working_copy: WorkingCopy) -> Index:
         """Create an index for a source."""
         ...
 
@@ -18,18 +20,30 @@ class IndexRepository(Protocol):
         """Get an index by ID."""
         ...
 
+    async def all(self) -> list[Index]:
+        """List all indexes."""
+        ...
+
     async def get_by_uri(self, uri: AnyUrl) -> Index | None:
         """Get an index by source URI."""
         ...
 
-    async def set_working_copy(self, index_id: int, working_copy: WorkingCopy) -> None:
-        """Set the working copy for an index."""
-        ...
-
-    async def add_files(self, index_id: int, files: list[File]) -> None:
-        """Add files to an index."""
+    async def update_index_timestamp(self, index_id: int) -> None:
+        """Update the timestamp of an index."""
         ...
 
     async def add_snippets(self, index_id: int, snippets: list[Snippet]) -> None:
         """Add snippets to an index."""
         ...
+
+    async def update_snippets(self, index_id: int, snippets: list[Snippet]) -> None:
+        """Update snippets for an index."""
+        ...
+
+    async def search(self, request: MultiSearchRequest) -> Sequence[SnippetWithContext]:
+        """Search snippets with filters."""
+        raise NotImplementedError
+
+    async def get_snippets_by_ids(self, ids: list[int]) -> list[SnippetWithContext]:
+        """Get snippets by their IDs."""
+        raise NotImplementedError

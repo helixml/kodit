@@ -4,59 +4,54 @@ import mimetypes
 from datetime import UTC, datetime
 from hashlib import sha256
 from pathlib import Path
-from typing import Any
 
 import aiofiles
 import git
-import structlog
+from pydantic import AnyUrl
 
-from kodit.domain.entities import Author, File, Source
+from kodit.domain.models.entities import Author, File
+from kodit.domain.models.value_objects import SourceType
 
 
-class BaseFileMetadataExtractor:
-    """Base class for file metadata extraction with common functionality."""
+class FileMetadataExtractor:
+    """File metadata extractor."""
 
-    async def extract(self, path: Path, source: Source) -> File:
+    def __init__(self, source_type: SourceType) -> None:
+        """Initialize the extractor."""
+        self.source_type = source_type
+
+    async def extract(self, file_path: Path) -> File:
         """Extract metadata from a file."""
-        # Get timestamps - to be implemented by subclasses
-        created_at, updated_at = await self._get_timestamps(path, source)
+        if self.source_type == SourceType.GIT:
+            created_at, updated_at = await self._get_git_timestamps(file_path)
+        else:
+            created_at, updated_at = await self._get_file_system_timestamps(file_path)
 
         # Read file content and calculate metadata
-        async with aiofiles.open(path, "rb") as f:
+        async with aiofiles.open(file_path, "rb") as f:
             content = await f.read()
-            mime_type = mimetypes.guess_type(path)
+            mime_type = mimetypes.guess_type(file_path)
             sha = sha256(content).hexdigest()
+            if self.source_type == SourceType.GIT:
+                authors = await self._extract_git_authors(file_path)
+            else:
+                authors = []
 
             return File(
                 created_at=created_at,
                 updated_at=updated_at,
-                source_id=source.id,
-                cloned_path=str(path),
+                uri=AnyUrl(file_path.resolve().absolute().as_uri()),
                 mime_type=mime_type[0]
                 if mime_type and mime_type[0]
                 else "application/octet-stream",
-                uri=path.as_uri(),
                 sha256=sha,
-                size_bytes=len(content),
-                extension=path.suffix.removeprefix(".").lower(),
+                authors=authors,
             )
 
-    async def _get_timestamps(
-        self, path: Path, source: Source
-    ) -> tuple[datetime, datetime]:
-        """Get creation and modification timestamps. To be implemented by subclasses."""
-        raise NotImplementedError
-
-
-class GitFileMetadataExtractor(BaseFileMetadataExtractor):
-    """Git-specific implementation for extracting file metadata."""
-
-    async def _get_timestamps(
-        self, path: Path, source: Source
-    ) -> tuple[datetime, datetime]:
+    async def _get_git_timestamps(self, file_path: Path) -> tuple[datetime, datetime]:
         """Get timestamps from Git history."""
-        git_repo = git.Repo(source.cloned_path)
-        commits = list(git_repo.iter_commits(paths=str(path), all=True))
+        git_repo = git.Repo(file_path.parent, search_parent_directories=True)
+        commits = list(git_repo.iter_commits(paths=str(file_path), all=True))
 
         if commits:
             last_modified_at = commits[0].committed_datetime
@@ -66,38 +61,23 @@ class GitFileMetadataExtractor(BaseFileMetadataExtractor):
         now = datetime.now(UTC)
         return now, now
 
-
-class FolderFileMetadataExtractor(BaseFileMetadataExtractor):
-    """Folder-specific implementation for extracting file metadata."""
-
-    async def _get_timestamps(
+    async def _get_file_system_timestamps(
         self,
-        path: Path,
-        source: Source,  # noqa: ARG002
+        file_path: Path,
     ) -> tuple[datetime, datetime]:
         """Get timestamps from file system."""
-        stat = path.stat()
+        stat = file_path.stat()
         file_created_at = datetime.fromtimestamp(stat.st_ctime, UTC)
         file_modified_at = datetime.fromtimestamp(stat.st_mtime, UTC)
         return file_created_at, file_modified_at
 
-
-class GitAuthorExtractor:
-    """Author extractor for Git repositories."""
-
-    def __init__(self, repository: Any) -> None:
-        """Initialize the extractor."""
-        self.repository = repository
-        self.log = structlog.get_logger(__name__)
-
-    async def extract(self, path: Path, source: Source) -> list[Author]:
+    async def _extract_git_authors(self, file_path: Path) -> list[Author]:
         """Extract authors from a Git file."""
-        authors: list[Author] = []
-        git_repo = git.Repo(source.cloned_path)
+        git_repo = git.Repo(file_path.parent, search_parent_directories=True)
 
         try:
             # Get the file's blame
-            blames = git_repo.blame("HEAD", str(path))
+            blames = git_repo.blame("HEAD", str(file_path))
 
             # Extract the blame's authors
             actors = [
@@ -108,21 +88,10 @@ class GitAuthorExtractor:
             ]
 
             # Get or create the authors in the database
-            for actor in actors:
-                if actor.email:
-                    author = Author.from_actor(actor)
-                    author = await self.repository.upsert_author(author)
-                    authors.append(author)
+            return [
+                Author(name=actor.name or "", email=actor.email or "")
+                for actor in actors
+            ]
         except git.GitCommandError:
             # Handle cases where file might not be tracked
-            pass
-
-        return authors
-
-
-class NoOpAuthorExtractor:
-    """No-op author extractor for sources that don't have author information."""
-
-    async def extract(self, path: Path, source: Source) -> list[Author]:  # noqa: ARG002
-        """Return empty list of authors."""
-        return []
+            return []

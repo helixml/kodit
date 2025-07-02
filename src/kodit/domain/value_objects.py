@@ -101,6 +101,7 @@ class SnippetSearchFilters:
     created_after: datetime | None = None
     created_before: datetime | None = None
     source_repo: str | None = None
+    file_path: str | None = None
 
     @classmethod
     def from_cli_params(

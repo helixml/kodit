@@ -19,12 +19,15 @@ from kodit.config import (
     with_session,
 )
 from kodit.domain.errors import EmptySourceError
+from kodit.domain.services.index_query_service import IndexQueryService
 from kodit.domain.services.source_service import SourceService
 from kodit.domain.value_objects import (
     MultiSearchRequest,
     MultiSearchResult,
     SnippetSearchFilters,
 )
+from kodit.infrastructure.indexing.fusion_service import ReciprocalRankFusionService
+from kodit.infrastructure.sqlalchemy.index_repository import SqlAlchemyIndexRepository
 from kodit.infrastructure.ui.progress import (
     create_lazy_progress_callback,
     create_multi_stage_progress_callback,
@@ -86,21 +89,24 @@ async def index(
         session=session,
         source_service=source_service,
     )
+    index_query_service = IndexQueryService(
+        index_repository=SqlAlchemyIndexRepository(session=session),
+        fusion_service=ReciprocalRankFusionService(),
+    )
 
     if auto_index:
         log.info("Auto-indexing configuration", config=app_context.auto_indexing)
-        auto_sources = app_context.auto_indexing.sources
-        if not auto_sources:
+        if not app_context.auto_indexing or not app_context.auto_indexing.sources:
             click.echo("No auto-index sources configured.")
             return
-
+        auto_sources = app_context.auto_indexing.sources
         click.echo(f"Auto-indexing {len(auto_sources)} configured sources...")
         sources = [source.uri for source in auto_sources]
 
     if not sources:
         log_event("kodit.cli.index.list")
         # No source specified, list all indexes
-        indexes = await service.list_indexes()
+        indexes = await index_query_service.list_indexes()
         headers: list[str | Cell] = [
             "ID",
             "Created At",
@@ -113,8 +119,8 @@ async def index(
                 index.id,
                 index.created_at,
                 index.updated_at,
-                index.source,
-                index.num_snippets,
+                index.source.working_copy.remote_uri,
+                len(index.source.working_copy.files),
             ]
             for index in indexes
         ]
@@ -131,14 +137,12 @@ async def index(
 
         # Create a lazy progress callback that only shows progress when needed
         progress_callback = create_lazy_progress_callback()
-        s = await source_service.create(source, progress_callback)
-
-        index = await service.create_index(s.id)
+        index = await service.create_index_from_uri(source, progress_callback)
 
         # Create a new progress callback for the indexing operations
         indexing_progress_callback = create_multi_stage_progress_callback()
         try:
-            await service.run_index(index.id, indexing_progress_callback)
+            await service.run_index(index, indexing_progress_callback)
         except EmptySourceError as e:
             log.exception("Empty source error", error=e)
             msg = f"""{e}. This could mean:

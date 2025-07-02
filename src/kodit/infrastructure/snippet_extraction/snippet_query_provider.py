@@ -38,7 +38,6 @@ class FileSystemSnippetQueryProvider(SnippetQueryProvider):
 
         """
         query_path = self.query_directory / f"{language}.scm"
-
         if not query_path.exists():
             raise FileNotFoundError(f"Query file not found: {query_path}")
 

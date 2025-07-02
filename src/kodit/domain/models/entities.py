@@ -2,10 +2,15 @@
 
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlparse, urlunparse
 
 from pydantic import AnyUrl, BaseModel
 
-from kodit.domain.models.value_objects import SnippetContent, SourceType
+from kodit.domain.models.value_objects import (
+    SnippetContent,
+    SnippetContentType,
+    SourceType,
+)
 
 
 class Author(BaseModel):
@@ -24,24 +29,29 @@ class Author(BaseModel):
 class File(BaseModel):
     """File domain entity."""
 
-    id: int
-    created_at: datetime
-    updated_at: datetime
+    id: int | None = None  # Is populated by repository
+    created_at: datetime | None = None  # Is populated by repository
+    updated_at: datetime | None = None  # Is populated by repository
     uri: AnyUrl
     sha256: str
     authors: list[Author]
+    mime_type: str
 
     class Config:
         """Pydantic model configuration."""
 
         frozen = True
 
+    def as_path(self) -> Path:
+        """Return the file as a path."""
+        return Path.from_uri(str(self.uri))
+
 
 class WorkingCopy(BaseModel):
     """Working copy value object representing cloned source location."""
 
-    created_at: datetime
-    updated_at: datetime
+    created_at: datetime | None = None  # Is populated by repository
+    updated_at: datetime | None = None  # Is populated by repository
     remote_uri: AnyUrl
     cloned_path: Path
     source_type: SourceType
@@ -52,13 +62,81 @@ class WorkingCopy(BaseModel):
 
         frozen = True
 
+    @classmethod
+    def sanitize_local_path(cls, path: str) -> AnyUrl:
+        """Sanitize a local path."""
+        return AnyUrl(Path(path).resolve().absolute().as_uri())
+
+    @classmethod
+    def sanitize_git_url(cls, url: str) -> AnyUrl:
+        """Remove credentials from a git URL while preserving the rest of the URL structure.
+
+        This function handles various git URL formats:
+        - HTTPS URLs with username:password@host
+        - HTTPS URLs with username@host (no password)
+        - SSH URLs (left unchanged)
+        - File URLs (left unchanged)
+
+        Args:
+            url: The git URL that may contain credentials.
+
+        Returns:
+            The sanitized URL with credentials removed.
+
+        Examples:
+            >>> sanitize_git_url("https://phil:token@dev.azure.com/org/project/_git/repo")
+            "https://dev.azure.com/org/project/_git/repo"
+            >>> sanitize_git_url("https://username@github.com/user/repo.git")
+            "https://github.com/user/repo.git"
+            >>> sanitize_git_url("git@github.com:user/repo.git")
+            "git@github.com:user/repo.git"
+
+        """
+        # Handle SSH URLs (they don't have credentials in the URL format)
+        if url.startswith(("git@", "ssh://")):
+            return AnyUrl(url)
+
+        # Handle file URLs
+        if url.startswith("file://"):
+            return AnyUrl(url)
+
+        try:
+            # Parse the URL
+            parsed = urlparse(url)
+
+            # If there are no credentials, return the URL as-is
+            if not parsed.username:
+                return AnyUrl(url)
+
+            # Reconstruct the URL without credentials
+            # Keep scheme, netloc (without username/password), path, params, query, fragment
+            sanitized_netloc = parsed.hostname
+            if parsed.port:
+                sanitized_netloc = f"{parsed.hostname}:{parsed.port}"
+
+            return AnyUrl(
+                urlunparse(
+                    (
+                        parsed.scheme,
+                        sanitized_netloc,
+                        parsed.path,
+                        parsed.params,
+                        parsed.query,
+                        parsed.fragment,
+                    )
+                )
+            )
+
+        except Exception as e:
+            raise ValueError(f"Invalid URL: {url}") from e
+
 
 class Source(BaseModel):
     """Source domain entity."""
 
-    id: int
-    created_at: datetime
-    updated_at: datetime
+    id: int | None = None  # Is populated by repository
+    created_at: datetime | None = None  # Is populated by repository
+    updated_at: datetime | None = None  # Is populated by repository
     working_copy: WorkingCopy
 
     class Config:
@@ -70,15 +148,30 @@ class Source(BaseModel):
 class Snippet(BaseModel):
     """Snippet domain entity."""
 
-    id: int
-    created_at: datetime
-    updated_at: datetime
+    id: int | None = None  # Is populated by repository
+    created_at: datetime | None = None  # Is populated by repository
+    updated_at: datetime | None = None  # Is populated by repository
     contents: list[SnippetContent]
+    derives_from: list[File]
 
     class Config:
         """Pydantic model configuration."""
 
         frozen = True
+
+    def original_content(self) -> str:
+        """Return the original content of the snippet."""
+        for content in self.contents:
+            if content.type == SnippetContentType.ORIGINAL:
+                return content.value
+        raise ValueError("No original content found")
+
+    def summary_content(self) -> str:
+        """Return the summary content of the snippet."""
+        for content in self.contents:
+            if content.type == SnippetContentType.SUMMARY:
+                return content.value
+        raise ValueError("No summary content found")
 
 
 class Index(BaseModel):
@@ -88,6 +181,7 @@ class Index(BaseModel):
     created_at: datetime
     updated_at: datetime
     source: Source
+    snippets: list[Snippet]
 
     class Config:
         """Pydantic model configuration."""

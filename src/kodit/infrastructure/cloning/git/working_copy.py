@@ -6,7 +6,7 @@ from pathlib import Path
 import git
 import structlog
 
-from kodit.infrastructure.git.git_utils import sanitize_git_url
+from kodit.domain.models.entities import WorkingCopy
 
 
 class GitWorkingCopyProvider:
@@ -19,11 +19,10 @@ class GitWorkingCopyProvider:
 
     async def prepare(self, uri: str) -> Path:
         """Prepare a Git working copy."""
-        # Sanitize the URI for directory name to prevent credential leaks
-        sanitized_uri = sanitize_git_url(uri)
+        sanitized_uri = WorkingCopy.sanitize_git_url(uri)
 
         # Use a repeatable, short sha256 hash of the sanitized URI for the directory
-        dir_hash = hashlib.sha256(sanitized_uri.encode("utf-8")).hexdigest()[:16]
+        dir_hash = hashlib.sha256(str(sanitized_uri).encode("utf-8")).hexdigest()[:16]
         dir_name = f"repo-{dir_hash}"
         clone_path = self.clone_dir / dir_name
         clone_path.mkdir(parents=True, exist_ok=True)
