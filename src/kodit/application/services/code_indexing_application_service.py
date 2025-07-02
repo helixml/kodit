@@ -306,15 +306,27 @@ class CodeIndexingApplicationService:
             "text_embeddings", len(snippets), "Creating text embeddings..."
         )
 
+        # Only create text embeddings for snippets that have summary content
+        documents_with_summaries = []
+        for snippet in snippets:
+            if snippet.id:
+                try:
+                    summary_text = snippet.summary_content()
+                    if summary_text.strip():  # Only add if summary is not empty
+                        documents_with_summaries.append(
+                            Document(snippet_id=snippet.id, text=summary_text)
+                        )
+                except ValueError:
+                    # Skip snippets without summary content
+                    continue
+
+        if not documents_with_summaries:
+            await reporter.done("text_embeddings", "No summaries to index")
+            return
+
         processed = 0
         async for result in self.text_search_service.index_documents(
-            IndexRequest(
-                documents=[
-                    Document(snippet_id=snippet.id, text=snippet.summary_content())
-                    for snippet in snippets
-                    if snippet.id
-                ]
-            )
+            IndexRequest(documents=documents_with_summaries)
         ):
             processed += len(result)
             await reporter.step(
