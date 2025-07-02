@@ -381,13 +381,18 @@ class IndexDomainService:
         if any(part.startswith(".") for part in file_path.relative_to(base_path).parts):
             return False
 
+        # Skip massive files
+        if file_path.stat().st_size > 1024 * 1024 * 10:  # 10MB
+            return False
+
         # Skip binary files (basic check)
         try:
             with file_path.open(encoding="utf-8") as f:
                 f.read(1024)  # Try to read first 1KB as text
-            return True
         except (UnicodeDecodeError, OSError):
             return False
+        else:
+            return True
 
     async def _extract_snippets(
         self, request: SnippetExtractionRequest

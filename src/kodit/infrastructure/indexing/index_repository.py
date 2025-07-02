@@ -30,7 +30,7 @@ class SQLAlchemyIndexRepository(IndexRepository):
         self.session = session
         self.mapper = IndexMapper(session)
 
-    async def create(self, uri: AnyUrl, working_copy: WorkingCopy) -> DomainIndex:
+    async def create(self, uri: AnyUrl, working_copy: WorkingCopy) -> DomainIndex:  # noqa: C901
         """Create an index for a source.
 
         Args:

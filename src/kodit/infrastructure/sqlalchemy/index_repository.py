@@ -204,7 +204,9 @@ class SqlAlchemyIndexRepository(IndexRepository):
             if domain_snippet.updated_at:
                 db_snippet.updated_at = domain_snippet.updated_at
 
-    async def search(self, request: MultiSearchRequest) -> Sequence[SnippetWithContext]:
+    async def search(  # noqa: C901
+        self, request: MultiSearchRequest
+    ) -> Sequence[SnippetWithContext]:
         """Search snippets with filters.
 
         This is a basic implementation that performs text search on snippet content.

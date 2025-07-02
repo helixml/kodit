@@ -16,7 +16,7 @@ class IndexRepository(Protocol):
         """Create an index for a source."""
         ...
 
-    async def get(self, id: int) -> Index | None:
+    async def get(self, index_id: int) -> Index | None:
         """Get an index by ID."""
         ...
 

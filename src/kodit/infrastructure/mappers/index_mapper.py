@@ -45,17 +45,18 @@ class IndexMapper:
         domain_files = []
         for db_file in db_files:
             # Load authors for this file
-            authors_stmt = select(db_entities.Author).join(
-                db_entities.AuthorFileMapping
-            ).where(db_entities.AuthorFileMapping.file_id == db_file.id)
+            authors_stmt = (
+                select(db_entities.Author)
+                .join(db_entities.AuthorFileMapping)
+                .where(db_entities.AuthorFileMapping.file_id == db_file.id)
+            )
             db_authors = (await self._session.scalars(authors_stmt)).all()
 
             domain_authors = [
                 domain_entities.Author(
-                    id=author.id,
-                    name=author.name,
-                    email=author.email
-                ) for author in db_authors
+                    id=author.id, name=author.name, email=author.email
+                )
+                for author in db_authors
             ]
 
             domain_file = domain_entities.File(
@@ -65,7 +66,7 @@ class IndexMapper:
                 uri=AnyUrl(db_file.uri),
                 sha256=db_file.sha256,
                 authors=domain_authors,
-                mime_type=db_file.mime_type
+                mime_type=db_file.mime_type,
             )
             domain_files.append(domain_file)
 
@@ -76,7 +77,7 @@ class IndexMapper:
             remote_uri=AnyUrl(db_source.uri),
             cloned_path=Path(db_source.cloned_path),
             source_type=SourceType(db_source.type.value),
-            files=domain_files
+            files=domain_files,
         )
 
         # Create source
@@ -84,7 +85,7 @@ class IndexMapper:
             id=db_source.id,
             created_at=db_source.created_at,
             updated_at=db_source.updated_at,
-            working_copy=working_copy
+            working_copy=working_copy,
         )
 
         # Load snippets for this index
@@ -104,7 +105,7 @@ class IndexMapper:
             created_at=db_index.created_at,
             updated_at=db_index.updated_at,
             source=domain_source,
-            snippets=domain_snippets
+            snippets=domain_snippets,
         )
 
     async def to_domain_snippet(
@@ -116,7 +117,7 @@ class IndexMapper:
             SnippetContent(
                 type=SnippetContentType.ORIGINAL,
                 value=db_snippet.content,
-                language="unknown"  # We'd need to detect this or store it
+                language="unknown",  # We'd need to detect this or store it
             )
         ]
 
@@ -125,7 +126,7 @@ class IndexMapper:
                 SnippetContent(
                     type=SnippetContentType.SUMMARY,
                     value=db_snippet.summary,
-                    language="markdown"
+                    language="markdown",
                 )
             )
 
@@ -141,14 +142,16 @@ class IndexMapper:
             created_at=db_snippet.created_at,
             updated_at=db_snippet.updated_at,
             contents=contents,
-            derives_from=derives_from
+            derives_from=derives_from,
         )
 
-    async def from_domain_index(self, domain_index: domain_entities.Index) -> tuple[
+    async def from_domain_index(  # noqa: C901
+        self, domain_index: domain_entities.Index
+    ) -> tuple[
         db_entities.Index,
         db_entities.Source,
         list[db_entities.File],
-        list[db_entities.Author]
+        list[db_entities.Author],
     ]:
         """Convert domain Index aggregate to SQLAlchemy entities.
 
@@ -158,7 +161,9 @@ class IndexMapper:
         db_source = db_entities.Source(
             uri=str(domain_index.source.working_copy.remote_uri),
             cloned_path=str(domain_index.source.working_copy.cloned_path),
-            source_type=db_entities.SourceType(domain_index.source.working_copy.source_type.value)
+            source_type=db_entities.SourceType(
+                domain_index.source.working_copy.source_type.value
+            ),
         )
         if domain_index.source.id:
             db_source.id = domain_index.source.id
@@ -193,7 +198,7 @@ class IndexMapper:
                 cloned_path="",
                 sha256=domain_file.sha256,
                 size_bytes=0,  # Would need to be determined
-                extension=""  # Would need to be determined
+                extension="",  # Would need to be determined
             )
             if domain_file.id:
                 db_file.id = domain_file.id
@@ -239,7 +244,7 @@ class IndexMapper:
             file_id=file_id,
             index_id=index_id,
             content=original_content,
-            summary=summary
+            summary=summary,
         )
 
         if domain_snippet.id:

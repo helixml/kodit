@@ -69,7 +69,7 @@ class WorkingCopy(BaseModel):
 
     @classmethod
     def sanitize_git_url(cls, url: str) -> AnyUrl:
-        """Remove credentials from a git URL while preserving the rest of the URL structure.
+        """Remove credentials from a git URL while preserving the rest of the URL.
 
         This function handles various git URL formats:
         - HTTPS URLs with username:password@host
@@ -109,7 +109,7 @@ class WorkingCopy(BaseModel):
                 return AnyUrl(url)
 
             # Reconstruct the URL without credentials
-            # Keep scheme, netloc (without username/password), path, params, query, fragment
+            # scheme, netloc (without username/password), path, params, query, fragment
             sanitized_netloc = parsed.hostname
             if parsed.port:
                 sanitized_netloc = f"{parsed.hostname}:{parsed.port}"
