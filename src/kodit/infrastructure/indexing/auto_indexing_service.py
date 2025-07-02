@@ -11,7 +11,6 @@ from kodit.application.factories.code_indexing_factory import (
     create_code_indexing_application_service,
 )
 from kodit.config import AppContext
-from kodit.domain.services.source_service import SourceService
 
 
 class AutoIndexingService:
@@ -44,29 +43,20 @@ class AutoIndexingService:
     async def _index_sources(self, sources: list[str]) -> None:
         """Index all configured sources in the background."""
         async with self.session_factory() as session:
-            source_service = SourceService(
-                clone_dir=self.app_context.get_clone_dir(),
-                session_factory=lambda: session,
-            )
-
             service = create_code_indexing_application_service(
                 app_context=self.app_context,
                 session=session,
-                source_service=source_service,
             )
 
             for source in sources:
                 try:
                     self.log.info("Auto-indexing source", source=source)
 
-                    # Create source
-                    s = await source_service.create(source)
-
                     # Create index
-                    index = await service.create_index(s.id)
+                    index = await service.create_index_from_uri(source)
 
                     # Run indexing (without progress callback for background mode)
-                    await service.run_index(index.id, progress_callback=None)
+                    await service.run_index(index, progress_callback=None)
 
                     self.log.info("Successfully auto-indexed source", source=source)
 

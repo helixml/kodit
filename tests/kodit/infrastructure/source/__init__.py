@@ -1,1 +1,0 @@
-"""Test the sources module."""

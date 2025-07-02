@@ -7,8 +7,8 @@ from unittest.mock import patch
 import git
 import pytest
 
+from kodit.domain.entities import WorkingCopy
 from kodit.infrastructure.cloning.git.working_copy import GitWorkingCopyProvider
-from kodit.infrastructure.git.git_utils import sanitize_git_url
 
 
 @pytest.fixture
@@ -19,8 +19,8 @@ def working_copy(tmp_path: Path) -> GitWorkingCopyProvider:
 
 def get_expected_directory_name(uri: str) -> str:
     """Get the expected directory name for a given URI."""
-    sanitized_uri = sanitize_git_url(uri)
-    dir_hash = hashlib.sha256(sanitized_uri.encode("utf-8")).hexdigest()[:16]
+    sanitized_uri = WorkingCopy.sanitize_git_url(uri)
+    dir_hash = hashlib.sha256(str(sanitized_uri).encode("utf-8")).hexdigest()[:16]
     return f"repo-{dir_hash}"
 
 
