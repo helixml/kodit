@@ -45,16 +45,6 @@ class SnippetExtractor(ABC):
         """Extract snippets from a file."""
 
 
-class SnippetExtractionService(ABC):
-    """Domain service for extracting snippets from source code."""
-
-    @abstractmethod
-    async def extract_snippets(
-        self, request: SnippetExtractionRequest
-    ) -> SnippetExtractionResult:
-        """Extract snippets from a file using the specified strategy."""
-
-
 class IndexDomainService:
     """Pure domain service for Index aggregate operations.
 
