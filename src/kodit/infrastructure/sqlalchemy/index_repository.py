@@ -281,19 +281,14 @@ class SqlAlchemyIndexRepository(IndexRepository):
             if not db_source:
                 continue
 
-            # Get authors for this file
-            authors_stmt = (
-                select(db_entities.Author)
-                .join(db_entities.AuthorFileMapping)
-                .where(db_entities.AuthorFileMapping.file_id == db_file.id)
-            )
-            db_authors = (await self._session.scalars(authors_stmt)).all()
-
+            domain_file = await self._mapper.to_domain_file(db_file)
             snippet_context = SnippetWithContext(
-                source=db_source,
-                file=db_file,
-                authors=list(db_authors),
-                snippet=db_snippet,
+                source=await self._mapper.to_domain_source(db_source),
+                file=domain_file,
+                authors=domain_file.authors,
+                snippet=await self._mapper.to_domain_snippet(
+                    db_snippet=db_snippet, domain_files=[domain_file]
+                ),
             )
             snippet_contexts.append(snippet_context)
 
@@ -323,19 +318,14 @@ class SqlAlchemyIndexRepository(IndexRepository):
             if not db_source:
                 continue
 
-            # Get authors for this file
-            authors_stmt = (
-                select(db_entities.Author)
-                .join(db_entities.AuthorFileMapping)
-                .where(db_entities.AuthorFileMapping.file_id == db_file.id)
-            )
-            db_authors = (await self._session.scalars(authors_stmt)).all()
-
+            domain_file = await self._mapper.to_domain_file(db_file)
             snippet_context = SnippetWithContext(
-                source=db_source,
-                file=db_file,
-                authors=list(db_authors),
-                snippet=db_snippet,
+                source=await self._mapper.to_domain_source(db_source),
+                file=domain_file,
+                authors=domain_file.authors,
+                snippet=await self._mapper.to_domain_snippet(
+                    db_snippet=db_snippet, domain_files=[domain_file]
+                ),
             )
             snippet_contexts.append(snippet_context)
 

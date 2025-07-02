@@ -1,6 +1,7 @@
 """Unified application service for code indexing operations."""
 
 from dataclasses import replace
+from datetime import UTC, datetime
 
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -124,7 +125,9 @@ class CodeIndexingApplicationService:
             snippet_results = await self.index_query_service.search_snippets(
                 prefilter_request
             )
-            filtered_snippet_ids = [snippet.snippet.id for snippet in snippet_results]
+            filtered_snippet_ids = [
+                snippet.snippet.id for snippet in snippet_results if snippet.snippet.id
+            ]
 
         # Gather results from different search modes
         fusion_list: list[list[FusionRequest]] = []
@@ -191,21 +194,23 @@ class CodeIndexingApplicationService:
 
         return [
             MultiSearchResult(
-                id=result.snippet.id,
-                content=result.snippet.content,
+                id=result.snippet.id or 0,
+                content=result.snippet.original_content(),
                 original_scores=fr.original_scores,
                 # Enhanced fields
-                source_uri=result.source.uri,
-                relative_path=MultiSearchResult.calculate_relative_path(
-                    result.file.cloned_path, result.source.cloned_path
+                source_uri=str(result.source.working_copy.remote_uri),
+                relative_path=str(
+                    result.file.as_path().relative_to(
+                        result.source.working_copy.cloned_path
+                    )
                 ),
                 language=MultiSearchResult.detect_language_from_extension(
-                    result.file.extension
+                    result.file.extension()
                 ),
                 authors=[author.name for author in result.authors],
-                created_at=result.snippet.created_at,
+                created_at=result.snippet.created_at or datetime.now(UTC),
                 # Summary from snippet entity
-                summary=result.snippet.summary,
+                summary=result.snippet.summary_content(),
             )
             for result, fr in zip(search_results, final_results, strict=True)
         ]
@@ -225,19 +230,23 @@ class CodeIndexingApplicationService:
         )
         return [
             MultiSearchResult(
-                id=result.snippet.id,
-                content=result.snippet.content,
-                original_scores=[],
-                source_uri=result.source.uri,
-                relative_path=MultiSearchResult.calculate_relative_path(
-                    result.file.cloned_path, result.source.cloned_path
+                id=result.snippet.id or 0,
+                content=result.snippet.original_content(),
+                original_scores=[0.0],
+                # Enhanced fields
+                source_uri=str(result.source.working_copy.remote_uri),
+                relative_path=str(
+                    result.file.as_path().relative_to(
+                        result.source.working_copy.cloned_path
+                    )
                 ),
                 language=MultiSearchResult.detect_language_from_extension(
-                    result.file.extension
+                    result.file.extension()
                 ),
                 authors=[author.name for author in result.authors],
-                created_at=result.snippet.created_at,
-                summary=result.snippet.summary,
+                created_at=result.snippet.created_at or datetime.now(UTC),
+                # Summary from snippet entity
+                summary=result.snippet.summary_content(),
             )
             for result in snippet_results
         ]

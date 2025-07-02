@@ -46,6 +46,10 @@ class File(BaseModel):
         """Return the file as a path."""
         return Path.from_uri(str(self.uri))
 
+    def extension(self) -> str:
+        """Return the file extension."""
+        return Path(self.as_path()).suffix.lstrip(".")
+
 
 class WorkingCopy(BaseModel):
     """Working copy value object representing cloned source location."""

@@ -5,13 +5,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, ClassVar
-
-from sqlalchemy import JSON, DateTime, Integer, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from typing import ClassVar
 
 from kodit.domain.enums import SnippetExtractionStrategy
-from kodit.infrastructure.sqlalchemy.entities import Author, Base, File, Snippet, Source
+from kodit.domain.models.entities import Author, File, Snippet, Source
 
 
 class SearchType(Enum):
@@ -535,40 +532,3 @@ class LanguageMapping:
         if cls.is_supported_language(language_lower):
             return cls.get_extensions_for_language(language_lower)
         return [language_lower]
-
-
-# Database models for value objects
-class BM25DocumentModel(Base):
-    """BM25 document model."""
-
-    __tablename__ = "bm25_documents"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    content: Mapped[str] = mapped_column(Text, nullable=False)
-    document_metadata: Mapped[dict[str, Any] | None] = mapped_column(
-        JSON, nullable=True
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
-
-
-class VectorDocumentModel(Base):
-    """Vector document model."""
-
-    __tablename__ = "vector_documents"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    content: Mapped[str] = mapped_column(Text, nullable=False)
-    document_metadata: Mapped[dict[str, Any] | None] = mapped_column(
-        JSON, nullable=True
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
