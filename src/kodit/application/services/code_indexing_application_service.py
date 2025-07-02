@@ -75,6 +75,9 @@ class CodeIndexingApplicationService:
             msg = f"No files to index for index {index.id}"
             raise EmptySourceError(msg)
 
+        # Delete all old snippets
+        await self.index_domain_service.delete_snippets(index.id)
+
         # Future: Refresh working copy
 
         # Extract and create snippets (domain service handles progress)

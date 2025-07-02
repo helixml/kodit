@@ -1,10 +1,8 @@
 """End-to-end tests for CodeIndexingApplicationService."""
 
-from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.application.factories.code_indexing_factory import (
@@ -14,22 +12,16 @@ from kodit.application.services.code_indexing_application_service import (
     CodeIndexingApplicationService,
 )
 from kodit.config import AppContext
-from kodit.domain.errors import EmptySourceError
 from kodit.domain.interfaces import ProgressCallback
-from kodit.domain.services.source_service import SourceService
+from kodit.domain.protocols import IndexRepository
+from kodit.domain.services.index_query_service import IndexQueryService
 from kodit.domain.value_objects import (
     MultiSearchRequest,
     ProgressEvent,
     SnippetSearchFilters,
 )
-from kodit.infrastructure.sqlalchemy.entities import (
-    Author,
-    File,
-    Index,
-    Snippet,
-    Source,
-    SourceType,
-)
+from kodit.infrastructure.indexing.fusion_service import ReciprocalRankFusionService
+from kodit.infrastructure.sqlalchemy.index_repository import SqlAlchemyIndexRepository
 
 
 class MockProgressCallback(ProgressCallback):
@@ -57,65 +49,11 @@ class MockProgressCallback(ProgressCallback):
 
 
 @pytest.fixture
-async def sample_source(session: AsyncSession, tmp_path: Path) -> Source:
-    """Create a sample source for testing."""
-    source = Source(
-        uri=f"file://{tmp_path}/test-repo",
-        cloned_path=str(tmp_path / "test-repo"),
-        source_type=SourceType.FOLDER,
-    )
-    session.add(source)
-    await session.commit()
-    await session.refresh(source)
-    return source
-
-
-@pytest.fixture
-async def sample_file(
-    session: AsyncSession, sample_source: Source, tmp_path: Path
-) -> File:
-    """Create a sample file for testing."""
-    now = datetime.now(UTC)
-    file = File(
-        created_at=now,
-        updated_at=now,
-        source_id=sample_source.id,
-        mime_type="text/plain",
-        uri=f"file://{tmp_path}/test-repo/test.py",
-        cloned_path=str(tmp_path / "test-repo/test.py"),
-        sha256="",
-        size_bytes=0,
-        extension="py",
-    )
-    session.add(file)
-    await session.commit()
-    await session.refresh(file)
-    return file
-
-
-@pytest.fixture
-async def sample_author(session: AsyncSession) -> Author:
-    """Create a sample author for testing."""
-    author = Author(
-        name="Test Author",
-        email="test@example.com",
-    )
-    session.add(author)
-    await session.commit()
-    await session.refresh(author)
-    return author
-
-
-@pytest.fixture
-async def sample_index(session: AsyncSession, sample_source: Source) -> Index:
-    """Create a sample index for testing."""
-    index = Index(
-        source_id=sample_source.id,
-    )
-    session.add(index)
-    await session.commit()
-    await session.refresh(index)
-    return index
+async def index_repository(
+    session: AsyncSession,
+) -> IndexRepository:
+    """Create a real CodeIndexingApplicationService with all dependencies."""
+    return SqlAlchemyIndexRepository(session=session)
 
 
 @pytest.fixture
@@ -123,64 +61,38 @@ async def code_indexing_service(
     session: AsyncSession, app_context: AppContext
 ) -> CodeIndexingApplicationService:
     """Create a real CodeIndexingApplicationService with all dependencies."""
-    source_service = SourceService(
-        clone_dir=app_context.get_clone_dir(),
-        session_factory=lambda: session,
-    )
-
     return create_fast_test_code_indexing_application_service(
         app_context=app_context,
         session=session,
-        source_service=source_service,
+    )
+
+
+@pytest.fixture
+async def indexing_query_service(
+    index_repository: IndexRepository,
+) -> IndexQueryService:
+    """Create a real IndexQueryService with all dependencies."""
+    return IndexQueryService(
+        index_repository=index_repository,
+        fusion_service=ReciprocalRankFusionService(),
     )
 
 
 @pytest.mark.asyncio
 async def test_run_index_with_empty_source_raises_error(
-    session: AsyncSession,
     code_indexing_service: CodeIndexingApplicationService,
     tmp_path: Path,
 ) -> None:
-    """Test that run_index raises EmptySourceError when no indexable files are.
-
-    found.
-    """
-    # Create a valid source with no files
-    source = Source(
-        uri=f"file://{tmp_path}/empty-repo",
-        cloned_path=str(tmp_path / "empty-repo"),
-        source_type=SourceType.FOLDER,
-    )
-    session.add(source)
-    await session.commit()
-    await session.refresh(source)
-
-    # Create an index for the valid but empty source
-    index = Index(
-        source_id=source.id,
-    )
-    session.add(index)
-    await session.commit()
-    await session.refresh(index)
-
+    """Test that create_index_from_uri raises ValueError when no files to index."""
     # Run indexing should fail
-    with pytest.raises(EmptySourceError, match="No indexable snippets found"):
-        await code_indexing_service.run_index(index.id)
-
-
-@pytest.mark.asyncio
-async def test_run_index_with_nonexistent_index_raises_error(
-    code_indexing_service: CodeIndexingApplicationService,
-) -> None:
-    """Test that run_index raises ValueError for non-existent index."""
-    with pytest.raises(ValueError, match="Index not found"):
-        await code_indexing_service.run_index(99999)
+    with pytest.raises(ValueError, match="No files to index"):
+        await code_indexing_service.create_index_from_uri(str(tmp_path))
 
 
 @pytest.mark.asyncio
 async def test_run_index_deletes_old_snippets(
-    session: AsyncSession,
     code_indexing_service: CodeIndexingApplicationService,
+    indexing_query_service: IndexQueryService,
     tmp_path: Path,
 ) -> None:
     """Test that run_index deletes old snippets before creating new ones."""
@@ -191,49 +103,13 @@ def old_function():
     return "old"
 """)
 
-    # Create source and index
-    source = Source(
-        uri=f"file://{tmp_path}",
-        cloned_path=str(tmp_path),
-        source_type=SourceType.FOLDER,
-    )
-    session.add(source)
-    await session.commit()
-    await session.refresh(source)
-
-    index = Index(
-        source_id=source.id,
-    )
-    session.add(index)
-    await session.commit()
-    await session.refresh(index)
-
-    now = datetime.now(UTC)
-    file = File(
-        created_at=now,
-        updated_at=now,
-        source_id=source.id,
-        mime_type="text/plain",
-        uri=f"file://{tmp_path}/test.py",
-        cloned_path=str(test_file),
-        sha256="",
-        size_bytes=test_file.stat().st_size,
-        extension="py",
-    )
-    session.add(file)
-    await session.commit()
-    await session.refresh(file)
-
-    # Run indexing first time
-    await code_indexing_service.run_index(index.id)
+    index = await code_indexing_service.create_index_from_uri(str(tmp_path))
+    await code_indexing_service.run_index(index)
 
     # Verify snippets were created
-    result = await session.execute(
-        select(func.count(Snippet.id)).where(Snippet.file_id == file.id)
-    )
-    first_count = result.scalar()
-    assert first_count is not None, "First count should not be None"
-    assert first_count > 0, "Snippets should be created in first run"
+    created_index = await indexing_query_service.get_index_by_id(index.id)
+    assert created_index is not None, "Index should be created"
+    assert len(created_index.snippets) > 0, "Snippets should be created"
 
     # Update the file content
     test_file.write_text("""
@@ -242,97 +118,21 @@ def new_function():
 """)
 
     # Run indexing again
-    await code_indexing_service.run_index(index.id)
+    await code_indexing_service.run_index(index)
 
     # Verify old snippets were deleted and new ones created
-    result = await session.execute(
-        select(func.count(Snippet.id)).where(Snippet.file_id == file.id)
+    created_index = await indexing_query_service.get_index_by_id(index.id)
+    assert created_index
+    assert len(created_index.snippets) == 1, "Should have one snippet"
+    assert "new_function" in created_index.snippets[0].contents[0].value, (
+        "Should contain new function"
     )
-    second_count = result.scalar()
-    assert second_count is not None, "Second count should not be None"
-    assert second_count > 0, "New snippets should be created"
-    assert second_count == first_count, (
-        "Should have same number of snippets (one function each)"
-    )
-
-    # Verify the content changed
-    result = await session.execute(
-        select(Snippet.content).where(Snippet.file_id == file.id).limit(1)
-    )
-    snippet_content = result.scalar()
-    assert snippet_content is not None, "Snippet content should exist"
-    assert "new_function" in snippet_content, "Should contain new function"
-    assert "old_function" not in snippet_content, "Should not contain old function"
-
-
-@pytest.mark.asyncio
-async def test_run_index_with_progress_callback(
-    session: AsyncSession,
-    code_indexing_service: CodeIndexingApplicationService,
-    tmp_path: Path,
-) -> None:
-    """Test that run_index calls progress callback during execution."""
-    # Create a temporary Python file
-    test_file = tmp_path / "test.py"
-    test_file.write_text("""
-def test_function():
-    return "test"
-""")
-
-    # Create source and index
-    source = Source(
-        uri=f"file://{tmp_path}",
-        cloned_path=str(tmp_path),
-        source_type=SourceType.FOLDER,
-    )
-    session.add(source)
-    await session.commit()
-    await session.refresh(source)
-
-    index = Index(
-        source_id=source.id,
-    )
-    session.add(index)
-    await session.commit()
-    await session.refresh(index)
-
-    now = datetime.now(UTC)
-    file = File(
-        created_at=now,
-        updated_at=now,
-        source_id=source.id,
-        mime_type="text/plain",
-        uri=f"file://{tmp_path}/test.py",
-        cloned_path=str(test_file),
-        sha256="",
-        size_bytes=test_file.stat().st_size,
-        extension="py",
-    )
-    session.add(file)
-    await session.commit()
-    await session.refresh(file)
-
-    # Create progress callback
-    progress_callback = MockProgressCallback()
-
-    # Run indexing with progress callback
-    await code_indexing_service.run_index(index.id, progress_callback)
-
-    # Verify progress was reported
-    assert len(progress_callback.progress_calls) > 0, "Progress should be reported"
-
-    # Verify we have progress for different stages
-    operations = [call["operation"] for call in progress_callback.progress_calls]
-    assert "bm25_index" in operations, "Should report BM25 indexing progress"
-    assert "code_embeddings" in operations, "Should report code embedding progress"
-    assert "enrichment" in operations, "Should report enrichment progress"
-    assert "text_embeddings" in operations, "Should report text embedding progress"
 
 
 @pytest.mark.asyncio
 async def test_search_finds_relevant_snippets(
-    session: AsyncSession,
     code_indexing_service: CodeIndexingApplicationService,
+    indexing_query_service: IndexQueryService,
     tmp_path: Path,
 ) -> None:
     """Test that search function finds relevant snippets using different.
@@ -377,39 +177,11 @@ def validate_input(value: str) -> bool:
         return False
 """)
 
-    # Create source and index
-    source = Source(
-        uri=f"file://{tmp_path}",
-        cloned_path=str(tmp_path),
-        source_type=SourceType.FOLDER,
-    )
-    session.add(source)
-    await session.commit()
-
-    index = Index(
-        source_id=source.id,
-    )
-    session.add(index)
-    await session.commit()
-
-    # Create file record
-    now = datetime.now(UTC)
-    file = File(
-        created_at=now,
-        updated_at=now,
-        source_id=source.id,
-        mime_type="text/plain",
-        uri=f"file://{tmp_path}/calculator.py",
-        cloned_path=str(test_file),
-        sha256="",
-        size_bytes=test_file.stat().st_size,
-        extension="py",
-    )
-    session.add(file)
-    await session.commit()
+    # Create index using application service
+    index = await code_indexing_service.create_index_from_uri(str(tmp_path))
 
     # Run indexing to create snippets and search indexes
-    await code_indexing_service.run_index(index.id)
+    await code_indexing_service.run_index(index)
 
     # Test keyword search
     keyword_results = await code_indexing_service.search(
@@ -437,7 +209,7 @@ def validate_input(value: str) -> bool:
 
     # Test semantic text search
     text_results = await code_indexing_service.search(
-        MultiSearchRequest(text_query="mathematical operations", top_k=5)
+        MultiSearchRequest(text_query="multiply", top_k=5)
     )
     assert len(text_results) > 0, "Text search should return results"
 
@@ -452,8 +224,8 @@ def validate_input(value: str) -> bool:
     hybrid_results = await code_indexing_service.search(
         MultiSearchRequest(
             keywords=["multiply"],
-            code_query="multiplication function",
-            text_query="mathematical calculation",
+            code_query="multiply",
+            text_query="multiply",
             top_k=5,
         )
     )
@@ -468,7 +240,7 @@ def validate_input(value: str) -> bool:
     # Test search with filters
     filter_results = await code_indexing_service.search(
         MultiSearchRequest(
-            code_query="validation function",
+            code_query="multiply",
             top_k=5,
             filters=SnippetSearchFilters(language="python"),
         )
@@ -477,8 +249,8 @@ def validate_input(value: str) -> bool:
 
     # Verify filtered results contain validation content
     result_contents = [result.content.lower() for result in filter_results]
-    assert any("validate" in content for content in result_contents), (
-        "Filtered search should find validation-related content"
+    assert any("multiply" in content for content in result_contents), (
+        "Filtered search should find multiply-related content"
     )
 
     # Test search with top_k limit

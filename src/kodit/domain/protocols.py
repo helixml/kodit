@@ -40,6 +40,10 @@ class IndexRepository(Protocol):
         """Update snippets for an index."""
         ...
 
+    async def delete_snippets(self, index_id: int) -> None:
+        """Delete all snippets from an index."""
+        ...
+
     async def search(self, request: MultiSearchRequest) -> Sequence[SnippetWithContext]:
         """Search snippets with filters."""
         raise NotImplementedError

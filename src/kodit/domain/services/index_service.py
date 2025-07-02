@@ -87,16 +87,6 @@ class IndexDomainService:
         self._enrichment_service = enrichment_service
         self.log = structlog.get_logger(__name__)
 
-    def _sanitize_uri(self, uri_or_path_like: str) -> AnyUrl:
-        """Convert a URI or path-like string to a URI."""
-        # If it's git-clonable, it's valid
-        if is_valid_clone_target(uri_or_path_like):
-            return domain_entities.WorkingCopy.sanitize_git_url(uri_or_path_like)
-        # If it's a local directory, it's valid
-        if Path(uri_or_path_like).is_dir():
-            return domain_entities.WorkingCopy.sanitize_local_path(uri_or_path_like)
-        raise ValueError(f"Unsupported source: {uri_or_path_like}")
-
     async def create_index(
         self,
         uri_or_path_like: str,  # Must include user/pass, etc
@@ -187,6 +177,10 @@ class IndexDomainService:
 
         """
         await self._index_repository.update_index_timestamp(index_id)
+
+    async def delete_snippets(self, index_id: int) -> None:
+        """Delete all snippets from an index."""
+        await self._index_repository.delete_snippets(index_id)
 
     async def extract_snippets(
         self,
@@ -413,3 +407,13 @@ class IndexDomainService:
         filtered_snippets = [snippet for snippet in snippets if snippet.strip()]
 
         return SnippetExtractionResult(snippets=filtered_snippets, language=language)
+
+    def _sanitize_uri(self, uri_or_path_like: str) -> AnyUrl:
+        """Convert a URI or path-like string to a URI."""
+        # If it's git-clonable, it's valid
+        if is_valid_clone_target(uri_or_path_like):
+            return domain_entities.WorkingCopy.sanitize_git_url(uri_or_path_like)
+        # If it's a local directory, it's valid
+        if Path(uri_or_path_like).is_dir():
+            return domain_entities.WorkingCopy.sanitize_local_path(uri_or_path_like)
+        raise ValueError(f"Unsupported source: {uri_or_path_like}")

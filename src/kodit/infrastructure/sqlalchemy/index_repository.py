@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from typing import cast
 
 from pydantic import AnyUrl
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.domain import entities as domain_entities
@@ -386,3 +386,25 @@ class SqlAlchemyIndexRepository(IndexRepository):
         # Mapping doesn't exist, create new one
         self._session.add(mapping)
         return mapping
+
+    async def delete_snippets(self, index_id: int) -> None:
+        """Delete all snippets from an index."""
+        # First get all snippets for this index
+        stmt = select(db_entities.Snippet).where(
+            db_entities.Snippet.index_id == index_id
+        )
+        result = await self._session.scalars(stmt)
+        snippets = result.all()
+
+        # Delete all embeddings for these snippets
+        for snippet in snippets:
+            embedding_stmt = delete(db_entities.Embedding).where(
+                db_entities.Embedding.snippet_id == snippet.id
+            )
+            await self._session.execute(embedding_stmt)
+
+        # Now delete the snippets
+        snippet_stmt = delete(db_entities.Snippet).where(
+            db_entities.Snippet.index_id == index_id
+        )
+        await self._session.execute(snippet_stmt)

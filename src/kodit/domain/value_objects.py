@@ -45,11 +45,6 @@ class SnippetSearchResult(BaseModel):
     language: str | None = None
     authors: list[str] = []
 
-    class Config:
-        """Pydantic model configuration."""
-
-        frozen = True
-
 
 @dataclass(frozen=True)
 class LanguageExtensions:
@@ -643,11 +638,6 @@ class SnippetQuery(BaseModel):
     search_type: SearchType = SearchType.HYBRID
     filters: SnippetSearchFilters = SnippetSearchFilters()
     top_k: int = 10
-
-    class Config:
-        """Pydantic model configuration."""
-
-        frozen = True
 
 
 class SnippetExtractionStrategy(str, Enum):

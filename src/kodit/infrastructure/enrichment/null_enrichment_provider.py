@@ -1,5 +1,6 @@
 """Null enrichment provider for testing."""
 
+import re
 from collections.abc import AsyncGenerator
 
 from kodit.domain.services.enrichment_service import EnrichmentProvider
@@ -12,14 +13,7 @@ class NullEnrichmentProvider(EnrichmentProvider):
     async def enrich(
         self, requests: list[EnrichmentRequest]
     ) -> AsyncGenerator[EnrichmentResponse, None]:
-        """Return empty responses for all requests.
-
-        Args:
-            requests: List of enrichment requests.
-
-        Yields:
-            Empty enrichment responses.
-
-        """
+        """Only keep alphabetic characters."""
         for request in requests:
-            yield EnrichmentResponse(snippet_id=request.snippet_id, text="")
+            response = re.sub(r"[^a-zA-Z]", " ", request.text)
+            yield EnrichmentResponse(snippet_id=request.snippet_id, text=response)

@@ -21,11 +21,6 @@ class Author(BaseModel):
     name: str
     email: str
 
-    class Config:
-        """Pydantic model configuration."""
-
-        frozen = True
-
 
 class File(BaseModel):
     """File domain entity."""
@@ -37,11 +32,6 @@ class File(BaseModel):
     sha256: str
     authors: list[Author]
     mime_type: str
-
-    class Config:
-        """Pydantic model configuration."""
-
-        frozen = True
 
     def as_path(self) -> Path:
         """Return the file as a path."""
@@ -61,11 +51,6 @@ class WorkingCopy(BaseModel):
     cloned_path: Path
     source_type: SourceType
     files: list[File]
-
-    class Config:
-        """Pydantic model configuration."""
-
-        frozen = True
 
     @classmethod
     def sanitize_local_path(cls, path: str) -> AnyUrl:
@@ -144,11 +129,6 @@ class Source(BaseModel):
     updated_at: datetime | None = None  # Is populated by repository
     working_copy: WorkingCopy
 
-    class Config:
-        """Pydantic model configuration."""
-
-        frozen = True
-
 
 class Snippet(BaseModel):
     """Snippet domain entity."""
@@ -158,11 +138,6 @@ class Snippet(BaseModel):
     updated_at: datetime | None = None  # Is populated by repository
     contents: list[SnippetContent]
     derives_from: list[File]
-
-    class Config:
-        """Pydantic model configuration."""
-
-        frozen = True
 
     def original_content(self) -> str:
         """Return the original content of the snippet."""
@@ -176,7 +151,7 @@ class Snippet(BaseModel):
         for content in self.contents:
             if content.type == SnippetContentType.SUMMARY:
                 return content.value
-        raise ValueError("No summary content found")
+        return ""
 
 
 class Index(BaseModel):
@@ -187,11 +162,6 @@ class Index(BaseModel):
     updated_at: datetime
     source: Source
     snippets: list[Snippet]
-
-    class Config:
-        """Pydantic model configuration."""
-
-        frozen = True
 
 
 # FUTURE: Remove this type, use the domain to get the required information.
