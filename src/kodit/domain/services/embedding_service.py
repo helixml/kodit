@@ -3,7 +3,6 @@
 from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator, Sequence
 
-from kodit.domain.entities import EmbeddingType
 from kodit.domain.value_objects import (
     EmbeddingRequest,
     EmbeddingResponse,
@@ -12,6 +11,7 @@ from kodit.domain.value_objects import (
     SearchRequest,
     SearchResult,
 )
+from kodit.infrastructure.sqlalchemy.entities import EmbeddingType
 
 
 class EmbeddingProvider(ABC):

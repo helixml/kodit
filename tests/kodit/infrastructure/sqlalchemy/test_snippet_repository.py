@@ -5,7 +5,13 @@ from datetime import UTC, datetime
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.entities import File, Index, Snippet, Source, SourceType
+from kodit.infrastructure.sqlalchemy.entities import (
+    File,
+    Index,
+    Snippet,
+    Source,
+    SourceType,
+)
 from kodit.infrastructure.sqlalchemy.snippet_repository import (
     SqlAlchemySnippetRepository,
 )

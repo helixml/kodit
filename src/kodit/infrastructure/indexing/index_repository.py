@@ -6,15 +6,15 @@ from pydantic import AnyUrl
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.entities import (
-    AuthorFileMapping,
-    Index,
-    Source,
-)
 from kodit.domain.models.entities import Index as DomainIndex
 from kodit.domain.models.entities import WorkingCopy
 from kodit.domain.models.protocols import IndexRepository
 from kodit.infrastructure.mappers.index_mapper import IndexMapper
+from kodit.infrastructure.sqlalchemy.entities import (
+    AuthorFileMapping,
+    Index,
+    Source,
+)
 
 
 class SQLAlchemyIndexRepository(IndexRepository):

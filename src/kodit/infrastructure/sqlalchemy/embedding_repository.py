@@ -4,7 +4,7 @@ import numpy as np
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.entities import Embedding, EmbeddingType
+from kodit.infrastructure.sqlalchemy.entities import Embedding, EmbeddingType
 
 
 class SqlAlchemyEmbeddingRepository:

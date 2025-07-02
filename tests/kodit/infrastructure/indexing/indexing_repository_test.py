@@ -5,8 +5,8 @@ from datetime import UTC, datetime
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.entities import File, Source, SourceType
 from kodit.infrastructure.indexing.index_repository import SQLAlchemyIndexRepository
+from kodit.infrastructure.sqlalchemy.entities import File, Source, SourceType
 
 
 @pytest.fixture

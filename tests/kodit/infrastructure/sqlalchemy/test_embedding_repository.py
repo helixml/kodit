@@ -5,10 +5,10 @@ from unittest.mock import AsyncMock, MagicMock
 import numpy as np
 import pytest
 
-from kodit.domain.entities import Embedding, EmbeddingType
 from kodit.infrastructure.sqlalchemy.embedding_repository import (
     SqlAlchemyEmbeddingRepository,
 )
+from kodit.infrastructure.sqlalchemy.entities import Embedding, EmbeddingType
 
 
 class TestSqlAlchemyEmbeddingRepository:

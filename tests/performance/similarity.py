@@ -9,7 +9,10 @@ from pathlib import Path
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from kodit.domain.entities import (
+from kodit.infrastructure.sqlalchemy.embedding_repository import (
+    SqlAlchemyEmbeddingRepository,
+)
+from kodit.infrastructure.sqlalchemy.entities import (
     Embedding,
     EmbeddingType,
     File,
@@ -17,9 +20,6 @@ from kodit.domain.entities import (
     Snippet,
     Source,
     SourceType,
-)
-from kodit.infrastructure.sqlalchemy.embedding_repository import (
-    SqlAlchemyEmbeddingRepository,
 )
 
 log = structlog.get_logger(__name__)

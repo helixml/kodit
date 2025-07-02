@@ -14,14 +14,6 @@ from kodit.application.services.code_indexing_application_service import (
     CodeIndexingApplicationService,
 )
 from kodit.config import AppContext
-from kodit.domain.entities import (
-    Author,
-    File,
-    Index,
-    Snippet,
-    Source,
-    SourceType,
-)
 from kodit.domain.errors import EmptySourceError
 from kodit.domain.interfaces import ProgressCallback
 from kodit.domain.services.source_service import SourceService
@@ -29,6 +21,14 @@ from kodit.domain.value_objects import (
     MultiSearchRequest,
     ProgressEvent,
     SnippetSearchFilters,
+)
+from kodit.infrastructure.sqlalchemy.entities import (
+    Author,
+    File,
+    Index,
+    Snippet,
+    Source,
+    SourceType,
 )
 
 

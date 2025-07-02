@@ -16,7 +16,6 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from kodit.domain.entities import Base, File, Index, Snippet, Source, SourceType
 from kodit.domain.value_objects import (
     Document,
     IndexRequest,
@@ -28,6 +27,14 @@ from kodit.infrastructure.embedding.embedding_providers.hash_embedding_provider 
 )
 from kodit.infrastructure.embedding.vectorchord_vector_search_repository import (
     VectorChordVectorSearchRepository,
+)
+from kodit.infrastructure.sqlalchemy.entities import (
+    Base,
+    File,
+    Index,
+    Snippet,
+    Source,
+    SourceType,
 )
 
 # Suppress the pytest-asyncio event_loop fixture deprecation warning

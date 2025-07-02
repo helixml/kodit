@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import (
 from kodit.config import AppContext
 
 # Need to import these models to create the tables
-from kodit.domain.entities import (
+from kodit.infrastructure.sqlalchemy.entities import (
     Base,
 )
 
@@ -63,7 +63,15 @@ def app_context() -> Generator[AppContext, None, None]:
 
     # Create a minimal environment with only essential env vars
     essential_prefixes = (
-        "PATH", "HOME", "USER", "PWD", "LANG", "LC_", "TERM", "SHELL", "TMPDIR"
+        "PATH",
+        "HOME",
+        "USER",
+        "PWD",
+        "LANG",
+        "LC_",
+        "TERM",
+        "SHELL",
+        "TMPDIR",
     )
     minimal_env = {
         key: value

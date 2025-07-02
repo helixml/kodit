@@ -5,7 +5,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from kodit.domain.entities import File, Snippet
 from kodit.domain.enums import SnippetExtractionStrategy
 from kodit.domain.repositories import FileRepository, SnippetRepository
 from kodit.domain.services.snippet_extraction_service import (
@@ -17,6 +16,7 @@ from kodit.domain.value_objects import (
     SnippetExtractionResult,
     SnippetWithContext,
 )
+from kodit.infrastructure.sqlalchemy.entities import File, Snippet
 
 
 @pytest.fixture

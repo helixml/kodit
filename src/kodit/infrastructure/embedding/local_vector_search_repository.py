@@ -4,7 +4,6 @@ from collections.abc import AsyncGenerator
 
 import structlog
 
-from kodit.domain.entities import Embedding, EmbeddingType
 from kodit.domain.services.embedding_service import (
     EmbeddingProvider,
     VectorSearchRepository,
@@ -19,6 +18,7 @@ from kodit.domain.value_objects import (
 from kodit.infrastructure.sqlalchemy.embedding_repository import (
     SqlAlchemyEmbeddingRepository,
 )
+from kodit.infrastructure.sqlalchemy.entities import Embedding, EmbeddingType
 
 
 class LocalVectorSearchRepository(VectorSearchRepository):

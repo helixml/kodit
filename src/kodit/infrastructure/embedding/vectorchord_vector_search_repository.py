@@ -7,7 +7,6 @@ import structlog
 from sqlalchemy import Result, TextClause, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.entities import EmbeddingType
 from kodit.domain.services.embedding_service import (
     EmbeddingProvider,
     VectorSearchRepository,
@@ -19,6 +18,7 @@ from kodit.domain.value_objects import (
     SearchRequest,
     SearchResult,
 )
+from kodit.infrastructure.sqlalchemy.entities import EmbeddingType
 
 # SQL Queries
 CREATE_VCHORD_EXTENSION = """

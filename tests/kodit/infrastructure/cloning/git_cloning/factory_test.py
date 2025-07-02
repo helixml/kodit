@@ -8,10 +8,10 @@ import git
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.entities import Source
 from kodit.domain.repositories import SourceRepository
 from kodit.infrastructure.cloning.git.factory import GitSourceFactory
 from kodit.infrastructure.cloning.git.working_copy import GitWorkingCopyProvider
+from kodit.infrastructure.sqlalchemy.entities import Source
 
 
 @pytest.fixture

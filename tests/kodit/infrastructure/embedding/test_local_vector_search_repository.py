@@ -7,14 +7,6 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.entities import (
-    EmbeddingType,
-    File,
-    Index,
-    Snippet,
-    Source,
-    SourceType,
-)
 from kodit.domain.value_objects import (
     Document,
     EmbeddingResponse,
@@ -31,6 +23,14 @@ from kodit.infrastructure.embedding.local_vector_search_repository import (
 )
 from kodit.infrastructure.sqlalchemy.embedding_repository import (
     SqlAlchemyEmbeddingRepository,
+)
+from kodit.infrastructure.sqlalchemy.entities import (
+    EmbeddingType,
+    File,
+    Index,
+    Snippet,
+    Source,
+    SourceType,
 )
 
 

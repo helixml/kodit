@@ -8,19 +8,19 @@ from typing import Any
 from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.entities import (
+from kodit.domain.repositories import SnippetRepository
+from kodit.domain.value_objects import (
+    LanguageMapping,
+    MultiSearchRequest,
+    SnippetWithContext,
+)
+from kodit.infrastructure.sqlalchemy.entities import (
     Author,
     AuthorFileMapping,
     Embedding,
     File,
     Snippet,
     Source,
-)
-from kodit.domain.repositories import SnippetRepository
-from kodit.domain.value_objects import (
-    LanguageMapping,
-    MultiSearchRequest,
-    SnippetWithContext,
 )
 
 

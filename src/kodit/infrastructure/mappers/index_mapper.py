@@ -7,13 +7,13 @@ from pydantic import AnyUrl
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain import entities as db_entities
 from kodit.domain.models import entities as domain_entities
 from kodit.domain.models.value_objects import (
     SnippetContent,
     SnippetContentType,
     SourceType,
 )
+from kodit.infrastructure.sqlalchemy import entities as db_entities
 
 
 class IndexMapper:

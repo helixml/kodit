@@ -6,8 +6,14 @@ from typing import cast
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.entities import Author, AuthorFileMapping, File, Source, SourceType
 from kodit.domain.repositories import AuthorRepository, SourceRepository
+from kodit.infrastructure.sqlalchemy.entities import (
+    Author,
+    AuthorFileMapping,
+    File,
+    Source,
+    SourceType,
+)
 
 
 class SqlAlchemySourceRepository(SourceRepository):

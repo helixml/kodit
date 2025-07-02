@@ -10,8 +10,8 @@ from typing import Any, ClassVar
 from sqlalchemy import JSON, DateTime, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from kodit.domain.entities import Author, Base, File, Snippet, Source
 from kodit.domain.enums import SnippetExtractionStrategy
+from kodit.infrastructure.sqlalchemy.entities import Author, Base, File, Snippet, Source
 
 
 class SearchType(Enum):

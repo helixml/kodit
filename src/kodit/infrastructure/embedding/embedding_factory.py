@@ -3,7 +3,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.config import AppContext, Endpoint
-from kodit.domain.entities import EmbeddingType
 from kodit.domain.services.embedding_service import EmbeddingDomainService
 from kodit.infrastructure.embedding.embedding_providers.local_embedding_provider import (  # noqa: E501
     CODE,
@@ -22,6 +21,7 @@ from kodit.infrastructure.embedding.vectorchord_vector_search_repository import 
 from kodit.infrastructure.sqlalchemy.embedding_repository import (
     SqlAlchemyEmbeddingRepository,
 )
+from kodit.infrastructure.sqlalchemy.entities import EmbeddingType
 from kodit.log import log_event
 
 

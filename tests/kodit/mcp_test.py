@@ -8,7 +8,13 @@ from mcp.types import TextContent
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.config import AppContext
-from kodit.domain.entities import File, Index, Snippet, Source, SourceType
+from kodit.infrastructure.sqlalchemy.entities import (
+    File,
+    Index,
+    Snippet,
+    Source,
+    SourceType,
+)
 from kodit.mcp import mcp
 
 

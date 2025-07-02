@@ -5,7 +5,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from kodit.domain.entities import EmbeddingType
 from kodit.domain.services.embedding_service import (
     EmbeddingDomainService,
     EmbeddingProvider,
@@ -20,6 +19,7 @@ from kodit.domain.value_objects import (
     SearchRequest,
     SearchResult,
 )
+from kodit.infrastructure.sqlalchemy.entities import EmbeddingType
 
 
 class MockEmbeddingProvider(EmbeddingProvider):
