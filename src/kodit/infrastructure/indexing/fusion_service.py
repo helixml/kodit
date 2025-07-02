@@ -2,7 +2,7 @@
 
 from collections import defaultdict
 
-from kodit.domain.services.indexing_service import FusionService
+from kodit.domain.services.index_query_service import FusionService
 from kodit.domain.value_objects import FusionRequest, FusionResult
 
 

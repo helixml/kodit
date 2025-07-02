@@ -1,14 +1,25 @@
 """Index query service."""
 
+from abc import ABC, abstractmethod
+
 from kodit.domain.models.entities import Index
 from kodit.domain.models.protocols import IndexRepository
-from kodit.domain.services.indexing_service import FusionService
 from kodit.domain.value_objects import (
     FusionRequest,
     FusionResult,
     MultiSearchRequest,
     SnippetWithContext,
 )
+
+
+class FusionService(ABC):
+    """Abstract fusion service interface."""
+
+    @abstractmethod
+    def reciprocal_rank_fusion(
+        self, rankings: list[list[FusionRequest]], k: float = 60
+    ) -> list[FusionResult]:
+        """Perform reciprocal rank fusion on search results."""
 
 
 class IndexQueryService:

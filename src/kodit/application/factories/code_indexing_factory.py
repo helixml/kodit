@@ -12,7 +12,6 @@ from kodit.domain.services.index_query_service import IndexQueryService
 from kodit.domain.services.index_service import (
     IndexDomainService,
 )
-from kodit.domain.services.source_service import SourceService
 from kodit.domain.value_objects import LanguageMapping
 from kodit.infrastructure.bm25.bm25_factory import bm25_repository_factory
 from kodit.infrastructure.embedding.embedding_factory import (
@@ -37,7 +36,6 @@ from kodit.infrastructure.sqlalchemy.index_repository import SqlAlchemyIndexRepo
 def create_code_indexing_application_service(
     app_context: AppContext,
     session: AsyncSession,
-    source_service: SourceService,
 ) -> CodeIndexingApplicationService:
     """Create a unified code indexing application service with all dependencies."""
     # Create domain services
@@ -75,7 +73,6 @@ def create_code_indexing_application_service(
     return CodeIndexingApplicationService(
         indexing_domain_service=index_domain_service,
         index_query_service=index_query_service,
-        source_service=source_service,
         bm25_service=bm25_service,
         code_search_service=code_search_service,
         text_search_service=text_search_service,

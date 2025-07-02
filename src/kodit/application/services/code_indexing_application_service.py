@@ -13,7 +13,6 @@ from kodit.domain.services.embedding_service import EmbeddingDomainService
 from kodit.domain.services.enrichment_service import EnrichmentDomainService
 from kodit.domain.services.index_query_service import IndexQueryService
 from kodit.domain.services.index_service import IndexDomainService
-from kodit.domain.services.source_service import SourceService
 from kodit.domain.value_objects import (
     Document,
     FusionRequest,
@@ -35,7 +34,6 @@ class CodeIndexingApplicationService:
         self,
         indexing_domain_service: IndexDomainService,
         index_query_service: IndexQueryService,
-        source_service: SourceService,
         bm25_service: BM25DomainService,
         code_search_service: EmbeddingDomainService,
         text_search_service: EmbeddingDomainService,
@@ -45,7 +43,6 @@ class CodeIndexingApplicationService:
         """Initialize the code indexing application service."""
         self.index_domain_service = indexing_domain_service
         self.index_query_service = index_query_service
-        self.source_service = source_service
         self.bm25_service = bm25_service
         self.code_search_service = code_search_service
         self.text_search_service = text_search_service

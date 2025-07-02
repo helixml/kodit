@@ -17,7 +17,6 @@ from kodit.application.factories.code_indexing_factory import (
 )
 from kodit.config import AppContext
 from kodit.database import Database
-from kodit.domain.services.source_service import SourceService
 from kodit.domain.value_objects import (
     MultiSearchRequest,
     MultiSearchResult,
@@ -161,16 +160,10 @@ async def search(  # noqa: PLR0913
 
     mcp_context: MCPContext = ctx.request_context.lifespan_context
 
-    source_service = SourceService(
-        clone_dir=mcp_context.app_context.get_clone_dir(),
-        session_factory=lambda: mcp_context.session,
-    )
-
     # Use the unified application service
     service = create_code_indexing_application_service(
         app_context=mcp_context.app_context,
         session=mcp_context.session,
-        source_service=source_service,
     )
 
     log.debug("Searching for snippets")

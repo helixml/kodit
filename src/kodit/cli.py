@@ -20,7 +20,6 @@ from kodit.config import (
 )
 from kodit.domain.errors import EmptySourceError
 from kodit.domain.services.index_query_service import IndexQueryService
-from kodit.domain.services.source_service import SourceService
 from kodit.domain.value_objects import (
     MultiSearchRequest,
     MultiSearchResult,
@@ -80,14 +79,9 @@ async def index(
 ) -> None:
     """List indexes, or index data sources."""
     log = structlog.get_logger(__name__)
-    source_service = SourceService(
-        clone_dir=app_context.get_clone_dir(),
-        session_factory=lambda: session,
-    )
     service = create_code_indexing_application_service(
         app_context=app_context,
         session=session,
-        source_service=source_service,
     )
     index_query_service = IndexQueryService(
         index_repository=SqlAlchemyIndexRepository(session=session),
@@ -247,14 +241,9 @@ async def code(  # noqa: PLR0913
     This works best if your query is code.
     """
     log_event("kodit.cli.search.code")
-    source_service = SourceService(
-        clone_dir=app_context.get_clone_dir(),
-        session_factory=lambda: session,
-    )
     service = create_code_indexing_application_service(
         app_context=app_context,
         session=session,
-        source_service=source_service,
     )
 
     filters = _parse_filters(
@@ -308,14 +297,9 @@ async def keyword(  # noqa: PLR0913
 ) -> None:
     """Search for snippets using keyword search."""
     log_event("kodit.cli.search.keyword")
-    source_service = SourceService(
-        clone_dir=app_context.get_clone_dir(),
-        session_factory=lambda: session,
-    )
     service = create_code_indexing_application_service(
         app_context=app_context,
         session=session,
-        source_service=source_service,
     )
 
     filters = _parse_filters(
@@ -372,14 +356,9 @@ async def text(  # noqa: PLR0913
     This works best if your query is text.
     """
     log_event("kodit.cli.search.text")
-    source_service = SourceService(
-        clone_dir=app_context.get_clone_dir(),
-        session_factory=lambda: session,
-    )
     service = create_code_indexing_application_service(
         app_context=app_context,
         session=session,
-        source_service=source_service,
     )
 
     filters = _parse_filters(
@@ -437,14 +416,9 @@ async def hybrid(  # noqa: PLR0913
 ) -> None:
     """Search for snippets using hybrid search."""
     log_event("kodit.cli.search.hybrid")
-    source_service = SourceService(
-        clone_dir=app_context.get_clone_dir(),
-        session_factory=lambda: session,
-    )
     service = create_code_indexing_application_service(
         app_context=app_context,
         session=session,
-        source_service=source_service,
     )
 
     # Parse keywords into a list of strings
@@ -494,14 +468,9 @@ async def snippets(
 ) -> None:
     """Show snippets with optional filtering by path or source."""
     log_event("kodit.cli.show.snippets")
-    source_service = SourceService(
-        clone_dir=app_context.get_clone_dir(),
-        session_factory=lambda: session,
-    )
     service = create_code_indexing_application_service(
         app_context=app_context,
         session=session,
-        source_service=source_service,
     )
     snippets = await service.list_snippets(file_path=by_path, source_uri=by_source)
     if output_format == "text":
