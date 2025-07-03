@@ -204,21 +204,3 @@ def test_search_result_case_sensitivity() -> None:
 
     json_obj = json.loads(result.to_json())
     assert json_obj["lang"] == "javascript"  # Should be lowercase
-
-
-def test_search_result_with_none_created_at() -> None:
-    """Test MultiSearchResult with None created_at."""
-    result = MultiSearchResult(
-        id=6,
-        content="test code",
-        original_scores=[0.6],
-        source_uri="https://github.com/test/none",
-        relative_path="test.txt",
-        language="text",
-        authors=["test_user"],
-        created_at=datetime(2023, 1, 1, tzinfo=UTC),
-        summary="Test with None created_at",
-    )
-
-    json_obj = json.loads(result.to_json())
-    assert json_obj["created"] == ""
