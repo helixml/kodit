@@ -132,7 +132,6 @@ def new_function():
 @pytest.mark.asyncio
 async def test_search_finds_relevant_snippets(
     code_indexing_service: CodeIndexingApplicationService,
-    indexing_query_service: IndexQueryService,
     tmp_path: Path,
 ) -> None:
     """Test that search function finds relevant snippets using different.
