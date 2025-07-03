@@ -147,22 +147,37 @@ class Snippet(BaseModel):
     id: int | None = None  # Is populated by repository
     created_at: datetime | None = None  # Is populated by repository
     updated_at: datetime | None = None  # Is populated by repository
-    contents: list[SnippetContent]
     derives_from: list[File]
+    _original_content: SnippetContent | None = None
+    _summary_content: SnippetContent | None = None
 
     def original_content(self) -> str:
         """Return the original content of the snippet."""
-        for content in self.contents:
-            if content.type == SnippetContentType.ORIGINAL:
-                return content.value
-        raise ValueError("No original content found")
+        if self._original_content is None:
+            raise ValueError("No original content found")
+        return self._original_content.value
 
     def summary_content(self) -> str:
         """Return the summary content of the snippet."""
-        for content in self.contents:
-            if content.type == SnippetContentType.SUMMARY:
-                return content.value
-        return ""
+        if self._summary_content is None:
+            raise ValueError("No summary content found")
+        return self._summary_content.value
+
+    def add_original_content(self, content: str, language: str) -> None:
+        """Add an original content to the snippet."""
+        self._original_content = SnippetContent(
+            type=SnippetContentType.ORIGINAL,
+            value=content,
+            language=language,
+        )
+
+    def add_summary(self, summary: str) -> None:
+        """Add a summary to the snippet."""
+        self._summary_content = SnippetContent(
+            type=SnippetContentType.SUMMARY,
+            value=summary,
+            language="markdown",
+        )
 
 
 class Index(BaseModel):

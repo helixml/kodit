@@ -2,7 +2,6 @@
 
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
-from datetime import UTC, datetime
 from pathlib import Path
 
 import structlog
@@ -15,8 +14,6 @@ from kodit.domain.services.enrichment_service import EnrichmentDomainService
 from kodit.domain.value_objects import (
     EnrichmentIndexRequest,
     EnrichmentRequest,
-    SnippetContent,
-    SnippetContentType,
     SnippetExtractionRequest,
     SnippetExtractionResult,
     SnippetExtractionStrategy,
@@ -146,14 +143,11 @@ class IndexDomainService:
         await reporter.done("scan_files")
 
         # Create updated working copy
-        now = datetime.now(UTC)
         working_copy = domain_entities.WorkingCopy(
             remote_uri=sanitized_uri,
             cloned_path=local_path,
             source_type=source_type,
             files=files,
-            created_at=now,
-            updated_at=now,
         )
 
         return await self._index_repository.create(sanitized_uri, working_copy)
@@ -188,13 +182,7 @@ class IndexDomainService:
             Updated Index aggregate with extracted snippets
 
         """
-        if not index.id:
-            raise ValueError("Index has no ID")
-
         file_count = len(index.source.working_copy.files)
-        if file_count == 0:
-            self.log.info("No files to extract snippets from", index_id=index.id)
-            raise ValueError("No files to extract snippets from")
 
         self.log.info(
             "Extracting snippets",
@@ -213,42 +201,16 @@ class IndexDomainService:
 
         for i, domain_file in enumerate(files, 1):
             try:
-                if not self._should_process_file(
-                    domain_file.as_path().parent, domain_file.as_path()
-                ):
-                    self.log.debug(
-                        "Skipping file",
-                        relative_path=str(domain_file.as_path()),
-                    )
-
-                    await reporter.step(
-                        "extract_snippets",
-                        i,
-                        len(files),
-                        f"Skipping {domain_file.uri.path}",
-                    )
-                    continue
-
                 # Extract snippets from file
                 request = SnippetExtractionRequest(
                     file_path=domain_file.as_path(), strategy=strategy
                 )
                 result = await self._extract_snippets(request)
-
                 for snippet_text in result.snippets:
-                    # Create snippet contents
-                    contents = [
-                        SnippetContent(
-                            type=SnippetContentType.ORIGINAL,
-                            value=snippet_text,
-                            language=result.language,
-                        )
-                    ]
-
                     snippet = domain_entities.Snippet(
-                        contents=contents,
                         derives_from=[domain_file],
                     )
+                    snippet.add_original_content(snippet_text, result.language)
                     snippets.append(snippet)
 
             except (OSError, ValueError) as e:
@@ -326,13 +288,7 @@ class IndexDomainService:
         async for result in self._enrichment_service.enrich_documents(
             enrichment_request
         ):
-            snippet_map[result.snippet_id].contents.append(
-                SnippetContent(
-                    type=SnippetContentType.SUMMARY,
-                    value=result.text,
-                    language="markdown",
-                )
-            )
+            snippet_map[result.snippet_id].add_summary(result.text)
 
             processed += 1
             await reporter.step(
@@ -347,33 +303,6 @@ class IndexDomainService:
         if not new_index:
             raise ValueError("Index not found after enrichment")
         return new_index
-
-    def _should_process_file(self, base_path: Path, file_path: Path) -> bool:
-        """Check if a file should be processed for snippet extraction.
-
-        Args:
-            file_path: The path to the file
-
-        Returns:
-            True if the file should be processed
-
-        """
-        # Skip hidden files and directories
-        if any(part.startswith(".") for part in file_path.relative_to(base_path).parts):
-            return False
-
-        # Skip massive files
-        if file_path.stat().st_size > 1024 * 1024 * 10:  # 10MB
-            return False
-
-        # Skip binary files (basic check)
-        try:
-            with file_path.open(encoding="utf-8") as f:
-                f.read(1024)  # Try to read first 1KB as text
-        except (UnicodeDecodeError, OSError):
-            return False
-        else:
-            return True
 
     async def _extract_snippets(
         self, request: SnippetExtractionRequest
