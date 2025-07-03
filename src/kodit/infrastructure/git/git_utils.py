@@ -5,6 +5,7 @@ import tempfile
 import git
 
 
+# FUTURE: move to clone dir
 def is_valid_clone_target(target: str) -> bool:
     """Return True if the target is clonable.
 

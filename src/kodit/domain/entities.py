@@ -79,11 +79,21 @@ class WorkingCopy(BaseModel):
             >>> sanitize_git_url("https://username@github.com/user/repo.git")
             "https://github.com/user/repo.git"
             >>> sanitize_git_url("git@github.com:user/repo.git")
-            "git@github.com:user/repo.git"
+            "ssh://git@github.com/user/repo.git"
 
         """
         # Handle SSH URLs (they don't have credentials in the URL format)
-        if url.startswith(("git@", "ssh://")):
+        if url.startswith("git@"):
+            # Convert git@host:path to ssh://git@host/path format for AnyUrl
+            # This maintains the same semantic meaning while making it a valid URL
+            if ":" in url and not url.startswith("ssh://"):
+                host_path = url[4:]  # Remove "git@"
+                if ":" in host_path:
+                    host, path = host_path.split(":", 1)
+                    ssh_url = f"ssh://git@{host}/{path}"
+                    return AnyUrl(ssh_url)
+            return AnyUrl(url)
+        if url.startswith("ssh://"):
             return AnyUrl(url)
 
         # Handle file URLs

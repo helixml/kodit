@@ -36,7 +36,7 @@ class TestNullEnrichmentProvider:
 
         assert len(results) == 1
         assert results[0].snippet_id == 1
-        assert results[0].text == ""
+        assert results[0].text == "def test    pass"
 
     @pytest.mark.asyncio
     async def test_enrich_multiple_requests(self) -> None:
@@ -52,9 +52,9 @@ class TestNullEnrichmentProvider:
 
         assert len(results) == 3
         assert results[0].snippet_id == 1
-        assert results[0].text == ""
+        assert results[0].text == "def hello    pass"
         assert results[1].snippet_id == 2
-        assert results[1].text == ""
+        assert results[1].text == "def world    pass"
         assert results[2].snippet_id == 3
         assert results[2].text == ""
 
@@ -71,11 +71,13 @@ class TestNullEnrichmentProvider:
 
         assert len(results) == 2
         assert results[0].snippet_id == 42
+        assert results[0].text == "def test    pass"
         assert results[1].snippet_id == 123
+        assert results[1].text == "def another    pass"
 
     @pytest.mark.asyncio
-    async def test_enrich_always_returns_empty_text(self) -> None:
-        """Test that the provider always returns empty text regardless of input."""
+    async def test_enrich_filters_non_alphabetic_characters(self) -> None:
+        """Test that the provider filters out non-alphabetic characters."""
         provider = NullEnrichmentProvider()
         requests = [
             EnrichmentRequest(snippet_id=1, text="def test(): pass"),
@@ -87,5 +89,7 @@ class TestNullEnrichmentProvider:
         results = [result async for result in provider.enrich(requests)]
 
         assert len(results) == 4
-        for result in results:
-            assert result.text == ""
+        assert results[0].text == "def test    pass"
+        assert results[1].text == ""
+        assert results[2].text == "   "
+        assert results[3].text == "complex code with imports and logic"
