@@ -27,6 +27,7 @@ from kodit.infrastructure.cloning.metadata import FileMetadataExtractor
 from kodit.infrastructure.git.git_utils import is_valid_clone_target
 from kodit.infrastructure.ignore.ignore_pattern_provider import GitIgnorePatternProvider
 from kodit.reporting import Reporter
+from kodit.utils.path_utils import path_from_uri
 
 
 class LanguageDetectionService(ABC):
@@ -109,7 +110,7 @@ class IndexDomainService:
             sanitized_uri = domain_entities.WorkingCopy.sanitize_local_path(
                 uri_or_path_like
             )
-            local_path = Path.from_uri(str(sanitized_uri))
+            local_path = path_from_uri(str(sanitized_uri))
         else:
             raise ValueError(f"Unsupported source: {uri_or_path_like}")
 

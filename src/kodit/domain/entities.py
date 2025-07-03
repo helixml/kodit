@@ -12,6 +12,7 @@ from kodit.domain.value_objects import (
     SnippetContentType,
     SourceType,
 )
+from kodit.utils.path_utils import path_from_uri
 
 
 class Author(BaseModel):
@@ -35,7 +36,7 @@ class File(BaseModel):
 
     def as_path(self) -> Path:
         """Return the file as a path."""
-        return Path.from_uri(str(self.uri))
+        return path_from_uri(str(self.uri))
 
     def extension(self) -> str:
         """Return the file extension."""
