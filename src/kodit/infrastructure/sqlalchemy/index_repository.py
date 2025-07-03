@@ -12,7 +12,6 @@ from kodit.domain.entities import SnippetWithContext
 from kodit.domain.protocols import IndexRepository
 from kodit.domain.value_objects import (
     MultiSearchRequest,
-    SnippetContentType,
 )
 from kodit.infrastructure.mappers.index_mapper import IndexMapper
 from kodit.infrastructure.sqlalchemy import entities as db_entities
@@ -190,18 +189,8 @@ class SqlAlchemyIndexRepository(IndexRepository):
             if not db_snippet:
                 raise ValueError(f"Snippet {domain_snippet.id} not found")
 
-            # Update the snippet content
-            original_content = ""
-            summary = ""
-
-            for content in domain_snippet.contents:
-                if content.type == SnippetContentType.ORIGINAL:
-                    original_content = content.value
-                elif content.type == SnippetContentType.SUMMARY:
-                    summary = content.value
-
-            db_snippet.content = original_content
-            db_snippet.summary = summary
+            db_snippet.content = domain_snippet.original_content()
+            db_snippet.summary = domain_snippet.summary_content()
 
             # Update timestamps if provided
             if domain_snippet.updated_at:

@@ -304,16 +304,6 @@ class IndexMapper:
         self, domain_snippet: domain_entities.Snippet, index_id: int
     ) -> db_entities.Snippet:
         """Convert domain Snippet to SQLAlchemy Snippet."""
-        # Extract original content
-        original_content = ""
-        summary = ""
-
-        for content in domain_snippet.contents:
-            if content.type == SnippetContentType.ORIGINAL:
-                original_content = content.value
-            elif content.type == SnippetContentType.SUMMARY:
-                summary = content.value
-
         # Get file ID from derives_from (use first file if multiple)
         if not domain_snippet.derives_from:
             raise ValueError("Snippet must derive from at least one file")
@@ -325,8 +315,8 @@ class IndexMapper:
         db_snippet = db_entities.Snippet(
             file_id=file_id,
             index_id=index_id,
-            content=original_content,
-            summary=summary,
+            content=domain_snippet.original_content(),
+            summary=domain_snippet.summary_content(),
         )
 
         if domain_snippet.id:

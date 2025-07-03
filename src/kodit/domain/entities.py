@@ -154,13 +154,13 @@ class Snippet(BaseModel):
     def original_content(self) -> str:
         """Return the original content of the snippet."""
         if self._original_content is None:
-            raise ValueError("No original content found")
+            return ""
         return self._original_content.value
 
     def summary_content(self) -> str:
         """Return the summary content of the snippet."""
         if self._summary_content is None:
-            raise ValueError("No summary content found")
+            return ""
         return self._summary_content.value
 
     def add_original_content(self, content: str, language: str) -> None:
