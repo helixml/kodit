@@ -5,11 +5,10 @@ from pathlib import Path
 import git
 import pathspec
 
-from kodit.domain.services.ignore_service import IgnorePatternProvider
 from kodit.infrastructure.git.git_utils import is_valid_clone_target
 
 
-class GitIgnorePatternProvider(IgnorePatternProvider):
+class GitIgnorePatternProvider:
     """Ignore pattern provider for git repositories."""
 
     def __init__(self, base_dir: Path) -> None:

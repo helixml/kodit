@@ -12,7 +12,6 @@ import kodit.domain.entities as domain_entities
 from kodit.domain.interfaces import ProgressCallback
 from kodit.domain.protocols import IndexRepository
 from kodit.domain.services.enrichment_service import EnrichmentDomainService
-from kodit.domain.services.ignore_service import IgnoreService
 from kodit.domain.value_objects import (
     EnrichmentIndexRequest,
     EnrichmentRequest,
@@ -116,12 +115,11 @@ class IndexDomainService:
 
         # Get files to process using ignore patterns
         ignore_provider = GitIgnorePatternProvider(local_path)
-        ignore_service = IgnoreService(ignore_provider)
         files: list[domain_entities.File] = []
         file_paths = [
             f
             for f in local_path.rglob("*")
-            if f.is_file() and not ignore_service.should_ignore(f)
+            if f.is_file() and not ignore_provider.should_ignore(f)
         ]
         file_count = len(file_paths)
         if file_count == 0:

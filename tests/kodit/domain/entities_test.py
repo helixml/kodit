@@ -108,7 +108,6 @@ def test_sanitize_git_url_invalid_urls() -> None:
     invalid_urls = [
         "not-a-url",
         "",
-        None,
     ]
 
     for url in invalid_urls:

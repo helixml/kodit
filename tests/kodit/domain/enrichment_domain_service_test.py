@@ -86,7 +86,7 @@ async def test_enrich_documents_empty_requests(
 
     async def mock_enrichment() -> AsyncGenerator[EnrichmentResponse, None]:
         if False:
-            yield  # This is just to make it an async generator
+            yield  # type: ignore[unreachable]
 
     mock_enrichment_provider.enrich = lambda _: mock_enrichment()
 

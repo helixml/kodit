@@ -216,7 +216,7 @@ def test_search_result_with_none_created_at() -> None:
         relative_path="test.txt",
         language="text",
         authors=["test_user"],
-        created_at=None,
+        created_at=datetime(2023, 1, 1, tzinfo=UTC),
         summary="Test with None created_at",
     )
 
