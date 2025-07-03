@@ -189,15 +189,15 @@ def _from_sysfs() -> list[int]:
         return []
     macs: list[int] = []
     for iface in base.iterdir():
-        # Skip if iface is not a directory (e.g., bonding_masters is a file)
-        if not iface.is_dir():
-            continue
         try:
+            # Skip if iface is not a directory (e.g., bonding_masters is a file)
+            if not iface.is_dir():
+                continue
             with (base / iface / "address").open() as f:
                 content = f.read().strip()
             if _MAC_RE.fullmatch(content):
                 macs.append(_mac_int(content))
-        except (FileNotFoundError, PermissionError):
+        except (FileNotFoundError, PermissionError, NotADirectoryError):
             pass
     return macs
 
