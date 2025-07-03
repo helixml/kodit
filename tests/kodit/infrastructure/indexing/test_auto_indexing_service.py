@@ -40,7 +40,7 @@ class TestAutoIndexingService:
         # Create a mock that is an async context manager
         class DummyAsyncContextManager:
             async def __aenter__(self) -> AsyncMock:
-                return AsyncMock(spec=AsyncSession)()
+                return AsyncMock(spec=AsyncSession)
 
             async def __aexit__(
                 self,
@@ -73,28 +73,16 @@ class TestAutoIndexingService:
     ) -> None:
         """Test starting background indexing when enabled."""
         # Mock the services
-        with (
-            patch(
-                "kodit.infrastructure.indexing.auto_indexing_service.SourceService"
-            ) as mock_source_service_class,
-            patch(
-                "kodit.infrastructure.indexing.auto_indexing_service.create_code_indexing_application_service"
-            ) as mock_create_service,
-        ):
-            mock_source_service = AsyncMock()
-            mock_source_service_class.return_value = mock_source_service
-
+        with patch(
+            "kodit.infrastructure.indexing.auto_indexing_service.create_code_indexing_application_service"
+        ) as mock_create_service:
             mock_service = AsyncMock()
             mock_create_service.return_value = mock_service
 
-            # Mock the source creation and indexing
-            mock_source = MagicMock()
-            mock_source.id = "test-source-id"
-            mock_source_service.create.return_value = mock_source
-
+            # Mock the index creation and indexing
             mock_index = MagicMock()
             mock_index.id = "test-index-id"
-            mock_service.create_index.return_value = mock_index
+            mock_service.create_index_from_uri.return_value = mock_index
 
             # Start background indexing
             await auto_indexing_service.start_background_indexing()
@@ -132,36 +120,23 @@ class TestAutoIndexingService:
         self, auto_indexing_service: AutoIndexingService
     ) -> None:
         """Test successful indexing of sources."""
-        with (
-            patch(
-                "kodit.infrastructure.indexing.auto_indexing_service.SourceService"
-            ) as mock_source_service_class,
-            patch(
-                "kodit.infrastructure.indexing.auto_indexing_service.create_code_indexing_application_service"
-            ) as mock_create_service,
-        ):
-            mock_source_service = AsyncMock()
-            mock_source_service_class.return_value = mock_source_service
-
+        with patch(
+            "kodit.infrastructure.indexing.auto_indexing_service.create_code_indexing_application_service"
+        ) as mock_create_service:
             mock_service = AsyncMock()
             mock_create_service.return_value = mock_service
 
-            # Mock the source creation and indexing
-            mock_source = MagicMock()
-            mock_source.id = "test-source-id"
-            mock_source_service.create.return_value = mock_source
-
+            # Mock the index creation and indexing
             mock_index = MagicMock()
             mock_index.id = "test-index-id"
-            mock_service.create_index.return_value = mock_index
+            mock_service.create_index_from_uri.return_value = mock_index
 
             # Test indexing sources directly
             sources = ["https://github.com/test/repo1", "https://github.com/test/repo2"]
             await auto_indexing_service._index_sources(sources)  # noqa: SLF001
 
             # Verify both sources were processed
-            assert mock_source_service.create.call_count == 2
-            assert mock_service.create_index.call_count == 2
+            assert mock_service.create_index_from_uri.call_count == 2
             assert mock_service.run_index.call_count == 2
 
     @pytest.mark.asyncio
@@ -169,40 +144,27 @@ class TestAutoIndexingService:
         self, auto_indexing_service: AutoIndexingService
     ) -> None:
         """Test indexing sources with one failure."""
-        with (
-            patch(
-                "kodit.infrastructure.indexing.auto_indexing_service.SourceService"
-            ) as mock_source_service_class,
-            patch(
-                "kodit.infrastructure.indexing.auto_indexing_service.create_code_indexing_application_service"
-            ) as mock_create_service,
-        ):
-            mock_source_service = AsyncMock()
-            mock_source_service_class.return_value = mock_source_service
-
+        with patch(
+            "kodit.infrastructure.indexing.auto_indexing_service.create_code_indexing_application_service"
+        ) as mock_create_service:
             mock_service = AsyncMock()
             mock_create_service.return_value = mock_service
 
             # Mock the first source to succeed, second to fail
-            mock_source = MagicMock()
-            mock_source.id = "test-source-id"
-            mock_source_service.create.side_effect = [
-                mock_source,
-                Exception("Test error"),
-            ]
-
             mock_index = MagicMock()
             mock_index.id = "test-index-id"
-            mock_service.create_index.return_value = mock_index
+            mock_service.create_index_from_uri.side_effect = [
+                mock_index,
+                Exception("Test error"),
+            ]
 
             # Test indexing sources directly
             sources = ["https://github.com/test/repo1", "https://github.com/test/repo2"]
             await auto_indexing_service._index_sources(sources)  # noqa: SLF001
 
             # Verify both sources were attempted
-            assert mock_source_service.create.call_count == 2
-            # First source should have been indexed
-            assert mock_service.create_index.call_count == 1
+            assert mock_service.create_index_from_uri.call_count == 2
+            # First source should have been indexed (second failed during creation)
             assert mock_service.run_index.call_count == 1
 
     @pytest.mark.asyncio
