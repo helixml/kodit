@@ -11,10 +11,7 @@ env:
 jobs:
   test-build:
     name: Test and build Docker image
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     steps:
       - name: Free up disk space
         run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet || true
@@ -22,13 +19,7 @@ jobs:
       - name: Check out the repo
         uses: actions/checkout@v4
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build Docker image
+      - name: Build and push Docker image
         id: push
         uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671
         with:
