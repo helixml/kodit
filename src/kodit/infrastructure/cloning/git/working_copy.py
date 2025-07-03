@@ -17,14 +17,17 @@ class GitWorkingCopyProvider:
         self.clone_dir = clone_dir
         self.log = structlog.get_logger(__name__)
 
+    def get_clone_path(self, uri: str) -> Path:
+        """Get the clone path for a Git working copy."""
+        sanitized_uri = WorkingCopy.sanitize_git_url(uri)
+        dir_hash = hashlib.sha256(str(sanitized_uri).encode("utf-8")).hexdigest()[:16]
+        dir_name = f"repo-{dir_hash}"
+        return self.clone_dir / dir_name
+
     async def prepare(self, uri: str) -> Path:
         """Prepare a Git working copy."""
         sanitized_uri = WorkingCopy.sanitize_git_url(uri)
-
-        # Use a repeatable, short sha256 hash of the sanitized URI for the directory
-        dir_hash = hashlib.sha256(str(sanitized_uri).encode("utf-8")).hexdigest()[:16]
-        dir_name = f"repo-{dir_hash}"
-        clone_path = self.clone_dir / dir_name
+        clone_path = self.get_clone_path(uri)
         clone_path.mkdir(parents=True, exist_ok=True)
 
         try:
@@ -39,4 +42,11 @@ class GitWorkingCopyProvider:
                 raise ValueError(msg) from e
             self.log.info("Repository already exists, reusing...", uri=sanitized_uri)
 
+        return clone_path
+
+    async def sync(self, uri: str) -> Path:
+        """Refresh a Git working copy."""
+        clone_path = self.get_clone_path(uri)
+        repo = git.Repo(clone_path)
+        repo.remotes.origin.pull()
         return clone_path
