@@ -277,9 +277,7 @@ class IndexDomainService:
 
         enrichment_request = EnrichmentIndexRequest(
             requests=[
-                EnrichmentRequest(
-                    snippet_id=snippet_id, text=snippet.original_content()
-                )
+                EnrichmentRequest(snippet_id=snippet_id, text=snippet.original_text())
                 for snippet_id, snippet in snippet_map.items()
             ]
         )

@@ -189,8 +189,8 @@ class SqlAlchemyIndexRepository(IndexRepository):
             if not db_snippet:
                 raise ValueError(f"Snippet {domain_snippet.id} not found")
 
-            db_snippet.content = domain_snippet.original_content()
-            db_snippet.summary = domain_snippet.summary_content()
+            db_snippet.content = domain_snippet.original_text()
+            db_snippet.summary = domain_snippet.summary_text()
 
             # Update timestamps if provided
             if domain_snippet.updated_at:

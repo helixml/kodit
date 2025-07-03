@@ -9,8 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import kodit.domain.entities as domain_entities
 from kodit.domain.value_objects import (
-    SnippetContent,
-    SnippetContentType,
     SourceType,
 )
 from kodit.infrastructure.sqlalchemy import entities as db_entities
@@ -194,24 +192,6 @@ class IndexMapper:
         self, db_snippet: db_entities.Snippet, domain_files: list[domain_entities.File]
     ) -> domain_entities.Snippet:
         """Convert SQLAlchemy Snippet to domain Snippet."""
-        # Create snippet contents
-        contents = [
-            SnippetContent(
-                type=SnippetContentType.ORIGINAL,
-                value=db_snippet.content,
-                language="unknown",  # We'd need to detect this or store it
-            )
-        ]
-
-        if db_snippet.summary:
-            contents.append(
-                SnippetContent(
-                    type=SnippetContentType.SUMMARY,
-                    value=db_snippet.summary,
-                    language="markdown",
-                )
-            )
-
         # Find the file this snippet derives from
         derives_from = []
         for domain_file in domain_files:
@@ -219,13 +199,23 @@ class IndexMapper:
                 derives_from.append(domain_file)
                 break
 
-        return domain_entities.Snippet(
+        # Create domain snippet with original content
+        domain_snippet = domain_entities.Snippet(
             id=db_snippet.id,
             created_at=db_snippet.created_at,
             updated_at=db_snippet.updated_at,
-            contents=contents,
             derives_from=derives_from,
         )
+
+        # Add original content
+        if db_snippet.content:
+            domain_snippet.add_original_content(db_snippet.content, "unknown")
+
+        # Add summary content if it exists
+        if db_snippet.summary:
+            domain_snippet.add_summary(db_snippet.summary)
+
+        return domain_snippet
 
     async def from_domain_index(  # noqa: C901
         self, domain_index: domain_entities.Index
@@ -315,8 +305,8 @@ class IndexMapper:
         db_snippet = db_entities.Snippet(
             file_id=file_id,
             index_id=index_id,
-            content=domain_snippet.original_content(),
-            summary=domain_snippet.summary_content(),
+            content=domain_snippet.original_text(),
+            summary=domain_snippet.summary_text(),
         )
 
         if domain_snippet.id:

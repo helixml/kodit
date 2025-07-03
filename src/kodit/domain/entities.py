@@ -148,24 +148,24 @@ class Snippet(BaseModel):
     created_at: datetime | None = None  # Is populated by repository
     updated_at: datetime | None = None  # Is populated by repository
     derives_from: list[File]
-    _original_content: SnippetContent | None = None
-    _summary_content: SnippetContent | None = None
+    original_content: SnippetContent | None = None
+    summary_content: SnippetContent | None = None
 
-    def original_content(self) -> str:
+    def original_text(self) -> str:
         """Return the original content of the snippet."""
-        if self._original_content is None:
+        if self.original_content is None:
             return ""
-        return self._original_content.value
+        return self.original_content.value
 
-    def summary_content(self) -> str:
+    def summary_text(self) -> str:
         """Return the summary content of the snippet."""
-        if self._summary_content is None:
+        if self.summary_content is None:
             return ""
-        return self._summary_content.value
+        return self.summary_content.value
 
     def add_original_content(self, content: str, language: str) -> None:
         """Add an original content to the snippet."""
-        self._original_content = SnippetContent(
+        self.original_content = SnippetContent(
             type=SnippetContentType.ORIGINAL,
             value=content,
             language=language,
@@ -173,7 +173,7 @@ class Snippet(BaseModel):
 
     def add_summary(self, summary: str) -> None:
         """Add a summary to the snippet."""
-        self._summary_content = SnippetContent(
+        self.summary_content = SnippetContent(
             type=SnippetContentType.SUMMARY,
             value=summary,
             language="markdown",

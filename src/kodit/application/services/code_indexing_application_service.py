@@ -198,7 +198,7 @@ class CodeIndexingApplicationService:
         return [
             MultiSearchResult(
                 id=result.snippet.id or 0,
-                content=result.snippet.original_content(),
+                content=result.snippet.original_text(),
                 original_scores=fr.original_scores,
                 # Enhanced fields
                 source_uri=str(result.source.working_copy.remote_uri),
@@ -213,7 +213,7 @@ class CodeIndexingApplicationService:
                 authors=[author.name for author in result.authors],
                 created_at=result.snippet.created_at or datetime.now(UTC),
                 # Summary from snippet entity
-                summary=result.snippet.summary_content(),
+                summary=result.snippet.summary_text(),
             )
             for result, fr in zip(search_results, final_results, strict=True)
         ]
@@ -234,7 +234,7 @@ class CodeIndexingApplicationService:
         return [
             MultiSearchResult(
                 id=result.snippet.id or 0,
-                content=result.snippet.original_content(),
+                content=result.snippet.original_text(),
                 original_scores=[0.0],
                 # Enhanced fields
                 source_uri=str(result.source.working_copy.remote_uri),
@@ -249,7 +249,7 @@ class CodeIndexingApplicationService:
                 authors=[author.name for author in result.authors],
                 created_at=result.snippet.created_at or datetime.now(UTC),
                 # Summary from snippet entity
-                summary=result.snippet.summary_content(),
+                summary=result.snippet.summary_text(),
             )
             for result in snippet_results
         ]
@@ -261,10 +261,13 @@ class CodeIndexingApplicationService:
         reporter = Reporter(self.log, progress_callback)
         await reporter.start("bm25_index", len(snippets), "Creating keyword index...")
 
+        for snippet in snippets:
+            print(snippet.original_text())
+
         await self.bm25_service.index_documents(
             IndexRequest(
                 documents=[
-                    Document(snippet_id=snippet.id, text=snippet.original_content())
+                    Document(snippet_id=snippet.id, text=snippet.original_text())
                     for snippet in snippets
                     if snippet.id
                 ]
@@ -285,7 +288,7 @@ class CodeIndexingApplicationService:
         async for result in self.code_search_service.index_documents(
             IndexRequest(
                 documents=[
-                    Document(snippet_id=snippet.id, text=snippet.original_content())
+                    Document(snippet_id=snippet.id, text=snippet.original_text())
                     for snippet in snippets
                     if snippet.id
                 ]
@@ -314,7 +317,7 @@ class CodeIndexingApplicationService:
         for snippet in snippets:
             if snippet.id:
                 try:
-                    summary_text = snippet.summary_content()
+                    summary_text = snippet.summary_text()
                     if summary_text.strip():  # Only add if summary is not empty
                         documents_with_summaries.append(
                             Document(snippet_id=snippet.id, text=summary_text)

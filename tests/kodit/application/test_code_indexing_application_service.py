@@ -124,7 +124,7 @@ def new_function():
     created_index = await indexing_query_service.get_index_by_id(index.id)
     assert created_index
     assert len(created_index.snippets) == 1, "Should have one snippet"
-    assert "new_function" in created_index.snippets[0].original_content(), (
+    assert "new_function" in created_index.snippets[0].original_text(), (
         "Should contain new function"
     )
 
