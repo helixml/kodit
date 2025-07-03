@@ -261,8 +261,8 @@ class CodeIndexingApplicationService:
         reporter = Reporter(self.log, progress_callback)
         await reporter.start("bm25_index", len(snippets), "Creating keyword index...")
 
-        for snippet in snippets:
-            print(snippet.original_text())
+        for _snippet in snippets:
+            pass
 
         await self.bm25_service.index_documents(
             IndexRequest(
