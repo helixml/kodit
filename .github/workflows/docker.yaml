@@ -45,6 +45,9 @@ jobs:
     needs: test-build
     # Only run on main branch or when explicitly triggered
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    strategy:
+      matrix:
+        python-version: ["3.12.8", "3.13.5"]
     steps:
       - name: Free up disk space
         run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet || true
@@ -70,6 +73,10 @@ jobs:
         uses: docker/metadata-action@9ec57ed1fcdbf14dcef7dfbe97b2010124a938b7
         with:
           images: ${{ vars.REGISTRY }}/${{ vars.REGISTRY_ORG }}/${{ github.event.repository.name }}
+          tags: |
+            type=ref,event=branch,suffix=-py${{ matrix.python-version }}
+            type=ref,event=pr,suffix=-py${{ matrix.python-version }}
+            type=sha,suffix=-py${{ matrix.python-version }}
 
       - name: Build and push Docker image
         id: push
@@ -81,6 +88,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            PYTHON_VERSION=${{ matrix.python-version }}
 
       - name: Generate artifact attestation
         uses: actions/attest-build-provenance@v2
