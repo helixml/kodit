@@ -8,7 +8,7 @@ from pydantic import AnyUrl
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import kodit.domain.entities as domain_entities
-from kodit.domain.value_objects import SourceType
+from kodit.domain.value_objects import FileProcessingStatus, SourceType
 from kodit.infrastructure.mappers.index_mapper import IndexMapper
 from kodit.infrastructure.sqlalchemy import entities as db_entities
 
@@ -42,6 +42,7 @@ class TestIndexMapper:
             sha256="abc123",
             size_bytes=100,
             extension="txt",
+            file_processing_status=FileProcessingStatus.CLEAN.value,
         )
         session.add(db_file)
         await session.flush()
@@ -64,6 +65,7 @@ class TestIndexMapper:
         assert str(domain_file.uri) == db_file.uri
         assert domain_file.sha256 == db_file.sha256
         assert domain_file.mime_type == db_file.mime_type
+        assert domain_file.file_processing_status == FileProcessingStatus.CLEAN
         assert len(domain_file.authors) == 1
         assert domain_file.authors[0].name == "Test Author"
         assert domain_file.authors[0].email == "test@example.com"
@@ -90,6 +92,7 @@ class TestIndexMapper:
             sha256="abc123",
             size_bytes=100,
             extension="txt",
+            file_processing_status=FileProcessingStatus.CLEAN.value,
         )
         session.add(db_file)
         await session.flush()
@@ -103,6 +106,7 @@ class TestIndexMapper:
             sha256=db_file.sha256,
             authors=[],
             mime_type=db_file.mime_type,
+            file_processing_status=FileProcessingStatus.CLEAN,
         )
 
         domain_snippet = domain_entities.Snippet(
@@ -137,6 +141,7 @@ class TestIndexMapper:
             sha256="abc123",
             authors=[author],
             mime_type="text/plain",
+            file_processing_status=FileProcessingStatus.CLEAN,
         )
         working_copy = domain_entities.WorkingCopy(
             remote_uri=AnyUrl("file:///test/repo"),

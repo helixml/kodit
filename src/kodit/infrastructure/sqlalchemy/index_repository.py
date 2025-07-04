@@ -79,6 +79,7 @@ class SqlAlchemyIndexRepository(IndexRepository):
                 sha256=domain_file.sha256,
                 size_bytes=0,  # Deprecated
                 extension="",  # Deprecated
+                file_processing_status=domain_file.file_processing_status.value,
             )
             self._session.add(db_file)
             await self._session.flush()  # Get file ID

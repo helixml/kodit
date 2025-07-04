@@ -652,3 +652,12 @@ class SnippetExtractionRequest:
 
     file_path: Path
     strategy: SnippetExtractionStrategy = SnippetExtractionStrategy.METHOD_BASED
+
+
+class FileProcessingStatus(IntEnum):
+    """File processing status."""
+
+    CLEAN = 0
+    ADDED = 1
+    MODIFIED = 2
+    DELETED = 3

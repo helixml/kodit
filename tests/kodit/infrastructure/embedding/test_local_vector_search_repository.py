@@ -11,6 +11,7 @@ from kodit.domain.value_objects import (
     Document,
     EmbeddingResponse,
     EnrichmentRequest,
+    FileProcessingStatus,
     IndexRequest,
     SearchRequest,
     SearchResult,
@@ -454,6 +455,7 @@ async def test_retrieve_documents(session: AsyncSession) -> None:
         sha256="abc123",
         size_bytes=100,
         extension="py",
+        file_processing_status=FileProcessingStatus.CLEAN.value,
     )
     session.add(file)
     await session.commit()

@@ -8,6 +8,7 @@ from urllib.parse import urlparse, urlunparse
 from pydantic import AnyUrl, BaseModel
 
 from kodit.domain.value_objects import (
+    FileProcessingStatus,
     SnippetContent,
     SnippetContentType,
     SourceType,
@@ -33,6 +34,7 @@ class File(BaseModel):
     sha256: str
     authors: list[Author]
     mime_type: str
+    file_processing_status: FileProcessingStatus
 
     def as_path(self) -> Path:
         """Return the file as a path."""

@@ -8,6 +8,7 @@ from mcp.types import TextContent
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.config import AppContext
+from kodit.domain.value_objects import FileProcessingStatus
 from kodit.infrastructure.sqlalchemy.entities import (
     File,
     Index,
@@ -46,6 +47,7 @@ async def test_mcp_server_basic_functionality(
         sha256="abc123",
         size_bytes=100,
         extension="py",
+        file_processing_status=FileProcessingStatus.CLEAN,
     )
     session.add(file)
     await session.flush()

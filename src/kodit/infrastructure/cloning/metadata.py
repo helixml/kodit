@@ -10,7 +10,7 @@ import git
 from pydantic import AnyUrl
 
 from kodit.domain.entities import Author, File
-from kodit.domain.value_objects import SourceType
+from kodit.domain.value_objects import FileProcessingStatus, SourceType
 
 
 class FileMetadataExtractor:
@@ -46,6 +46,7 @@ class FileMetadataExtractor:
                 else "application/octet-stream",
                 sha256=sha,
                 authors=authors,
+                file_processing_status=FileProcessingStatus.ADDED,
             )
 
     async def _get_git_timestamps(self, file_path: Path) -> tuple[datetime, datetime]:

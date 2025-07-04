@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import (
 
 from kodit.domain.value_objects import (
     Document,
+    FileProcessingStatus,
     IndexRequest,
     SearchRequest,
     SearchResult,
@@ -189,6 +190,7 @@ async def test_data(
         sha256="",
         size_bytes=0,
         extension="py",
+        file_processing_status=FileProcessingStatus.CLEAN,
     )
     vectorchord_session.add(file)
     await vectorchord_session.flush()

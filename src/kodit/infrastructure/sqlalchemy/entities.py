@@ -115,6 +115,7 @@ class File(Base, CommonMixin):
     sha256: Mapped[str] = mapped_column(String(64), default="", index=True)
     size_bytes: Mapped[int] = mapped_column(Integer, default=0)
     extension: Mapped[str] = mapped_column(String(255), default="", index=True)
+    file_processing_status: Mapped[int] = mapped_column(Integer, default=0)
 
     def __init__(  # noqa: PLR0913
         self,
@@ -127,6 +128,7 @@ class File(Base, CommonMixin):
         sha256: str,
         size_bytes: int,
         extension: str,
+        file_processing_status: int,
     ) -> None:
         """Initialize a new File instance for typing purposes."""
         super().__init__()
@@ -139,6 +141,7 @@ class File(Base, CommonMixin):
         self.sha256 = sha256
         self.size_bytes = size_bytes
         self.extension = extension
+        self.file_processing_status = file_processing_status
 
 
 class EmbeddingType(Enum):

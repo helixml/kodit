@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from kodit.domain.services.embedding_service import EmbeddingDomainService
 from kodit.domain.value_objects import (
     Document,
+    FileProcessingStatus,
     IndexRequest,
     SearchRequest,
     SearchResult,
@@ -73,6 +74,7 @@ class TestEmbeddingIntegration:
             sha256="abc123",
             size_bytes=100,
             extension="py",
+            file_processing_status=FileProcessingStatus.CLEAN.value,
         )
         session.add(file)
         await session.commit()
@@ -182,6 +184,7 @@ class TestEmbeddingIntegration:
             sha256="abc123",
             size_bytes=100,
             extension="py",
+            file_processing_status=FileProcessingStatus.CLEAN.value,
         )
         session.add(file)
         await session.commit()
@@ -289,6 +292,7 @@ class TestEmbeddingIntegration:
             sha256="abc123",
             size_bytes=100,
             extension="py",
+            file_processing_status=FileProcessingStatus.CLEAN.value,
         )
         session.add(file)
         await session.commit()
@@ -399,6 +403,7 @@ class TestEmbeddingIntegration:
             sha256="abc123",
             size_bytes=100,
             extension="py",
+            file_processing_status=FileProcessingStatus.CLEAN.value,
         )
         session.add(file)
         await session.commit()
@@ -495,6 +500,7 @@ class TestEmbeddingIntegration:
             sha256="abc123",
             size_bytes=100,
             extension="py",
+            file_processing_status=FileProcessingStatus.CLEAN.value,
         )
         session.add(file)
         await session.commit()
@@ -582,6 +588,7 @@ class TestEmbeddingIntegration:
             sha256="abc123",
             size_bytes=100,
             extension="py",
+            file_processing_status=FileProcessingStatus.CLEAN.value,
         )
         session.add(file)
         await session.commit()

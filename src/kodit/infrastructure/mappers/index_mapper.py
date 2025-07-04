@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import kodit.domain.entities as domain_entities
 from kodit.domain.value_objects import (
+    FileProcessingStatus,
     SourceType,
 )
 from kodit.infrastructure.sqlalchemy import entities as db_entities
@@ -65,6 +66,9 @@ class IndexMapper:
                 sha256=db_file.sha256,
                 authors=domain_authors,
                 mime_type=db_file.mime_type,
+                file_processing_status=FileProcessingStatus(
+                    db_file.file_processing_status
+                ),
             )
             domain_files.append(domain_file)
 
@@ -142,6 +146,9 @@ class IndexMapper:
                 sha256=db_file.sha256,
                 authors=domain_authors,
                 mime_type=db_file.mime_type,
+                file_processing_status=FileProcessingStatus(
+                    db_file.file_processing_status
+                ),
             )
             domain_files.append(domain_file)
 
@@ -186,6 +193,7 @@ class IndexMapper:
             sha256=db_file.sha256,
             authors=domain_authors,
             mime_type=db_file.mime_type,
+            file_processing_status=FileProcessingStatus(db_file.file_processing_status),
         )
 
     async def to_domain_snippet(
@@ -271,6 +279,7 @@ class IndexMapper:
                 sha256=domain_file.sha256,
                 size_bytes=0,  # Would need to be determined
                 extension="",  # Would need to be determined
+                file_processing_status=domain_file.file_processing_status.value,
             )
             if domain_file.id:
                 db_file.id = domain_file.id
