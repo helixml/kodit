@@ -74,9 +74,9 @@ jobs:
         with:
           images: ${{ vars.REGISTRY }}/${{ vars.REGISTRY_ORG }}/${{ github.event.repository.name }}
           tags: |
-            type=ref,event=branch,suffix=-py${{ matrix.python-version }}
-            type=ref,event=pr,suffix=-py${{ matrix.python-version }}
-            type=sha,suffix=-py${{ matrix.python-version }}
+            type=ref,event=branch,suffix=-py${{ join(slice(split(matrix.python-version, '.'), 0, 2), '.') }}
+            type=ref,event=pr,suffix=-py${{ join(slice(split(matrix.python-version, '.'), 0, 2), '.') }}
+            type=sha,suffix=-py${{ join(slice(split(matrix.python-version, '.'), 0, 2), '.') }}
 
       - name: Build and push Docker image
         id: push
