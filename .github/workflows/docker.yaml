@@ -72,7 +72,7 @@ jobs:
         id: pyver
         run: |
           echo "SHORT_PY=$(echo '${{ matrix.python-version }}' | cut -d. -f1,2)" >> $GITHUB_OUTPUT
-          echo "ENABLE_DEFAULT=$(echo '${{ matrix.python-version }}' | cut -d. -f1,2 | eq '3.13' && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
+          echo "ENABLE_DEFAULT=$([ \"$(echo '${{ matrix.python-version }}' | cut -d. -f1,2)\" = \"3.13\" && echo true || echo false)" >> $GITHUB_OUTPUT
 
       - name: Extract metadata (tags, labels) for Docker
         id: meta
