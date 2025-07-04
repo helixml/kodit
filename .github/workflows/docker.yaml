@@ -72,6 +72,7 @@ jobs:
         id: pyver
         run: |
           echo "SHORT_PY=$(echo '${{ matrix.python-version }}' | cut -d. -f1,2)" >> $GITHUB_OUTPUT
+          echo "ENABLE_DEFAULT=$(echo '${{ matrix.python-version }}' | cut -d. -f1,2 | eq '3.13')" >> $GITHUB_OUTPUT
 
       - name: Extract metadata (tags, labels) for Docker
         id: meta
@@ -79,9 +80,13 @@ jobs:
         with:
           images: ${{ vars.REGISTRY }}/${{ vars.REGISTRY_ORG }}/${{ github.event.repository.name }}
           tags: |
-            type=ref,event=branch,suffix=-py${{ steps.pyver.outputs.SHORT_PY }}
-            type=ref,event=pr,suffix=-py${{ steps.pyver.outputs.SHORT_PY }}
-            type=sha,suffix=-py${{ steps.pyver.outputs.SHORT_PY }}
+            type=semver,pattern={{version}},enable=${{ steps.pyver.outputs.ENABLE_DEFAULT }}
+            type=semver,pattern={{version}},suffix=-py${{ steps.pyver.outputs.SHORT_PY }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ steps.pyver.outputs.ENABLE_DEFAULT }}
+            type=semver,pattern={{major}}.{{minor}},suffix=-py${{ steps.pyver.outputs.SHORT_PY }}
+            type=ref,event=branch,enable=${{ steps.pyver.outputs.ENABLE_DEFAULT }}
+            type=ref,event=pr,enable=${{ steps.pyver.outputs.ENABLE_DEFAULT }}
+            type=sha,enable=${{ steps.pyver.outputs.ENABLE_DEFAULT }}
 
       - name: Build and push Docker image
         id: push
