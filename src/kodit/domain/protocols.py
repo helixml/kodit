@@ -16,6 +16,10 @@ class IndexRepository(Protocol):
         """Create an index for a source."""
         ...
 
+    async def update(self, index: Index) -> None:
+        """Update an index."""
+        ...
+
     async def get(self, index_id: int) -> Index | None:
         """Get an index by ID."""
         ...
@@ -44,10 +48,14 @@ class IndexRepository(Protocol):
         """Delete all snippets from an index."""
         ...
 
+    async def delete_snippets_by_file_ids(self, file_ids: list[int]) -> None:
+        """Delete snippets by file IDs."""
+        ...
+
     async def search(self, request: MultiSearchRequest) -> Sequence[SnippetWithContext]:
         """Search snippets with filters."""
-        raise NotImplementedError
+        ...
 
     async def get_snippets_by_ids(self, ids: list[int]) -> list[SnippetWithContext]:
         """Get snippets by their IDs."""
-        raise NotImplementedError
+        ...

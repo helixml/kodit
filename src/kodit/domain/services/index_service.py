@@ -69,7 +69,7 @@ class IndexDomainService:
         self,
         uri_or_path_like: str,  # Must include user/pass, etc
         progress_callback: ProgressCallback | None = None,
-    ) -> tuple[AnyUrl, domain_entities.WorkingCopy]:
+    ) -> domain_entities.WorkingCopy:
         """Prepare an index by scanning files and creating working copy."""
         sanitized_uri = self._sanitize_uri(uri_or_path_like)
         self.log.debug("Preparing index", uri=str(sanitized_uri))
@@ -91,54 +91,19 @@ class IndexDomainService:
         else:
             raise ValueError(f"Unsupported source: {uri_or_path_like}")
 
-        # Get files to process using ignore patterns
-        ignore_provider = GitIgnorePatternProvider(local_path)
-        files: list[domain_entities.File] = []
-        file_paths = [
-            f
-            for f in local_path.rglob("*")
-            if f.is_file() and not ignore_provider.should_ignore(f)
-        ]
-        file_count = len(file_paths)
-        if file_count == 0:
-            self.log.info("No files to index", uri=str(sanitized_uri))
-            raise ValueError("No files to index")
-
-        reporter = Reporter(self.log, progress_callback)
-        await reporter.start("scan_files", file_count, "Scanning files...")
-
-        metadata_extractor = FileMetadataExtractor(source_type)
-
-        for i, file_path in enumerate(file_paths):
-            # Create domain file entity
-            try:
-                files.append(await metadata_extractor.extract(file_path=file_path))
-            except (OSError, ValueError) as e:
-                self.log.debug("Skipping file", file=str(file_path), error=str(e))
-                continue
-
-            await reporter.step(
-                "scan_files", i + 1, file_count, f"Scanned {file_path.name}"
-            )
-
-        await reporter.done("scan_files")
-
-        # Create updated working copy
-        working_copy = domain_entities.WorkingCopy(
+        return domain_entities.WorkingCopy(
             remote_uri=sanitized_uri,
             cloned_path=local_path,
             source_type=source_type,
-            files=files,
+            files=[],
         )
-
-        return sanitized_uri, working_copy
 
     async def extract_snippets_from_index(
         self,
         index: domain_entities.Index,
         strategy: SnippetExtractionStrategy = SnippetExtractionStrategy.METHOD_BASED,
         progress_callback: ProgressCallback | None = None,
-    ) -> list[domain_entities.Snippet]:
+    ) -> domain_entities.Index:
         """Extract code snippets from files in the index."""
         file_count = len(index.source.working_copy.files)
 
@@ -149,7 +114,8 @@ class IndexDomainService:
             strategy=strategy.value,
         )
 
-        files = index.source.working_copy.files
+        # Only create snippets for files that have been added or modified
+        files = index.source.working_copy.changed_files()
         snippets = []
 
         reporter = Reporter(self.log, progress_callback)
@@ -254,3 +220,95 @@ class IndexDomainService:
         if Path(uri_or_path_like).is_dir():
             return domain_entities.WorkingCopy.sanitize_local_path(uri_or_path_like)
         raise ValueError(f"Unsupported source: {uri_or_path_like}")
+
+    async def refresh_working_copy(
+        self,
+        working_copy: domain_entities.WorkingCopy,
+        progress_callback: ProgressCallback | None = None,
+    ) -> domain_entities.WorkingCopy:
+        """Refresh the working copy."""
+        metadata_extractor = FileMetadataExtractor(working_copy.source_type)
+        reporter = Reporter(self.log, progress_callback)
+
+        if working_copy.source_type == domain_entities.SourceType.GIT:
+            git_working_copy_provider = GitWorkingCopyProvider(self._clone_dir)
+            await git_working_copy_provider.sync(str(working_copy.remote_uri))
+
+        new_file_paths = working_copy.list_filesystem_paths(
+            GitIgnorePatternProvider(working_copy.cloned_path)
+        )
+
+        previous_files_map = {file.as_path(): file for file in working_copy.files}
+
+        # Calculate different sets of files
+        deleted_file_paths = set(previous_files_map.keys()) - set(new_file_paths)
+        new_file_paths = set(new_file_paths) - set(previous_files_map.keys())
+        modified_file_paths = set(new_file_paths) & set(previous_files_map.keys())
+        num_files_to_process = (
+            len(deleted_file_paths) + len(new_file_paths) + len(modified_file_paths)
+        )
+        self.log.info(
+            "Refreshing working copy",
+            num_deleted=len(deleted_file_paths),
+            num_new=len(new_file_paths),
+            num_modified=len(modified_file_paths),
+            num_total_changes=num_files_to_process,
+        )
+
+        # Setup reporter
+        processed = 0
+        await reporter.start(
+            "refresh_working_copy", num_files_to_process, "Refreshing working copy..."
+        )
+
+        # First check to see if any files have been deleted
+        for file_path in deleted_file_paths:
+            processed += 1
+            await reporter.step(
+                "refresh_working_copy",
+                processed,
+                num_files_to_process,
+                f"Deleted {file_path.name}",
+            )
+            previous_files_map[
+                file_path
+            ].file_processing_status = domain_entities.FileProcessingStatus.DELETED
+
+        # Then check to see if there are any new files
+        for file_path in new_file_paths:
+            processed += 1
+            await reporter.step(
+                "refresh_working_copy",
+                processed,
+                num_files_to_process,
+                f"New {file_path.name}",
+            )
+            try:
+                working_copy.files.append(
+                    await metadata_extractor.extract(file_path=file_path)
+                )
+            except (OSError, ValueError) as e:
+                self.log.info("Skipping file", file=str(file_path), error=str(e))
+                continue
+
+        # Finally check if there are any modified files
+        for file_path in modified_file_paths:
+            processed += 1
+            await reporter.step(
+                "refresh_working_copy",
+                processed,
+                num_files_to_process,
+                f"Modified {file_path.name}",
+            )
+            try:
+                previous_file = previous_files_map[file_path]
+                new_file = await metadata_extractor.extract(file_path=file_path)
+                if previous_file.sha256 != new_file.sha256:
+                    previous_file.file_processing_status = (
+                        domain_entities.FileProcessingStatus.MODIFIED
+                    )
+            except (OSError, ValueError) as e:
+                self.log.info("Skipping file", file=str(file_path), error=str(e))
+                continue
+
+        return working_copy

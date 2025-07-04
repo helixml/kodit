@@ -6,8 +6,7 @@ from datetime import UTC, datetime
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.entities import Index, Snippet
-from kodit.domain.errors import EmptySourceError
+from kodit.domain.entities import Index, Snippet, WorkingCopy
 from kodit.domain.interfaces import ProgressCallback
 from kodit.domain.protocols import IndexRepository
 from kodit.domain.services.bm25_service import BM25DomainService
@@ -60,10 +59,9 @@ class CodeIndexingApplicationService:
         """Create a new index for a source."""
         log_event("kodit.index.create")
 
+        sanitized_uri = WorkingCopy.sanitize_git_url(uri)
+
         # Check if index already exists
-        sanitized_uri, working_copy = await self.index_domain_service.prepare_index(
-            uri, progress_callback
-        )
         existing_index = await self.index_repository.get_by_uri(sanitized_uri)
         if existing_index:
             self.log.debug(
@@ -72,6 +70,10 @@ class CodeIndexingApplicationService:
                 index_id=existing_index.id,
             )
             return existing_index
+
+        working_copy = await self.index_domain_service.prepare_index(
+            uri, progress_callback
+        )
 
         # Create new index
         index = await self.index_repository.create(sanitized_uri, working_copy)
@@ -88,29 +90,24 @@ class CodeIndexingApplicationService:
             msg = f"Index has no ID: {index}"
             raise ValueError(msg)
 
-        if len(index.source.working_copy.files) == 0:
-            msg = f"No files to index for index {index.id}"
-            raise EmptySourceError(msg)
-
-        # Delete all old snippets
-        await self.index_repository.delete_snippets(index.id)
-
-        # Future: Refresh working copy
+        # Refresh working copy
+        index.source.working_copy = (
+            await self.index_domain_service.refresh_working_copy(
+                index.source.working_copy
+            )
+        )
+        if len(index.source.working_copy.changed_files()) == 0:
+            self.log.info("No new changes to index", index_id=index.id)
+            return
 
         # Extract and create snippets (domain service handles progress)
         self.log.info("Creating snippets for files", index_id=index.id)
-        snippets = await self.index_domain_service.extract_snippets_from_index(
+        index = await self.index_domain_service.extract_snippets_from_index(
             index=index, progress_callback=progress_callback
         )
 
-        # Check if any snippets were extracted
-        if len(snippets) == 0:
-            msg = f"No indexable snippets found for index {index.id}"
-            raise EmptySourceError(msg)
-
-        # Add snippets to repository
-        await self.index_repository.add_snippets(index.id, snippets)
-        await self.session.commit()
+        await self.index_repository.update(index)
+        await self.session.flush()
 
         # Refresh index to get snippets with IDs, required as a ref for subsequent steps
         flushed_index = await self.index_repository.get(index.id)

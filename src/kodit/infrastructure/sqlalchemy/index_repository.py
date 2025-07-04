@@ -398,3 +398,6 @@ class SqlAlchemyIndexRepository(IndexRepository):
             db_entities.Snippet.index_id == index_id
         )
         await self._session.execute(snippet_stmt)
+
+    async def update(self, index: domain_entities.Index) -> None:
+        """Update an index."""
