@@ -68,15 +68,20 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
+      - name: Set short Python version
+        id: pyver
+        run: |
+          echo "SHORT_PY=$(echo '${{ matrix.python-version }}' | cut -d. -f1,2)" >> $GITHUB_OUTPUT
+
       - name: Extract metadata (tags, labels) for Docker
         id: meta
         uses: docker/metadata-action@9ec57ed1fcdbf14dcef7dfbe97b2010124a938b7
         with:
           images: ${{ vars.REGISTRY }}/${{ vars.REGISTRY_ORG }}/${{ github.event.repository.name }}
           tags: |
-            type=ref,event=branch,suffix=-py${{ join(slice(split(matrix.python-version, '.'), 0, 2), '.') }}
-            type=ref,event=pr,suffix=-py${{ join(slice(split(matrix.python-version, '.'), 0, 2), '.') }}
-            type=sha,suffix=-py${{ join(slice(split(matrix.python-version, '.'), 0, 2), '.') }}
+            type=ref,event=branch,suffix=-py${{ steps.pyver.outputs.SHORT_PY }}
+            type=ref,event=pr,suffix=-py${{ steps.pyver.outputs.SHORT_PY }}
+            type=sha,suffix=-py${{ steps.pyver.outputs.SHORT_PY }}
 
       - name: Build and push Docker image
         id: push
