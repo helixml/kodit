@@ -139,6 +139,11 @@ class CodeIndexingApplicationService:
         # Update index timestamp
         await self.index_repository.update_index_timestamp(index.id)
 
+        # Now that all file dependencies have been captured, enact the file processing
+        # statuses
+        index.source.working_copy.clear_file_processing_statuses()
+        await self.index_repository.update(index)
+
         # Single transaction commit for the entire operation
         await self.session.commit()
 

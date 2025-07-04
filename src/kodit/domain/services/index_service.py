@@ -72,8 +72,9 @@ class IndexDomainService:
     ) -> domain_entities.WorkingCopy:
         """Prepare an index by scanning files and creating working copy."""
         sanitized_uri = self._sanitize_uri(uri_or_path_like)
-        self.log.debug("Preparing index", uri=str(sanitized_uri))
+        self.log.info("Preparing source", uri=str(sanitized_uri))
 
+        reporter = Reporter(self.log, progress_callback)
         # Clone the source repository
         if is_valid_clone_target(uri_or_path_like):
             source_type = domain_entities.SourceType.GIT
@@ -81,15 +82,20 @@ class IndexDomainService:
                 uri_or_path_like
             )
             git_working_copy_provider = GitWorkingCopyProvider(self._clone_dir)
+            await reporter.start("prepare_index", 1, "Cloning source...")
             local_path = await git_working_copy_provider.prepare(uri_or_path_like)
+            await reporter.done("prepare_index")
         elif Path(uri_or_path_like).is_dir():
             source_type = domain_entities.SourceType.FOLDER
             sanitized_uri = domain_entities.WorkingCopy.sanitize_local_path(
                 uri_or_path_like
             )
+            await reporter.start("prepare_index", 1, "Scanning source...")
             local_path = path_from_uri(str(sanitized_uri))
         else:
             raise ValueError(f"Unsupported source: {uri_or_path_like}")
+
+        await reporter.done("prepare_index")
 
         return domain_entities.WorkingCopy(
             remote_uri=sanitized_uri,
@@ -116,13 +122,14 @@ class IndexDomainService:
 
         # Only create snippets for files that have been added or modified
         files = index.source.working_copy.changed_files()
-        snippets = []
+        index.delete_snippets_for_files(files)
 
         reporter = Reporter(self.log, progress_callback)
         await reporter.start(
             "extract_snippets", len(files), "Extracting code snippets..."
         )
 
+        new_snippets = []
         for i, domain_file in enumerate(files, 1):
             try:
                 # Extract snippets from file
@@ -135,7 +142,7 @@ class IndexDomainService:
                         derives_from=[domain_file],
                     )
                     snippet.add_original_content(snippet_text, result.language)
-                    snippets.append(snippet)
+                    new_snippets.append(snippet)
 
             except (OSError, ValueError) as e:
                 self.log.debug(
@@ -149,10 +156,9 @@ class IndexDomainService:
                 "extract_snippets", i, len(files), f"Processed {domain_file.uri.path}"
             )
 
+        index.snippets.extend(new_snippets)
         await reporter.done("extract_snippets")
-
-        # Return extracted snippets
-        return snippets
+        return index
 
     async def enrich_snippets_in_index(
         self,
@@ -253,6 +259,7 @@ class IndexDomainService:
             num_new=len(new_file_paths),
             num_modified=len(modified_file_paths),
             num_total_changes=num_files_to_process,
+            num_dirty=len(working_copy.dirty_files()),
         )
 
         # Setup reporter

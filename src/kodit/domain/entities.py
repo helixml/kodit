@@ -181,6 +181,18 @@ class WorkingCopy(BaseModel):
             if file.file_processing_status != FileProcessingStatus.CLEAN
         ]
 
+    def clear_file_processing_statuses(self) -> None:
+        """Clear the file processing statuses."""
+        # First remove any files that are marked for deletion
+        self.files = [
+            file
+            for file in self.files
+            if file.file_processing_status != FileProcessingStatus.DELETED
+        ]
+        # Then clear the statuses for the remaining files
+        for file in self.files:
+            file.file_processing_status = FileProcessingStatus.CLEAN
+
 
 class Source(BaseModel):
     """Source domain entity."""
@@ -238,6 +250,14 @@ class Index(BaseModel):
     updated_at: datetime
     source: Source
     snippets: list[Snippet]
+
+    def delete_snippets_for_files(self, files: list[File]) -> None:
+        """Delete the snippets that derive from a list of files."""
+        self.snippets = [
+            snippet
+            for snippet in self.snippets
+            if not any(file in snippet.derives_from for file in files)
+        ]
 
 
 # FUTURE: Remove this type, use the domain to get the required information.

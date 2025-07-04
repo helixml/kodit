@@ -400,4 +400,151 @@ class SqlAlchemyIndexRepository(IndexRepository):
         await self._session.execute(snippet_stmt)
 
     async def update(self, index: domain_entities.Index) -> None:
-        """Update an index."""
+        """Update an index by ensuring all domain objects are saved to database."""
+        if not index.id:
+            raise ValueError("Index must have an ID to be updated")
+
+        # 1. Verify the index exists in the database
+        db_index = await self._session.get(db_entities.Index, index.id)
+        if not db_index:
+            raise ValueError(f"Index {index.id} not found")
+
+        # 2. Update index timestamps
+        if index.updated_at:
+            db_index.updated_at = index.updated_at
+
+        # 3. Update source if it exists
+        await self._update_source(index, db_index)
+
+        # 4. Handle files and authors from working copy
+        if index.source and index.source.working_copy:
+            await self._update_files_and_authors(index, db_index)
+
+        # 5. Handle snippets
+        if index.snippets:
+            await self._update_snippets(index)
+
+    async def _update_source(
+        self, index: domain_entities.Index, db_index: db_entities.Index
+    ) -> None:
+        """Update source information."""
+        if not index.source:
+            return
+
+        db_source = await self._session.get(db_entities.Source, db_index.source_id)
+        if db_source and index.source.working_copy:
+            db_source.uri = str(index.source.working_copy.remote_uri)
+            db_source.cloned_path = str(index.source.working_copy.cloned_path)
+            db_source.type = db_entities.SourceType(
+                index.source.working_copy.source_type.value
+            )
+            if index.source.updated_at:
+                db_source.updated_at = index.source.updated_at
+
+    async def _update_files_and_authors(
+        self, index: domain_entities.Index, db_index: db_entities.Index
+    ) -> None:
+        """Update files and authors."""
+        if not index.source or not index.source.working_copy:
+            return
+
+        # Create a set of unique authors
+        unique_authors = {}
+        for domain_file in index.source.working_copy.files:
+            for author in domain_file.authors:
+                key = (author.name, author.email)
+                if key not in unique_authors:
+                    unique_authors[key] = author
+
+        # Find or create authors and store their IDs
+        author_id_map = {}
+        for domain_author in unique_authors.values():
+            db_author = await self._find_or_create_author(domain_author)
+            author_id_map[(domain_author.name, domain_author.email)] = db_author.id
+
+        # Update or create files and synchronize domain objects with database IDs
+        for domain_file in index.source.working_copy.files:
+            file_id = await self._update_or_create_file(domain_file, db_index)
+            # CRITICAL: Update domain file with database ID for snippet creation
+            if not domain_file.id:
+                domain_file.id = file_id
+            await self._update_author_file_mappings(domain_file, file_id, author_id_map)
+
+    async def _update_or_create_file(
+        self,
+        domain_file: domain_entities.File,
+        db_index: db_entities.Index,
+    ) -> int:
+        """Update or create a file and return its ID."""
+        # Try to find existing file by URI and source_id
+        file_stmt = select(db_entities.File).where(
+            db_entities.File.uri == str(domain_file.uri),
+            db_entities.File.source_id == db_index.source_id,
+        )
+        existing_file = await self._session.scalar(file_stmt)
+
+        if existing_file:
+            # Update existing file
+            if domain_file.created_at:
+                existing_file.created_at = domain_file.created_at
+            if domain_file.updated_at:
+                existing_file.updated_at = domain_file.updated_at
+            existing_file.mime_type = domain_file.mime_type
+            existing_file.sha256 = domain_file.sha256
+            existing_file.file_processing_status = (
+                domain_file.file_processing_status.value
+            )
+            return existing_file.id
+        # Create new file
+        db_file = db_entities.File(
+            created_at=domain_file.created_at or db_index.created_at,
+            updated_at=domain_file.updated_at or db_index.updated_at,
+            source_id=db_index.source_id,
+            mime_type=domain_file.mime_type,
+            uri=str(domain_file.uri),
+            cloned_path=str(domain_file.uri),
+            sha256=domain_file.sha256,
+            size_bytes=0,  # Deprecated
+            extension="",  # Deprecated
+            file_processing_status=domain_file.file_processing_status.value,
+        )
+        self._session.add(db_file)
+        await self._session.flush()
+        return db_file.id
+
+    async def _update_author_file_mappings(
+        self,
+        domain_file: domain_entities.File,
+        file_id: int,
+        author_id_map: dict[tuple[str, str], int],
+    ) -> None:
+        """Update author-file mappings for a file."""
+        for author in domain_file.authors:
+            author_id = author_id_map[(author.name, author.email)]
+            mapping = db_entities.AuthorFileMapping(
+                author_id=author_id, file_id=file_id
+            )
+            await self._upsert_author_file_mapping(mapping)
+
+    async def _update_snippets(self, index: domain_entities.Index) -> None:
+        """Update snippets for the index."""
+        if not index.snippets:
+            return
+
+        for domain_snippet in index.snippets:
+            if domain_snippet.id:
+                # Update existing snippet
+                db_snippet = await self._session.get(
+                    db_entities.Snippet, domain_snippet.id
+                )
+                if db_snippet:
+                    db_snippet.content = domain_snippet.original_text()
+                    db_snippet.summary = domain_snippet.summary_text()
+                    if domain_snippet.updated_at:
+                        db_snippet.updated_at = domain_snippet.updated_at
+            else:
+                # Create new snippet
+                db_snippet = await self._mapper.from_domain_snippet(
+                    domain_snippet, index.id
+                )
+                self._session.add(db_snippet)
