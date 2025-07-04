@@ -188,6 +188,6 @@ docs/
 .vscode/
 .gitignore
 LICENSE
-.python-version
+.python-version # Set in the Dockerfile
 .dockerignore
 tests/

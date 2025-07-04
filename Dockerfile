@@ -33,6 +33,10 @@ ENV UV_LINK_MODE=copy \
     UV_PYTHON=python3.13 \
     UV_PROJECT_ENVIRONMENT=/app
 
+
+# Write the PYTHON_VERSION to a .python-version
+RUN echo ${PYTHON_VERSION} > .python-version
+
 # Synchronize DEPENDENCIES without the application itself.
 # This layer is cached until uv.lock or pyproject.toml change, which are
 # only temporarily mounted into the build container since we don't need
