@@ -30,9 +30,7 @@ COPY --from=ghcr.io/astral-sh/uv:0.7.2 /uv /usr/local/bin/uv
 ENV UV_LINK_MODE=copy \
     UV_COMPILE_BYTECODE=1 \
     UV_PYTHON_DOWNLOADS=never \
-    UV_PYTHON=python3.13 \
     UV_PROJECT_ENVIRONMENT=/app
-
 
 # Write the PYTHON_VERSION to a .python-version
 RUN echo ${PYTHON_VERSION} > .python-version
@@ -47,6 +45,7 @@ RUN echo ${PYTHON_VERSION} > .python-version
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    UV_PYTHON="python$(echo ${PYTHON_VERSION} | cut -d. -f1-2)" \
     uv sync \
         --locked \
         --no-dev \
@@ -58,6 +57,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 COPY . /src
 WORKDIR /src
 RUN --mount=type=cache,target=/root/.cache/uv \
+    UV_PYTHON="python$(echo ${PYTHON_VERSION} | cut -d. -f1-2)" \
     uv sync \
         --locked \
         --no-dev \
