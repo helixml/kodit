@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from kodit.domain.entities import Index, Snippet
 from kodit.domain.errors import EmptySourceError
 from kodit.domain.interfaces import ProgressCallback
+from kodit.domain.protocols import IndexRepository
 from kodit.domain.services.bm25_service import BM25DomainService
 from kodit.domain.services.embedding_service import EmbeddingDomainService
 from kodit.domain.services.enrichment_service import EnrichmentDomainService
@@ -34,6 +35,7 @@ class CodeIndexingApplicationService:
     def __init__(  # noqa: PLR0913
         self,
         indexing_domain_service: IndexDomainService,
+        index_repository: IndexRepository,
         index_query_service: IndexQueryService,
         bm25_service: BM25DomainService,
         code_search_service: EmbeddingDomainService,
@@ -43,6 +45,7 @@ class CodeIndexingApplicationService:
     ) -> None:
         """Initialize the code indexing application service."""
         self.index_domain_service = indexing_domain_service
+        self.index_repository = index_repository
         self.index_query_service = index_query_service
         self.bm25_service = bm25_service
         self.code_search_service = code_search_service
@@ -57,7 +60,21 @@ class CodeIndexingApplicationService:
         """Create a new index for a source."""
         log_event("kodit.index.create")
 
-        index = await self.index_domain_service.create_index(uri, progress_callback)
+        # Check if index already exists
+        sanitized_uri, working_copy = await self.index_domain_service.prepare_index(
+            uri, progress_callback
+        )
+        existing_index = await self.index_repository.get_by_uri(sanitized_uri)
+        if existing_index:
+            self.log.debug(
+                "Index already exists",
+                uri=str(sanitized_uri),
+                index_id=existing_index.id,
+            )
+            return existing_index
+
+        # Create new index
+        index = await self.index_repository.create(sanitized_uri, working_copy)
         await self.session.commit()
         return index
 
@@ -76,21 +93,31 @@ class CodeIndexingApplicationService:
             raise EmptySourceError(msg)
 
         # Delete all old snippets
-        await self.index_domain_service.delete_snippets(index.id)
+        await self.index_repository.delete_snippets(index.id)
 
         # Future: Refresh working copy
 
         # Extract and create snippets (domain service handles progress)
         self.log.info("Creating snippets for files", index_id=index.id)
-        index = await self.index_domain_service.extract_snippets(
+        snippets = await self.index_domain_service.extract_snippets_from_index(
             index=index, progress_callback=progress_callback
         )
-        await self.session.commit()
 
         # Check if any snippets were extracted
-        if not index.snippets or len(index.snippets) == 0:
+        if len(snippets) == 0:
             msg = f"No indexable snippets found for index {index.id}"
             raise EmptySourceError(msg)
+
+        # Add snippets to repository
+        await self.index_repository.add_snippets(index.id, snippets)
+        await self.session.commit()
+
+        # Refresh index to get snippets with IDs, required as a ref for subsequent steps
+        flushed_index = await self.index_repository.get(index.id)
+        if not flushed_index:
+            msg = f"Index {index.id} not found after snippet extraction"
+            raise ValueError(msg)
+        index = flushed_index
 
         # Create BM25 index
         self.log.info("Creating keyword index")
@@ -102,16 +129,18 @@ class CodeIndexingApplicationService:
 
         # Enrich snippets
         self.log.info("Enriching snippets", num_snippets=len(index.snippets))
-        index = await self.index_domain_service.enrich_snippets(
-            index=index, progress_callback=progress_callback
+        enriched_snippets = await self.index_domain_service.enrich_snippets_in_index(
+            snippets=index.snippets, progress_callback=progress_callback
         )
+        # Update snippets in repository
+        await self.index_repository.update_snippets(index.id, enriched_snippets)
 
         # Create text embeddings (on enriched content)
         self.log.info("Creating semantic text index")
-        await self._create_text_embeddings(index.snippets, progress_callback)
+        await self._create_text_embeddings(enriched_snippets, progress_callback)
 
         # Update index timestamp
-        await self.index_domain_service.update_index_timestamp(index.id)
+        await self.index_repository.update_index_timestamp(index.id)
 
         # Single transaction commit for the entire operation
         await self.session.commit()

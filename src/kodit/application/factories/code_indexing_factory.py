@@ -72,7 +72,6 @@ def create_code_indexing_application_service(
         SnippetExtractionStrategy.METHOD_BASED: method_extractor,
     }
     index_domain_service = IndexDomainService(
-        index_repository=index_repository,
         language_detector=language_detector,
         snippet_extractors=snippet_extractors,
         enrichment_service=enrichment_service,
@@ -86,6 +85,7 @@ def create_code_indexing_application_service(
     # Create and return the unified application service
     return CodeIndexingApplicationService(
         indexing_domain_service=index_domain_service,
+        index_repository=index_repository,
         index_query_service=index_query_service,
         bm25_service=bm25_service,
         code_search_service=code_search_service,
@@ -145,7 +145,6 @@ def create_fast_test_code_indexing_application_service(
         SnippetExtractionStrategy.METHOD_BASED: method_extractor,
     }
     index_domain_service = IndexDomainService(
-        index_repository=index_repository,
         language_detector=language_detector,
         snippet_extractors=snippet_extractors,
         enrichment_service=enrichment_service,
@@ -159,6 +158,7 @@ def create_fast_test_code_indexing_application_service(
     # Create and return the unified application service
     return CodeIndexingApplicationService(
         indexing_domain_service=index_domain_service,
+        index_repository=index_repository,
         index_query_service=index_query_service,
         bm25_service=bm25_service,
         code_search_service=code_search_service,

@@ -9,7 +9,6 @@ from pydantic import AnyUrl
 
 import kodit.domain.entities as domain_entities
 from kodit.domain.interfaces import ProgressCallback
-from kodit.domain.protocols import IndexRepository
 from kodit.domain.services.enrichment_service import EnrichmentDomainService
 from kodit.domain.value_objects import (
     EnrichmentIndexRequest,
@@ -54,44 +53,26 @@ class IndexDomainService:
 
     def __init__(
         self,
-        index_repository: IndexRepository,
         language_detector: LanguageDetectionService,
         snippet_extractors: Mapping[SnippetExtractionStrategy, SnippetExtractor],
         enrichment_service: EnrichmentDomainService,
         clone_dir: Path,
     ) -> None:
-        """Initialize the index domain service.
-
-        Args:
-            index_repository: Repository for Index aggregate persistence
-            snippet_extraction_service: Service for extracting snippets from files
-
-        """
-        self._index_repository = index_repository
+        """Initialize the index domain service."""
         self._clone_dir = clone_dir
         self._language_detector = language_detector
         self._snippet_extractors = snippet_extractors
         self._enrichment_service = enrichment_service
         self.log = structlog.get_logger(__name__)
 
-    async def create_index(
+    async def prepare_index(
         self,
         uri_or_path_like: str,  # Must include user/pass, etc
         progress_callback: ProgressCallback | None = None,
-    ) -> domain_entities.Index:
-        """Create a new index and populate the working copy with files."""
+    ) -> tuple[AnyUrl, domain_entities.WorkingCopy]:
+        """Prepare an index by scanning files and creating working copy."""
         sanitized_uri = self._sanitize_uri(uri_or_path_like)
-        self.log.debug("Creating index", uri=str(sanitized_uri))
-
-        # Check if index already exists
-        existing_index = await self._index_repository.get_by_uri(sanitized_uri)
-        if existing_index:
-            self.log.debug(
-                "Index already exists",
-                uri=str(sanitized_uri),
-                index_id=existing_index.id,
-            )
-            return existing_index
+        self.log.debug("Preparing index", uri=str(sanitized_uri))
 
         # Clone the source repository
         if is_valid_clone_target(uri_or_path_like):
@@ -150,38 +131,15 @@ class IndexDomainService:
             files=files,
         )
 
-        return await self._index_repository.create(sanitized_uri, working_copy)
+        return sanitized_uri, working_copy
 
-    async def update_index_timestamp(self, index_id: int) -> None:
-        """Update the timestamp of an index.
-
-        Args:
-            index_id: The ID of the index to update.
-
-        """
-        await self._index_repository.update_index_timestamp(index_id)
-
-    async def delete_snippets(self, index_id: int) -> None:
-        """Delete all snippets from an index."""
-        await self._index_repository.delete_snippets(index_id)
-
-    async def extract_snippets(
+    async def extract_snippets_from_index(
         self,
         index: domain_entities.Index,
         strategy: SnippetExtractionStrategy = SnippetExtractionStrategy.METHOD_BASED,
         progress_callback: ProgressCallback | None = None,
-    ) -> domain_entities.Index:
-        """Extract code snippets from files in the index.
-
-        Args:
-            index: The Index aggregate to extract snippets from
-            strategy: The extraction strategy to use
-            progress_callback: Optional callback for progress reporting
-
-        Returns:
-            Updated Index aggregate with extracted snippets
-
-        """
+    ) -> list[domain_entities.Snippet]:
+        """Extract code snippets from files in the index."""
         file_count = len(index.source.working_copy.files)
 
         self.log.info(
@@ -225,55 +183,24 @@ class IndexDomainService:
                 "extract_snippets", i, len(files), f"Processed {domain_file.uri.path}"
             )
 
-        # Add snippets to the index
-        if snippets:
-            await self._index_repository.add_snippets(index.id, snippets)
-
         await reporter.done("extract_snippets")
 
-        # Return updated index
-        return await self._index_repository.get(index.id) or index
+        # Return extracted snippets
+        return snippets
 
-    async def get_index_by_uri(self, uri: AnyUrl) -> domain_entities.Index | None:
-        """Get an index by source URI.
-
-        Args:
-            uri: The URI of the source repository
-
-        Returns:
-            The Index aggregate if found, None otherwise
-
-        """
-        return await self._index_repository.get_by_uri(uri)
-
-    async def get_index_by_id(self, index_id: int) -> domain_entities.Index | None:
-        """Get an index by ID.
-
-        Args:
-            index_id: The ID of the index
-
-        Returns:
-            The Index aggregate if found, None otherwise
-
-        """
-        return await self._index_repository.get(index_id)
-
-    async def enrich_snippets(
+    async def enrich_snippets_in_index(
         self,
-        index: domain_entities.Index,
+        snippets: list[domain_entities.Snippet],
         progress_callback: ProgressCallback | None = None,
-    ) -> domain_entities.Index:
+    ) -> list[domain_entities.Snippet]:
         """Enrich snippets with AI-generated summaries."""
-        if not index.id:
-            raise ValueError("Index has no ID")
-
-        if not index.snippets or len(index.snippets) == 0:
-            return index
+        if not snippets or len(snippets) == 0:
+            return snippets
 
         reporter = Reporter(self.log, progress_callback)
-        await reporter.start("enrichment", len(index.snippets), "Enriching snippets...")
+        await reporter.start("enrichment", len(snippets), "Enriching snippets...")
 
-        snippet_map = {snippet.id: snippet for snippet in index.snippets if snippet.id}
+        snippet_map = {snippet.id: snippet for snippet in snippets if snippet.id}
 
         enrichment_request = EnrichmentIndexRequest(
             requests=[
@@ -290,17 +217,11 @@ class IndexDomainService:
 
             processed += 1
             await reporter.step(
-                "enrichment", processed, len(index.snippets), "Enriching snippets..."
+                "enrichment", processed, len(snippets), "Enriching snippets..."
             )
 
-        await self._index_repository.update_snippets(
-            index.id, list(snippet_map.values())
-        )
         await reporter.done("enrichment")
-        new_index = await self._index_repository.get(index.id)
-        if not new_index:
-            raise ValueError("Index not found after enrichment")
-        return new_index
+        return list(snippet_map.values())
 
     async def _extract_snippets(
         self, request: SnippetExtractionRequest

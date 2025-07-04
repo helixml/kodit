@@ -96,4 +96,5 @@ Migrations managed with Alembic in `migrations/` directory. DO NOT EDIT THESE FI
 - Smoke tests for deployment validation
 - Performance tests for similarity search
 
-Test files mirror source structure under `tests/` directory.
+Test file names should mirror the source structure under `tests/` directory and end in
+the name `_test.py`.
