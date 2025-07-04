@@ -75,15 +75,24 @@ async def test_prepare_index_creates_working_copy(
     test_file = tmp_path / "test.py"
     test_file.write_text("def hello(): pass")
 
-    # Prepare index
-    uri, working_copy = await index_domain_service.prepare_index(str(tmp_path))
+    # Prepare index (this only creates the working copy structure, no files scanned yet)
+    working_copy = await index_domain_service.prepare_index(str(tmp_path))
 
     # Verify the working copy was created
-    assert isinstance(uri, AnyUrl)
     assert isinstance(working_copy, WorkingCopy)
+    assert isinstance(working_copy.remote_uri, AnyUrl)
     assert working_copy.source_type == SourceType.FOLDER
-    assert len(working_copy.files) == 1
-    assert working_copy.files[0].uri.path.endswith("test.py")
+
+    # In the new flow, files are not scanned during prepare_index
+    # They are scanned during refresh_working_copy
+    assert len(working_copy.files) == 0
+
+    # Now refresh to actually scan the files
+    refreshed_working_copy = await index_domain_service.refresh_working_copy(
+        working_copy
+    )
+    assert len(refreshed_working_copy.files) == 1
+    assert refreshed_working_copy.files[0].uri.path.endswith("test.py")
 
 
 @pytest.mark.asyncio
@@ -96,7 +105,10 @@ async def test_extract_snippets_from_index_returns_snippets(
     test_file.write_text("def hello(): pass")
 
     # Prepare working copy first
-    uri, working_copy = await index_domain_service.prepare_index(str(tmp_path))
+    working_copy = await index_domain_service.prepare_index(str(tmp_path))
+
+    # Now refresh to scan the files
+    working_copy = await index_domain_service.refresh_working_copy(working_copy)
 
     from datetime import UTC, datetime
 
@@ -113,16 +125,17 @@ async def test_extract_snippets_from_index_returns_snippets(
         updated_at=datetime.now(UTC),
     )
 
-    # Extract snippets
-    snippets = await index_domain_service.extract_snippets_from_index(
+    # Extract snippets - this method returns the updated Index, not just snippets
+    updated_index = await index_domain_service.extract_snippets_from_index(
         index=index,
         strategy=SnippetExtractionStrategy.METHOD_BASED,
     )
 
     # Verify snippets were extracted
-    assert len(snippets) == 1
-    assert isinstance(snippets[0], Snippet)
-    assert "def mock_function" in snippets[0].original_text()
+    assert len(updated_index.snippets) > 0
+    assert isinstance(updated_index.snippets[0], Snippet)
+    assert "def mock_function" in updated_index.snippets[0].original_text()
+    assert "test.py" in updated_index.snippets[0].original_text()
 
 
 @pytest.mark.asyncio

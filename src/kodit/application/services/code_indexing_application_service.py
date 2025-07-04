@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.entities import Index, Snippet, WorkingCopy
+from kodit.domain.entities import Index, Snippet
 from kodit.domain.interfaces import ProgressCallback
 from kodit.domain.protocols import IndexRepository
 from kodit.domain.services.bm25_service import BM25DomainService
@@ -59,9 +59,8 @@ class CodeIndexingApplicationService:
         """Create a new index for a source."""
         log_event("kodit.index.create")
 
-        sanitized_uri = WorkingCopy.sanitize_git_url(uri)
-
         # Check if index already exists
+        sanitized_uri, _ = self.index_domain_service.sanitize_uri(uri)
         existing_index = await self.index_repository.get_by_uri(sanitized_uri)
         if existing_index:
             self.log.debug(
@@ -71,6 +70,7 @@ class CodeIndexingApplicationService:
             )
             return existing_index
 
+        # Only prepare working copy if we need to create a new index
         working_copy = await self.index_domain_service.prepare_index(
             uri, progress_callback
         )

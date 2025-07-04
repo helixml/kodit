@@ -71,27 +71,19 @@ class IndexDomainService:
         progress_callback: ProgressCallback | None = None,
     ) -> domain_entities.WorkingCopy:
         """Prepare an index by scanning files and creating working copy."""
-        sanitized_uri = self._sanitize_uri(uri_or_path_like)
+        sanitized_uri, source_type = self.sanitize_uri(uri_or_path_like)
+        reporter = Reporter(self.log, progress_callback)
         self.log.info("Preparing source", uri=str(sanitized_uri))
 
-        reporter = Reporter(self.log, progress_callback)
-        # Clone the source repository
-        if is_valid_clone_target(uri_or_path_like):
+        if source_type == domain_entities.SourceType.FOLDER:
+            await reporter.start("prepare_index", 1, "Scanning source...")
+            local_path = path_from_uri(str(sanitized_uri))
+        elif source_type == domain_entities.SourceType.GIT:
             source_type = domain_entities.SourceType.GIT
-            sanitized_uri = domain_entities.WorkingCopy.sanitize_git_url(
-                uri_or_path_like
-            )
             git_working_copy_provider = GitWorkingCopyProvider(self._clone_dir)
             await reporter.start("prepare_index", 1, "Cloning source...")
             local_path = await git_working_copy_provider.prepare(uri_or_path_like)
             await reporter.done("prepare_index")
-        elif Path(uri_or_path_like).is_dir():
-            source_type = domain_entities.SourceType.FOLDER
-            sanitized_uri = domain_entities.WorkingCopy.sanitize_local_path(
-                uri_or_path_like
-            )
-            await reporter.start("prepare_index", 1, "Scanning source...")
-            local_path = path_from_uri(str(sanitized_uri))
         else:
             raise ValueError(f"Unsupported source: {uri_or_path_like}")
 
@@ -217,14 +209,24 @@ class IndexDomainService:
 
         return SnippetExtractionResult(snippets=filtered_snippets, language=language)
 
-    def _sanitize_uri(self, uri_or_path_like: str) -> AnyUrl:
+    def sanitize_uri(
+        self, uri_or_path_like: str
+    ) -> tuple[AnyUrl, domain_entities.SourceType]:
         """Convert a URI or path-like string to a URI."""
-        # If it's git-clonable, it's valid
-        if is_valid_clone_target(uri_or_path_like):
-            return domain_entities.WorkingCopy.sanitize_git_url(uri_or_path_like)
-        # If it's a local directory, it's valid
+        # First, check if it's a local directory (more reliable than git check)
         if Path(uri_or_path_like).is_dir():
-            return domain_entities.WorkingCopy.sanitize_local_path(uri_or_path_like)
+            return (
+                domain_entities.WorkingCopy.sanitize_local_path(uri_or_path_like),
+                domain_entities.SourceType.FOLDER,
+            )
+
+        # Then check if it's git-clonable
+        if is_valid_clone_target(uri_or_path_like):
+            return (
+                domain_entities.WorkingCopy.sanitize_git_url(uri_or_path_like),
+                domain_entities.SourceType.GIT,
+            )
+
         raise ValueError(f"Unsupported source: {uri_or_path_like}")
 
     async def refresh_working_copy(
@@ -240,16 +242,16 @@ class IndexDomainService:
             git_working_copy_provider = GitWorkingCopyProvider(self._clone_dir)
             await git_working_copy_provider.sync(str(working_copy.remote_uri))
 
-        new_file_paths = working_copy.list_filesystem_paths(
+        current_file_paths = working_copy.list_filesystem_paths(
             GitIgnorePatternProvider(working_copy.cloned_path)
         )
 
         previous_files_map = {file.as_path(): file for file in working_copy.files}
 
         # Calculate different sets of files
-        deleted_file_paths = set(previous_files_map.keys()) - set(new_file_paths)
-        new_file_paths = set(new_file_paths) - set(previous_files_map.keys())
-        modified_file_paths = set(new_file_paths) & set(previous_files_map.keys())
+        deleted_file_paths = set(previous_files_map.keys()) - set(current_file_paths)
+        new_file_paths = set(current_file_paths) - set(previous_files_map.keys())
+        modified_file_paths = set(current_file_paths) & set(previous_files_map.keys())
         num_files_to_process = (
             len(deleted_file_paths) + len(new_file_paths) + len(modified_file_paths)
         )
