@@ -85,8 +85,11 @@ jobs:
             type=semver,pattern={{major}}.{{minor}},enable=${{ steps.pyver.outputs.ENABLE_DEFAULT }}
             type=semver,pattern={{major}}.{{minor}},suffix=-py${{ steps.pyver.outputs.SHORT_PY }}
             type=ref,event=branch,enable=${{ steps.pyver.outputs.ENABLE_DEFAULT }}
+            type=ref,event=branch,suffix=-py${{ steps.pyver.outputs.SHORT_PY }}
             type=ref,event=pr,enable=${{ steps.pyver.outputs.ENABLE_DEFAULT }}
+            type=ref,event=pr,suffix=-py${{ steps.pyver.outputs.SHORT_PY }}
             type=sha,enable=${{ steps.pyver.outputs.ENABLE_DEFAULT }}
+            type=sha,suffix=-py${{ steps.pyver.outputs.SHORT_PY }}
 
       - name: Build and push Docker image
         id: push
