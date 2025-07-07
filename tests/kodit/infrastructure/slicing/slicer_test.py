@@ -374,6 +374,243 @@ class TestConfigurationIntegrity:
             )
 
 
+class TestMultiFileIntegration:
+    """Integration tests using multi-file example projects."""
+
+    def get_data_path(self) -> Path:
+        """Get path to test data directory."""
+        return Path(__file__).parent / "data"
+
+    def test_python_multi_file_analysis(self) -> None:
+        """Test analyzing a multi-file Python project."""
+        python_dir = self.get_data_path() / "python"
+
+        try:
+            analyzer = SimpleAnalyzer(str(python_dir), "python")
+
+            # Should find Python files
+            assert len(analyzer.state.files) >= 3
+
+            # Should find .py files
+            py_files = [f for f in analyzer.state.files if f.endswith(".py")]
+            assert len(py_files) >= 3
+
+            # Check that specific files are found
+            filenames = [Path(f).name for f in py_files]
+            assert "main.py" in filenames
+            assert "models.py" in filenames
+            assert "utils.py" in filenames
+
+        except RuntimeError:
+            pytest.skip("Tree-sitter setup not available")
+
+    def test_javascript_multi_file_analysis(self) -> None:
+        """Test analyzing a multi-file JavaScript project."""
+        js_dir = self.get_data_path() / "javascript"
+
+        try:
+            analyzer = SimpleAnalyzer(str(js_dir), "javascript")
+
+            # Should find JavaScript files
+            js_files = [f for f in analyzer.state.files if f.endswith(".js")]
+            assert len(js_files) >= 3
+
+            # Check that specific files are found
+            filenames = [Path(f).name for f in js_files]
+            assert "main.js" in filenames
+            assert "models.js" in filenames
+            assert "utils.js" in filenames
+
+        except RuntimeError:
+            pytest.skip("Tree-sitter setup not available")
+
+    def test_go_multi_file_analysis(self) -> None:
+        """Test analyzing a multi-file Go project."""
+        go_dir = self.get_data_path() / "go"
+
+        try:
+            analyzer = SimpleAnalyzer(str(go_dir), "go")
+
+            # Should find Go files
+            go_files = [f for f in analyzer.state.files if f.endswith(".go")]
+            assert len(go_files) >= 3
+
+            # Check that specific files are found
+            filenames = [Path(f).name for f in go_files]
+            assert "main.go" in filenames
+            assert "models.go" in filenames
+            assert "utils.go" in filenames
+
+        except RuntimeError:
+            pytest.skip("Tree-sitter setup not available")
+
+    def test_rust_multi_file_analysis(self) -> None:
+        """Test analyzing a multi-file Rust project."""
+        rust_dir = self.get_data_path() / "rust"
+
+        try:
+            analyzer = SimpleAnalyzer(str(rust_dir), "rust")
+
+            # Should find Rust files
+            rs_files = [f for f in analyzer.state.files if f.endswith(".rs")]
+            assert len(rs_files) >= 3
+
+            # Check that specific files are found
+            filenames = [Path(f).name for f in rs_files]
+            assert "main.rs" in filenames
+            assert "models.rs" in filenames
+            assert "utils.rs" in filenames
+
+        except RuntimeError:
+            pytest.skip("Tree-sitter setup not available")
+
+    def test_c_multi_file_analysis(self) -> None:
+        """Test analyzing a multi-file C project."""
+        c_dir = self.get_data_path() / "c"
+
+        try:
+            analyzer = SimpleAnalyzer(str(c_dir), "c")
+
+            # Should find C files (.c and .h)
+            c_files = [f for f in analyzer.state.files if f.endswith(".c")]
+            assert len(c_files) >= 3
+
+            # Check that specific files are found
+            filenames = [Path(f).name for f in c_files]
+            assert "main.c" in filenames
+            assert "models.c" in filenames
+            assert "utils.c" in filenames
+
+        except RuntimeError:
+            pytest.skip("Tree-sitter setup not available")
+
+    def test_cpp_multi_file_analysis(self) -> None:
+        """Test analyzing a multi-file C++ project."""
+        cpp_dir = self.get_data_path() / "cpp"
+
+        try:
+            analyzer = SimpleAnalyzer(str(cpp_dir), "cpp")
+
+            # Should find C++ files
+            cpp_files = [f for f in analyzer.state.files if f.endswith(".cpp")]
+            assert len(cpp_files) >= 3
+
+            # Check that specific files are found
+            filenames = [Path(f).name for f in cpp_files]
+            assert "main.cpp" in filenames
+            assert "models.cpp" in filenames
+            assert "utils.cpp" in filenames
+
+        except RuntimeError:
+            pytest.skip("Tree-sitter setup not available")
+
+    def test_java_multi_file_analysis(self) -> None:
+        """Test analyzing a multi-file Java project."""
+        java_dir = self.get_data_path() / "java"
+
+        try:
+            analyzer = SimpleAnalyzer(str(java_dir), "java")
+
+            # Should find Java files
+            java_files = [f for f in analyzer.state.files if f.endswith(".java")]
+            assert len(java_files) >= 3
+
+            # Check that specific files are found
+            filenames = [Path(f).name for f in java_files]
+            assert "Main.java" in filenames
+            assert "Models.java" in filenames
+            assert "Utils.java" in filenames
+
+        except RuntimeError:
+            pytest.skip("Tree-sitter setup not available")
+
+    def test_all_languages_have_examples(self) -> None:
+        """Test that all supported languages have example data."""
+        data_dir = self.get_data_path()
+
+        # Core supported languages (excluding aliases)
+        core_languages = ["python", "javascript", "java", "go", "rust", "c", "cpp"]
+
+        for language in core_languages:
+            lang_dir = data_dir / language
+            assert lang_dir.exists(), f"Missing example data for {language}"
+            assert lang_dir.is_dir(), f"Example data for {language} is not a directory"
+
+            # Should have at least 3 files
+            config = LanguageConfig.CONFIGS[language]
+            extension = config["extension"]
+            files = list(lang_dir.glob(f"*{extension}"))
+            assert len(files) >= 3, f"Not enough example files for {language}"
+
+    def test_project_structure_consistency(self) -> None:
+        """Test that all example projects follow consistent structure."""
+        data_dir = self.get_data_path()
+        core_languages = ["python", "javascript", "java", "go", "rust", "c", "cpp"]
+
+        for language in core_languages:
+            lang_dir = data_dir / language
+            config = LanguageConfig.CONFIGS[language]
+            extension = config["extension"]
+
+            # Should have main file
+            main_files = [
+                f"main{extension}",
+                f"Main{extension}",  # Java convention
+            ]
+
+            found_main = False
+            for main_file in main_files:
+                if (lang_dir / main_file).exists():
+                    found_main = True
+                    break
+
+            assert found_main, f"No main file found for {language}"
+
+            # Should have models and utils (or similar supporting files)
+            files = [f.name for f in lang_dir.glob(f"*{extension}")]
+
+            # At least 3 files total
+            assert len(files) >= 3, f"Insufficient files for {language}: {files}"
+
+    def test_realistic_function_discovery(self) -> None:
+        """Test function discovery with realistic multi-file projects."""
+        python_dir = self.get_data_path() / "python"
+
+        try:
+            analyzer = SimpleAnalyzer(str(python_dir), "python")
+
+            # Test function listing - should find actual functions from the parsed files
+            functions = analyzer.get_functions()
+            assert len(functions) >= 5
+
+            # Test pattern matching for utils functions
+            utils_functions = analyzer.get_functions("utils\\.")
+            assert len(utils_functions) >= 3
+
+            # Test pattern matching for main functions
+            main_functions = analyzer.get_functions("main\\.")
+            assert len(main_functions) >= 3
+
+            # Test pattern matching for models functions
+            models_functions = analyzer.get_functions("models\\.")
+            assert len(models_functions) >= 5  # Should find methods in classes
+
+            # Test getting specific function info (use a function that should exist)
+            # We know validate_positive exists in utils.py
+            if "utils.validate_positive" in analyzer.state.def_index:
+                snippet = analyzer.get_snippet("utils.validate_positive")
+                assert "Function 'utils.validate_positive' not found" not in snippet
+                assert "def validate_positive" in snippet
+
+            # Test getting stats
+            stats = analyzer.get_stats()
+            assert stats["total_functions"] >= 5
+            assert isinstance(stats["total_calls"], int)
+
+        except RuntimeError:
+            pytest.skip("Tree-sitter setup not available")
+
+
 class TestErrorHandling:
     """Test error handling and edge cases."""
 
