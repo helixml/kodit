@@ -31,7 +31,7 @@ from kodit.infrastructure.enrichment.null_enrichment_provider import (
     NullEnrichmentProvider,
 )
 from kodit.infrastructure.indexing.fusion_service import ReciprocalRankFusionService
-from kodit.infrastructure.language_detection_service import (
+from kodit.infrastructure.slicing.language_detection_service import (
     FileSystemLanguageDetectionService,
 )
 from kodit.infrastructure.sqlalchemy.embedding_repository import (
