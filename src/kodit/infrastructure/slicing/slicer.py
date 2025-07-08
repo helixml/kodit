@@ -105,6 +105,14 @@ class LanguageConfig:
             "extension": ".js",
             "name_field": None,
         },
+        "csharp": {
+            "function_nodes": ["method_declaration"],
+            "method_nodes": ["constructor_declaration"],
+            "call_node": "invocation_expression",
+            "import_nodes": ["using_directive"],
+            "extension": ".cs",
+            "name_field": None,
+        },
     }
 
     # Aliases
@@ -112,6 +120,8 @@ class LanguageConfig:
     CONFIGS["typescript"] = CONFIGS["javascript"]
     CONFIGS["ts"] = CONFIGS["javascript"]
     CONFIGS["js"] = CONFIGS["javascript"]
+    CONFIGS["c#"] = CONFIGS["csharp"]
+    CONFIGS["cs"] = CONFIGS["csharp"]
 
 
 class Slicer:
@@ -221,6 +231,9 @@ class Slicer:
             "typescript": "typescript",
             "js": "javascript",
             "ts": "typescript",
+            "csharp": "c_sharp",
+            "c#": "c_sharp",
+            "cs": "c_sharp",
         }
         return mapping.get(language, language)
 

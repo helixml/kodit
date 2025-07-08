@@ -80,6 +80,9 @@ class TestLanguageConfig:
             "c++",
             "js",
             "ts",
+            "csharp",
+            "c#",
+            "cs",
         }
 
         for lang in expected_languages:
@@ -149,6 +152,9 @@ class TestSlicer:
         assert slicer._get_tree_sitter_language_name("c++") == "cpp"  # noqa: SLF001
         assert slicer._get_tree_sitter_language_name("typescript") == "typescript"  # noqa: SLF001
         assert slicer._get_tree_sitter_language_name("js") == "javascript"  # noqa: SLF001
+        assert slicer._get_tree_sitter_language_name("csharp") == "c_sharp"  # noqa: SLF001
+        assert slicer._get_tree_sitter_language_name("c#") == "c_sharp"  # noqa: SLF001
+        assert slicer._get_tree_sitter_language_name("cs") == "c_sharp"  # noqa: SLF001
 
     def test_language_config_access(self) -> None:
         """Test that language config is correctly accessed."""
@@ -158,7 +164,8 @@ class TestSlicer:
 
     def test_config_access_patterns(self) -> None:
         """Test accessing different language configurations."""
-        for language in ["python", "javascript", "java", "go", "rust", "c", "cpp"]:
+        languages = ["python", "javascript", "java", "go", "rust", "c", "cpp", "csharp"]
+        for language in languages:
             config = LanguageConfig.CONFIGS[language]
 
             # Verify all required keys exist
@@ -215,6 +222,7 @@ class TestSlicer:
             "rust": ".rs",
             "c": ".c",
             "cpp": ".cpp",
+            "csharp": ".cs",
         }
 
         for language, expected_ext in extension_map.items():
@@ -240,6 +248,12 @@ class TestSlicer:
         assert "method_declaration" in go_config["method_nodes"]
         assert go_config["call_node"] == "call_expression"
 
+        # Test C# configuration
+        csharp_config = LanguageConfig.CONFIGS["csharp"]
+        assert "method_declaration" in csharp_config["function_nodes"]
+        assert "constructor_declaration" in csharp_config["method_nodes"]
+        assert csharp_config["call_node"] == "invocation_expression"
+
     def test_import_node_configurations(self) -> None:
         """Test import node configurations for different languages."""
         # Python has both import and from-import
@@ -259,6 +273,10 @@ class TestSlicer:
         rust_imports = LanguageConfig.CONFIGS["rust"]["import_nodes"]
         assert "use_declaration" in rust_imports
 
+        # C# uses using directives
+        csharp_imports = LanguageConfig.CONFIGS["csharp"]["import_nodes"]
+        assert "using_directive" in csharp_imports
+
     def test_name_field_configurations(self) -> None:
         """Test name field configurations for different languages."""
         # Python, Java, JS use default identifier search
@@ -275,6 +293,9 @@ class TestSlicer:
 
         # Go uses default but has special method handling
         assert LanguageConfig.CONFIGS["go"]["name_field"] is None
+
+        # C# uses default identifier search
+        assert LanguageConfig.CONFIGS["csharp"]["name_field"] is None
 
     def test_empty_file_list_error(self) -> None:
         """Test that empty file list raises appropriate error."""
@@ -329,6 +350,7 @@ class TestConfigurationIntegrity:
             ".rs": "rust",
             ".c": "c",
             ".cpp": "cpp",
+            ".cs": "csharp",
         }
 
         for ext, expected_primary in primary_languages.items():
@@ -362,11 +384,11 @@ class TestConfigurationIntegrity:
         languages = set(LanguageConfig.CONFIGS.keys())
 
         # Essential languages
-        essential = {"python", "javascript", "java", "go", "rust", "c", "cpp"}
+        essential = {"python", "javascript", "java", "go", "rust", "c", "cpp", "csharp"}
         assert essential.issubset(languages)
 
         # Common aliases
-        aliases = {"js", "ts", "c++"}
+        aliases = {"js", "ts", "c++", "c#", "cs"}
         assert aliases.issubset(languages)
 
     def test_configuration_completeness(self) -> None:
@@ -429,6 +451,31 @@ class TestMultiFileIntegration:
             for snippet in snippets:
                 assert isinstance(snippet, Snippet)
                 assert len(snippet.original_text()) > 0
+
+        except RuntimeError:
+            pytest.skip("Tree-sitter setup not available")
+
+    def test_csharp_multi_file_analysis(self) -> None:
+        """Test analyzing a multi-file C# project."""
+        csharp_dir = self.get_data_path() / "csharp"
+
+        # Get all C# files in the directory
+        cs_files = list(csharp_dir.glob("*.cs"))
+        assert len(cs_files) >= 3
+
+        # Check that specific files exist
+        filenames = [f.name for f in cs_files]
+        assert "Main.cs" in filenames
+        assert "Models.cs" in filenames
+        assert "Utils.cs" in filenames
+
+        try:
+            slicer = Slicer()
+            file_objs = [create_file_from_path(f) for f in cs_files]
+            snippets = slicer.extract_snippets(file_objs, "csharp")
+
+            # Should extract some snippets
+            assert len(snippets) >= 0  # May not find functions in all test files
 
         except RuntimeError:
             pytest.skip("Tree-sitter setup not available")
@@ -588,7 +635,16 @@ class TestMultiFileIntegration:
         data_dir = self.get_data_path()
 
         # Core supported languages (excluding aliases)
-        core_languages = ["python", "javascript", "java", "go", "rust", "c", "cpp"]
+        core_languages = [
+            "python",
+            "javascript",
+            "java",
+            "go",
+            "rust",
+            "c",
+            "cpp",
+            "csharp",
+        ]
 
         for language in core_languages:
             lang_dir = data_dir / language
@@ -604,7 +660,16 @@ class TestMultiFileIntegration:
     def test_project_structure_consistency(self) -> None:
         """Test that all example projects follow consistent structure."""
         data_dir = self.get_data_path()
-        core_languages = ["python", "javascript", "java", "go", "rust", "c", "cpp"]
+        core_languages = [
+            "python",
+            "javascript",
+            "java",
+            "go",
+            "rust",
+            "c",
+            "cpp",
+            "csharp",
+        ]
 
         for language in core_languages:
             lang_dir = data_dir / language

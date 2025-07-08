@@ -168,7 +168,6 @@ class IndexDomainService:
         await reporter.done("enrichment")
         return list(snippet_map.values())
 
-
     def sanitize_uri(
         self, uri_or_path_like: str
     ) -> tuple[AnyUrl, domain_entities.SourceType]:
