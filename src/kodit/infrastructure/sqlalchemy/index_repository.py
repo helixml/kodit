@@ -399,6 +399,35 @@ class SqlAlchemyIndexRepository(IndexRepository):
         )
         await self._session.execute(snippet_stmt)
 
+    async def delete_snippets_by_file_ids(self, file_ids: list[int]) -> None:
+        """Delete snippets by file IDs.
+
+        This is used when files are removed from the working copy to clean up
+        orphaned snippets and their associated embeddings.
+        """
+        if not file_ids:
+            return
+
+        # First get all snippets for these files
+        stmt = select(db_entities.Snippet).where(
+            db_entities.Snippet.file_id.in_(file_ids)
+        )
+        result = await self._session.scalars(stmt)
+        snippets = result.all()
+
+        # Delete all embeddings for these snippets
+        for snippet in snippets:
+            embedding_stmt = delete(db_entities.Embedding).where(
+                db_entities.Embedding.snippet_id == snippet.id
+            )
+            await self._session.execute(embedding_stmt)
+
+        # Now delete the snippets
+        snippet_stmt = delete(db_entities.Snippet).where(
+            db_entities.Snippet.file_id.in_(file_ids)
+        )
+        await self._session.execute(snippet_stmt)
+
     async def update(self, index: domain_entities.Index) -> None:
         """Update an index by ensuring all domain objects are saved to database."""
         if not index.id:
