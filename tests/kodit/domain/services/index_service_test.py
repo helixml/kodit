@@ -134,8 +134,9 @@ async def test_extract_snippets_from_index_returns_snippets(
     # Verify snippets were extracted
     assert len(updated_index.snippets) > 0
     assert isinstance(updated_index.snippets[0], Snippet)
-    assert "def mock_function" in updated_index.snippets[0].original_text()
-    assert "test.py" in updated_index.snippets[0].original_text()
+    # The actual Slicer is used now, so we should check for the actual function
+    assert "def hello" in updated_index.snippets[0].original_text()
+    assert "pass" in updated_index.snippets[0].original_text()
 
 
 @pytest.mark.asyncio
