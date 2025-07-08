@@ -661,3 +661,13 @@ class FileProcessingStatus(IntEnum):
     ADDED = 1
     MODIFIED = 2
     DELETED = 3
+
+
+@dataclass
+class FunctionDefinition:
+    """Cached function definition."""
+
+    name: str
+    qualified_name: str
+    start_byte: int
+    end_byte: int

@@ -13,6 +13,7 @@ from kodit.domain.services.enrichment_service import EnrichmentDomainService
 from kodit.domain.value_objects import (
     EnrichmentIndexRequest,
     EnrichmentRequest,
+    LanguageMapping,
     SnippetExtractionRequest,
     SnippetExtractionResult,
     SnippetExtractionStrategy,
@@ -21,6 +22,7 @@ from kodit.infrastructure.cloning.git.working_copy import GitWorkingCopyProvider
 from kodit.infrastructure.cloning.metadata import FileMetadataExtractor
 from kodit.infrastructure.git.git_utils import is_valid_clone_target
 from kodit.infrastructure.ignore.ignore_pattern_provider import GitIgnorePatternProvider
+from kodit.infrastructure.slicing.slicer import Slicer
 from kodit.reporting import Reporter
 from kodit.utils.path_utils import path_from_uri
 
@@ -121,34 +123,26 @@ class IndexDomainService:
             "extract_snippets", len(files), "Extracting code snippets..."
         )
 
-        new_snippets = []
-        for i, domain_file in enumerate(files, 1):
+        # Create a set of languages to extract snippets for
+        extensions = set(file.extension() for file in files)
+        languages = []
+        for ext in extensions:
             try:
-                # Extract snippets from file
-                request = SnippetExtractionRequest(
-                    file_path=domain_file.as_path(), strategy=strategy
-                )
-                result = await self._extract_snippets(request)
-                for snippet_text in result.snippets:
-                    snippet = domain_entities.Snippet(
-                        derives_from=[domain_file],
-                    )
-                    snippet.add_original_content(snippet_text, result.language)
-                    new_snippets.append(snippet)
-
-            except (OSError, ValueError) as e:
-                self.log.debug(
-                    "Skipping file for snippet extraction",
-                    file_uri=str(domain_file.uri),
-                    error=str(e),
-                )
+                languages.append(LanguageMapping.get_language_for_extension(ext))
+            except ValueError as e:
+                self.log.info("Skipping", error=str(e))
                 continue
 
-            await reporter.step(
-                "extract_snippets", i, len(files), f"Processed {domain_file.uri.path}"
-            )
+        # Calculate snippets for each language
+        slicer = Slicer()
+        for language in languages:
+            try:
+                s = slicer.extract_snippets(files, language=language)
+                index.snippets.extend(s)
+            except ValueError as e:
+                self.log.info("Skipping", error=str(e))
+                continue
 
-        index.snippets.extend(new_snippets)
         await reporter.done("extract_snippets")
         return index
 
