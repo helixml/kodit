@@ -50,18 +50,23 @@ The codebase follows Domain-Driven Design (DDD) with clean architecture:
 
 ### Key Components
 
-**Indexing Pipeline:**
+**Advanced Indexing Pipeline:**
 
-1. Clone/read source code
-2. Extract snippets using Tree-sitter
-3. Generate embeddings and BM25 indices
-4. Store in database
+1. Clone/read source code with Git metadata extraction
+2. Language detection for 20+ programming languages
+3. Advanced snippet extraction using Tree-sitter with dependency analysis
+4. Build call graphs and import maps for context-aware extraction
+5. Generate embeddings and BM25 indices
+6. Store in database with selective reindexing for performance
 
-**Search System:**
+**Advanced Search System:**
 
-- Hybrid search combining semantic (embeddings) and keyword (BM25)
+- Hybrid search combining semantic (embeddings) and keyword (BM25) with Reciprocal Rank Fusion
+- Multi-dimensional filtering: language, author, date range, source, file path
+- Context-aware results with dependency tracking and usage examples
 - Multiple providers: local models, OpenAI, custom APIs
 - Configurable via environment variables
+- Support for 20+ programming languages including HTML/CSS
 
 **MCP Server:**
 

@@ -39,13 +39,16 @@ code. This index is used to build a snippet library, ready for ingestion into an
 
 - Index local directories and public Git repositories
 - Build comprehensive snippet libraries for LLM ingestion
-- Support for multiple codebase types and languages
-- Efficient indexing and search capabilities
+- Support for 20+ programming languages including Python, JavaScript/TypeScript, Java, Go, Rust, C/C++, C#, HTML/CSS, and more
+- Advanced code analysis with dependency tracking and call graph generation
+- Intelligent snippet extraction with context-aware dependencies
+- Efficient indexing with selective reindexing (only processes modified files)
 - Privacy first: respects .gitignore and .noindex files
 - **NEW in 0.3**: Auto-indexing configuration for shared server deployments
 - **NEW in 0.3**: Enhanced Git provider support including Azure DevOps
 - **NEW in 0.3**: Index private repositories via a PAT
 - **NEW in 0.3**: Improved progress monitoring and reporting during indexing
+- **NEW in 0.3**: Advanced code slicing infrastructure with Tree-sitter parsing
 
 ### MCP Server
 
@@ -58,7 +61,9 @@ intent. Kodit has been tested to work well with:
   - [Cursor](https://docs.helix.ml/kodit/getting-started/integration/#integration-with-cursor)
   - [Cline](https://docs.helix.ml/kodit/getting-started/integration/#integration-with-cline)
 - Please contribute more instructions! ... any other assistant is likely to work ...
-- **New in 0.3**: Filter snippets by source, language, author or timestamp.
+- **New in 0.3**: Advanced search filters by source, language, author, date range, and file path
+- **New in 0.3**: Hybrid search combining BM25 keyword search with semantic search
+- **New in 0.4**: Enhanced MCP tools with rich context parameters and metadata
 
 ### Enterprise Ready
 

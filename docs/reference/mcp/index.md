@@ -53,21 +53,30 @@ The search tool accepts the following parameters:
 | `related_file_paths` | list[Path] | Absolute paths to relevant files | `["/path/to/auth.py"]` |
 | `related_file_contents` | list[string] | Contents of relevant files | `["def authenticate(): ..."]` |
 | `keywords` | list[string] | Relevant keywords for the search | `["authentication", "jwt", "login"]` |
-| `language` | string \| None | Filter by programming language | `"python"`, `"go"`, `"javascript"` |
+| `language` | string \| None | Filter by programming language (20+ supported) | `"python"`, `"go"`, `"javascript"`, `"html"`, `"css"` |
 | `author` | string \| None | Filter by author name | `"john.doe"` |
 | `created_after` | string \| None | Filter by creation date (YYYY-MM-DD) | `"2023-01-01"` |
 | `created_before` | string \| None | Filter by creation date (YYYY-MM-DD) | `"2023-12-31"` |
 | `source_repo` | string \| None | Filter by source repository | `"github.com/example/repo"` |
+| `file_path` | string \| None | Filter by file path pattern | `"src/"`, `"*.test.py"` |
 
-### Search Functionality
+### Advanced Search Functionality
 
-The search tool combines multiple search strategies:
+The search tool combines multiple search strategies with sophisticated ranking:
 
-1. **Keyword Search** - Uses BM25 algorithm for exact keyword matching
-2. **Semantic Code Search** - Uses embeddings to find semantically similar code
+1. **BM25 Keyword Search** - Advanced keyword matching with relevance scoring
+2. **Semantic Code Search** - Uses embeddings to find semantically similar code patterns
 3. **Semantic Text Search** - Uses embeddings to find code matching natural language descriptions
+4. **Reciprocal Rank Fusion (RRF)** - Intelligently combines results from multiple search strategies
+5. **Context-Aware Filtering** - Advanced filtering by language, author, date, source, and file path
+6. **Dependency-Aware Results** - Returns code snippets with their dependencies and usage examples
 
-Results are fused together to provide the most relevant snippets for the user's intent.
+#### Enhanced Result Quality
+
+- **Smart Snippet Selection**: Returns functions with their dependencies and context
+- **Rich Metadata**: Each result includes file path, language, author, and creation date
+- **Usage Examples**: Includes examples of how functions are used in the codebase
+- **Topological Ordering**: Dependencies are ordered for optimal LLM consumption
 
 ## Filtering Capabilities
 
@@ -81,6 +90,8 @@ Filter results by programming language:
 > "I need to create a web server in Python. Please search for Flask or FastAPI examples and show me the best practices."
 > "I'm working on a Go microservice. Can you search for Go-specific patterns for handling HTTP requests and database connections?"
 > "I need JavaScript examples for form validation. Please search for modern JavaScript/TypeScript validation patterns."
+> "I'm building a responsive layout. Please search for CSS Grid and Flexbox examples in our stylesheets."
+> "I need HTML form examples. Please search for form elements with proper accessibility attributes."
 
 ### Author Filtering
 

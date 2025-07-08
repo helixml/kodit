@@ -209,26 +209,51 @@ Kodit respects [standard ignore patterns](#ignore-patterns):
 - **`.gitignore`**: Standard Git ignore patterns
 - **`.noindex`**: Custom ignore patterns for Kodit (uses gitignore syntax)
 
-### Supported File Types
+### Supported Programming Languages
 
-Kodit automatically detects and processes files based on their extensions:
+Kodit automatically detects and processes files based on their extensions. The following languages are supported with advanced Tree-sitter parsing:
 
-| Language | Extensions |
-|----------|------------|
-| Python | `.py` |
-| JavaScript | `.js`, `.jsx` |
-| TypeScript | `.ts`, `.tsx` |
-| Go | `.go` |
-| C# | `.cs` |
+| Language | Extensions | Features |
+|----------|------------|----------|
+| Python | `.py`, `.pyw`, `.pyx`, `.pxd` | Function/method extraction, import analysis, call graph |
+| JavaScript | `.js`, `.jsx`, `.mjs` | Function extraction, ES6 modules, JSX support |
+| TypeScript | `.ts`, `.tsx` | Type definitions, interfaces, decorators |
+| Java | `.java` | Method declarations, constructors, class hierarchies |
+| Go | `.go` | Function/method extraction, package imports |
+| Rust | `.rs` | Function definitions, trait implementations |
+| C/C++ | `.c`, `.h`, `.cpp`, `.cc`, `.cxx`, `.hpp`, `.hxx` | Function definitions, header includes |
+| C# | `.cs` | Method declarations, using directives, constructors |
+| HTML | `.html`, `.htm` | Element extraction with ID/class identification |
+| CSS | `.css`, `.scss`, `.sass`, `.less` | Rule extraction, selector analysis, keyframes |
 
-### Snippet Extraction
+### Advanced Snippet Extraction
 
-Kodit uses tree-sitter to intelligently extract code snippets:
+Kodit uses a sophisticated Tree-sitter-based slicing system to intelligently extract code snippets with context:
+
+#### Core Features
 
 - **Functions and Methods**: Complete function definitions with their bodies
 - **Classes**: Class definitions and their methods
 - **Imports**: Import statements for context
 - **Dependencies**: Ancestor classes and functions that the snippet depends on
+- **Call Graph Analysis**: Builds relationships between functions to understand dependencies
+- **Context-Aware Extraction**: Includes related functions and usage examples
+- **Topological Sorting**: Orders dependencies for optimal LLM consumption
+
+#### Smart Dependency Tracking
+
+- **Import Maps**: Tracks import statements and their usage
+- **Function Calls**: Identifies which functions call which others
+- **Reverse Dependencies**: Finds all callers of a given function
+- **Usage Examples**: Includes examples of how functions are used in the codebase
+
+#### Language-Specific Extraction
+
+- **Python**: Decorators, async functions, class inheritance
+- **JavaScript/TypeScript**: Arrow functions, async/await, ES6 modules
+- **Java**: Annotations, generics, inheritance hierarchies
+- **Go**: Interfaces, struct methods, package organization
+- **HTML/CSS**: Elements with semantic context, CSS rules and selectors
 
 ## Configuration
 
@@ -269,9 +294,35 @@ DEFAULT_ENDPOINT_API_KEY=sk-your-api-key
 
 ## Advanced Features
 
-### Re-indexing Sources
+### Selective Re-indexing
 
-Future feature!
+Kodit includes intelligent re-indexing that only processes files that have been modified:
+
+#### How It Works
+
+- **SHA256 Change Detection**: Compares file content hashes to detect changes
+- **File Status Tracking**: Tracks files as CLEAN, MODIFIED, or DELETED
+- **Incremental Updates**: Only re-processes changed files, improving performance for large codebases
+- **Metadata Preservation**: Maintains file metadata and Git information
+
+#### Benefits
+
+- **Performance**: Dramatically faster re-indexing for large repositories
+- **Resource Efficiency**: Reduces CPU and memory usage during updates
+- **Consistency**: Ensures only actual changes trigger re-processing
+- **Scalability**: Enables efficient handling of large, frequently-updated codebases
+
+#### Usage
+
+Re-indexing automatically uses selective processing when you re-index an existing source:
+
+```sh
+# Re-index with selective processing
+kodit index /path/to/existing/source
+
+# Or for Git repositories
+kodit index https://github.com/username/repo.git
+```
 
 ### Progress Monitoring
 
