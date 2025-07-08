@@ -537,7 +537,6 @@ class Slicer:
             if qualified.endswith(f".{func_name}")
         ]
 
-
     # Helper methods
 
     def _extract_imports(self, node: Node) -> dict[str, str]:

@@ -124,7 +124,7 @@ class IndexDomainService:
         )
 
         # Create a set of languages to extract snippets for
-        extensions = set(file.extension() for file in files)
+        extensions = {file.extension() for file in files}
         languages = []
         for ext in extensions:
             try:

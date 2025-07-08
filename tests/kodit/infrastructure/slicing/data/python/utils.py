@@ -1,7 +1,6 @@
 """Utility functions for the example project."""
 
 import math
-from typing import List, Optional
 
 
 def validate_positive(value: float, name: str = "value") -> None:
@@ -22,7 +21,7 @@ def format_currency(amount: float, currency: str = "USD") -> str:
     return f"{amount:.2f} {currency}"
 
 
-def chunk_list(items: List, chunk_size: int) -> List[List]:
+def chunk_list(items: list, chunk_size: int) -> list[list]:
     """Split a list into chunks of specified size."""
     validate_positive(chunk_size, "chunk_size")
-    return [items[i:i + chunk_size] for i in range(0, len(items), chunk_size)]
+    return [items[i : i + chunk_size] for i in range(0, len(items), chunk_size)]

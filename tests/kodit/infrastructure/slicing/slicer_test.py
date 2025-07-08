@@ -18,7 +18,7 @@ from kodit.infrastructure.slicing.slicer import (
 
 
 def create_file_from_path(file_path: Path) -> File:
-    """Helper function to create File domain objects from paths."""
+    """Create File domain objects from paths."""
     return File(
         uri=AnyUrl(file_path.as_uri()),
         sha256="test_hash",
@@ -127,21 +127,19 @@ class TestSlicer:
 
     def test_extract_snippets_with_invalid_language(self) -> None:
         """Test extract_snippets with unsupported language."""
-        with (
-            tempfile.TemporaryDirectory() as tmp_dir,
-            pytest.raises(ValueError, match="Unsupported language"),
-        ):
+        with tempfile.TemporaryDirectory() as tmp_dir:
             slicer = Slicer()
             test_file = Path(tmp_dir, "test.py")
             test_file.write_text("def test(): pass")
             file_obj = create_file_from_path(test_file)
-            slicer.extract_snippets([file_obj], "unsupported")
+            with pytest.raises(ValueError, match="Unsupported language"):
+                slicer.extract_snippets([file_obj], "unsupported")
 
     def test_extract_snippets_with_nonexistent_files(self) -> None:
         """Test extract_snippets with nonexistent files."""
+        slicer = Slicer()
+        nonexistent_file = create_file_from_path(Path("/nonexistent/path.py"))
         with pytest.raises(FileNotFoundError):
-            slicer = Slicer()
-            nonexistent_file = create_file_from_path(Path("/nonexistent/path.py"))
             slicer.extract_snippets([nonexistent_file], "python")
 
     def test_get_tree_sitter_language_name_mapping(self) -> None:
@@ -281,7 +279,7 @@ class TestSlicer:
     def test_empty_file_list_error(self) -> None:
         """Test that empty file list raises appropriate error."""
         slicer = Slicer()
-        
+
         with pytest.raises(ValueError, match="No files provided"):
             slicer.extract_snippets([], "python")
 
@@ -408,11 +406,11 @@ class TestMultiFileIntegration:
     def test_python_multi_file_analysis(self) -> None:
         """Test analyzing a multi-file Python project."""
         python_dir = self.get_data_path() / "python"
-        
+
         # Get all Python files in the directory
         py_files = list(python_dir.glob("*.py"))
         assert len(py_files) >= 3
-        
+
         # Check that specific files exist
         filenames = [f.name for f in py_files]
         assert "main.py" in filenames
@@ -423,10 +421,10 @@ class TestMultiFileIntegration:
             slicer = Slicer()
             file_objs = [create_file_from_path(f) for f in py_files]
             snippets = slicer.extract_snippets(file_objs, "python")
-            
+
             # Should extract some snippets
             assert len(snippets) >= 3
-            
+
             # Snippets should be Snippet domain objects
             for snippet in snippets:
                 assert isinstance(snippet, Snippet)
@@ -438,11 +436,11 @@ class TestMultiFileIntegration:
     def test_javascript_multi_file_analysis(self) -> None:
         """Test analyzing a multi-file JavaScript project."""
         js_dir = self.get_data_path() / "javascript"
-        
+
         # Get all JavaScript files in the directory
         js_files = list(js_dir.glob("*.js"))
         assert len(js_files) >= 3
-        
+
         # Check that specific files exist
         filenames = [f.name for f in js_files]
         assert "main.js" in filenames
@@ -453,7 +451,7 @@ class TestMultiFileIntegration:
             slicer = Slicer()
             file_objs = [create_file_from_path(f) for f in js_files]
             snippets = slicer.extract_snippets(file_objs, "javascript")
-            
+
             # Should extract some snippets
             assert len(snippets) >= 0  # May not find functions in all test files
 
@@ -463,11 +461,11 @@ class TestMultiFileIntegration:
     def test_go_multi_file_analysis(self) -> None:
         """Test analyzing a multi-file Go project."""
         go_dir = self.get_data_path() / "go"
-        
+
         # Get all Go files in the directory
         go_files = list(go_dir.glob("*.go"))
         assert len(go_files) >= 3
-        
+
         # Check that specific files exist
         filenames = [f.name for f in go_files]
         assert "main.go" in filenames
@@ -478,7 +476,7 @@ class TestMultiFileIntegration:
             slicer = Slicer()
             file_objs = [create_file_from_path(f) for f in go_files]
             snippets = slicer.extract_snippets(file_objs, "go")
-            
+
             # Should extract some snippets
             assert len(snippets) >= 0  # May not find functions in all test files
 
@@ -488,11 +486,11 @@ class TestMultiFileIntegration:
     def test_rust_multi_file_analysis(self) -> None:
         """Test analyzing a multi-file Rust project."""
         rust_dir = self.get_data_path() / "rust"
-        
+
         # Get all Rust files in the directory
         rs_files = list(rust_dir.glob("*.rs"))
         assert len(rs_files) >= 3
-        
+
         # Check that specific files exist
         filenames = [f.name for f in rs_files]
         assert "main.rs" in filenames
@@ -503,7 +501,7 @@ class TestMultiFileIntegration:
             slicer = Slicer()
             file_objs = [create_file_from_path(f) for f in rs_files]
             snippets = slicer.extract_snippets(file_objs, "rust")
-            
+
             # Should extract some snippets
             assert len(snippets) >= 0  # May not find functions in all test files
 
@@ -513,11 +511,11 @@ class TestMultiFileIntegration:
     def test_c_multi_file_analysis(self) -> None:
         """Test analyzing a multi-file C project."""
         c_dir = self.get_data_path() / "c"
-        
+
         # Get all C files in the directory
         c_files = list(c_dir.glob("*.c"))
         assert len(c_files) >= 3
-        
+
         # Check that specific files exist
         filenames = [f.name for f in c_files]
         assert "main.c" in filenames
@@ -528,7 +526,7 @@ class TestMultiFileIntegration:
             slicer = Slicer()
             file_objs = [create_file_from_path(f) for f in c_files]
             snippets = slicer.extract_snippets(file_objs, "c")
-            
+
             # Should extract some snippets
             assert len(snippets) >= 0  # May not find functions in all test files
 
@@ -538,11 +536,11 @@ class TestMultiFileIntegration:
     def test_cpp_multi_file_analysis(self) -> None:
         """Test analyzing a multi-file C++ project."""
         cpp_dir = self.get_data_path() / "cpp"
-        
+
         # Get all C++ files in the directory
         cpp_files = list(cpp_dir.glob("*.cpp"))
         assert len(cpp_files) >= 3
-        
+
         # Check that specific files exist
         filenames = [f.name for f in cpp_files]
         assert "main.cpp" in filenames
@@ -553,7 +551,7 @@ class TestMultiFileIntegration:
             slicer = Slicer()
             file_objs = [create_file_from_path(f) for f in cpp_files]
             snippets = slicer.extract_snippets(file_objs, "cpp")
-            
+
             # Should extract some snippets
             assert len(snippets) >= 0  # May not find functions in all test files
 
@@ -563,11 +561,11 @@ class TestMultiFileIntegration:
     def test_java_multi_file_analysis(self) -> None:
         """Test analyzing a multi-file Java project."""
         java_dir = self.get_data_path() / "java"
-        
+
         # Get all Java files in the directory
         java_files = list(java_dir.glob("*.java"))
         assert len(java_files) >= 3
-        
+
         # Check that specific files exist
         filenames = [f.name for f in java_files]
         assert "Main.java" in filenames
@@ -578,7 +576,7 @@ class TestMultiFileIntegration:
             slicer = Slicer()
             file_objs = [create_file_from_path(f) for f in java_files]
             snippets = slicer.extract_snippets(file_objs, "java")
-            
+
             # Should extract some snippets
             assert len(snippets) >= 0  # May not find functions in all test files
 
@@ -637,21 +635,21 @@ class TestMultiFileIntegration:
         """Test function discovery with realistic multi-file projects."""
         python_dir = self.get_data_path() / "python"
         py_files = list(python_dir.glob("*.py"))
-        
+
         try:
             slicer = Slicer()
             file_objs = [create_file_from_path(f) for f in py_files]
             snippets = slicer.extract_snippets(file_objs, "python")
-            
+
             # Should extract some snippets
             assert len(snippets) >= 3
-            
+
             # Check that snippets contain function definitions
             function_defs_found = 0
             for snippet in snippets:
                 if "def " in snippet.original_text():
                     function_defs_found += 1
-                    
+
             assert function_defs_found >= 3
 
         except RuntimeError:
@@ -667,9 +665,9 @@ class TestErrorHandling:
             test_file = Path(tmp_dir, "test.py")
             test_file.write_text("def test(): pass")
             file_obj = create_file_from_path(test_file)
-            
+
+            slicer = Slicer()
             with pytest.raises(ValueError, match="Unsupported language") as exc_info:
-                slicer = Slicer()
                 slicer.extract_snippets([file_obj], "unsupported_language")
 
             error_msg = str(exc_info.value)
@@ -683,9 +681,11 @@ class TestErrorHandling:
 
     def test_file_not_found_error(self) -> None:
         """Test file not found error handling."""
+        slicer = Slicer()
+        nonexistent_file = create_file_from_path(
+            Path("/this/path/definitely/does/not/exist.py")
+        )
         with pytest.raises(FileNotFoundError) as exc_info:
-            slicer = Slicer()
-            nonexistent_file = create_file_from_path(Path("/this/path/definitely/does/not/exist.py"))
             slicer.extract_snippets([nonexistent_file], "python")
 
         error_msg = str(exc_info.value)
