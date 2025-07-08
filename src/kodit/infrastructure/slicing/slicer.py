@@ -113,6 +113,22 @@ class LanguageConfig:
             "extension": ".cs",
             "name_field": None,
         },
+        "html": {
+            "function_nodes": ["script_element", "style_element"],
+            "method_nodes": ["element"],  # Elements with id/class attributes
+            "call_node": "attribute",
+            "import_nodes": ["script_element", "element"],  # script and link elements
+            "extension": ".html",
+            "name_field": None,
+        },
+        "css": {
+            "function_nodes": ["rule_set", "keyframes_statement"],
+            "method_nodes": ["media_statement"],
+            "call_node": "call_expression",
+            "import_nodes": ["import_statement"],
+            "extension": ".css",
+            "name_field": None,
+        },
     }
 
     # Aliases
@@ -234,6 +250,8 @@ class Slicer:
             "csharp": "c_sharp",
             "c#": "c_sharp",
             "cs": "c_sharp",
+            "html": "html",
+            "css": "css",
         }
         return mapping.get(language, language)
 
@@ -307,6 +325,10 @@ class Slicer:
         self, node: Node, config: dict[str, Any], language: str
     ) -> str | None:
         """Extract function name from a function definition node."""
+        if language == "html":
+            return self._extract_html_element_name(node)
+        if language == "css":
+            return self._extract_css_rule_name(node)
         if language == "go" and node.type == "method_declaration":
             return self._extract_go_method_name(node)
         if language in ["c", "cpp"] and config["name_field"]:
@@ -345,6 +367,131 @@ class Slicer:
         name_node = node.child_by_field_name(config["name_field"])
         if name_node and name_node.type == "identifier" and name_node.text is not None:
             return name_node.text.decode("utf-8")
+        return None
+
+    def _extract_html_element_name(self, node: Node) -> str | None:
+        """Extract meaningful name from HTML element."""
+        if node.type == "script_element":
+            return "script"
+        if node.type == "style_element":
+            return "style"
+        if node.type == "element":
+            return self._extract_html_element_info(node)
+        return None
+
+    def _extract_html_element_info(self, node: Node) -> str | None:
+        """Extract element info with ID or class."""
+        for child in node.children:
+            if child.type == "start_tag":
+                tag_name = self._get_tag_name(child)
+                element_id = self._get_element_id(child)
+                class_name = self._get_element_class(child)
+
+                if element_id:
+                    return f"{tag_name or 'element'}#{element_id}"
+                if class_name:
+                    return f"{tag_name or 'element'}.{class_name}"
+                if tag_name:
+                    return tag_name
+        return None
+
+    def _get_tag_name(self, start_tag: Node) -> str | None:
+        """Get tag name from start_tag node."""
+        for child in start_tag.children:
+            if child.type == "tag_name" and child.text:
+                return child.text.decode("utf-8")
+        return None
+
+    def _get_element_id(self, start_tag: Node) -> str | None:
+        """Get element ID from start_tag node."""
+        return self._get_attribute_value(start_tag, "id")
+
+    def _get_element_class(self, start_tag: Node) -> str | None:
+        """Get first class name from start_tag node."""
+        class_value = self._get_attribute_value(start_tag, "class")
+        return class_value.split()[0] if class_value else None
+
+    def _get_attribute_value(self, start_tag: Node, attr_name: str) -> str | None:
+        """Get attribute value from start_tag node."""
+        for child in start_tag.children:
+            if child.type == "attribute":
+                name = self._get_attr_name(child)
+                if name == attr_name:
+                    return self._get_attr_value(child)
+        return None
+
+    def _get_attr_name(self, attr_node: Node) -> str | None:
+        """Get attribute name."""
+        for child in attr_node.children:
+            if child.type == "attribute_name" and child.text:
+                return child.text.decode("utf-8")
+        return None
+
+    def _get_attr_value(self, attr_node: Node) -> str | None:
+        """Get attribute value."""
+        for child in attr_node.children:
+            if child.type == "quoted_attribute_value":
+                for val_child in child.children:
+                    if val_child.type == "attribute_value" and val_child.text:
+                        return val_child.text.decode("utf-8")
+        return None
+
+    def _extract_css_rule_name(self, node: Node) -> str | None:
+        """Extract meaningful name from CSS rule."""
+        if node.type == "rule_set":
+            return self._extract_css_selector(node)
+        if node.type == "keyframes_statement":
+            return self._extract_keyframes_name(node)
+        if node.type == "media_statement":
+            return "@media"
+        return None
+
+    def _extract_css_selector(self, rule_node: Node) -> str | None:
+        """Extract CSS selector from rule_set."""
+        for child in rule_node.children:
+            if child.type == "selectors":
+                selector_parts = []
+                for selector_child in child.children:
+                    part = self._get_selector_part(selector_child)
+                    if part:
+                        selector_parts.append(part)
+                if selector_parts:
+                    return "".join(selector_parts[:2])  # First couple selectors
+        return None
+
+    def _get_selector_part(self, selector_node: Node) -> str | None:
+        """Get a single selector part."""
+        if selector_node.type == "class_selector":
+            return self._extract_class_selector(selector_node)
+        if selector_node.type == "id_selector":
+            return self._extract_id_selector(selector_node)
+        if selector_node.type == "type_selector" and selector_node.text:
+            return selector_node.text.decode("utf-8")
+        return None
+
+    def _extract_class_selector(self, node: Node) -> str | None:
+        """Extract class selector name."""
+        for child in node.children:
+            if child.type == "class_name":
+                for name_child in child.children:
+                    if name_child.type == "identifier" and name_child.text:
+                        return f".{name_child.text.decode('utf-8')}"
+        return None
+
+    def _extract_id_selector(self, node: Node) -> str | None:
+        """Extract ID selector name."""
+        for child in node.children:
+            if child.type == "id_name":
+                for name_child in child.children:
+                    if name_child.type == "identifier" and name_child.text:
+                        return f"#{name_child.text.decode('utf-8')}"
+        return None
+
+    def _extract_keyframes_name(self, node: Node) -> str | None:
+        """Extract keyframes animation name."""
+        for child in node.children:
+            if child.type == "keyframes_name" and child.text:
+                return f"@keyframes-{child.text.decode('utf-8')}"
         return None
 
     def _extract_default_function_name(self, node: Node) -> str | None:

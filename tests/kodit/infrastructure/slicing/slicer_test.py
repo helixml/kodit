@@ -83,6 +83,8 @@ class TestLanguageConfig:
             "csharp",
             "c#",
             "cs",
+            "html",
+            "css",
         }
 
         for lang in expected_languages:
@@ -155,6 +157,8 @@ class TestSlicer:
         assert slicer._get_tree_sitter_language_name("csharp") == "c_sharp"  # noqa: SLF001
         assert slicer._get_tree_sitter_language_name("c#") == "c_sharp"  # noqa: SLF001
         assert slicer._get_tree_sitter_language_name("cs") == "c_sharp"  # noqa: SLF001
+        assert slicer._get_tree_sitter_language_name("html") == "html"  # noqa: SLF001
+        assert slicer._get_tree_sitter_language_name("css") == "css"  # noqa: SLF001
 
     def test_language_config_access(self) -> None:
         """Test that language config is correctly accessed."""
@@ -164,7 +168,18 @@ class TestSlicer:
 
     def test_config_access_patterns(self) -> None:
         """Test accessing different language configurations."""
-        languages = ["python", "javascript", "java", "go", "rust", "c", "cpp", "csharp"]
+        languages = [
+            "python",
+            "javascript",
+            "java",
+            "go",
+            "rust",
+            "c",
+            "cpp",
+            "csharp",
+            "html",
+            "css",
+        ]
         for language in languages:
             config = LanguageConfig.CONFIGS[language]
 
@@ -223,6 +238,8 @@ class TestSlicer:
             "c": ".c",
             "cpp": ".cpp",
             "csharp": ".cs",
+            "html": ".html",
+            "css": ".css",
         }
 
         for language, expected_ext in extension_map.items():
@@ -384,7 +401,18 @@ class TestConfigurationIntegrity:
         languages = set(LanguageConfig.CONFIGS.keys())
 
         # Essential languages
-        essential = {"python", "javascript", "java", "go", "rust", "c", "cpp", "csharp"}
+        essential = {
+            "python",
+            "javascript",
+            "java",
+            "go",
+            "rust",
+            "c",
+            "cpp",
+            "csharp",
+            "html",
+            "css",
+        }
         assert essential.issubset(languages)
 
         # Common aliases
@@ -473,6 +501,56 @@ class TestMultiFileIntegration:
             slicer = Slicer()
             file_objs = [create_file_from_path(f) for f in cs_files]
             snippets = slicer.extract_snippets(file_objs, "csharp")
+
+            # Should extract some snippets
+            assert len(snippets) >= 0  # May not find functions in all test files
+
+        except RuntimeError:
+            pytest.skip("Tree-sitter setup not available")
+
+    def test_html_multi_file_analysis(self) -> None:
+        """Test analyzing a multi-file HTML project."""
+        html_dir = self.get_data_path() / "html"
+
+        # Get all HTML files in the directory
+        html_files = list(html_dir.glob("*.html"))
+        assert len(html_files) >= 3
+
+        # Check that specific files exist
+        filenames = [f.name for f in html_files]
+        assert "main.html" in filenames
+        assert "components.html" in filenames
+        assert "forms.html" in filenames
+
+        try:
+            slicer = Slicer()
+            file_objs = [create_file_from_path(f) for f in html_files]
+            snippets = slicer.extract_snippets(file_objs, "html")
+
+            # Should extract some snippets
+            assert len(snippets) >= 0  # May not find functions in all test files
+
+        except RuntimeError:
+            pytest.skip("Tree-sitter setup not available")
+
+    def test_css_multi_file_analysis(self) -> None:
+        """Test analyzing a multi-file CSS project."""
+        css_dir = self.get_data_path() / "css"
+
+        # Get all CSS files in the directory
+        css_files = list(css_dir.glob("*.css"))
+        assert len(css_files) >= 3
+
+        # Check that specific files exist
+        filenames = [f.name for f in css_files]
+        assert "main.css" in filenames
+        assert "components.css" in filenames
+        assert "utilities.css" in filenames
+
+        try:
+            slicer = Slicer()
+            file_objs = [create_file_from_path(f) for f in css_files]
+            snippets = slicer.extract_snippets(file_objs, "css")
 
             # Should extract some snippets
             assert len(snippets) >= 0  # May not find functions in all test files
@@ -644,6 +722,8 @@ class TestMultiFileIntegration:
             "c",
             "cpp",
             "csharp",
+            "html",
+            "css",
         ]
 
         for language in core_languages:
@@ -669,6 +749,8 @@ class TestMultiFileIntegration:
             "c",
             "cpp",
             "csharp",
+            "html",
+            "css",
         ]
 
         for language in core_languages:

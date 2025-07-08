@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Reusable Components</title>
+</head>
+<body>
+    <!-- Button Component -->
+    <template id="button-template">
+        <button class="btn" type="button">
+            <span class="btn-text"></span>
+            <svg class="btn-icon" viewBox="0 0 24 24">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+            </svg>
+        </button>
+    </template>
+
+    <!-- Card Component -->
+    <template id="card-template">
+        <article class="card">
+            <header class="card-header">
+                <h3 class="card-title"></h3>
+                <span class="card-badge"></span>
+            </header>
+            <div class="card-content">
+                <p class="card-description"></p>
+            </div>
+            <footer class="card-footer">
+                <button class="card-action">Read More</button>
+            </footer>
+        </article>
+    </template>
+
+    <!-- Modal Component -->
+    <template id="modal-template">
+        <div class="modal-overlay">
+            <div class="modal" role="dialog" aria-modal="true">
+                <header class="modal-header">
+                    <h2 class="modal-title"></h2>
+                    <button class="modal-close" aria-label="Close modal">×</button>
+                </header>
+                <div class="modal-body">
+                    <div class="modal-content"></div>
+                </div>
+                <footer class="modal-footer">
+                    <button class="modal-cancel">Cancel</button>
+                    <button class="modal-confirm">Confirm</button>
+                </footer>
+            </div>
+        </div>
+    </template>
+
+    <!-- Navigation Menu Component -->
+    <nav id="dropdown-menu" class="dropdown-menu">
+        <button class="dropdown-trigger" aria-expanded="false">
+            Menu
+            <svg class="dropdown-arrow" viewBox="0 0 24 24">
+                <path d="M7 10l5 5 5-5z"/>
+            </svg>
+        </button>
+        <ul class="dropdown-list" role="menu">
+            <li role="menuitem"><a href="#dashboard">Dashboard</a></li>
+            <li role="menuitem"><a href="#profile">Profile</a></li>
+            <li role="menuitem"><a href="#settings">Settings</a></li>
+            <li class="dropdown-divider"></li>
+            <li role="menuitem"><a href="#logout">Logout</a></li>
+        </ul>
+    </nav>
+
+    <!-- Progress Bar Component -->
+    <div id="progress-bar" class="progress-container">
+        <div class="progress-label">
+            <span class="progress-text">Loading...</span>
+            <span class="progress-percentage">0%</span>
+        </div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 0%"></div>
+        </div>
+    </div>
+
+    <script>
+        class ComponentManager {
+            constructor() {
+                this.components = new Map();
+                this.initialized = false;
+            }
+
+            init() {
+                if (this.initialized) return;
+                this.loadTemplates();
+                this.setupEventListeners();
+                this.initialized = true;
+            }
+
+            loadTemplates() {
+                const templates = document.querySelectorAll('template');
+                templates.forEach(template => {
+                    this.components.set(template.id, template);
+                });
+            }
+
+            createComponent(templateId, data = {}) {
+                const template = this.components.get(templateId);
+                if (!template) {
+                    console.error(`Template ${templateId} not found`);
+                    return null;
+                }
+
+                const clone = template.content.cloneNode(true);
+                this.populateComponent(clone, data);
+                return clone;
+            }
+
+            populateComponent(element, data) {
+                Object.keys(data).forEach(key => {
+                    const target = element.querySelector(`[data-${key}], .${key}`);
+                    if (target) {
+                        target.textContent = data[key];
+                    }
+                });
+            }
+
+            setupEventListeners() {
+                document.addEventListener('click', this.handleComponentClick.bind(this));
+            }
+
+            handleComponentClick(event) {
+                const { target } = event;
+                
+                if (target.matches('.dropdown-trigger')) {
+                    this.toggleDropdown(target);
+                } else if (target.matches('.modal-close, .modal-cancel')) {
+                    this.closeModal(target.closest('.modal-overlay'));
+                } else if (target.matches('.progress-bar')) {
+                    this.updateProgress(target);
+                }
+            }
+
+            toggleDropdown(trigger) {
+                const expanded = trigger.getAttribute('aria-expanded') === 'true';
+                trigger.setAttribute('aria-expanded', !expanded);
+                trigger.closest('.dropdown-menu').classList.toggle('open');
+            }
+
+            closeModal(modalOverlay) {
+                modalOverlay.style.display = 'none';
+            }
+
+            updateProgress(progressBar) {
+                const fill = progressBar.querySelector('.progress-fill');
+                const text = progressBar.parentElement.querySelector('.progress-percentage');
+                
+                let progress = parseInt(fill.style.width) || 0;
+                progress = Math.min(progress + 10, 100);
+                
+                fill.style.width = `${progress}%`;
+                text.textContent = `${progress}%`;
+            }
+        }
+
+        const componentManager = new ComponentManager();
+        document.addEventListener('DOMContentLoaded', () => componentManager.init());
+    </script>
+</body>
+</html>

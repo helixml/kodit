@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Form Examples</title>
+    <style>
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        .error {
+            color: red;
+            font-size: 0.875rem;
+        }
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- Contact Form -->
+    <form id="contact-form" class="contact-form" novalidate>
+        <h2>Contact Us</h2>
+        
+        <div class="form-group">
+            <label for="contact-name">Name *</label>
+            <input 
+                type="text" 
+                id="contact-name" 
+                name="name" 
+                required 
+                minlength="2"
+                aria-describedby="name-error"
+            >
+            <div id="name-error" class="error" aria-live="polite"></div>
+        </div>
+
+        <div class="form-group">
+            <label for="contact-email">Email *</label>
+            <input 
+                type="email" 
+                id="contact-email" 
+                name="email" 
+                required
+                aria-describedby="email-error"
+            >
+            <div id="email-error" class="error" aria-live="polite"></div>
+        </div>
+
+        <div class="form-group">
+            <label for="contact-phone">Phone</label>
+            <input 
+                type="tel" 
+                id="contact-phone" 
+                name="phone"
+                pattern="[0-9]{3}-[0-9]{3}-[0-9]{4}"
+                placeholder="123-456-7890"
+            >
+        </div>
+
+        <div class="form-group">
+            <label for="contact-subject">Subject</label>
+            <select id="contact-subject" name="subject">
+                <option value="">Select a subject</option>
+                <option value="general">General Inquiry</option>
+                <option value="support">Technical Support</option>
+                <option value="sales">Sales</option>
+                <option value="feedback">Feedback</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="contact-message">Message *</label>
+            <textarea 
+                id="contact-message" 
+                name="message" 
+                required
+                rows="4"
+                maxlength="1000"
+                aria-describedby="message-error"
+            ></textarea>
+            <div id="message-error" class="error" aria-live="polite"></div>
+        </div>
+
+        <div class="form-group">
+            <label>
+                <input type="checkbox" name="newsletter" value="yes">
+                Subscribe to our newsletter
+            </label>
+        </div>
+
+        <button type="submit">Send Message</button>
+        <button type="reset">Clear Form</button>
+    </form>
+
+    <!-- User Registration Form -->
+    <form id="registration-form" class="registration-form" novalidate>
+        <h2>Create Account</h2>
+        
+        <div class="form-grid">
+            <div class="form-group">
+                <label for="reg-firstname">First Name *</label>
+                <input 
+                    type="text" 
+                    id="reg-firstname" 
+                    name="firstName" 
+                    required
+                    autocomplete="given-name"
+                >
+            </div>
+
+            <div class="form-group">
+                <label for="reg-lastname">Last Name *</label>
+                <input 
+                    type="text" 
+                    id="reg-lastname" 
+                    name="lastName" 
+                    required
+                    autocomplete="family-name"
+                >
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="reg-email">Email Address *</label>
+            <input 
+                type="email" 
+                id="reg-email" 
+                name="email" 
+                required
+                autocomplete="email"
+            >
+        </div>
+
+        <div class="form-group">
+            <label for="reg-password">Password *</label>
+            <input 
+                type="password" 
+                id="reg-password" 
+                name="password" 
+                required
+                minlength="8"
+                autocomplete="new-password"
+            >
+            <small>Password must be at least 8 characters long</small>
+        </div>
+
+        <div class="form-group">
+            <label for="reg-confirm-password">Confirm Password *</label>
+            <input 
+                type="password" 
+                id="reg-confirm-password" 
+                name="confirmPassword" 
+                required
+                autocomplete="new-password"
+            >
+        </div>
+
+        <div class="form-group">
+            <label for="reg-birthdate">Date of Birth</label>
+            <input 
+                type="date" 
+                id="reg-birthdate" 
+                name="birthDate"
+                max="2006-01-01"
+            >
+        </div>
+
+        <div class="form-group">
+            <fieldset>
+                <legend>Gender</legend>
+                <label>
+                    <input type="radio" name="gender" value="male">
+                    Male
+                </label>
+                <label>
+                    <input type="radio" name="gender" value="female">
+                    Female
+                </label>
+                <label>
+                    <input type="radio" name="gender" value="other">
+                    Other
+                </label>
+                <label>
+                    <input type="radio" name="gender" value="prefer-not-to-say">
+                    Prefer not to say
+                </label>
+            </fieldset>
+        </div>
+
+        <div class="form-group">
+            <label>
+                <input type="checkbox" name="terms" required>
+                I agree to the <a href="#terms">Terms of Service</a> *
+            </label>
+        </div>
+
+        <button type="submit">Create Account</button>
+    </form>
+
+    <script>
+        class FormValidator {
+            constructor(formId) {
+                this.form = document.getElementById(formId);
+                this.errors = new Map();
+                this.init();
+            }
+
+            init() {
+                if (!this.form) return;
+                
+                this.form.addEventListener('submit', this.handleSubmit.bind(this));
+                this.form.addEventListener('input', this.handleInput.bind(this));
+                this.form.addEventListener('blur', this.handleBlur.bind(this), true);
+            }
+
+            handleSubmit(event) {
+                event.preventDefault();
+                
+                if (this.validateForm()) {
+                    this.submitForm();
+                } else {
+                    this.focusFirstError();
+                }
+            }
+
+            handleInput(event) {
+                const field = event.target;
+                if (this.errors.has(field.name)) {
+                    this.validateField(field);
+                }
+            }
+
+            handleBlur(event) {
+                this.validateField(event.target);
+            }
+
+            validateForm() {
+                this.errors.clear();
+                const fields = this.form.querySelectorAll('input, textarea, select');
+                
+                fields.forEach(field => this.validateField(field));
+                
+                return this.errors.size === 0;
+            }
+
+            validateField(field) {
+                const value = field.value.trim();
+                const name = field.name;
+                
+                this.clearFieldError(field);
+
+                // Required field validation
+                if (field.required && !value) {
+                    this.setFieldError(field, 'This field is required');
+                    return false;
+                }
+
+                // Email validation
+                if (field.type === 'email' && value) {
+                    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                    if (!emailRegex.test(value)) {
+                        this.setFieldError(field, 'Please enter a valid email address');
+                        return false;
+                    }
+                }
+
+                // Password validation
+                if (name === 'password' && value) {
+                    if (value.length < 8) {
+                        this.setFieldError(field, 'Password must be at least 8 characters');
+                        return false;
+                    }
+                }
+
+                // Confirm password validation
+                if (name === 'confirmPassword' && value) {
+                    const password = this.form.querySelector('[name="password"]').value;
+                    if (value !== password) {
+                        this.setFieldError(field, 'Passwords do not match');
+                        return false;
+                    }
+                }
+
+                // Minlength validation
+                if (field.minLength && value.length < field.minLength) {
+                    this.setFieldError(field, `Must be at least ${field.minLength} characters`);
+                    return false;
+                }
+
+                return true;
+            }
+
+            setFieldError(field, message) {
+                const errorId = `${field.name}-error`;
+                const errorElement = document.getElementById(errorId);
+                
+                if (errorElement) {
+                    errorElement.textContent = message;
+                }
+                
+                field.setAttribute('aria-invalid', 'true');
+                this.errors.set(field.name, message);
+            }
+
+            clearFieldError(field) {
+                const errorId = `${field.name}-error`;
+                const errorElement = document.getElementById(errorId);
+                
+                if (errorElement) {
+                    errorElement.textContent = '';
+                }
+                
+                field.removeAttribute('aria-invalid');
+                this.errors.delete(field.name);
+            }
+
+            focusFirstError() {
+                const firstErrorField = this.form.querySelector('[aria-invalid="true"]');
+                if (firstErrorField) {
+                    firstErrorField.focus();
+                }
+            }
+
+            submitForm() {
+                const formData = new FormData(this.form);
+                const data = Object.fromEntries(formData.entries());
+                
+                console.log('Form submitted with data:', data);
+                
+                // Simulate form submission
+                alert('Form submitted successfully!');
+            }
+        }
+
+        // Initialize form validators
+        document.addEventListener('DOMContentLoaded', function() {
+            new FormValidator('contact-form');
+            new FormValidator('registration-form');
+        });
+    </script>
+</body>
+</html>
