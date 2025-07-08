@@ -162,8 +162,8 @@ class CodeIndexingApplicationService:
         # Apply filters if provided
         filtered_snippet_ids: list[int] | None = None
         if request.filters:
-            # Use domain service for filtering
-            prefilter_request = replace(request, top_k=None)
+            # Use domain service for filtering (use large top_k for pre-filtering)
+            prefilter_request = replace(request, top_k=10000)
             snippet_results = await self.index_query_service.search_snippets(
                 prefilter_request
             )
