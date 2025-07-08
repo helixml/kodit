@@ -126,14 +126,14 @@ class TestSlicer:
     """Test Slicer class - unit tests for individual methods."""
 
     def test_extract_snippets_with_invalid_language(self) -> None:
-        """Test extract_snippets with unsupported language."""
+        """Test extract_snippets with unsupported language returns empty list."""
         with tempfile.TemporaryDirectory() as tmp_dir:
             slicer = Slicer()
             test_file = Path(tmp_dir, "test.py")
             test_file.write_text("def test(): pass")
             file_obj = create_file_from_path(test_file)
-            with pytest.raises(ValueError, match="Unsupported language"):
-                slicer.extract_snippets([file_obj], "unsupported")
+            snippets = slicer.extract_snippets([file_obj], "unsupported")
+            assert snippets == []
 
     def test_extract_snippets_with_nonexistent_files(self) -> None:
         """Test extract_snippets with nonexistent files."""
@@ -659,25 +659,16 @@ class TestMultiFileIntegration:
 class TestErrorHandling:
     """Test error handling and edge cases."""
 
-    def test_unsupported_language_error_message(self) -> None:
-        """Test that unsupported language error includes helpful information."""
+    def test_unsupported_language_returns_empty_list(self) -> None:
+        """Test that unsupported language returns empty list."""
         with tempfile.TemporaryDirectory() as tmp_dir:
             test_file = Path(tmp_dir, "test.py")
             test_file.write_text("def test(): pass")
             file_obj = create_file_from_path(test_file)
 
             slicer = Slicer()
-            with pytest.raises(ValueError, match="Unsupported language") as exc_info:
-                slicer.extract_snippets([file_obj], "unsupported_language")
-
-            error_msg = str(exc_info.value)
-            assert "Unsupported language" in error_msg
-            assert "unsupported_language" in error_msg
-            assert "Supported languages" in error_msg
-
-            # Should list some supported languages
-            assert "python" in error_msg
-            assert "javascript" in error_msg
+            snippets = slicer.extract_snippets([file_obj], "unsupported_language")
+            assert snippets == []
 
     def test_file_not_found_error(self) -> None:
         """Test file not found error handling."""

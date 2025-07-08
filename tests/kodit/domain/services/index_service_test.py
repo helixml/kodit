@@ -1,6 +1,5 @@
 """Unit tests for IndexDomainService."""
 
-from collections.abc import Mapping
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock
 
@@ -12,9 +11,7 @@ from kodit.domain.services.enrichment_service import EnrichmentDomainService
 from kodit.domain.services.index_service import (
     IndexDomainService,
     LanguageDetectionService,
-    SnippetExtractor,
 )
-from kodit.domain.value_objects import SnippetExtractionStrategy
 
 
 class MockLanguageDetectionService(LanguageDetectionService):
@@ -27,14 +24,6 @@ class MockLanguageDetectionService(LanguageDetectionService):
         return "unknown"
 
 
-class MockSnippetExtractor(SnippetExtractor):
-    """Mock snippet extractor."""
-
-    async def extract(self, file_path: Path, language: str) -> list[str]:  # noqa: ARG002
-        """Return mock snippets."""
-        return [f"def mock_function():\n    # From {file_path.name}"]
-
-
 @pytest.fixture
 def mock_enrichment_service() -> EnrichmentDomainService:
     """Create a mock enrichment service."""
@@ -44,23 +33,13 @@ def mock_enrichment_service() -> EnrichmentDomainService:
 
 
 @pytest.fixture
-def mock_snippet_extractors() -> Mapping[SnippetExtractionStrategy, SnippetExtractor]:
-    """Create mock snippet extractors."""
-    return {
-        SnippetExtractionStrategy.METHOD_BASED: MockSnippetExtractor(),
-    }
-
-
-@pytest.fixture
 def index_domain_service(
     mock_enrichment_service: EnrichmentDomainService,
-    mock_snippet_extractors: Mapping[SnippetExtractionStrategy, SnippetExtractor],
     tmp_path: Path,
 ) -> IndexDomainService:
     """Create an IndexDomainService for testing."""
     return IndexDomainService(
         language_detector=MockLanguageDetectionService(),
-        snippet_extractors=mock_snippet_extractors,
         enrichment_service=mock_enrichment_service,
         clone_dir=tmp_path / "clones",
     )
@@ -128,7 +107,6 @@ async def test_extract_snippets_from_index_returns_snippets(
     # Extract snippets - this method returns the updated Index, not just snippets
     updated_index = await index_domain_service.extract_snippets_from_index(
         index=index,
-        strategy=SnippetExtractionStrategy.METHOD_BASED,
     )
 
     # Verify snippets were extracted
@@ -157,9 +135,6 @@ async def test_enrich_snippets_in_index_returns_enriched_snippets(
     # Create domain service with real enrichment service
     domain_service = IndexDomainService(
         language_detector=MockLanguageDetectionService(),
-        snippet_extractors={
-            SnippetExtractionStrategy.METHOD_BASED: MockSnippetExtractor(),
-        },
         enrichment_service=enrichment_service,
         clone_dir=tmp_path / "clones",
     )

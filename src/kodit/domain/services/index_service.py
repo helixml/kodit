@@ -1,7 +1,6 @@
 """Pure domain service for Index aggregate operations."""
 
 from abc import ABC, abstractmethod
-from collections.abc import Mapping
 from pathlib import Path
 
 import structlog
@@ -14,9 +13,6 @@ from kodit.domain.value_objects import (
     EnrichmentIndexRequest,
     EnrichmentRequest,
     LanguageMapping,
-    SnippetExtractionRequest,
-    SnippetExtractionResult,
-    SnippetExtractionStrategy,
 )
 from kodit.infrastructure.cloning.git.working_copy import GitWorkingCopyProvider
 from kodit.infrastructure.cloning.metadata import FileMetadataExtractor
@@ -35,14 +31,6 @@ class LanguageDetectionService(ABC):
         """Detect the programming language of a file."""
 
 
-class SnippetExtractor(ABC):
-    """Abstract interface for snippet extraction."""
-
-    @abstractmethod
-    async def extract(self, file_path: Path, language: str) -> list[str]:
-        """Extract snippets from a file."""
-
-
 class IndexDomainService:
     """Pure domain service for Index aggregate operations.
 
@@ -56,14 +44,12 @@ class IndexDomainService:
     def __init__(
         self,
         language_detector: LanguageDetectionService,
-        snippet_extractors: Mapping[SnippetExtractionStrategy, SnippetExtractor],
         enrichment_service: EnrichmentDomainService,
         clone_dir: Path,
     ) -> None:
         """Initialize the index domain service."""
         self._clone_dir = clone_dir
         self._language_detector = language_detector
-        self._snippet_extractors = snippet_extractors
         self._enrichment_service = enrichment_service
         self.log = structlog.get_logger(__name__)
 
@@ -101,7 +87,6 @@ class IndexDomainService:
     async def extract_snippets_from_index(
         self,
         index: domain_entities.Index,
-        strategy: SnippetExtractionStrategy = SnippetExtractionStrategy.METHOD_BASED,
         progress_callback: ProgressCallback | None = None,
     ) -> domain_entities.Index:
         """Extract code snippets from files in the index."""
@@ -111,7 +96,6 @@ class IndexDomainService:
             "Extracting snippets",
             index_id=index.id,
             file_count=file_count,
-            strategy=strategy.value,
         )
 
         # Only create snippets for files that have been added or modified
@@ -184,27 +168,6 @@ class IndexDomainService:
         await reporter.done("enrichment")
         return list(snippet_map.values())
 
-    async def _extract_snippets(
-        self, request: SnippetExtractionRequest
-    ) -> SnippetExtractionResult:
-        # Domain logic: validate file exists
-        if not request.file_path.exists():
-            raise ValueError(f"File does not exist: {request.file_path}")
-
-        # Domain logic: detect language
-        language = await self._language_detector.detect_language(request.file_path)
-
-        # Domain logic: choose strategy and extractor
-        if request.strategy not in self._snippet_extractors:
-            raise ValueError(f"Unsupported extraction strategy: {request.strategy}")
-
-        extractor = self._snippet_extractors[request.strategy]
-        snippets = await extractor.extract(request.file_path, language)
-
-        # Domain logic: filter out empty snippets
-        filtered_snippets = [snippet for snippet in snippets if snippet.strip()]
-
-        return SnippetExtractionResult(snippets=filtered_snippets, language=language)
 
     def sanitize_uri(
         self, uri_or_path_like: str

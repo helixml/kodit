@@ -135,14 +135,6 @@ class SearchType(Enum):
 
 
 @dataclass
-class SnippetExtractionResult:
-    """Domain model for snippet extraction result."""
-
-    snippets: list[str]
-    language: str
-
-
-@dataclass
 class Document:
     """Generic document model for indexing."""
 
@@ -638,20 +630,6 @@ class SnippetQuery(BaseModel):
     search_type: SearchType = SearchType.HYBRID
     filters: SnippetSearchFilters = SnippetSearchFilters()
     top_k: int = 10
-
-
-class SnippetExtractionStrategy(str, Enum):
-    """Different strategies for extracting snippets from files."""
-
-    METHOD_BASED = "method_based"
-
-
-@dataclass
-class SnippetExtractionRequest:
-    """Domain model for snippet extraction request."""
-
-    file_path: Path
-    strategy: SnippetExtractionStrategy = SnippetExtractionStrategy.METHOD_BASED
 
 
 class FileProcessingStatus(IntEnum):

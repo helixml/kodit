@@ -13,7 +13,7 @@ from kodit.domain.services.index_query_service import IndexQueryService
 from kodit.domain.services.index_service import (
     IndexDomainService,
 )
-from kodit.domain.value_objects import LanguageMapping, SnippetExtractionStrategy
+from kodit.domain.value_objects import LanguageMapping
 from kodit.infrastructure.bm25.bm25_factory import bm25_repository_factory
 from kodit.infrastructure.embedding.embedding_factory import (
     embedding_domain_service_factory,
@@ -31,14 +31,8 @@ from kodit.infrastructure.enrichment.null_enrichment_provider import (
     NullEnrichmentProvider,
 )
 from kodit.infrastructure.indexing.fusion_service import ReciprocalRankFusionService
-from kodit.infrastructure.snippet_extraction.factories import (
-    create_snippet_query_provider,
-)
-from kodit.infrastructure.snippet_extraction.language_detection_service import (
+from kodit.infrastructure.language_detection_service import (
     FileSystemLanguageDetectionService,
-)
-from kodit.infrastructure.snippet_extraction.tree_sitter_snippet_extractor import (
-    TreeSitterSnippetExtractor,
 )
 from kodit.infrastructure.sqlalchemy.embedding_repository import (
     SqlAlchemyEmbeddingRepository,
@@ -63,17 +57,9 @@ def create_code_indexing_application_service(
 
     # Create infrastructure services
     language_detector = FileSystemLanguageDetectionService(language_map)
-    query_provider = create_snippet_query_provider()
 
-    # Create snippet extractors
-    method_extractor = TreeSitterSnippetExtractor(query_provider)
-
-    snippet_extractors = {
-        SnippetExtractionStrategy.METHOD_BASED: method_extractor,
-    }
     index_domain_service = IndexDomainService(
         language_detector=language_detector,
-        snippet_extractors=snippet_extractors,
         enrichment_service=enrichment_service,
         clone_dir=app_context.get_clone_dir(),
     )
@@ -136,17 +122,9 @@ def create_fast_test_code_indexing_application_service(
 
     # Create infrastructure services
     language_detector = FileSystemLanguageDetectionService(language_map)
-    query_provider = create_snippet_query_provider()
 
-    # Create snippet extractors
-    method_extractor = TreeSitterSnippetExtractor(query_provider)
-
-    snippet_extractors = {
-        SnippetExtractionStrategy.METHOD_BASED: method_extractor,
-    }
     index_domain_service = IndexDomainService(
         language_detector=language_detector,
-        snippet_extractors=snippet_extractors,
         enrichment_service=enrichment_service,
         clone_dir=app_context.get_clone_dir(),
     )
