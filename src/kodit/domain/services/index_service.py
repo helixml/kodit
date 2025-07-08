@@ -118,11 +118,6 @@ class IndexDomainService:
         files = index.source.working_copy.changed_files()
         index.delete_snippets_for_files(files)
 
-        reporter = Reporter(self.log, progress_callback)
-        await reporter.start(
-            "extract_snippets", len(files), "Extracting code snippets..."
-        )
-
         # Create a set of languages to extract snippets for
         extensions = {file.extension() for file in files}
         languages = []
@@ -133,15 +128,23 @@ class IndexDomainService:
                 self.log.info("Skipping", error=str(e))
                 continue
 
+        reporter = Reporter(self.log, progress_callback)
+        await reporter.start(
+            "extract_snippets",
+            len(files) * len(languages),
+            "Extracting code snippets...",
+        )
         # Calculate snippets for each language
         slicer = Slicer()
-        for language in languages:
-            try:
-                s = slicer.extract_snippets(files, language=language)
-                index.snippets.extend(s)
-            except ValueError as e:
-                self.log.info("Skipping", error=str(e))
-                continue
+        for i, language in enumerate(languages):
+            await reporter.step(
+                "extract_snippets",
+                len(files) * (i + 1),
+                len(files) * len(languages),
+                "Extracting code snippets...",
+            )
+            s = slicer.extract_snippets(files, language=language)
+            index.snippets.extend(s)
 
         await reporter.done("extract_snippets")
         return index
@@ -291,7 +294,7 @@ class IndexDomainService:
                     await metadata_extractor.extract(file_path=file_path)
                 )
             except (OSError, ValueError) as e:
-                self.log.info("Skipping file", file=str(file_path), error=str(e))
+                self.log.debug("Skipping file", file=str(file_path), error=str(e))
                 continue
 
         # Finally check if there are any modified files

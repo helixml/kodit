@@ -115,6 +115,9 @@ class CodeIndexingApplicationService:
             msg = f"Index {index.id} not found after snippet extraction"
             raise ValueError(msg)
         index = flushed_index
+        if len(index.snippets) == 0:
+            self.log.info("No snippets to index after extraction", index_id=index.id)
+            return
 
         # Create BM25 index
         self.log.info("Creating keyword index")

@@ -144,10 +144,7 @@ class Slicer:
 
         # Get language configuration
         if language not in LanguageConfig.CONFIGS:
-            supported = ", ".join(sorted(LanguageConfig.CONFIGS.keys()))
-            raise ValueError(
-                f"Unsupported language: {language}. Supported languages: {supported}"
-            )
+            return []
 
         config = LanguageConfig.CONFIGS[language]
 
@@ -361,6 +358,8 @@ class Slicer:
             try:
                 with file_path.open(encoding="utf-8") as f:
                     file_contents[file_path] = f.read()
+            except UnicodeDecodeError as e:
+                file_contents[file_path] = f"# Error reading file: {e}"
             except OSError as e:
                 file_contents[file_path] = f"# Error reading file: {e}"
         return file_contents[file_path]
