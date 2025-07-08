@@ -104,6 +104,11 @@ source = ["src"]
 branch = true
 omit = []
 
+[tool.ruff]
+exclude = [
+  "tests/kodit/infrastructure/slicing/data/**/*.py",
+]
+
 [tool.ruff.lint]
 ignore = [
   "ANN401", # Opinionated warning on disallowing dynamically typed expressions
