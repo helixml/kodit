@@ -298,9 +298,7 @@ async def test_sync_scheduler_start_stop() -> None:
 
     with patch.object(scheduler, "_perform_sync", mock_perform_sync):
         # Start the scheduler in the background
-        start_task = asyncio.create_task(
-            scheduler.start_periodic_sync(interval_seconds=0.06)
-        )
+        scheduler.start_periodic_sync(interval_seconds=0.06)
 
         # Give it time to perform at least one sync
         await asyncio.sleep(0.05)
@@ -308,8 +306,9 @@ async def test_sync_scheduler_start_stop() -> None:
         # Stop the scheduler
         await scheduler.stop_periodic_sync()
 
-        # Wait for the start task to complete
-        await start_task
+        # Wait for the sync task to complete
+        if scheduler._sync_task:
+            await scheduler._sync_task
 
         # Verify at least one sync was performed
         assert sync_performed
@@ -372,9 +371,7 @@ async def test_sync_scheduler_shutdown_during_sync() -> None:
 
     with patch.object(scheduler, "_perform_sync", mock_perform_sync):
         # Start the scheduler
-        start_task = asyncio.create_task(
-            scheduler.start_periodic_sync(interval_seconds=1800)
-        )
+        scheduler.start_periodic_sync(interval_seconds=1800)
 
         # Wait for sync to start
         await sync_started.wait()
@@ -388,9 +385,8 @@ async def test_sync_scheduler_shutdown_during_sync() -> None:
         # Allow the sync to complete
         sync_should_continue.set()
 
-        # Wait for both tasks to complete
+        # Wait for stop task to complete
         await stop_task
-        await start_task
 
         # Verify clean shutdown
         assert scheduler._shutdown_event.is_set()  # noqa: SLF001

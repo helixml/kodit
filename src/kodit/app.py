@@ -38,8 +38,8 @@ async def app_lifespan(_: FastAPI) -> AsyncIterator[None]:
             app_context=app_context,
             session_factory=db.session_factory,
         )
-        await _sync_scheduler_service.start_periodic_sync(
-            interval_minutes=app_context.sync.interval_minutes
+        _sync_scheduler_service.start_periodic_sync(
+            interval_seconds=app_context.sync.interval_seconds
         )
 
     yield

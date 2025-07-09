@@ -84,12 +84,10 @@ class AutoIndexingConfig(BaseModel):
 class SyncConfig(BaseModel):
     """Configuration for sync operations."""
 
-    interval_minutes: int = Field(
-        default=30, description="Interval between automatic syncs in minutes"
+    interval_seconds: float = Field(
+        default=1800, description="Interval between automatic syncs in seconds"
     )
-    enabled: bool = Field(
-        default=True, description="Enable/disable automatic syncing"
-    )
+    enabled: bool = Field(default=True, description="Enable/disable automatic syncing")
     retry_attempts: int = Field(
         default=3, description="Number of retry attempts for failed syncs"
     )
@@ -187,9 +185,7 @@ class AppContext(BaseSettings):
     auto_indexing: AutoIndexingConfig | None = Field(
         default=AutoIndexingConfig(), description="Auto-indexing configuration"
     )
-    sync: SyncConfig = Field(
-        default=SyncConfig(), description="Sync configuration"
-    )
+    sync: SyncConfig = Field(default=SyncConfig(), description="Sync configuration")
     _db: Database | None = None
 
     def model_post_init(self, _: Any) -> None:

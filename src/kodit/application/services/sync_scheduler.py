@@ -31,18 +31,11 @@ class SyncSchedulerService:
         self._sync_task: asyncio.Task | None = None
         self._shutdown_event = asyncio.Event()
 
-    async def start_periodic_sync(self, interval_seconds: float = 1800) -> None:
+    def start_periodic_sync(self, interval_seconds: float = 1800) -> None:
         """Start periodic sync of all indexes."""
         self.log.info("Starting periodic sync", interval_seconds=interval_seconds)
 
         self._sync_task = asyncio.create_task(self._sync_loop(interval_seconds))
-
-        try:
-            await self._sync_task
-        except asyncio.CancelledError:
-            self.log.info("Periodic sync cancelled")
-        except Exception as e:
-            self.log.exception("Periodic sync failed", error=e)
 
     async def stop_periodic_sync(self) -> None:
         """Stop the periodic sync task."""
