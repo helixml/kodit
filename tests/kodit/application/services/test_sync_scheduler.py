@@ -1,6 +1,7 @@
 """Tests for SyncSchedulerService."""
 
 import asyncio
+import contextlib
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -306,9 +307,10 @@ async def test_sync_scheduler_start_stop() -> None:
         # Stop the scheduler
         await scheduler.stop_periodic_sync()
 
-        # Wait for the sync task to complete
+        # Wait for the sync task to complete (it may be cancelled)
         if scheduler._sync_task:  # noqa: SLF001
-            await scheduler._sync_task  # noqa: SLF001
+            with contextlib.suppress(asyncio.CancelledError):
+                await scheduler._sync_task  # noqa: SLF001
 
         # Verify at least one sync was performed
         assert sync_performed
