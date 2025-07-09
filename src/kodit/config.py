@@ -185,7 +185,9 @@ class AppContext(BaseSettings):
     auto_indexing: AutoIndexingConfig | None = Field(
         default=AutoIndexingConfig(), description="Auto-indexing configuration"
     )
-    sync: PeriodicSyncConfig = Field(default=PeriodicSyncConfig(), description="Sync configuration")
+    periodic_sync: PeriodicSyncConfig = Field(
+        default=PeriodicSyncConfig(), description="Periodic sync configuration"
+    )
     _db: Database | None = None
 
     def model_post_init(self, _: Any) -> None:
