@@ -307,8 +307,8 @@ async def test_sync_scheduler_start_stop() -> None:
         await scheduler.stop_periodic_sync()
 
         # Wait for the sync task to complete
-        if scheduler._sync_task:
-            await scheduler._sync_task
+        if scheduler._sync_task:  # noqa: SLF001
+            await scheduler._sync_task  # noqa: SLF001
 
         # Verify at least one sync was performed
         assert sync_performed
