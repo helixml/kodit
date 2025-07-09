@@ -332,6 +332,24 @@ Kodit shows progress during indexing operations:
 - Snippet extraction progress
 - Index building progress (BM25, embeddings)
 
+### Automatic Sync
+
+For server deployments, Kodit includes an automatic sync scheduler that keeps your indexes up-to-date:
+
+- **Periodic sync**: Automatically re-indexes all existing sources at configurable intervals
+- **Failure handling**: Gracefully handles sync failures with retry logic
+- **Background operation**: Runs in the background without blocking the MCP server
+- **Configurable timing**: Adjust sync frequency based on your needs
+
+See the [Sync Configuration](/kodit/reference/sync/index.md) documentation for detailed setup instructions.
+
+The sync scheduler is enabled by default and will:
+
+- Start automatically when you run `kodit serve`
+- Sync all existing indexes every 30 minutes by default
+- Log detailed progress and results
+- Retry failed operations up to 3 times by default
+
 ## Privacy and Security
 
 ### Local Processing

@@ -81,6 +81,12 @@ spec:
               value: "https://github.com/pydantic/pydantic"
             - name: AUTO_INDEXING_SOURCES_1_URI
               value: "https://github.com/helix-ml/kodit"
+            - name: SYNC_PERIODIC_ENABLED
+              value: "true"
+            - name: SYNC_PERIODIC_INTERVAL_SECONDS
+              value: "1800"  # 30 minutes
+            - name: SYNC_PERIODIC_RETRY_ATTEMPTS
+              value: "3"
           ports:
             - containerPort: 8080
           readinessProbe:

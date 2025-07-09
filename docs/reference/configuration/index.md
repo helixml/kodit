@@ -117,6 +117,34 @@ DB_URL=postgresql+asyncpg://postgres:mysecretpassword@localhost:5432/kodit
 DEFAULT_SEARCH_PROVIDER=vectorchord
 ```
 
+## Configuring Sync
+
+### Periodic Sync Configuration
+
+Kodit can automatically sync all indexed codebases at regular intervals to keep them up-to-date with the latest changes. This is especially useful for server deployments where multiple users are working with the same codebases.
+
+```bash
+# Enable/disable periodic sync (default: true)
+SYNC_PERIODIC_ENABLED=true
+
+# Sync interval in seconds (default: 1800 = 30 minutes)
+SYNC_PERIODIC_INTERVAL_SECONDS=1800
+
+# Number of retry attempts for failed syncs (default: 3)
+SYNC_PERIODIC_RETRY_ATTEMPTS=3
+```
+
+The sync scheduler will:
+- Run automatically in the background when the server starts
+- Sync all existing indexes at the configured interval
+- Handle failures gracefully with retry logic
+- Log detailed progress and results
+- Shut down cleanly when the server stops
+
+{{< info >}}
+**Note**: The sync scheduler only syncs existing indexes. It does not create new indexes for repositories that haven't been indexed yet.
+{{< /info >}}
+
 ## Configuring Enrichment
 
 ### Default Enrichment Provider

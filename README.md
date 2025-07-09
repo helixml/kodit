@@ -49,6 +49,7 @@ code. This index is used to build a snippet library, ready for ingestion into an
 - **NEW in 0.3**: Index private repositories via a PAT
 - **NEW in 0.3**: Improved progress monitoring and reporting during indexing
 - **NEW in 0.3**: Advanced code slicing infrastructure with Tree-sitter parsing
+- **NEW in 0.4**: Automatic periodic sync to keep indexes up-to-date
 
 ### MCP Server
 

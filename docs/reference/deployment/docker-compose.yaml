@@ -34,6 +34,11 @@ services:
       AUTO_INDEXING_SOURCES_1_URI: https://github.com/fastapi/fastapi
       AUTO_INDEXING_SOURCES_2_URI: https://github.com/helix-ml/kodit
 
+      # Sync configuration
+      SYNC_PERIODIC_ENABLED: true
+      SYNC_PERIODIC_INTERVAL_SECONDS: 1800  # 30 minutes
+      SYNC_PERIODIC_RETRY_ATTEMPTS: 3
+
   vectorchord:
     image: tensorchord/vchord-suite:pg17-20250601
     environment:
