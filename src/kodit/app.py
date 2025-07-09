@@ -6,28 +6,47 @@ from contextlib import asynccontextmanager
 from asgi_correlation_id import CorrelationIdMiddleware
 from fastapi import FastAPI
 
+from kodit.application.services.sync_scheduler import SyncSchedulerService
 from kodit.config import AppContext
 from kodit.infrastructure.indexing.auto_indexing_service import AutoIndexingService
 from kodit.mcp import mcp
 from kodit.middleware import ASGICancelledErrorMiddleware, logging_middleware
 
-# Global auto-indexing service
+# Global services
 _auto_indexing_service: AutoIndexingService | None = None
+_sync_scheduler_service: SyncSchedulerService | None = None
 
 
 @asynccontextmanager
 async def app_lifespan(_: FastAPI) -> AsyncIterator[None]:
-    """Manage application lifespan for auto-indexing."""
-    global _auto_indexing_service  # noqa: PLW0603
-    # Start auto-indexing service
+    """Manage application lifespan for auto-indexing and sync."""
+    global _auto_indexing_service, _sync_scheduler_service  # noqa: PLW0603
+
     app_context = AppContext()
     db = await app_context.get_db()
+
+    # Start auto-indexing service
     _auto_indexing_service = AutoIndexingService(
         app_context=app_context,
         session_factory=db.session_factory,
     )
     await _auto_indexing_service.start_background_indexing()
+
+    # Start sync scheduler service
+    if app_context.sync.enabled:
+        _sync_scheduler_service = SyncSchedulerService(
+            app_context=app_context,
+            session_factory=db.session_factory,
+        )
+        await _sync_scheduler_service.start_periodic_sync(
+            interval_minutes=app_context.sync.interval_minutes
+        )
+
     yield
+
+    # Stop services
+    if _sync_scheduler_service:
+        await _sync_scheduler_service.stop_periodic_sync()
     if _auto_indexing_service:
         await _auto_indexing_service.stop()
 

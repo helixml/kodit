@@ -63,10 +63,104 @@ def cli(
     ctx.obj = config
 
 
+async def _handle_auto_index(
+    app_context: AppContext,
+    sources: list[str],  # noqa: ARG001
+) -> list[str]:
+    """Handle auto-index option and return sources to process."""
+    log = structlog.get_logger(__name__)
+    log.info("Auto-indexing configuration", config=app_context.auto_indexing)
+    if not app_context.auto_indexing or not app_context.auto_indexing.sources:
+        click.echo("No auto-index sources configured.")
+        return []
+    auto_sources = app_context.auto_indexing.sources
+    click.echo(f"Auto-indexing {len(auto_sources)} configured sources...")
+    return [source.uri for source in auto_sources]
+
+
+async def _handle_sync(
+    service: Any,
+    index_query_service: IndexQueryService,
+    sources: list[str],
+) -> None:
+    """Handle sync operation."""
+    log = structlog.get_logger(__name__)
+    log_event("kodit.cli.index.sync")
+
+    # Get all existing indexes
+    all_indexes = await index_query_service.list_indexes()
+
+    if not all_indexes:
+        click.echo("No existing indexes found to sync.")
+        return
+
+    # Filter indexes if specific sources are provided
+    indexes_to_sync = all_indexes
+    if sources:
+        # Filter indexes that match the provided sources
+        source_uris = set(sources)
+        indexes_to_sync = [
+            index for index in all_indexes
+            if str(index.source.working_copy.remote_uri) in source_uris
+        ]
+
+        if not indexes_to_sync:
+            click.echo(
+                f"No indexes found for the specified sources: {', '.join(sources)}"
+            )
+            return
+
+    click.echo(f"Syncing {len(indexes_to_sync)} indexes...")
+
+    # Sync each index
+    for index in indexes_to_sync:
+        click.echo(f"Syncing: {index.source.working_copy.remote_uri}")
+
+        # Create progress callback for this sync operation
+        progress_callback = create_multi_stage_progress_callback()
+
+        try:
+            await service.run_index(index, progress_callback)
+            click.echo(f"✓ Sync completed: {index.source.working_copy.remote_uri}")
+        except Exception as e:
+            log.exception("Sync failed", index_id=index.id, error=e)
+            click.echo(
+                f"✗ Sync failed: {index.source.working_copy.remote_uri} - {e}"
+            )
+
+
+async def _handle_list_indexes(index_query_service: IndexQueryService) -> None:
+    """Handle listing all indexes."""
+    log_event("kodit.cli.index.list")
+    # No source specified, list all indexes
+    indexes = await index_query_service.list_indexes()
+    headers: list[str | Cell] = [
+        "ID",
+        "Created At",
+        "Updated At",
+        "Source",
+        "Num Snippets",
+    ]
+    data = [
+        [
+            index.id,
+            index.created_at,
+            index.updated_at,
+            index.source.working_copy.remote_uri,
+            len(index.source.working_copy.files),
+        ]
+        for index in indexes
+    ]
+    click.echo(Table(headers=headers, data=data))
+
+
 @cli.command()
 @click.argument("sources", nargs=-1)
 @click.option(
     "--auto-index", is_flag=True, help="Index all configured auto-index sources"
+)
+@click.option(
+    "--sync", is_flag=True, help="Sync existing indexes with their remotes"
 )
 @with_app_context
 @with_session
@@ -76,8 +170,9 @@ async def index(
     sources: list[str],
     *,  # Force keyword-only arguments
     auto_index: bool,
+    sync: bool,
 ) -> None:
-    """List indexes, or index data sources."""
+    """List indexes, index data sources, or sync existing indexes."""
     log = structlog.get_logger(__name__)
     service = create_code_indexing_application_service(
         app_context=app_context,
@@ -89,36 +184,16 @@ async def index(
     )
 
     if auto_index:
-        log.info("Auto-indexing configuration", config=app_context.auto_indexing)
-        if not app_context.auto_indexing or not app_context.auto_indexing.sources:
-            click.echo("No auto-index sources configured.")
+        sources = await _handle_auto_index(app_context, sources)
+        if not sources:
             return
-        auto_sources = app_context.auto_indexing.sources
-        click.echo(f"Auto-indexing {len(auto_sources)} configured sources...")
-        sources = [source.uri for source in auto_sources]
+
+    if sync:
+        await _handle_sync(service, index_query_service, sources)
+        return
 
     if not sources:
-        log_event("kodit.cli.index.list")
-        # No source specified, list all indexes
-        indexes = await index_query_service.list_indexes()
-        headers: list[str | Cell] = [
-            "ID",
-            "Created At",
-            "Updated At",
-            "Source",
-            "Num Snippets",
-        ]
-        data = [
-            [
-                index.id,
-                index.created_at,
-                index.updated_at,
-                index.source.working_copy.remote_uri,
-                len(index.source.working_copy.files),
-            ]
-            for index in indexes
-        ]
-        click.echo(Table(headers=headers, data=data))
+        await _handle_list_indexes(index_query_service)
         return
     # Handle source indexing
     for source in sources:
