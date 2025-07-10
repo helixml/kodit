@@ -54,7 +54,7 @@ def cli(
     config = AppContext()
     # First check if env-file is set and reload config if it is
     if env_file:
-        config = AppContext(_env_file=env_file)  # type: ignore[reportCallIssue]
+        config = AppContext(_env_file=env_file)  # type: ignore[call-arg]
 
     configure_logging(config)
     configure_telemetry(config)
@@ -100,7 +100,8 @@ async def _handle_sync(
         # Filter indexes that match the provided sources
         source_uris = set(sources)
         indexes_to_sync = [
-            index for index in all_indexes
+            index
+            for index in all_indexes
             if str(index.source.working_copy.remote_uri) in source_uris
         ]
 
@@ -124,9 +125,7 @@ async def _handle_sync(
             click.echo(f"✓ Sync completed: {index.source.working_copy.remote_uri}")
         except Exception as e:
             log.exception("Sync failed", index_id=index.id, error=e)
-            click.echo(
-                f"✗ Sync failed: {index.source.working_copy.remote_uri} - {e}"
-            )
+            click.echo(f"✗ Sync failed: {index.source.working_copy.remote_uri} - {e}")
 
 
 async def _handle_list_indexes(index_query_service: IndexQueryService) -> None:
@@ -159,9 +158,7 @@ async def _handle_list_indexes(index_query_service: IndexQueryService) -> None:
 @click.option(
     "--auto-index", is_flag=True, help="Index all configured auto-index sources"
 )
-@click.option(
-    "--sync", is_flag=True, help="Sync existing indexes with their remotes"
-)
+@click.option("--sync", is_flag=True, help="Sync existing indexes with their remotes")
 @with_app_context
 @with_session
 async def index(

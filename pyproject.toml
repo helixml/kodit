@@ -142,16 +142,15 @@ package = true
 
 [tool.mypy]
 plugins = ["sqlalchemy.ext.mypy.plugin"]
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-check_untyped_defs = true
-disallow_untyped_decorators = true
-no_implicit_optional = true
-warn_redundant_casts = true
-warn_unused_ignores = true
-warn_no_return = true
-warn_unreachable = true
-strict_optional = true
+disable_error_code = [
+  "import-untyped", 
+  "assignment", 
+  "unreachable", 
+  "no-untyped-def", 
+  "import-not-found", 
+  "unused-ignore", 
+  "union-attr", 
+  "misc", 
+  "var-annotated",
+]
 

@@ -9,6 +9,7 @@ from pathlib import Path
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from kodit.domain.value_objects import FileProcessingStatus
 from kodit.infrastructure.sqlalchemy.embedding_repository import (
     SqlAlchemyEmbeddingRepository,
 )
@@ -50,6 +51,7 @@ async def setup_test_data(session: AsyncSession, num_embeddings: int = 5000) -> 
         sha256="abc123",
         size_bytes=100,
         extension="txt",
+        file_processing_status=FileProcessingStatus.CLEAN,
     )
     session.add(file)
     await session.commit()

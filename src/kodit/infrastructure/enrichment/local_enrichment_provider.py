@@ -81,7 +81,7 @@ class LocalEnrichmentProvider(EnrichmentProvider):
         prompts = [
             {
                 "id": req.snippet_id,
-                "text": self.tokenizer.apply_chat_template(
+                "text": self.tokenizer.apply_chat_template(  # type: ignore[attr-defined]
                     [
                         {"role": "system", "content": ENRICHMENT_SYSTEM_PROMPT},
                         {"role": "user", "content": req.text},
@@ -100,13 +100,13 @@ class LocalEnrichmentProvider(EnrichmentProvider):
                 return_tensors="pt",
                 padding=True,
                 truncation=True,
-            ).to(self.model.device)
-            generated_ids = self.model.generate(
+            ).to(self.model.device)  # type: ignore[attr-defined]
+            generated_ids = self.model.generate(  # type: ignore[attr-defined]
                 **model_inputs, max_new_tokens=self.context_window
             )
             input_ids = model_inputs["input_ids"][0]
             output_ids = generated_ids[0][len(input_ids) :].tolist()
-            content = self.tokenizer.decode(output_ids, skip_special_tokens=True).strip(
+            content = self.tokenizer.decode(output_ids, skip_special_tokens=True).strip(  # type: ignore[attr-defined]
                 "\n"
             )
             yield EnrichmentResponse(

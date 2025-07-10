@@ -38,7 +38,7 @@ class Product:
 class ShoppingCart:
     """A shopping cart that holds products."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.items: list[Product] = []
 
     def add_product(self, product: Product) -> None:

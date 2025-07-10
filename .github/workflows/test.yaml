@@ -35,6 +35,9 @@ jobs:
       - name: Lint
         run: uv run ruff check
 
+      - name: Run type checks
+        run: uv run mypy --config-file pyproject.toml .
+
       - name: Run tests
         run: uv run pytest -s --cov=src --cov-report=xml tests/kodit
 
