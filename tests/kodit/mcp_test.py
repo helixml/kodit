@@ -1,7 +1,5 @@
 """Tests for the MCP server implementation."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
-
 import pytest
 from fastmcp import Client
 from mcp.types import TextContent
@@ -61,51 +59,33 @@ async def test_mcp_server_basic_functionality(
     session.add(snippet)
     await session.commit()
 
-    # Create a mock session context manager
-    mock_session_context = AsyncMock()
-    mock_session_context.__aenter__ = AsyncMock(return_value=session)
-    mock_session_context.__aexit__ = AsyncMock(return_value=None)
+    # Test MCP client connection
+    async with Client(mcp) as client:
+        # Test tool listing
+        tools = await client.list_tools()
+        assert len(tools) == 2
+        tool_names = {tool.name for tool in tools}
+        assert "search" in tool_names
+        assert "get_version" in tool_names
 
-    # Mock the database session factory
-    mock_db = MagicMock()
-    mock_db.session_factory.return_value = mock_session_context
+        # Test version tool
+        result = await client.call_tool("get_version")
+        assert len(result.content) == 1
+        content = result.content[0]
+        assert isinstance(content, TextContent)
+        assert content.text is not None
 
-    # Mock app context methods with proper search configuration
-    mock_app_context = MagicMock()
-    mock_app_context.get_clone_dir.return_value = app_context.get_clone_dir()
-    mock_app_context.get_db = AsyncMock(return_value=mock_db)
-    mock_app_context.default_search.provider = "sqlite"
-    mock_app_context.embedding_endpoint = None
-    mock_app_context.default_endpoint = None
-
-    with patch("kodit.mcp.AppContext", return_value=mock_app_context):
-        # Test MCP client connection
-        async with Client(mcp) as client:
-            # Test tool listing
-            tools = await client.list_tools()
-            assert len(tools) == 2
-            tool_names = {tool.name for tool in tools}
-            assert "search" in tool_names
-            assert "get_version" in tool_names
-
-            # Test version tool
-            result = await client.call_tool("get_version")
-            assert len(result) == 1
-            content = result[0]
-            assert isinstance(content, TextContent)
-            assert content.text is not None
-
-            # Test search tool
-            result = await client.call_tool(
-                "search",
-                {
-                    "user_intent": "Find hello world functions",
-                    "related_file_paths": [],
-                    "related_file_contents": [],
-                    "keywords": ["hello", "world"],
-                },
-            )
-            assert len(result) == 1
-            content = result[0]
-            assert isinstance(content, TextContent)
-            assert content.text is not None
+        # Test search tool
+        result = await client.call_tool(
+            "search",
+            {
+                "user_intent": "Find hello world functions",
+                "related_file_paths": [],
+                "related_file_contents": [],
+                "keywords": ["hello", "world"],
+            },
+        )
+        assert len(result.content) == 1
+        content = result.content[0]
+        assert isinstance(content, TextContent)
+        assert content.text is not None
