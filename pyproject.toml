@@ -53,6 +53,7 @@ dependencies = [
     "transformers>=4.51.3",
     "accelerate>=1.7.0",
     "rudder-sdk-python>=2.1.4",
+    "pystemmer>=3.0.0",
 ]
 
 [dependency-groups]
@@ -146,9 +147,7 @@ disable_error_code = [
   "import-untyped", 
   "assignment", 
   "unreachable", 
-  "no-untyped-def", 
-  "import-not-found", 
-  "unused-ignore", 
+  "no-untyped-def",
   "union-attr", 
 ]
 

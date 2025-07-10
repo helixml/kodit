@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import aiofiles
-import Stemmer
+import Stemmer  # type: ignore[import-not-found]
 import structlog
 
 from kodit.domain.services.bm25_service import BM25Repository
