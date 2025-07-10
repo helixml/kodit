@@ -33,13 +33,13 @@ async def app_lifespan(_: FastAPI) -> AsyncIterator[None]:
     await _auto_indexing_service.start_background_indexing()
 
     # Start sync scheduler service
-    if app_context.sync.enabled:
+    if app_context.periodic_sync.enabled:
         _sync_scheduler_service = SyncSchedulerService(
             app_context=app_context,
             session_factory=db.session_factory,
         )
         _sync_scheduler_service.start_periodic_sync(
-            interval_seconds=app_context.sync.interval_seconds
+            interval_seconds=app_context.periodic_sync.interval_seconds
         )
 
     yield

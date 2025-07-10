@@ -26,7 +26,7 @@ def mock_app_context() -> MagicMock:
     sync_config.enabled = True
     sync_config.interval_seconds = 1800
     sync_config.retry_attempts = 3
-    app_context.sync = sync_config
+    app_context.periodic_sync = sync_config
     return app_context
 
 
