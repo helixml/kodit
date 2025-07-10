@@ -8,7 +8,10 @@ The core goal of Kodit is to make your AI coding experience more accurate by pro
 
 ## Integration with Coding Assistants
 
-Integration with most assistants follows a similar pattern, but each has its own configuration flow.
+Integration with most assistants follows a similar pattern, but each has its own
+configuration flow.
+
+Kodit supports both MCP HTTP streaming and SSE servers on `/mcp` and `/sse` (deprecated).
 
 ### Integration With Cursor
 
@@ -18,7 +21,7 @@ Add the following to `$HOME/.cursor/mcp.json`:
 {
   "mcpServers": {
     "kodit": {
-      "url": "http://localhost:8080/sse"
+      "url": "http://localhost:8080/mcp"
     }
   }
 }
@@ -42,7 +45,7 @@ Or find this configuration in `Cursor Settings` -> `MCP`.
       "autoApprove": [],
       "disabled": true,
       "timeout": 60,
-      "url": "http://localhost:8080/sse",
+      "url": "http://localhost:8080/mcp",
       "transportType": "sse"
     }
   }
