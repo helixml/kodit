@@ -1,9 +1,14 @@
 """Factory for creating embedding services with DDD architecture."""
 
+from openai import AsyncOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.config import AppContext, Endpoint
-from kodit.domain.services.embedding_service import EmbeddingDomainService
+from kodit.domain.services.embedding_service import (
+    EmbeddingDomainService,
+    EmbeddingProvider,
+    VectorSearchRepository,
+)
 from kodit.infrastructure.embedding.embedding_providers.local_embedding_provider import (  # noqa: E501
     CODE,
     LocalEmbeddingProvider,
@@ -38,11 +43,10 @@ def embedding_domain_service_factory(
     embedding_repository = SqlAlchemyEmbeddingRepository(session=session)
 
     # Create embedding provider
+    embedding_provider: EmbeddingProvider | None = None
     endpoint = _get_endpoint_configuration(app_context)
     if endpoint and endpoint.type == "openai":
         log_event("kodit.embedding", {"provider": "openai"})
-        from openai import AsyncOpenAI
-
         embedding_provider = OpenAIEmbeddingProvider(
             openai_client=AsyncOpenAI(
                 api_key=endpoint.api_key or "default",
@@ -57,6 +61,7 @@ def embedding_domain_service_factory(
         embedding_provider = LocalEmbeddingProvider(CODE)
 
     # Create vector search repository based on configuration
+    vector_search_repository: VectorSearchRepository | None = None
     if app_context.default_search.provider == "vectorchord":
         log_event("kodit.database", {"provider": "vectorchord"})
         vector_search_repository = VectorChordVectorSearchRepository(

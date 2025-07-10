@@ -7,7 +7,7 @@ from typing import Any
 import click
 import structlog
 import uvicorn
-from pytable_formatter import Cell, Table
+from pytable_formatter import Cell, Table  # type: ignore[import-untyped]
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.application.factories.code_indexing_factory import (

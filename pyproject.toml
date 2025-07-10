@@ -65,6 +65,8 @@ dev = [
     "pytest-cov>=6.1.1",
     "ruff>=0.11.8",
     "snakeviz>=2.2.2",
+    "types-tqdm>=4.67.0.20250516",
+    "types-aiofiles>=24.1.0.20250708",
 ]
 
 [project.urls]
@@ -143,11 +145,3 @@ package = true
 
 [tool.mypy]
 plugins = ["sqlalchemy.ext.mypy.plugin"]
-disable_error_code = [
-  "import-untyped", 
-  "assignment", 
-  "unreachable", 
-  "no-untyped-def",
-  "union-attr", 
-]
-

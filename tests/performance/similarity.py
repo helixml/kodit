@@ -91,7 +91,7 @@ async def run_benchmark(session: AsyncSession) -> None:
 
     # Run the benchmark
     num_runs = 10
-    total_time = 0
+    total_time = float(0)
     results = []  # Initialize results list
 
     log.info("Running warm-up query...")

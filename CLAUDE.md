@@ -14,11 +14,10 @@ Kodit is a code indexing MCP (Model Context Protocol) server that connects AI co
 - `uv run pytest tests/path/to/test.py` - Run specific test file
 - `uv run pytest -k "test_name"` - Run specific test by name
 
-### Code Quality
+### Linting and Typing
 
-- `uv run ruff check --fix` - Run linting
-- `uv run ruff format` - Format code
-- `uv run mypy src/` - Type checking
+- `uv run ruff check --fix --unsafe-fixes` - Run linting and format code
+- `uv run mypy --config-file pyproject.toml ...` - Type checking
 
 ### Application
 

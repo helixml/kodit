@@ -19,8 +19,8 @@ from kodit.domain.value_objects import (
 )
 
 if TYPE_CHECKING:
-    import bm25s
-    from bm25s.tokenization import Tokenized
+    import bm25s  # type: ignore[import-untyped]
+    from bm25s.tokenization import Tokenized  # type: ignore[import-untyped]
 
 SNIPPET_IDS_FILE = "snippet_ids.jsonl"
 

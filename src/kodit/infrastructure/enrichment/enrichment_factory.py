@@ -1,7 +1,10 @@
 """Enrichment factory for creating enrichment domain services."""
 
 from kodit.config import AppContext, Endpoint
-from kodit.domain.services.enrichment_service import EnrichmentDomainService
+from kodit.domain.services.enrichment_service import (
+    EnrichmentDomainService,
+    EnrichmentProvider,
+)
 from kodit.infrastructure.enrichment.local_enrichment_provider import (
     LocalEnrichmentProvider,
 )
@@ -38,9 +41,10 @@ def enrichment_domain_service_factory(
     """
     endpoint = _get_endpoint_configuration(app_context)
 
+    enrichment_provider: EnrichmentProvider | None = None
     if endpoint and endpoint.type == "openai":
         log_event("kodit.enrichment", {"provider": "openai"})
-        from openai import AsyncOpenAI
+        from openai import AsyncOpenAI  # noqa: PLC0415
 
         enrichment_provider = OpenAIEnrichmentProvider(
             openai_client=AsyncOpenAI(

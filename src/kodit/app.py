@@ -86,4 +86,4 @@ app.mount("", mcp_app)
 
 # Wrap the entire app with ASGI middleware after all routes are added to suppress
 # CancelledError at the ASGI level
-app = ASGICancelledErrorMiddleware(app)
+app = ASGICancelledErrorMiddleware(app)  # type: ignore[assignment]

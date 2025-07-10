@@ -36,8 +36,8 @@ async def logging_middleware(request: Request, call_next: Callable) -> Response:
     finally:
         process_time = time.perf_counter_ns() - start_time
         status_code = response.status_code
-        client_host = request.client.host
-        client_port = request.client.port
+        client_host = request.client.host if request.client else None
+        client_port = request.client.port if request.client else None
         http_method = request.method
         http_version = request.scope["http_version"]
         # Recreate the Uvicorn access log format, but add all parameters as

@@ -71,7 +71,7 @@ async def test_prepare_index_creates_working_copy(
         working_copy
     )
     assert len(refreshed_working_copy.files) == 1
-    assert refreshed_working_copy.files[0].uri.path.endswith("test.py")
+    assert refreshed_working_copy.files[0].uri.path.endswith("test.py")  # type: ignore[union-attr]
 
 
 @pytest.mark.asyncio

@@ -48,7 +48,9 @@ class TestAppContextAutoIndexing:
                 del os.environ[k]
 
             app_context = AppContext()
-            sources = app_context.auto_indexing.sources
+            sources = (
+                app_context.auto_indexing.sources if app_context.auto_indexing else []
+            )
             assert sources == []
         finally:
             # Restore original env vars
@@ -62,7 +64,7 @@ class TestAppContextAutoIndexing:
             AutoIndexingSource(uri="/local/path/to/repo"),
         ]
         app_context = AppContext(auto_indexing=AutoIndexingConfig(sources=auto_sources))
-        sources = app_context.auto_indexing.sources
+        sources = app_context.auto_indexing.sources if app_context.auto_indexing else []
         assert sources == auto_sources
 
     def test_auto_indexing_from_environment_variables(self) -> None:
@@ -73,7 +75,9 @@ class TestAppContextAutoIndexing:
 
         try:
             app_context = AppContext()
-            sources = app_context.auto_indexing.sources
+            sources = (
+                app_context.auto_indexing.sources if app_context.auto_indexing else []
+            )
             uris = [source.uri for source in sources]
             assert uris == [
                 "https://github.com/test/repo1",
@@ -94,7 +98,9 @@ class TestAppContextAutoIndexing:
             app_context = AppContext()
 
             # Test auto-indexing parsing
-            sources = app_context.auto_indexing.sources
+            sources = (
+                app_context.auto_indexing.sources if app_context.auto_indexing else []
+            )
             assert len(sources) == 1
             assert sources[0].uri == "/local/path/to/code"
 

@@ -12,7 +12,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-import rudderstack.analytics as rudder_analytics
+import rudderstack.analytics as rudder_analytics  # type: ignore[import-untyped]
 import structlog
 from structlog.types import EventDict
 

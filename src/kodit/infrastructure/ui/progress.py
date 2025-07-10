@@ -2,7 +2,7 @@
 
 from collections.abc import Callable
 
-from tqdm import tqdm
+from tqdm import tqdm  # type: ignore[import-untyped]
 
 from kodit.domain.interfaces import ProgressCallback
 from kodit.domain.value_objects import ProgressEvent
