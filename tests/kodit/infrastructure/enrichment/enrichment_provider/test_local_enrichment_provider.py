@@ -31,7 +31,7 @@ class TestLocalEnrichmentProvider:
     async def test_enrich_empty_requests(self) -> None:
         """Test enrichment with empty requests."""
         provider = LocalEnrichmentProvider()
-        requests = []
+        requests: list[EnrichmentRequest] = []
 
         results = [result async for result in provider.enrich(requests)]
 

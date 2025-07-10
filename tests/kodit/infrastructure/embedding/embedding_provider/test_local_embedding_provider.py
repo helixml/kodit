@@ -39,7 +39,7 @@ class TestLocalEmbeddingProvider:
     async def test_embed_empty_requests(self) -> None:
         """Test embedding with empty requests."""
         provider = LocalEmbeddingProvider()
-        requests = []
+        requests: list[EmbeddingRequest] = []
 
         results = []
         async for batch in provider.embed(requests):

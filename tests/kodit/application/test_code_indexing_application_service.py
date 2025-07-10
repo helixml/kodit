@@ -1,6 +1,7 @@
 """End-to-end tests for CodeIndexingApplicationService."""
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,8 +29,8 @@ class MockProgressCallback(ProgressCallback):
 
     def __init__(self) -> None:
         """Initialize the mock progress callback."""
-        self.progress_calls = []
-        self.complete_calls = []
+        self.progress_calls: list[dict[str, Any]] = []
+        self.complete_calls: list[str] = []
 
     async def on_progress(self, event: ProgressEvent) -> None:
         """Record progress events."""

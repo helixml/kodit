@@ -151,6 +151,5 @@ disable_error_code = [
   "unused-ignore", 
   "union-attr", 
   "misc", 
-  "var-annotated",
 ]
 

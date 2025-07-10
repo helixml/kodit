@@ -35,7 +35,7 @@ class TestOpenAIEnrichmentProvider:
         """Test enrichment with empty requests."""
         mock_client = MagicMock()
         provider = OpenAIEnrichmentProvider(openai_client=mock_client)
-        requests = []
+        requests: list[EnrichmentRequest] = []
 
         results = [result async for result in provider.enrich(requests)]
 
