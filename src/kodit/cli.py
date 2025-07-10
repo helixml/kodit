@@ -32,6 +32,7 @@ from kodit.infrastructure.ui.progress import (
     create_multi_stage_progress_callback,
 )
 from kodit.log import configure_logging, configure_telemetry, log_event
+from kodit.mcp import create_stdio_mcp_server
 
 
 @click.group(context_settings={"max_content_width": 100})
@@ -558,7 +559,7 @@ def serve(
     host: str,
     port: int,
 ) -> None:
-    """Start the kodit server, which hosts the MCP server and the kodit API."""
+    """Start the kodit HTTP/SSE server with FastAPI integration."""
     log = structlog.get_logger(__name__)
     log.info("Starting kodit server", host=host, port=port)
     log_event("kodit.cli.serve")
@@ -582,6 +583,16 @@ def serve(
 
     signal.signal(signal.SIGINT, handle_sigint)
     server.run()
+
+
+@cli.command()
+def stdio() -> None:
+    """Start the kodit MCP server in STDIO mode for local AI assistants."""
+    log = structlog.get_logger(__name__)
+    log.info("Starting kodit STDIO MCP server")
+    log_event("kodit.cli.serve_stdio")
+
+    create_stdio_mcp_server()
 
 
 @cli.command()
