@@ -44,7 +44,7 @@ def enrichment_domain_service_factory(
     enrichment_provider: EnrichmentProvider | None = None
     if endpoint and endpoint.type == "openai":
         log_event("kodit.enrichment", {"provider": "openai"})
-        from openai import AsyncOpenAI  # noqa: PLC0415
+        from openai import AsyncOpenAI
 
         enrichment_provider = OpenAIEnrichmentProvider(
             openai_client=AsyncOpenAI(
