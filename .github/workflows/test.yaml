@@ -35,8 +35,8 @@ jobs:
       - name: Lint
         run: uv run ruff check
 
-      - name: Run tests
-        run: uv run pytest -s --cov=src --cov-report=xml tests/kodit
+      - name: Run all tests (fast and slow)
+        run: uv run pytest -s --cov=src --cov-report=xml -m "" tests/kodit
 
   build-package:
     runs-on: ubuntu-latest

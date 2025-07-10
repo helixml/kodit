@@ -2,7 +2,9 @@
 
 import tempfile
 from collections.abc import AsyncGenerator, Generator
+from os import environ
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from sqlalchemy import text
@@ -58,9 +60,6 @@ async def session(engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
 @pytest.fixture
 def app_context() -> Generator[AppContext, None, None]:
     """Create a test app context."""
-    import os
-    from unittest.mock import patch
-
     # Create a minimal environment with only essential env vars
     essential_prefixes = (
         "PATH",
@@ -75,13 +74,13 @@ def app_context() -> Generator[AppContext, None, None]:
     )
     minimal_env = {
         key: value
-        for key, value in os.environ.items()
+        for key, value in environ.items()
         if key.startswith(essential_prefixes)
     }
 
     with tempfile.TemporaryDirectory() as data_dir:
         # Patch os.environ to use minimal environment during AppContext creation
-        with patch.dict(os.environ, minimal_env, clear=True):
+        with patch.dict(environ, minimal_env, clear=True):
             app_context = AppContext(
                 data_dir=Path(data_dir),
                 db_url="sqlite+aiosqlite:///:memory:",

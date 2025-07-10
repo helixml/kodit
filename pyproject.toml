@@ -62,8 +62,8 @@ dev = [
     "pytest-asyncio>=0.26.0",
     "pytest>=8.3.5",
     "pytest-cov>=6.1.1",
-    "ruff>=0.11.8",
     "snakeviz>=2.2.2",
+    "ruff>=0.12.2",
 ]
 
 [project.urls]
@@ -97,7 +97,13 @@ asyncio_default_fixture_loop_scope = "function"
 filterwarnings = [
     "ignore:.*websockets.*:DeprecationWarning",
 ]
-addopts = ["--cov=src", "--cov-report=term-missing", "--cov-report=html", "--cov-report=xml"]
+addopts = ["--cov=src", "--cov-report=term-missing", "--cov-report=html", "--cov-report=xml", "-m", "not slow"]
+markers = [
+    "slow: marks tests as slow (run with '-m slow' or '-m \"not slow or slow\"')",
+]
+# Note: By default, only fast tests run (slow tests are excluded).
+# To run slow tests: pytest -m slow
+# To run all tests: pytest -m "not slow or slow"
 
 [tool.coverage.run]
 source = ["src"]

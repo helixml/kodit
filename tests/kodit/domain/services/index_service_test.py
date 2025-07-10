@@ -1,5 +1,6 @@
 """Unit tests for IndexDomainService."""
 
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock
 
@@ -11,6 +12,9 @@ from kodit.domain.services.enrichment_service import EnrichmentDomainService
 from kodit.domain.services.index_service import (
     IndexDomainService,
     LanguageDetectionService,
+)
+from kodit.infrastructure.enrichment.null_enrichment_provider import (
+    NullEnrichmentProvider,
 )
 
 
@@ -89,8 +93,6 @@ async def test_extract_snippets_from_index_returns_snippets(
     # Now refresh to scan the files
     working_copy = await index_domain_service.refresh_working_copy(working_copy)
 
-    from datetime import UTC, datetime
-
     # Create a mock index
     source = Source(
         id=1,
@@ -122,11 +124,6 @@ async def test_enrich_snippets_in_index_returns_enriched_snippets(
     tmp_path: Path,
 ) -> None:
     """Test enrich_snippets_in_index returns enriched snippets without persistence."""
-    from kodit.domain.services.enrichment_service import EnrichmentDomainService
-    from kodit.infrastructure.enrichment.null_enrichment_provider import (
-        NullEnrichmentProvider,
-    )
-
     # Create real enrichment service with null provider (fast)
     enrichment_service = EnrichmentDomainService(
         enrichment_provider=NullEnrichmentProvider()

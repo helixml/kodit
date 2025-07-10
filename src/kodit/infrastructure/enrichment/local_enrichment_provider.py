@@ -5,6 +5,7 @@ from collections.abc import AsyncGenerator
 
 import structlog
 import tiktoken
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from kodit.domain.services.enrichment_service import EnrichmentProvider
 from kodit.domain.value_objects import EnrichmentRequest, EnrichmentResponse
@@ -58,11 +59,6 @@ class LocalEnrichmentProvider(EnrichmentProvider):
         if not requests:
             self.log.warning("No valid requests for enrichment")
             return
-
-        from transformers.models.auto.modeling_auto import (
-            AutoModelForCausalLM,
-        )
-        from transformers.models.auto.tokenization_auto import AutoTokenizer
 
         if self.tokenizer is None:
             self.tokenizer = AutoTokenizer.from_pretrained(

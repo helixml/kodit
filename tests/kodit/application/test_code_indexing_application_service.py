@@ -210,10 +210,6 @@ def validate_input(value: str) -> bool:
     # that we can retrieve snippets by ID. This is crucial because the BM25 index
     # uses database IDs, so we need to ensure the snippets have been persisted
     # with their proper IDs before searching.
-    from kodit.infrastructure.sqlalchemy.index_repository import (
-        SqlAlchemyIndexRepository,
-    )
-
     # Verify the index has been properly persisted with snippets
     index_repo = SqlAlchemyIndexRepository(session=code_indexing_service.session)
     persisted_index = await index_repo.get(index.id)

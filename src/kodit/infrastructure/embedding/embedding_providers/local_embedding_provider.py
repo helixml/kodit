@@ -48,7 +48,7 @@ class LocalEmbeddingProvider(EmbeddingProvider):
     def _encoding(self) -> "Encoding":
         """Get the tiktoken encoding."""
         if self.encoding is None:
-            from tiktoken import encoding_for_model
+            from tiktoken import encoding_for_model  # noqa: PLC0415
 
             start_time = time()
             self.encoding = encoding_for_model(self.encoding_name)
@@ -63,7 +63,7 @@ class LocalEmbeddingProvider(EmbeddingProvider):
         """Get the embedding model."""
         if self.embedding_model is None:
             os.environ["TOKENIZERS_PARALLELISM"] = "false"  # Avoid warnings
-            from sentence_transformers import SentenceTransformer
+            from sentence_transformers import SentenceTransformer  # noqa: PLC0415
 
             start_time = time()
             self.embedding_model = SentenceTransformer(

@@ -1,6 +1,7 @@
 """Command line interface for kodit."""
 
 import signal
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -100,7 +101,8 @@ async def _handle_sync(
         # Filter indexes that match the provided sources
         source_uris = set(sources)
         indexes_to_sync = [
-            index for index in all_indexes
+            index
+            for index in all_indexes
             if str(index.source.working_copy.remote_uri) in source_uris
         ]
 
@@ -124,9 +126,7 @@ async def _handle_sync(
             click.echo(f"✓ Sync completed: {index.source.working_copy.remote_uri}")
         except Exception as e:
             log.exception("Sync failed", index_id=index.id, error=e)
-            click.echo(
-                f"✗ Sync failed: {index.source.working_copy.remote_uri} - {e}"
-            )
+            click.echo(f"✗ Sync failed: {index.source.working_copy.remote_uri} - {e}")
 
 
 async def _handle_list_indexes(index_query_service: IndexQueryService) -> None:
@@ -159,9 +159,7 @@ async def _handle_list_indexes(index_query_service: IndexQueryService) -> None:
 @click.option(
     "--auto-index", is_flag=True, help="Index all configured auto-index sources"
 )
-@click.option(
-    "--sync", is_flag=True, help="Sync existing indexes with their remotes"
-)
+@click.option("--sync", is_flag=True, help="Sync existing indexes with their remotes")
 @with_app_context
 @with_session
 async def index(
@@ -236,8 +234,6 @@ def _parse_filters(
     created_before: str | None,
     source_repo: str | None,
 ) -> SnippetSearchFilters | None:
-    from datetime import datetime
-
     # Normalize language to lowercase if provided
     norm_language = language.lower() if language else None
     # Try to parse dates, raise error if invalid
@@ -591,7 +587,7 @@ def serve(
 def version() -> None:
     """Show the version of kodit."""
     try:
-        from kodit import _version
+        from kodit import _version  # noqa: PLC0415
     except ImportError:
         print("unknown, try running `uv build`, which is what happens in ci")  # noqa: T201
         return

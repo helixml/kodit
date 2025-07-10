@@ -40,7 +40,9 @@ class TestEnrichmentFactory:
         )
         app_context.enrichment_endpoint = None
 
-        with patch("openai.AsyncOpenAI") as mock_openai:
+        with patch(
+            "kodit.infrastructure.enrichment.enrichment_factory.AsyncOpenAI"
+        ) as mock_openai:
             mock_client = MagicMock()
             mock_openai.return_value = mock_client
 
@@ -75,7 +77,9 @@ class TestEnrichmentFactory:
             model="gpt-4",
         )
 
-        with patch("openai.AsyncOpenAI") as mock_openai:
+        with patch(
+            "kodit.infrastructure.enrichment.enrichment_factory.AsyncOpenAI"
+        ) as mock_openai:
             mock_client = MagicMock()
             mock_openai.return_value = mock_client
 
@@ -107,7 +111,9 @@ class TestEnrichmentFactory:
         )
         app_context.enrichment_endpoint = None
 
-        with patch("openai.AsyncOpenAI") as mock_openai:
+        with patch(
+            "kodit.infrastructure.enrichment.enrichment_factory.AsyncOpenAI"
+        ) as mock_openai:
             mock_client = MagicMock()
             mock_openai.return_value = mock_client
 
@@ -132,7 +138,9 @@ class TestEnrichmentFactory:
         )
         app_context.enrichment_endpoint = None
 
-        with patch("openai.AsyncOpenAI") as mock_openai:
+        with patch(
+            "kodit.infrastructure.enrichment.enrichment_factory.AsyncOpenAI"
+        ) as mock_openai:
             mock_client = MagicMock()
             mock_openai.return_value = mock_client
 
@@ -162,7 +170,9 @@ class TestEnrichmentFactory:
         )
         app_context.enrichment_endpoint = None
 
-        with patch("openai.AsyncOpenAI") as mock_openai:
+        with patch(
+            "kodit.infrastructure.enrichment.enrichment_factory.AsyncOpenAI"
+        ) as mock_openai:
             mock_client = MagicMock()
             mock_openai.return_value = mock_client
 

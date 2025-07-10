@@ -44,7 +44,7 @@ class LocalBM25Repository(BM25Repository):
     def _retriever(self) -> bm25s.BM25:
         """Get the BM25 retriever."""
         if self.__retriever is None:
-            import bm25s
+            import bm25s  # noqa: PLC0415
 
             try:
                 self.log.debug("Loading BM25 index")
@@ -58,7 +58,7 @@ class LocalBM25Repository(BM25Repository):
 
     def _tokenize(self, corpus: list[str]) -> list[list[str]] | Tokenized:
         """Tokenize text corpus."""
-        from bm25s import tokenize
+        from bm25s import tokenize  # noqa: PLC0415
 
         return tokenize(
             corpus,

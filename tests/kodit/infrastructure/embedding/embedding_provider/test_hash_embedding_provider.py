@@ -2,6 +2,7 @@
 
 import hashlib
 
+import numpy as np
 import pytest
 
 from kodit.domain.value_objects import EmbeddingRequest
@@ -189,8 +190,6 @@ class TestHashEmbeddingProvider:
         # Calculate cosine similarities
         def cosine_similarity(in1: list[float], in2: list[float]) -> float:
             """Calculate cosine similarity between two vectors."""
-            import numpy as np
-
             vec1 = np.array(in1)
             vec2 = np.array(in2)
             return np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))

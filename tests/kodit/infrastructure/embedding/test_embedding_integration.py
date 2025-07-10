@@ -1,5 +1,8 @@
 """Integration tests for embedding functionality."""
 
+import time
+from datetime import UTC, datetime
+
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -50,9 +53,6 @@ class TestEmbeddingIntegration:
             embedding_provider=embedding_provider,
             vector_search_repository=vector_search_repository,
         )
-
-        # Create actual snippets in the database first
-        from datetime import UTC, datetime
 
         # Create source
         source = Source(
@@ -161,9 +161,6 @@ class TestEmbeddingIntegration:
             vector_search_repository=vector_search_repository,
         )
 
-        # Create actual snippets in the database first
-        from datetime import UTC, datetime
-
         # Create source
         source = Source(
             uri="test_repo",
@@ -268,9 +265,6 @@ class TestEmbeddingIntegration:
             embedding_provider=embedding_provider,
             vector_search_repository=vector_search_repository,
         )
-
-        # Create actual snippets in the database first
-        from datetime import UTC, datetime
 
         # Create source
         source = Source(
@@ -380,9 +374,6 @@ class TestEmbeddingIntegration:
             vector_search_repository=vector_search_repository,
         )
 
-        # Create actual snippets in the database first
-        from datetime import UTC, datetime
-
         # Create source
         source = Source(
             uri="test_repo",
@@ -477,9 +468,6 @@ class TestEmbeddingIntegration:
             vector_search_repository=text_repository,
         )
 
-        # Create actual snippets in the database first
-        from datetime import UTC, datetime
-
         # Create source
         source = Source(
             uri="test_repo",
@@ -565,9 +553,6 @@ class TestEmbeddingIntegration:
             vector_search_repository=vector_search_repository,
         )
 
-        # Create actual snippets in the database first
-        from datetime import UTC, datetime
-
         # Create source
         source = Source(
             uri="test_repo",
@@ -610,9 +595,6 @@ class TestEmbeddingIntegration:
             snippets.append(snippet)
             session.add(snippet)
         await session.commit()
-
-        # Test indexing performance with multiple documents
-        import time
 
         documents = []
         for i, snippet in enumerate(snippets):

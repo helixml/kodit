@@ -100,7 +100,7 @@ class MultiStageProgressCallback(ProgressCallback):
 
 def create_progress_bar(desc: str = "Processing", unit: str = "items") -> "tqdm":
     """Create a progress bar with the given description and unit."""
-    from tqdm import tqdm
+    from tqdm import tqdm  # noqa: PLC0415
 
     return tqdm(
         desc=desc,

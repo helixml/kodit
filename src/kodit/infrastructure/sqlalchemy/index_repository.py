@@ -1,6 +1,7 @@
 """SQLAlchemy implementation of IndexRepository using Index aggregate root."""
 
 from collections.abc import Sequence
+from datetime import UTC, datetime
 from typing import cast
 
 from pydantic import AnyUrl
@@ -135,8 +136,6 @@ class SqlAlchemyIndexRepository(IndexRepository):
 
     async def update_index_timestamp(self, index_id: int) -> None:
         """Update the timestamp of an index."""
-        from datetime import UTC, datetime
-
         db_index = await self._session.get(db_entities.Index, index_id)
         if db_index:
             db_index.updated_at = datetime.now(UTC)

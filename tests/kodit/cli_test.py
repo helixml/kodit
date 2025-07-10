@@ -1,8 +1,9 @@
-"""Test the CLI."""
+"""Tests for the CLI."""
 
+import json
 import tempfile
 from collections.abc import Generator
-from datetime import UTC
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -10,7 +11,7 @@ import pytest
 from click.testing import CliRunner
 
 from kodit.cli import cli
-from kodit.domain.value_objects import MultiSearchRequest
+from kodit.domain.value_objects import MultiSearchRequest, MultiSearchResult
 
 
 @pytest.fixture
@@ -558,10 +559,6 @@ def test_search_filter_help_text(runner: CliRunner) -> None:
 
 def test_search_output_format_text_default(runner: CliRunner) -> None:
     """Test that search commands default to text output format."""
-    from datetime import datetime
-
-    from kodit.domain.value_objects import MultiSearchResult
-
     # Create mock search results
     mock_snippets = [
         MultiSearchResult(
@@ -610,10 +607,6 @@ def test_search_output_format_text_default(runner: CliRunner) -> None:
 
 def test_search_output_format_text_explicit(runner: CliRunner) -> None:
     """Test search commands with explicit text output format."""
-    from datetime import datetime
-
-    from kodit.domain.value_objects import MultiSearchResult
-
     # Create mock search results
     mock_snippets = [
         MultiSearchResult(
@@ -657,11 +650,6 @@ def test_search_output_format_text_explicit(runner: CliRunner) -> None:
 
 def test_search_output_format_json(runner: CliRunner) -> None:
     """Test search commands with JSON output format."""
-    import json
-    from datetime import datetime
-
-    from kodit.domain.value_objects import MultiSearchResult
-
     # Create mock search results
     mock_snippets = [
         MultiSearchResult(
@@ -735,11 +723,6 @@ def test_search_output_format_json(runner: CliRunner) -> None:
 
 def test_search_output_format_all_commands(runner: CliRunner) -> None:
     """Test that all search commands support output format options."""
-    import json
-    from datetime import datetime
-
-    from kodit.domain.value_objects import MultiSearchResult
-
     # Create a simple mock result
     mock_snippets = [
         MultiSearchResult(
