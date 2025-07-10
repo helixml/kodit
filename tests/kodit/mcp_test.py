@@ -5,7 +5,6 @@ from fastmcp import Client
 from mcp.types import TextContent
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.config import AppContext
 from kodit.domain.value_objects import FileProcessingStatus
 from kodit.infrastructure.sqlalchemy.entities import (
     File,
@@ -18,9 +17,7 @@ from kodit.mcp import mcp
 
 
 @pytest.mark.asyncio
-async def test_mcp_server_basic_functionality(
-    session: AsyncSession, app_context: AppContext
-) -> None:
+async def test_mcp_server_basic_functionality(session: AsyncSession) -> None:
     """Test basic MCP server functionality with real database."""
     # Create test data
     source = Source(
