@@ -51,14 +51,19 @@ async def app_lifespan(_: FastAPI) -> AsyncIterator[None]:
         await _auto_indexing_service.stop()
 
 
-# See https://gofastmcp.com/deployment/asgi#fastapi-integration
-mcp_app = mcp.sse_app()
+# See https://gofastmcp.com/integrations/fastapi#mounting-an-mcp-server
+mcp_sse_app = mcp.sse_app(path="/", message_path="/")
+mcp_http_app = mcp.http_app(transport="http", path="/")
 
 
 @asynccontextmanager
 async def combined_lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Combine app and MCP lifespans."""
-    async with app_lifespan(app), mcp_app.router.lifespan_context(app):
+    async with (
+        app_lifespan(app),
+        mcp_sse_app.router.lifespan_context(app),
+        mcp_http_app.router.lifespan_context(app),
+    ):
         yield
 
 
@@ -82,7 +87,9 @@ async def healthz() -> dict[str, str]:
 
 
 # Add mcp routes last, otherwise previous routes aren't added
-app.mount("", mcp_app)
+# Mount both apps at root - they have different internal paths
+app.mount("/sse", mcp_sse_app)
+app.mount("/mcp", mcp_http_app)
 
 # Wrap the entire app with ASGI middleware after all routes are added to suppress
 # CancelledError at the ASGI level
