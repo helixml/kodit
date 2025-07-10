@@ -150,6 +150,5 @@ disable_error_code = [
   "import-not-found", 
   "unused-ignore", 
   "union-attr", 
-  "misc", 
 ]
 

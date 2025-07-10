@@ -95,7 +95,7 @@ class LocalEnrichmentProvider(EnrichmentProvider):
         ]
 
         for prompt in prompts:
-            model_inputs = self.tokenizer(
+            model_inputs = self.tokenizer(  # type: ignore[misc]
                 prompt["text"],
                 return_tensors="pt",
                 padding=True,
