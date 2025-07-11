@@ -225,4 +225,4 @@ register_mcp_tools(mcp)
 
 def create_stdio_mcp_server() -> None:
     """Create and run a STDIO MCP server for kodit."""
-    mcp.run(show_banner=False)
+    mcp.run(transport="stdio", show_banner=False)

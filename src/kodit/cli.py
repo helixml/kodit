@@ -1,6 +1,7 @@
 """Command line interface for kodit."""
 
 import signal
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -564,6 +565,10 @@ def serve(
     log.info("Starting kodit server", host=host, port=port)
     log_event("kodit.cli.serve")
 
+    # Disable uvicorn's websockets deprecation warnings
+    warnings.filterwarnings("ignore", category=DeprecationWarning, module="websockets")
+    warnings.filterwarnings("ignore", category=DeprecationWarning, module="uvicorn")
+
     # Configure uvicorn with graceful shutdown
     config = uvicorn.Config(
         "kodit.app:app",
@@ -587,11 +592,8 @@ def serve(
 
 @cli.command()
 def stdio() -> None:
-    """Start the kodit MCP server in STDIO mode for local AI assistants."""
-    log = structlog.get_logger(__name__)
-    log.info("Starting kodit STDIO MCP server")
-    log_event("kodit.cli.serve_stdio")
-
+    """Start the kodit MCP server in STDIO mode."""
+    log_event("kodit.cli.stdio")
     create_stdio_mcp_server()
 
 

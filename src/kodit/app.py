@@ -52,7 +52,7 @@ async def app_lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 
 # See https://gofastmcp.com/integrations/fastapi#mounting-an-mcp-server
-mcp_sse_app = mcp.sse_app(path="/", message_path="/")
+mcp_sse_app = mcp.http_app(transport="sse", path="/")
 mcp_http_app = mcp.http_app(transport="http", path="/")
 
 
