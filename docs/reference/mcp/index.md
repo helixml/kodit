@@ -4,42 +4,222 @@ description: Model Context Protocol (MCP) server implementation for AI coding as
 weight: 2
 ---
 
-Kodit provides an MCP (Model Context Protocol) server that enables AI coding assistants to search and retrieve relevant code snippets from your indexed codebases. This allows AI assistants to provide more accurate and contextually relevant code suggestions.
+The [Model Context Protocol](https://modelcontextprotocol.io/introduction) (MCP) is a
+standard that enables AI assistants to communicate with external tools and data sources.
 
-## What is MCP?
+Kodit provides an MCP (Model Context Protocol) server that enables AI coding assistants
+to search and retrieve relevant code snippets from your indexed codebases. This allows
+AI assistants to provide more accurate and contextually relevant code suggestions.
 
-The Model Context Protocol (MCP) is a standard that enables AI assistants to communicate with external tools and data sources. Kodit implements an MCP server that exposes your indexed codebases to AI assistants, allowing them to:
+## MCP Server Connection Methods
 
-- Search for relevant code examples
-- Retrieve specific code snippets
-- Filter results by various criteria
-- Provide context-aware code suggestions
+Kodit supports three different ways to run the MCP server, depending on your integration
+needs. Each method exposes the same code search capabilities, but differs in how the
+connection is established and which assistants/tools it is compatible with.
 
-## How Kodit MCP Works
+### HTTP Streaming (Recommended)
 
-The Kodit MCP server runs as a separate service that:
+This is the default and recommended method for most users. Kodit runs an HTTP server
+that streams responses to connected AI coding assistants over the `/mcp` endpoint.
 
-1. **Connects to your indexed codebases** - Uses the same database and indexes created by the `kodit index` command
-2. **Exposes search functionality** - Provides a `search` tool that AI assistants can call
-3. **Handles filtering** - Supports filtering by language, author, date range, and source repository
-4. **Returns relevant snippets** - Combines keyword, semantic code, and semantic text search for optimal results
+- **How it works:** Kodit starts a local web server and listens for HTTP requests from
+  your AI assistant. Responses are streamed for low-latency, real-time results.
+- **When to use:** Most modern AI coding assistants (like Cursor, Cline, etc.) support
+  HTTP streaming. Use this for best compatibility and performance.
+- **How to start:**
+
+  ```sh
+  kodit serve
+  ```
+
+  The server will listen on `http://localhost:8080/mcp` by default. If you're using the
+  Kodit container, `kodit serve` is the default command.
+
+### STDIO
+
+Kodit can run as an MCP server over standard input/output (STDIO) for direct integration
+with local AI coding assistants that support MCP stdio transport. No network port is
+opened.
+
+- **How it works:** Kodit communicates with your AI assistant via standard input and
+  output streams, making it ideal for local, low-latency, and networkless setups.
+- **When to use:** Use this mode if your coding assistant supports MCP stdio (for
+  example, some local LLM tools or advanced IDE integrations), or if you want to avoid
+  network configuration entirely.
+- **How to start:**
+
+  Configure your AI assistant to run the following command:
+  
+  ```sh
+  kodit stdio
+  ```
+
+### SSE (Server-Sent Events) [Deprecated]
+
+Kodit also supports the older SSE protocol on the `/sse` endpoint. This is provided for
+backward compatibility with tools that require SSE.
+
+- **How it works:** Kodit starts a local web server and streams results using the SSE
+  protocol, which is less efficient and less widely supported than HTTP streaming.
+- **When to use:** Only if your assistant specifically requires SSE and does not support
+  HTTP streaming.
+- **How to start:**
+
+  ```sh
+  kodit serve
+  ```
+
+  The server will listen on `http://localhost:8080/sse`.
 
 ## Integration with AI Assistants
 
-To use Kodit with your AI coding assistant, you need to:
+You need to connect your AI coding assistant to take advantage of Kodit. The
+instructions to do this depend on how you've deployed it. This section provides
+comprehensive instructions for all popular coding assistants.
 
-1. **Start the Kodit MCP server**:
+### Integration With Claude Code
 
-   ```sh
-   kodit serve
-   ```
+#### Claude Code Streaming HTTP Mode (recommended)
 
-2. **Configure your AI assistant** to connect to the MCP server. See the [Integration Guide](../../getting-started/integration/index.md) for detailed instructions for:
-   - Cursor
-   - Cline
-   - Other MCP-compatible assistants
+```sh
+claude mcp add --transport http kodit http://localhost:8080/mcp
+```
+
+#### Claude Code STDIO Mode
+
+```sh
+claude mcp add kodit -- kodit stdio
+```
+
+### Integration With Cursor
+
+#### Cursor Streaming HTTP Mode (recommended)
+
+Add the following to `$HOME/.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "kodit": {
+      "url": "http://localhost:8080/mcp"
+    }
+  }
+}
+```
+
+Or find this configuration in `Cursor Settings` -> `MCP`. Replace localhost with domain
+where Kodit is hosted.
+
+#### Cursor STDIO Mode
+
+Add the following to `$HOME/.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "kodit": {
+      "command": "kodit",
+      "args": [
+        "stdio"
+      ]
+    }
+  }
+}
+```
+
+### Integration With Cline
+
+1. Open Cline from the side menu
+2. Click the `MCP Servers` button at the top right of the Cline window (the icon looks
+   like a server)
+3. Click the `Remote Servers` tab.
+4. Click `Edit Configuration`
+
+#### Cline Streaming HTTP Mode (recommended)
+
+Add the following configuration:
+
+```json
+{
+  "mcpServers": {
+    "kodit": {
+      "autoApprove": [],
+      "disabled": true,
+      "timeout": 60,
+      "url": "http://localhost:8080/mcp",
+      "transportType": "http"
+    }
+  }
+}
+```
+
+Note that some cline users are still [reporting issues with HTTP
+streaming](https://github.com/cline/cline/issues/3315), so you may need to use sse
+instead.
+
+#### Cline STDIO Mode
+
+For STDIO mode, please use:
+
+```json
+{
+  "mcpServers": {
+    "kodit": {
+      "autoApprove": [],
+      "command": "kodit",
+      "args": ["stdio"],
+      "disabled": false,
+    }
+  }
+}
+```
+
+## Forcing AI Assistants to use Kodit
+
+Although Kodit has been developed to work well out of the box with popular AI coding
+assistants, they sometimes still think they know better.
+
+You can force your assistant to use Kodit by editing the system prompt used by the
+assistant. Each assistant exposes this slightly differently, but it's usually in the
+settings.
+
+Try using this system prompt:
+
+```txt
+⚠️ **ENFORCEMENT:**
+For *every* user request that involves writing or modifying code (of any language or
+domain), the assistant's *first* action **must** be to call the kodit.search MCP tool.
+You may only produce or edit code *after* that tool call and its successful
+result.
+```
+
+Feel free to alter that to suit your specific circumstances.
+
+### Forcing Cursor to Use Kodit
+
+Add the following prompt to `.cursor/rules/kodit.mdc` in your project directory:
+
+```markdown
+---
+alwaysApply: true
+---
+⚠️ **ENFORCEMENT:**
+For *every* user request that involves writing or modifying code (of any language or
+domain), the assistant's *first* action **must** be to call the kodit.search MCP tool.
+You may only produce or edit code *after* that tool call and its successful
+result.
+```
+
+Alternatively, you can browse to the Cursor settings and set this prompt globally.
+
+### Forcing Cline to Use Kodit
+
+1. Go to `Settings` -> `API Configuration`
+2. At the bottom there is a `Custom Instructions` section.
 
 ## Search Tool
+
+<!--Future: move this to a dedicated reference page-->
 
 The primary tool exposed by the Kodit MCP server is the `search` function, which provides comprehensive code search capabilities.
 
