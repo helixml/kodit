@@ -95,6 +95,8 @@ claude mcp add kodit -- kodit stdio
 
 #### Cursor Streaming HTTP Mode (recommended)
 
+[![Install MCP Server](cursor://anysphere.cursor-deeplink/mcp/install?name=kodit&config=eyJ1cmwiOiJodHRwOi8vbG9jYWxob3N0OjgwODAvbWNwIn0%3D)
+
 Add the following to `$HOME/.cursor/mcp.json`:
 
 ```json
@@ -110,7 +112,9 @@ Add the following to `$HOME/.cursor/mcp.json`:
 Or find this configuration in `Cursor Settings` -> `MCP`. Replace localhost with domain
 where Kodit is hosted.
 
-#### Cursor STDIO Mode
+#### Cursor STDIO
+
+[![Install MCP Server](cursor://anysphere.cursor-deeplink/mcp/install?name=kodit&config=eyJjb21tYW5kIjoicGlweCBydW4ga29kaXQgc3RkaW8ifQ%3D%3D)
 
 Add the following to `$HOME/.cursor/mcp.json`:
 
@@ -118,10 +122,7 @@ Add the following to `$HOME/.cursor/mcp.json`:
 {
   "mcpServers": {
     "kodit": {
-      "command": "kodit",
-      "args": [
-        "stdio"
-      ]
+      "command": "kodit stdio"
     }
   }
 }
