@@ -23,7 +23,6 @@ if TYPE_CHECKING:
 from kodit.database import Database
 
 DEFAULT_BASE_DIR = Path.home() / ".kodit"
-DEFAULT_DB_URL = f"sqlite+aiosqlite:///{DEFAULT_BASE_DIR}/kodit.db"
 DEFAULT_LOG_LEVEL = "INFO"
 DEFAULT_LOG_FORMAT = "pretty"
 DEFAULT_DISABLE_TELEMETRY = False
@@ -160,7 +159,9 @@ class AppContext(BaseSettings):
         )
 
     data_dir: Path = Field(default=DEFAULT_BASE_DIR)
-    db_url: str = Field(default=DEFAULT_DB_URL)
+    db_url: str = Field(
+        default_factory=lambda data: f"sqlite+aiosqlite:///{data['data_dir']}/kodit.db"
+    )
     log_level: str = Field(default=DEFAULT_LOG_LEVEL)
     log_format: str = Field(default=DEFAULT_LOG_FORMAT)
     disable_telemetry: bool = Field(default=DEFAULT_DISABLE_TELEMETRY)
