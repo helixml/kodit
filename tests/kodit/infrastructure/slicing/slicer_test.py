@@ -2,10 +2,12 @@
 
 import tempfile
 from pathlib import Path
+from typing import get_args
 from unittest.mock import Mock
 
 import pytest
 from pydantic import AnyUrl
+from tree_sitter_language_pack import SupportedLanguage
 
 from kodit.domain.entities import File, Snippet
 from kodit.domain.value_objects import FileProcessingStatus
@@ -154,11 +156,42 @@ class TestSlicer:
         assert slicer._get_tree_sitter_language_name("c++") == "cpp"  # noqa: SLF001
         assert slicer._get_tree_sitter_language_name("typescript") == "typescript"  # noqa: SLF001
         assert slicer._get_tree_sitter_language_name("js") == "javascript"  # noqa: SLF001
-        assert slicer._get_tree_sitter_language_name("csharp") == "c_sharp"  # noqa: SLF001
-        assert slicer._get_tree_sitter_language_name("c#") == "c_sharp"  # noqa: SLF001
-        assert slicer._get_tree_sitter_language_name("cs") == "c_sharp"  # noqa: SLF001
+        assert slicer._get_tree_sitter_language_name("csharp") == "csharp"  # noqa: SLF001
+        assert slicer._get_tree_sitter_language_name("c#") == "csharp"  # noqa: SLF001
+        assert slicer._get_tree_sitter_language_name("cs") == "csharp"  # noqa: SLF001
         assert slicer._get_tree_sitter_language_name("html") == "html"  # noqa: SLF001
         assert slicer._get_tree_sitter_language_name("css") == "css"  # noqa: SLF001
+
+    def test_tree_sitter_language_names_are_valid(self) -> None:
+        """Test that all tree-sitter language mappings resolve to valid libraries."""
+        slicer = Slicer()
+
+        # Test all mappings in _get_tree_sitter_language_name
+        test_languages = [
+            "python",
+            "c++",
+            "c",
+            "cpp",
+            "java",
+            "rust",
+            "go",
+            "javascript",
+            "typescript",
+            "js",
+            "ts",
+            "csharp",
+            "c#",
+            "cs",
+            "html",
+            "css",
+        ]
+
+        for lang in test_languages:
+            ts_name = slicer._get_tree_sitter_language_name(lang)  # noqa: SLF001
+
+            assert ts_name in get_args(SupportedLanguage), (
+                f"Language '{ts_name}' not in SupportedLanguage"
+            )
 
     def test_language_config_access(self) -> None:
         """Test that language config is correctly accessed."""

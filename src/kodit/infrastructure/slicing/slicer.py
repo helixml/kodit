@@ -247,9 +247,9 @@ class Slicer:
             "typescript": "typescript",
             "js": "javascript",
             "ts": "typescript",
-            "csharp": "c_sharp",
-            "c#": "c_sharp",
-            "cs": "c_sharp",
+            "csharp": "csharp",
+            "c#": "csharp",
+            "cs": "csharp",
             "html": "html",
             "css": "css",
         }
