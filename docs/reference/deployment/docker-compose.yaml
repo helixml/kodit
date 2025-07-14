@@ -2,9 +2,9 @@ version: "3.9"
 
 services:
   kodit:
-    image: registry.helix.ml/helix/kodit:latest # Replace with a version
+    image: test:latest
     ports:
-      - "8080:8080" # Expose the MCP server
+      - "8080:8080" # You may wish to pick a less common port
     # Start the Kodit MCP server and bind to all interfaces
     command: ["serve", "--host", "0.0.0.0", "--port", "8080"]
     restart: unless-stopped
@@ -39,11 +39,20 @@ services:
       SYNC_PERIODIC_INTERVAL_SECONDS: 1800  # 30 minutes
       SYNC_PERIODIC_RETRY_ATTEMPTS: 3
 
+      # Logging configuration
+      LOG_LEVEL: INFO # Set to DEBUG for more detailed logging
+
+    volumes:
+      - kodit-data:/data
+
   vectorchord:
     image: tensorchord/vchord-suite:pg17-20250601
     environment:
       - POSTGRES_DB=kodit
       - POSTGRES_PASSWORD=mysecretpassword
     ports:
-      - "5432:5432"
+      - "5432"
     restart: unless-stopped
+
+volumes:
+  kodit-data:

@@ -86,6 +86,10 @@ EOT
 
 STOPSIGNAL SIGINT
 
+# Configure a default data directory so the app can write to it and volumes can be mounted to it
+RUN mkdir -p /data && chown -R app:app /data
+ENV DATA_DIR=/data
+
 USER app
 WORKDIR /app
 

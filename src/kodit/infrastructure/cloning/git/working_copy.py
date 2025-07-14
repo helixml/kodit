@@ -1,6 +1,7 @@
 """Working copy provider for git-based sources."""
 
 import hashlib
+import shutil
 from pathlib import Path
 
 import git
@@ -47,6 +48,26 @@ class GitWorkingCopyProvider:
     async def sync(self, uri: str) -> Path:
         """Refresh a Git working copy."""
         clone_path = self.get_clone_path(uri)
-        repo = git.Repo(clone_path)
-        repo.remotes.origin.pull()
+
+        # Check if the clone directory exists and is a valid Git repository
+        if not clone_path.exists() or not (clone_path / ".git").exists():
+            self.log.info(
+                "Clone directory does not exist or is not a Git repository, "
+                "preparing...",
+                uri=uri, clone_path=str(clone_path)
+            )
+            return await self.prepare(uri)
+
+        try:
+            repo = git.Repo(clone_path)
+            repo.remotes.origin.pull()
+        except git.InvalidGitRepositoryError:
+            self.log.warning(
+                "Invalid Git repository found, re-cloning...",
+                uri=uri, clone_path=str(clone_path)
+            )
+            # Remove the invalid directory and re-clone
+            shutil.rmtree(clone_path)
+            return await self.prepare(uri)
+
         return clone_path
