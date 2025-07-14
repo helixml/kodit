@@ -299,24 +299,23 @@ class Slicer:
 
     def _walk_tree(self, node: Node) -> Generator[Node, None, None]:
         """Walk the AST tree, yielding all nodes."""
-        cursor = node.walk()
-        visited: set[int] = set()
+        # Use a simple queue-based approach to avoid recursion issues
+        queue = [node]
+        visited: set[tuple[int, int]] = set()  # Track by byte position
 
-        def _walk_recursive() -> Generator[Node, None, None]:
-            current_node = cursor.node
-            if current_node is not None:
-                node_id = id(current_node)
-                if node_id not in visited:
-                    visited.add(node_id)
-                    yield current_node
+        while queue:
+            current = queue.pop(0)
 
-                    if cursor.goto_first_child():
-                        yield from _walk_recursive()
-                        while cursor.goto_next_sibling():
-                            yield from _walk_recursive()
-                        cursor.goto_parent()
+            # Use byte position as unique identifier to avoid infinite loops
+            position = (current.start_byte, current.end_byte)
+            if position in visited:
+                continue
+            visited.add(position)
 
-        yield from _walk_recursive()
+            yield current
+
+            # Add children to queue
+            queue.extend(current.children)
 
     def _is_function_definition(self, node: Node, config: dict[str, Any]) -> bool:
         """Check if node is a function definition."""
