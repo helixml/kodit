@@ -8,6 +8,8 @@ from fastapi import FastAPI
 
 from kodit.application.services.sync_scheduler import SyncSchedulerService
 from kodit.config import AppContext
+from kodit.infrastructure.api.v1.routers import indexes_router, search_router
+from kodit.infrastructure.api.v1.schemas.context import AppLifespanState
 from kodit.infrastructure.indexing.auto_indexing_service import AutoIndexingService
 from kodit.mcp import mcp
 from kodit.middleware import ASGICancelledErrorMiddleware, logging_middleware
@@ -18,7 +20,7 @@ _sync_scheduler_service: SyncSchedulerService | None = None
 
 
 @asynccontextmanager
-async def app_lifespan(_: FastAPI) -> AsyncIterator[None]:
+async def app_lifespan(_: FastAPI) -> AsyncIterator[AppLifespanState]:
     """Manage application lifespan for auto-indexing and sync."""
     global _auto_indexing_service, _sync_scheduler_service  # noqa: PLW0603
 
@@ -42,7 +44,7 @@ async def app_lifespan(_: FastAPI) -> AsyncIterator[None]:
             interval_seconds=app_context.periodic_sync.interval_seconds
         )
 
-    yield
+    yield AppLifespanState(app_context=app_context)
 
     # Stop services
     if _sync_scheduler_service:
@@ -57,14 +59,14 @@ mcp_http_app = mcp.http_app(transport="http", path="/")
 
 
 @asynccontextmanager
-async def combined_lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Combine app and MCP lifespans."""
+async def combined_lifespan(app: FastAPI) -> AsyncIterator[AppLifespanState]:
+    """Combine app and MCP lifespans, yielding state from app_lifespan."""
     async with (
-        app_lifespan(app),
+        app_lifespan(app) as app_state,
         mcp_sse_app.router.lifespan_context(app),
         mcp_http_app.router.lifespan_context(app),
     ):
-        yield
+        yield app_state
 
 
 app = FastAPI(title="kodit API", lifespan=combined_lifespan)
@@ -72,6 +74,15 @@ app = FastAPI(title="kodit API", lifespan=combined_lifespan)
 # Add middleware
 app.middleware("http")(logging_middleware)
 app.add_middleware(CorrelationIdMiddleware)
+
+# TODO: Implement API token authentication middleware
+# # Add API token authentication middleware
+# # Note: This will be properly configured with tokens from AppContext during lifespan
+# app.add_middleware(
+#     TokenAuthMiddleware,
+#     tokens=set(temp_app_context.api_tokens),
+#     data_dir=temp_app_context.get_data_dir(),
+# )
 
 
 @app.get("/")
@@ -84,6 +95,11 @@ async def root() -> dict[str, str]:
 async def healthz() -> dict[str, str]:
     """Return a health check for the kodit API."""
     return {"status": "ok"}
+
+
+# Include API routers
+app.include_router(indexes_router)
+app.include_router(search_router)
 
 
 # Add mcp routes last, otherwise previous routes aren't added

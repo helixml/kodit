@@ -189,7 +189,19 @@ class AppContext(BaseSettings):
     periodic_sync: PeriodicSyncConfig = Field(
         default=PeriodicSyncConfig(), description="Periodic sync configuration"
     )
+    api_tokens: list[str] = Field(
+        default_factory=list,
+        description="Comma-separated list of valid API tokens",
+    )
     _db: Database | None = None
+
+    @field_validator("api_tokens", mode="before")
+    @classmethod
+    def parse_api_tokens(cls, v: Any) -> Any:
+        """Parse API tokens from environment variables."""
+        if isinstance(v, str) and v:
+            return [t.strip() for t in v.split(",") if t.strip()]
+        return v or []
 
     def model_post_init(self, _: Any) -> None:
         """Post-initialization hook."""
