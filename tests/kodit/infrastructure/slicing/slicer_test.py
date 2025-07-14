@@ -377,6 +377,56 @@ class TestSlicer:
                     # Should not get "unsupported language" error for case variations
                     pytest.fail("Should not raise ValueError for case variations")
 
+    def test_walk_tree_cycle_detection(self) -> None:
+        """Test that _walk_tree method has cycle detection to prevent recursion."""
+        slicer = Slicer()
+
+        # Create mock nodes that could cause circular references
+        mock_node1 = Mock()
+        mock_cursor = Mock()
+
+        mock_node1.walk.return_value = mock_cursor
+
+        # Simulate a scenario where the cursor returns the same node repeatedly
+        # This would cause infinite recursion without cycle detection
+        call_count = 0
+
+        def mock_goto_first_child() -> bool:
+            nonlocal call_count
+            call_count += 1
+            # Return True for a few calls to simulate tree traversal
+            return call_count <= 5
+
+        def mock_goto_next_sibling() -> bool:
+            nonlocal call_count
+            call_count += 1
+            # Return True for a few calls to simulate sibling traversal
+            return call_count <= 5
+
+        mock_cursor.goto_first_child.side_effect = mock_goto_first_child
+        mock_cursor.goto_next_sibling.side_effect = mock_goto_next_sibling
+        mock_cursor.goto_parent.return_value = True
+
+        # Set up cursor to return the same node (simulating circular reference)
+        mock_cursor.node = mock_node1
+
+        # This should complete without infinite recursion due to cycle detection
+        try:
+            nodes = list(slicer._walk_tree(mock_node1))  # noqa: SLF001
+
+            # Should get exactly one unique node due to cycle detection
+            assert len(nodes) == 1, f"Expected 1 unique node, got {len(nodes)}"
+            assert nodes[0] == mock_node1, "Should contain the original node"
+
+            # Should have made several navigation calls but not infinite
+            assert call_count > 0, "Should have made some cursor navigation calls"
+            assert (
+                call_count < 100
+            ), "Should not have made excessive calls (infinite loop)"
+
+        except RecursionError:
+            pytest.fail("RecursionError raised - cycle detection not working properly")
+
 
 class TestConfigurationIntegrity:
     """Test configuration integrity and consistency."""
