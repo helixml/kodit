@@ -9,6 +9,9 @@ if [ -n "$CI" ]; then
     prefix=""
 fi
 
+# Disable telemetry
+export DISABLE_TELEMETRY=true
+
 # Check that the kodit data_dir does not exist
 if [ -d "$HOME/.kodit" ]; then
     echo "Kodit data_dir is not empty, please rm -rf $HOME/.kodit"
