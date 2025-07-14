@@ -416,7 +416,7 @@ class TestSlicer:
             nodes = list(slicer._walk_tree(mock_node1))  # noqa: SLF001
 
             # Should get exactly 2 unique nodes due to cycle detection
-            # (node1 and node2, but node1 won't be traversed again when reached via node2)
+            # (node1 and node2, but node1 won't be traversed again)
             assert len(nodes) == 2, f"Expected 2 unique nodes, got {len(nodes)}"
             assert mock_node1 in nodes, "Should contain the original node"
             assert mock_node2 in nodes, "Should contain the child node"
