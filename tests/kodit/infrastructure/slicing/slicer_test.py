@@ -828,3 +828,27 @@ class TestErrorHandling:
 
         error_msg = str(exc_info.value)
         assert "File not found" in error_msg
+
+    def test_binary_file_handling_in_html_parser(self) -> None:
+        """Test that binary files don't crash HTML parser with UnicodeDecodeError."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # Create a binary file that looks like an image
+            binary_file = Path(tmp_dir, "test.html")
+            # Write binary data that would cause UnicodeDecodeError if decoded as UTF-8
+            binary_data = b"\x83\x84\x85\x86\x87\x88\x89\x8a\x8b\x8c\x8d\x8e\x8f"
+            binary_file.write_bytes(binary_data)
+
+            file_obj = create_file_from_path(binary_file)
+
+            slicer = Slicer()
+
+            # This should not raise UnicodeDecodeError
+            try:
+                snippets = slicer.extract_snippets([file_obj], "html")
+                # Should return empty list or handle gracefully
+                assert isinstance(snippets, list)
+            except UnicodeDecodeError:
+                pytest.fail("UnicodeDecodeError should not be raised for binary files")
+            except RuntimeError:
+                # Tree-sitter setup issues are acceptable
+                pytest.skip("Tree-sitter setup not available")

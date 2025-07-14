@@ -399,7 +399,10 @@ class Slicer:
         """Get tag name from start_tag node."""
         for child in start_tag.children:
             if child.type == "tag_name" and child.text:
-                return child.text.decode("utf-8")
+                try:
+                    return child.text.decode("utf-8")
+                except UnicodeDecodeError:
+                    return None
         return None
 
     def _get_element_id(self, start_tag: Node) -> str | None:
@@ -424,7 +427,10 @@ class Slicer:
         """Get attribute name."""
         for child in attr_node.children:
             if child.type == "attribute_name" and child.text:
-                return child.text.decode("utf-8")
+                try:
+                    return child.text.decode("utf-8")
+                except UnicodeDecodeError:
+                    return None
         return None
 
     def _get_attr_value(self, attr_node: Node) -> str | None:
@@ -433,7 +439,10 @@ class Slicer:
             if child.type == "quoted_attribute_value":
                 for val_child in child.children:
                     if val_child.type == "attribute_value" and val_child.text:
-                        return val_child.text.decode("utf-8")
+                        try:
+                            return val_child.text.decode("utf-8")
+                        except UnicodeDecodeError:
+                            return None
         return None
 
     def _extract_css_rule_name(self, node: Node) -> str | None:
