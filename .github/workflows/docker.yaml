@@ -1,9 +1,9 @@
 name: Publish Docker image
 
 on:
+  workflow_dispatch:
   push:
-  pull_request_target:
-    types: [opened, synchronize, reopened]
+  workflow_call:
 
 env:
   TEST_TAG: user/app:test
