@@ -109,7 +109,7 @@ class IndexDomainService:
             try:
                 languages.append(LanguageMapping.get_language_for_extension(ext))
             except ValueError as e:
-                self.log.info("Skipping", error=str(e))
+                self.log.debug("Skipping", error=str(e))
                 continue
 
         reporter = Reporter(self.log, progress_callback)
