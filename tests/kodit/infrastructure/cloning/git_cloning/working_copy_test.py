@@ -207,14 +207,14 @@ async def test_sync_directory_does_not_exist_should_call_prepare(
 ) -> None:
     """Test that sync() calls prepare() when directory doesn't exist."""
     url = "https://github.com/username/repo.git"
-    
+
     # Mock prepare method to avoid actual cloning
-    with patch.object(working_copy, 'prepare') as mock_prepare:
+    with patch.object(working_copy, "prepare") as mock_prepare:
         mock_prepare.return_value = Path("/fake/path")
-        
+
         # Call sync method
         result_path = await working_copy.sync(url)
-        
+
         # Verify prepare was called
         mock_prepare.assert_called_once_with(url)
         assert result_path == Path("/fake/path")
@@ -226,18 +226,18 @@ async def test_sync_directory_exists_but_no_git_should_call_prepare(
 ) -> None:
     """Test that sync() calls prepare() when directory exists but is not a Git repo."""
     url = "https://github.com/username/repo.git"
-    
+
     # Create a directory that exists but is not a git repo
     clone_path = working_copy.get_clone_path(url)
     clone_path.mkdir(parents=True, exist_ok=True)
-    
+
     # Mock prepare method to avoid actual cloning
-    with patch.object(working_copy, 'prepare') as mock_prepare:
+    with patch.object(working_copy, "prepare") as mock_prepare:
         mock_prepare.return_value = clone_path
-        
+
         # Call sync method
         result_path = await working_copy.sync(url)
-        
+
         # Verify prepare was called
         mock_prepare.assert_called_once_with(url)
         assert result_path == clone_path
@@ -249,29 +249,29 @@ async def test_sync_valid_git_repository_should_pull(
 ) -> None:
     """Test that sync() pulls from origin when repository is valid."""
     url = "https://github.com/username/repo.git"
-    
+
     # Create a directory that exists with .git subdirectory
     clone_path = working_copy.get_clone_path(url)
     clone_path.mkdir(parents=True, exist_ok=True)
     (clone_path / ".git").mkdir(parents=True, exist_ok=True)
-    
+
     # Mock git.Repo and origin.pull
     mock_repo = MagicMock()
     mock_origin = MagicMock()
     mock_repo.remotes.origin = mock_origin
-    
+
     with patch("git.Repo") as mock_git_repo:
         mock_git_repo.return_value = mock_repo
-        
+
         # Call sync method
         result_path = await working_copy.sync(url)
-        
+
         # Verify git.Repo was called with the correct path
         mock_git_repo.assert_called_once_with(clone_path)
-        
+
         # Verify origin.pull was called
         mock_origin.pull.assert_called_once()
-        
+
         # Verify the correct path was returned
         assert result_path == clone_path
 
@@ -282,36 +282,37 @@ async def test_sync_invalid_git_repository_should_reclone(
 ) -> None:
     """Test that sync() re-clones when repository is invalid."""
     url = "https://github.com/username/repo.git"
-    
+
     # Create a directory that exists with .git subdirectory
     clone_path = working_copy.get_clone_path(url)
     clone_path.mkdir(parents=True, exist_ok=True)
     (clone_path / ".git").mkdir(parents=True, exist_ok=True)
-    
+
     # Mock git.Repo to raise InvalidGitRepositoryError
     with patch("git.Repo") as mock_git_repo:
         mock_git_repo.side_effect = git.InvalidGitRepositoryError("Invalid repo")
-        
+
         # Mock shutil.rmtree to track directory removal
-        with patch("shutil.rmtree") as mock_rmtree:
-            # Mock prepare method to avoid actual cloning
-            with patch.object(working_copy, 'prepare') as mock_prepare:
-                mock_prepare.return_value = clone_path
-                
-                # Call sync method
-                result_path = await working_copy.sync(url)
-                
-                # Verify git.Repo was called with the correct path
-                mock_git_repo.assert_called_once_with(clone_path)
-                
-                # Verify the invalid directory was removed
-                mock_rmtree.assert_called_once_with(clone_path)
-                
-                # Verify prepare was called to re-clone
-                mock_prepare.assert_called_once_with(url)
-                
-                # Verify the correct path was returned
-                assert result_path == clone_path
+        with (
+            patch("shutil.rmtree") as mock_rmtree,
+            patch.object(working_copy, "prepare") as mock_prepare,
+        ):
+            mock_prepare.return_value = clone_path
+
+            # Call sync method
+            result_path = await working_copy.sync(url)
+
+            # Verify git.Repo was called with the correct path
+            mock_git_repo.assert_called_once_with(clone_path)
+
+            # Verify the invalid directory was removed
+            mock_rmtree.assert_called_once_with(clone_path)
+
+            # Verify prepare was called to re-clone
+            mock_prepare.assert_called_once_with(url)
+
+            # Verify the correct path was returned
+            assert result_path == clone_path
 
 
 @pytest.mark.asyncio
@@ -320,17 +321,17 @@ async def test_sync_get_clone_path_should_match_prepare(
 ) -> None:
     """Test that sync() and prepare() use the same clone path."""
     url = "https://github.com/username/repo.git"
-    
+
     # Get clone paths from both methods
     sync_path = working_copy.get_clone_path(url)
-    
+
     # Mock prepare to return the expected path
-    with patch.object(working_copy, 'prepare') as mock_prepare:
+    with patch.object(working_copy, "prepare") as mock_prepare:
         mock_prepare.return_value = sync_path
-        
+
         # Call sync method (will call prepare since directory doesn't exist)
         result_path = await working_copy.sync(url)
-        
+
         # Verify paths match
         assert result_path == sync_path
         mock_prepare.assert_called_once_with(url)
