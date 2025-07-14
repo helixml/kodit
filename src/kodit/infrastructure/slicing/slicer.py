@@ -301,16 +301,16 @@ class Slicer:
         """Walk the AST tree, yielding all nodes."""
         # Use a simple queue-based approach to avoid recursion issues
         queue = [node]
-        visited: set[tuple[int, int]] = set()  # Track by byte position
+        visited: set[int] = set()  # Track by node id (memory address)
 
         while queue:
             current = queue.pop(0)
 
-            # Use byte position as unique identifier to avoid infinite loops
-            position = (current.start_byte, current.end_byte)
-            if position in visited:
+            # Use node id (memory address) as unique identifier to avoid infinite loops
+            node_id = id(current)
+            if node_id in visited:
                 continue
-            visited.add(position)
+            visited.add(node_id)
 
             yield current
 
