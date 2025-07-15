@@ -8,6 +8,7 @@ from fastapi import FastAPI
 
 from kodit.application.services.sync_scheduler import SyncSchedulerService
 from kodit.config import AppContext
+from kodit.infrastructure.api.middleware.auth import TokenAuthMiddleware
 from kodit.infrastructure.api.v1.routers import indexes_router, search_router
 from kodit.infrastructure.api.v1.schemas.context import AppLifespanState
 from kodit.infrastructure.indexing.auto_indexing_service import AutoIndexingService
@@ -71,18 +72,10 @@ async def combined_lifespan(app: FastAPI) -> AsyncIterator[AppLifespanState]:
 
 app = FastAPI(title="kodit API", lifespan=combined_lifespan)
 
-# Add middleware
-app.middleware("http")(logging_middleware)
-app.add_middleware(CorrelationIdMiddleware)
-
-# TODO: Implement API token authentication middleware
-# # Add API token authentication middleware
-# # Note: This will be properly configured with tokens from AppContext during lifespan
-# app.add_middleware(
-#     TokenAuthMiddleware,
-#     tokens=set(temp_app_context.api_tokens),
-#     data_dir=temp_app_context.get_data_dir(),
-# )
+# Add middleware. Remember, last runs first. Order is important.
+app.add_middleware(TokenAuthMiddleware)  # Now check for access
+app.middleware("http")(logging_middleware)  # Then always log
+app.add_middleware(CorrelationIdMiddleware)  # Add correlation id first.
 
 
 @app.get("/")

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, TypeVar
 
 import click
+import structlog
 from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import (
     BaseSettings,
@@ -194,14 +195,7 @@ class AppContext(BaseSettings):
         description="Comma-separated list of valid API tokens",
     )
     _db: Database | None = None
-
-    @field_validator("api_tokens", mode="before")
-    @classmethod
-    def parse_api_tokens(cls, v: Any) -> Any:
-        """Parse API tokens from environment variables."""
-        if isinstance(v, str) and v:
-            return [t.strip() for t in v.split(",") if t.strip()]
-        return v or []
+    _log = structlog.get_logger(__name__)
 
     def model_post_init(self, _: Any) -> None:
         """Post-initialization hook."""
