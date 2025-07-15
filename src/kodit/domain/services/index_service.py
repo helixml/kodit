@@ -1,6 +1,7 @@
 """Pure domain service for Index aggregate operations."""
 
 from abc import ABC, abstractmethod
+from collections import defaultdict
 from pathlib import Path
 
 import structlog
@@ -104,30 +105,39 @@ class IndexDomainService:
 
         # Create a set of languages to extract snippets for
         extensions = {file.extension() for file in files}
-        languages = []
+        lang_files_map = defaultdict(list)
         for ext in extensions:
             try:
-                languages.append(LanguageMapping.get_language_for_extension(ext))
+                lang = LanguageMapping.get_language_for_extension(ext)
+                lang_files_map[lang].extend(
+                    file for file in files if file.extension() == ext
+                )
             except ValueError as e:
-                self.log.info("Skipping", error=str(e))
+                self.log.debug("Skipping", error=str(e))
                 continue
+
+        self.log.info(
+            "Languages to process",
+            languages=lang_files_map.keys(),
+        )
 
         reporter = Reporter(self.log, progress_callback)
         await reporter.start(
             "extract_snippets",
-            len(files) * len(languages),
+            len(lang_files_map.keys()),
             "Extracting code snippets...",
         )
+
         # Calculate snippets for each language
         slicer = Slicer()
-        for i, language in enumerate(languages):
+        for i, (lang, lang_files) in enumerate(lang_files_map.items()):
             await reporter.step(
                 "extract_snippets",
-                len(files) * (i + 1),
-                len(files) * len(languages),
-                "Extracting code snippets...",
+                i,
+                len(lang_files_map.keys()),
+                f"Extracting code snippets for {lang}...",
             )
-            s = slicer.extract_snippets(files, language=language)
+            s = slicer.extract_snippets(lang_files, language=lang)
             index.snippets.extend(s)
 
         await reporter.done("extract_snippets")

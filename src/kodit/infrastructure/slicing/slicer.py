@@ -10,10 +10,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, ClassVar
 
+import structlog
 from tree_sitter import Node, Parser, Tree
 from tree_sitter_language_pack import get_language
 
 from kodit.domain.entities import File, Snippet
+from kodit.domain.value_objects import LanguageMapping
 
 
 @dataclass
@@ -145,8 +147,9 @@ class Slicer:
 
     def __init__(self) -> None:
         """Initialize an empty slicer."""
+        self.log = structlog.get_logger(__name__)
 
-    def extract_snippets(
+    def extract_snippets(  # noqa: C901
         self, files: list[File], language: str = "python"
     ) -> list[Snippet]:
         """Extract code snippets from a list of files.
@@ -170,6 +173,7 @@ class Slicer:
 
         # Get language configuration
         if language not in LanguageConfig.CONFIGS:
+            self.log.debug("Skipping", language=language)
             return []
 
         config = LanguageConfig.CONFIGS[language]
@@ -185,15 +189,19 @@ class Slicer:
         # Create mapping from Paths to File objects and extract paths
         path_to_file_map: dict[Path, File] = {}
         file_paths: list[Path] = []
-
         for file in files:
             file_path = file.as_path()
-            path_to_file_map[file_path] = file
-            file_paths.append(file_path)
+
+            # Validate file matches language
+            if not self._file_matches_language(file_path.suffix, language):
+                raise ValueError(f"File {file_path} does not match language {language}")
 
             # Validate file exists
             if not file_path.exists():
                 raise FileNotFoundError(f"File not found: {file_path}")
+
+            path_to_file_map[file_path] = file
+            file_paths.append(file_path)
 
         # Initialize state
         state = AnalyzerState(parser=parser)
@@ -209,7 +217,7 @@ class Slicer:
                 state.asts[file_path] = tree
             except OSError:
                 # Skip files that can't be parsed
-                pass
+                continue
 
         # Build indexes
         self._build_definition_and_import_indexes(state, config, language)
@@ -232,6 +240,13 @@ class Slicer:
                 snippets.append(snippet)
 
         return snippets
+
+    def _file_matches_language(self, file_extension: str, language: str) -> bool:
+        """Check if a file extension matches the current language."""
+        if language not in LanguageConfig.CONFIGS:
+            return False
+
+        return language == LanguageMapping.get_language_for_extension(file_extension)
 
     def _get_tree_sitter_language_name(self, language: str) -> str:
         """Map user language names to tree-sitter language names."""
