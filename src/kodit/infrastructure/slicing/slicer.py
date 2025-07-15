@@ -246,7 +246,13 @@ class Slicer:
         if language not in LanguageConfig.CONFIGS:
             return False
 
-        return language == LanguageMapping.get_language_for_extension(file_extension)
+        try:
+            return (
+                language == LanguageMapping.get_language_for_extension(file_extension)
+            )
+        except ValueError:
+            # Extension not supported, so it doesn't match any language
+            return False
 
     def _get_tree_sitter_language_name(self, language: str) -> str:
         """Map user language names to tree-sitter language names."""

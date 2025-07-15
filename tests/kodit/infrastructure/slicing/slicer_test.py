@@ -888,3 +888,91 @@ class TestErrorHandling:
                 assert isinstance(snippets, list)
             except UnicodeDecodeError:
                 pytest.fail("UnicodeDecodeError should not be raised for binary files")
+
+    def test_file_extension_validation_for_language(self) -> None:
+        """Test only files with matching extensions are processed for each language."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # Create files with different extensions
+            py_file = Path(tmp_dir, "test.py")
+            py_file.write_text("def test(): pass")
+
+            js_file = Path(tmp_dir, "test.js")
+            js_file.write_text("function test() {}")
+
+            png_file = Path(tmp_dir, "image.png")
+            png_file.write_bytes(b"fake png data")
+
+            txt_file = Path(tmp_dir, "readme.txt")
+            txt_file.write_text("This is just text")
+
+            # Test Python processing - should only accept .py files
+            slicer = Slicer()
+            py_file_obj = create_file_from_path(py_file)
+            js_file_obj = create_file_from_path(js_file)
+            png_file_obj = create_file_from_path(png_file)
+            txt_file_obj = create_file_from_path(txt_file)
+
+            # Test that Python slicer rejects non-Python files
+            with pytest.raises(ValueError, match="does not match language python"):
+                slicer.extract_snippets([js_file_obj], "python")
+
+            with pytest.raises(ValueError, match="does not match language python"):
+                slicer.extract_snippets([png_file_obj], "python")
+
+            with pytest.raises(ValueError, match="does not match language python"):
+                slicer.extract_snippets([txt_file_obj], "python")
+
+            # Test that Python slicer accepts Python files
+            snippets = slicer.extract_snippets([py_file_obj], "python")
+            assert isinstance(snippets, list)
+
+            # Test JavaScript processing - should only accept .js files
+            with pytest.raises(ValueError, match="does not match language javascript"):
+                slicer.extract_snippets([py_file_obj], "javascript")
+
+            with pytest.raises(ValueError, match="does not match language javascript"):
+                slicer.extract_snippets([png_file_obj], "javascript")
+
+            # Test that JavaScript slicer accepts JavaScript files
+            snippets = slicer.extract_snippets([js_file_obj], "javascript")
+            assert isinstance(snippets, list)
+
+    def test_mixed_files_with_language_filtering(self) -> None:
+        """Test that mixed file types are filtered correctly for each language."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # Create files of different types
+            py_file = Path(tmp_dir, "script.py")
+            py_file.write_text("def hello(): print('hello')")
+
+            js_file = Path(tmp_dir, "script.js")
+            js_file.write_text("function hello() { console.log('hello'); }")
+
+            html_file = Path(tmp_dir, "index.html")
+            html_file.write_text("<html><body>Hello</body></html>")
+
+            # Create file objects
+            py_file_obj = create_file_from_path(py_file)
+            js_file_obj = create_file_from_path(js_file)
+            html_file_obj = create_file_from_path(html_file)
+
+            slicer = Slicer()
+
+            # Test that we can't mix file types within a single language request
+            with pytest.raises(ValueError, match="does not match language python"):
+                slicer.extract_snippets([py_file_obj, js_file_obj], "python")
+
+            with pytest.raises(ValueError, match="does not match language python"):
+                slicer.extract_snippets([py_file_obj, html_file_obj], "python")
+
+            with pytest.raises(ValueError, match="does not match language javascript"):
+                slicer.extract_snippets([js_file_obj, py_file_obj], "javascript")
+
+            # Test that processing single file types works
+            py_snippets = slicer.extract_snippets([py_file_obj], "python")
+            assert isinstance(py_snippets, list)
+
+            js_snippets = slicer.extract_snippets([js_file_obj], "javascript")
+            assert isinstance(js_snippets, list)
+
+            html_snippets = slicer.extract_snippets([html_file_obj], "html")
+            assert isinstance(html_snippets, list)

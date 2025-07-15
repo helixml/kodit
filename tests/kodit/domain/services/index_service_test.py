@@ -160,3 +160,161 @@ async def test_enrich_snippets_with_empty_list_returns_empty_list(
     """Test that enriching an empty list returns an empty list."""
     enriched_snippets = await index_domain_service.enrich_snippets_in_index(snippets=[])
     assert enriched_snippets == []
+
+
+@pytest.mark.asyncio
+async def test_extract_snippets_only_processes_relevant_files(
+    index_domain_service: IndexDomainService, tmp_path: Path
+) -> None:
+    """Test that extract_snippets only processes files relevant to their language."""
+    # Create files of different types
+    py_file = tmp_path / "test.py"
+    py_file.write_text("def hello(): pass")
+
+    js_file = tmp_path / "test.js"
+    js_file.write_text("function hello() {}")
+
+    png_file = tmp_path / "image.png"
+    png_file.write_bytes(b"fake png data")
+
+    txt_file = tmp_path / "readme.txt"
+    txt_file.write_text("This is just text")
+
+    # Prepare working copy
+    working_copy = await index_domain_service.prepare_index(str(tmp_path))
+    working_copy = await index_domain_service.refresh_working_copy(working_copy)
+
+    # Verify all files were discovered
+    assert len(working_copy.files) == 4
+
+    from datetime import UTC, datetime
+
+    from kodit.domain.entities import Index, Source
+
+    # Create a mock index
+    source = Source(id=1, working_copy=working_copy)
+    index = Index(
+        id=1,
+        source=source,
+        snippets=[],
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+
+    # Extract snippets - should process all supported languages found in files
+    updated_index = await index_domain_service.extract_snippets_from_index(index)
+
+    # Should have snippets from both Python and JavaScript files (2 supported languages)
+    # PNG and TXT files should be ignored as they're not supported
+    assert len(updated_index.snippets) == 2  # Python and JavaScript files
+
+    # Get snippet texts
+    snippet_texts = [s.original_text() for s in updated_index.snippets]
+
+    # Should contain content from both supported languages
+    assert any("def hello" in text for text in snippet_texts)  # Python file
+    assert any("function hello" in text for text in snippet_texts)  # JavaScript file
+
+    # Verify the snippets derive from the correct files
+    source_files = [s.derives_from[0].uri.path for s in updated_index.snippets]
+    assert any(path.endswith("test.py") for path in source_files)  # type: ignore[union-attr]
+    assert any(path.endswith("test.js") for path in source_files)  # type: ignore[union-attr]
+
+
+@pytest.mark.asyncio
+async def test_extract_snippets_filters_by_language_mapping(
+    index_domain_service: IndexDomainService, tmp_path: Path
+) -> None:
+    """Test that extract_snippets correctly filters files by language mapping."""
+    # Create files for different languages
+    py_file = tmp_path / "script.py"
+    py_file.write_text("def python_func(): return 'python'")
+
+    js_file = tmp_path / "script.js"
+    js_file.write_text("function jsFunc() { return 'javascript'; }")
+
+    java_file = tmp_path / "Script.java"
+    java_file.write_text("public class Script { public void javaMethod() {} }")
+
+    # Create unsupported file type
+    unknown_file = tmp_path / "script.unknown"
+    unknown_file.write_text("some unknown content")
+
+    # Prepare working copy
+    working_copy = await index_domain_service.prepare_index(str(tmp_path))
+    working_copy = await index_domain_service.refresh_working_copy(working_copy)
+
+    # Should discover all files
+    assert len(working_copy.files) == 4
+
+    from datetime import UTC, datetime
+
+    from kodit.domain.entities import Index, Source
+
+    # Create a mock index
+    source = Source(id=1, working_copy=working_copy)
+    index = Index(
+        id=1,
+        source=source,
+        snippets=[],
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+
+    # Extract snippets - should process supported languages only
+    updated_index = await index_domain_service.extract_snippets_from_index(index)
+
+    # Should have snippets from Python, JavaScript, and Java files
+    # (unknown file should be ignored)
+    assert len(updated_index.snippets) == 3
+
+    # Get the snippet texts
+    snippet_texts = [s.original_text() for s in updated_index.snippets]
+
+    # Should contain content from all supported languages
+    assert any("def python_func" in text for text in snippet_texts)
+    assert any("function jsFunc" in text for text in snippet_texts)
+    assert any("javaMethod" in text for text in snippet_texts)
+
+    # Should not contain content from unsupported file
+    assert not any("unknown content" in text for text in snippet_texts)
+
+
+@pytest.mark.asyncio
+async def test_extract_snippets_handles_no_matching_files(
+    index_domain_service: IndexDomainService, tmp_path: Path
+) -> None:
+    """Test extract_snippets handles case where no files match supported languages."""
+    # Create only unsupported file types
+    img_file = tmp_path / "image.png"
+    img_file.write_bytes(b"fake image data")
+
+    doc_file = tmp_path / "document.pdf"
+    doc_file.write_bytes(b"fake pdf data")
+
+    # Prepare working copy
+    working_copy = await index_domain_service.prepare_index(str(tmp_path))
+    working_copy = await index_domain_service.refresh_working_copy(working_copy)
+
+    # Should discover files
+    assert len(working_copy.files) == 2
+
+    from datetime import UTC, datetime
+
+    from kodit.domain.entities import Index, Source
+
+    # Create a mock index
+    source = Source(id=1, working_copy=working_copy)
+    index = Index(
+        id=1,
+        source=source,
+        snippets=[],
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+
+    # Extract snippets - should return empty list since no supported files
+    updated_index = await index_domain_service.extract_snippets_from_index(index)
+
+    # Should have no snippets
+    assert len(updated_index.snippets) == 0

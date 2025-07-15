@@ -105,7 +105,7 @@ class IndexDomainService:
 
         # Create a set of languages to extract snippets for
         extensions = {file.extension() for file in files}
-        lang_files_map = defaultdict(list)
+        lang_files_map: dict[str, list[domain_entities.File]] = defaultdict(list)
         for ext in extensions:
             try:
                 lang = LanguageMapping.get_language_for_extension(ext)
