@@ -51,7 +51,7 @@ def test_lifespan_with_api_keys(
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[AppLifespanState]:
         """Create a test lifespan function."""
-        app_context.api_tokens = ["test"]
+        app_context.api_keys = ["test"]
         yield AppLifespanState(app_context=app_context)
 
     return lifespan

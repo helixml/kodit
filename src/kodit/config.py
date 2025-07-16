@@ -191,22 +191,22 @@ class AppContext(BaseSettings):
     periodic_sync: PeriodicSyncConfig = Field(
         default=PeriodicSyncConfig(), description="Periodic sync configuration"
     )
-    api_tokens: Annotated[list[str], NoDecode] = Field(
+    api_keys: Annotated[list[str], NoDecode] = Field(
         default_factory=list,
-        description="Comma-separated list of valid API tokens (e.g. 'token1,token2')",
+        description="Comma-separated list of valid API keys (e.g. 'key1,key2')",
     )
 
-    @field_validator("api_tokens", mode="before")
+    @field_validator("api_keys", mode="before")
     @classmethod
-    def parse_api_tokens(cls, v: Any) -> list[str]:
-        """Parse API tokens from CSV format."""
+    def parse_api_keys(cls, v: Any) -> list[str]:
+        """Parse API keys from CSV format."""
         if v is None:
             return []
         if isinstance(v, list):
             return v
         if isinstance(v, str):
             # Split by comma and strip whitespace
-            return [token.strip() for token in v.strip().split(",") if token.strip()]
+            return [key.strip() for key in v.strip().split(",") if key.strip()]
         return v
 
     _db: Database | None = None
