@@ -1,7 +1,5 @@
 """Index management router for the REST API."""
 
-from datetime import UTC, datetime
-
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
 from kodit.infrastructure.api.middleware.auth import api_key_auth
@@ -16,8 +14,6 @@ from kodit.infrastructure.api.v1.schemas.index import (
     IndexDetailResponse,
     IndexListResponse,
     IndexResponse,
-    SourceAttributes,
-    SourceIncluded,
 )
 
 router = APIRouter(
@@ -61,7 +57,7 @@ async def create_index(
 ) -> IndexResponse:
     """Create a new index and start async indexing."""
     # Create index using the application service
-    index = await app_service.create_index_from_uri(request.data.attributes.source_uri)
+    index = await app_service.create_index_from_uri(request.data.attributes.uri)
 
     # Start async indexing in background
     background_tasks.add_task(app_service.run_index, index)
@@ -99,19 +95,6 @@ async def get_index(
                 uri=str(index.source.working_copy.remote_uri),
             ),
         ),
-        included=[
-            SourceIncluded(
-                type="source",
-                id=str(index.source.id),
-                attributes=SourceAttributes(
-                    created_at=index.source.created_at or datetime.now(UTC),
-                    updated_at=index.source.updated_at or datetime.now(UTC),
-                    remote_uri=str(index.source.working_copy.remote_uri),
-                    cloned_path=str(index.source.working_copy.cloned_path),
-                    source_type=index.source.working_copy.source_type.name.lower(),
-                ),
-            )
-        ],
     )
 
 

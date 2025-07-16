@@ -191,7 +191,7 @@ async def test_index(
                     "data": {
                         "type": "index",
                         "attributes": {
-                            "source_uri": EXAMPLE_REPO_URI,
+                            "uri": EXAMPLE_REPO_URI,
                         },
                     }
                 },
@@ -214,9 +214,6 @@ async def test_index(
         assert "data" in data
         assert data["data"]["type"] == "index"
         assert data["data"]["id"] == str(test_data["index"].id)
-        assert "included" in data
-        assert len(data["included"]) == 1
-        assert data["included"][0]["type"] == "source"
 
         # Test get non-existent index
         response = client.get(

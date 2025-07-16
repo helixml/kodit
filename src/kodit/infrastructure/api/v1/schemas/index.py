@@ -13,37 +13,11 @@ class IndexAttributes(BaseModel):
     uri: str
 
 
-class SourceData(BaseModel):
-    """Source data for JSON:API relationships."""
-
-    type: str = "source"
-    id: str
-
-
-class SourceRelationship(BaseModel):
-    """Source relationship for JSON:API."""
-
-    data: SourceData
-
-
 class SnippetData(BaseModel):
     """Snippet data for JSON:API relationships."""
 
     type: str = "snippet"
     id: str
-
-
-class SnippetsRelationship(BaseModel):
-    """Snippets relationship for JSON:API."""
-
-    data: list[SnippetData]
-
-
-class IndexRelationships(BaseModel):
-    """Index relationships for JSON:API responses."""
-
-    source: SourceRelationship
-    snippets: SnippetsRelationship | None = None
 
 
 class IndexData(BaseModel):
@@ -69,7 +43,7 @@ class IndexListResponse(BaseModel):
 class IndexCreateAttributes(BaseModel):
     """Attributes for creating an index."""
 
-    source_uri: str = Field(..., description="URI of the source to index")
+    uri: str = Field(..., description="URI of the source to index")
 
 
 class IndexCreateData(BaseModel):
@@ -83,16 +57,6 @@ class IndexCreateRequest(BaseModel):
     """JSON:API request for creating an index."""
 
     data: IndexCreateData
-
-
-class SourceAttributes(BaseModel):
-    """Source attributes for JSON:API included resources."""
-
-    created_at: datetime
-    updated_at: datetime
-    remote_uri: str
-    cloned_path: str
-    source_type: str
 
 
 class AuthorData(BaseModel):
@@ -124,15 +88,6 @@ class FileAttributes(BaseModel):
     updated_at: datetime
 
 
-class FileData(BaseModel):
-    """File data for JSON:API included resources."""
-
-    type: str = "file"
-    id: str
-    attributes: FileAttributes
-    relationships: FileRelationships
-
-
 class AuthorAttributes(BaseModel):
     """Author attributes for JSON:API included resources."""
 
@@ -140,24 +95,7 @@ class AuthorAttributes(BaseModel):
     email: str
 
 
-class AuthorIncluded(BaseModel):
-    """Author data for JSON:API included resources."""
-
-    type: str = "author"
-    id: str
-    attributes: AuthorAttributes
-
-
-class SourceIncluded(BaseModel):
-    """Source data for JSON:API included resources."""
-
-    type: str = "source"
-    id: str
-    attributes: SourceAttributes
-
-
 class IndexDetailResponse(BaseModel):
     """JSON:API response for index details with included resources."""
 
     data: IndexData
-    included: list[SourceIncluded] | None = None

@@ -122,32 +122,12 @@ class SnippetAttributes(BaseModel):
     summary: str
 
 
-class FileData(BaseModel):
-    """File data for JSON:API relationships."""
-
-    type: str = "file"
-    id: str
-
-
-class FilesRelationship(BaseModel):
-    """Files relationship for JSON:API."""
-
-    data: list[FileData]
-
-
-class SnippetRelationships(BaseModel):
-    """Snippet relationships for JSON:API responses."""
-
-    files: FilesRelationship
-
-
 class SnippetData(BaseModel):
     """Snippet data for JSON:API responses."""
 
     type: str = "snippet"
-    id: str
+    id: int
     attributes: SnippetAttributes
-    relationships: SnippetRelationships | None = None
 
 
 class SearchResponse(BaseModel):
@@ -170,7 +150,7 @@ class AuthorData(BaseModel):
     """Author data for JSON:API relationships."""
 
     type: str = "author"
-    id: str
+    id: int
 
 
 class AuthorsRelationship(BaseModel):
@@ -189,7 +169,7 @@ class FileDataWithRelationships(BaseModel):
     """File data with relationships for JSON:API included resources."""
 
     type: str = "file"
-    id: str
+    id: int
     attributes: FileAttributes
     relationships: FileRelationships
 
@@ -205,7 +185,7 @@ class AuthorDataWithAttributes(BaseModel):
     """Author data with attributes for JSON:API included resources."""
 
     type: str = "author"
-    id: str
+    id: int
     attributes: AuthorAttributes
 
 
@@ -231,11 +211,9 @@ class SnippetDetailData(BaseModel):
     type: str = "snippet"
     id: str
     attributes: SnippetDetailAttributes
-    relationships: SnippetRelationships | None = None
 
 
 class SnippetDetailResponse(BaseModel):
     """JSON:API response for snippet details."""
 
     data: SnippetDetailData
-    included: list[FileDataWithRelationships | AuthorDataWithAttributes] | None = None

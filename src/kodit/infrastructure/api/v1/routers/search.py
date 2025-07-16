@@ -56,7 +56,7 @@ async def search_snippets(
         data=[
             SnippetData(
                 type="snippet",
-                id=str(result.id),
+                id=result.id,
                 attributes=SnippetAttributes(
                     content=result.content,
                     created_at=result.created_at,
