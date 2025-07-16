@@ -2,35 +2,10 @@
   "openapi": "3.1.0",
   "info": {
     "title": "kodit API",
-    "version": "0.1.0"
+    "description": "\nThis is the REST API for the Kodit server. Please refer to the\n[Kodit documentation](https://docs.helix.ml/kodit/) for more information.\n    ",
+    "version": "0.3.11.dev2"
   },
   "paths": {
-    "/": {
-      "get": {
-        "summary": "Root",
-        "description": "Return a welcome message for the kodit API.",
-        "operationId": "root__get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "type": "object",
-                  "title": "Response Root  Get"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      }
-    },
     "/healthz": {
       "get": {
         "summary": "Healthz",
@@ -41,13 +16,7 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "type": "object",
-                  "title": "Response Healthz Healthz Get"
-                }
+                "schema": {}
               }
             }
           },
@@ -88,7 +57,7 @@
         },
         "security": [
           {
-            "APIKeyHeader": []
+            "Header (X-API-KEY)": []
           }
         ]
       },
@@ -132,7 +101,7 @@
         },
         "security": [
           {
-            "APIKeyHeader": []
+            "Header (X-API-KEY)": []
           }
         ]
       }
@@ -147,7 +116,7 @@
         "operationId": "get_index_api_v1_indexes__index_id__get",
         "security": [
           {
-            "APIKeyHeader": []
+            "Header (X-API-KEY)": []
           }
         ],
         "parameters": [
@@ -195,7 +164,7 @@
         "operationId": "delete_index_api_v1_indexes__index_id__delete",
         "security": [
           {
-            "APIKeyHeader": []
+            "Header (X-API-KEY)": []
           }
         ],
         "parameters": [
@@ -758,8 +727,9 @@
       }
     },
     "securitySchemes": {
-      "APIKeyHeader": {
+      "Header (X-API-KEY)": {
         "type": "apiKey",
+        "description": "API key for authentication (only if set in environmental variables)",
         "in": "header",
         "name": "x-api-key"
       }

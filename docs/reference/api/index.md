@@ -1,383 +1,154 @@
 ---
-title: REST API Reference
-description: Kodit REST API Documentation
+title: Server API Reference
+description: Kodit Server REST API Documentation
 weight: 30
 ---
 
 
+This is the REST API for the Kodit server. Please refer to the
+[Kodit documentation](https://docs.helix.ml/kodit/) for more information.
+    
+Current version: 0.3.11
 
-# Base URL
-
-| URL | Description |
-|-----|-------------|
-
-
-# Authentication
+## Authentication
 
 
 
-## Security Schemes
+### Security Schemes
 
 | Name              | Type              | Description              | Scheme              | Bearer Format             |
 |-------------------|-------------------|--------------------------|---------------------|---------------------------|
-| APIKeyHeader | apiKey |  |  |  |
+| Header (X-API-KEY) | apiKey | API key for authentication (only if set in environmental variables) |  |  |
 
-# APIs
+## APIs
 
-## GET /
-
-Root
-
-Return a welcome message for the kodit API.
-
-
-
-
-### Responses
-
-#### 200
-
-
-Successful Response
-
-
-object
-
-
-
-
-
-
-
-#### 500
-
-
-Internal server error
-
-
-
-
-## GET /healthz
-
-Healthz
+### GET /healthz
 
 Return a health check for the kodit API.
 
 
+#### Responses
 
+- 200: Successful Response
 
-### Responses
+- 500: Internal server error
 
-#### 200
-
-
-Successful Response
-
-
-object
-
-
-
-
-
-
-
-#### 500
-
-
-Internal server error
-
-
-
-
-## GET /api/v1/indexes
-
-List Indexes
+### GET /api/v1/indexes
 
 List all indexes.
 
 
+#### Responses
 
-
-### Responses
-
-#### 200
-
-
-Successful Response
-
+- 200: Successful Response
 
 [IndexListResponse](#indexlistresponse)
 
+- 500: Internal server error
 
+- 401: Unauthorized
 
+- 422: Invalid request
 
-
-
-
-#### 500
-
-
-Internal server error
-
-
-
-
-#### 401
-
-
-Unauthorized
-
-
-
-
-#### 422
-
-
-Invalid request
-
-
-
-
-## POST /api/v1/indexes
-
-Create Index
+### POST /api/v1/indexes
 
 Create a new index and start async indexing.
 
 
-
-
-### Request Body
+#### Request Body
 
 [IndexCreateRequest](#indexcreaterequest)
 
 
+#### Responses
 
-
-
-
-
-### Responses
-
-#### 202
-
-
-Successful Response
-
+- 202: Successful Response
 
 [IndexResponse](#indexresponse)
 
+- 500: Internal server error
 
+- 401: Unauthorized
 
+- 422: Invalid request
 
-
-
-
-#### 500
-
-
-Internal server error
-
-
-
-
-#### 401
-
-
-Unauthorized
-
-
-
-
-#### 422
-
-
-Invalid request
-
-
-
-
-## GET /api/v1/indexes/{index_id}
-
-Get Index
+### GET /api/v1/indexes/{index_id}
 
 Get index details.
 
 
-### Parameters
+#### Parameters
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | index_id | integer | True |  |
 
 
-### Responses
+#### Responses
 
-#### 200
-
-
-Successful Response
-
+- 200: Successful Response
 
 [IndexDetailResponse](#indexdetailresponse)
 
+- 500: Internal server error
 
+- 401: Unauthorized
 
+- 422: Invalid request
 
+- 404: Index not found
 
-
-
-#### 500
-
-
-Internal server error
-
-
-
-
-#### 401
-
-
-Unauthorized
-
-
-
-
-#### 422
-
-
-Invalid request
-
-
-
-
-#### 404
-
-
-Index not found
-
-
-
-
-## DELETE /api/v1/indexes/{index_id}
-
-Delete Index
+### DELETE /api/v1/indexes/{index_id}
 
 Delete an index.
 
 
-### Parameters
+#### Parameters
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | index_id | integer | True |  |
 
 
-### Responses
+#### Responses
 
-#### 204
+- 204: Successful Response
 
+- 500: Internal server error
 
-Successful Response
+- 401: Unauthorized
 
+- 422: Invalid request
 
+- 404: Index not found
 
-
-#### 500
-
-
-Internal server error
-
-
-
-
-#### 401
-
-
-Unauthorized
-
-
-
-
-#### 422
-
-
-Invalid request
-
-
-
-
-#### 404
-
-
-Index not found
-
-
-
-
-## POST /api/v1/search
-
-Search Snippets
+### POST /api/v1/search
 
 Search code snippets with filters matching MCP tool.
 
 
-
-
-### Request Body
+#### Request Body
 
 [SearchRequest](#searchrequest)
 
 
+#### Responses
 
-
-
-
-
-### Responses
-
-#### 200
-
-
-Successful Response
-
+- 200: Successful Response
 
 [SearchResponse](#searchresponse)
 
+- 500: Internal server error
 
-
-
-
-
-
-#### 500
-
-
-Internal server error
-
-
-
-
-#### 422
-
-
-Validation Error
-
+- 422: Validation Error
 
 [HTTPValidationError](#httpvalidationerror)
 
+## Components
 
 
 
-
-
-
-# Components
-
-
-
-## HTTPValidationError
+### HTTPValidationError
 
 
 
@@ -386,7 +157,7 @@ Validation Error
 | detail | array |  |
 
 
-## IndexAttributes
+### IndexAttributes
 
 
 Index attributes for JSON:API responses.
@@ -399,7 +170,7 @@ Index attributes for JSON:API responses.
 | uri | string |  |
 
 
-## IndexCreateAttributes
+### IndexCreateAttributes
 
 
 Attributes for creating an index.
@@ -410,7 +181,7 @@ Attributes for creating an index.
 | uri | string | URI of the source to index |
 
 
-## IndexCreateData
+### IndexCreateData
 
 
 Data for creating an index.
@@ -422,7 +193,7 @@ Data for creating an index.
 | attributes |  |  |
 
 
-## IndexCreateRequest
+### IndexCreateRequest
 
 
 JSON:API request for creating an index.
@@ -433,7 +204,7 @@ JSON:API request for creating an index.
 | data |  |  |
 
 
-## IndexData
+### IndexData
 
 
 Index data for JSON:API responses.
@@ -446,7 +217,7 @@ Index data for JSON:API responses.
 | attributes |  |  |
 
 
-## IndexDetailResponse
+### IndexDetailResponse
 
 
 JSON:API response for index details with included resources.
@@ -457,7 +228,7 @@ JSON:API response for index details with included resources.
 | data |  |  |
 
 
-## IndexListResponse
+### IndexListResponse
 
 
 JSON:API response for index list.
@@ -468,7 +239,7 @@ JSON:API response for index list.
 | data | array |  |
 
 
-## IndexResponse
+### IndexResponse
 
 
 JSON:API response for single index.
@@ -479,7 +250,7 @@ JSON:API response for single index.
 | data |  |  |
 
 
-## SearchAttributes
+### SearchAttributes
 
 
 Search attributes for JSON:API requests.
@@ -494,7 +265,7 @@ Search attributes for JSON:API requests.
 | filters |  | Search filters |
 
 
-## SearchData
+### SearchData
 
 
 Search data for JSON:API requests.
@@ -506,7 +277,7 @@ Search data for JSON:API requests.
 | attributes |  |  |
 
 
-## SearchFilters
+### SearchFilters
 
 
 Search filters for JSON:API requests.
@@ -522,7 +293,7 @@ Search filters for JSON:API requests.
 | file_patterns |  | File path patterns to filter by |
 
 
-## SearchRequest
+### SearchRequest
 
 
 JSON:API request for searching snippets.
@@ -533,7 +304,7 @@ JSON:API request for searching snippets.
 | data |  |  |
 
 
-## SearchResponse
+### SearchResponse
 
 
 JSON:API response for search results.
@@ -544,7 +315,7 @@ JSON:API response for search results.
 | data | array |  |
 
 
-## SnippetAttributes
+### SnippetAttributes
 
 
 Snippet attributes for JSON:API responses.
@@ -563,7 +334,7 @@ Snippet attributes for JSON:API responses.
 | summary | string |  |
 
 
-## SnippetData
+### SnippetData
 
 
 Snippet data for JSON:API responses.
@@ -576,7 +347,7 @@ Snippet data for JSON:API responses.
 | attributes |  |  |
 
 
-## ValidationError
+### ValidationError
 
 
 

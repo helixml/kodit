@@ -3,7 +3,12 @@
 from fastapi import Depends, HTTPException, Request, Security
 from fastapi.security import APIKeyHeader
 
-api_key_header_value = APIKeyHeader(name="x-api-key", auto_error=False)
+api_key_header_value = APIKeyHeader(
+    name="x-api-key",
+    auto_error=False,
+    description="API key for authentication (only if set in environmental variables)",
+    scheme_name="Header (X-API-KEY)",
+)
 
 
 def valid_tokens(request: Request) -> list[str]:

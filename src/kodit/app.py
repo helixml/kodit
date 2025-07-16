@@ -4,8 +4,10 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from asgi_correlation_id import CorrelationIdMiddleware
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
+from fastapi.responses import RedirectResponse
 
+from kodit._version import version
 from kodit.application.services.sync_scheduler import SyncSchedulerService
 from kodit.config import AppContext
 from kodit.infrastructure.api.v1.routers import indexes_router, search_router
@@ -75,6 +77,11 @@ app = FastAPI(
     responses={
         500: {"description": "Internal server error"},
     },
+    description="""
+This is the REST API for the Kodit server. Please refer to the
+[Kodit documentation](https://docs.helix.ml/kodit/) for more information.
+    """,
+    version=version,
 )
 
 # Add middleware. Remember, last runs first. Order is important.
@@ -82,16 +89,16 @@ app.middleware("http")(logging_middleware)  # Then always log
 app.add_middleware(CorrelationIdMiddleware)  # Add correlation id first.
 
 
-@app.get("/")
-async def root() -> dict[str, str]:
-    """Return a welcome message for the kodit API."""
-    return {"message": "Hello, World!"}
+@app.get("/", include_in_schema=False)
+async def root() -> RedirectResponse:
+    """Redirect to the API documentation."""
+    return RedirectResponse(url="/docs")
 
 
 @app.get("/healthz")
-async def healthz() -> dict[str, str]:
+async def healthz() -> Response:
     """Return a health check for the kodit API."""
-    return {"status": "ok"}
+    return Response(status_code=200)
 
 
 # Include API routers
