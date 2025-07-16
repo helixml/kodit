@@ -307,7 +307,7 @@ async def test_search(
             assert "data" in data
             assert len(data["data"]) == 1
             assert data["data"][0]["type"] == "snippet"
-            assert data["data"][0]["id"] == str(test_data["snippets"][0].id)
+            assert data["data"][0]["id"] == test_data["snippets"][0].id
             assert (
                 data["data"][0]["attributes"]["source_uri"]
                 == "https://github.com/test/repo"
