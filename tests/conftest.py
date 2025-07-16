@@ -3,6 +3,7 @@
 import tempfile
 from collections.abc import AsyncGenerator, Generator
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from sqlalchemy import text
@@ -59,7 +60,6 @@ async def session(engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
 def app_context() -> Generator[AppContext, None, None]:
     """Create a test app context."""
     import os
-    from unittest.mock import patch
 
     # Create a minimal environment with only essential env vars
     essential_prefixes = (
@@ -88,5 +88,6 @@ def app_context() -> Generator[AppContext, None, None]:
                 log_level="DEBUG",
                 log_format="json",
                 disable_telemetry=True,
+                _env_file=None,  # type: ignore[arg-type]
             )
         yield app_context

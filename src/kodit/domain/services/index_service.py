@@ -290,3 +290,8 @@ class IndexDomainService:
                 continue
 
         return working_copy
+
+    async def delete_index(self, index: domain_entities.Index) -> None:
+        """Delete an index."""
+        # Delete the working copy
+        index.source.working_copy.delete()

@@ -577,3 +577,32 @@ class SqlAlchemyIndexRepository(IndexRepository):
                     domain_snippet, index.id
                 )
                 self._session.add(db_snippet)
+
+    async def delete(self, index: domain_entities.Index) -> None:
+        """Delete everything related to an index."""
+        # Delete all snippets and embeddings
+        await self.delete_snippets(index.id)
+
+        # Delete all author file mappings
+        stmt = delete(db_entities.AuthorFileMapping).where(
+            db_entities.AuthorFileMapping.file_id.in_(
+                [file.id for file in index.source.working_copy.files]
+            )
+        )
+        await self._session.execute(stmt)
+
+        # Delete all files
+        stmt = delete(db_entities.File).where(
+            db_entities.File.source_id == index.source.id
+        )
+        await self._session.execute(stmt)
+
+        # Delete the source
+        stmt = delete(db_entities.Source).where(
+            db_entities.Source.id == index.source.id
+        )
+        await self._session.execute(stmt)
+
+        # Delete the index
+        stmt = delete(db_entities.Index).where(db_entities.Index.id == index.id)
+        await self._session.execute(stmt)

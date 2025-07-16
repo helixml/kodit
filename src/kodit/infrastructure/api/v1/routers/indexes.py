@@ -2,8 +2,9 @@
 
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
+from kodit.infrastructure.api.middleware.auth import api_key_auth
 from kodit.infrastructure.api.v1.dependencies import (
     IndexingAppServiceDep,
     IndexQueryServiceDep,
@@ -19,7 +20,15 @@ from kodit.infrastructure.api.v1.schemas.index import (
     SourceIncluded,
 )
 
-router = APIRouter(prefix="/api/v1/indexes", tags=["indexes"])
+router = APIRouter(
+    prefix="/api/v1/indexes",
+    tags=["indexes"],
+    dependencies=[Depends(api_key_auth)],
+    responses={
+        401: {"description": "Unauthorized"},
+        422: {"description": "Invalid request"},
+    },
+)
 
 
 @router.get("")
@@ -70,18 +79,13 @@ async def create_index(
     )
 
 
-@router.get("/{index_id}")
+@router.get("/{index_id}", responses={404: {"description": "Index not found"}})
 async def get_index(
-    index_id: str,
+    index_id: int,
     query_service: IndexQueryServiceDep,
 ) -> IndexDetailResponse:
     """Get index details."""
-    try:
-        index_id_int = int(index_id)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail="Invalid index ID") from e
-
-    index = await query_service.get_index_by_id(index_id_int)
+    index = await query_service.get_index_by_id(index_id)
     if not index:
         raise HTTPException(status_code=404, detail="Index not found")
 
@@ -111,4 +115,17 @@ async def get_index(
     )
 
 
-# TODO: Add delete endpoint
+@router.delete(
+    "/{index_id}", status_code=204, responses={404: {"description": "Index not found"}}
+)
+async def delete_index(
+    index_id: int,
+    query_service: IndexQueryServiceDep,
+    app_service: IndexingAppServiceDep,
+) -> None:
+    """Delete an index."""
+    index = await query_service.get_index_by_id(index_id)
+    if not index:
+        raise HTTPException(status_code=404, detail="Index not found")
+
+    await app_service.delete_index(index)

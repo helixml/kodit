@@ -1,5 +1,6 @@
 """Pure domain entities using Pydantic."""
 
+import shutil
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -192,6 +193,10 @@ class WorkingCopy(BaseModel):
         # Then clear the statuses for the remaining files
         for file in self.files:
             file.file_processing_status = FileProcessingStatus.CLEAN
+
+    def delete(self) -> None:
+        """Delete the working copy."""
+        shutil.rmtree(self.cloned_path)
 
 
 class Source(BaseModel):

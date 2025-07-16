@@ -24,6 +24,10 @@ class IndexRepository(Protocol):
         """Get an index by ID."""
         ...
 
+    async def delete(self, index: Index) -> None:
+        """Delete an index."""
+        ...
+
     async def all(self) -> list[Index]:
         """List all indexes."""
         ...

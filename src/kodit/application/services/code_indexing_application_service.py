@@ -382,3 +382,12 @@ class CodeIndexingApplicationService:
             )
 
         await reporter.done("text_embeddings")
+
+    async def delete_index(self, index: Index) -> None:
+        """Delete an index."""
+        # Delete the index from the domain
+        await self.index_domain_service.delete_index(index)
+
+        # Delete index from the database
+        await self.index_repository.delete(index)
+        await self.session.commit()
