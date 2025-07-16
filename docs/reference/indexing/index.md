@@ -157,7 +157,7 @@ using token authentication.
 Specify the valid tokens using:
 
 ```env
-API_TOKENS=["xxxxx","xxxx"]
+API_TOKENS="foo,bar"
 ```
 
 Set the API key in the `x-api-key` header:
