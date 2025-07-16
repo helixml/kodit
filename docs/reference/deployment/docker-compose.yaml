@@ -2,7 +2,7 @@ version: "3.9"
 
 services:
   kodit:
-    image: test:latest
+    image: registry.helix.ml/helix/kodit:latest # Replace with a version
     ports:
       - "8080:8080" # You may wish to pick a less common port
     # Start the Kodit MCP server and bind to all interfaces
