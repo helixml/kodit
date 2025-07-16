@@ -130,6 +130,108 @@ To automatically run index all configured auto-index sources:
 kodit serve
 ```
 
+## REST API
+
+Kodit provides a REST API that allows you to programmatically manage indexes and search
+code snippets. The API is automatically available when you start the Kodit server and
+follows the JSON:API specification for consistent request/response formats.
+
+Please see the [API documentation](../api/index.md) for a full description of the API. You can also
+browse to the live API documentation by visiting `/docs`.
+
+### Starting the API Server
+
+The REST API is available when you start the Kodit server:
+
+```sh
+kodit serve
+```
+
+Or [deploy the Kodit container](../deployment/index.md).
+
+### Authentication
+
+If you specify API keys in the Kodit configuration then the indexing API will be secured
+using token authentication.
+
+Specify the valid tokens using:
+
+```env
+API_TOKENS=["xxxxx","xxxx"]
+```
+
+Set the API key in the `x-api-key` header:
+
+```sh
+curl -H "x-api-key: your-api-key-here" http://localhost:8000/api/v1/indexes
+```
+
+### Index Management
+
+#### List All Indexes
+
+Retrieve a list of all indexes with their metadata:
+
+```sh
+curl -H "x-api-key: your-api-key" \
+     http://localhost:8000/api/v1/indexes
+```
+
+#### Create a New Index
+
+Create a new index by providing the source URI. The indexing process starts asynchronously:
+
+```sh
+curl -X POST \
+     -H "x-api-key: your-api-key" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "data": {
+         "type": "index",
+         "attributes": {
+           "uri": "https://github.com/fastapi/fastapi"
+         }
+       }
+     }' \
+     http://localhost:8000/api/v1/indexes
+```
+
+#### Delete an Index
+
+Remove an index and all its associated data:
+
+```sh
+curl -X DELETE \
+     -H "x-api-key: your-api-key" \
+     http://localhost:8000/api/v1/indexes/1
+```
+
+### Code Search
+
+#### Search Code Snippets
+
+Search through indexed code snippets using various query types and filters:
+
+```sh
+curl -X POST \
+     -H "x-api-key: your-api-key" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "data": {
+         "type": "search",
+         "attributes": {
+           "text": "async function to handle user authentication",
+           "limit": 10,
+           "filters": {
+             "languages": ["javascript", "typescript"],
+             "sources": ["https://github.com/fastapi/fastapi"]
+           }
+         }
+       }
+     }' \
+     http://localhost:8000/api/v1/search
+```
+
 ## Git Protocol Support
 
 ### HTTPS Authentication
