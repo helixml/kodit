@@ -67,6 +67,7 @@ dev = [
     "snakeviz>=2.2.2",
     "types-tqdm>=4.67.0.20250516",
     "types-aiofiles>=24.1.0.20250708",
+    "openapi-markdown>=0.4.3",
 ]
 
 [project.urls]

@@ -1,0 +1,14 @@
+{% if root.examples %}
+Examples
+
+{% for example_name, example in root.examples.items() %}
+
+{% if example.description %}
+{{ example.description }}
+{% endif %}
+
+```json
+{{ example.value | to_json }}
+```
+{% endfor %}
+{% endif %}
