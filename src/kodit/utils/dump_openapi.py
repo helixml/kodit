@@ -3,8 +3,9 @@
 import argparse
 import json
 from pathlib import Path
+from typing import Any
 
-from openapi_markdown.generator import to_markdown
+from openapi_markdown.generator import to_markdown  # type: ignore[import-untyped]
 from uvicorn.importer import import_from_string
 
 parser = argparse.ArgumentParser(prog="dump-openapi.py")
@@ -27,6 +28,6 @@ if __name__ == "__main__":
 
     output_md_file = Path(args.out_dir) / "index.md"
     templates_dir = Path(args.out_dir) / "templates"
-    options = {}
+    options: dict[str, Any] = {}
 
     to_markdown(str(output_json_file), str(output_md_file), str(templates_dir), options)
