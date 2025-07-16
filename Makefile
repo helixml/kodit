@@ -4,6 +4,9 @@
 openapi:
 	uv run src/kodit/utils/dump_openapi.py --out docs/reference/api/ kodit.app:app
 
+openapi-check: openapi
+	git diff --exit-code docs/reference/api/index.md
+
 type:
 	uv run mypy --config-file pyproject.toml .
 
