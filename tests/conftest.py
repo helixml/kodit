@@ -88,6 +88,6 @@ def app_context() -> Generator[AppContext, None, None]:
                 log_level="DEBUG",
                 log_format="json",
                 disable_telemetry=True,
-                _env_file=None,  # type: ignore[arg-type]
+                _env_file=None,  # type: ignore[call-arg]
             )
         yield app_context
