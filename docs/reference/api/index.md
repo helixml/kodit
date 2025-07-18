@@ -11,7 +11,7 @@ You can view the live API documentation on the `/docs` endpoint of your Kodit se
 This is the REST API for the Kodit server. Please refer to the
 [Kodit documentation](https://docs.helix.ml/kodit/) for more information.
     
-Current version: 0.3.11
+Current version: 0.3.12
 
 ## Authentication
 
