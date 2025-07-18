@@ -9,8 +9,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from kodit.application.services.auto_indexing_service import AutoIndexingService
 from kodit.config import AppContext, AutoIndexingConfig, AutoIndexingSource
-from kodit.infrastructure.indexing.auto_indexing_service import AutoIndexingService
 
 
 @pytest.mark.filterwarnings("ignore::RuntimeWarning")
@@ -74,7 +74,7 @@ class TestAutoIndexingService:
         """Test starting background indexing when enabled."""
         # Mock the services
         with patch(
-            "kodit.infrastructure.indexing.auto_indexing_service.create_code_indexing_application_service"
+            "kodit.application.services.auto_indexing_service.create_code_indexing_application_service"
         ) as mock_create_service:
             mock_service = AsyncMock()
             mock_create_service.return_value = mock_service
@@ -121,7 +121,7 @@ class TestAutoIndexingService:
     ) -> None:
         """Test successful indexing of sources."""
         with patch(
-            "kodit.infrastructure.indexing.auto_indexing_service.create_code_indexing_application_service"
+            "kodit.application.services.auto_indexing_service.create_code_indexing_application_service"
         ) as mock_create_service:
             mock_service = AsyncMock()
             mock_create_service.return_value = mock_service
@@ -129,6 +129,7 @@ class TestAutoIndexingService:
             # Mock the index creation and indexing
             mock_index = MagicMock()
             mock_index.id = "test-index-id"
+            mock_service.does_index_exist.return_value = False
             mock_service.create_index_from_uri.return_value = mock_index
 
             # Test indexing sources directly
@@ -145,7 +146,7 @@ class TestAutoIndexingService:
     ) -> None:
         """Test indexing sources with one failure."""
         with patch(
-            "kodit.infrastructure.indexing.auto_indexing_service.create_code_indexing_application_service"
+            "kodit.application.services.auto_indexing_service.create_code_indexing_application_service"
         ) as mock_create_service:
             mock_service = AsyncMock()
             mock_create_service.return_value = mock_service
@@ -153,6 +154,7 @@ class TestAutoIndexingService:
             # Mock the first source to succeed, second to fail
             mock_index = MagicMock()
             mock_index.id = "test-index-id"
+            mock_service.does_index_exist.return_value = False
             mock_service.create_index_from_uri.side_effect = [
                 mock_index,
                 Exception("Test error"),

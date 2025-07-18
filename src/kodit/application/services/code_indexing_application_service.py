@@ -53,6 +53,13 @@ class CodeIndexingApplicationService:
         self.session = session
         self.log = structlog.get_logger(__name__)
 
+    async def does_index_exist(self, uri: str) -> bool:
+        """Check if an index exists for a source."""
+        # Check if index already exists
+        sanitized_uri, _ = self.index_domain_service.sanitize_uri(uri)
+        existing_index = await self.index_repository.get_by_uri(sanitized_uri)
+        return existing_index is not None
+
     async def create_index_from_uri(
         self, uri: str, progress_callback: ProgressCallback | None = None
     ) -> Index:

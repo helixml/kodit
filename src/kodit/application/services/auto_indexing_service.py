@@ -50,6 +50,11 @@ class AutoIndexingService:
 
             for source in sources:
                 try:
+                    # Only auto-index a source if it is new
+                    if await service.does_index_exist(source):
+                        self.log.info("Index already exists, skipping", source=source)
+                        continue
+
                     self.log.info("Auto-indexing source", source=source)
 
                     # Create index
