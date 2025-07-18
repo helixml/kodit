@@ -66,6 +66,7 @@ class LocalBM25Repository(BM25Repository):
             stemmer=self.stemmer,
             return_ids=False,
             show_progress=True,
+            lower=True,
         )
 
     async def index_documents(self, request: IndexRequest) -> None:
@@ -78,9 +79,8 @@ class LocalBM25Repository(BM25Repository):
         vocab = self._tokenize([doc.text for doc in request.documents])
         self._retriever().index(vocab, show_progress=False)
         self._retriever().save(self.index_path)
-        self.snippet_ids = self.snippet_ids + [
-            doc.snippet_id for doc in request.documents
-        ]
+        # Replace snippet_ids instead of appending, since the BM25 index is rebuilt
+        self.snippet_ids = [doc.snippet_id for doc in request.documents]
         async with aiofiles.open(self.index_path / SNIPPET_IDS_FILE, "w") as f:
             await f.write(json.dumps(self.snippet_ids))
 
@@ -120,7 +120,7 @@ class LocalBM25Repository(BM25Repository):
 
         # Filter results by snippet_ids if provided
         filtered_results = []
-        for result, score in zip(results[0], scores[0], strict=False):
+        for result, score in zip(results[0], scores[0], strict=True):
             snippet_id = int(result)
             if score > 0.0 and (
                 request.snippet_ids is None or snippet_id in request.snippet_ids

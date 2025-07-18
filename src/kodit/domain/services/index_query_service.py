@@ -63,4 +63,8 @@ class IndexQueryService:
 
     async def get_snippets_by_ids(self, ids: list[int]) -> list[SnippetWithContext]:
         """Get snippets by their IDs."""
-        return await self.index_repository.get_snippets_by_ids(ids)
+        snippets = await self.index_repository.get_snippets_by_ids(ids)
+
+        # Return snippets in the same order as the ids
+        snippets.sort(key=lambda x: ids.index(x.snippet.id or 0))
+        return snippets

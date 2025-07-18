@@ -77,7 +77,7 @@ SEARCH_QUERY = f"""
             to_bm25query('{INDEX_NAME}', tokenize(:query_text, '{TOKENIZER_NAME}'))
     AS bm25_score
     FROM {TABLE_NAME}
-    ORDER BY bm25_score
+    ORDER BY bm25_score DESC
     LIMIT :limit
 """  # noqa: S608
 SEARCH_QUERY_WITH_FILTER = f"""
@@ -88,7 +88,7 @@ SEARCH_QUERY_WITH_FILTER = f"""
     AS bm25_score
     FROM {TABLE_NAME}
     WHERE snippet_id = ANY(:snippet_ids)
-    ORDER BY bm25_score
+    ORDER BY bm25_score DESC
     LIMIT :limit
 """  # noqa: S608
 DELETE_QUERY = f"""
@@ -185,7 +185,7 @@ class VectorChordBM25Repository(BM25Repository):
 
     async def search(self, request: SearchRequest) -> list[SearchResult]:
         """Search documents using BM25."""
-        if not request.query or request.query == "":
+        if not request.query or request.query.strip() == "":
             return []
 
         if request.snippet_ids is not None:
