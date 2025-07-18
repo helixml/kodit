@@ -21,6 +21,10 @@ if __name__ == "__main__":
     openapi = app.openapi()
     version = openapi.get("openapi", "unknown version")
 
+    # Remove any dev tags from the version by retaining only the semver part
+    git_tag = openapi["info"]["version"].split(".")[:3]
+    openapi["info"]["version"] = ".".join(git_tag)
+
     output_json_file = Path(args.out_dir) / "openapi.json"
 
     with output_json_file.open("w") as f:
