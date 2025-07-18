@@ -18,6 +18,8 @@ Kodit connects your AI coding assistant to external codebases to provide accurat
 
 </div>
 
+:star: _Help us reach more developers and grow the Helix community. Star this repo!_
+
 **Helix Kodit** is an **MCP server** that connects your AI coding assistant to external codebases. It can:
 
 - Improve your AI-assisted code by providing canonical examples direct from the source
@@ -65,6 +67,19 @@ intent. Kodit has been tested to work well with:
 - **New in 0.3**: Advanced search filters by source, language, author, date range, and file path
 - **New in 0.3**: Hybrid search combining BM25 keyword search with semantic search
 - **New in 0.4**: Enhanced MCP tools with rich context parameters and metadata
+
+### Hosted MCP Server
+
+**New in 0.4**: Try Kodit instantly with our hosted MCP server at [https://kodit.helix.ml/mcp](https://kodit.helix.ml/mcp)! No installation required - just add it to your AI coding assistant and start searching popular codebases immediately.
+
+The hosted server provides:
+
+- Pre-indexed popular open source repositories
+- Zero configuration - works out of the box
+- Same powerful search capabilities as self-hosted Kodit
+- Perfect for trying Kodit before setting up your own instance
+
+Find out more in the [hosted Kodit documentation](https://docs.helix.ml/kodit/reference/hosted-kodit/).
 
 ### Enterprise Ready
 

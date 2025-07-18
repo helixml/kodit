@@ -82,7 +82,7 @@ comprehensive instructions for all popular coding assistants.
 #### Claude Code Streaming HTTP Mode (recommended)
 
 ```sh
-claude mcp add --transport http kodit http://localhost:8080/mcp
+claude mcp add --transport http kodit https://kodit.helix.ml/mcp
 ```
 
 #### Claude Code STDIO Mode
@@ -96,7 +96,7 @@ claude mcp add kodit -- kodit stdio
 #### Cursor Streaming HTTP Mode (recommended)
 
 ![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)
-{class="h-8 inline-block" href="cursor://anysphere.cursor-deeplink/mcp/install?name=kodit&config=eyJ1cmwiOiJodHRwOi8vbG9jYWxob3N0OjgwODAvbWNwIn0%3D"}
+{class="h-8 inline-block" href="cursor://anysphere.cursor-deeplink/mcp/install?name=kodit&config=eyJ1cmwiOiJodHRwczovL2tvZGl0LmhlbGl4Lm1sL21jcCJ9"}
 
 Add the following to `$HOME/.cursor/mcp.json`:
 
@@ -104,14 +104,15 @@ Add the following to `$HOME/.cursor/mcp.json`:
 {
   "mcpServers": {
     "kodit": {
-      "url": "http://localhost:8080/mcp"
+      "url": "https://kodit.helix.ml/mcp"
     }
   }
 }
 ```
 
-Or find this configuration in `Cursor Settings` -> `MCP`. Replace localhost with domain
-where Kodit is hosted.
+- Or find this configuration in `Cursor Settings` -> `MCP`.
+- `https://kodit.helix.ml` is the URL of the hosted Kodit instance. You can replace this
+ with <http://localhost:8080> if you are running locally.
 
 #### Cursor STDIO
 
@@ -149,7 +150,7 @@ Add the following configuration:
       "autoApprove": [],
       "disabled": true,
       "timeout": 60,
-      "url": "http://localhost:8080/mcp",
+      "url": "https://kodit.helix.ml/mcp",
       "transportType": "http"
     }
   }

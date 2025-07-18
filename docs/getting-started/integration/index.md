@@ -4,7 +4,8 @@ description: How to integrate Kodit with AI coding assistants.
 weight: 3
 ---
 
-The core goal of Kodit is to make your AI coding experience more accurate by providing better context. That means you need to integrate Kodit with your favourite assistant.
+The core goal of Kodit is to make your AI coding experience more accurate by providing
+better context. That means you need to integrate Kodit with your favourite assistant.
 
 ## MCP Connection Methods
 
@@ -20,6 +21,12 @@ instructions for popular coding assistants like Cursor, Claude, Cline, etc.
 This is the default and recommended method for most users. Kodit runs an HTTP server
 that streams responses to connected AI coding assistants over the `/mcp` endpoint.
 
+Configure your AI coding assistant to connect to `https://kodit.helix.ml/mcp`
+
+More information about the hosted service is available in the [hosted Kodit documentation](../../reference/hosted-kodit/index.md).
+
+#### Local HTTP Streaming
+
 1. Start the Kodit server:
   
   ```sh
@@ -28,7 +35,8 @@ that streams responses to connected AI coding assistants over the `/mcp` endpoin
 
   _The Kodit container runs this command by default._
 
-2. Configure your AI coding assistant to connect to `http://localhost:8080/mcp`
+2. Configure your AI coding assistant to connect to the `/mcp` endpoint, for example:
+   `http://localhost:8080/mcp`.
 
 ### 2. STDIO Mode
 
@@ -47,6 +55,10 @@ opened.
 Kodit also supports the older SSE protocol on the `/sse` endpoint. This is provided for
 backward compatibility with tools that require SSE.
 
+Configure your AI coding assistant to connect to `https://kodit.helix.ml/sse`
+
+#### Local SSE
+
 1. Start the Kodit server:
   
   ```sh
@@ -55,4 +67,10 @@ backward compatibility with tools that require SSE.
 
   _The Kodit container runs this command by default._
 
-2. Configure your AI coding assistant to connect to `http://localhost:8080/sse`
+2. Configure your AI coding assistant to connect to the `/sse` endpoint, for example
+   `http://localhost:8080/sse`.
+
+## HTTP API Connection Methods
+
+Helix also exposes a REST API with an `/api/v1/search` endpoint to allow integration
+with other tools. See the [Kodit HTTP API documentation](../../reference/api/index.md) for more information.
