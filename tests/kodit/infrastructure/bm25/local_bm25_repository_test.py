@@ -34,7 +34,7 @@ class TestLocalBM25Repository:
     async def test_index_documents_replaces_snippet_ids_with_new_index(
         self, repository: LocalBM25Repository, temp_dir: Path
     ) -> None:
-        """Test that indexing new documents replaces snippet_ids since BM25 index is rebuilt."""
+        """Test that indexing replaces snippet_ids since BM25 index is rebuilt."""
         # Setup: Create initial documents and index them
         initial_documents = [
             Document(snippet_id=1, text="first document content"),
@@ -207,7 +207,7 @@ class TestLocalBM25Repository:
         repository: LocalBM25Repository,
         temp_dir: Path,
     ) -> None:
-        """Test that search results maintain consistent ordering with different top_k values."""
+        """Test search results maintain consistent ordering with different top_k."""
         # Setup: Index documents
         documents = [
             Document(snippet_id=100, text="python programming tutorial advanced"),
@@ -231,17 +231,29 @@ class TestLocalBM25Repository:
 
         # Mock retrieve to return results in descending score order
         # When top_k=1, return the best match
-        def mock_retrieve_top_1(query_tokens, corpus, k):
+        def mock_retrieve_top_1(
+            query_tokens: list[list[str]],  # noqa: ARG001
+            corpus: list[int],  # noqa: ARG001
+            k: int,
+        ) -> tuple[list[list[int]], list[list[float]]]:
             assert k == 1
             return [[300]], [[0.95]]  # Best match
 
         # When top_k=2, return top 2 matches in descending order
-        def mock_retrieve_top_2(query_tokens, corpus, k):
+        def mock_retrieve_top_2(
+            query_tokens: list[list[str]],  # noqa: ARG001
+            corpus: list[int],  # noqa: ARG001
+            k: int,
+        ) -> tuple[list[list[int]], list[list[float]]]:
             assert k == 2
             return [[300, 100]], [[0.95, 0.85]]  # Best two matches
 
         # When top_k=3, return top 3 matches in descending order
-        def mock_retrieve_top_3(query_tokens, corpus, k):
+        def mock_retrieve_top_3(
+            query_tokens: list[list[str]],  # noqa: ARG001
+            corpus: list[int],  # noqa: ARG001
+            k: int,
+        ) -> tuple[list[list[int]], list[list[float]]]:
             assert k == 3
             return [[300, 100, 200]], [[0.95, 0.85, 0.75]]  # Best three matches
 
@@ -266,9 +278,9 @@ class TestLocalBM25Repository:
         assert len(results_k3) == 3
 
         # The #1 result should always be snippet 300 with score 0.95
-        assert results_k1[0].snippet_id == 300, "Top result with k=1 should be snippet 300"
-        assert results_k2[0].snippet_id == 300, "Top result with k=2 should be snippet 300"
-        assert results_k3[0].snippet_id == 300, "Top result with k=3 should be snippet 300"
+        assert results_k1[0].snippet_id == 300, "Top result with k=1 should be 300"
+        assert results_k2[0].snippet_id == 300, "Top result with k=2 should be 300"
+        assert results_k3[0].snippet_id == 300, "Top result with k=3 should be 300"
 
         assert results_k1[0].score == 0.95, "Top score should be 0.95"
         assert results_k2[0].score == 0.95, "Top score should be 0.95"

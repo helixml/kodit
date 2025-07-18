@@ -558,14 +558,22 @@ async def test_search_with_case_insensitive_filtering(
 async def test_search_maintains_ordering_with_different_top_k_values(
     test_data: tuple[list[Snippet], VectorChordBM25Repository],
 ) -> None:
-    """Test that search results maintain consistent ordering with different top_k values."""
+    """Test that search results maintain consistent ordering with different top_k's."""
     snippets, repository = test_data
 
     # Search with different top_k values
-    results_k1 = await repository.search(SearchRequest(query="Python programming language", top_k=1))
-    results_k2 = await repository.search(SearchRequest(query="Python programming language", top_k=2))
-    results_k3 = await repository.search(SearchRequest(query="Python programming language", top_k=3))
-    results_k5 = await repository.search(SearchRequest(query="Python programming language", top_k=5))
+    results_k1 = await repository.search(
+        SearchRequest(query="Python programming language", top_k=1)
+    )
+    results_k2 = await repository.search(
+        SearchRequest(query="Python programming language", top_k=2)
+    )
+    results_k3 = await repository.search(
+        SearchRequest(query="Python programming language", top_k=3)
+    )
+    results_k5 = await repository.search(
+        SearchRequest(query="Python programming language", top_k=5)
+    )
 
     # Verify we got the expected number of results
     assert len(results_k1) == 1
@@ -583,7 +591,7 @@ async def test_search_maintains_ordering_with_different_top_k_values(
     assert results_k1[0].snippet_id == results_k5[0].snippet_id, (
         "Top result should be consistent between k=1 and k=5"
     )
-    
+
     # The #2 result should be the same when k>=2
     assert results_k2[1].snippet_id == results_k3[1].snippet_id, (
         "Second result should be consistent between k=2 and k=3"
@@ -591,7 +599,7 @@ async def test_search_maintains_ordering_with_different_top_k_values(
     assert results_k2[1].snippet_id == results_k5[1].snippet_id, (
         "Second result should be consistent between k=2 and k=5"
     )
-    
+
     # The #3 result should be the same when k>=3
     assert results_k3[2].snippet_id == results_k5[2].snippet_id, (
         "Third result should be consistent between k=3 and k=5"
@@ -615,22 +623,24 @@ async def test_search_ordering_with_snippet_id_filter(
 
     # First, get all results without filtering
     all_results = await repository.search(SearchRequest(query="Python", top_k=10))
-    
+
     # Get the top 3 snippet IDs from the unfiltered results
     top_3_ids = [r.snippet_id for r in all_results[:3]]
-    
+
     # Now search with only these top 3 IDs as filter
     filtered_results = await repository.search(
         SearchRequest(query="Python", top_k=10, snippet_ids=top_3_ids)
     )
-    
+
     # The ordering should be maintained
     assert len(filtered_results) <= 3
     for i, result in enumerate(filtered_results):
         # The snippet ID at position i in filtered results should match
         # the snippet ID at position i in the original results (among the top 3)
         original_position = next(
-            j for j, r in enumerate(all_results[:3]) if r.snippet_id == result.snippet_id
+            j
+            for j, r in enumerate(all_results[:3])
+            if r.snippet_id == result.snippet_id
         )
         assert original_position == i, (
             f"Result at position {i} has snippet_id {result.snippet_id} "
