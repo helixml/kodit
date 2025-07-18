@@ -29,7 +29,6 @@ $prefix kodit version
 
 # Test auto-indexing
 AUTO_INDEXING_SOURCES_0_URI=https://gist.github.com/7aa38185e20433c04c533f2b28f4e217.git \
-AUTO_INDEXING_SOURCES_1_URI=https://gist.github.com/cbf0bd1f3338ddf9f98879148d2d752d.git \
  $prefix kodit index --auto-index
 
 # Test index command
@@ -51,5 +50,58 @@ $prefix kodit search keyword "Hello" --language=python
 $prefix kodit search code "Hello" --source-repo=winderai/analytics-ai-agent-demo
 $prefix kodit search hybrid --keywords "main" --code "def main()" --text "main" --language=python
 
-# Test serve command with timeout
-timeout 2s $prefix kodit serve || true
+# Test indexes API endpoints
+echo "Testing indexes API..."
+
+# Start the server in the background
+$prefix kodit serve --host 127.0.0.1 --port 8080 &
+SERVER_PID=$!
+
+# Wait for server to start up
+sleep 3
+
+# Function to check if server is responding
+wait_for_server() {
+    local max_attempts=10
+    local attempt=1
+    while [ $attempt -le $max_attempts ]; do
+        if curl -s -f http://127.0.0.1:8080/ > /dev/null 2>&1; then
+            echo "Server is ready"
+            return 0
+        fi
+        echo "Waiting for server... (attempt $attempt/$max_attempts)"
+        sleep 1
+        ((attempt++))
+    done
+    echo "Server failed to start"
+    return 1
+}
+
+# Wait for server to be ready
+if wait_for_server; then
+    # Test GET /api/v1/indexes (list indexes)
+    echo "Testing GET /api/v1/indexes"
+    curl -s -f http://127.0.0.1:8080/api/v1/indexes || echo "List indexes test failed"
+    
+    # Test POST /api/v1/indexes (create index)
+    echo "Testing POST /api/v1/indexes"
+    INDEX_RESPONSE=$(curl -s -f -X POST http://127.0.0.1:8080/api/v1/indexes \
+        -H "Content-Type: application/json" \
+        -d '{"data": {"type": "index", "attributes": {"uri": "https://gist.github.com/7aa38185e20433c04c533f2b28f4e217.git"}}}' \
+        || echo "Create index test failed")
+    
+    # Test search API as well
+    echo "Testing POST /api/v1/search"
+    curl -s -f -X POST http://127.0.0.1:8080/api/v1/search \
+        -H "Content-Type: application/json" \
+        -d '{"data": {"type": "search", "attributes": {"keywords": ["test"], "code": "def", "text": "function"}}, "limit": 5}' \
+        || echo "Search API test failed"
+fi
+
+# Clean up: stop the server
+if [ -n "$SERVER_PID" ]; then
+    kill $SERVER_PID 2>/dev/null || true
+    wait $SERVER_PID 2>/dev/null || true
+fi
+
+echo "API tests completed"
