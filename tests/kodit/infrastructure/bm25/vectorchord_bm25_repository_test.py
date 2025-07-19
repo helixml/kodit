@@ -608,8 +608,8 @@ async def test_search_maintains_ordering_with_different_top_k_values(
     # Verify scores are in descending order (best matches first)
     for results in [results_k2, results_k3, results_k5]:
         for i in range(len(results) - 1):
-            # Note: BM25 scores can be negative, but higher is still better
-            assert results[i].score >= results[i + 1].score, (
+            # Note: vectorchord bm25 scores are negative, so lower is better
+            assert results[i].score <= results[i + 1].score, (
                 f"Results should be sorted in descending order by score at index {i}"
             )
 
