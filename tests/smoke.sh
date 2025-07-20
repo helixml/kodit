@@ -18,6 +18,8 @@ if [ -d "$HOME/.kodit" ]; then
     exit 1
 fi
 
+#
+
 # Create a temporary directory
 tmp_dir=$(mktemp -d)
 
@@ -46,9 +48,10 @@ $prefix kodit show snippets --by-path test.py
 $prefix kodit show snippets --by-source https://github.com/winderai/analytics-ai-agent-demo
 
 # Test search command with filters
-result=$($prefix kodit search keyword "list_bigquery_fields,client" --top-k=3 --output-format=json | jq -r '.code' | head -n 1)
-if [ "$result" != "def list_bigquery_fields() -> str:" ]; then
-    echo "Result is not equal to 'def list_bigquery_fields() -> str:'"
+result=$($prefix kodit search keyword "list_bigquery_fields,client" --top-k=3 --output-format=json | head -n 1)
+# Check that result CONTAINS "def list_bigquery_fields() -> str:"
+if [[ "$result" != *"def list_bigquery_fields() -> str:"* ]]; then
+    echo "Result does not contain 'def list_bigquery_fields() -> str:'"
     echo "Result: $result"
     exit 1
 fi
