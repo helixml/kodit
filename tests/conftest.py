@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from kodit.config import AppContext
+from kodit.config import AppContext, LogFormat
 
 # Need to import these models to create the tables
 from kodit.infrastructure.sqlalchemy.entities import (
@@ -86,7 +86,7 @@ def app_context() -> Generator[AppContext, None, None]:
                 data_dir=Path(data_dir),
                 db_url="sqlite+aiosqlite:///:memory:",
                 log_level="DEBUG",
-                log_format="json",
+                log_format=LogFormat.JSON,
                 disable_telemetry=True,
                 _env_file=None,  # type: ignore[call-arg]
             )
