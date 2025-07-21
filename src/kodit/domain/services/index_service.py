@@ -13,6 +13,7 @@ from kodit.domain.services.enrichment_service import EnrichmentDomainService
 from kodit.domain.value_objects import (
     EnrichmentIndexRequest,
     EnrichmentRequest,
+    FileProcessingStatus,
     LanguageMapping,
 )
 from kodit.infrastructure.cloning.git.working_copy import GitWorkingCopyProvider
@@ -102,6 +103,11 @@ class IndexDomainService:
         # Only create snippets for files that have been added or modified
         files = index.source.working_copy.changed_files()
         index.delete_snippets_for_files(files)
+
+        # Filter out deleted files - they don't exist on disk anymore
+        files = [
+            f for f in files if f.file_processing_status != FileProcessingStatus.DELETED
+        ]
 
         # Create a set of languages to extract snippets for
         extensions = {file.extension() for file in files}

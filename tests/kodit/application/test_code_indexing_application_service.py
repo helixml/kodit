@@ -257,3 +257,38 @@ def validate_input(value: str) -> bool:
     assert len(no_match_results) == 0, (
         "Search should return empty results for no matches"
     )
+
+
+@pytest.mark.asyncio
+async def test_file_deletion_after_refresh_handles_slicer_correctly(
+    code_indexing_service: CodeIndexingApplicationService,
+    indexing_query_service: IndexQueryService,
+    tmp_path: Path,
+) -> None:
+    """Test that deleted files don't cause FileNotFoundError in slicer after refresh."""
+    # Create a temporary Python file
+    test_file = tmp_path / "calculator.py"
+    test_file.write_text("""
+def add(a: int, b: int) -> int:
+    return a + b
+
+def subtract(a: int, b: int) -> int:
+    return a - b
+""")
+
+    # Create initial index
+    index = await code_indexing_service.create_index_from_uri(str(tmp_path))
+    await code_indexing_service.run_index(index)
+    assert len(index.snippets) > 0, "Should have snippets for initial file"
+
+    # Delete the file from filesystem (simulating git pull that removes files)
+    test_file.unlink()
+    assert not test_file.exists(), "File should be deleted"
+
+    # Run indexing again - this should handle deleted files correctly
+    # This is where the FileNotFoundError would occur if the bug exists
+    await code_indexing_service.run_index(index)
+
+    # The above should not raise an error
+    final_index = await indexing_query_service.get_index_by_id(index.id)
+    assert final_index is not None
