@@ -14,6 +14,7 @@ from kodit.infrastructure.embedding.embedding_providers.local_embedding_provider
     LocalEmbeddingProvider,
 )
 from kodit.infrastructure.embedding.embedding_providers.openai_embedding_provider import (  # noqa: E501
+    OPENAI_NUM_PARALLEL_TASKS,
     OpenAIEmbeddingProvider,
 )
 from kodit.infrastructure.embedding.local_vector_search_repository import (
@@ -55,6 +56,7 @@ def embedding_domain_service_factory(
                 max_retries=2,
             ),
             model_name=endpoint.model or "text-embedding-3-small",
+            num_parallel_tasks=endpoint.num_parallel_tasks or OPENAI_NUM_PARALLEL_TASKS,
         )
     else:
         log_event("kodit.embedding", {"provider": "local"})

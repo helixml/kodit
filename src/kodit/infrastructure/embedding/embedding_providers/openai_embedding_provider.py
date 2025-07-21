@@ -18,14 +18,17 @@ MAX_TOKENS = 8192  # Conservative token limit for the embedding model
 BATCH_SIZE = (
     10  # Maximum number of items per API call (keeps existing test expectations)
 )
-OPENAI_NUM_PARALLEL_TASKS = 25  # Semaphore limit for concurrent OpenAI requests
+OPENAI_NUM_PARALLEL_TASKS = 10  # Semaphore limit for concurrent OpenAI requests
 
 
 class OpenAIEmbeddingProvider(EmbeddingProvider):
     """OpenAI embedding provider that uses OpenAI's embedding API."""
 
     def __init__(
-        self, openai_client: AsyncOpenAI, model_name: str = "text-embedding-3-small"
+        self,
+        openai_client: AsyncOpenAI,
+        model_name: str = "text-embedding-3-small",
+        num_parallel_tasks: int = OPENAI_NUM_PARALLEL_TASKS,
     ) -> None:
         """Initialize the OpenAI embedding provider.
 
@@ -36,6 +39,7 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         """
         self.openai_client = openai_client
         self.model_name = model_name
+        self.num_parallel_tasks = num_parallel_tasks
         self.log = structlog.get_logger(__name__)
 
         # Lazily initialised token encoding
@@ -78,7 +82,7 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         # Process batches concurrently (but bounded by a semaphore)
         # -----------------------------------------------------------------
 
-        sem = asyncio.Semaphore(OPENAI_NUM_PARALLEL_TASKS)
+        sem = asyncio.Semaphore(self.num_parallel_tasks)
 
         async def _process_batch(
             batch: list[EmbeddingRequest],

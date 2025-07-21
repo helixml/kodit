@@ -48,6 +48,7 @@ class Endpoint(BaseModel):
     base_url: str | None = None
     model: str | None = None
     api_key: str | None = None
+    num_parallel_tasks: int | None = None
 
 
 class Search(BaseModel):
