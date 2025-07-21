@@ -91,6 +91,8 @@ jobs:
             type=sha,enable=${{ steps.pyver.outputs.ENABLE_DEFAULT }}
             type=sha,suffix=-py${{ steps.pyver.outputs.SHORT_PY }}
             type=raw,value=latest,enable=${{ steps.pyver.outputs.ENABLE_DEFAULT && startsWith(github.ref, 'refs/tags/') }}
+          flavor: |
+            latest=false
 
       - name: Build and push Docker image
         id: push
