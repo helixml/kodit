@@ -1,5 +1,6 @@
 """Tests for the OpenAI embedding provider."""
 
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -108,9 +109,17 @@ class TestOpenAIEmbeddingProvider:
     async def test_embed_batch_processing(self) -> None:
         """Test that requests are processed in batches."""
         mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.data = [MagicMock(embedding=[0.1] * 1500) for _ in range(10)]
-        mock_client.embeddings.create = AsyncMock(return_value=mock_response)
+
+        # Dynamic mock that returns embeddings matching input size
+        async def mock_create(**kwargs: Any) -> MagicMock:
+            input_size = len(kwargs["input"])
+            mock_response = MagicMock()
+            mock_response.data = [
+                MagicMock(embedding=[0.1] * 1500) for _ in range(input_size)
+            ]
+            return mock_response
+
+        mock_client.embeddings.create = AsyncMock(side_effect=mock_create)
 
         provider = OpenAIEmbeddingProvider(openai_client=mock_client)
         # Create more than batch_size requests
@@ -142,11 +151,8 @@ class TestOpenAIEmbeddingProvider:
         async for batch in provider.embed(requests):
             results.extend(batch)
 
-        # Should return default embeddings on error
-        assert len(results) == 1
-        assert results[0].snippet_id == 1
-        assert len(results[0].embedding) == 1536  # Default embedding size
-        assert all(v == 0.0 for v in results[0].embedding)
+        # Should return no embeddings on error (empty batch)
+        assert len(results) == 0
 
     @pytest.mark.asyncio
     async def test_embed_custom_model(self) -> None:
@@ -225,22 +231,25 @@ class TestOpenAIEmbeddingProvider:
         async for batch in provider.embed(requests):
             results.extend(batch)
 
-        # Should return default embeddings for all requests
-        assert len(results) == 5
-        for result in results:
-            assert len(result.embedding) == 1536
-            assert all(v == 0.0 for v in result.embedding)
+        # Should return no embeddings for all requests on error
+        assert len(results) == 0
 
     @pytest.mark.asyncio
     async def test_embed_response_structure_validation(self) -> None:
         """Test validation of API response structure."""
         mock_client = MagicMock()
-        # Create a malformed response
-        mock_response = MagicMock()
-        mock_response.data = [MagicMock()]
-        # Missing embedding attribute
-        del mock_response.data[0].embedding
-        mock_client.embeddings.create = AsyncMock(return_value=mock_response)
+
+        # Dynamic mock that returns malformed response matching input size
+        async def mock_create(**kwargs: Any) -> MagicMock:
+            input_size = len(kwargs["input"])
+            mock_response = MagicMock()
+            mock_response.data = [MagicMock() for _ in range(input_size)]
+            # Missing embedding attribute on all items
+            for item in mock_response.data:
+                del item.embedding
+            return mock_response
+
+        mock_client.embeddings.create = AsyncMock(side_effect=mock_create)
 
         provider = OpenAIEmbeddingProvider(openai_client=mock_client)
         requests = [EmbeddingRequest(snippet_id=1, text="test")]
@@ -249,7 +258,5 @@ class TestOpenAIEmbeddingProvider:
         async for batch in provider.embed(requests):
             results.extend(batch)
 
-        # Should handle malformed response gracefully
-        assert len(results) == 1
-        # Should fall back to default embedding due to error
-        assert len(results[0].embedding) == 1536
+        # Should handle malformed response gracefully by returning empty results
+        assert len(results) == 0
