@@ -21,7 +21,12 @@ OPENAI_NUM_PARALLEL_TASKS = 40
 class OpenAIEnrichmentProvider(EnrichmentProvider):
     """OpenAI enrichment provider implementation."""
 
-    def __init__(self, openai_client: Any, model_name: str = "gpt-4o-mini") -> None:
+    def __init__(
+        self,
+        openai_client: Any,
+        model_name: str = "gpt-4o-mini",
+        num_parallel_tasks: int = OPENAI_NUM_PARALLEL_TASKS,
+    ) -> None:
         """Initialize the OpenAI enrichment provider.
 
         Args:
@@ -32,6 +37,7 @@ class OpenAIEnrichmentProvider(EnrichmentProvider):
         self.log = structlog.get_logger(__name__)
         self.openai_client = openai_client
         self.model_name = model_name
+        self.num_parallel_tasks = num_parallel_tasks
 
     async def enrich(
         self, requests: list[EnrichmentRequest]
@@ -50,7 +56,7 @@ class OpenAIEnrichmentProvider(EnrichmentProvider):
             return
 
         # Process batches in parallel with a semaphore to limit concurrent requests
-        sem = asyncio.Semaphore(OPENAI_NUM_PARALLEL_TASKS)
+        sem = asyncio.Semaphore(self.num_parallel_tasks)
 
         async def process_request(request: EnrichmentRequest) -> EnrichmentResponse:
             async with sem:

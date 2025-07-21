@@ -9,6 +9,7 @@ from kodit.infrastructure.enrichment.local_enrichment_provider import (
     LocalEnrichmentProvider,
 )
 from kodit.infrastructure.enrichment.openai_enrichment_provider import (
+    OPENAI_NUM_PARALLEL_TASKS,
     OpenAIEnrichmentProvider,
 )
 from kodit.log import log_event
@@ -54,6 +55,7 @@ def enrichment_domain_service_factory(
                 max_retries=2,
             ),
             model_name=endpoint.model or "gpt-4o-mini",
+            num_parallel_tasks=endpoint.num_parallel_tasks or OPENAI_NUM_PARALLEL_TASKS,
         )
     else:
         log_event("kodit.enrichment", {"provider": "local"})
