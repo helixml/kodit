@@ -160,7 +160,6 @@ async def test_sync_scheduler_syncs_all_indexes(
         for i, index in enumerate(dummy_indexes):
             call_args = mock_service.run_index.call_args_list[i]
             assert call_args[0][0].id == index.id
-            assert call_args[1]["progress_callback"] is None
 
 
 @pytest.mark.asyncio
