@@ -1,5 +1,6 @@
 """Tests for the local embedding provider."""
 
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -135,9 +136,14 @@ class TestLocalEmbeddingProvider:
         with patch(
             "sentence_transformers.SentenceTransformer"
         ) as mock_transformer_class:
-            # Mock the model
+            # Mock the model with dynamic response based on input size
             mock_model = MagicMock()
-            mock_model.encode.return_value = np.array([[0.1, 0.2, 0.3]])
+
+            def mock_encode(texts: list[str], **kwargs: Any) -> np.ndarray:  # noqa: ARG001
+                # Return embeddings matching input size
+                return np.array([[0.1, 0.2, 0.3] for _ in range(len(texts))])
+
+            mock_model.encode = mock_encode
             mock_transformer_class.return_value = mock_model
 
             provider = LocalEmbeddingProvider()
@@ -173,10 +179,8 @@ class TestLocalEmbeddingProvider:
             async for batch in provider.embed(requests):
                 results.extend(batch)
 
-            assert len(results) == 1
-            # Should return zero embeddings on error
-            assert all(v == 0.0 for v in results[0].embedding)
-            assert len(results[0].embedding) == 1536  # Default size
+            # Should return no embeddings on error (empty batch)
+            assert len(results) == 0
 
     @pytest.mark.asyncio
     async def test_embed_empty_text(self) -> None:
