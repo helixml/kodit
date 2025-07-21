@@ -7,7 +7,6 @@ import shutil
 import subprocess
 import sys
 import uuid
-from enum import Enum
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -17,7 +16,7 @@ import structlog
 from structlog.types import EventDict
 
 from kodit import _version
-from kodit.config import AppContext
+from kodit.config import AppContext, LogFormat
 
 _MAC_RE = re.compile(r"(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}")
 
@@ -33,13 +32,6 @@ def drop_color_message_key(_, __, event_dict: EventDict) -> EventDict:  # noqa: 
     """Drop the `color_message` key from the event dict."""
     event_dict.pop("color_message", None)
     return event_dict
-
-
-class LogFormat(Enum):
-    """The format of the log output."""
-
-    PRETTY = "pretty"
-    JSON = "json"
 
 
 def configure_logging(app_context: AppContext) -> None:

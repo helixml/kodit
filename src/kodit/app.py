@@ -13,6 +13,7 @@ from kodit.application.services.sync_scheduler import SyncSchedulerService
 from kodit.config import AppContext
 from kodit.infrastructure.api.v1.routers import indexes_router, search_router
 from kodit.infrastructure.api.v1.schemas.context import AppLifespanState
+from kodit.log import configure_logging, configure_telemetry
 from kodit.mcp import mcp
 from kodit.middleware import ASGICancelledErrorMiddleware, logging_middleware
 
@@ -26,10 +27,13 @@ async def app_lifespan(_: FastAPI) -> AsyncIterator[AppLifespanState]:
     """Manage application lifespan for auto-indexing and sync."""
     global _auto_indexing_service, _sync_scheduler_service  # noqa: PLW0603
 
+    # Setup app_context and implement logging and telemetry
     app_context = AppContext()
-    db = await app_context.get_db()
+    configure_logging(app_context)
+    configure_telemetry(app_context)
 
     # Start auto-indexing service
+    db = await app_context.get_db()
     _auto_indexing_service = AutoIndexingService(
         app_context=app_context,
         session_factory=db.session_factory,

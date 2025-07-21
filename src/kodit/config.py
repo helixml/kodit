@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from enum import Enum
 from functools import wraps
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any, Literal, TypeVar
@@ -18,15 +19,22 @@ from pydantic_settings import (
     SettingsConfigDict,
 )
 
+from kodit.database import Database
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
 
 
-from kodit.database import Database
+class LogFormat(Enum):
+    """The format of the log output."""
+
+    PRETTY = "pretty"
+    JSON = "json"
+
 
 DEFAULT_BASE_DIR = Path.home() / ".kodit"
 DEFAULT_LOG_LEVEL = "INFO"
-DEFAULT_LOG_FORMAT = "pretty"
+DEFAULT_LOG_FORMAT = LogFormat.PRETTY
 DEFAULT_DISABLE_TELEMETRY = False
 T = TypeVar("T")
 
@@ -165,7 +173,7 @@ class AppContext(BaseSettings):
         default_factory=lambda data: f"sqlite+aiosqlite:///{data['data_dir']}/kodit.db"
     )
     log_level: str = Field(default=DEFAULT_LOG_LEVEL)
-    log_format: str = Field(default=DEFAULT_LOG_FORMAT)
+    log_format: LogFormat = Field(default=DEFAULT_LOG_FORMAT)
     disable_telemetry: bool = Field(default=DEFAULT_DISABLE_TELEMETRY)
     default_endpoint: Endpoint | None = Field(
         default=None,
