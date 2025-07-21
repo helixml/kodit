@@ -112,15 +112,8 @@ class LocalEmbeddingProvider(EmbeddingProvider):
 
             except Exception as e:
                 self.log.exception("Error generating embeddings", error=str(e))
-                # Return zero embeddings on error
-                responses = [
-                    EmbeddingResponse(
-                        snippet_id=item.snippet_id,
-                        embedding=[0.0] * 1536,  # Default embedding size
-                    )
-                    for item in batch
-                ]
-                yield responses
+                # Return no embeddings for this batch if there was an error
+                yield []
 
     def _split_sub_batches(
         self, encoding: "Encoding", data: list[EmbeddingRequest]

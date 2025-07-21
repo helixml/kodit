@@ -2,10 +2,10 @@
 
 import asyncio
 from collections.abc import AsyncGenerator
-from typing import Any
 
 import structlog
 import tiktoken
+from openai import AsyncOpenAI
 from tiktoken import Encoding
 
 from kodit.domain.services.embedding_service import EmbeddingProvider
@@ -25,7 +25,7 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
     """OpenAI embedding provider that uses OpenAI's embedding API."""
 
     def __init__(
-        self, openai_client: Any, model_name: str = "text-embedding-3-small"
+        self, openai_client: AsyncOpenAI, model_name: str = "text-embedding-3-small"
     ) -> None:
         """Initialize the OpenAI embedding provider.
 
@@ -99,14 +99,8 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
                     ]
                 except Exception as e:
                     self.log.exception("Error embedding batch", error=str(e))
-                    # Fall back to zero embeddings so pipeline can continue
-                    return [
-                        EmbeddingResponse(
-                            snippet_id=item.snippet_id,
-                            embedding=[0.0] * 1536,  # Default OpenAI dim
-                        )
-                        for item in batch
-                    ]
+                    # Return no embeddings for this batch if there was an error
+                    return []
 
         tasks = [_process_batch(batch) for batch in batched_data]
         for task in asyncio.as_completed(tasks):
