@@ -14,6 +14,7 @@ from kodit.config import AppContext
 from kodit.domain.services.index_query_service import IndexQueryService
 from kodit.infrastructure.indexing.fusion_service import ReciprocalRankFusionService
 from kodit.infrastructure.sqlalchemy.index_repository import SqlAlchemyIndexRepository
+from kodit.infrastructure.ui.progress import create_log_progress_callback
 
 
 class SyncSchedulerService:
@@ -102,7 +103,9 @@ class SyncSchedulerService:
                         source=str(index.source.working_copy.remote_uri),
                     )
 
-                    await service.run_index(index, progress_callback=None)
+                    await service.run_index(
+                        index, progress_callback=create_log_progress_callback()
+                    )
                     success_count += 1
 
                     self.log.info(

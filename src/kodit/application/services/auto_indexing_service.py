@@ -11,6 +11,7 @@ from kodit.application.factories.code_indexing_factory import (
     create_code_indexing_application_service,
 )
 from kodit.config import AppContext
+from kodit.infrastructure.ui.progress import create_log_progress_callback
 
 
 class AutoIndexingService:
@@ -61,7 +62,9 @@ class AutoIndexingService:
                     index = await service.create_index_from_uri(source)
 
                     # Run indexing (without progress callback for background mode)
-                    await service.run_index(index, progress_callback=None)
+                    await service.run_index(
+                        index, progress_callback=create_log_progress_callback()
+                    )
 
                     self.log.info("Successfully auto-indexed source", source=source)
 

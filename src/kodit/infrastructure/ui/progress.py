@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 
+import structlog
 from tqdm import tqdm  # type: ignore[import-untyped]
 
 from kodit.domain.interfaces import ProgressCallback
@@ -40,6 +41,43 @@ class TQDMProgressCallback(ProgressCallback):
     async def on_complete(self, operation: str) -> None:
         """Complete the progress bar."""
         # TQDM will handle cleanup with leave=False
+
+
+class LogProgressCallback(ProgressCallback):
+    """Log-based progress callback for server environments."""
+
+    def __init__(self, milestone_interval: int = 10) -> None:
+        """Initialize with milestone logging interval.
+
+        Args:
+            milestone_interval: Percentage interval for logging (default: 10%)
+
+        """
+        self.milestone_interval = milestone_interval
+        self._last_logged_percentage = -1
+        self.log = structlog.get_logger()
+
+    async def on_progress(self, event: ProgressEvent) -> None:
+        """Log progress at milestone intervals."""
+        percentage = int(event.percentage)
+
+        # Log at milestone intervals (0%, 10%, 20%, etc.)
+        milestone = (percentage // self.milestone_interval) * self.milestone_interval
+
+        if milestone > self._last_logged_percentage and milestone <= percentage:
+            self.log.info(
+                "Progress milestone reached",
+                operation=event.operation,
+                percentage=milestone,
+                current=event.current,
+                total=event.total,
+                message=event.message,
+            )
+            self._last_logged_percentage = milestone
+
+    async def on_complete(self, operation: str) -> None:
+        """Log completion of the operation."""
+        self.log.info("Operation completed", operation=operation)
 
 
 class LazyProgressCallback(ProgressCallback):
@@ -125,3 +163,8 @@ def create_multi_stage_progress_callback() -> MultiStageProgressCallback:
     return MultiStageProgressCallback(
         lambda operation: create_progress_bar(operation, "items")
     )
+
+
+def create_log_progress_callback(milestone_interval: int = 10) -> LogProgressCallback:
+    """Create a log-based progress callback for server environments."""
+    return LogProgressCallback(milestone_interval=milestone_interval)
