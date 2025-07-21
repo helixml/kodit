@@ -13,26 +13,26 @@ services:
     
     # Configure Kodit
     environment:
-      # Configure the database
+      # Configure data storage
+      DATA_DIR: /data
       DB_URL: postgresql+asyncpg://postgres:mysecretpassword@vectorchord:5432/kodit
       DEFAULT_SEARCH_PROVIDER: vectorchord
 
       # External embedding provider
       EMBEDDING_ENDPOINT_TYPE: openai
       EMBEDDING_ENDPOINT_BASE_URL: https://api.openai.com/v1
-      EMBEDDING_ENDPOINT_API_KEY: REPLACE_WITH_YOUR_API_KEY
-      EMBEDDING_ENDPOINT_MODEL: text-embedding-3-large
+      EMBEDDING_ENDPOINT_API_KEY: ${OPENAI_API_KEY:-}
+      EMBEDDING_ENDPOINT_MODEL: text-embedding-3-small
 
       # External enrichment provider
       ENRICHMENT_ENDPOINT_TYPE: openai
       ENRICHMENT_ENDPOINT_BASE_URL: https://api.openai.com/v1
-      ENRICHMENT_ENDPOINT_API_KEY: REPLACE_WITH_YOUR_API_KEY
+      ENRICHMENT_ENDPOINT_API_KEY: ${OPENAI_API_KEY:-}
       ENRICHMENT_ENDPOINT_MODEL: o3-mini
 
       # Auto-indexing configuration
-      AUTO_INDEXING_SOURCES_0_URI: https://github.com/pydantic/pydantic
-      AUTO_INDEXING_SOURCES_1_URI: https://github.com/fastapi/fastapi
-      AUTO_INDEXING_SOURCES_2_URI: https://github.com/helix-ml/kodit
+      AUTO_INDEXING_SOURCES_0_URI: https://github.com/helixml/kodit
+      AUTO_INDEXING_SOURCES_1_URI: https://github.com/helixml/helix
 
       # Sync configuration
       SYNC_PERIODIC_ENABLED: true
@@ -41,18 +41,25 @@ services:
 
       # Logging configuration
       LOG_LEVEL: INFO # Set to DEBUG for more detailed logging
+      LOG_FORMAT: json
+
+      # API Key Configuration
+      API_KEYS: ${KODIT_API_KEYS:-}
 
     volumes:
-      - kodit-data:/data
+      - ${KODIT_DATA:-kodit-data}:/data
 
   vectorchord:
     image: tensorchord/vchord-suite:pg17-20250601
     environment:
       - POSTGRES_DB=kodit
       - POSTGRES_PASSWORD=mysecretpassword
+    volumes:
+      - ${VECTORCHORD_DATA:-kodit-vectorchord}:/var/lib/postgresql/data
     ports:
       - "5432"
     restart: unless-stopped
 
 volumes:
   kodit-data:
+  kodit-vectorchord:
