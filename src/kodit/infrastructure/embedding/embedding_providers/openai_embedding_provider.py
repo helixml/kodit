@@ -52,7 +52,16 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
     def _get_encoding(self) -> "Encoding":
         """Return (and cache) the tiktoken encoding for the chosen model."""
         if self._encoding is None:
-            self._encoding = tiktoken.encoding_for_model(self.model_name)
+            try:
+                self._encoding = tiktoken.encoding_for_model(self.model_name)
+            except KeyError:
+                # If the model is not supported by tiktoken, use a default encoding
+                self.log.info(
+                    "Model not supported by tiktoken, using default encoding",
+                    model_name=self.model_name,
+                )
+                self._encoding = tiktoken.get_encoding("o200k_base")
+
         return self._encoding
 
     def _split_sub_batches(
