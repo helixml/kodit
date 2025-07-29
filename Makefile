@@ -1,7 +1,10 @@
 # Makefile for Kodit
 
 # Generate OpenAPI json schema from the FastAPI app
-openapi:
+build:
+	uv build
+
+openapi: build
 	uv run src/kodit/utils/dump_openapi.py --out docs/reference/api/ kodit.app:app
 
 openapi-check: openapi
