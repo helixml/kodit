@@ -260,3 +260,24 @@ class TestOpenAIEmbeddingProvider:
 
         # Should handle malformed response gracefully by returning empty results
         assert len(results) == 0
+
+    @pytest.mark.asyncio
+    async def test_non_openai_model_name(self) -> None:
+        """Test embedding with a non-OpenAI model name."""
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.data = [MagicMock(embedding=[0.1] * 1500)]
+        mock_client.embeddings.create = AsyncMock(return_value=mock_response)
+
+        provider = OpenAIEmbeddingProvider(
+            openai_client=mock_client, model_name="non-openai-model"
+        )
+
+        # This should not crash
+        test_requests = [EmbeddingRequest(snippet_id=1, text="test")]
+        await anext(provider.embed(test_requests))
+
+        # Verify the custom model was used
+        mock_client.embeddings.create.assert_called_once_with(
+            input=["test"], model="non-openai-model"
+        )

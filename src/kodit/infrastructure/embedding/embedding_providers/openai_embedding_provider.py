@@ -59,6 +59,7 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
                 self.log.info(
                     "Model not supported by tiktoken, using default encoding",
                     model_name=self.model_name,
+                    default_encoding="o200k_base",
                 )
                 self._encoding = tiktoken.get_encoding("o200k_base")
 
