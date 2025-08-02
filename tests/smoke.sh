@@ -93,7 +93,7 @@ if wait_for_server; then
     
     # Test POST /api/v1/indexes (create index)
     echo "Testing POST /api/v1/indexes"
-    INDEX_RESPONSE=$(curl -s -f -X POST http://127.0.0.1:8080/api/v1/indexes \
+    INDEX_RESPONSE=$(curl -s -f -X POST http://127.0.0.1:8081/api/v1/indexes \
         -H "Content-Type: application/json" \
         -d '{"data": {"type": "index", "attributes": {"uri": "https://gist.github.com/7aa38185e20433c04c533f2b28f4e217.git"}}}' \
         || echo "Create index test failed")
@@ -104,6 +104,16 @@ if wait_for_server; then
         -H "Content-Type: application/json" \
         -d '{"data": {"type": "search", "attributes": {"keywords": ["test"], "code": "def", "text": "function"}}, "limit": 5}' \
         || echo "Search API test failed"
+
+    if [[ "$INDEX_RESPONSE" == "Create index test failed" ]]; then
+        echo "Delete index test skipped"
+    else
+        INDEX_ID=$(echo "$INDEX_RESPONSE" | jq -r '.data.id')
+        echo "Testing DELETE /api/v1/indexes/$INDEX_ID"
+        curl -s -f -X DELETE http://127.0.0.1:8080/api/v1/indexes/$INDEX_ID \
+            -H "Content-Type: application/json" \
+            || echo "Delete index test failed"
+    fi
 fi
 
 # Clean up: stop the server
