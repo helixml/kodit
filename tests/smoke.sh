@@ -93,7 +93,7 @@ if wait_for_server; then
     
     # Test POST /api/v1/indexes (create index)
     echo "Testing POST /api/v1/indexes"
-    INDEX_RESPONSE=$(curl -s -f -X POST http://127.0.0.1:8081/api/v1/indexes \
+    INDEX_RESPONSE=$(curl -s -f -X POST http://127.0.0.1:8080/api/v1/indexes \
         -H "Content-Type: application/json" \
         -d '{"data": {"type": "index", "attributes": {"uri": "https://gist.github.com/7aa38185e20433c04c533f2b28f4e217.git"}}}' \
         || echo "Create index test failed")
