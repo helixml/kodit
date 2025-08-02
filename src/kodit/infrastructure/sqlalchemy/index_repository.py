@@ -597,12 +597,12 @@ class SqlAlchemyIndexRepository(IndexRepository):
         )
         await self._session.execute(stmt)
 
+        # Delete the index
+        stmt = delete(db_entities.Index).where(db_entities.Index.id == index.id)
+        await self._session.execute(stmt)
+
         # Delete the source
         stmt = delete(db_entities.Source).where(
             db_entities.Source.id == index.source.id
         )
-        await self._session.execute(stmt)
-
-        # Delete the index
-        stmt = delete(db_entities.Index).where(db_entities.Index.id == index.id)
         await self._session.execute(stmt)
