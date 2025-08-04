@@ -13,10 +13,13 @@ from kodit.application.services.code_indexing_application_service import (
     CodeIndexingApplicationService,
 )
 from kodit.config import AppContext
+from kodit.domain.entities import SnippetWithContext
 from kodit.domain.interfaces import ProgressCallback
 from kodit.domain.protocols import IndexRepository
 from kodit.domain.services.index_query_service import IndexQueryService
 from kodit.domain.value_objects import (
+    FusionRequest,
+    FusionResult,
     MultiSearchRequest,
     ProgressEvent,
 )
@@ -292,3 +295,58 @@ def subtract(a: int, b: int) -> int:
     # The above should not raise an error
     final_index = await indexing_query_service.get_index_by_id(index.id)
     assert final_index is not None
+
+
+@pytest.mark.asyncio
+async def test_vectorchord_bug_zip_mismatch(
+    code_indexing_service: CodeIndexingApplicationService,
+    tmp_path: Path,
+) -> None:
+    """Test that reproduces the vectorchord bug with zip() length mismatch.
+
+    This happens when get_snippets_by_ids returns fewer snippets than the
+    number of IDs in final_results, which can occur when some snippet IDs
+    don't exist in the database or when related files/sources are missing.
+    """
+    # Create a temporary Python file
+    test_file = tmp_path / "test_code.py"
+    test_file.write_text("""
+def add(a: int, b: int) -> int:
+    return a + b
+
+def subtract(a: int, b: int) -> int:
+    return a - b
+""")
+
+    # Create initial index
+    index = await code_indexing_service.create_index_from_uri(str(tmp_path))
+    await code_indexing_service.run_index(index)
+    assert len(index.snippets) > 0, "Should have snippets for initial file"
+
+    # Mock perform_fusion to always return some fake results
+    # This ensures final_results is not empty
+    async def mock_perform_fusion(
+        rankings: list[list[FusionRequest]],  # noqa: ARG001
+        k: float = 60.0,  # noqa: ARG001
+    ) -> list[FusionResult]:
+        # Always return some fake fusion results to ensure final_results is populated
+        return [
+            FusionResult(id=99999, score=1.0, original_scores=[1.0]),
+            FusionResult(id=99998, score=0.8, original_scores=[0.8]),
+        ]
+
+    # Mock get_snippets_by_ids to return an empty list
+    # This ensures search_results is empty while final_results is not
+    async def mock_get_snippets_by_ids(ids: list[int]) -> list[SnippetWithContext]:  # noqa: ARG001
+        return []
+
+    # Apply the mocks
+    code_indexing_service.index_query_service.perform_fusion = mock_perform_fusion
+    code_indexing_service.index_query_service.get_snippets_by_ids = (
+        mock_get_snippets_by_ids
+    )
+
+    # This search should fail with ValueError: zip() argument 2 is longer
+    # than argument 1 because search_results will be empty but final_results
+    # will contain 2 fusion results
+    await code_indexing_service.search(MultiSearchRequest(keywords=["add"], top_k=5))

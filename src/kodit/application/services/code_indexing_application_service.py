@@ -241,27 +241,38 @@ class CodeIndexingApplicationService:
             [x.id for x in final_results]
         )
 
+        # Create a mapping from snippet ID to search result to handle cases where
+        # some snippet IDs don't exist (e.g., with vectorchord inconsistencies)
+        snippet_map = {
+            result.snippet.id: result
+            for result in search_results
+            if result.snippet.id is not None
+        }
+
+        # Filter final_results to only include IDs that we actually found snippets for
+        valid_final_results = [fr for fr in final_results if fr.id in snippet_map]
+
         return [
             MultiSearchResult(
-                id=result.snippet.id or 0,
-                content=result.snippet.original_text(),
+                id=snippet_map[fr.id].snippet.id or 0,
+                content=snippet_map[fr.id].snippet.original_text(),
                 original_scores=fr.original_scores,
                 # Enhanced fields
-                source_uri=str(result.source.working_copy.remote_uri),
+                source_uri=str(snippet_map[fr.id].source.working_copy.remote_uri),
                 relative_path=str(
-                    result.file.as_path().relative_to(
-                        result.source.working_copy.cloned_path
-                    )
+                    snippet_map[fr.id]
+                    .file.as_path()
+                    .relative_to(snippet_map[fr.id].source.working_copy.cloned_path)
                 ),
                 language=MultiSearchResult.detect_language_from_extension(
-                    result.file.extension()
+                    snippet_map[fr.id].file.extension()
                 ),
-                authors=[author.name for author in result.authors],
-                created_at=result.snippet.created_at or datetime.now(UTC),
+                authors=[author.name for author in snippet_map[fr.id].authors],
+                created_at=snippet_map[fr.id].snippet.created_at or datetime.now(UTC),
                 # Summary from snippet entity
-                summary=result.snippet.summary_text(),
+                summary=snippet_map[fr.id].snippet.summary_text(),
             )
-            for result, fr in zip(search_results, final_results, strict=True)
+            for fr in valid_final_results
         ]
 
     async def list_snippets(
