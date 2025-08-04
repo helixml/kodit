@@ -82,4 +82,4 @@ async def test_embedding_domain_service_factory(
     )
     assert isinstance(service.vector_search_repository, LocalVectorSearchRepository)
     assert isinstance(service.embedding_provider, OpenAIEmbeddingProvider)
-    assert service.embedding_provider.openai_client.base_url == test_base_url
+    assert service.embedding_provider.base_url == test_base_url

@@ -25,15 +25,13 @@ OPENAI_NUM_PARALLEL_TASKS = 10  # Semaphore limit for concurrent OpenAI requests
 class OpenAIEmbeddingProvider(EmbeddingProvider):
     """OpenAI embedding provider that uses OpenAI's embedding API via httpx."""
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         api_key: str | None = None,
         base_url: str = "https://api.openai.com",
         model_name: str = "text-embedding-3-small",
         num_parallel_tasks: int = OPENAI_NUM_PARALLEL_TASKS,
         socket_path: str | None = None,
-        # Support legacy interface for tests
-        openai_client: Any | None = None,
     ) -> None:
         """Initialize the OpenAI embedding provider.
 
@@ -43,39 +41,31 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
             model_name: The model name to use for embeddings.
             num_parallel_tasks: Maximum number of concurrent requests.
             socket_path: Optional Unix socket path for local communication.
-            openai_client: Legacy OpenAI client for backward compatibility.
 
         """
         self.model_name = model_name
         self.num_parallel_tasks = num_parallel_tasks
         self.log = structlog.get_logger(__name__)
+        self.api_key = api_key
+        self.base_url = base_url
+        self.socket_path = socket_path
 
         # Lazily initialised token encoding
         self._encoding: Encoding | None = None
 
-        # Support legacy openai_client for tests
-        if openai_client is not None:
-            self.openai_client = openai_client
-            self._use_legacy_client = True
+        # Create httpx client with optional Unix socket support
+        if socket_path:
+            transport = httpx.AsyncHTTPTransport(uds=socket_path)
+            self.http_client = httpx.AsyncClient(
+                transport=transport,
+                base_url="http://localhost",  # Base URL for Unix socket
+                timeout=30.0,
+            )
         else:
-            self._use_legacy_client = False
-            self.api_key = api_key
-            self.base_url = base_url
-            self.socket_path = socket_path
-
-            # Create httpx client with optional Unix socket support
-            if socket_path:
-                transport = httpx.AsyncHTTPTransport(uds=socket_path)
-                self.http_client = httpx.AsyncClient(
-                    transport=transport,
-                    base_url="http://localhost",  # Base URL for Unix socket
-                    timeout=30.0,
-                )
-            else:
-                self.http_client = httpx.AsyncClient(
-                    base_url=base_url,
-                    timeout=30.0,
-                )
+            self.http_client = httpx.AsyncClient(
+                base_url=base_url,
+                timeout=30.0,
+            )
 
     # ---------------------------------------------------------------------
     # Helper utilities
@@ -162,23 +152,6 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         ) -> list[EmbeddingResponse]:
             async with sem:
                 try:
-                    # Use legacy client if provided (for tests)
-                    if self._use_legacy_client:
-                        response = await self.openai_client.embeddings.create(
-                            model=self.model_name,
-                            input=[item.text for item in batch],
-                        )
-
-                        return [
-                            EmbeddingResponse(
-                                snippet_id=item.snippet_id,
-                                embedding=embedding.embedding,
-                            )
-                            for item, embedding in zip(
-                                batch, response.data, strict=True
-                            )
-                        ]
-                    # Use httpx client
                     response = await self._call_embeddings_api(
                         [item.text for item in batch]
                     )
