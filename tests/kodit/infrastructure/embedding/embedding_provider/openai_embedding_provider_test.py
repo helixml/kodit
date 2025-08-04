@@ -1,7 +1,9 @@
 """Tests for the OpenAI embedding provider."""
 
+from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
+import httpx
 import pytest
 
 from kodit.domain.value_objects import EmbeddingRequest
@@ -28,11 +30,11 @@ class TestOpenAIEmbeddingProvider:
             api_key="test-key",
             base_url="https://custom.openai.com",
             model_name="text-embedding-3-large",
-            socket_path="/tmp/socket.sock",
+            socket_path="/tmp/socket.sock",  # noqa: S108
         )
         assert provider.model_name == "text-embedding-3-large"
         assert provider.base_url == "https://custom.openai.com"
-        assert provider.socket_path == "/tmp/socket.sock"
+        assert provider.socket_path == "/tmp/socket.sock"  # noqa: S108
 
     @pytest.mark.asyncio
     async def test_embed_empty_requests(self) -> None:
@@ -49,7 +51,7 @@ class TestOpenAIEmbeddingProvider:
     async def test_embed_single_request_success(self) -> None:
         """Test successful embedding with a single request."""
         provider = OpenAIEmbeddingProvider(api_key="test-key")
-        
+
         # Mock the httpx client
         mock_response = Mock()
         mock_response.json.return_value = {
@@ -58,7 +60,7 @@ class TestOpenAIEmbeddingProvider:
             ]
         }
         mock_response.raise_for_status = Mock()
-        
+
         provider.http_client.post = AsyncMock(return_value=mock_response)
 
         requests = [EmbeddingRequest(snippet_id=1, text="python programming")]
@@ -75,21 +77,18 @@ class TestOpenAIEmbeddingProvider:
         # Verify API was called correctly
         provider.http_client.post.assert_called_once_with(
             "/v1/embeddings",
-            json={
-                "model": "text-embedding-3-small",
-                "input": ["python programming"]
-            },
+            json={"model": "text-embedding-3-small", "input": ["python programming"]},
             headers={
                 "Content-Type": "application/json",
-                "Authorization": "Bearer test-key"
-            }
+                "Authorization": "Bearer test-key",
+            },
         )
 
     @pytest.mark.asyncio
     async def test_embed_multiple_requests_success(self) -> None:
         """Test successful embedding with multiple requests."""
         provider = OpenAIEmbeddingProvider(api_key="test-key")
-        
+
         # Mock the httpx client
         mock_response = Mock()
         mock_response.json.return_value = {
@@ -100,7 +99,7 @@ class TestOpenAIEmbeddingProvider:
             ]
         }
         mock_response.raise_for_status = Mock()
-        
+
         provider.http_client.post = AsyncMock(return_value=mock_response)
 
         requests = [
@@ -124,12 +123,16 @@ class TestOpenAIEmbeddingProvider:
             "/v1/embeddings",
             json={
                 "model": "text-embedding-3-small",
-                "input": ["python programming", "javascript development", "java enterprise"]
+                "input": [
+                    "python programming",
+                    "javascript development",
+                    "java enterprise",
+                ],
             },
             headers={
                 "Content-Type": "application/json",
-                "Authorization": "Bearer test-key"
-            }
+                "Authorization": "Bearer test-key",
+            },
         )
 
     @pytest.mark.asyncio
@@ -138,13 +141,11 @@ class TestOpenAIEmbeddingProvider:
         provider = OpenAIEmbeddingProvider(api_key="test-key")
 
         # Dynamic mock that returns embeddings matching input size
-        async def mock_post(url, **kwargs):
+        async def mock_post(url: str, **kwargs: Any) -> httpx.Response:  # noqa: ARG001
             input_size = len(kwargs["json"]["input"])
             mock_response = Mock()
             mock_response.json.return_value = {
-                "data": [
-                    {"embedding": [0.1] * 1500} for _ in range(input_size)
-                ]
+                "data": [{"embedding": [0.1] * 1500} for _ in range(input_size)]
             }
             mock_response.raise_for_status = Mock()
             return mock_response
@@ -188,13 +189,13 @@ class TestOpenAIEmbeddingProvider:
         provider = OpenAIEmbeddingProvider(
             api_key="test-key", model_name="text-embedding-3-large"
         )
-        
+
         mock_response = Mock()
         mock_response.json.return_value = {
             "data": [{"embedding": [0.1, 0.2, 0.3] * 500}]
         }
         mock_response.raise_for_status = Mock()
-        
+
         provider.http_client.post = AsyncMock(return_value=mock_response)
 
         requests = [EmbeddingRequest(snippet_id=1, text="test text")]
@@ -206,27 +207,22 @@ class TestOpenAIEmbeddingProvider:
         # Verify the custom model was used
         provider.http_client.post.assert_called_once_with(
             "/v1/embeddings",
-            json={
-                "model": "text-embedding-3-large",
-                "input": ["test text"]
-            },
+            json={"model": "text-embedding-3-large", "input": ["test text"]},
             headers={
                 "Content-Type": "application/json",
-                "Authorization": "Bearer test-key"
-            }
+                "Authorization": "Bearer test-key",
+            },
         )
 
     @pytest.mark.asyncio
     async def test_embed_empty_text(self) -> None:
         """Test embedding with empty text."""
         provider = OpenAIEmbeddingProvider(api_key="test-key")
-        
+
         mock_response = Mock()
-        mock_response.json.return_value = {
-            "data": [{"embedding": [0.1] * 1500}]
-        }
+        mock_response.json.return_value = {"data": [{"embedding": [0.1] * 1500}]}
         mock_response.raise_for_status = Mock()
-        
+
         provider.http_client.post = AsyncMock(return_value=mock_response)
 
         requests = [EmbeddingRequest(snippet_id=1, text="")]
@@ -243,13 +239,11 @@ class TestOpenAIEmbeddingProvider:
     async def test_embed_unicode_text(self) -> None:
         """Test embedding with unicode text."""
         provider = OpenAIEmbeddingProvider(api_key="test-key")
-        
+
         mock_response = Mock()
-        mock_response.json.return_value = {
-            "data": [{"embedding": [0.1] * 1500}]
-        }
+        mock_response.json.return_value = {"data": [{"embedding": [0.1] * 1500}]}
         mock_response.raise_for_status = Mock()
-        
+
         provider.http_client.post = AsyncMock(return_value=mock_response)
 
         requests = [EmbeddingRequest(snippet_id=1, text="python 🐍 programming")]
@@ -260,18 +254,18 @@ class TestOpenAIEmbeddingProvider:
 
         assert len(results) == 1
         assert len(results[0].embedding) == 1500
-        
+
         # Verify unicode text was sent correctly
         provider.http_client.post.assert_called_once_with(
             "/v1/embeddings",
             json={
                 "model": "text-embedding-3-small",
-                "input": ["python 🐍 programming"]
+                "input": ["python 🐍 programming"],
             },
             headers={
                 "Content-Type": "application/json",
-                "Authorization": "Bearer test-key"
-            }
+                "Authorization": "Bearer test-key",
+            },
         )
 
     @pytest.mark.asyncio
@@ -300,7 +294,7 @@ class TestOpenAIEmbeddingProvider:
             "data": [{}]  # Missing embedding field
         }
         mock_response.raise_for_status = Mock()
-        
+
         provider.http_client.post = AsyncMock(return_value=mock_response)
 
         requests = [EmbeddingRequest(snippet_id=1, text="test")]
@@ -320,13 +314,11 @@ class TestOpenAIEmbeddingProvider:
         provider = OpenAIEmbeddingProvider(
             api_key="test-key", model_name="non-openai-model"
         )
-        
+
         mock_response = Mock()
-        mock_response.json.return_value = {
-            "data": [{"embedding": [0.1] * 1500}]
-        }
+        mock_response.json.return_value = {"data": [{"embedding": [0.1] * 1500}]}
         mock_response.raise_for_status = Mock()
-        
+
         provider.http_client.post = AsyncMock(return_value=mock_response)
 
         # This should not crash
@@ -336,42 +328,41 @@ class TestOpenAIEmbeddingProvider:
         # Verify the custom model was used
         provider.http_client.post.assert_called_once_with(
             "/v1/embeddings",
-            json={
-                "model": "non-openai-model",
-                "input": ["test"]
-            },
+            json={"model": "non-openai-model", "input": ["test"]},
             headers={
                 "Content-Type": "application/json",
-                "Authorization": "Bearer test-key"
-            }
+                "Authorization": "Bearer test-key",
+            },
         )
 
     @pytest.mark.asyncio
     async def test_socket_path_initialization(self) -> None:
         """Test initialization with socket path."""
-        with patch("httpx.AsyncHTTPTransport") as mock_transport:
-            with patch("httpx.AsyncClient") as mock_client:
-                provider = OpenAIEmbeddingProvider(
-                    api_key="test-key",
-                    socket_path="/tmp/test.sock"
-                )
-                
-                # Verify transport was created with socket path
-                mock_transport.assert_called_once_with(uds="/tmp/test.sock")
-                
-                # Verify client was created with transport
-                mock_client.assert_called_once_with(
-                    transport=mock_transport.return_value,
-                    base_url="http://localhost",
-                    timeout=30.0
-                )
+        with (
+            patch("httpx.AsyncHTTPTransport") as mock_transport,
+            patch("httpx.AsyncClient") as mock_client,
+        ):
+            OpenAIEmbeddingProvider(
+                api_key="test-key",
+                socket_path="/tmp/test.sock",  # noqa: S108
+            )
+
+            # Verify transport was created with socket path
+            mock_transport.assert_called_once_with(uds="/tmp/test.sock")  # noqa: S108
+
+            # Verify client was created with transport
+            mock_client.assert_called_once_with(
+                transport=mock_transport.return_value,
+                base_url="http://localhost",
+                timeout=30.0,
+            )
 
     @pytest.mark.asyncio
     async def test_close(self) -> None:
         """Test close method."""
         provider = OpenAIEmbeddingProvider(api_key="test-key")
         provider.http_client.aclose = AsyncMock()
-        
+
         await provider.close()
-        
+
         provider.http_client.aclose.assert_called_once()
