@@ -1,6 +1,5 @@
 """Factory for creating embedding services with DDD architecture."""
 
-from openai import AsyncOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.config import AppContext, Endpoint
@@ -48,15 +47,13 @@ def embedding_domain_service_factory(
     endpoint = _get_endpoint_configuration(app_context)
     if endpoint and endpoint.type == "openai":
         log_event("kodit.embedding", {"provider": "openai"})
+        # Use new httpx-based provider with socket support
         embedding_provider = OpenAIEmbeddingProvider(
-            openai_client=AsyncOpenAI(
-                api_key=endpoint.api_key or "default",
-                base_url=endpoint.base_url or "https://api.openai.com/v1",
-                timeout=10,
-                max_retries=2,
-            ),
+            api_key=endpoint.api_key,
+            base_url=endpoint.base_url or "https://api.openai.com/v1",
             model_name=endpoint.model or "text-embedding-3-small",
             num_parallel_tasks=endpoint.num_parallel_tasks or OPENAI_NUM_PARALLEL_TASKS,
+            socket_path=endpoint.socket_path,
         )
     else:
         log_event("kodit.embedding", {"provider": "local"})

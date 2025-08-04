@@ -1,0 +1,244 @@
+"""Test Unix socket support in OpenAI providers."""
+
+import json
+import socket
+import tempfile
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from kodit.domain.value_objects import EmbeddingRequest, EnrichmentRequest
+from kodit.infrastructure.embedding.embedding_providers.openai_embedding_provider import (  # noqa: E501
+    OpenAIEmbeddingProvider,
+)
+from kodit.infrastructure.enrichment.openai_enrichment_provider import (
+    OpenAIEnrichmentProvider,
+)
+
+
+class UnixSocketHTTPServer(HTTPServer):
+    """HTTP server that listens on a Unix socket."""
+
+    def __init__(
+        self, socket_path: str, handler_class: type[BaseHTTPRequestHandler]
+    ) -> None:
+        """Initialize Unix socket HTTP server."""
+        # Create Unix socket
+        self.socket_path = socket_path
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.bind(socket_path)
+        sock.listen(5)
+
+        # Initialize without binding to a TCP port
+        super().__init__(("localhost", 0), handler_class, bind_and_activate=False)
+        self.socket = sock
+
+
+class MockOpenAIHandler(BaseHTTPRequestHandler):
+    """Mock OpenAI-compatible API handler."""
+
+    def do_POST(self) -> None:  # noqa: N802
+        """Handle POST requests."""
+        content_length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(content_length)
+
+        try:
+            data = json.loads(body) if body else {}
+        except json.JSONDecodeError:
+            self.send_error(400, "Invalid JSON")
+            return
+
+        # Handle both with and without /v1 prefix
+        if self.path in ["/v1/embeddings", "/embeddings"]:
+            self.handle_embeddings(data)
+        elif self.path in ["/v1/chat/completions", "/chat/completions"]:
+            self.handle_chat_completions(data)
+        else:
+            self.send_error(404, f"Not found: {self.path}")
+
+    def handle_embeddings(self, data: dict[str, Any]) -> None:
+        """Handle embedding requests."""
+        if "input" not in data or "model" not in data:
+            self.send_error(400, "Missing required fields")
+            return
+
+        # Generate mock embeddings
+        embeddings = []
+        for i, text in enumerate(data["input"]):
+            # Create deterministic embeddings based on text length
+            base_value = len(text) / 100.0
+            embedding = [base_value + (j * 0.0001) for j in range(1536)]
+            embeddings.append(
+                {"object": "embedding", "embedding": embedding, "index": i}
+            )
+
+        response = {
+            "object": "list",
+            "data": embeddings,
+            "model": data["model"],
+            "usage": {
+                "prompt_tokens": sum(len(text.split()) for text in data["input"]),
+                "total_tokens": sum(len(text.split()) for text in data["input"]),
+            },
+        }
+
+        self.send_json_response(response)
+
+    def handle_chat_completions(self, data: dict[str, Any]) -> None:
+        """Handle chat completion requests (for enrichments)."""
+        if "messages" not in data or "model" not in data:
+            self.send_error(400, "Missing required fields")
+            return
+
+        # Extract user message
+        user_message = ""
+        for msg in data["messages"]:
+            if msg.get("role") == "user":
+                user_message = msg.get("content", "")
+                break
+
+        # Generate mock response
+        response = {
+            "id": "chatcmpl-test",
+            "object": "chat.completion",
+            "created": 1234567890,
+            "model": data["model"],
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": (
+                            f"This code snippet {user_message[:30]}... "
+                            "is a function that performs important operations."
+                        ),
+                    },
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {
+                "prompt_tokens": len(user_message.split()),
+                "completion_tokens": 15,
+                "total_tokens": len(user_message.split()) + 15,
+            },
+        }
+
+        self.send_json_response(response)
+
+    def send_json_response(self, data: dict[str, Any]) -> None:
+        """Send JSON response."""
+        response_bytes = json.dumps(data).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(response_bytes)))
+        self.end_headers()
+        self.wfile.write(response_bytes)
+
+    def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
+        """Suppress log messages during testing."""
+
+
+@pytest.mark.asyncio
+async def test_openai_providers_with_unix_socket() -> None:
+    """Test both embedding and enrichment providers via Unix socket."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        socket_path = str(Path(temp_dir) / "openai.sock")
+
+        # Start mock server
+        server = UnixSocketHTTPServer(socket_path, MockOpenAIHandler)
+        server_thread = threading.Thread(target=server.serve_forever)
+        server_thread.daemon = True
+        server_thread.start()
+
+        # Give server time to start
+        import asyncio
+
+        await asyncio.sleep(0.1)
+
+        try:
+            # Create embedding provider with Unix socket
+            embedding_provider = OpenAIEmbeddingProvider(
+                api_key="test-key",
+                socket_path=socket_path,
+                model_name="text-embedding-3-small",
+            )
+
+            # Create enrichment provider with Unix socket
+            enrichment_provider = OpenAIEnrichmentProvider(
+                api_key="test-key",
+                socket_path=socket_path,
+                model_name="gpt-4o-mini",
+            )
+
+            # Test embeddings
+            embedding_requests = [
+                EmbeddingRequest(snippet_id=1, text="def hello_world():"),
+                EmbeddingRequest(snippet_id=2, text="print('Hello, World!')"),
+            ]
+
+            embedding_results = []
+            async for batch in embedding_provider.embed(embedding_requests):
+                embedding_results.extend(batch)
+
+            # Verify embedding results
+            assert len(embedding_results) == 2
+            for i, result in enumerate(embedding_results):
+                assert result.snippet_id == i + 1
+                assert len(result.embedding) == 1536
+                assert all(isinstance(v, float) for v in result.embedding)
+
+            # Test enrichments
+            enrichment_requests = [
+                EnrichmentRequest(
+                    snippet_id=1, text="def calculate_sum(a, b): return a + b"
+                ),
+            ]
+
+            enrichment_results = [
+                result
+                async for result in enrichment_provider.enrich(enrichment_requests)
+            ]
+
+            # Verify enrichment results
+            assert len(enrichment_results) == 1
+            assert enrichment_results[0].snippet_id == 1
+            assert "This code snippet" in enrichment_results[0].text
+
+            # Close the clients
+            await embedding_provider.close()
+            await enrichment_provider.close()
+
+        finally:
+            server.shutdown()
+            server.server_close()
+
+
+@pytest.mark.asyncio
+async def test_socket_path_initialization() -> None:
+    """Test that providers correctly initialize with socket paths."""
+    socket_path = "/tmp/test.sock"  # noqa: S108
+
+    # Create providers with socket path
+    embedding_provider = OpenAIEmbeddingProvider(
+        socket_path=socket_path,
+        api_key="test",
+    )
+    enrichment_provider = OpenAIEnrichmentProvider(
+        socket_path=socket_path,
+        api_key="test",
+    )
+
+    # Verify socket path is set
+    assert embedding_provider.socket_path == socket_path
+    assert enrichment_provider.socket_path == socket_path
+
+    # Verify httpx clients are configured for Unix socket
+    assert hasattr(embedding_provider, "http_client")
+    assert hasattr(enrichment_provider, "http_client")
+
+    # Clean up
+    await embedding_provider.close()
+    await enrichment_provider.close()

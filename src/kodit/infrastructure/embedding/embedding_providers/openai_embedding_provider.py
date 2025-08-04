@@ -1,11 +1,12 @@
-"""OpenAI embedding provider implementation."""
+"""OpenAI embedding provider implementation using httpx."""
 
 import asyncio
 from collections.abc import AsyncGenerator
+from typing import Any
 
+import httpx
 import structlog
 import tiktoken
-from openai import AsyncOpenAI
 from tiktoken import Encoding
 
 from kodit.domain.services.embedding_service import EmbeddingProvider
@@ -22,28 +23,59 @@ OPENAI_NUM_PARALLEL_TASKS = 10  # Semaphore limit for concurrent OpenAI requests
 
 
 class OpenAIEmbeddingProvider(EmbeddingProvider):
-    """OpenAI embedding provider that uses OpenAI's embedding API."""
+    """OpenAI embedding provider that uses OpenAI's embedding API via httpx."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
-        openai_client: AsyncOpenAI,
+        api_key: str | None = None,
+        base_url: str = "https://api.openai.com",
         model_name: str = "text-embedding-3-small",
         num_parallel_tasks: int = OPENAI_NUM_PARALLEL_TASKS,
+        socket_path: str | None = None,
+        # Support legacy interface for tests
+        openai_client: Any | None = None,
     ) -> None:
         """Initialize the OpenAI embedding provider.
 
         Args:
-            openai_client: The OpenAI client instance
-            model_name: The model name to use for embeddings
+            api_key: The OpenAI API key.
+            base_url: The base URL for the OpenAI API.
+            model_name: The model name to use for embeddings.
+            num_parallel_tasks: Maximum number of concurrent requests.
+            socket_path: Optional Unix socket path for local communication.
+            openai_client: Legacy OpenAI client for backward compatibility.
 
         """
-        self.openai_client = openai_client
         self.model_name = model_name
         self.num_parallel_tasks = num_parallel_tasks
         self.log = structlog.get_logger(__name__)
 
         # Lazily initialised token encoding
         self._encoding: Encoding | None = None
+
+        # Support legacy openai_client for tests
+        if openai_client is not None:
+            self.openai_client = openai_client
+            self._use_legacy_client = True
+        else:
+            self._use_legacy_client = False
+            self.api_key = api_key
+            self.base_url = base_url
+            self.socket_path = socket_path
+
+            # Create httpx client with optional Unix socket support
+            if socket_path:
+                transport = httpx.AsyncHTTPTransport(uds=socket_path)
+                self.http_client = httpx.AsyncClient(
+                    transport=transport,
+                    base_url="http://localhost",  # Base URL for Unix socket
+                    timeout=30.0,
+                )
+            else:
+                self.http_client = httpx.AsyncClient(
+                    base_url=base_url,
+                    timeout=30.0,
+                )
 
     # ---------------------------------------------------------------------
     # Helper utilities
@@ -76,6 +108,37 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
             batch_size=BATCH_SIZE,
         )
 
+    async def _call_embeddings_api(
+        self, texts: list[str]
+    ) -> dict[str, Any]:
+        """Call the embeddings API using httpx.
+
+        Args:
+            texts: The texts to embed.
+
+        Returns:
+            The API response as a dictionary.
+
+        """
+        headers = {
+            "Content-Type": "application/json",
+        }
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+
+        data = {
+            "model": self.model_name,
+            "input": texts,
+        }
+
+        response = await self.http_client.post(
+            "/v1/embeddings",
+            json=data,
+            headers=headers,
+        )
+        response.raise_for_status()
+        return response.json()
+
     async def embed(
         self, data: list[EmbeddingRequest]
     ) -> AsyncGenerator[list[EmbeddingResponse], None]:
@@ -99,17 +162,34 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         ) -> list[EmbeddingResponse]:
             async with sem:
                 try:
-                    response = await self.openai_client.embeddings.create(
-                        model=self.model_name,
-                        input=[item.text for item in batch],
+                    # Use legacy client if provided (for tests)
+                    if self._use_legacy_client:
+                        response = await self.openai_client.embeddings.create(
+                            model=self.model_name,
+                            input=[item.text for item in batch],
+                        )
+
+                        return [
+                            EmbeddingResponse(
+                                snippet_id=item.snippet_id,
+                                embedding=embedding.embedding,
+                            )
+                            for item, embedding in zip(
+                                batch, response.data, strict=True
+                            )
+                        ]
+                    # Use httpx client
+                    response = await self._call_embeddings_api(
+                        [item.text for item in batch]
                     )
+                    embeddings_data = response.get("data", [])
 
                     return [
                         EmbeddingResponse(
                             snippet_id=item.snippet_id,
-                            embedding=embedding.embedding,
+                            embedding=emb_data.get("embedding", []),
                         )
-                        for item, embedding in zip(batch, response.data, strict=True)
+                        for item, emb_data in zip(batch, embeddings_data, strict=True)
                     ]
                 except Exception as e:
                     self.log.exception("Error embedding batch", error=str(e))
@@ -119,3 +199,9 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         tasks = [_process_batch(batch) for batch in batched_data]
         for task in asyncio.as_completed(tasks):
             yield await task
+
+    async def close(self) -> None:
+        """Close the HTTP client."""
+        if hasattr(self, "http_client"):
+            await self.http_client.aclose()
+

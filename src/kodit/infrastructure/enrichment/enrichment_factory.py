@@ -45,17 +45,13 @@ def enrichment_domain_service_factory(
     enrichment_provider: EnrichmentProvider | None = None
     if endpoint and endpoint.type == "openai":
         log_event("kodit.enrichment", {"provider": "openai"})
-        from openai import AsyncOpenAI
-
+        # Use new httpx-based provider with socket support
         enrichment_provider = OpenAIEnrichmentProvider(
-            openai_client=AsyncOpenAI(
-                api_key=endpoint.api_key or "default",
-                base_url=endpoint.base_url or "https://api.openai.com/v1",
-                timeout=60,
-                max_retries=2,
-            ),
+            api_key=endpoint.api_key,
+            base_url=endpoint.base_url or "https://api.openai.com/v1",
             model_name=endpoint.model or "gpt-4o-mini",
             num_parallel_tasks=endpoint.num_parallel_tasks or OPENAI_NUM_PARALLEL_TASKS,
+            socket_path=endpoint.socket_path,
         )
     else:
         log_event("kodit.enrichment", {"provider": "local"})

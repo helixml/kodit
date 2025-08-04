@@ -1,9 +1,10 @@
-"""OpenAI enrichment provider implementation."""
+"""OpenAI enrichment provider implementation using httpx."""
 
 import asyncio
 from collections.abc import AsyncGenerator
 from typing import Any
 
+import httpx
 import structlog
 
 from kodit.domain.services.enrichment_service import EnrichmentProvider
@@ -19,25 +20,87 @@ OPENAI_NUM_PARALLEL_TASKS = 40
 
 
 class OpenAIEnrichmentProvider(EnrichmentProvider):
-    """OpenAI enrichment provider implementation."""
+    """OpenAI enrichment provider implementation using httpx."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
-        openai_client: Any,
+        api_key: str | None = None,
+        base_url: str = "https://api.openai.com",
         model_name: str = "gpt-4o-mini",
         num_parallel_tasks: int = OPENAI_NUM_PARALLEL_TASKS,
+        socket_path: str | None = None,
+        # Support legacy interface for tests
+        openai_client: Any | None = None,
     ) -> None:
         """Initialize the OpenAI enrichment provider.
 
         Args:
-            openai_client: The OpenAI client instance.
+            api_key: The OpenAI API key.
+            base_url: The base URL for the OpenAI API.
             model_name: The model name to use for enrichment.
+            num_parallel_tasks: Maximum number of concurrent requests.
+            socket_path: Optional Unix socket path for local communication.
+            openai_client: Legacy OpenAI client for backward compatibility.
 
         """
         self.log = structlog.get_logger(__name__)
-        self.openai_client = openai_client
         self.model_name = model_name
         self.num_parallel_tasks = num_parallel_tasks
+
+        # Support legacy openai_client for tests
+        if openai_client is not None:
+            self.openai_client = openai_client
+            self._use_legacy_client = True
+        else:
+            self._use_legacy_client = False
+            self.api_key = api_key
+            self.base_url = base_url
+            self.socket_path = socket_path
+
+            # Create httpx client with optional Unix socket support
+            if socket_path:
+                transport = httpx.AsyncHTTPTransport(uds=socket_path)
+                self.http_client = httpx.AsyncClient(
+                    transport=transport,
+                    base_url="http://localhost",  # Base URL for Unix socket
+                    timeout=30.0,
+                )
+            else:
+                self.http_client = httpx.AsyncClient(
+                    base_url=base_url,
+                    timeout=30.0,
+                )
+
+    async def _call_chat_completion(
+        self, messages: list[dict[str, str]]
+    ) -> dict[str, Any]:
+        """Call the chat completion API using httpx.
+
+        Args:
+            messages: The messages to send to the API.
+
+        Returns:
+            The API response as a dictionary.
+
+        """
+        headers = {
+            "Content-Type": "application/json",
+        }
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+
+        data = {
+            "model": self.model_name,
+            "messages": messages,
+        }
+
+        response = await self.http_client.post(
+            "/v1/chat/completions",
+            json=data,
+            headers=headers,
+        )
+        response.raise_for_status()
+        return response.json()
 
     async def enrich(
         self, requests: list[EnrichmentRequest]
@@ -66,19 +129,39 @@ class OpenAIEnrichmentProvider(EnrichmentProvider):
                         text="",
                     )
                 try:
-                    response = await self.openai_client.chat.completions.create(
-                        model=self.model_name,
-                        messages=[
-                            {
-                                "role": "system",
-                                "content": ENRICHMENT_SYSTEM_PROMPT,
-                            },
-                            {"role": "user", "content": request.text},
-                        ],
+                    # Use legacy client if provided (for tests)
+                    if self._use_legacy_client:
+                        response = await self.openai_client.chat.completions.create(
+                            model=self.model_name,
+                            messages=[
+                                {
+                                    "role": "system",
+                                    "content": ENRICHMENT_SYSTEM_PROMPT,
+                                },
+                                {"role": "user", "content": request.text},
+                            ],
+                        )
+                        return EnrichmentResponse(
+                            snippet_id=request.snippet_id,
+                            text=response.choices[0].message.content or "",
+                        )
+                    # Use httpx client
+                    messages = [
+                        {
+                            "role": "system",
+                            "content": ENRICHMENT_SYSTEM_PROMPT,
+                        },
+                        {"role": "user", "content": request.text},
+                    ]
+                    response = await self._call_chat_completion(messages)
+                    content = (
+                        response.get("choices", [{}])[0]
+                        .get("message", {})
+                        .get("content", "")
                     )
                     return EnrichmentResponse(
                         snippet_id=request.snippet_id,
-                        text=response.choices[0].message.content or "",
+                        text=content or "",
                     )
                 except Exception as e:
                     self.log.exception("Error enriching request", error=str(e))
@@ -93,3 +176,9 @@ class OpenAIEnrichmentProvider(EnrichmentProvider):
         # Process all requests and yield results as they complete
         for task in asyncio.as_completed(tasks):
             yield await task
+
+    async def close(self) -> None:
+        """Close the HTTP client."""
+        if hasattr(self, "http_client"):
+            await self.http_client.aclose()
+
