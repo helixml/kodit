@@ -61,8 +61,9 @@ class TestOpenAIEmbeddingProvider:
         }
         mock_response.raise_for_status = Mock()
 
-        provider.http_client.post = AsyncMock(return_value=mock_response)
-
+        mock_client = Mock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        provider.http_client = mock_client
         requests = [EmbeddingRequest(snippet_id=1, text="python programming")]
 
         results = []
@@ -100,8 +101,9 @@ class TestOpenAIEmbeddingProvider:
         }
         mock_response.raise_for_status = Mock()
 
-        provider.http_client.post = AsyncMock(return_value=mock_response)
-
+        mock_client = Mock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        provider.http_client = mock_client
         requests = [
             EmbeddingRequest(snippet_id=1, text="python programming"),
             EmbeddingRequest(snippet_id=2, text="javascript development"),
@@ -150,8 +152,9 @@ class TestOpenAIEmbeddingProvider:
             mock_response.raise_for_status = Mock()
             return mock_response
 
-        provider.http_client.post = AsyncMock(side_effect=mock_post)
-
+        mock_client = Mock()
+        mock_client.post = AsyncMock(side_effect=mock_post)
+        provider.http_client = mock_client
         # Create more than batch_size requests
         requests = [
             EmbeddingRequest(snippet_id=i, text=f"text {i}")
@@ -172,8 +175,9 @@ class TestOpenAIEmbeddingProvider:
     async def test_embed_api_error_handling(self) -> None:
         """Test handling of API errors."""
         provider = OpenAIEmbeddingProvider(api_key="test-key")
-        provider.http_client.post = AsyncMock(side_effect=Exception("API Error"))
-
+        mock_client = Mock()
+        mock_client.post = AsyncMock(side_effect=Exception("API Error"))
+        provider.http_client = mock_client
         requests = [EmbeddingRequest(snippet_id=1, text="python programming")]
 
         results = []
@@ -196,8 +200,9 @@ class TestOpenAIEmbeddingProvider:
         }
         mock_response.raise_for_status = Mock()
 
-        provider.http_client.post = AsyncMock(return_value=mock_response)
-
+        mock_client = Mock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        provider.http_client = mock_client
         requests = [EmbeddingRequest(snippet_id=1, text="test text")]
 
         results = []
@@ -223,8 +228,9 @@ class TestOpenAIEmbeddingProvider:
         mock_response.json.return_value = {"data": [{"embedding": [0.1] * 1500}]}
         mock_response.raise_for_status = Mock()
 
-        provider.http_client.post = AsyncMock(return_value=mock_response)
-
+        mock_client = Mock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        provider.http_client = mock_client
         requests = [EmbeddingRequest(snippet_id=1, text="")]
 
         results = []
@@ -244,8 +250,9 @@ class TestOpenAIEmbeddingProvider:
         mock_response.json.return_value = {"data": [{"embedding": [0.1] * 1500}]}
         mock_response.raise_for_status = Mock()
 
-        provider.http_client.post = AsyncMock(return_value=mock_response)
-
+        mock_client = Mock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        provider.http_client = mock_client
         requests = [EmbeddingRequest(snippet_id=1, text="python 🐍 programming")]
 
         results = []
@@ -272,8 +279,9 @@ class TestOpenAIEmbeddingProvider:
     async def test_embed_large_batch_error_handling(self) -> None:
         """Test error handling with large batches."""
         provider = OpenAIEmbeddingProvider(api_key="test-key")
-        provider.http_client.post = AsyncMock(side_effect=Exception("Batch Error"))
-
+        mock_client = Mock()
+        mock_client.post = AsyncMock(side_effect=Exception("Batch Error"))
+        provider.http_client = mock_client
         requests = [EmbeddingRequest(snippet_id=i, text=f"text {i}") for i in range(5)]
 
         results = []
@@ -295,8 +303,9 @@ class TestOpenAIEmbeddingProvider:
         }
         mock_response.raise_for_status = Mock()
 
-        provider.http_client.post = AsyncMock(return_value=mock_response)
-
+        mock_client = Mock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        provider.http_client = mock_client
         requests = [EmbeddingRequest(snippet_id=1, text="test")]
 
         results = []
@@ -319,8 +328,9 @@ class TestOpenAIEmbeddingProvider:
         mock_response.json.return_value = {"data": [{"embedding": [0.1] * 1500}]}
         mock_response.raise_for_status = Mock()
 
-        provider.http_client.post = AsyncMock(return_value=mock_response)
-
+        mock_client = Mock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        provider.http_client = mock_client
         # This should not crash
         test_requests = [EmbeddingRequest(snippet_id=1, text="test")]
         await anext(provider.embed(test_requests))
@@ -361,7 +371,9 @@ class TestOpenAIEmbeddingProvider:
     async def test_close(self) -> None:
         """Test close method."""
         provider = OpenAIEmbeddingProvider(api_key="test-key")
-        provider.http_client.aclose = AsyncMock()
+        mock_client = Mock()
+        mock_client.aclose = AsyncMock()
+        provider.http_client = mock_client
 
         await provider.close()
 

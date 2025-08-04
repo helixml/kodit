@@ -59,7 +59,9 @@ class TestOpenAIEnrichmentProvider:
         }
         mock_response.raise_for_status = Mock()
 
-        provider.http_client.post = AsyncMock(return_value=mock_response)
+        mock_client = Mock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        provider.http_client = mock_client
 
         requests = [
             EnrichmentRequest(snippet_id=1, text=""),
@@ -95,8 +97,9 @@ class TestOpenAIEnrichmentProvider:
         }
         mock_response.raise_for_status = Mock()
 
-        provider.http_client.post = AsyncMock(return_value=mock_response)
-
+        mock_client = Mock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        provider.http_client = mock_client
         requests = [EnrichmentRequest(snippet_id=1, text="def test(): pass")]
 
         results = [result async for result in provider.enrich(requests)]
@@ -148,8 +151,9 @@ class TestOpenAIEnrichmentProvider:
             mock_response.raise_for_status = Mock()
             return mock_response
 
-        provider.http_client.post = AsyncMock(side_effect=mock_post)
-
+        mock_client = Mock()
+        mock_client.post = AsyncMock(side_effect=mock_post)
+        provider.http_client = mock_client
         requests = [
             EnrichmentRequest(snippet_id=1, text="def hello(): pass"),
             EnrichmentRequest(snippet_id=2, text="def world(): pass"),
@@ -185,8 +189,9 @@ class TestOpenAIEnrichmentProvider:
         }
         mock_response.raise_for_status = Mock()
 
-        provider.http_client.post = AsyncMock(return_value=mock_response)
-
+        mock_client = Mock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        provider.http_client = mock_client
         requests = [
             EnrichmentRequest(snippet_id=1, text=""),  # Empty
             EnrichmentRequest(snippet_id=2, text="def valid(): pass"),  # Valid
@@ -222,8 +227,9 @@ class TestOpenAIEnrichmentProvider:
     async def test_enrich_api_error_handling(self) -> None:
         """Test handling of API errors."""
         provider = OpenAIEnrichmentProvider(api_key="test-key")
-        provider.http_client.post = AsyncMock(side_effect=Exception("API Error"))
-
+        mock_client = Mock()
+        mock_client.post = AsyncMock(side_effect=Exception("API Error"))
+        provider.http_client = mock_client
         requests = [EnrichmentRequest(snippet_id=1, text="def test(): pass")]
 
         results = [result async for result in provider.enrich(requests)]
@@ -242,8 +248,9 @@ class TestOpenAIEnrichmentProvider:
         mock_response.json.return_value = {"choices": [{"message": {"content": None}}]}
         mock_response.raise_for_status = Mock()
 
-        provider.http_client.post = AsyncMock(return_value=mock_response)
-
+        mock_client = Mock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        provider.http_client = mock_client
         requests = [EnrichmentRequest(snippet_id=1, text="def test(): pass")]
 
         results = [result async for result in provider.enrich(requests)]
@@ -274,8 +281,9 @@ class TestOpenAIEnrichmentProvider:
             mock_response.raise_for_status = Mock()
             return mock_response
 
-        provider.http_client.post = AsyncMock(side_effect=mock_post)
-
+        mock_client = Mock()
+        mock_client.post = AsyncMock(side_effect=mock_post)
+        provider.http_client = mock_client
         requests = [
             EnrichmentRequest(snippet_id=1, text="def first(): pass"),
             EnrichmentRequest(snippet_id=2, text="def second(): pass"),
@@ -318,8 +326,9 @@ class TestOpenAIEnrichmentProvider:
             mock_response.raise_for_status = Mock()
             return mock_response
 
-        provider.http_client.post = AsyncMock(side_effect=mock_post)
-
+        mock_client = Mock()
+        mock_client.post = AsyncMock(side_effect=mock_post)
+        provider.http_client = mock_client
         requests = [
             EnrichmentRequest(snippet_id=i, text=f"def func{i}(): pass")
             for i in range(50)  # More than the semaphore limit
@@ -344,8 +353,9 @@ class TestOpenAIEnrichmentProvider:
         }
         mock_response.raise_for_status = Mock()
 
-        provider.http_client.post = AsyncMock(return_value=mock_response)
-
+        mock_client = Mock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        provider.http_client = mock_client
         requests = [EnrichmentRequest(snippet_id=1, text="def test(): pass")]
 
         [result async for result in provider.enrich(requests)]
@@ -399,7 +409,9 @@ class TestOpenAIEnrichmentProvider:
     async def test_close(self) -> None:
         """Test close method."""
         provider = OpenAIEnrichmentProvider(api_key="test-key")
-        provider.http_client.aclose = AsyncMock()
+        mock_client = Mock()
+        mock_client.aclose = AsyncMock()
+        provider.http_client = mock_client
 
         await provider.close()
 

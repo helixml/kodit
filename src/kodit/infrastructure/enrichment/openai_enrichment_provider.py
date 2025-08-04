@@ -2,6 +2,7 @@
 
 import asyncio
 from collections.abc import AsyncGenerator
+from typing import Any
 
 import httpx
 import structlog
@@ -62,7 +63,7 @@ class OpenAIEnrichmentProvider(EnrichmentProvider):
 
     async def _call_chat_completion(
         self, messages: list[dict[str, str]]
-    ) -> dict[str, object]:
+    ) -> dict[str, Any]:
         """Call the chat completion API using httpx.
 
         Args:
@@ -153,4 +154,3 @@ class OpenAIEnrichmentProvider(EnrichmentProvider):
         """Close the HTTP client."""
         if hasattr(self, "http_client"):
             await self.http_client.aclose()
-
