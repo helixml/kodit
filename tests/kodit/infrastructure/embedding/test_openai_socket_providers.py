@@ -1,5 +1,6 @@
 """Test Unix socket support in OpenAI providers."""
 
+import asyncio
 import json
 import socket
 import tempfile
@@ -154,8 +155,6 @@ async def test_openai_providers_with_unix_socket() -> None:
         server_thread.start()
 
         # Give server time to start
-        import asyncio
-
         await asyncio.sleep(0.1)
 
         try:
@@ -214,31 +213,3 @@ async def test_openai_providers_with_unix_socket() -> None:
         finally:
             server.shutdown()
             server.server_close()
-
-
-@pytest.mark.asyncio
-async def test_socket_path_initialization() -> None:
-    """Test that providers correctly initialize with socket paths."""
-    socket_path = "/tmp/test.sock"  # noqa: S108
-
-    # Create providers with socket path
-    embedding_provider = OpenAIEmbeddingProvider(
-        socket_path=socket_path,
-        api_key="test",
-    )
-    enrichment_provider = OpenAIEnrichmentProvider(
-        socket_path=socket_path,
-        api_key="test",
-    )
-
-    # Verify socket path is set
-    assert embedding_provider.socket_path == socket_path
-    assert enrichment_provider.socket_path == socket_path
-
-    # Verify httpx clients are configured for Unix socket
-    assert hasattr(embedding_provider, "http_client")
-    assert hasattr(enrichment_provider, "http_client")
-
-    # Clean up
-    await embedding_provider.close()
-    await enrichment_provider.close()

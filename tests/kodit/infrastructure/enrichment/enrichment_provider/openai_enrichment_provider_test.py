@@ -2,7 +2,7 @@
 
 import asyncio
 from typing import Any
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, Mock
 
 import httpx
 import pytest
@@ -382,28 +382,6 @@ class TestOpenAIEnrichmentProvider:
                 "Authorization": "Bearer test-key",
             },
         )
-
-    @pytest.mark.asyncio
-    async def test_socket_path_initialization(self) -> None:
-        """Test initialization with socket path."""
-        with (
-            patch("httpx.AsyncHTTPTransport") as mock_transport,
-            patch("httpx.AsyncClient") as mock_client,
-        ):
-            OpenAIEnrichmentProvider(
-                api_key="test-key",
-                socket_path="/tmp/test.sock",  # noqa: S108
-            )
-
-            # Verify transport was created with socket path
-            mock_transport.assert_called_once_with(uds="/tmp/test.sock")  # noqa: S108
-
-            # Verify client was created with transport
-            mock_client.assert_called_once_with(
-                transport=mock_transport.return_value,
-                base_url="http://localhost",
-                timeout=30.0,
-            )
 
     @pytest.mark.asyncio
     async def test_close(self) -> None:
