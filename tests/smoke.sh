@@ -104,7 +104,8 @@ if wait_for_server; then
         -H "Content-Type: application/json" \
         -d '{"data": {"type": "search", "attributes": {"keywords": ["test"], "code": "def", "text": "function"}}, "limit": 5}' \
         || echo "Search API test failed"
-
+    
+    # Test DELETE /api/v1/indexes/$INDEX_ID (delete index)
     if [[ "$INDEX_RESPONSE" == "Create index test failed" ]]; then
         echo "Delete index test skipped"
     else
