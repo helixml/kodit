@@ -48,6 +48,62 @@ class SyncSchedulerService:
             with suppress(asyncio.CancelledError):
                 await self._sync_task
 
+    async def trigger_immediate_sync(self) -> None:
+        """Trigger an immediate sync of all indexes."""
+        self.log.info("Triggering immediate sync of all indexes")
+
+        try:
+            await self._perform_sync()
+        except Exception as e:
+            self.log.exception("Immediate sync operation failed", error=e)
+            raise
+
+    async def trigger_sync_for_index(self, index_id: int) -> None:
+        """Trigger an immediate sync for a specific index."""
+        self.log.info("Triggering immediate sync for index", index_id=index_id)
+
+        async with self.session_factory() as session:
+            try:
+                # Create services
+                service = create_code_indexing_application_service(
+                    app_context=self.app_context,
+                    session=session,
+                )
+                index_query_service = IndexQueryService(
+                    index_repository=SqlAlchemyIndexRepository(session=session),
+                    fusion_service=ReciprocalRankFusionService(),
+                )
+
+                # Get the specific index
+                index = await index_query_service.get_index_by_id(index_id)
+                if not index:
+                    self.log.warning("Index not found for sync", index_id=index_id)
+                    return
+
+                self.log.info(
+                    "Syncing specific index",
+                    index_id=index.id,
+                    source=str(index.source.working_copy.remote_uri),
+                )
+
+                await service.run_index(
+                    index, progress_callback=create_log_progress_callback()
+                )
+
+                self.log.info(
+                    "Index sync completed",
+                    index_id=index.id,
+                    source=str(index.source.working_copy.remote_uri),
+                )
+
+            except Exception as e:
+                self.log.exception(
+                    "Index sync failed",
+                    index_id=index_id,
+                    error=e,
+                )
+                raise
+
     async def _sync_loop(self, interval_seconds: float) -> None:
         """Run the sync loop at the specified interval."""
         while not self._shutdown_event.is_set():

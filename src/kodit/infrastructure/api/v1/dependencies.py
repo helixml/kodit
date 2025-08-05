@@ -12,6 +12,7 @@ from kodit.application.factories.code_indexing_factory import (
 from kodit.application.services.code_indexing_application_service import (
     CodeIndexingApplicationService,
 )
+from kodit.application.services.sync_scheduler import SyncSchedulerService
 from kodit.config import AppContext
 from kodit.domain.services.index_query_service import IndexQueryService
 from kodit.infrastructure.indexing.fusion_service import ReciprocalRankFusionService
@@ -67,4 +68,20 @@ async def get_indexing_app_service(
 
 IndexingAppServiceDep = Annotated[
     CodeIndexingApplicationService, Depends(get_indexing_app_service)
+]
+
+
+def get_sync_scheduler_service() -> SyncSchedulerService:
+    """Get sync scheduler service dependency."""
+    # Import here to avoid circular imports
+    from kodit.app import get_sync_scheduler_service as get_global_sync_scheduler
+
+    service = get_global_sync_scheduler()
+    if service is None:
+        raise RuntimeError("Sync scheduler service not initialized")
+    return service
+
+
+SyncSchedulerServiceDep = Annotated[
+    SyncSchedulerService, Depends(get_sync_scheduler_service)
 ]

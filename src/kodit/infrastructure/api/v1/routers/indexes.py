@@ -1,11 +1,12 @@
 """Index management router for the REST API."""
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from kodit.infrastructure.api.middleware.auth import api_key_auth
 from kodit.infrastructure.api.v1.dependencies import (
     IndexingAppServiceDep,
     IndexQueryServiceDep,
+    SyncSchedulerServiceDep,
 )
 from kodit.infrastructure.api.v1.schemas.index import (
     IndexAttributes,
@@ -52,15 +53,16 @@ async def list_indexes(
 @router.post("", status_code=202)
 async def create_index(
     request: IndexCreateRequest,
-    background_tasks: BackgroundTasks,
     app_service: IndexingAppServiceDep,
+    sync_scheduler: SyncSchedulerServiceDep,
 ) -> IndexResponse:
-    """Create a new index and start async indexing."""
+    """Create a new index and trigger async indexing via sync scheduler."""
     # Create index using the application service
     index = await app_service.create_index_from_uri(request.data.attributes.uri)
 
-    # Start async indexing in background
-    background_tasks.add_task(app_service.run_index, index)
+    # Trigger indexing via sync scheduler for better centralized control
+    if index.id:
+        await sync_scheduler.trigger_sync_for_index(index.id)
 
     return IndexResponse(
         data=IndexData(

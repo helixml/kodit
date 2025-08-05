@@ -21,6 +21,11 @@ _auto_indexing_service: AutoIndexingService | None = None
 _sync_scheduler_service: SyncSchedulerService | None = None
 
 
+def get_sync_scheduler_service() -> SyncSchedulerService | None:
+    """Get the global sync scheduler service instance."""
+    return _sync_scheduler_service
+
+
 @asynccontextmanager
 async def app_lifespan(_: FastAPI) -> AsyncIterator[AppLifespanState]:
     """Manage application lifespan for auto-indexing and sync."""
