@@ -40,6 +40,12 @@ async def logging_middleware(request: Request, call_next: Callable) -> Response:
         client_port = request.client.port if request.client else None
         http_method = request.method
         http_version = request.scope["http_version"]
+
+        # Extract nginx proxy headers
+        x_real_ip = request.headers.get("X-Real-IP")
+        x_forwarded_for = request.headers.get("X-Forwarded-For")
+        x_forwarded_host = request.headers.get("X-Forwarded-Host")
+
         # Recreate the Uvicorn access log format, but add all parameters as
         # structured information
         access_logger.info(
@@ -52,6 +58,9 @@ async def logging_middleware(request: Request, call_next: Callable) -> Response:
                 "version": http_version,
                 "client_host": client_host,
                 "client_port": client_port,
+                "x_real_ip": x_real_ip,
+                "x_forwarded_for": x_forwarded_for,
+                "x_forwarded_host": x_forwarded_host,
             },
             network={"client": {"ip": client_host, "port": client_port}},
             duration=process_time,
