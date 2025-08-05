@@ -4,16 +4,17 @@ import shutil
 from collections.abc import AsyncIterator, Callable
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from datetime import UTC, datetime
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
-from fastapi import BackgroundTasks, FastAPI
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from kodit.app import app
 from kodit.config import AppContext
 from kodit.domain.services.bm25_service import BM25DomainService
 from kodit.domain.value_objects import FileProcessingStatus, SearchResult
+from kodit.infrastructure.api.v1.dependencies import get_sync_scheduler_service
 from kodit.infrastructure.api.v1.schemas.context import AppLifespanState
 from kodit.infrastructure.sqlalchemy.entities import (
     Author,
@@ -184,7 +185,17 @@ async def test_index(
         assert data["data"][0]["id"] == str(test_data["index"].id)
         assert data["data"][0]["attributes"]["uri"] == test_data["source"].uri
 
-        with patch.object(BackgroundTasks, "add_task") as mock_add_task:
+        mock_scheduler = AsyncMock()
+
+        def mock_get_sync_scheduler():
+            return mock_scheduler
+
+        # Override the dependency
+        test_app(test_lifespan).dependency_overrides[get_sync_scheduler_service] = (
+            mock_get_sync_scheduler
+        )
+
+        try:
             response = client.post(
                 "/api/v1/indexes",
                 json={
@@ -202,8 +213,11 @@ async def test_index(
             assert data["data"]["type"] == "index"
             assert data["data"]["attributes"]["uri"] == EXAMPLE_REPO_URI
 
-            # Verify background task was called
-            assert mock_add_task.called
+            # Verify sync scheduler was called
+            assert mock_scheduler.trigger_sync_for_index.called
+        finally:
+            # Clean up the override
+            test_app(test_lifespan).dependency_overrides.clear()
 
         # Test get specific index
         response = client.get(
