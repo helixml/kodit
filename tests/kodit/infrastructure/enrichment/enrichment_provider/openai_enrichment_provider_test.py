@@ -37,6 +37,15 @@ class TestOpenAIEnrichmentProvider:
         assert provider.base_url == "https://custom.openai.com"
         assert provider.socket_path == "/tmp/socket.sock"  # noqa: S108
 
+    def test_init_with_timeout(self) -> None:
+        """Test initialization with custom timeout."""
+        provider = OpenAIEnrichmentProvider(api_key="test-key", timeout=45.0)
+        assert provider.timeout == 45.0
+
+        # Test default timeout
+        provider_default = OpenAIEnrichmentProvider(api_key="test-key")
+        assert provider_default.timeout == 30.0
+
     @pytest.mark.asyncio
     async def test_enrich_empty_requests(self) -> None:
         """Test enrichment with empty requests."""

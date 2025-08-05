@@ -76,10 +76,9 @@ The codebase follows Domain-Driven Design (DDD) with clean architecture:
 
 Key environment variables:
 
-- `KODIT_EMBEDDING_PROVIDER` - embedding provider (local/openai)
-- `KODIT_DATABASE_URL` - database connection string
-- `KODIT_OPENAI_API_KEY` - for OpenAI embeddings
-- `KODIT_LOG_LEVEL` - logging level
+- `DB_URL` - database connection string
+- `LOG_LEVEL` - logging level
+- `DEFAULT_SEARCH_PROVIDER` - deciding whether to use vectorchord or sqlite
 
 See `config.py` for full configuration options.
 

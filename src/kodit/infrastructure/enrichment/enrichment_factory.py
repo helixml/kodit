@@ -52,6 +52,7 @@ def enrichment_domain_service_factory(
             model_name=endpoint.model or "gpt-4o-mini",
             num_parallel_tasks=endpoint.num_parallel_tasks or OPENAI_NUM_PARALLEL_TASKS,
             socket_path=endpoint.socket_path,
+            timeout=endpoint.timeout or 30.0,
         )
     else:
         log_event("kodit.enrichment", {"provider": "local"})

@@ -36,6 +36,15 @@ class TestOpenAIEmbeddingProvider:
         assert provider.base_url == "https://custom.openai.com"
         assert provider.socket_path == "/tmp/socket.sock"  # noqa: S108
 
+    def test_init_with_timeout(self) -> None:
+        """Test initialization with custom timeout."""
+        provider = OpenAIEmbeddingProvider(api_key="test-key", timeout=60.0)
+        assert provider.timeout == 60.0
+
+        # Test default timeout
+        provider_default = OpenAIEmbeddingProvider(api_key="test-key")
+        assert provider_default.timeout == 30.0
+
     @pytest.mark.asyncio
     async def test_embed_empty_requests(self) -> None:
         """Test embedding with empty requests."""

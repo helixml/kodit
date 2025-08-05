@@ -53,6 +53,10 @@ class Endpoint(BaseModel):
         default=None,
         description="Unix socket path for local communication (e.g., /tmp/openai.sock)",
     )
+    timeout: float | None = Field(
+        default=None,
+        description="Request timeout in seconds (default: 30.0)",
+    )
 
 
 class Search(BaseModel):

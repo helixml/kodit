@@ -25,13 +25,14 @@ OPENAI_NUM_PARALLEL_TASKS = 10  # Semaphore limit for concurrent OpenAI requests
 class OpenAIEmbeddingProvider(EmbeddingProvider):
     """OpenAI embedding provider that uses OpenAI's embedding API via httpx."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         api_key: str | None = None,
         base_url: str = "https://api.openai.com",
         model_name: str = "text-embedding-3-small",
         num_parallel_tasks: int = OPENAI_NUM_PARALLEL_TASKS,
         socket_path: str | None = None,
+        timeout: float = 30.0,
     ) -> None:
         """Initialize the OpenAI embedding provider.
 
@@ -41,6 +42,7 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
             model_name: The model name to use for embeddings.
             num_parallel_tasks: Maximum number of concurrent requests.
             socket_path: Optional Unix socket path for local communication.
+            timeout: Request timeout in seconds.
 
         """
         self.model_name = model_name
@@ -49,6 +51,7 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         self.api_key = api_key
         self.base_url = base_url
         self.socket_path = socket_path
+        self.timeout = timeout
 
         # Lazily initialised token encoding
         self._encoding: Encoding | None = None
@@ -59,12 +62,12 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
             self.http_client = httpx.AsyncClient(
                 transport=transport,
                 base_url="http://localhost",  # Base URL for Unix socket
-                timeout=30.0,
+                timeout=timeout,
             )
         else:
             self.http_client = httpx.AsyncClient(
                 base_url=base_url,
-                timeout=30.0,
+                timeout=timeout,
             )
 
     # ---------------------------------------------------------------------

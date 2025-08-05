@@ -114,3 +114,33 @@ class TestAppContextAutoIndexing:
                 del os.environ["AUTO_INDEXING_SOURCES_0_URI"]
             if "DEFAULT_ENDPOINT_API_KEY" in os.environ:
                 del os.environ["DEFAULT_ENDPOINT_API_KEY"]
+
+    def test_endpoint_timeout_configuration(self) -> None:
+        """Test endpoint timeout configuration from env vars."""
+        # Set environment variables for different endpoint timeouts
+        os.environ["DEFAULT_ENDPOINT_TIMEOUT"] = "45.0"
+        os.environ["EMBEDDING_ENDPOINT_TIMEOUT"] = "60.0"
+        os.environ["ENRICHMENT_ENDPOINT_TIMEOUT"] = "90.0"
+
+        try:
+            # Create new context with env vars
+            app_context = AppContext()
+
+            # Verify timeout configurations
+            assert app_context.default_endpoint is not None
+            assert app_context.default_endpoint.timeout == 45.0
+
+            assert app_context.embedding_endpoint is not None
+            assert app_context.embedding_endpoint.timeout == 60.0
+
+            assert app_context.enrichment_endpoint is not None
+            assert app_context.enrichment_endpoint.timeout == 90.0
+
+        finally:
+            # Clean up environment variables
+            if "DEFAULT_ENDPOINT_TIMEOUT" in os.environ:
+                del os.environ["DEFAULT_ENDPOINT_TIMEOUT"]
+            if "EMBEDDING_ENDPOINT_TIMEOUT" in os.environ:
+                del os.environ["EMBEDDING_ENDPOINT_TIMEOUT"]
+            if "ENRICHMENT_ENDPOINT_TIMEOUT" in os.environ:
+                del os.environ["ENRICHMENT_ENDPOINT_TIMEOUT"]

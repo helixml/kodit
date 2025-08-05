@@ -22,13 +22,14 @@ OPENAI_NUM_PARALLEL_TASKS = 40
 class OpenAIEnrichmentProvider(EnrichmentProvider):
     """OpenAI enrichment provider implementation using httpx."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         api_key: str | None = None,
         base_url: str = "https://api.openai.com",
         model_name: str = "gpt-4o-mini",
         num_parallel_tasks: int = OPENAI_NUM_PARALLEL_TASKS,
         socket_path: str | None = None,
+        timeout: float = 30.0,
     ) -> None:
         """Initialize the OpenAI enrichment provider.
 
@@ -38,6 +39,7 @@ class OpenAIEnrichmentProvider(EnrichmentProvider):
             model_name: The model name to use for enrichment.
             num_parallel_tasks: Maximum number of concurrent requests.
             socket_path: Optional Unix socket path for local communication.
+            timeout: Request timeout in seconds.
 
         """
         self.log = structlog.get_logger(__name__)
@@ -46,6 +48,7 @@ class OpenAIEnrichmentProvider(EnrichmentProvider):
         self.api_key = api_key
         self.base_url = base_url
         self.socket_path = socket_path
+        self.timeout = timeout
 
         # Create httpx client with optional Unix socket support
         if socket_path:
@@ -53,12 +56,12 @@ class OpenAIEnrichmentProvider(EnrichmentProvider):
             self.http_client = httpx.AsyncClient(
                 transport=transport,
                 base_url="http://localhost",  # Base URL for Unix socket
-                timeout=30.0,
+                timeout=timeout,
             )
         else:
             self.http_client = httpx.AsyncClient(
                 base_url=base_url,
-                timeout=30.0,
+                timeout=timeout,
             )
 
     async def _call_chat_completion(
