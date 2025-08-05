@@ -12,7 +12,7 @@ look at the [hosted version](https://kodit.helix.ml/docs).
 This is the REST API for the Kodit server. Please refer to the
 [Kodit documentation](https://docs.helix.ml/kodit/) for more information.
     
-Current version: 0.3.16
+Current version: 0.3.17
 
 ## Authentication
 
@@ -56,7 +56,7 @@ List all indexes.
 
 ### POST /api/v1/indexes
 
-Create a new index and start async indexing.
+Create a new index and trigger async indexing via sync scheduler.
 
 
 #### Request Body
