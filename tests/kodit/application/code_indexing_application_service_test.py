@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -340,13 +341,20 @@ def subtract(a: int, b: int) -> int:
     async def mock_get_snippets_by_ids(ids: list[int]) -> list[SnippetWithContext]:  # noqa: ARG001
         return []
 
-    # Apply the mocks
-    code_indexing_service.index_query_service.perform_fusion = mock_perform_fusion
-    code_indexing_service.index_query_service.get_snippets_by_ids = (
-        mock_get_snippets_by_ids
-    )
-
-    # This search should fail with ValueError: zip() argument 2 is longer
-    # than argument 1 because search_results will be empty but final_results
-    # will contain 2 fusion results
-    await code_indexing_service.search(MultiSearchRequest(keywords=["add"], top_k=5))
+    # Apply the mocks using patch.object to avoid mypy errors
+    with (
+        patch.object(
+            code_indexing_service.index_query_service,
+            "perform_fusion",
+            side_effect=mock_perform_fusion,
+        ),
+        patch.object(
+            code_indexing_service.index_query_service,
+            "get_snippets_by_ids",
+            side_effect=mock_get_snippets_by_ids,
+        ),
+    ):
+        # This search used to fail with ValueError: zip() argument 2 is longer
+        await code_indexing_service.search(
+            MultiSearchRequest(keywords=["add"], top_k=5)
+        )
