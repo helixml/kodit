@@ -32,3 +32,29 @@ Deploy with `kubectl -n kodit apply -f kubernetes.yaml`
 
 1. `kind create cluster`
 2. `kubectl -n kodit apply -f kubernetes.yaml`
+
+## Remote CLI Access
+
+Once you have Kodit deployed as a server, you can connect to it remotely using the [REST
+API](../api/index.md) or the Kodit CLI (which uses the REST API).
+
+### Configuration
+
+Remote mode is activated when you configure a server URL. You can do this via environment variables or CLI flags:
+
+**Environment Variables:**
+
+```bash
+export REMOTE_SERVER_URL=https://your-kodit-server.com
+export REMOTE_API_KEY=your-api-key-here # Optional: Only if you have API key's enabled
+export REMOTE_TIMEOUT=60.0              # Optional: request timeout in seconds
+export REMOTE_MAX_RETRIES=5             # Optional: max retry attempts
+export REMOTE_VERIFY_SSL=true           # Optional: verify SSL certificates
+```
+
+### Security
+
+- Always use HTTPS in production environments
+- Store API keys securely and never commit them to version control
+- Use environment variables or secure credential stores for API keys
+- The CLI verifies SSL certificates by default (can be disabled with `REMOTE_VERIFY_SSL=false`)
