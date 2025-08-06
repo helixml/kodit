@@ -148,18 +148,14 @@ Add the following configuration:
   "mcpServers": {
     "kodit": {
       "autoApprove": [],
-      "disabled": true,
+      "disabled": false,
       "timeout": 60,
-      "url": "https://kodit.helix.ml/mcp",
-      "transportType": "http"
+      "type": "streamableHttp",
+      "url": "https://kodit.helix.ml/mcp"
     }
   }
 }
 ```
-
-Note that some cline users are still [reporting issues with HTTP
-streaming](https://github.com/cline/cline/issues/3315), so you may need to use sse
-instead.
 
 #### Cline STDIO Mode
 
