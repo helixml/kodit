@@ -4,13 +4,14 @@ import shutil
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 from urllib.parse import urlparse, urlunparse
 
 from pydantic import AnyUrl, BaseModel
 
 from kodit.domain.value_objects import (
     FileProcessingStatus,
+    QueuedTaskType,
     SnippetContent,
     SnippetContentType,
     SourceType,
@@ -274,3 +275,40 @@ class SnippetWithContext:
     file: File
     authors: list[Author]
     snippet: Snippet
+
+
+class QueuedTask(BaseModel):
+    """Represents an item in the queue waiting to be processed.
+
+    If the item exists, that means it is in the queue and waiting to be processed. There
+    is no status associated.
+    """
+
+    id: str  # Is a unique key to deduplicate items in the queue
+    type: QueuedTaskType  # Task type
+    priority: int  # Priority (higher number = higher priority)
+    payload: dict[str, Any]  # Task-specific data
+
+    created_at: datetime | None = None  # Is populated by repository
+    updated_at: datetime | None = None  # Is populated by repository
+
+    @staticmethod
+    def from_payload(
+        task_type: QueuedTaskType, payload: dict[str, Any]
+    ) -> "QueuedTask":
+        """Create a deduplication key for a task.
+
+        The dedup key ensures we don't queue duplicate tasks.
+        """
+        if task_type == QueuedTaskType.INDEX_UPDATE:
+            if "index_id" not in payload:
+                raise ValueError("index_id is required")
+
+            return QueuedTask(
+                id=str(payload["index_id"]),
+                type=task_type,
+                priority=payload.get("priority", 0),
+                payload=payload,
+            )
+
+        raise ValueError(f"Unknown task type: {task_type}")

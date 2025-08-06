@@ -649,3 +649,9 @@ class FunctionDefinition:
     qualified_name: str
     start_byte: int
     end_byte: int
+
+
+class QueuedTaskType(Enum):
+    """Task type."""
+
+    INDEX_UPDATE = 1
