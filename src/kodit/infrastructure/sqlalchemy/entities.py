@@ -201,3 +201,38 @@ class Snippet(Base, CommonMixin):
         self.index_id = index_id
         self.content = content
         self.summary = summary
+
+
+class TaskType(Enum):
+    """Task type."""
+
+    INDEX_UPDATE = 1
+
+
+class Task(Base, CommonMixin):
+    """Queued tasks."""
+
+    __tablename__ = "tasks"
+
+    # dedup_key is used to deduplicate items in the queue
+    dedup_key: Mapped[str] = mapped_column(String(255), index=True)
+    # type represents what the task is meant to achieve
+    type: Mapped[TaskType] = mapped_column(SQLAlchemyEnum(TaskType), index=True)
+    # payload contains the task-specific payload data
+    payload: Mapped[dict] = mapped_column(JSON)
+    # priority is used to determine the order of the items in the queue
+    priority: Mapped[int] = mapped_column(Integer)
+
+    def __init__(
+        self,
+        dedup_key: str,
+        type: TaskType,  # noqa: A002
+        payload: dict,
+        priority: int,
+    ) -> None:
+        """Initialize the queue item."""
+        super().__init__()
+        self.dedup_key = dedup_key
+        self.type = type
+        self.payload = payload
+        self.priority = priority
