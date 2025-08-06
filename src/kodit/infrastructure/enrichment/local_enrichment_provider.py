@@ -8,6 +8,7 @@ import tiktoken
 
 from kodit.domain.services.enrichment_service import EnrichmentProvider
 from kodit.domain.value_objects import EnrichmentRequest, EnrichmentResponse
+from kodit.infrastructure.enrichment.utils import clean_thinking_tags
 
 ENRICHMENT_SYSTEM_PROMPT = """
 You are a professional software developer. You will be given a snippet of code.
@@ -109,7 +110,9 @@ class LocalEnrichmentProvider(EnrichmentProvider):
             content = self.tokenizer.decode(output_ids, skip_special_tokens=True).strip(  # type: ignore[attr-defined]
                 "\n"
             )
+            # Remove thinking tags from the response
+            cleaned_content = clean_thinking_tags(content)
             yield EnrichmentResponse(
                 snippet_id=prompt["id"],
-                text=content,
+                text=cleaned_content,
             )

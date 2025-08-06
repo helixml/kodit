@@ -9,6 +9,7 @@ import structlog
 
 from kodit.domain.services.enrichment_service import EnrichmentProvider
 from kodit.domain.value_objects import EnrichmentRequest, EnrichmentResponse
+from kodit.infrastructure.enrichment.utils import clean_thinking_tags
 
 ENRICHMENT_SYSTEM_PROMPT = """
 You are a professional software developer. You will be given a snippet of code.
@@ -17,6 +18,7 @@ Please provide a concise explanation of the code.
 
 # Default tuned to approximately fit within OpenAI's rate limit of 500 / RPM
 OPENAI_NUM_PARALLEL_TASKS = 40
+
 
 
 class OpenAIEnrichmentProvider(EnrichmentProvider):
@@ -135,9 +137,11 @@ class OpenAIEnrichmentProvider(EnrichmentProvider):
                         .get("message", {})
                         .get("content", "")
                     )
+                    # Remove thinking tags from the response
+                    cleaned_content = clean_thinking_tags(content or "")
                     return EnrichmentResponse(
                         snippet_id=request.snippet_id,
-                        text=content or "",
+                        text=cleaned_content,
                     )
                 except Exception as e:
                     self.log.exception("Error enriching request", error=str(e))
