@@ -11,10 +11,10 @@ from pydantic import AnyUrl, BaseModel
 
 from kodit.domain.value_objects import (
     FileProcessingStatus,
-    QueuedTaskType,
     SnippetContent,
     SnippetContentType,
     SourceType,
+    TaskType,
 )
 from kodit.utils.path_utils import path_from_uri
 
@@ -277,7 +277,7 @@ class SnippetWithContext:
     snippet: Snippet
 
 
-class QueuedTask(BaseModel):
+class Task(BaseModel):
     """Represents an item in the queue waiting to be processed.
 
     If the item exists, that means it is in the queue and waiting to be processed. There
@@ -285,7 +285,7 @@ class QueuedTask(BaseModel):
     """
 
     id: str  # Is a unique key to deduplicate items in the queue
-    type: QueuedTaskType  # Task type
+    type: TaskType  # Task type
     priority: int  # Priority (higher number = higher priority)
     payload: dict[str, Any]  # Task-specific data
 
@@ -293,22 +293,19 @@ class QueuedTask(BaseModel):
     updated_at: datetime | None = None  # Is populated by repository
 
     @staticmethod
-    def from_payload(
-        task_type: QueuedTaskType, payload: dict[str, Any]
-    ) -> "QueuedTask":
-        """Create a deduplication key for a task.
+    def create(task_type: TaskType, priority: int, payload: dict[str, Any]) -> "Task":
+        """Create a task."""
+        return Task(
+            id=Task._create_id(task_type, payload),
+            type=task_type,
+            priority=priority,
+            payload=payload,
+        )
 
-        The dedup key ensures we don't queue duplicate tasks.
-        """
-        if task_type == QueuedTaskType.INDEX_UPDATE:
-            if "index_id" not in payload:
-                raise ValueError("index_id is required")
-
-            return QueuedTask(
-                id=str(payload["index_id"]),
-                type=task_type,
-                priority=payload.get("priority", 0),
-                payload=payload,
-            )
+    @staticmethod
+    def _create_id(task_type: TaskType, payload: dict[str, Any]) -> str:
+        """Create a unique id for a task."""
+        if task_type == TaskType.INDEX_UPDATE:
+            return str(payload["index_id"])
 
         raise ValueError(f"Unknown task type: {task_type}")

@@ -651,7 +651,7 @@ class FunctionDefinition:
     end_byte: int
 
 
-class QueuedTaskType(Enum):
+class TaskType(Enum):
     """Task type."""
 
     INDEX_UPDATE = 1

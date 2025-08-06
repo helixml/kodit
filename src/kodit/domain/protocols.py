@@ -5,8 +5,31 @@ from typing import Protocol
 
 from pydantic import AnyUrl
 
-from kodit.domain.entities import Index, Snippet, SnippetWithContext, WorkingCopy
-from kodit.domain.value_objects import MultiSearchRequest
+from kodit.domain.entities import Index, Snippet, SnippetWithContext, Task, WorkingCopy
+from kodit.domain.value_objects import MultiSearchRequest, TaskType
+
+
+class TaskRepository(Protocol):
+    """Repository interface for Task entities."""
+
+    async def add(
+        self,
+        task: Task,
+    ) -> None:
+        """Add a task."""
+        ...
+
+    async def get(self, task_id: str) -> Task | None:
+        """Get a task by ID."""
+        ...
+
+    async def update(self, task: Task) -> None:
+        """Update a task."""
+        ...
+
+    async def list(self, task_type: TaskType | None = None) -> list[Task]:
+        """List tasks with optional status filter."""
+        ...
 
 
 class IndexRepository(Protocol):
