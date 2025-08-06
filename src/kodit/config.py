@@ -111,6 +111,20 @@ class PeriodicSyncConfig(BaseModel):
     )
 
 
+class RemoteConfig(BaseModel):
+    """Configuration for remote server connection."""
+
+    server_url: str | None = Field(
+        default=None, description="Remote Kodit server URL"
+    )
+    api_key: str | None = Field(default=None, description="API key for authentication")
+    timeout: float = Field(default=30.0, description="Request timeout in seconds")
+    max_retries: int = Field(default=3, description="Maximum retry attempts")
+    verify_ssl: bool = Field(
+        default=True, description="Verify SSL certificates"
+    )
+
+
 class CustomAutoIndexingEnvSource(EnvSettingsSource):
     """Custom environment source for parsing AutoIndexingConfig."""
 
@@ -212,6 +226,9 @@ class AppContext(BaseSettings):
         default_factory=list,
         description="Comma-separated list of valid API keys (e.g. 'key1,key2')",
     )
+    remote: RemoteConfig = Field(
+        default_factory=RemoteConfig, description="Remote server configuration"
+    )
 
     @field_validator("api_keys", mode="before")
     @classmethod
@@ -233,6 +250,11 @@ class AppContext(BaseSettings):
         """Post-initialization hook."""
         # Call this to ensure the data dir exists for the default db location
         self.get_data_dir()
+
+    @property
+    def is_remote(self) -> bool:
+        """Check if running in remote mode."""
+        return self.remote.server_url is not None
 
     def get_data_dir(self) -> Path:
         """Get the data directory."""
