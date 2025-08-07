@@ -248,10 +248,18 @@ class AppContext(BaseSettings):
     async def get_db(self, *, run_migrations: bool = True) -> Database:
         """Get the database."""
         if self._db is None:
-            self._db = Database(self.db_url)
-        if run_migrations:
-            await self._db.run_migrations(self.db_url)
+            self._db = await self.new_db(run_migrations=run_migrations)
         return self._db
+
+    async def new_db(self, *, run_migrations: bool = True) -> Database:
+        """Get a completely fresh connection to a database.
+
+        This is required when running tasks in a thread pool.
+        """
+        db = Database(self.db_url)
+        if run_migrations:
+            await db.run_migrations(self.db_url)
+        return db
 
 
 with_app_context = click.make_pass_decorator(AppContext)
