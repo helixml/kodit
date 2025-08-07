@@ -142,6 +142,5 @@ async def test_task_priority_ordering(session: AsyncSession) -> None:
     assert len(tasks) == 2
 
     # The repository should return tasks ordered by priority (highest first)
-    # USER_INITIATED (50) > BACKGROUND (10)
     task_priorities = [t.priority for t in tasks]
     assert task_priorities[0] >= task_priorities[1]
