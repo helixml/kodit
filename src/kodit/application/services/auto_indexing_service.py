@@ -1,6 +1,7 @@
 """Service for automatically indexing configured sources."""
 
 import asyncio
+import warnings
 from collections.abc import Callable
 from contextlib import suppress
 
@@ -10,8 +11,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from kodit.application.factories.code_indexing_factory import (
     create_code_indexing_application_service,
 )
+from kodit.application.services.queue_service import QueueService
 from kodit.config import AppContext
-from kodit.infrastructure.ui.progress import create_log_progress_callback
+from kodit.domain.entities import Task
+from kodit.domain.value_objects import QueuePriority
 
 
 class AutoIndexingService:
@@ -37,6 +40,12 @@ class AutoIndexingService:
             self.log.info("Auto-indexing is disabled (no sources configured)")
             return
 
+        warnings.warn(
+            "Auto-indexing is deprecated and will be removed in a future version, please use the API to index sources.",  # noqa: E501
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
         auto_sources = [source.uri for source in self.app_context.auto_indexing.sources]
         self.log.info("Starting background indexing", num_sources=len(auto_sources))
         self._indexing_task = asyncio.create_task(self._index_sources(auto_sources))
@@ -44,6 +53,7 @@ class AutoIndexingService:
     async def _index_sources(self, sources: list[str]) -> None:
         """Index all configured sources in the background."""
         async with self.session_factory() as session:
+            queue_service = QueueService(session=session)
             service = create_code_indexing_application_service(
                 app_context=self.app_context,
                 session=session,
@@ -56,17 +66,16 @@ class AutoIndexingService:
                         self.log.info("Index already exists, skipping", source=source)
                         continue
 
-                    self.log.info("Auto-indexing source", source=source)
+                    self.log.info("Adding auto-indexing task to queue", source=source)
 
                     # Create index
                     index = await service.create_index_from_uri(source)
 
-                    # Run indexing (without progress callback for background mode)
-                    await service.run_index(
-                        index, progress_callback=create_log_progress_callback()
+                    await queue_service.enqueue_task(
+                        Task.create_index_update_task(
+                            index.id, QueuePriority.BACKGROUND
+                        )
                     )
-
-                    self.log.info("Successfully auto-indexed source", source=source)
 
                 except Exception as exc:
                     self.log.exception(

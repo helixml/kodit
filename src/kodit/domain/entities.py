@@ -11,6 +11,7 @@ from pydantic import AnyUrl, BaseModel
 
 from kodit.domain.value_objects import (
     FileProcessingStatus,
+    QueuePriority,
     SnippetContent,
     SnippetContentType,
     SourceType,
@@ -309,3 +310,14 @@ class Task(BaseModel):
             return str(payload["index_id"])
 
         raise ValueError(f"Unknown task type: {task_type}")
+
+    @staticmethod
+    def create_index_update_task(
+        index_id: int, priority: QueuePriority = QueuePriority.USER_INITIATED
+    ) -> "Task":
+        """Create an index update task."""
+        return Task.create(
+            task_type=TaskType.INDEX_UPDATE,
+            priority=priority.value,
+            payload={"index_id": index_id},
+        )

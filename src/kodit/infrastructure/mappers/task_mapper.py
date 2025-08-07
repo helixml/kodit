@@ -31,9 +31,9 @@ class TaskTypeMapper:
         # Find value in TASK_TYPE_MAPPING
         return next(
             (
-                task_type
-                for task_type, value in TaskTypeMapper.TASK_TYPE_MAPPING.items()
-                if value == task_type
+                db_task_type
+                for db_task_type, domain_task_type in TaskTypeMapper.TASK_TYPE_MAPPING.items()  # noqa: E501
+                if domain_task_type == task_type
             )
         )
 
@@ -53,9 +53,7 @@ class TaskMapper:
         state in the payload.
         """
         # Get the task type
-        if record.type not in TaskMapper.TASK_TYPE_MAPPING:
-            raise ValueError(f"Unknown task type: {record.type}")
-        task_type = TaskMapper.TASK_TYPE_MAPPING[record.type]
+        task_type = TaskTypeMapper.to_domain_type(record.type)
 
         # The dedup_key becomes the id in the domain entity
         return Task(
@@ -70,17 +68,11 @@ class TaskMapper:
     @staticmethod
     def from_domain_task(task: Task) -> db_entities.Task:
         """Convert domain QueuedTask to SQLAlchemy Task record."""
-        if task.type not in TaskMapper.TASK_TYPE_MAPPING.values():
+        if task.type not in TaskTypeMapper.TASK_TYPE_MAPPING.values():
             raise ValueError(f"Unknown task type: {task.type}")
 
         # Find value in TASK_TYPE_MAPPING
-        task_type = next(
-            (
-                db_entities.TaskType(task_type)
-                for task_type, value in TaskMapper.TASK_TYPE_MAPPING.items()
-                if value == task.type
-            ),
-        )
+        task_type = TaskTypeMapper.from_domain_type(task.type)
         return db_entities.Task(
             dedup_key=task.id,
             type=task_type,

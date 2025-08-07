@@ -12,6 +12,7 @@ from kodit.application.factories.code_indexing_factory import (
 from kodit.application.services.code_indexing_application_service import (
     CodeIndexingApplicationService,
 )
+from kodit.application.services.queue_service import QueueService
 from kodit.config import AppContext
 from kodit.domain.services.index_query_service import IndexQueryService
 from kodit.infrastructure.indexing.fusion_service import ReciprocalRankFusionService
@@ -68,3 +69,15 @@ async def get_indexing_app_service(
 IndexingAppServiceDep = Annotated[
     CodeIndexingApplicationService, Depends(get_indexing_app_service)
 ]
+
+
+async def get_queue_service(
+    session: DBSessionDep,
+) -> QueueService:
+    """Get queue service dependency."""
+    return QueueService(
+        session=session,
+    )
+
+
+QueueServiceDep = Annotated[QueueService, Depends(get_queue_service)]

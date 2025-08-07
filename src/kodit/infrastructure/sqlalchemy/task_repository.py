@@ -35,6 +35,20 @@ class SqlAlchemyTaskRepository(TaskRepository):
             return None
         return TaskMapper.to_domain_task(db_task)
 
+    async def take(self) -> Task | None:
+        """Take a task for processing and remove it from the database."""
+        stmt = (
+            select(db_entities.Task)
+            .order_by(db_entities.Task.priority.desc(), db_entities.Task.created_at)
+            .limit(1)
+        )
+        result = await self.session.execute(stmt)
+        db_task = result.scalar_one_or_none()
+        if not db_task:
+            return None
+        await self.session.delete(db_task)
+        return TaskMapper.to_domain_task(db_task)
+
     async def update(self, task: Task) -> None:
         """Update a task in the database."""
         stmt = select(db_entities.Task).where(db_entities.Task.dedup_key == task.id)

@@ -9,6 +9,7 @@ from fastapi.responses import RedirectResponse
 
 from kodit._version import version
 from kodit.application.services.auto_indexing_service import AutoIndexingService
+from kodit.application.services.indexing_worker_service import IndexingWorkerService
 from kodit.application.services.sync_scheduler import SyncSchedulerService
 from kodit.config import AppContext
 from kodit.infrastructure.api.v1.routers import indexes_router, search_router
@@ -28,9 +29,16 @@ async def app_lifespan(_: FastAPI) -> AsyncIterator[AppLifespanState]:
 
     # App context has already been configured by the CLI.
     app_context = AppContext()
+    db = await app_context.get_db()
+
+    # Start the queue worker service
+    _indexing_worker_service = IndexingWorkerService(
+        app_context=app_context,
+        session_factory=db.session_factory,
+    )
+    await _indexing_worker_service.start()
 
     # Start auto-indexing service
-    db = await app_context.get_db()
     _auto_indexing_service = AutoIndexingService(
         app_context=app_context,
         session_factory=db.session_factory,
@@ -40,7 +48,6 @@ async def app_lifespan(_: FastAPI) -> AsyncIterator[AppLifespanState]:
     # Start sync scheduler service
     if app_context.periodic_sync.enabled:
         _sync_scheduler_service = SyncSchedulerService(
-            app_context=app_context,
             session_factory=db.session_factory,
         )
         _sync_scheduler_service.start_periodic_sync(
@@ -54,6 +61,8 @@ async def app_lifespan(_: FastAPI) -> AsyncIterator[AppLifespanState]:
         await _sync_scheduler_service.stop_periodic_sync()
     if _auto_indexing_service:
         await _auto_indexing_service.stop()
+    if _indexing_worker_service:
+        await _indexing_worker_service.stop()
 
 
 # See https://gofastmcp.com/integrations/fastapi#mounting-an-mcp-server

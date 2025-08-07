@@ -655,3 +655,10 @@ class TaskType(Enum):
     """Task type."""
 
     INDEX_UPDATE = 1
+
+
+class QueuePriority(IntEnum):
+    """Queue priority."""
+
+    BACKGROUND = 10
+    USER_INITIATED = 50

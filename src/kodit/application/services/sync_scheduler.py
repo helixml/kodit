@@ -7,14 +7,12 @@ from contextlib import suppress
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.application.factories.code_indexing_factory import (
-    create_code_indexing_application_service,
-)
-from kodit.config import AppContext
+from kodit.application.services.queue_service import QueueService
+from kodit.domain.entities import Task
 from kodit.domain.services.index_query_service import IndexQueryService
+from kodit.domain.value_objects import QueuePriority
 from kodit.infrastructure.indexing.fusion_service import ReciprocalRankFusionService
 from kodit.infrastructure.sqlalchemy.index_repository import SqlAlchemyIndexRepository
-from kodit.infrastructure.ui.progress import create_log_progress_callback
 
 
 class SyncSchedulerService:
@@ -22,11 +20,9 @@ class SyncSchedulerService:
 
     def __init__(
         self,
-        app_context: AppContext,
         session_factory: Callable[[], AsyncSession],
     ) -> None:
         """Initialize the sync scheduler service."""
-        self.app_context = app_context
         self.session_factory = session_factory
         self.log = structlog.get_logger(__name__)
         self._sync_task: asyncio.Task | None = None
@@ -73,10 +69,7 @@ class SyncSchedulerService:
 
         async with self.session_factory() as session:
             # Create services
-            service = create_code_indexing_application_service(
-                app_context=self.app_context,
-                session=session,
-            )
+            queue_service = QueueService(session=session)
             index_query_service = IndexQueryService(
                 index_repository=SqlAlchemyIndexRepository(session=session),
                 fusion_service=ReciprocalRankFusionService(),
@@ -89,43 +82,12 @@ class SyncSchedulerService:
                 self.log.info("No indexes found to sync")
                 return
 
-            self.log.info("Syncing indexes", count=len(all_indexes))
-
-            success_count = 0
-            failure_count = 0
+            self.log.info("Adding sync tasks to queue", count=len(all_indexes))
 
             # Sync each index
             for index in all_indexes:
-                try:
-                    self.log.info(
-                        "Syncing index",
-                        index_id=index.id,
-                        source=str(index.source.working_copy.remote_uri),
-                    )
+                await queue_service.enqueue_task(
+                    Task.create_index_update_task(index.id, QueuePriority.BACKGROUND)
+                )
 
-                    await service.run_index(
-                        index, progress_callback=create_log_progress_callback()
-                    )
-                    success_count += 1
-
-                    self.log.info(
-                        "Index sync completed",
-                        index_id=index.id,
-                        source=str(index.source.working_copy.remote_uri),
-                    )
-
-                except Exception as e:
-                    failure_count += 1
-                    self.log.exception(
-                        "Index sync failed",
-                        index_id=index.id,
-                        source=str(index.source.working_copy.remote_uri),
-                        error=e,
-                    )
-
-            self.log.info(
-                "Sync operation completed",
-                total=len(all_indexes),
-                success=success_count,
-                failures=failure_count,
-            )
+            self.log.info("Sync operation completed")
