@@ -5,29 +5,15 @@ import contextlib
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from pydantic import AnyUrl
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.application.services.sync_scheduler import SyncSchedulerService
-from kodit.config import AppContext
 from kodit.domain.entities import File, Index, Source, WorkingCopy
 from kodit.domain.value_objects import FileProcessingStatus, SourceType
-
-
-@pytest.fixture
-def mock_app_context() -> MagicMock:
-    """Create a mock AppContext for testing."""
-    app_context = MagicMock(spec=AppContext)
-    # Create a mock sync config
-    sync_config = MagicMock()
-    sync_config.enabled = True
-    sync_config.interval_seconds = 1800
-    sync_config.retry_attempts = 3
-    app_context.periodic_sync = sync_config
-    return app_context
 
 
 @pytest.fixture
@@ -124,121 +110,118 @@ def dummy_indexes(tmp_path: Path) -> list[Index]:
 
 @pytest.mark.asyncio
 async def test_sync_scheduler_syncs_all_indexes(
-    mock_app_context: MagicMock,
     mock_session_factory: Callable[[], AsyncSession],
     dummy_indexes: list[Index],
 ) -> None:
     """Test that the sync scheduler syncs all existing indexes."""
     with (
         patch(
-            "kodit.application.services.sync_scheduler.create_code_indexing_application_service"
-        ) as mock_create_service,
+            "kodit.application.services.sync_scheduler.QueueService"
+        ) as mock_queue_service_class,
         patch(
             "kodit.application.services.sync_scheduler.IndexQueryService"
         ) as mock_query_service_class,
         patch("kodit.application.services.sync_scheduler.SqlAlchemyIndexRepository"),
     ):
         # Set up mocks
-        mock_service = AsyncMock()
-        mock_create_service.return_value = mock_service
+        mock_queue_service = AsyncMock()
+        mock_queue_service_class.return_value = mock_queue_service
 
         mock_query_service = AsyncMock()
         mock_query_service.list_indexes.return_value = dummy_indexes
         mock_query_service_class.return_value = mock_query_service
 
         # Create scheduler
-        scheduler = SyncSchedulerService(mock_app_context, mock_session_factory)
+        scheduler = SyncSchedulerService(mock_session_factory)
 
         # Perform one sync
         await scheduler._perform_sync()  # noqa: SLF001
 
         # Verify all indexes were synced
         assert mock_query_service.list_indexes.called
-        assert mock_service.run_index.call_count == len(dummy_indexes)
+        assert mock_queue_service.enqueue_task.call_count == len(dummy_indexes)
 
-        # Verify each index was synced with correct parameters
+        # Verify each index was enqueued with correct parameters
         for i, index in enumerate(dummy_indexes):
-            call_args = mock_service.run_index.call_args_list[i]
-            assert call_args[0][0].id == index.id
+            call_args = mock_queue_service.enqueue_task.call_args_list[i]
+            task = call_args[0][0]
+            assert task.payload["index_id"] == index.id
 
 
 @pytest.mark.asyncio
 async def test_sync_scheduler_handles_empty_indexes(
-    mock_app_context: MagicMock, mock_session_factory: Callable[[], AsyncSession]
+    mock_session_factory: Callable[[], AsyncSession]
 ) -> None:
     """Test that the sync scheduler handles the case when no indexes exist."""
     with (
         patch(
-            "kodit.application.services.sync_scheduler.create_code_indexing_application_service"
-        ) as mock_create_service,
+            "kodit.application.services.sync_scheduler.QueueService"
+        ) as mock_queue_service_class,
         patch(
             "kodit.application.services.sync_scheduler.IndexQueryService"
         ) as mock_query_service_class,
         patch("kodit.application.services.sync_scheduler.SqlAlchemyIndexRepository"),
     ):
         # Set up mocks for no indexes
-        mock_service = AsyncMock()
-        mock_create_service.return_value = mock_service
+        mock_queue_service = AsyncMock()
+        mock_queue_service_class.return_value = mock_queue_service
 
         mock_query_service = AsyncMock()
         mock_query_service.list_indexes.return_value = []
         mock_query_service_class.return_value = mock_query_service
 
         # Create scheduler
-        scheduler = SyncSchedulerService(mock_app_context, mock_session_factory)
+        scheduler = SyncSchedulerService(mock_session_factory)
 
         # Perform sync
         await scheduler._perform_sync()  # noqa: SLF001
 
         # Verify no sync was attempted
         assert mock_query_service.list_indexes.called
-        assert not mock_service.run_index.called
+        assert not mock_queue_service.enqueue_task.called
 
 
 @pytest.mark.asyncio
 async def test_sync_scheduler_handles_sync_failures(
-    mock_app_context: MagicMock,
     mock_session_factory: Callable[[], AsyncSession],
     dummy_indexes: list[Index],
 ) -> None:
     """Test that the sync scheduler handles failures gracefully."""
     with (
         patch(
-            "kodit.application.services.sync_scheduler.create_code_indexing_application_service"
-        ) as mock_create_service,
+            "kodit.application.services.sync_scheduler.QueueService"
+        ) as mock_queue_service_class,
         patch(
             "kodit.application.services.sync_scheduler.IndexQueryService"
         ) as mock_query_service_class,
         patch("kodit.application.services.sync_scheduler.SqlAlchemyIndexRepository"),
     ):
         # Set up mocks with one failure
-        mock_service = AsyncMock()
-        mock_service.run_index.side_effect = [
+        mock_queue_service = AsyncMock()
+        mock_queue_service.enqueue_task.side_effect = [
             None,  # First index succeeds
-            Exception("Sync failed"),  # Second index fails
+            Exception("Enqueue failed"),  # Second index fails
         ]
-        mock_create_service.return_value = mock_service
+        mock_queue_service_class.return_value = mock_queue_service
 
         mock_query_service = AsyncMock()
         mock_query_service.list_indexes.return_value = dummy_indexes
         mock_query_service_class.return_value = mock_query_service
 
         # Create scheduler
-        scheduler = SyncSchedulerService(mock_app_context, mock_session_factory)
+        scheduler = SyncSchedulerService(mock_session_factory)
 
-        # Perform sync
-        await scheduler._perform_sync()  # noqa: SLF001
+        # Perform sync - should raise exception since enqueue fails
+        with pytest.raises(Exception, match="Enqueue failed"):
+            await scheduler._perform_sync()  # noqa: SLF001
 
-        # Verify both indexes were attempted
-        assert mock_service.run_index.call_count == len(dummy_indexes)
-
-        # The method should complete without raising exceptions
+        # Verify first index was attempted
+        assert mock_queue_service.enqueue_task.call_count == 2
 
 
 @pytest.mark.asyncio
 async def test_sync_scheduler_periodicity() -> None:
     """Test that the sync scheduler runs periodically at the specified interval."""
-    mock_app_context = MagicMock(spec=AppContext)
     mock_session_factory = AsyncMock()
 
     # Track sync operations
@@ -253,7 +236,7 @@ async def test_sync_scheduler_periodicity() -> None:
         await asyncio.sleep(0.01)
 
     # Create scheduler with a very short interval for testing
-    scheduler = SyncSchedulerService(mock_app_context, mock_session_factory)
+    scheduler = SyncSchedulerService(mock_session_factory)
 
     # Patch the _perform_sync method
     with patch.object(scheduler, "_perform_sync", mock_perform_sync):
@@ -283,7 +266,6 @@ async def test_sync_scheduler_periodicity() -> None:
 @pytest.mark.asyncio
 async def test_sync_scheduler_start_stop() -> None:
     """Test starting and stopping the sync scheduler."""
-    mock_app_context = MagicMock(spec=AppContext)
     mock_session_factory = AsyncMock()
 
     sync_performed = False
@@ -294,7 +276,7 @@ async def test_sync_scheduler_start_stop() -> None:
         # Wait a bit to simulate work
         await asyncio.sleep(0.01)
 
-    scheduler = SyncSchedulerService(mock_app_context, mock_session_factory)
+    scheduler = SyncSchedulerService(mock_session_factory)
 
     with patch.object(scheduler, "_perform_sync", mock_perform_sync):
         # Start the scheduler in the background
@@ -322,7 +304,6 @@ async def test_sync_scheduler_start_stop() -> None:
 @pytest.mark.asyncio
 async def test_sync_scheduler_handles_exceptions_in_sync_loop() -> None:
     """Test that exceptions in the sync loop don't crash the scheduler."""
-    mock_app_context = MagicMock(spec=AppContext)
     mock_session_factory = AsyncMock()
 
     exception_count = 0
@@ -335,7 +316,7 @@ async def test_sync_scheduler_handles_exceptions_in_sync_loop() -> None:
         exception_count += 1
         raise TestExceptionError("Test exception")
 
-    scheduler = SyncSchedulerService(mock_app_context, mock_session_factory)
+    scheduler = SyncSchedulerService(mock_session_factory)
 
     with patch.object(scheduler, "_perform_sync", mock_perform_sync):
         # Run the sync loop for a short time
@@ -357,7 +338,6 @@ async def test_sync_scheduler_handles_exceptions_in_sync_loop() -> None:
 @pytest.mark.asyncio
 async def test_sync_scheduler_shutdown_during_sync() -> None:
     """Test that the scheduler can be shutdown while a sync is in progress."""
-    mock_app_context = MagicMock(spec=AppContext)
     mock_session_factory = AsyncMock()
 
     sync_started = asyncio.Event()
@@ -368,7 +348,7 @@ async def test_sync_scheduler_shutdown_during_sync() -> None:
         # Wait for signal to continue
         await sync_should_continue.wait()
 
-    scheduler = SyncSchedulerService(mock_app_context, mock_session_factory)
+    scheduler = SyncSchedulerService(mock_session_factory)
 
     with patch.object(scheduler, "_perform_sync", mock_perform_sync):
         # Start the scheduler

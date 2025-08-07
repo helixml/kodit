@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from unittest.mock import patch
 
 import pytest
-from fastapi import BackgroundTasks, FastAPI
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from kodit.app import app
@@ -184,26 +184,22 @@ async def test_index(
         assert data["data"][0]["id"] == str(test_data["index"].id)
         assert data["data"][0]["attributes"]["uri"] == test_data["source"].uri
 
-        with patch.object(BackgroundTasks, "add_task") as mock_add_task:
-            response = client.post(
-                "/api/v1/indexes",
-                json={
-                    "data": {
-                        "type": "index",
-                        "attributes": {
-                            "uri": EXAMPLE_REPO_URI,
-                        },
-                    }
-                },
-            )
-            assert response.status_code == 202
-            data = response.json()
-            assert "data" in data
-            assert data["data"]["type"] == "index"
-            assert data["data"]["attributes"]["uri"] == EXAMPLE_REPO_URI
-
-            # Verify background task was called
-            assert mock_add_task.called
+        response = client.post(
+            "/api/v1/indexes",
+            json={
+                "data": {
+                    "type": "index",
+                    "attributes": {
+                        "uri": EXAMPLE_REPO_URI,
+                    },
+                }
+            },
+        )
+        assert response.status_code == 202
+        data = response.json()
+        assert "data" in data
+        assert data["data"]["type"] == "index"
+        assert data["data"]["attributes"]["uri"] == EXAMPLE_REPO_URI
 
         # Test get specific index
         response = client.get(

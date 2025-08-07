@@ -120,15 +120,23 @@ class TestAutoIndexingService:
         self, auto_indexing_service: AutoIndexingService
     ) -> None:
         """Test successful indexing of sources."""
-        with patch(
-            "kodit.application.services.auto_indexing_service.create_code_indexing_application_service"
-        ) as mock_create_service:
+        with (
+            patch(
+                "kodit.application.services.auto_indexing_service.create_code_indexing_application_service"
+            ) as mock_create_service,
+            patch(
+                "kodit.application.services.auto_indexing_service.QueueService"
+            ) as mock_queue_service_class,
+        ):
             mock_service = AsyncMock()
             mock_create_service.return_value = mock_service
 
-            # Mock the index creation and indexing
+            mock_queue_service = AsyncMock()
+            mock_queue_service_class.return_value = mock_queue_service
+
+            # Mock the index creation
             mock_index = MagicMock()
-            mock_index.id = "test-index-id"
+            mock_index.id = 1
             mock_service.does_index_exist.return_value = False
             mock_service.create_index_from_uri.return_value = mock_index
 
@@ -138,22 +146,31 @@ class TestAutoIndexingService:
 
             # Verify both sources were processed
             assert mock_service.create_index_from_uri.call_count == 2
-            assert mock_service.run_index.call_count == 2
+            # Tasks should be enqueued, not run directly
+            assert mock_queue_service.enqueue_task.call_count == 2
 
     @pytest.mark.asyncio
     async def test_index_sources_with_failure(
         self, auto_indexing_service: AutoIndexingService
     ) -> None:
         """Test indexing sources with one failure."""
-        with patch(
-            "kodit.application.services.auto_indexing_service.create_code_indexing_application_service"
-        ) as mock_create_service:
+        with (
+            patch(
+                "kodit.application.services.auto_indexing_service.create_code_indexing_application_service"
+            ) as mock_create_service,
+            patch(
+                "kodit.application.services.auto_indexing_service.QueueService"
+            ) as mock_queue_service_class,
+        ):
             mock_service = AsyncMock()
             mock_create_service.return_value = mock_service
 
+            mock_queue_service = AsyncMock()
+            mock_queue_service_class.return_value = mock_queue_service
+
             # Mock the first source to succeed, second to fail
             mock_index = MagicMock()
-            mock_index.id = "test-index-id"
+            mock_index.id = 1
             mock_service.does_index_exist.return_value = False
             mock_service.create_index_from_uri.side_effect = [
                 mock_index,
@@ -166,8 +183,8 @@ class TestAutoIndexingService:
 
             # Verify both sources were attempted
             assert mock_service.create_index_from_uri.call_count == 2
-            # First source should have been indexed (second failed during creation)
-            assert mock_service.run_index.call_count == 1
+            # First source should have been enqueued (second failed during creation)
+            assert mock_queue_service.enqueue_task.call_count == 1
 
     @pytest.mark.asyncio
     async def test_stop_service(
