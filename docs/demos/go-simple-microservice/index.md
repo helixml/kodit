@@ -16,7 +16,7 @@ hard for coding assistants to know what APIs to call or what data structures to 
 This example demonstrates using Kodit to index and expose critical microservice
 information to quickly develop new services in a microservice environment.
 
-You'll see that:
+You'll see that with Kodit the AI assistant delivers:
 
 - Faster overall implementation
 - Fewer mistakes
