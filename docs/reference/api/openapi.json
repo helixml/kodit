@@ -197,6 +197,110 @@
         }
       }
     },
+    "/api/v1/queue": {
+      "get": {
+        "tags": [
+          "queue"
+        ],
+        "summary": "List Queue Tasks",
+        "description": "List all tasks in the queue.\n\nOptionally filter by task type.",
+        "operationId": "list_queue_tasks_api_v1_queue_get",
+        "security": [
+          {
+            "Header (X-API-KEY)": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/TaskType"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Task Type"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskListResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Invalid request"
+          }
+        }
+      }
+    },
+    "/api/v1/queue/{task_id}": {
+      "get": {
+        "tags": [
+          "queue"
+        ],
+        "summary": "Get Queue Task",
+        "description": "Get details of a specific task in the queue.",
+        "operationId": "get_queue_task_api_v1_queue__task_id__get",
+        "security": [
+          {
+            "Header (X-API-KEY)": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Invalid request"
+          },
+          "404": {
+            "description": "Task not found"
+          }
+        }
+      }
+    },
     "/api/v1/search": {
       "post": {
         "tags": [
@@ -691,6 +795,118 @@
         ],
         "title": "SnippetData",
         "description": "Snippet data for JSON:API responses."
+      },
+      "TaskAttributes": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "priority": {
+            "type": "integer",
+            "title": "Priority"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Payload"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "priority",
+          "payload",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "TaskAttributes",
+        "description": "Task attributes for JSON:API responses."
+      },
+      "TaskData": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "default": "task"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "attributes": {
+            "$ref": "#/components/schemas/TaskAttributes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "attributes"
+        ],
+        "title": "TaskData",
+        "description": "Task data for JSON:API responses."
+      },
+      "TaskListResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/TaskData"
+            },
+            "type": "array",
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "TaskListResponse",
+        "description": "JSON:API response for task list."
+      },
+      "TaskResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TaskData"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "TaskResponse",
+        "description": "JSON:API response for single task."
+      },
+      "TaskType": {
+        "type": "integer",
+        "enum": [
+          1
+        ],
+        "title": "TaskType",
+        "description": "Task type."
       },
       "ValidationError": {
         "properties": {

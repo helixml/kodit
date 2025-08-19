@@ -126,6 +126,58 @@ Delete an index.
 
 - 404: Index not found
 
+### GET /api/v1/queue
+
+List all tasks in the queue.
+
+Optionally filter by task type.
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| task_type |  | False |  |
+
+
+#### Responses
+
+- 200: Successful Response
+
+[TaskListResponse](#tasklistresponse)
+
+- 500: Internal server error
+
+- 401: Unauthorized
+
+- 422: Invalid request
+
+### GET /api/v1/queue/{task_id}
+
+Get details of a specific task in the queue.
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| task_id | string | True |  |
+
+
+#### Responses
+
+- 200: Successful Response
+
+[TaskResponse](#taskresponse)
+
+- 500: Internal server error
+
+- 401: Unauthorized
+
+- 422: Invalid request
+
+- 404: Task not found
+
 ### POST /api/v1/search
 
 Search code snippets with filters matching MCP tool.
@@ -349,6 +401,64 @@ Snippet data for JSON:API responses.
 | type | string |  |
 | id | integer |  |
 | attributes |  |  |
+
+
+### TaskAttributes
+
+
+Task attributes for JSON:API responses.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| type | string |  |
+| priority | integer |  |
+| payload | object |  |
+| created_at |  |  |
+| updated_at |  |  |
+
+
+### TaskData
+
+
+Task data for JSON:API responses.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| type | string |  |
+| id | string |  |
+| attributes |  |  |
+
+
+### TaskListResponse
+
+
+JSON:API response for task list.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data | array |  |
+
+
+### TaskResponse
+
+
+JSON:API response for single task.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data |  |  |
+
+
+### TaskType
+
+
+Task type.
+
+
 
 
 ### ValidationError
