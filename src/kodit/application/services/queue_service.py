@@ -50,3 +50,8 @@ class QueueService:
         """List all tasks in the queue."""
         repo = SqlAlchemyTaskRepository(self.session)
         return await repo.list(task_type)
+
+    async def get_task(self, task_id: str) -> Task | None:
+        """Get a specific task by ID."""
+        repo = SqlAlchemyTaskRepository(self.session)
+        return await repo.get(task_id)

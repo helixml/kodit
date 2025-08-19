@@ -12,7 +12,11 @@ from kodit.application.services.auto_indexing_service import AutoIndexingService
 from kodit.application.services.indexing_worker_service import IndexingWorkerService
 from kodit.application.services.sync_scheduler import SyncSchedulerService
 from kodit.config import AppContext
-from kodit.infrastructure.api.v1.routers import indexes_router, search_router
+from kodit.infrastructure.api.v1.routers import (
+    indexes_router,
+    queue_router,
+    search_router,
+)
 from kodit.infrastructure.api.v1.schemas.context import AppLifespanState
 from kodit.mcp import mcp
 from kodit.middleware import ASGICancelledErrorMiddleware, logging_middleware
@@ -113,6 +117,7 @@ async def healthz() -> Response:
 
 # Include API routers
 app.include_router(indexes_router)
+app.include_router(queue_router)
 app.include_router(search_router)
 
 
