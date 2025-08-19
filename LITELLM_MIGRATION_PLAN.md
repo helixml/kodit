@@ -8,7 +8,7 @@ This plan outlines the steps required to add new LiteLLM-based embedding and enr
 
 - **Unified Interface**: Single provider implementation for all LLM services
 - **Extensive Provider Support**: Support for 100+ providers including OpenAI, Anthropic, Azure, AWS Bedrock, Google Vertex AI, Cohere, Hugging Face, Ollama, and more
-- **Simplified Configuration**: Consistent configuration pattern across all providers
+- **Simplified Configuration**: Uses provider-native environment variables for API keys (e.g., OPENAI_API_KEY, ANTHROPIC_API_KEY)
 - **Built-in Features**: Automatic retry logic, fallbacks, load balancing, and caching
 - **Cost Tracking**: Built-in cost tracking and budgeting capabilities
 - **Observability**: Better logging and monitoring through LiteLLM's built-in observability features
@@ -20,10 +20,7 @@ This plan outlines the steps required to add new LiteLLM-based embedding and enr
 - Modify `src/kodit/config.py`:
   - Extend `EndpointType` to include `"litellm"` alongside existing `"openai"`
   - Add new optional fields to `Endpoint` class for LiteLLM support:
-    - `litellm_model`: Optional[str] (full LiteLLM model string, e.g., "azure/gpt-4")
-    - `api_version`: Optional[str] (for Azure)
-    - `extra_params`: Optional[dict] (for provider-specific parameters)
-  - Keep all existing fields and behavior unchanged
+    - `extra_params`: Optional[dict] (for provider-specific non-secret parameters)
 
 ### Phase 2: Create New LiteLLM Providers
 
@@ -33,9 +30,9 @@ Create `src/kodit/infrastructure/embedding/embedding_providers/litellm_embedding
 
 - Implement `EmbeddingProvider` interface
 - Use `litellm.embedding()` for all embedding operations
+- Rely on LiteLLM's automatic API key detection from environment variables
+- Pass through `base_url` and other non-secret configuration when provided
 - Support batching similar to current OpenAI provider
-- Handle provider-specific model names (e.g., "text-embedding-3-small" for OpenAI, "embed-english-v3.0" for Cohere)
-- Implement token counting using LiteLLM's built-in tokenizer
 - Add support for custom embedding dimensions where applicable
 
 #### 2.2 Create LiteLLM Enrichment Provider
@@ -44,6 +41,8 @@ Create `src/kodit/infrastructure/enrichment/litellm_enrichment_provider.py`:
 
 - Implement `EnrichmentProvider` interface
 - Use `litellm.acompletion()` for async chat completions
+- Rely on LiteLLM's automatic API key detection from environment variables
+- Pass through `base_url` and other non-secret configuration when provided
 - Support streaming responses for better performance
 - Maintain the same enrichment prompt structure
 - Add support for function calling where applicable
@@ -80,76 +79,18 @@ Modify `src/kodit/infrastructure/enrichment/enrichment_factory.py`:
 
 #### 5.1 Update Configuration Documentation
 
-- Document all supported providers
+- Document all supported providers and their environment variables
 - Provide example configurations for popular providers
 - Document provider-specific requirements and limitations
+- Create environment variable reference guide
 
 #### 5.2 Usage Guide
 
 - How to use the new LiteLLM provider
+- Environment variable setup for each provider
 - Common configuration examples for different providers
+- Migration guide from direct API key configuration
 - Troubleshooting guide
-
-## Configuration Examples
-
-### OpenAI (existing provider - unchanged)
-
-```yaml
-default_endpoint:
-  type: openai
-  api_key: sk-...
-  model: gpt-4o-mini
-```
-
-### OpenAI via LiteLLM (new option)
-
-```yaml
-default_endpoint:
-  type: litellm
-  api_key: sk-...
-  litellm_model: gpt-4o-mini
-```
-
-### Anthropic via LiteLLM
-
-```yaml
-default_endpoint:
-  type: litellm
-  api_key: sk-ant-...
-  litellm_model: claude-3-opus-20240229
-```
-
-### Azure OpenAI via LiteLLM
-
-```yaml
-default_endpoint:
-  type: litellm
-  api_key: ...
-  base_url: https://myazure.openai.azure.com/
-  api_version: 2024-02-15-preview
-  litellm_model: azure/my-deployment-name
-```
-
-### AWS Bedrock via LiteLLM
-
-```yaml
-default_endpoint:
-  type: litellm
-  litellm_model: bedrock/anthropic.claude-3-opus-20240229-v1:0
-  extra_params:
-    aws_access_key_id: ...
-    aws_secret_access_key: ...
-    aws_region_name: us-east-1
-```
-
-### Local Ollama via LiteLLM
-
-```yaml
-default_endpoint:
-  type: litellm
-  base_url: http://localhost:11434
-  litellm_model: ollama/llama2
-```
 
 ## Risks and Mitigations
 
@@ -157,6 +98,7 @@ default_endpoint:
 
 - **Mitigation**: No changes to existing providers or configurations
 - **Mitigation**: LiteLLM is opt-in only via `type: litellm`
+- **Mitigation**: Existing OpenAI provider continues to use direct API key configuration
 
 ### Risk 2: Performance Regression
 
@@ -172,6 +114,12 @@ default_endpoint:
 
 - **Mitigation**: Make additional provider dependencies optional
 - **Mitigation**: Document minimal vs full installation options
+
+### Risk 5: Environment Variable Conflicts
+
+- **Mitigation**: Document clearly which environment variables are used
+- **Mitigation**: Provide diagnostic tool to check environment setup
+- **Mitigation**: Allow override via config for cases where env vars conflict
 
 ## Timeline Estimate
 
