@@ -54,6 +54,7 @@ dependencies = [
     "accelerate>=1.7.0",
     "rudder-sdk-python>=2.1.4",
     "pystemmer>=3.0.0",
+    "litellm>=1.75.8",
 ]
 
 [dependency-groups]
