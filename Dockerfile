@@ -78,23 +78,8 @@ EOT
 
 ENV PATH=/app/bin:$PATH
 
-# Don't run your app as root.
-RUN <<EOT
-groupadd -r app
-useradd -r -d /app -g app -N app
-EOT
-
-STOPSIGNAL SIGINT
-
-# Configure a default data directory so the app can write to it and volumes can be mounted to it
-RUN mkdir -p /data && chown -R app:app /data
-ENV DATA_DIR=/data
-
-USER app
 WORKDIR /app
-
 ENTRYPOINT ["/app/bin/kodit"]
 
 # Copy the pre-built `/app` directory to the runtime container
-# and change the ownership to user app and group app in one step.
-COPY --from=build --chown=app:app /app /app
+COPY --from=build /app /app
