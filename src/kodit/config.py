@@ -44,7 +44,6 @@ EndpointType = Literal["openai", "litellm"]
 class Endpoint(BaseModel):
     """Endpoint provides configuration for an AI service."""
 
-    type: EndpointType | None = None
     base_url: str | None = None
     model: str | None = None
     api_key: str | None = None
@@ -118,15 +117,11 @@ class PeriodicSyncConfig(BaseModel):
 class RemoteConfig(BaseModel):
     """Configuration for remote server connection."""
 
-    server_url: str | None = Field(
-        default=None, description="Remote Kodit server URL"
-    )
+    server_url: str | None = Field(default=None, description="Remote Kodit server URL")
     api_key: str | None = Field(default=None, description="API key for authentication")
     timeout: float = Field(default=30.0, description="Request timeout in seconds")
     max_retries: int = Field(default=3, description="Maximum retry attempts")
-    verify_ssl: bool = Field(
-        default=True, description="Verify SSL certificates"
-    )
+    verify_ssl: bool = Field(default=True, description="Verify SSL certificates")
 
 
 class CustomAutoIndexingEnvSource(EnvSettingsSource):

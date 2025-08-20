@@ -1,7 +1,5 @@
 """Factory for creating embedding services with DDD architecture."""
 
-import warnings
-
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -48,14 +46,6 @@ def embedding_domain_service_factory(
     # Create embedding provider
     embedding_provider: EmbeddingProvider | None = None
     endpoint = _get_endpoint_configuration(app_context)
-
-    if endpoint and endpoint.type == "openai":
-        # Deprecate this
-        warnings.warn(
-            "The OpenAI endpoint is deprecated, using LiteLLM instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
 
     if endpoint:
         log_event("kodit.embedding", {"provider": "litellm"})

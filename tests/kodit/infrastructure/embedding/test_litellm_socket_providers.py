@@ -153,7 +153,6 @@ async def test_litellm_providers_initialization() -> None:
     """
     # Test embedding provider initialization with socket path
     embedding_endpoint = Endpoint(
-        type="openai",
         api_key="test-key",
         socket_path="/tmp/test.sock",  # noqa: S108
         base_url="http://localhost/v1",
@@ -169,7 +168,6 @@ async def test_litellm_providers_initialization() -> None:
 
     # Test enrichment provider initialization with socket path
     enrichment_endpoint = Endpoint(
-        type="openai",
         api_key="test-key",
         socket_path="/tmp/test.sock",  # noqa: S108
         base_url="http://localhost/v1",
@@ -214,7 +212,6 @@ async def test_litellm_providers_with_unix_socket_full() -> None:
         try:
             # Create embedding provider with Unix socket
             embedding_endpoint = Endpoint(
-                type="openai",
                 api_key="test-key",
                 socket_path=socket_path,
                 base_url="http://localhost/v1",
@@ -224,7 +221,6 @@ async def test_litellm_providers_with_unix_socket_full() -> None:
 
             # Create enrichment provider with Unix socket
             enrichment_endpoint = Endpoint(
-                type="openai",
                 api_key="test-key",
                 socket_path=socket_path,
                 base_url="http://localhost/v1",

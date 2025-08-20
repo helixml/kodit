@@ -37,7 +37,6 @@ async def test_embedding_domain_service_factory(
 
     # With openai default endpoint
     app_context.default_endpoint = Endpoint(
-        type="openai",
         base_url="https://api.openai.com/v1",
         model="gpt-4o-mini",
         api_key="default",
@@ -52,7 +51,6 @@ async def test_embedding_domain_service_factory(
     # With empty default and embedding endpoint
     app_context.default_endpoint = None
     app_context.embedding_endpoint = Endpoint(
-        type="openai",
         base_url="https://api.openai.com/v1",
         model="gpt-4o-mini",
         api_key="default",
@@ -65,14 +63,12 @@ async def test_embedding_domain_service_factory(
 
     # With default and override embedding endpoint
     app_context.default_endpoint = Endpoint(
-        type="openai",
         base_url="https://api.openai.com/v1",
         model="gpt-4o-mini",
         api_key="default",
     )
     test_base_url = "http://localhost:8000/v1/"
     app_context.embedding_endpoint = Endpoint(
-        type="openai",
         base_url=test_base_url,
         model="qwen/qwen3-8b",
         api_key="default",

@@ -31,7 +31,6 @@ class TestEnrichmentFactory:
         """Test creating enrichment service with default OpenAI endpoint."""
         app_context = AppContext()
         app_context.default_endpoint = Endpoint(
-            type="openai",
             api_key="test-key",
             base_url="https://api.openai.com/v1",
             model="gpt-4o-mini",
@@ -50,13 +49,11 @@ class TestEnrichmentFactory:
         """Test creating enrichment service with enrichment-specific OpenAI endpoint."""
         app_context = AppContext()
         app_context.default_endpoint = Endpoint(
-            type="openai",
             api_key="default-key",
             base_url="https://api.openai.com/v1",
             model="gpt-4o-mini",
         )
         app_context.enrichment_endpoint = Endpoint(
-            type="openai",
             api_key="enrichment-key",
             base_url="https://custom.openai.com/v1",
             model="gpt-4",
@@ -76,7 +73,6 @@ class TestEnrichmentFactory:
         """Test creating enrichment service with OpenAI endpoint but no model."""
         app_context = AppContext()
         app_context.default_endpoint = Endpoint(
-            type="openai",
             api_key="test-key",
             base_url="https://api.openai.com/v1",
             model=None,
@@ -96,7 +92,6 @@ class TestEnrichmentFactory:
         """Test creating enrichment service with OpenAI endpoint but no base URL."""
         app_context = AppContext()
         app_context.default_endpoint = Endpoint(
-            type="openai",
             api_key="test-key",
             base_url=None,
             model="gpt-4o-mini",
@@ -118,7 +113,6 @@ class TestEnrichmentFactory:
         """Test creating enrichment service with OpenAI endpoint but no API key."""
         app_context = AppContext()
         app_context.default_endpoint = Endpoint(
-            type="openai",
             api_key=None,
             base_url="https://api.openai.com/v1",
             model="gpt-4o-mini",
@@ -137,7 +131,6 @@ class TestEnrichmentFactory:
         """Test creating enrichment service with socket path."""
         app_context = AppContext()
         app_context.default_endpoint = Endpoint(
-            type="openai",
             api_key="test-key",
             socket_path="/tmp/openai.sock",  # noqa: S108
             model="gpt-4o-mini",

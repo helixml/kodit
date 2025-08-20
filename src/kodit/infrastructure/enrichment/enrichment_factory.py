@@ -1,7 +1,5 @@
 """Enrichment factory for creating enrichment domain services."""
 
-import warnings
-
 import structlog
 
 from kodit.config import AppContext, Endpoint
@@ -45,14 +43,6 @@ def enrichment_domain_service_factory(
     """
     log = structlog.get_logger(__name__)
     endpoint = _get_endpoint_configuration(app_context)
-
-    if endpoint and endpoint.type == "openai":
-        # Deprecate this
-        warnings.warn(
-            "The OpenAI endpoint is deprecated, using LiteLLM instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
 
     enrichment_provider: EnrichmentProvider | None = None
     if endpoint:
