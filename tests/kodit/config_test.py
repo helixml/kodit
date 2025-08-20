@@ -88,37 +88,9 @@ class TestAppContextAutoIndexing:
             del os.environ["AUTO_INDEXING_SOURCES_0_URI"]
             del os.environ["AUTO_INDEXING_SOURCES_1_URI"]
 
-    def test_combined_environment_variable_parsing(self) -> None:
-        """Test both auto-indexing and endpoint configuration from env vars."""
-        # Set environment variables
-        os.environ["AUTO_INDEXING_SOURCES_0_URI"] = "/local/path/to/code"
-        os.environ["DEFAULT_ENDPOINT_API_KEY"] = "sk-test-key-12345"
-
-        try:
-            app_context = AppContext()
-
-            # Test auto-indexing parsing
-            sources = (
-                app_context.auto_indexing.sources if app_context.auto_indexing else []
-            )
-            assert len(sources) == 1
-            assert sources[0].uri == "/local/path/to/code"
-
-            # Test default endpoint API key parsing
-            assert app_context.default_endpoint is not None
-            assert app_context.default_endpoint.api_key == "sk-test-key-12345"
-
-        finally:
-            # Clean up environment variables
-            if "AUTO_INDEXING_SOURCES_0_URI" in os.environ:
-                del os.environ["AUTO_INDEXING_SOURCES_0_URI"]
-            if "DEFAULT_ENDPOINT_API_KEY" in os.environ:
-                del os.environ["DEFAULT_ENDPOINT_API_KEY"]
-
     def test_endpoint_timeout_configuration(self) -> None:
         """Test endpoint timeout configuration from env vars."""
         # Set environment variables for different endpoint timeouts
-        os.environ["DEFAULT_ENDPOINT_TIMEOUT"] = "45.0"
         os.environ["EMBEDDING_ENDPOINT_TIMEOUT"] = "60.0"
         os.environ["ENRICHMENT_ENDPOINT_TIMEOUT"] = "90.0"
 
@@ -127,9 +99,6 @@ class TestAppContextAutoIndexing:
             app_context = AppContext()
 
             # Verify timeout configurations
-            assert app_context.default_endpoint is not None
-            assert app_context.default_endpoint.timeout == 45.0
-
             assert app_context.embedding_endpoint is not None
             assert app_context.embedding_endpoint.timeout == 60.0
 

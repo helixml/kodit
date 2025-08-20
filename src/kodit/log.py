@@ -11,6 +11,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+import litellm
 import rudderstack.analytics as rudder_analytics  # type: ignore[import-untyped]
 import structlog
 from structlog.types import EventDict
@@ -99,12 +100,16 @@ def configure_logging(app_context: AppContext) -> None:
         "bm25s",
         "sentence_transformers.SentenceTransformer",
         "httpx",
+        "LiteLLM",
     ]:
         if root_logger.getEffectiveLevel() == logging.DEBUG:
             logging.getLogger(_log).handlers.clear()
             logging.getLogger(_log).propagate = True
         else:
             logging.getLogger(_log).disabled = True
+
+    # More litellm logging cruft
+    litellm.suppress_debug_info = True
 
     # Configure SQLAlchemy loggers to use our structlog setup
     for _log in ["sqlalchemy.engine", "alembic"]:
@@ -138,6 +143,7 @@ def configure_logging(app_context: AppContext) -> None:
 
 def configure_telemetry(app_context: AppContext) -> None:
     """Configure telemetry for the application."""
+    litellm.telemetry = False  # Disable litellm telemetry by default
     if app_context.disable_telemetry:
         structlog.stdlib.get_logger(__name__).info("Telemetry has been disabled")
         rudder_analytics.send = False
