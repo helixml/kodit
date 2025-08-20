@@ -45,7 +45,10 @@ class Endpoint(BaseModel):
     """Endpoint provides configuration for an AI service."""
 
     base_url: str | None = None
-    model: str | None = None
+    model: str | None = Field(
+        default=None,
+        description="Model to use for the endpoint in litellm format (e.g. 'openai/text-embedding-3-small')",  # noqa: E501
+    )
     api_key: str | None = None
     num_parallel_tasks: int | None = None
     socket_path: str | None = Field(
