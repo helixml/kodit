@@ -108,6 +108,9 @@ def configure_logging(app_context: AppContext) -> None:
         else:
             logging.getLogger(_log).disabled = True
 
+    # More litellm logging cruft
+    litellm.suppress_debug_info = True
+
     # Configure SQLAlchemy loggers to use our structlog setup
     for _log in ["sqlalchemy.engine", "alembic"]:
         engine_logger = logging.getLogger(_log)

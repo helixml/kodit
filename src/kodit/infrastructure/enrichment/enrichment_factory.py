@@ -49,7 +49,16 @@ def enrichment_domain_service_factory(
         log_event("kodit.enrichment", {"provider": "litellm"})
         enrichment_provider = LiteLLMEnrichmentProvider(endpoint=endpoint)
         if not enrichment_provider.verify_provider():
-            log.error("Unable to verify LiteLLM provider, please check your settings")
+            log.fatal(
+                "Unable to verify enrichment provider, please check your settings",
+                model=endpoint.model,
+                base_url=endpoint.base_url,
+                api_key=endpoint.api_key[:4] + "..." if endpoint.api_key else "None",
+                num_parallel_tasks=endpoint.num_parallel_tasks,
+                socket_path=endpoint.socket_path,
+                timeout=endpoint.timeout,
+                extra_params=endpoint.extra_params,
+            )
     else:
         log_event("kodit.enrichment", {"provider": "local"})
         enrichment_provider = LocalEnrichmentProvider()

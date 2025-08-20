@@ -8,7 +8,7 @@ import httpx
 import litellm
 import structlog
 from litellm import aembedding
-from litellm.utils import check_valid_key
+from litellm.utils import validate_environment
 
 from kodit.config import Endpoint
 from kodit.domain.services.embedding_service import EmbeddingProvider
@@ -49,7 +49,19 @@ class LiteLLMEmbeddingProvider(EmbeddingProvider):
 
     def verify_provider(self) -> bool:
         """Verify the provider is available."""
-        return check_valid_key(self.model_name, self.api_key or "")
+        response = validate_environment(
+            model=self.model_name, api_key=self.api_key, api_base=self.base_url
+        )
+        if response["missing_keys"]:
+            self.log.debug(
+                "Missing keys in environment",
+                missing_keys=response["missing_keys"],
+                model=self.model_name,
+                api_key=self.api_key,
+                api_base=self.base_url,
+            )
+            return False
+        return True
 
     def _setup_litellm_client(self) -> None:
         """Set up LiteLLM with custom HTTPX client for Unix socket support."""
