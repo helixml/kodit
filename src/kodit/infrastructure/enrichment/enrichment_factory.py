@@ -1,5 +1,9 @@
 """Enrichment factory for creating enrichment domain services."""
 
+import warnings
+
+import structlog
+
 from kodit.config import AppContext, Endpoint
 from kodit.domain.services.enrichment_service import (
     EnrichmentDomainService,
@@ -39,19 +43,23 @@ def enrichment_domain_service_factory(
         An enrichment domain service instance.
 
     """
+    log = structlog.get_logger(__name__)
     endpoint = _get_endpoint_configuration(app_context)
 
-    enrichment_provider: EnrichmentProvider | None = None
     if endpoint and endpoint.type == "openai":
-        log_event(
-            "kodit.enrichment", {"provider": "litellm", "original_type": "openai"}
+        # Deprecate this
+        warnings.warn(
+            "The OpenAI endpoint is deprecated, using LiteLLM instead",
+            DeprecationWarning,
+            stacklevel=2,
         )
-        # Convert OpenAI to LiteLLM for backwards compatibility
-        enrichment_provider = LiteLLMEnrichmentProvider(endpoint=endpoint)
-    elif endpoint and endpoint.type == "litellm":
+
+    enrichment_provider: EnrichmentProvider | None = None
+    if endpoint:
         log_event("kodit.enrichment", {"provider": "litellm"})
-        # Use LiteLLM provider for 100+ providers
         enrichment_provider = LiteLLMEnrichmentProvider(endpoint=endpoint)
+        if not enrichment_provider.verify_provider():
+            log.error("Unable to verify LiteLLM provider, please check your settings")
     else:
         log_event("kodit.enrichment", {"provider": "local"})
         enrichment_provider = LocalEnrichmentProvider()

@@ -8,6 +8,7 @@ import httpx
 import litellm
 import structlog
 from litellm import aembedding
+from litellm.utils import check_valid_key
 
 from kodit.config import Endpoint
 from kodit.domain.services.embedding_service import EmbeddingProvider
@@ -45,6 +46,10 @@ class LiteLLMEmbeddingProvider(EmbeddingProvider):
 
         # Configure LiteLLM with custom HTTPX client for Unix socket support if needed
         self._setup_litellm_client()
+
+    def verify_provider(self) -> bool:
+        """Verify the provider is available."""
+        return check_valid_key(self.model_name, self.api_key or "")
 
     def _setup_litellm_client(self) -> None:
         """Set up LiteLLM with custom HTTPX client for Unix socket support."""

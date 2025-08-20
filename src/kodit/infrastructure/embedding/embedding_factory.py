@@ -1,5 +1,8 @@
 """Factory for creating embedding services with DDD architecture."""
 
+import warnings
+
+import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.config import AppContext, Endpoint
@@ -38,20 +41,27 @@ def embedding_domain_service_factory(
     task_name: TaskName, app_context: AppContext, session: AsyncSession
 ) -> EmbeddingDomainService:
     """Create an embedding domain service."""
+    log = structlog.get_logger(__name__)
     # Create embedding repository
     embedding_repository = SqlAlchemyEmbeddingRepository(session=session)
 
     # Create embedding provider
     embedding_provider: EmbeddingProvider | None = None
     endpoint = _get_endpoint_configuration(app_context)
+
     if endpoint and endpoint.type == "openai":
-        log_event("kodit.embedding", {"provider": "litellm", "original_type": "openai"})
-        # Convert OpenAI to LiteLLM for backwards compatibility
-        embedding_provider = LiteLLMEmbeddingProvider(endpoint=endpoint)
-    elif endpoint and endpoint.type == "litellm":
+        # Deprecate this
+        warnings.warn(
+            "The OpenAI endpoint is deprecated, using LiteLLM instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
+    if endpoint:
         log_event("kodit.embedding", {"provider": "litellm"})
-        # Use LiteLLM provider for 100+ providers
         embedding_provider = LiteLLMEmbeddingProvider(endpoint=endpoint)
+        if not embedding_provider.verify_provider():
+            log.error("Unable to verify LiteLLM provider, please check your settings")
     else:
         log_event("kodit.embedding", {"provider": "local"})
         embedding_provider = LocalEmbeddingProvider(CODE)
