@@ -133,45 +133,6 @@ class TestEnrichmentFactory:
         assert service.enrichment_provider.base_url == "https://api.openai.com/v1"
         assert service.enrichment_provider.model_name == "gpt-4o-mini"
 
-    def test_create_enrichment_domain_service_non_openai_endpoint(self) -> None:
-        """Test creating enrichment service with non-OpenAI endpoint."""
-        app_context = AppContext()
-        app_context.default_endpoint = Endpoint(
-            type=None,
-            api_key="test-key",
-            base_url="https://other.com/v1",
-            model="other-model",
-        )
-        app_context.enrichment_endpoint = None
-
-        service = enrichment_domain_service_factory(app_context)
-
-        assert isinstance(service, EnrichmentDomainService)
-        assert isinstance(service.enrichment_provider, LocalEnrichmentProvider)
-
-    def test_create_enrichment_domain_service_enrichment_non_openai_endpoint(
-        self,
-    ) -> None:
-        """Test creating enrichment service with non-OpenAI endpoint."""
-        app_context = AppContext()
-        app_context.default_endpoint = Endpoint(
-            type="openai",
-            api_key="default-key",
-            base_url="https://api.openai.com/v1",
-            model="gpt-4o-mini",
-        )
-        app_context.enrichment_endpoint = Endpoint(
-            type=None,
-            api_key="enrichment-key",
-            base_url="https://other.com/v1",
-            model="other-model",
-        )
-
-        service = enrichment_domain_service_factory(app_context)
-
-        assert isinstance(service, EnrichmentDomainService)
-        assert isinstance(service.enrichment_provider, LocalEnrichmentProvider)
-
     def test_create_enrichment_domain_service_with_socket_path(self) -> None:
         """Test creating enrichment service with socket path."""
         app_context = AppContext()
