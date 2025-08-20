@@ -7,11 +7,11 @@ from kodit.config import AppContext, Endpoint, Search
 from kodit.infrastructure.embedding.embedding_factory import (
     embedding_domain_service_factory,
 )
+from kodit.infrastructure.embedding.embedding_providers.litellm_embedding_provider import (  # noqa: E501
+    LiteLLMEmbeddingProvider,
+)
 from kodit.infrastructure.embedding.embedding_providers.local_embedding_provider import (  # noqa: E501
     LocalEmbeddingProvider,
-)
-from kodit.infrastructure.embedding.embedding_providers.openai_embedding_provider import (  # noqa: E501
-    OpenAIEmbeddingProvider,
 )
 from kodit.infrastructure.embedding.local_vector_search_repository import (
     LocalVectorSearchRepository,
@@ -47,7 +47,7 @@ async def test_embedding_domain_service_factory(
         "code", app_context=app_context, session=session
     )
     assert isinstance(service.vector_search_repository, LocalVectorSearchRepository)
-    assert isinstance(service.embedding_provider, OpenAIEmbeddingProvider)
+    assert isinstance(service.embedding_provider, LiteLLMEmbeddingProvider)
 
     # With empty default and embedding endpoint
     app_context.default_endpoint = None
@@ -61,7 +61,7 @@ async def test_embedding_domain_service_factory(
         "code", app_context=app_context, session=session
     )
     assert isinstance(service.vector_search_repository, LocalVectorSearchRepository)
-    assert isinstance(service.embedding_provider, OpenAIEmbeddingProvider)
+    assert isinstance(service.embedding_provider, LiteLLMEmbeddingProvider)
 
     # With default and override embedding endpoint
     app_context.default_endpoint = Endpoint(
@@ -81,5 +81,5 @@ async def test_embedding_domain_service_factory(
         "code", app_context=app_context, session=session
     )
     assert isinstance(service.vector_search_repository, LocalVectorSearchRepository)
-    assert isinstance(service.embedding_provider, OpenAIEmbeddingProvider)
+    assert isinstance(service.embedding_provider, LiteLLMEmbeddingProvider)
     assert service.embedding_provider.base_url == test_base_url

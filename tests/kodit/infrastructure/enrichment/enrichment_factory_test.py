@@ -5,11 +5,11 @@ from kodit.domain.services.enrichment_service import EnrichmentDomainService
 from kodit.infrastructure.enrichment.enrichment_factory import (
     enrichment_domain_service_factory,
 )
+from kodit.infrastructure.enrichment.litellm_enrichment_provider import (
+    LiteLLMEnrichmentProvider,
+)
 from kodit.infrastructure.enrichment.local_enrichment_provider import (
     LocalEnrichmentProvider,
-)
-from kodit.infrastructure.enrichment.openai_enrichment_provider import (
-    OpenAIEnrichmentProvider,
 )
 
 
@@ -41,7 +41,7 @@ class TestEnrichmentFactory:
         service = enrichment_domain_service_factory(app_context)
 
         assert isinstance(service, EnrichmentDomainService)
-        assert isinstance(service.enrichment_provider, OpenAIEnrichmentProvider)
+        assert isinstance(service.enrichment_provider, LiteLLMEnrichmentProvider)
         assert service.enrichment_provider.api_key == "test-key"
         assert service.enrichment_provider.base_url == "https://api.openai.com/v1"
         assert service.enrichment_provider.model_name == "gpt-4o-mini"
@@ -65,7 +65,7 @@ class TestEnrichmentFactory:
         service = enrichment_domain_service_factory(app_context)
 
         assert isinstance(service, EnrichmentDomainService)
-        assert isinstance(service.enrichment_provider, OpenAIEnrichmentProvider)
+        assert isinstance(service.enrichment_provider, LiteLLMEnrichmentProvider)
         assert service.enrichment_provider.api_key == "enrichment-key"
         assert service.enrichment_provider.base_url == "https://custom.openai.com/v1"
         assert service.enrichment_provider.model_name == "gpt-4"
@@ -86,8 +86,9 @@ class TestEnrichmentFactory:
         service = enrichment_domain_service_factory(app_context)
 
         assert isinstance(service, EnrichmentDomainService)
-        assert isinstance(service.enrichment_provider, OpenAIEnrichmentProvider)
-        assert service.enrichment_provider.model_name == "gpt-4o-mini"  # Default model
+        assert isinstance(service.enrichment_provider, LiteLLMEnrichmentProvider)
+        # LiteLLM provider default
+        assert service.enrichment_provider.model_name == "gpt-4o-mini"
 
     def test_create_enrichment_domain_service_default_openai_endpoint_no_base_url(
         self,
@@ -105,9 +106,10 @@ class TestEnrichmentFactory:
         service = enrichment_domain_service_factory(app_context)
 
         assert isinstance(service, EnrichmentDomainService)
-        assert isinstance(service.enrichment_provider, OpenAIEnrichmentProvider)
+        assert isinstance(service.enrichment_provider, LiteLLMEnrichmentProvider)
         assert service.enrichment_provider.api_key == "test-key"
-        assert service.enrichment_provider.base_url == "https://api.openai.com/v1"
+        # LiteLLM will use provider defaults
+        assert service.enrichment_provider.base_url is None
         assert service.enrichment_provider.model_name == "gpt-4o-mini"
 
     def test_create_enrichment_domain_service_default_openai_endpoint_no_api_key(
@@ -126,7 +128,7 @@ class TestEnrichmentFactory:
         service = enrichment_domain_service_factory(app_context)
 
         assert isinstance(service, EnrichmentDomainService)
-        assert isinstance(service.enrichment_provider, OpenAIEnrichmentProvider)
+        assert isinstance(service.enrichment_provider, LiteLLMEnrichmentProvider)
         assert service.enrichment_provider.api_key is None
         assert service.enrichment_provider.base_url == "https://api.openai.com/v1"
         assert service.enrichment_provider.model_name == "gpt-4o-mini"
@@ -184,7 +186,7 @@ class TestEnrichmentFactory:
         service = enrichment_domain_service_factory(app_context)
 
         assert isinstance(service, EnrichmentDomainService)
-        assert isinstance(service.enrichment_provider, OpenAIEnrichmentProvider)
+        assert isinstance(service.enrichment_provider, LiteLLMEnrichmentProvider)
         assert service.enrichment_provider.socket_path == "/tmp/openai.sock"  # noqa: S108
         assert service.enrichment_provider.api_key == "test-key"
         assert service.enrichment_provider.model_name == "gpt-4o-mini"

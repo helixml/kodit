@@ -15,10 +15,6 @@ from kodit.infrastructure.embedding.embedding_providers.local_embedding_provider
     CODE,
     LocalEmbeddingProvider,
 )
-from kodit.infrastructure.embedding.embedding_providers.openai_embedding_provider import (  # noqa: E501
-    OPENAI_NUM_PARALLEL_TASKS,
-    OpenAIEmbeddingProvider,
-)
 from kodit.infrastructure.embedding.local_vector_search_repository import (
     LocalVectorSearchRepository,
 )
@@ -49,16 +45,9 @@ def embedding_domain_service_factory(
     embedding_provider: EmbeddingProvider | None = None
     endpoint = _get_endpoint_configuration(app_context)
     if endpoint and endpoint.type == "openai":
-        log_event("kodit.embedding", {"provider": "openai"})
-        # Use new httpx-based provider with socket support
-        embedding_provider = OpenAIEmbeddingProvider(
-            api_key=endpoint.api_key,
-            base_url=endpoint.base_url or "https://api.openai.com/v1",
-            model_name=endpoint.model or "text-embedding-3-small",
-            num_parallel_tasks=endpoint.num_parallel_tasks or OPENAI_NUM_PARALLEL_TASKS,
-            socket_path=endpoint.socket_path,
-            timeout=endpoint.timeout or 30.0,
-        )
+        log_event("kodit.embedding", {"provider": "litellm", "original_type": "openai"})
+        # Convert OpenAI to LiteLLM for backwards compatibility
+        embedding_provider = LiteLLMEmbeddingProvider(endpoint=endpoint)
     elif endpoint and endpoint.type == "litellm":
         log_event("kodit.embedding", {"provider": "litellm"})
         # Use LiteLLM provider for 100+ providers
