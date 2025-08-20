@@ -32,7 +32,7 @@ from kodit.log import log_event
 
 def _get_endpoint_configuration(app_context: AppContext) -> Endpoint | None:
     """Get the endpoint configuration for the embedding service."""
-    return app_context.embedding_endpoint or app_context.default_endpoint or None
+    return app_context.embedding_endpoint or None
 
 
 def embedding_domain_service_factory(

@@ -197,13 +197,6 @@ class AppContext(BaseSettings):
     log_level: str = Field(default=DEFAULT_LOG_LEVEL)
     log_format: LogFormat = Field(default=DEFAULT_LOG_FORMAT)
     disable_telemetry: bool = Field(default=DEFAULT_DISABLE_TELEMETRY)
-    default_endpoint: Endpoint | None = Field(
-        default=None,
-        description=(
-            "Default endpoint to use for all AI interactions "
-            "(can be overridden by task-specific configuration)."
-        ),
-    )
     embedding_endpoint: Endpoint | None = Field(
         default=None,
         description="Endpoint to use for embedding.",

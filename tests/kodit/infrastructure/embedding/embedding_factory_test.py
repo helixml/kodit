@@ -27,7 +27,6 @@ async def test_embedding_domain_service_factory(
     app_context.default_search = Search(provider="sqlite")
 
     # With defaults, no settings
-    app_context.default_endpoint = None
     app_context.embedding_endpoint = None
     service = embedding_domain_service_factory(
         "code", app_context=app_context, session=session
@@ -35,21 +34,7 @@ async def test_embedding_domain_service_factory(
     assert isinstance(service.vector_search_repository, LocalVectorSearchRepository)
     assert isinstance(service.embedding_provider, LocalEmbeddingProvider)
 
-    # With openai default endpoint
-    app_context.default_endpoint = Endpoint(
-        base_url="https://api.openai.com/v1",
-        model="gpt-4o-mini",
-        api_key="default",
-    )
-    app_context.embedding_endpoint = None
-    service = embedding_domain_service_factory(
-        "code", app_context=app_context, session=session
-    )
-    assert isinstance(service.vector_search_repository, LocalVectorSearchRepository)
-    assert isinstance(service.embedding_provider, LiteLLMEmbeddingProvider)
-
     # With empty default and embedding endpoint
-    app_context.default_endpoint = None
     app_context.embedding_endpoint = Endpoint(
         base_url="https://api.openai.com/v1",
         model="gpt-4o-mini",
@@ -60,22 +45,3 @@ async def test_embedding_domain_service_factory(
     )
     assert isinstance(service.vector_search_repository, LocalVectorSearchRepository)
     assert isinstance(service.embedding_provider, LiteLLMEmbeddingProvider)
-
-    # With default and override embedding endpoint
-    app_context.default_endpoint = Endpoint(
-        base_url="https://api.openai.com/v1",
-        model="gpt-4o-mini",
-        api_key="default",
-    )
-    test_base_url = "http://localhost:8000/v1/"
-    app_context.embedding_endpoint = Endpoint(
-        base_url=test_base_url,
-        model="qwen/qwen3-8b",
-        api_key="default",
-    )
-    service = embedding_domain_service_factory(
-        "code", app_context=app_context, session=session
-    )
-    assert isinstance(service.vector_search_repository, LocalVectorSearchRepository)
-    assert isinstance(service.embedding_provider, LiteLLMEmbeddingProvider)
-    assert service.embedding_provider.base_url == test_base_url

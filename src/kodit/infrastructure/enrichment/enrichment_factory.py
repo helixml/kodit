@@ -26,7 +26,7 @@ def _get_endpoint_configuration(app_context: AppContext) -> Endpoint | None:
         The endpoint configuration or None.
 
     """
-    return app_context.enrichment_endpoint or app_context.default_endpoint or None
+    return app_context.enrichment_endpoint or None
 
 
 def enrichment_domain_service_factory(
