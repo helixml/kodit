@@ -38,7 +38,7 @@ DEFAULT_LOG_FORMAT = LogFormat.PRETTY
 DEFAULT_DISABLE_TELEMETRY = False
 T = TypeVar("T")
 
-EndpointType = Literal["openai"]
+EndpointType = Literal["openai", "litellm"]
 
 
 class Endpoint(BaseModel):
@@ -56,6 +56,10 @@ class Endpoint(BaseModel):
     timeout: float | None = Field(
         default=None,
         description="Request timeout in seconds (default: 30.0)",
+    )
+    extra_params: dict[str, Any] | None = Field(
+        default=None,
+        description="Extra provider-specific non-secret parameters for LiteLLM",
     )
 
 

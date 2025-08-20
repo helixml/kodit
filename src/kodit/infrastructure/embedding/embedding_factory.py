@@ -8,6 +8,9 @@ from kodit.domain.services.embedding_service import (
     EmbeddingProvider,
     VectorSearchRepository,
 )
+from kodit.infrastructure.embedding.embedding_providers.litellm_embedding_provider import (  # noqa: E501
+    LiteLLMEmbeddingProvider,
+)
 from kodit.infrastructure.embedding.embedding_providers.local_embedding_provider import (  # noqa: E501
     CODE,
     LocalEmbeddingProvider,
@@ -56,6 +59,10 @@ def embedding_domain_service_factory(
             socket_path=endpoint.socket_path,
             timeout=endpoint.timeout or 30.0,
         )
+    elif endpoint and endpoint.type == "litellm":
+        log_event("kodit.embedding", {"provider": "litellm"})
+        # Use LiteLLM provider for 100+ providers
+        embedding_provider = LiteLLMEmbeddingProvider(endpoint=endpoint)
     else:
         log_event("kodit.embedding", {"provider": "local"})
         embedding_provider = LocalEmbeddingProvider(CODE)

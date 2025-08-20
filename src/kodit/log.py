@@ -99,6 +99,7 @@ def configure_logging(app_context: AppContext) -> None:
         "bm25s",
         "sentence_transformers.SentenceTransformer",
         "httpx",
+        "LiteLLM",
     ]:
         if root_logger.getEffectiveLevel() == logging.DEBUG:
             logging.getLogger(_log).handlers.clear()

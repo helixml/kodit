@@ -5,6 +5,9 @@ from kodit.domain.services.enrichment_service import (
     EnrichmentDomainService,
     EnrichmentProvider,
 )
+from kodit.infrastructure.enrichment.litellm_enrichment_provider import (
+    LiteLLMEnrichmentProvider,
+)
 from kodit.infrastructure.enrichment.local_enrichment_provider import (
     LocalEnrichmentProvider,
 )
@@ -54,6 +57,10 @@ def enrichment_domain_service_factory(
             socket_path=endpoint.socket_path,
             timeout=endpoint.timeout or 30.0,
         )
+    elif endpoint and endpoint.type == "litellm":
+        log_event("kodit.enrichment", {"provider": "litellm"})
+        # Use LiteLLM provider for 100+ providers
+        enrichment_provider = LiteLLMEnrichmentProvider(endpoint=endpoint)
     else:
         log_event("kodit.enrichment", {"provider": "local"})
         enrichment_provider = LocalEnrichmentProvider()
