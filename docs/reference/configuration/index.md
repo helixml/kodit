@@ -84,13 +84,13 @@ Here is an example that works with Azure AI Foundry | Azure OpenAI:
 EMBEDDING_ENDPOINT_BASE_URL=https://winderai-openai-test.openai.azure.com/ # Matches base url listed in example
 EMBEDDING_ENDPOINT_MODEL=azure/text-embedding-3-small # Must be in the format "azure/azure_deployment_name"
 EMBEDDING_ENDPOINT_API_KEY=the_api_key_listed_in_azure
-EMBEDDING_ENDPOINT_NUM_PARALLEL_TASKS=5 # Azure defaults to 150K TPM, 900 RPM
+EMBEDDING_ENDPOINT_NUM_PARALLEL_TASKS=5 # Azure defaults to 150K TPM, 900 RPM, tune according to load
 EMBEDDING_ENDPOINT_EXTRA_PARAMS={"api_version": "2024-12-01-preview"} # Matches API version listed in example
 
 ENRICHMENT_ENDPOINT_BASE_URL=https://winderai-openai-test.openai.azure.com/  # Matches base url listed in example
 ENRICHMENT_ENDPOINT_MODEL=azure/gpt-4.1-nano # Must be in the format "azure/azure_deployment_name"
 ENRICHMENT_ENDPOINT_API_KEY=the_api_key_listed_in_azure
-ENRICHMENT_ENDPOINT_NUM_PARALLEL_TASKS=3 # Azure defaults to 100K TPM, 100 RPM
+ENRICHMENT_ENDPOINT_NUM_PARALLEL_TASKS=3 # Azure defaults to 100K TPM, 100 RPM, tune according to load
 ENRICHMENT_ENDPOINT_EXTRA_PARAMS={"api_version": "2024-12-01-preview"} # Matches API version listed in example
 ```
 
