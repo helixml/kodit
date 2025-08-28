@@ -28,7 +28,7 @@ class Reporter:
     # ---------------------------------------------------------------------
     # Life-cycle helpers
     # ---------------------------------------------------------------------
-    async def start(
+    def start(
         self, operation: str, total: int, message: str | None = None
     ) -> None:
         """Log *operation.start* and emit initial ProgressEvent."""
@@ -39,7 +39,7 @@ class Reporter:
             ProgressEvent(operation=operation, current=0, total=total, message=message)
         )
 
-    async def step(
+    def step(
         self,
         operation: str,
         current: int,
@@ -53,12 +53,12 @@ class Reporter:
             )
         )
 
-    async def done(self, operation: str, message: str | None = None) -> None:
+    def done(self, operation: str, message: str | None = None) -> None:
         """Log *operation.done* and emit completion event."""
         self.log.debug("operation.done", operation=operation, message=message)
         self.progress.on_complete(operation)
 
-    async def advance(
+    def advance(
         self,
         operation: str,
         current: int,
@@ -75,4 +75,4 @@ class Reporter:
                 total=total,
                 message=message,
             )
-        await self.step(operation, current, total, message)
+        self.step(operation, current, total, message)

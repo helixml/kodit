@@ -68,6 +68,7 @@ class CodeIndexingApplicationService:
 
         # Check if index already exists
         sanitized_uri, _ = self.index_domain_service.sanitize_uri(uri)
+        self.log.info("Creating index from URI", uri=str(sanitized_uri))
         existing_index = await self.index_repository.get_by_uri(sanitized_uri)
         if existing_index:
             self.log.debug(
@@ -78,11 +79,13 @@ class CodeIndexingApplicationService:
             return existing_index
 
         # Only prepare working copy if we need to create a new index
+        self.log.info("Preparing working copy", uri=str(sanitized_uri))
         working_copy = await self.index_domain_service.prepare_index(
             uri, progress_callback
         )
 
         # Create new index
+        self.log.info("Creating index", uri=str(sanitized_uri))
         index = await self.index_repository.create(sanitized_uri, working_copy)
         await self.session.commit()
         return index
@@ -316,7 +319,7 @@ class CodeIndexingApplicationService:
         self, snippets: list[Snippet], progress_callback: ProgressCallback | None = None
     ) -> None:
         reporter = Reporter(self.log, progress_callback)
-        await reporter.start("bm25_index", len(snippets), "Creating keyword index...")
+        reporter.start("bm25_index", len(snippets), "Creating keyword index...")
 
         for _snippet in snippets:
             pass
@@ -331,13 +334,13 @@ class CodeIndexingApplicationService:
             )
         )
 
-        await reporter.done("bm25_index", "Keyword index created")
+        reporter.done("bm25_index", "Keyword index created")
 
     async def _create_code_embeddings(
         self, snippets: list[Snippet], progress_callback: ProgressCallback | None = None
     ) -> None:
         reporter = Reporter(self.log, progress_callback)
-        await reporter.start(
+        reporter.start(
             "code_embeddings", len(snippets), "Creating code embeddings..."
         )
 
@@ -352,20 +355,20 @@ class CodeIndexingApplicationService:
             )
         ):
             processed += len(result)
-            await reporter.step(
+            reporter.step(
                 "code_embeddings",
                 processed,
                 len(snippets),
                 "Creating code embeddings...",
             )
 
-        await reporter.done("code_embeddings")
+        reporter.done("code_embeddings")
 
     async def _create_text_embeddings(
         self, snippets: list[Snippet], progress_callback: ProgressCallback | None = None
     ) -> None:
         reporter = Reporter(self.log, progress_callback)
-        await reporter.start(
+        reporter.start(
             "text_embeddings", len(snippets), "Creating text embeddings..."
         )
 
@@ -384,7 +387,7 @@ class CodeIndexingApplicationService:
                     continue
 
         if not documents_with_summaries:
-            await reporter.done("text_embeddings", "No summaries to index")
+            reporter.done("text_embeddings", "No summaries to index")
             return
 
         processed = 0
@@ -392,14 +395,14 @@ class CodeIndexingApplicationService:
             IndexRequest(documents=documents_with_summaries)
         ):
             processed += len(result)
-            await reporter.step(
+            reporter.step(
                 "text_embeddings",
                 processed,
                 len(snippets),
                 "Creating text embeddings...",
             )
 
-        await reporter.done("text_embeddings")
+        reporter.done("text_embeddings")
 
     async def delete_index(self, index: Index) -> None:
         """Delete an index."""
