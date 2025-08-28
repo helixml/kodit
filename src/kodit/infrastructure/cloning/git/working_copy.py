@@ -9,6 +9,7 @@ import structlog
 
 from kodit.domain.entities import WorkingCopy
 from kodit.domain.interfaces import ProgressCallback
+from kodit.domain.value_objects import ProgressEvent
 
 
 class GitWorkingCopyProvider:
@@ -34,13 +35,22 @@ class GitWorkingCopyProvider:
         clone_path = self.get_clone_path(uri)
         clone_path.mkdir(parents=True, exist_ok=True)
 
+        step_record = []
+
         def _clone_progress_callback(
             a: int, b: str | float | None, c: str | float | None, d: str
         ) -> None:
             if progress_callback:
-                total = int(round(float(c or 0), 0))
-                self.log.info(
-                    "Clone progress", steps=a, complete=b, total=total, status=d
+                if a not in step_record:
+                    step_record.append(a)
+
+                # Git reports a really weird format. This is a quick hack to get some progress.
+                progress_callback.on_progress(
+                    ProgressEvent(
+                        operation="prepare_index",
+                        current=len(step_record),
+                        total=12,
+                    )
                 )
 
         try:
@@ -56,7 +66,6 @@ class GitWorkingCopyProvider:
                 multi_options=options,
             )
         except git.GitCommandError as e:
-            print(str(e.stderr))
             if "already exists and is not an empty directory" not in str(e):
                 msg = f"Failed to clone repository: {e}"
                 raise ValueError(msg) from e
