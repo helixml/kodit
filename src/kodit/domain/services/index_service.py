@@ -67,20 +67,20 @@ class IndexDomainService:
         self.log.info("Preparing source", uri=str(sanitized_uri))
 
         if source_type == domain_entities.SourceType.FOLDER:
-            await reporter.start("prepare_index", 1, "Scanning source...")
+            reporter.start("prepare_index", 1, "Scanning source...")
             local_path = path_from_uri(str(sanitized_uri))
         elif source_type == domain_entities.SourceType.GIT:
             source_type = domain_entities.SourceType.GIT
             git_working_copy_provider = GitWorkingCopyProvider(self._clone_dir)
-            await reporter.start("prepare_index", 1, "Cloning source...")
+            reporter.start("prepare_index", 1, "Cloning source...")
             local_path = await git_working_copy_provider.prepare(
                 uri_or_path_like, progress_callback
             )
-            await reporter.done("prepare_index")
+            reporter.done("prepare_index")
         else:
             raise ValueError(f"Unsupported source: {uri_or_path_like}")
 
-        await reporter.done("prepare_index")
+        reporter.done("prepare_index")
 
         return domain_entities.WorkingCopy(
             remote_uri=sanitized_uri,
@@ -131,7 +131,7 @@ class IndexDomainService:
         )
 
         reporter = Reporter(self.log, progress_callback)
-        await reporter.start(
+        reporter.start(
             "extract_snippets",
             len(lang_files_map.keys()),
             "Extracting code snippets...",
@@ -140,7 +140,7 @@ class IndexDomainService:
         # Calculate snippets for each language
         slicer = Slicer()
         for i, (lang, lang_files) in enumerate(lang_files_map.items()):
-            await reporter.step(
+            reporter.step(
                 "extract_snippets",
                 i,
                 len(lang_files_map.keys()),
@@ -149,7 +149,7 @@ class IndexDomainService:
             s = slicer.extract_snippets(lang_files, language=lang)
             index.snippets.extend(s)
 
-        await reporter.done("extract_snippets")
+        reporter.done("extract_snippets")
         return index
 
     async def enrich_snippets_in_index(
@@ -162,7 +162,7 @@ class IndexDomainService:
             return snippets
 
         reporter = Reporter(self.log, progress_callback)
-        await reporter.start("enrichment", len(snippets), "Enriching snippets...")
+        reporter.start("enrichment", len(snippets), "Enriching snippets...")
 
         snippet_map = {snippet.id: snippet for snippet in snippets if snippet.id}
 
@@ -180,11 +180,11 @@ class IndexDomainService:
             snippet_map[result.snippet_id].add_summary(result.text)
 
             processed += 1
-            await reporter.step(
+            reporter.step(
                 "enrichment", processed, len(snippets), "Enriching snippets..."
             )
 
-        await reporter.done("enrichment")
+        reporter.done("enrichment")
         return list(snippet_map.values())
 
     def sanitize_uri(
@@ -244,14 +244,14 @@ class IndexDomainService:
 
         # Setup reporter
         processed = 0
-        await reporter.start(
+        reporter.start(
             "refresh_working_copy", num_files_to_process, "Refreshing working copy..."
         )
 
         # First check to see if any files have been deleted
         for file_path in deleted_file_paths:
             processed += 1
-            await reporter.step(
+            reporter.step(
                 "refresh_working_copy",
                 processed,
                 num_files_to_process,
@@ -264,7 +264,7 @@ class IndexDomainService:
         # Then check to see if there are any new files
         for file_path in new_file_paths:
             processed += 1
-            await reporter.step(
+            reporter.step(
                 "refresh_working_copy",
                 processed,
                 num_files_to_process,
@@ -281,7 +281,7 @@ class IndexDomainService:
         # Finally check if there are any modified files
         for file_path in modified_file_paths:
             processed += 1
-            await reporter.step(
+            reporter.step(
                 "refresh_working_copy",
                 processed,
                 num_files_to_process,
@@ -298,6 +298,7 @@ class IndexDomainService:
                 self.log.info("Skipping file", file=str(file_path), error=str(e))
                 continue
 
+        reporter.done("refresh_working_copy")
         return working_copy
 
     async def delete_index(self, index: domain_entities.Index) -> None:
