@@ -35,7 +35,7 @@ class Reporter:
         self.log.debug(
             "operation.start", operation=operation, total=total, message=message
         )
-        await self.progress.on_progress(
+        self.progress.on_progress(
             ProgressEvent(operation=operation, current=0, total=total, message=message)
         )
 
@@ -47,7 +47,7 @@ class Reporter:
         message: str | None = None,
     ) -> None:
         """Emit an intermediate progress step (no log by default)."""
-        await self.progress.on_progress(
+        self.progress.on_progress(
             ProgressEvent(
                 operation=operation, current=current, total=total, message=message
             )
@@ -56,7 +56,7 @@ class Reporter:
     async def done(self, operation: str, message: str | None = None) -> None:
         """Log *operation.done* and emit completion event."""
         self.log.debug("operation.done", operation=operation, message=message)
-        await self.progress.on_complete(operation)
+        self.progress.on_complete(operation)
 
     async def advance(
         self,
