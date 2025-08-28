@@ -8,8 +8,7 @@ import git
 import structlog
 
 from kodit.domain.entities import WorkingCopy
-from kodit.domain.interfaces import ProgressCallback
-from kodit.domain.value_objects import ProgressEvent
+from kodit.reporting import Reporter
 
 
 class GitWorkingCopyProvider:
@@ -28,7 +27,9 @@ class GitWorkingCopyProvider:
         return self.clone_dir / dir_name
 
     async def prepare(
-        self, uri: str, progress_callback: ProgressCallback | None = None
+        self,
+        uri: str,
+        reporter: Reporter | None = None,
     ) -> Path:
         """Prepare a Git working copy."""
         sanitized_uri = WorkingCopy.sanitize_git_url(uri)
@@ -38,19 +39,19 @@ class GitWorkingCopyProvider:
         step_record = []
 
         def _clone_progress_callback(
-            a: int, b: str | float | None, c: str | float | None, d: str
+            a: int, _: str | float | None, __: str | float | None, d: str
         ) -> None:
-            if progress_callback:
+            if reporter:
                 if a not in step_record:
                     step_record.append(a)
 
-                # Git reports a really weird format. This is a quick hack to get some progress.
-                progress_callback.on_progress(
-                    ProgressEvent(
-                        operation="prepare_index",
-                        current=len(step_record),
-                        total=12,
-                    )
+                # Git reports a really weird format. This is a quick hack to get some
+                # progress.
+                reporter.step(
+                    operation="clone",
+                    current=len(step_record),
+                    total=12,
+                    message=d,
                 )
 
         try:

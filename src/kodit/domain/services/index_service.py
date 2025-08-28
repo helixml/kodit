@@ -74,7 +74,7 @@ class IndexDomainService:
             git_working_copy_provider = GitWorkingCopyProvider(self._clone_dir)
             reporter.start("prepare_index", 1, "Cloning source...")
             local_path = await git_working_copy_provider.prepare(
-                uri_or_path_like, progress_callback
+                uri_or_path_like, reporter
             )
             reporter.done("prepare_index")
         else:
