@@ -159,7 +159,7 @@ class TestLiteLLMEnrichmentProvider:
 
         # Verify base_url was passed
         call_args = mock_acompletion.call_args[1]
-        assert call_args["base_url"] == "https://custom.api.com"
+        assert call_args["api_base"] == "https://custom.api.com"
 
     @pytest.mark.asyncio
     @patch("kodit.infrastructure.enrichment.litellm_enrichment_provider.acompletion")
@@ -308,7 +308,9 @@ class TestLiteLLMEnrichmentProvider:
         assert call_args["model"] == "claude-3-opus-20240229"
 
     @pytest.mark.asyncio
-    @patch("kodit.infrastructure.enrichment.litellm_enrichment_provider.clean_thinking_tags")
+    @patch(
+        "kodit.infrastructure.enrichment.litellm_enrichment_provider.clean_thinking_tags"
+    )
     @patch("kodit.infrastructure.enrichment.litellm_enrichment_provider.acompletion")
     async def test_enrich_cleans_thinking_tags(
         self, mock_acompletion: AsyncMock, mock_clean_thinking: Mock

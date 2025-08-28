@@ -56,7 +56,9 @@ class TestLiteLLMEmbeddingProvider:
         assert len(results) == 0
 
     @pytest.mark.asyncio
-    @patch("kodit.infrastructure.embedding.embedding_providers.litellm_embedding_provider.aembedding")
+    @patch(
+        "kodit.infrastructure.embedding.embedding_providers.litellm_embedding_provider.aembedding"
+    )
     async def test_embed_single_request_success(
         self, mock_aembedding: AsyncMock
     ) -> None:
@@ -92,7 +94,9 @@ class TestLiteLLMEmbeddingProvider:
         )
 
     @pytest.mark.asyncio
-    @patch("kodit.infrastructure.embedding.embedding_providers.litellm_embedding_provider.aembedding")
+    @patch(
+        "kodit.infrastructure.embedding.embedding_providers.litellm_embedding_provider.aembedding"
+    )
     async def test_embed_multiple_requests_success(
         self, mock_aembedding: AsyncMock
     ) -> None:
@@ -139,16 +143,16 @@ class TestLiteLLMEmbeddingProvider:
         )
 
     @pytest.mark.asyncio
-    @patch("kodit.infrastructure.embedding.embedding_providers.litellm_embedding_provider.aembedding")
+    @patch(
+        "kodit.infrastructure.embedding.embedding_providers.litellm_embedding_provider.aembedding"
+    )
     async def test_embed_with_base_url(self, mock_aembedding: AsyncMock) -> None:
         """Test embedding with custom base URL."""
         endpoint = Endpoint(base_url="https://custom.api.com")
         provider = LiteLLMEmbeddingProvider(endpoint)
 
         mock_response = Mock()
-        mock_response.model_dump.return_value = {
-            "data": [{"embedding": [0.1] * 1500}]
-        }
+        mock_response.model_dump.return_value = {"data": [{"embedding": [0.1] * 1500}]}
         mock_aembedding.return_value = mock_response
 
         requests = [EmbeddingRequest(snippet_id=1, text="test")]
@@ -162,20 +166,20 @@ class TestLiteLLMEmbeddingProvider:
             model="text-embedding-3-small",
             input=["test"],
             timeout=30.0,
-            base_url="https://custom.api.com",
+            api_base="https://custom.api.com",
         )
 
     @pytest.mark.asyncio
-    @patch("kodit.infrastructure.embedding.embedding_providers.litellm_embedding_provider.aembedding")
+    @patch(
+        "kodit.infrastructure.embedding.embedding_providers.litellm_embedding_provider.aembedding"
+    )
     async def test_embed_with_api_key(self, mock_aembedding: AsyncMock) -> None:
         """Test embedding with API key."""
         endpoint = Endpoint(api_key="sk-test-key-123")
         provider = LiteLLMEmbeddingProvider(endpoint)
 
         mock_response = Mock()
-        mock_response.model_dump.return_value = {
-            "data": [{"embedding": [0.1] * 1500}]
-        }
+        mock_response.model_dump.return_value = {"data": [{"embedding": [0.1] * 1500}]}
         mock_aembedding.return_value = mock_response
 
         requests = [EmbeddingRequest(snippet_id=1, text="test")]
@@ -193,7 +197,9 @@ class TestLiteLLMEmbeddingProvider:
         )
 
     @pytest.mark.asyncio
-    @patch("kodit.infrastructure.embedding.embedding_providers.litellm_embedding_provider.aembedding")
+    @patch(
+        "kodit.infrastructure.embedding.embedding_providers.litellm_embedding_provider.aembedding"
+    )
     async def test_embed_with_extra_params(self, mock_aembedding: AsyncMock) -> None:
         """Test embedding with extra parameters."""
         extra_params = {"temperature": 0.5, "max_tokens": 100}
@@ -201,9 +207,7 @@ class TestLiteLLMEmbeddingProvider:
         provider = LiteLLMEmbeddingProvider(endpoint)
 
         mock_response = Mock()
-        mock_response.model_dump.return_value = {
-            "data": [{"embedding": [0.1] * 1500}]
-        }
+        mock_response.model_dump.return_value = {"data": [{"embedding": [0.1] * 1500}]}
         mock_aembedding.return_value = mock_response
 
         requests = [EmbeddingRequest(snippet_id=1, text="test")]
@@ -222,7 +226,9 @@ class TestLiteLLMEmbeddingProvider:
         )
 
     @pytest.mark.asyncio
-    @patch("kodit.infrastructure.embedding.embedding_providers.litellm_embedding_provider.aembedding")
+    @patch(
+        "kodit.infrastructure.embedding.embedding_providers.litellm_embedding_provider.aembedding"
+    )
     async def test_embed_batch_processing(self, mock_aembedding: AsyncMock) -> None:
         """Test that requests are processed in batches."""
         endpoint = Endpoint()
@@ -240,10 +246,7 @@ class TestLiteLLMEmbeddingProvider:
         mock_aembedding.side_effect = mock_aembedding_func
 
         # Create more than batch_size requests (batch_size = 10)
-        requests = [
-            EmbeddingRequest(snippet_id=i, text=f"text {i}")
-            for i in range(15)
-        ]
+        requests = [EmbeddingRequest(snippet_id=i, text=f"text {i}") for i in range(15)]
 
         batch_count = 0
         total_results = []
@@ -256,7 +259,9 @@ class TestLiteLLMEmbeddingProvider:
         assert mock_aembedding.call_count == 2
 
     @pytest.mark.asyncio
-    @patch("kodit.infrastructure.embedding.embedding_providers.litellm_embedding_provider.aembedding")
+    @patch(
+        "kodit.infrastructure.embedding.embedding_providers.litellm_embedding_provider.aembedding"
+    )
     async def test_embed_api_error_handling(self, mock_aembedding: AsyncMock) -> None:
         """Test handling of API errors."""
         endpoint = Endpoint()
@@ -273,7 +278,9 @@ class TestLiteLLMEmbeddingProvider:
         assert len(results) == 0
 
     @pytest.mark.asyncio
-    @patch("kodit.infrastructure.embedding.embedding_providers.litellm_embedding_provider.aembedding")
+    @patch(
+        "kodit.infrastructure.embedding.embedding_providers.litellm_embedding_provider.aembedding"
+    )
     async def test_embed_response_without_model_dump(
         self, mock_aembedding: AsyncMock
     ) -> None:
@@ -282,9 +289,7 @@ class TestLiteLLMEmbeddingProvider:
         provider = LiteLLMEmbeddingProvider(endpoint)
 
         # Mock response that doesn't have model_dump method (dict response)
-        mock_response = {
-            "data": [{"embedding": [0.1] * 1500}]
-        }
+        mock_response = {"data": [{"embedding": [0.1] * 1500}]}
         mock_aembedding.return_value = mock_response
 
         requests = [EmbeddingRequest(snippet_id=1, text="test")]
@@ -298,16 +303,16 @@ class TestLiteLLMEmbeddingProvider:
         assert len(results[0].embedding) == 1500
 
     @pytest.mark.asyncio
-    @patch("kodit.infrastructure.embedding.embedding_providers.litellm_embedding_provider.aembedding")
+    @patch(
+        "kodit.infrastructure.embedding.embedding_providers.litellm_embedding_provider.aembedding"
+    )
     async def test_embed_custom_model(self, mock_aembedding: AsyncMock) -> None:
         """Test embedding with a custom model."""
         endpoint = Endpoint(model="claude-3-haiku-20240307")
         provider = LiteLLMEmbeddingProvider(endpoint)
 
         mock_response = Mock()
-        mock_response.model_dump.return_value = {
-            "data": [{"embedding": [0.1] * 1500}]
-        }
+        mock_response.model_dump.return_value = {"data": [{"embedding": [0.1] * 1500}]}
         mock_aembedding.return_value = mock_response
 
         requests = [EmbeddingRequest(snippet_id=1, text="test text")]
@@ -324,7 +329,9 @@ class TestLiteLLMEmbeddingProvider:
         )
 
     @pytest.mark.asyncio
-    @patch("kodit.infrastructure.embedding.embedding_providers.litellm_embedding_provider.litellm")
+    @patch(
+        "kodit.infrastructure.embedding.embedding_providers.litellm_embedding_provider.litellm"
+    )
     async def test_socket_path_setup(self, mock_litellm: Mock) -> None:
         """Test Unix socket setup."""
         endpoint = Endpoint(socket_path="/var/run/test.sock")
@@ -339,8 +346,12 @@ class TestLiteLLMEmbeddingProvider:
         await provider.close()
 
     @pytest.mark.asyncio
-    @patch("kodit.infrastructure.embedding.embedding_providers.litellm_embedding_provider.httpx")
-    @patch("kodit.infrastructure.embedding.embedding_providers.litellm_embedding_provider.litellm")
+    @patch(
+        "kodit.infrastructure.embedding.embedding_providers.litellm_embedding_provider.httpx"
+    )
+    @patch(
+        "kodit.infrastructure.embedding.embedding_providers.litellm_embedding_provider.litellm"
+    )
     async def test_socket_path_httpx_client_setup(
         self, mock_litellm: Mock, mock_httpx: Mock
     ) -> None:

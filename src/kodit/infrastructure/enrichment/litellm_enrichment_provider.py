@@ -8,7 +8,6 @@ import httpx
 import litellm
 import structlog
 from litellm import acompletion
-from litellm.utils import check_valid_key
 
 from kodit.config import Endpoint
 from kodit.domain.services.enrichment_service import EnrichmentProvider
@@ -51,10 +50,6 @@ class LiteLLMEnrichmentProvider(EnrichmentProvider):
         # Configure LiteLLM with custom HTTPX client for Unix socket support if needed
         self._setup_litellm_client()
 
-    def verify_provider(self) -> bool:
-        """Verify the provider is available."""
-        return check_valid_key(self.model_name, self.api_key or "")
-
     def _setup_litellm_client(self) -> None:
         """Set up LiteLLM with custom HTTPX client for Unix socket support."""
         if self.socket_path:
@@ -90,7 +85,7 @@ class LiteLLMEnrichmentProvider(EnrichmentProvider):
 
         # Add base_url if provided
         if self.base_url:
-            kwargs["base_url"] = self.base_url
+            kwargs["api_base"] = self.base_url
 
         # Add extra parameters
         kwargs.update(self.extra_params)

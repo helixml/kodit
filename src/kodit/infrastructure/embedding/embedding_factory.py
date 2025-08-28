@@ -39,7 +39,7 @@ def embedding_domain_service_factory(
     task_name: TaskName, app_context: AppContext, session: AsyncSession
 ) -> EmbeddingDomainService:
     """Create an embedding domain service."""
-    log = structlog.get_logger(__name__)
+    structlog.get_logger(__name__)
     # Create embedding repository
     embedding_repository = SqlAlchemyEmbeddingRepository(session=session)
 
@@ -50,17 +50,6 @@ def embedding_domain_service_factory(
     if endpoint:
         log_event("kodit.embedding", {"provider": "litellm"})
         embedding_provider = LiteLLMEmbeddingProvider(endpoint=endpoint)
-        if not embedding_provider.verify_provider():
-            log.fatal(
-                "Unable to verify embedding provider, please check your settings",
-                model=endpoint.model,
-                base_url=endpoint.base_url,
-                api_key=endpoint.api_key[:4] + "..." if endpoint.api_key else "None",
-                num_parallel_tasks=endpoint.num_parallel_tasks,
-                socket_path=endpoint.socket_path,
-                timeout=endpoint.timeout,
-                extra_params=endpoint.extra_params,
-            )
     else:
         log_event("kodit.embedding", {"provider": "local"})
         embedding_provider = LocalEmbeddingProvider(CODE)
