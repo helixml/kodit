@@ -36,7 +36,7 @@ class MockProgressCallback(ProgressCallback):
         self.progress_calls: list[dict[str, Any]] = []
         self.complete_calls: list[str] = []
 
-    async def on_progress(self, event: ProgressEvent) -> None:
+    def on_progress(self, event: ProgressEvent) -> None:
         """Record progress events."""
         self.progress_calls.append(
             {
@@ -47,7 +47,7 @@ class MockProgressCallback(ProgressCallback):
             }
         )
 
-    async def on_complete(self, operation: str) -> None:
+    def on_complete(self, operation: str) -> None:
         """Record completion events."""
         self.complete_calls.append(operation)
 

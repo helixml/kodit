@@ -16,7 +16,7 @@ class TQDMProgressCallback(ProgressCallback):
         """Initialize with a TQDM progress bar."""
         self.pbar = pbar
 
-    async def on_progress(self, event: ProgressEvent) -> None:
+    def on_progress(self, event: ProgressEvent) -> None:
         """Update the TQDM progress bar."""
         # Update total if it changes
         if event.total != self.pbar.total:
@@ -38,7 +38,7 @@ class TQDMProgressCallback(ProgressCallback):
             else:
                 self.pbar.set_description(event.message[-30:])
 
-    async def on_complete(self, operation: str) -> None:
+    def on_complete(self, operation: str) -> None:
         """Complete the progress bar."""
         # TQDM will handle cleanup with leave=False
 
@@ -57,7 +57,7 @@ class LogProgressCallback(ProgressCallback):
         self._last_logged_percentage = -1
         self.log = structlog.get_logger()
 
-    async def on_progress(self, event: ProgressEvent) -> None:
+    def on_progress(self, event: ProgressEvent) -> None:
         """Log progress at milestone intervals."""
         percentage = int(event.percentage)
 
@@ -75,7 +75,7 @@ class LogProgressCallback(ProgressCallback):
             )
             self._last_logged_percentage = milestone
 
-    async def on_complete(self, operation: str) -> None:
+    def on_complete(self, operation: str) -> None:
         """Log completion of the operation."""
         self.log.info("Operation completed", operation=operation)
 
@@ -89,7 +89,7 @@ class LazyProgressCallback(ProgressCallback):
         self._callback: ProgressCallback | None = None
         self._has_work = False
 
-    async def on_progress(self, event: ProgressEvent) -> None:
+    def on_progress(self, event: ProgressEvent) -> None:
         """Update progress, creating the actual callback if needed."""
         if not self._has_work:
             self._has_work = True
@@ -98,12 +98,12 @@ class LazyProgressCallback(ProgressCallback):
             self._callback = TQDMProgressCallback(pbar)
 
         if self._callback:
-            await self._callback.on_progress(event)
+            self._callback.on_progress(event)
 
-    async def on_complete(self, operation: str) -> None:
+    def on_complete(self, operation: str) -> None:
         """Complete the progress operation."""
         if self._callback:
-            await self._callback.on_complete(operation)
+            self._callback.on_complete(operation)
 
 
 class MultiStageProgressCallback(ProgressCallback):
@@ -115,7 +115,7 @@ class MultiStageProgressCallback(ProgressCallback):
         self._current_callback: ProgressCallback | None = None
         self._current_operation: str | None = None
 
-    async def on_progress(self, event: ProgressEvent) -> None:
+    def on_progress(self, event: ProgressEvent) -> None:
         """Update progress for the current operation."""
         # If this is a new operation, create a new progress bar
         if self._current_operation != event.operation:
@@ -126,12 +126,12 @@ class MultiStageProgressCallback(ProgressCallback):
 
         # Update the current progress bar
         if self._current_callback:
-            await self._current_callback.on_progress(event)
+            self._current_callback.on_progress(event)
 
-    async def on_complete(self, operation: str) -> None:
+    def on_complete(self, operation: str) -> None:
         """Complete the current operation."""
         if self._current_callback and self._current_operation == operation:
-            await self._current_callback.on_complete(operation)
+            self._current_callback.on_complete(operation)
             self._current_callback = None
             self._current_operation = None
 

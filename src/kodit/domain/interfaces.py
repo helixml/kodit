@@ -9,19 +9,19 @@ class ProgressCallback(ABC):
     """Abstract interface for progress callbacks."""
 
     @abstractmethod
-    async def on_progress(self, event: ProgressEvent) -> None:
+    def on_progress(self, event: ProgressEvent) -> None:
         """On progress hook."""
 
     @abstractmethod
-    async def on_complete(self, operation: str) -> None:
+    def on_complete(self, operation: str) -> None:
         """On complete hook."""
 
 
 class NullProgressCallback(ProgressCallback):
     """Null implementation of progress callback that does nothing."""
 
-    async def on_progress(self, event: ProgressEvent) -> None:
+    def on_progress(self, event: ProgressEvent) -> None:
         """Do nothing on progress."""
 
-    async def on_complete(self, operation: str) -> None:
+    def on_complete(self, operation: str) -> None:
         """Do nothing on complete."""
