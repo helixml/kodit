@@ -61,6 +61,7 @@ class IndexDomainService:
         progress_callback: ProgressCallback | None = None,
     ) -> domain_entities.WorkingCopy:
         """Prepare an index by scanning files and creating working copy."""
+        self.log.info("Preparing index")
         sanitized_uri, source_type = self.sanitize_uri(uri_or_path_like)
         reporter = Reporter(self.log, progress_callback)
         self.log.info("Preparing source", uri=str(sanitized_uri))
@@ -72,7 +73,9 @@ class IndexDomainService:
             source_type = domain_entities.SourceType.GIT
             git_working_copy_provider = GitWorkingCopyProvider(self._clone_dir)
             await reporter.start("prepare_index", 1, "Cloning source...")
-            local_path = await git_working_copy_provider.prepare(uri_or_path_like)
+            local_path = await git_working_copy_provider.prepare(
+                uri_or_path_like, progress_callback
+            )
             await reporter.done("prepare_index")
         else:
             raise ValueError(f"Unsupported source: {uri_or_path_like}")

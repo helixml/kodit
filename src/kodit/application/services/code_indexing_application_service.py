@@ -68,6 +68,7 @@ class CodeIndexingApplicationService:
 
         # Check if index already exists
         sanitized_uri, _ = self.index_domain_service.sanitize_uri(uri)
+        self.log.info("Creating index from URI", uri=str(sanitized_uri))
         existing_index = await self.index_repository.get_by_uri(sanitized_uri)
         if existing_index:
             self.log.debug(
@@ -78,11 +79,13 @@ class CodeIndexingApplicationService:
             return existing_index
 
         # Only prepare working copy if we need to create a new index
+        self.log.info("Preparing working copy", uri=str(sanitized_uri))
         working_copy = await self.index_domain_service.prepare_index(
             uri, progress_callback
         )
 
         # Create new index
+        self.log.info("Creating index", uri=str(sanitized_uri))
         index = await self.index_repository.create(sanitized_uri, working_copy)
         await self.session.commit()
         return index

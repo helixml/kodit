@@ -3,6 +3,7 @@
 import tempfile
 
 import git
+import git.cmd
 import structlog
 
 
@@ -19,10 +20,10 @@ def is_valid_clone_target(target: str) -> bool:
     """
     with tempfile.TemporaryDirectory() as temp_dir:
         try:
-            git.Repo.clone_from(target, temp_dir)
+            git.cmd.Git(temp_dir).ls_remote(target)
         except git.GitCommandError as e:
             structlog.get_logger(__name__).warning(
-                "Failed to clone git repository",
+                "Failed to list git repository",
                 target=target,
                 error=e,
             )

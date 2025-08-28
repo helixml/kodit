@@ -8,6 +8,7 @@ import git
 import structlog
 
 from kodit.domain.entities import WorkingCopy
+from kodit.domain.interfaces import ProgressCallback
 
 
 class GitWorkingCopyProvider:
@@ -25,19 +26,37 @@ class GitWorkingCopyProvider:
         dir_name = f"repo-{dir_hash}"
         return self.clone_dir / dir_name
 
-    async def prepare(self, uri: str) -> Path:
+    async def prepare(
+        self, uri: str, progress_callback: ProgressCallback | None = None
+    ) -> Path:
         """Prepare a Git working copy."""
         sanitized_uri = WorkingCopy.sanitize_git_url(uri)
         clone_path = self.get_clone_path(uri)
         clone_path.mkdir(parents=True, exist_ok=True)
+
+        def _clone_progress_callback(
+            a: int, b: str | float | None, c: str | float | None, d: str
+        ) -> None:
+            if progress_callback:
+                total = int(round(float(c or 0), 0))
+                self.log.info(
+                    "Clone progress", steps=a, complete=b, total=total, status=d
+                )
 
         try:
             self.log.info(
                 "Cloning repository", uri=sanitized_uri, clone_path=str(clone_path)
             )
             # Use the original URI for cloning (with credentials if present)
-            git.Repo.clone_from(uri, clone_path)
+            options = ["--depth=1", "--single-branch"]
+            git.Repo.clone_from(
+                uri,
+                clone_path,
+                progress=_clone_progress_callback,
+                multi_options=options,
+            )
         except git.GitCommandError as e:
+            print(str(e.stderr))
             if "already exists and is not an empty directory" not in str(e):
                 msg = f"Failed to clone repository: {e}"
                 raise ValueError(msg) from e
@@ -54,7 +73,8 @@ class GitWorkingCopyProvider:
             self.log.info(
                 "Clone directory does not exist or is not a Git repository, "
                 "preparing...",
-                uri=uri, clone_path=str(clone_path)
+                uri=uri,
+                clone_path=str(clone_path),
             )
             return await self.prepare(uri)
 
@@ -64,7 +84,8 @@ class GitWorkingCopyProvider:
         except git.InvalidGitRepositoryError:
             self.log.warning(
                 "Invalid Git repository found, re-cloning...",
-                uri=uri, clone_path=str(clone_path)
+                uri=uri,
+                clone_path=str(clone_path),
             )
             # Remove the invalid directory and re-clone
             shutil.rmtree(clone_path)
