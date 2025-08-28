@@ -61,22 +61,14 @@ spec:
               value: "postgresql+asyncpg://postgres:mysecretpassword@vectorchord:5432/kodit"
             - name: DEFAULT_SEARCH_PROVIDER
               value: "vectorchord"
-            - name: EMBEDDING_ENDPOINT_TYPE
-              value: "openai"
-            - name: EMBEDDING_ENDPOINT_BASE_URL
-              value: "https://api.openai.com/v1"
             - name: EMBEDDING_ENDPOINT_API_KEY
               value: "REPLACE_WITH_YOUR_API_KEY"
             - name: EMBEDDING_ENDPOINT_MODEL
-              value: "text-embedding-3-large"
-            - name: ENRICHMENT_ENDPOINT_TYPE
-              value: "openai"
-            - name: ENRICHMENT_ENDPOINT_BASE_URL
-              value: "https://api.openai.com/v1"
+              value: "openai/text-embedding-3-large"
             - name: ENRICHMENT_ENDPOINT_API_KEY
               value: "REPLACE_WITH_YOUR_API_KEY"
             - name: ENRICHMENT_ENDPOINT_MODEL
-              value: "o3-mini"
+              value: "openai/gpt-5-nano"
             - name: AUTO_INDEXING_SOURCES_0_URI
               value: "https://github.com/pydantic/pydantic"
             - name: AUTO_INDEXING_SOURCES_1_URI
@@ -84,7 +76,7 @@ spec:
             - name: SYNC_PERIODIC_ENABLED
               value: "true"
             - name: SYNC_PERIODIC_INTERVAL_SECONDS
-              value: "1800"  # 30 minutes
+              value: "1800" # 30 minutes
             - name: SYNC_PERIODIC_RETRY_ATTEMPTS
               value: "3"
           ports:

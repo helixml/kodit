@@ -21,41 +21,77 @@ By default, Kodit will use small local models for semantic search and enrichment
 are using Kodit in a professional capacity, it is likely that the local model latency is
 too high to provide a good developer experience.
 
-Instead, you should use an external provider. The settings provided here will cause all
-embedding and enrichments request to be sent to this provider by default. You can
-override the provider used for each task if you wish.
+Instead, you should use an external provider. Under the hood, Kodit uses
+[LiteLLM](https://docs.litellm.ai/) so that you can connect to 100+ providers.
 
-#### OpenAI
+### Configuring the Provider
 
-Add the following settings to your .env file, or export them as environmental variables:
+The following configuration settings are available for you to configure the provider
+used during indexing:
 
 ```bash
-DEFAULT_ENDPOINT_TYPE=openai
-DEFAULT_ENDPOINT_BASE_URL=https://api.openai.com/v1
-DEFAULT_ENDPOINT_API_KEY=sk-xxxxxx
-# No need to set the model, sensible defaults
+EMBEDDING_ENDPOINT_BASE_URL
+EMBEDDING_ENDPOINT_MODEL # Model to use for the endpoint in litellm format (e.g. 'openai/text-embedding-3-small') 
+EMBEDDING_ENDPOINT_API_KEY
+EMBEDDING_ENDPOINT_NUM_PARALLEL_TASKS
+EMBEDDING_ENDPOINT_SOCKET_PATH # Unix socket path for local communication (e.g., /tmp/openai.sock)
+EMBEDDING_ENDPOINT_TIMEOUT # Request timeout in seconds (default: 30.0)
+EMBEDDING_ENDPOINT_EXTRA_PARAMS # Extra provider-specific non-secret parameters for LiteLLM
+
+ENRICHMENT_ENDPOINT_BASE_URL
+ENRICHMENT_ENDPOINT_MODEL # Model to use for the endpoint in litellm format (e.g. 'openai/text-embedding-3-small') 
+ENRICHMENT_ENDPOINT_API_KEY
+ENRICHMENT_ENDPOINT_NUM_PARALLEL_TASKS
+ENRICHMENT_ENDPOINT_SOCKET_PATH # Unix socket path for local communication (e.g., /tmp/openai.sock)
+ENRICHMENT_ENDPOINT_TIMEOUT # Request timeout in seconds (default: 30.0)
+ENRICHMENT_ENDPOINT_EXTRA_PARAMS # Extra provider-specific non-secret parameters for LiteLLM
 ```
 
-### Configuring the Embedding Provider
+### OpenAI Provider Example
 
-This takes precedence over the default indexing provider.
+Here is an example that works with OpenAI as the provider:
 
 ```bash
-EMBEDDING_ENDPOINT_TYPE=openai
-EMBEDDING_ENDPOINT_BASE_URL=http://localhost:8000/v1
-EMBEDDING_ENDPOINT_API_KEY=xxxxxxx
-EMBEDDING_ENDPOINT_MODEL=xxxx-xxxx
+EMBEDDING_ENDPOINT_API_KEY=sk-proj-xxxx
+EMBEDDING_ENDPOINT_MODEL=openai/text-embedding-3-small
+ENRICHMENT_ENDPOINT_API_KEY=sk-proj-xxxx
+ENRICHMENT_ENDPOINT_MODEL=openai/gpt-5-nano
 ```
 
-### Configuring the Enrichment Provider
+### Ollama Provider Example
 
-This takes precedence over the default indexing provider.
+Here is an example that works with a local [Ollama](https://ollama.com/) setup:
 
 ```bash
-ENRICHMENT_ENDPOINT_TYPE=openai
-ENRICHMENT_ENDPOINT_BASE_URL=http://localhost:8000/v1
-ENRICHMENT_ENDPOINT_API_KEY=xxxxxxx
-ENRICHMENT_ENDPOINT_MODEL=xxxx-xxxx
+EMBEDDING_ENDPOINT_BASE_URL=http://localhost:11434
+EMBEDDING_ENDPOINT_MODEL=ollama/mxbai-embed-large
+EMBEDDING_ENDPOINT_NUM_PARALLEL_TASKS=1
+ENRICHMENT_ENDPOINT_BASE_URL=http://localhost:11434
+ENRICHMENT_ENDPOINT_MODEL=ollama/qwen3:1.7b
+ENRICHMENT_ENDPOINT_NUM_PARALLEL_TASKS=1 # This is important as the local API can't accept concurrent requests
+```
+
+### Azure OpenAI Provider Example
+
+Prerequisites:
+
+- Azure OpenAI enabled
+- Chat and embedding model deployments deployed
+
+Here is an example that works with Azure AI Foundry | Azure OpenAI:
+
+```bash
+EMBEDDING_ENDPOINT_BASE_URL=https://winderai-openai-test.openai.azure.com/ # Matches base url listed in example
+EMBEDDING_ENDPOINT_MODEL=azure/text-embedding-3-small # Must be in the format "azure/azure_deployment_name"
+EMBEDDING_ENDPOINT_API_KEY=the_api_key_listed_in_azure
+EMBEDDING_ENDPOINT_NUM_PARALLEL_TASKS=5 # Azure defaults to 150K TPM, 900 RPM, tune according to load
+EMBEDDING_ENDPOINT_EXTRA_PARAMS={"api_version": "2024-12-01-preview"} # Matches API version listed in example
+
+ENRICHMENT_ENDPOINT_BASE_URL=https://winderai-openai-test.openai.azure.com/  # Matches base url listed in example
+ENRICHMENT_ENDPOINT_MODEL=azure/gpt-4.1-nano # Must be in the format "azure/azure_deployment_name"
+ENRICHMENT_ENDPOINT_API_KEY=the_api_key_listed_in_azure
+ENRICHMENT_ENDPOINT_NUM_PARALLEL_TASKS=3 # Azure defaults to 100K TPM, 100 RPM, tune according to load
+ENRICHMENT_ENDPOINT_EXTRA_PARAMS={"api_version": "2024-12-01-preview"} # Matches API version listed in example
 ```
 
 ## Configuring the Database
@@ -135,6 +171,7 @@ SYNC_PERIODIC_RETRY_ATTEMPTS=3
 ```
 
 The sync scheduler will:
+
 - Run automatically in the background when the server starts
 - Sync all existing indexes at the configured interval
 - Handle failures gracefully with retry logic

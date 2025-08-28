@@ -75,61 +75,6 @@ This will display a table showing:
 - Source URI
 - Number of snippets extracted
 
-### Auto-Indexing
-
-If you're running Kodit as a shared server, you need to configure what gets indexed.
-Auto-indexing is a simple indexing configuration powered by environmental variables.
-
-#### Configuration via Environment Variables
-
-Configure auto-indexing sources using environment variables with the `AUTO_INDEXING_SOURCES_{X}_` prefix:
-
-```sh
-# Configure a single auto-index source
-export AUTO_INDEXING_SOURCES_0_URI="https://github.com/pydantic/pydantic"
-
-# Configure multiple auto-index sources
-export AUTO_INDEXING_SOURCES_0_URI="https://github.com/pydantic/pydantic"
-export AUTO_INDEXING_SOURCES_1_URI="https://github.com/fastapi/fastapi"
-export AUTO_INDEXING_SOURCES_2_URI="/path/to/local/project"
-
-# Or use a .env file
-echo "AUTO_INDEXING_SOURCES_0_URI=https://github.com/pydantic/pydantic" >> .env
-echo "AUTO_INDEXING_SOURCES_1_URI=https://github.com/fastapi/fastapi" >> .env
-echo "AUTO_INDEXING_SOURCES_2_URI=/path/to/local/project" >> .env
-```
-
-**Configuration Format:**
-
-- Use `AUTO_INDEXING_SOURCES_N_URI` where `N` is a zero-based index
-- Sources are indexed in numerical order (0, 1, 2, etc.)
-- Supports all source types: Git repositories (HTTPS/SSH) and local directories
-- Gaps in numbering are allowed (e.g., 0, 2, 5 will work)
-
-#### Using Auto-Indexing
-
-To manually index all configured auto-index sources:
-
-```sh
-kodit index --auto-index
-```
-
-This command will:
-
-1. Read the auto-indexing configuration from environment variables
-2. Index each configured source in sequence
-3. Show progress for each source being indexed
-4. Handle errors gracefully and continue with remaining sources
-
-If no auto-index sources are configured, the command will display a message indicating
-that no sources are configured.
-
-To automatically run index all configured auto-index sources:
-
-```sh
-kodit serve
-```
-
 ## REST API
 
 Kodit provides a REST API that allows you to programmatically manage indexes and search
@@ -138,33 +83,6 @@ follows the JSON:API specification for consistent request/response formats.
 
 Please see the [API documentation](../api/index.md) for a full description of the API. You can also
 browse to the live API documentation by visiting `/docs`.
-
-### Starting the API Server
-
-The REST API is available when you start the Kodit server:
-
-```sh
-kodit serve
-```
-
-Or [deploy the Kodit container](../deployment/index.md).
-
-### Authentication
-
-If you specify API keys in the Kodit configuration then the indexing API will be secured
-using token authentication.
-
-Specify the valid tokens using:
-
-```env
-API_KEYS="foo,bar"
-```
-
-Set the API key in the `x-api-key` header:
-
-```sh
-curl -H "x-api-key: your-api-key-here" http://localhost:8000/api/v1/indexes
-```
 
 ### Index Management
 
@@ -357,43 +275,6 @@ Kodit uses a sophisticated Tree-sitter-based slicing system to intelligently ext
 - **Go**: Interfaces, struct methods, package organization
 - **HTML/CSS**: Elements with semantic context, CSS rules and selectors
 
-## Configuration
-
-### Clone Directory
-
-By default, Kodit stores cloned repositories in `~/.kodit/clones/`. You can configure this using the `DATA_DIR` environment variable:
-
-```sh
-export DATA_DIR=/custom/path/to/kodit/data
-```
-
-### Database Configuration
-
-Kodit uses SQLite by default, but supports PostgreSQL with VectorChord for better performance:
-
-```sh
-# SQLite (default)
-DB_URL=sqlite+aiosqlite:///path/to/kodit.db
-
-# PostgreSQL with VectorChord
-DB_URL=postgresql+asyncpg://user:password@localhost:5432/kodit
-DEFAULT_SEARCH_PROVIDER=vectorchord
-```
-
-### AI Provider Configuration
-
-For semantic search and enrichment, configure your AI provider:
-
-```sh
-# OpenAI
-DEFAULT_ENDPOINT_TYPE=openai
-DEFAULT_ENDPOINT_BASE_URL=https://api.openai.com/v1
-DEFAULT_ENDPOINT_API_KEY=sk-your-api-key
-
-# Or use local models (slower but private)
-# No configuration needed - uses local models by default
-```
-
 ## Advanced Features
 
 ### Selective Re-indexing
@@ -483,7 +364,6 @@ Kodit respects privacy by honoring:
 3. **"No snippets found"**: Check if the source contains supported file types
 4. **"Permission denied"**: Ensure you have read access to the source
 5. **"No auto-index sources configured"**: Check your environment variables are set correctly
-6. **"Auto-indexing configuration error"**: Verify the environment variable format uses `AUTO_INDEXING_SOURCES_N_URI`
 
 ### Checking Index Status
 

@@ -38,15 +38,17 @@ DEFAULT_LOG_FORMAT = LogFormat.PRETTY
 DEFAULT_DISABLE_TELEMETRY = False
 T = TypeVar("T")
 
-EndpointType = Literal["openai"]
+EndpointType = Literal["openai", "litellm"]
 
 
 class Endpoint(BaseModel):
     """Endpoint provides configuration for an AI service."""
 
-    type: EndpointType | None = None
     base_url: str | None = None
-    model: str | None = None
+    model: str | None = Field(
+        default=None,
+        description="Model to use for the endpoint in litellm format (e.g. 'openai/text-embedding-3-small')",  # noqa: E501
+    )
     api_key: str | None = None
     num_parallel_tasks: int | None = None
     socket_path: str | None = Field(
@@ -56,6 +58,10 @@ class Endpoint(BaseModel):
     timeout: float | None = Field(
         default=None,
         description="Request timeout in seconds (default: 30.0)",
+    )
+    extra_params: dict[str, Any] | None = Field(
+        default=None,
+        description="Extra provider-specific non-secret parameters for LiteLLM",
     )
 
 
@@ -114,15 +120,11 @@ class PeriodicSyncConfig(BaseModel):
 class RemoteConfig(BaseModel):
     """Configuration for remote server connection."""
 
-    server_url: str | None = Field(
-        default=None, description="Remote Kodit server URL"
-    )
+    server_url: str | None = Field(default=None, description="Remote Kodit server URL")
     api_key: str | None = Field(default=None, description="API key for authentication")
     timeout: float = Field(default=30.0, description="Request timeout in seconds")
     max_retries: int = Field(default=3, description="Maximum retry attempts")
-    verify_ssl: bool = Field(
-        default=True, description="Verify SSL certificates"
-    )
+    verify_ssl: bool = Field(default=True, description="Verify SSL certificates")
 
 
 class CustomAutoIndexingEnvSource(EnvSettingsSource):
@@ -198,13 +200,6 @@ class AppContext(BaseSettings):
     log_level: str = Field(default=DEFAULT_LOG_LEVEL)
     log_format: LogFormat = Field(default=DEFAULT_LOG_FORMAT)
     disable_telemetry: bool = Field(default=DEFAULT_DISABLE_TELEMETRY)
-    default_endpoint: Endpoint | None = Field(
-        default=None,
-        description=(
-            "Default endpoint to use for all AI interactions "
-            "(can be overridden by task-specific configuration)."
-        ),
-    )
     embedding_endpoint: Endpoint | None = Field(
         default=None,
         description="Endpoint to use for embedding.",
