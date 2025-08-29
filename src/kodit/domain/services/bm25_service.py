@@ -31,12 +31,7 @@ class BM25DomainService:
     """Domain service for BM25 operations."""
 
     def __init__(self, repository: BM25Repository) -> None:
-        """Initialize the BM25 domain service.
-
-        Args:
-            repository: The BM25 repository for persistence operations
-
-        """
+        """Initialize the BM25 domain service."""
         self.repository = repository
 
     async def index_documents(self, request: IndexRequest) -> None:

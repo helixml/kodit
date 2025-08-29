@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.application.services.auto_indexing_service import AutoIndexingService
 from kodit.config import AppContext, AutoIndexingConfig, AutoIndexingSource
+from kodit.infrastructure.reporting.reporter import create_noop_reporter
 
 
 @pytest.mark.filterwarnings("ignore::RuntimeWarning")
@@ -65,6 +66,7 @@ class TestAutoIndexingService:
         return AutoIndexingService(
             app_context=app_context_with_sources,
             session_factory=mock_session_factory,
+            reporter=create_noop_reporter(),
         )
 
     @pytest.mark.asyncio
@@ -108,6 +110,7 @@ class TestAutoIndexingService:
         service = AutoIndexingService(
             app_context=app_context,
             session_factory=mock_session_factory,
+            reporter=create_noop_reporter(),
         )
 
         await service.start_background_indexing()

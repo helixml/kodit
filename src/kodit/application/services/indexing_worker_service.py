@@ -14,6 +14,7 @@ from kodit.application.factories.code_indexing_factory import (
 )
 from kodit.config import AppContext
 from kodit.domain.entities import Task
+from kodit.domain.protocols import ReportingService
 from kodit.domain.value_objects import TaskType
 from kodit.infrastructure.sqlalchemy.task_repository import SqlAlchemyTaskRepository
 
@@ -29,6 +30,7 @@ class IndexingWorkerService:
         self,
         app_context: AppContext,
         session_factory: Callable[[], AsyncSession],
+        reporter: ReportingService,
     ) -> None:
         """Initialize the indexing worker service."""
         self.app_context = app_context
@@ -38,6 +40,7 @@ class IndexingWorkerService:
         self._executor = ThreadPoolExecutor(
             max_workers=1, thread_name_prefix="indexing-worker"
         )
+        self.reporter = reporter
         self.log = structlog.get_logger(__name__)
 
     async def start(self) -> None:
@@ -144,6 +147,7 @@ class IndexingWorkerService:
                 service = create_code_indexing_application_service(
                     app_context=self.app_context,
                     session=session,
+                    reporter=self.reporter,
                 )
                 index = await service.index_repository.get(index_id)
                 if not index:

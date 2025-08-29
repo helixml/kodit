@@ -20,6 +20,7 @@ from kodit.domain.value_objects import (
     SourceType,
     TaskType,
 )
+from kodit.infrastructure.reporting.reporter import create_noop_reporter
 
 
 @pytest.fixture
@@ -89,7 +90,7 @@ async def test_worker_processes_task(
     await queue_service.enqueue_task(task)
 
     # Create worker service
-    worker = IndexingWorkerService(app_context, session_factory)
+    worker = IndexingWorkerService(app_context, session_factory, create_noop_reporter())
 
     # Mock the indexing service
     with patch(
@@ -129,7 +130,7 @@ async def test_worker_handles_missing_index(
     await queue_service.enqueue_task(task)
 
     # Create worker service
-    worker = IndexingWorkerService(app_context, session_factory)
+    worker = IndexingWorkerService(app_context, session_factory, create_noop_reporter())
 
     # Mock the indexing service
     with patch(
@@ -175,7 +176,7 @@ async def test_worker_handles_invalid_task_payload(
     await session.commit()
 
     # Create worker service
-    worker = IndexingWorkerService(app_context, session_factory)
+    worker = IndexingWorkerService(app_context, session_factory, create_noop_reporter())
 
     # Start the worker
     await worker.start()
@@ -208,7 +209,7 @@ async def test_worker_processes_multiple_tasks_sequentially(
         await queue_service.enqueue_task(task)
 
     # Create worker service
-    worker = IndexingWorkerService(app_context, session_factory)
+    worker = IndexingWorkerService(app_context, session_factory, create_noop_reporter())
 
     # Track processing order
     processed_tasks = []
@@ -256,7 +257,7 @@ async def test_worker_stops_gracefully(
 ) -> None:
     """Test that the worker stops gracefully when requested."""
     # Create worker service
-    worker = IndexingWorkerService(app_context, session_factory)
+    worker = IndexingWorkerService(app_context, session_factory, create_noop_reporter())
 
     # Start the worker
     await worker.start()
@@ -297,7 +298,7 @@ async def test_worker_continues_after_error(
     await queue_service.enqueue_task(task3)
 
     # Create worker service
-    worker = IndexingWorkerService(app_context, session_factory)
+    worker = IndexingWorkerService(app_context, session_factory, create_noop_reporter())
 
     # Track processed tasks
     processed_ids = []
@@ -369,7 +370,7 @@ async def test_worker_respects_task_priority(
     await queue_service.enqueue_task(user_task)
 
     # Create worker service
-    worker = IndexingWorkerService(app_context, session_factory)
+    worker = IndexingWorkerService(app_context, session_factory, create_noop_reporter())
 
     # Track processing order
     processed_order = []

@@ -14,6 +14,7 @@ from kodit.application.factories.code_indexing_factory import (
 from kodit.application.services.queue_service import QueueService
 from kodit.config import AppContext
 from kodit.domain.entities import Task
+from kodit.domain.protocols import ReportingService
 from kodit.domain.value_objects import QueuePriority
 
 
@@ -24,10 +25,12 @@ class AutoIndexingService:
         self,
         app_context: AppContext,
         session_factory: Callable[[], AsyncSession],
+        reporter: ReportingService,
     ) -> None:
         """Initialize the auto-indexing service."""
         self.app_context = app_context
         self.session_factory = session_factory
+        self.reporter = reporter
         self.log = structlog.get_logger(__name__)
         self._indexing_task: asyncio.Task | None = None
 
@@ -57,6 +60,7 @@ class AutoIndexingService:
             service = create_code_indexing_application_service(
                 app_context=self.app_context,
                 session=session,
+                reporter=self.reporter,
             )
 
             for source in sources:

@@ -11,7 +11,7 @@ import uvicorn
 from pytable_formatter import Cell, Table  # type: ignore[import-untyped]
 
 from kodit.application.factories.code_indexing_factory import (
-    create_code_indexing_application_service,
+    create_cli_code_indexing_application_service,
 )
 from kodit.config import (
     AppContext,
@@ -191,7 +191,7 @@ async def _index_local(
     # Get database session
     db = await app_context.get_db()
     async with db.session_factory() as session:
-        service = create_code_indexing_application_service(
+        service = create_cli_code_indexing_application_service(
             app_context=app_context,
             session=session,
         )
@@ -223,13 +223,13 @@ async def _index_local(
             log_event("kodit.cli.index.create")
 
             # Create a lazy progress callback that only shows progress when needed
-            progress_callback = create_lazy_progress_callback()
-            index = await service.create_index_from_uri(source, progress_callback)
+            create_lazy_progress_callback()
+            index = await service.create_index_from_uri(source)
 
             # Create a new progress callback for the indexing operations
-            indexing_progress_callback = create_multi_stage_progress_callback()
+            create_multi_stage_progress_callback()
             try:
-                await service.run_index(index, indexing_progress_callback)
+                await service.run_index(index)
             except EmptySourceError as e:
                 log.exception("Empty source error", error=e)
                 msg = f"""{e}. This could mean:
@@ -326,7 +326,7 @@ async def _search_local(  # noqa: PLR0913
     # Get database session
     db = await app_context.get_db()
     async with db.session_factory() as session:
-        service = create_code_indexing_application_service(
+        service = create_cli_code_indexing_application_service(
             app_context=app_context,
             session=session,
         )
@@ -791,7 +791,7 @@ async def snippets(
         log_event("kodit.cli.show.snippets")
         db = await app_context.get_db()
         async with db.session_factory() as session:
-            service = create_code_indexing_application_service(
+            service = create_cli_code_indexing_application_service(
                 app_context=app_context,
                 session=session,
             )
