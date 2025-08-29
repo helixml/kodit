@@ -8,15 +8,17 @@ import git
 import structlog
 
 from kodit.domain.entities import WorkingCopy
-from kodit.reporting import Reporter
+from kodit.domain.protocols import ReportingService
+from kodit.domain.value_objects import ProgressState
 
 
 class GitWorkingCopyProvider:
     """Working copy provider for git-based sources."""
 
-    def __init__(self, clone_dir: Path) -> None:
+    def __init__(self, clone_dir: Path, reporter: ReportingService) -> None:
         """Initialize the provider."""
         self.clone_dir = clone_dir
+        self.reporter = reporter
         self.log = structlog.get_logger(__name__)
 
     def get_clone_path(self, uri: str) -> Path:
@@ -29,7 +31,6 @@ class GitWorkingCopyProvider:
     async def prepare(
         self,
         uri: str,
-        reporter: Reporter | None = None,
     ) -> Path:
         """Prepare a Git working copy."""
         sanitized_uri = WorkingCopy.sanitize_git_url(uri)
@@ -41,18 +42,19 @@ class GitWorkingCopyProvider:
         def _clone_progress_callback(
             a: int, _: str | float | None, __: str | float | None, d: str
         ) -> None:
-            if reporter:
-                if a not in step_record:
-                    step_record.append(a)
+            if a not in step_record:
+                step_record.append(a)
 
-                # Git reports a really weird format. This is a quick hack to get some
-                # progress.
-                reporter.step(
-                    operation="clone",
+            # Git reports a really weird format. This is a quick hack to get some
+            # progress.
+            self.reporter.update(
+                ProgressState(
                     current=len(step_record),
                     total=12,
+                    operation="Git Clone",
                     message=d,
                 )
+            )
 
         try:
             self.log.info(

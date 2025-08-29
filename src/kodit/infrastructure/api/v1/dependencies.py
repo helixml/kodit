@@ -16,6 +16,7 @@ from kodit.application.services.queue_service import QueueService
 from kodit.config import AppContext
 from kodit.domain.services.index_query_service import IndexQueryService
 from kodit.infrastructure.indexing.fusion_service import ReciprocalRankFusionService
+from kodit.infrastructure.reporting.reporter import create_server_reporter
 from kodit.infrastructure.sqlalchemy.index_repository import SqlAlchemyIndexRepository
 
 
@@ -63,6 +64,7 @@ async def get_indexing_app_service(
     return create_code_indexing_application_service(
         app_context=app_context,
         session=session,
+        reporter=create_server_reporter(),
     )
 
 

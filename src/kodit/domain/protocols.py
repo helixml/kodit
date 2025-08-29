@@ -6,7 +6,7 @@ from typing import Protocol
 from pydantic import AnyUrl
 
 from kodit.domain.entities import Index, Snippet, SnippetWithContext, Task, WorkingCopy
-from kodit.domain.value_objects import MultiSearchRequest, TaskType
+from kodit.domain.value_objects import MultiSearchRequest, ProgressState, TaskType
 
 
 class TaskRepository(Protocol):
@@ -89,4 +89,16 @@ class IndexRepository(Protocol):
 
     async def get_snippets_by_ids(self, ids: list[int]) -> list[SnippetWithContext]:
         """Get snippets by their IDs."""
+        ...
+
+
+class ReportingService(Protocol):
+    """Reporting service."""
+
+    def update(self, state: ProgressState) -> None:
+        """Update a reporting operation."""
+        ...
+
+    def complete(self) -> None:
+        """Complete a reporting operation."""
         ...

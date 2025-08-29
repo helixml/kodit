@@ -7,8 +7,7 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.domain.entities import Index, Snippet
-from kodit.domain.interfaces import ProgressCallback
-from kodit.domain.protocols import IndexRepository
+from kodit.domain.protocols import IndexRepository, ReportingService
 from kodit.domain.services.bm25_service import BM25DomainService
 from kodit.domain.services.embedding_service import EmbeddingDomainService
 from kodit.domain.services.enrichment_service import EnrichmentDomainService
@@ -20,12 +19,12 @@ from kodit.domain.value_objects import (
     IndexRequest,
     MultiSearchRequest,
     MultiSearchResult,
+    ProgressState,
     SearchRequest,
     SearchResult,
     SnippetSearchFilters,
 )
 from kodit.log import log_event
-from kodit.reporting import Reporter
 
 
 class CodeIndexingApplicationService:
@@ -41,6 +40,7 @@ class CodeIndexingApplicationService:
         text_search_service: EmbeddingDomainService,
         enrichment_service: EnrichmentDomainService,
         session: AsyncSession,
+        reporter: ReportingService,
     ) -> None:
         """Initialize the code indexing application service."""
         self.index_domain_service = indexing_domain_service
@@ -51,6 +51,7 @@ class CodeIndexingApplicationService:
         self.text_search_service = text_search_service
         self.enrichment_service = enrichment_service
         self.session = session
+        self.reporter = reporter
         self.log = structlog.get_logger(__name__)
 
     async def does_index_exist(self, uri: str) -> bool:
@@ -60,9 +61,7 @@ class CodeIndexingApplicationService:
         existing_index = await self.index_repository.get_by_uri(sanitized_uri)
         return existing_index is not None
 
-    async def create_index_from_uri(
-        self, uri: str, progress_callback: ProgressCallback | None = None
-    ) -> Index:
+    async def create_index_from_uri(self, uri: str) -> Index:
         """Create a new index for a source."""
         log_event("kodit.index.create")
 
@@ -80,9 +79,7 @@ class CodeIndexingApplicationService:
 
         # Only prepare working copy if we need to create a new index
         self.log.info("Preparing working copy", uri=str(sanitized_uri))
-        working_copy = await self.index_domain_service.prepare_index(
-            uri, progress_callback
-        )
+        working_copy = await self.index_domain_service.prepare_index(uri)
 
         # Create new index
         self.log.info("Creating index", uri=str(sanitized_uri))
@@ -90,9 +87,7 @@ class CodeIndexingApplicationService:
         await self.session.commit()
         return index
 
-    async def run_index(
-        self, index: Index, progress_callback: ProgressCallback | None = None
-    ) -> None:
+    async def run_index(self, index: Index) -> None:
         """Run the complete indexing process for a specific index."""
         log_event("kodit.index.run")
 
@@ -117,9 +112,7 @@ class CodeIndexingApplicationService:
 
         # Extract and create snippets (domain service handles progress)
         self.log.info("Creating snippets for files", index_id=index.id)
-        index = await self.index_domain_service.extract_snippets_from_index(
-            index=index, progress_callback=progress_callback
-        )
+        index = await self.index_domain_service.extract_snippets_from_index(index=index)
 
         await self.index_repository.update(index)
         await self.session.flush()
@@ -136,23 +129,23 @@ class CodeIndexingApplicationService:
 
         # Create BM25 index
         self.log.info("Creating keyword index")
-        await self._create_bm25_index(index.snippets, progress_callback)
+        await self._create_bm25_index(index.snippets)
 
         # Create code embeddings
         self.log.info("Creating semantic code index")
-        await self._create_code_embeddings(index.snippets, progress_callback)
+        await self._create_code_embeddings(index.snippets)
 
         # Enrich snippets
         self.log.info("Enriching snippets", num_snippets=len(index.snippets))
         enriched_snippets = await self.index_domain_service.enrich_snippets_in_index(
-            snippets=index.snippets, progress_callback=progress_callback
+            snippets=index.snippets
         )
         # Update snippets in repository
         await self.index_repository.update_snippets(index.id, enriched_snippets)
 
         # Create text embeddings (on enriched content)
         self.log.info("Creating semantic text index")
-        await self._create_text_embeddings(enriched_snippets, progress_callback)
+        await self._create_text_embeddings(enriched_snippets)
 
         # Update index timestamp
         await self.index_repository.update_index_timestamp(index.id)
@@ -315,15 +308,7 @@ class CodeIndexingApplicationService:
         ]
 
     # FUTURE: BM25 index enriched content too
-    async def _create_bm25_index(
-        self, snippets: list[Snippet], progress_callback: ProgressCallback | None = None
-    ) -> None:
-        reporter = Reporter(self.log, progress_callback)
-        reporter.start("bm25_index", len(snippets), "Creating keyword index...")
-
-        for _snippet in snippets:
-            pass
-
+    async def _create_bm25_index(self, snippets: list[Snippet]) -> None:
         await self.bm25_service.index_documents(
             IndexRequest(
                 documents=[
@@ -334,16 +319,7 @@ class CodeIndexingApplicationService:
             )
         )
 
-        reporter.done("bm25_index", "Keyword index created")
-
-    async def _create_code_embeddings(
-        self, snippets: list[Snippet], progress_callback: ProgressCallback | None = None
-    ) -> None:
-        reporter = Reporter(self.log, progress_callback)
-        reporter.start(
-            "code_embeddings", len(snippets), "Creating code embeddings..."
-        )
-
+    async def _create_code_embeddings(self, snippets: list[Snippet]) -> None:
         processed = 0
         async for result in self.code_search_service.index_documents(
             IndexRequest(
@@ -355,23 +331,18 @@ class CodeIndexingApplicationService:
             )
         ):
             processed += len(result)
-            reporter.step(
-                "code_embeddings",
-                processed,
-                len(snippets),
-                "Creating code embeddings...",
+            self.reporter.update(
+                ProgressState(
+                    current=processed,
+                    total=len(snippets),
+                    operation="Code Embedding",
+                    message="Creating code embeddings...",
+                )
             )
 
-        reporter.done("code_embeddings")
+        self.reporter.complete()
 
-    async def _create_text_embeddings(
-        self, snippets: list[Snippet], progress_callback: ProgressCallback | None = None
-    ) -> None:
-        reporter = Reporter(self.log, progress_callback)
-        reporter.start(
-            "text_embeddings", len(snippets), "Creating text embeddings..."
-        )
-
+    async def _create_text_embeddings(self, snippets: list[Snippet]) -> None:
         # Only create text embeddings for snippets that have summary content
         documents_with_summaries = []
         for snippet in snippets:
@@ -387,7 +358,7 @@ class CodeIndexingApplicationService:
                     continue
 
         if not documents_with_summaries:
-            reporter.done("text_embeddings", "No summaries to index")
+            self.reporter.complete()
             return
 
         processed = 0
@@ -395,14 +366,16 @@ class CodeIndexingApplicationService:
             IndexRequest(documents=documents_with_summaries)
         ):
             processed += len(result)
-            reporter.step(
-                "text_embeddings",
-                processed,
-                len(snippets),
-                "Creating text embeddings...",
+            self.reporter.update(
+                ProgressState(
+                    current=processed,
+                    total=len(snippets),
+                    operation="Text Embedding",
+                    message="Creating text embeddings...",
+                )
             )
 
-        reporter.done("text_embeddings")
+        self.reporter.complete()
 
     async def delete_index(self, index: Index) -> None:
         """Delete an index."""

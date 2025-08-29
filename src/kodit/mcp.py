@@ -22,6 +22,7 @@ from kodit.domain.value_objects import (
     MultiSearchResult,
     SnippetSearchFilters,
 )
+from kodit.infrastructure.reporting.reporter import create_noop_reporter
 
 # Global database connection for MCP server
 _mcp_db: Database | None = None
@@ -174,6 +175,7 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:
         service = create_code_indexing_application_service(
             app_context=mcp_context.app_context,
             session=mcp_context.session,
+            reporter=create_noop_reporter(),
         )
 
         log.debug("Searching for snippets")

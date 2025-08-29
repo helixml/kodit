@@ -9,12 +9,13 @@ import pytest
 
 from kodit.domain.entities import WorkingCopy
 from kodit.infrastructure.cloning.git.working_copy import GitWorkingCopyProvider
+from kodit.infrastructure.reporting.reporter import create_noop_reporter
 
 
 @pytest.fixture
 def working_copy(tmp_path: Path) -> GitWorkingCopyProvider:
     """Create a GitWorkingCopyProvider instance."""
-    return GitWorkingCopyProvider(tmp_path)
+    return GitWorkingCopyProvider(tmp_path, reporter=create_noop_reporter())
 
 
 def get_expected_directory_name(uri: str) -> str:

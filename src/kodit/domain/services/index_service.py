@@ -8,20 +8,20 @@ import structlog
 from pydantic import AnyUrl
 
 import kodit.domain.entities as domain_entities
-from kodit.domain.interfaces import ProgressCallback
+from kodit.domain.protocols import ReportingService
 from kodit.domain.services.enrichment_service import EnrichmentDomainService
 from kodit.domain.value_objects import (
     EnrichmentIndexRequest,
     EnrichmentRequest,
     FileProcessingStatus,
     LanguageMapping,
+    ProgressState,
 )
 from kodit.infrastructure.cloning.git.working_copy import GitWorkingCopyProvider
 from kodit.infrastructure.cloning.metadata import FileMetadataExtractor
 from kodit.infrastructure.git.git_utils import is_valid_clone_target
 from kodit.infrastructure.ignore.ignore_pattern_provider import GitIgnorePatternProvider
 from kodit.infrastructure.slicing.slicer import Slicer
-from kodit.reporting import Reporter
 from kodit.utils.path_utils import path_from_uri
 
 
@@ -48,39 +48,34 @@ class IndexDomainService:
         language_detector: LanguageDetectionService,
         enrichment_service: EnrichmentDomainService,
         clone_dir: Path,
+        reporter: ReportingService,
     ) -> None:
         """Initialize the index domain service."""
         self._clone_dir = clone_dir
         self._language_detector = language_detector
         self._enrichment_service = enrichment_service
+        self.reporter = reporter
         self.log = structlog.get_logger(__name__)
 
     async def prepare_index(
         self,
         uri_or_path_like: str,  # Must include user/pass, etc
-        progress_callback: ProgressCallback | None = None,
     ) -> domain_entities.WorkingCopy:
         """Prepare an index by scanning files and creating working copy."""
         self.log.info("Preparing index")
         sanitized_uri, source_type = self.sanitize_uri(uri_or_path_like)
-        reporter = Reporter(self.log, progress_callback)
         self.log.info("Preparing source", uri=str(sanitized_uri))
 
         if source_type == domain_entities.SourceType.FOLDER:
-            reporter.start("prepare_index", 1, "Scanning source...")
             local_path = path_from_uri(str(sanitized_uri))
         elif source_type == domain_entities.SourceType.GIT:
             source_type = domain_entities.SourceType.GIT
-            git_working_copy_provider = GitWorkingCopyProvider(self._clone_dir)
-            reporter.start("prepare_index", 1, "Cloning source...")
-            local_path = await git_working_copy_provider.prepare(
-                uri_or_path_like, reporter
+            git_working_copy_provider = GitWorkingCopyProvider(
+                self._clone_dir, self.reporter
             )
-            reporter.done("prepare_index")
+            local_path = await git_working_copy_provider.prepare(uri_or_path_like)
         else:
             raise ValueError(f"Unsupported source: {uri_or_path_like}")
-
-        reporter.done("prepare_index")
 
         return domain_entities.WorkingCopy(
             remote_uri=sanitized_uri,
@@ -92,7 +87,6 @@ class IndexDomainService:
     async def extract_snippets_from_index(
         self,
         index: domain_entities.Index,
-        progress_callback: ProgressCallback | None = None,
     ) -> domain_entities.Index:
         """Extract code snippets from files in the index."""
         file_count = len(index.source.working_copy.files)
@@ -130,39 +124,30 @@ class IndexDomainService:
             languages=lang_files_map.keys(),
         )
 
-        reporter = Reporter(self.log, progress_callback)
-        reporter.start(
-            "extract_snippets",
-            len(lang_files_map.keys()),
-            "Extracting code snippets...",
-        )
-
         # Calculate snippets for each language
         slicer = Slicer()
         for i, (lang, lang_files) in enumerate(lang_files_map.items()):
-            reporter.step(
-                "extract_snippets",
-                i,
-                len(lang_files_map.keys()),
-                f"Extracting code snippets for {lang}...",
+            self.reporter.update(
+                ProgressState(
+                    current=i,
+                    total=len(lang_files_map.keys()),
+                    operation="Code Extraction",
+                    message=f"Extracting code snippets for {lang}...",
+                )
             )
             s = slicer.extract_snippets(lang_files, language=lang)
             index.snippets.extend(s)
 
-        reporter.done("extract_snippets")
+        self.reporter.complete()
         return index
 
     async def enrich_snippets_in_index(
         self,
         snippets: list[domain_entities.Snippet],
-        progress_callback: ProgressCallback | None = None,
     ) -> list[domain_entities.Snippet]:
         """Enrich snippets with AI-generated summaries."""
         if not snippets or len(snippets) == 0:
             return snippets
-
-        reporter = Reporter(self.log, progress_callback)
-        reporter.start("enrichment", len(snippets), "Enriching snippets...")
 
         snippet_map = {snippet.id: snippet for snippet in snippets if snippet.id}
 
@@ -180,11 +165,16 @@ class IndexDomainService:
             snippet_map[result.snippet_id].add_summary(result.text)
 
             processed += 1
-            reporter.step(
-                "enrichment", processed, len(snippets), "Enriching snippets..."
+            self.reporter.update(
+                ProgressState(
+                    current=processed,
+                    total=len(snippets),
+                    operation="Snippet Enrichment",
+                    message="Enriching snippets...",
+                )
             )
 
-        reporter.done("enrichment")
+        self.reporter.complete()
         return list(snippet_map.values())
 
     def sanitize_uri(
@@ -210,14 +200,13 @@ class IndexDomainService:
     async def refresh_working_copy(
         self,
         working_copy: domain_entities.WorkingCopy,
-        progress_callback: ProgressCallback | None = None,
     ) -> domain_entities.WorkingCopy:
         """Refresh the working copy."""
         metadata_extractor = FileMetadataExtractor(working_copy.source_type)
-        reporter = Reporter(self.log, progress_callback)
-
         if working_copy.source_type == domain_entities.SourceType.GIT:
-            git_working_copy_provider = GitWorkingCopyProvider(self._clone_dir)
+            git_working_copy_provider = GitWorkingCopyProvider(
+                self._clone_dir, self.reporter
+            )
             await git_working_copy_provider.sync(str(working_copy.remote_uri))
 
         current_file_paths = working_copy.list_filesystem_paths(
@@ -244,18 +233,17 @@ class IndexDomainService:
 
         # Setup reporter
         processed = 0
-        reporter.start(
-            "refresh_working_copy", num_files_to_process, "Refreshing working copy..."
-        )
 
         # First check to see if any files have been deleted
         for file_path in deleted_file_paths:
             processed += 1
-            reporter.step(
-                "refresh_working_copy",
-                processed,
-                num_files_to_process,
-                f"Deleted {file_path.name}",
+            self.reporter.update(
+                ProgressState(
+                    current=processed,
+                    total=num_files_to_process,
+                    operation="File Processing",
+                    message=f"Deleted {file_path.name}",
+                )
             )
             previous_files_map[
                 file_path
@@ -264,11 +252,13 @@ class IndexDomainService:
         # Then check to see if there are any new files
         for file_path in new_file_paths:
             processed += 1
-            reporter.step(
-                "refresh_working_copy",
-                processed,
-                num_files_to_process,
-                f"New {file_path.name}",
+            self.reporter.update(
+                ProgressState(
+                    current=processed,
+                    total=num_files_to_process,
+                    operation="File Processing",
+                    message=f"New {file_path.name}",
+                )
             )
             try:
                 working_copy.files.append(
@@ -281,11 +271,13 @@ class IndexDomainService:
         # Finally check if there are any modified files
         for file_path in modified_file_paths:
             processed += 1
-            reporter.step(
-                "refresh_working_copy",
-                processed,
-                num_files_to_process,
-                f"Modified {file_path.name}",
+            self.reporter.update(
+                ProgressState(
+                    current=processed,
+                    total=num_files_to_process,
+                    operation="File Processing",
+                    message=f"Modified {file_path.name}",
+                )
             )
             try:
                 previous_file = previous_files_map[file_path]
@@ -298,7 +290,7 @@ class IndexDomainService:
                 self.log.info("Skipping file", file=str(file_path), error=str(e))
                 continue
 
-        reporter.done("refresh_working_copy")
+        self.reporter.complete()
         return working_copy
 
     async def delete_index(self, index: domain_entities.Index) -> None:

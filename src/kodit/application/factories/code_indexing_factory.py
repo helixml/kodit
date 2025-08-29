@@ -6,6 +6,7 @@ from kodit.application.services.code_indexing_application_service import (
     CodeIndexingApplicationService,
 )
 from kodit.config import AppContext
+from kodit.domain.protocols import ReportingService
 from kodit.domain.services.bm25_service import BM25DomainService
 from kodit.domain.services.embedding_service import EmbeddingDomainService
 from kodit.domain.services.enrichment_service import EnrichmentDomainService
@@ -31,6 +32,10 @@ from kodit.infrastructure.enrichment.null_enrichment_provider import (
     NullEnrichmentProvider,
 )
 from kodit.infrastructure.indexing.fusion_service import ReciprocalRankFusionService
+from kodit.infrastructure.reporting.reporter import (
+    create_cli_reporter,
+    create_noop_reporter,
+)
 from kodit.infrastructure.slicing.language_detection_service import (
     FileSystemLanguageDetectionService,
 )
@@ -44,6 +49,7 @@ from kodit.infrastructure.sqlalchemy.index_repository import SqlAlchemyIndexRepo
 def create_code_indexing_application_service(
     app_context: AppContext,
     session: AsyncSession,
+    reporter: ReportingService,
 ) -> CodeIndexingApplicationService:
     """Create a unified code indexing application service with all dependencies."""
     # Create domain services
@@ -62,6 +68,7 @@ def create_code_indexing_application_service(
         language_detector=language_detector,
         enrichment_service=enrichment_service,
         clone_dir=app_context.get_clone_dir(),
+        reporter=reporter,
     )
     index_query_service = IndexQueryService(
         index_repository=index_repository,
@@ -78,6 +85,17 @@ def create_code_indexing_application_service(
         text_search_service=text_search_service,
         enrichment_service=enrichment_service,
         session=session,
+        reporter=reporter,
+    )
+
+
+def create_cli_code_indexing_application_service(
+    app_context: AppContext,
+    session: AsyncSession,
+) -> CodeIndexingApplicationService:
+    """Create a CLI code indexing application service."""
+    return create_code_indexing_application_service(
+        app_context, session, create_cli_reporter()
     )
 
 
@@ -89,6 +107,7 @@ def create_fast_test_code_indexing_application_service(
     # Create domain services
     bm25_service = BM25DomainService(bm25_repository_factory(app_context, session))
     embedding_repository = SqlAlchemyEmbeddingRepository(session=session)
+    reporter = create_noop_reporter()
 
     code_search_repository = LocalVectorSearchRepository(
         embedding_repository=embedding_repository,
@@ -127,6 +146,7 @@ def create_fast_test_code_indexing_application_service(
         language_detector=language_detector,
         enrichment_service=enrichment_service,
         clone_dir=app_context.get_clone_dir(),
+        reporter=reporter,
     )
     index_query_service = IndexQueryService(
         index_repository=index_repository,
@@ -143,4 +163,5 @@ def create_fast_test_code_indexing_application_service(
         text_search_service=text_search_service,
         enrichment_service=enrichment_service,
         session=session,
+        reporter=reporter,
     )
