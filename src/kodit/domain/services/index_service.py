@@ -8,7 +8,6 @@ import structlog
 from pydantic import AnyUrl
 
 import kodit.domain.entities as domain_entities
-from kodit.domain.interfaces import ProgressCallback
 from kodit.domain.protocols import ReportingService
 from kodit.domain.services.enrichment_service import EnrichmentDomainService
 from kodit.domain.value_objects import (
@@ -22,7 +21,6 @@ from kodit.infrastructure.cloning.metadata import FileMetadataExtractor
 from kodit.infrastructure.git.git_utils import is_valid_clone_target
 from kodit.infrastructure.ignore.ignore_pattern_provider import GitIgnorePatternProvider
 from kodit.infrastructure.slicing.slicer import Slicer
-from kodit.reporting import Reporter
 from kodit.utils.path_utils import path_from_uri
 
 
@@ -142,14 +140,10 @@ class IndexDomainService:
     async def enrich_snippets_in_index(
         self,
         snippets: list[domain_entities.Snippet],
-        progress_callback: ProgressCallback | None = None,
     ) -> list[domain_entities.Snippet]:
         """Enrich snippets with AI-generated summaries."""
         if not snippets or len(snippets) == 0:
             return snippets
-
-        reporter = Reporter(self.log, progress_callback)
-        reporter.start("enrichment", len(snippets), "Enriching snippets...")
 
         snippet_map = {snippet.id: snippet for snippet in snippets if snippet.id}
 
@@ -167,11 +161,9 @@ class IndexDomainService:
             snippet_map[result.snippet_id].add_summary(result.text)
 
             processed += 1
-            reporter.step(
-                "enrichment", processed, len(snippets), "Enriching snippets..."
-            )
+            self.reporter.update(processed, len(snippets), "Enriching snippets...")
 
-        reporter.done("enrichment")
+        self.reporter.complete()
         return list(snippet_map.values())
 
     def sanitize_uri(
@@ -197,12 +189,9 @@ class IndexDomainService:
     async def refresh_working_copy(
         self,
         working_copy: domain_entities.WorkingCopy,
-        progress_callback: ProgressCallback | None = None,
     ) -> domain_entities.WorkingCopy:
         """Refresh the working copy."""
         metadata_extractor = FileMetadataExtractor(working_copy.source_type)
-        reporter = Reporter(self.log, progress_callback)
-
         if working_copy.source_type == domain_entities.SourceType.GIT:
             git_working_copy_provider = GitWorkingCopyProvider(
                 self._clone_dir, self.reporter
@@ -233,15 +222,11 @@ class IndexDomainService:
 
         # Setup reporter
         processed = 0
-        reporter.start(
-            "refresh_working_copy", num_files_to_process, "Refreshing working copy..."
-        )
 
         # First check to see if any files have been deleted
         for file_path in deleted_file_paths:
             processed += 1
-            reporter.step(
-                "refresh_working_copy",
+            self.reporter.update(
                 processed,
                 num_files_to_process,
                 f"Deleted {file_path.name}",
@@ -253,8 +238,7 @@ class IndexDomainService:
         # Then check to see if there are any new files
         for file_path in new_file_paths:
             processed += 1
-            reporter.step(
-                "refresh_working_copy",
+            self.reporter.update(
                 processed,
                 num_files_to_process,
                 f"New {file_path.name}",
@@ -270,8 +254,7 @@ class IndexDomainService:
         # Finally check if there are any modified files
         for file_path in modified_file_paths:
             processed += 1
-            reporter.step(
-                "refresh_working_copy",
+            self.reporter.update(
                 processed,
                 num_files_to_process,
                 f"Modified {file_path.name}",
@@ -287,7 +270,7 @@ class IndexDomainService:
                 self.log.info("Skipping file", file=str(file_path), error=str(e))
                 continue
 
-        reporter.done("refresh_working_copy")
+        self.reporter.complete()
         return working_copy
 
     async def delete_index(self, index: domain_entities.Index) -> None:

@@ -28,10 +28,6 @@ from kodit.domain.value_objects import (
 from kodit.infrastructure.api.client import IndexClient, SearchClient
 from kodit.infrastructure.indexing.fusion_service import ReciprocalRankFusionService
 from kodit.infrastructure.sqlalchemy.index_repository import SqlAlchemyIndexRepository
-from kodit.infrastructure.ui.progress import (
-    create_lazy_progress_callback,
-    create_multi_stage_progress_callback,
-)
 from kodit.log import configure_logging, configure_telemetry, log_event
 from kodit.mcp import create_stdio_mcp_server
 
@@ -119,11 +115,8 @@ async def _handle_sync(
     for index in indexes_to_sync:
         click.echo(f"Syncing: {index.source.working_copy.remote_uri}")
 
-        # Create progress callback for this sync operation
-        progress_callback = create_multi_stage_progress_callback()
-
         try:
-            await service.run_index(index, progress_callback)
+            await service.run_index(index)
             click.echo(f"✓ Sync completed: {index.source.working_copy.remote_uri}")
         except Exception as e:
             log.exception("Sync failed", index_id=index.id, error=e)
@@ -223,11 +216,9 @@ async def _index_local(
             log_event("kodit.cli.index.create")
 
             # Create a lazy progress callback that only shows progress when needed
-            create_lazy_progress_callback()
             index = await service.create_index_from_uri(source)
 
             # Create a new progress callback for the indexing operations
-            create_multi_stage_progress_callback()
             try:
                 await service.run_index(index)
             except EmptySourceError as e:
