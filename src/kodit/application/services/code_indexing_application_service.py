@@ -335,6 +335,7 @@ class CodeIndexingApplicationService:
                 ProgressState(
                     current=processed,
                     total=len(snippets),
+                    operation="Code Embedding",
                     message="Creating code embeddings...",
                 )
             )
@@ -369,6 +370,7 @@ class CodeIndexingApplicationService:
                 ProgressState(
                     current=processed,
                     total=len(snippets),
+                    operation="Text Embedding",
                     message="Creating text embeddings...",
                 )
             )

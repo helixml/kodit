@@ -51,6 +51,7 @@ class GitWorkingCopyProvider:
                 ProgressState(
                     current=len(step_record),
                     total=12,
+                    operation="Git Clone",
                     message=d,
                 )
             )

@@ -131,6 +131,7 @@ class IndexDomainService:
                 ProgressState(
                     current=i,
                     total=len(lang_files_map.keys()),
+                    operation="Code Extraction",
                     message=f"Extracting code snippets for {lang}...",
                 )
             )
@@ -168,6 +169,7 @@ class IndexDomainService:
                 ProgressState(
                     current=processed,
                     total=len(snippets),
+                    operation="Snippet Enrichment",
                     message="Enriching snippets...",
                 )
             )
@@ -239,6 +241,7 @@ class IndexDomainService:
                 ProgressState(
                     current=processed,
                     total=num_files_to_process,
+                    operation="File Processing",
                     message=f"Deleted {file_path.name}",
                 )
             )
@@ -253,6 +256,7 @@ class IndexDomainService:
                 ProgressState(
                     current=processed,
                     total=num_files_to_process,
+                    operation="File Processing",
                     message=f"New {file_path.name}",
                 )
             )
@@ -271,6 +275,7 @@ class IndexDomainService:
                 ProgressState(
                     current=processed,
                     total=num_files_to_process,
+                    operation="File Processing",
                     message=f"Modified {file_path.name}",
                 )
             )

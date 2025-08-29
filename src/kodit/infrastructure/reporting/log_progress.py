@@ -15,8 +15,13 @@ class LogProgress(Progress):
 
     def on_update(self, state: ProgressState) -> None:
         """Log the progress."""
-        self.log.info("Progress updated", state=state)
+        self.log.info(
+            "Progress...",
+            operation=state.operation,
+            percentage=state.percentage,
+            message=state.message,
+        )
 
     def on_complete(self) -> None:
         """Log the completion."""
-        self.log.info("Progress completed")
+        self.log.info("Completed")

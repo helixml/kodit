@@ -34,6 +34,8 @@ class TQDMProgress(Progress):
                 )
             else:
                 self.pbar.set_description(state.message[-30:])
+        else:
+            self.pbar.set_description(state.operation)
 
     def on_complete(self) -> None:
         """Complete the progress bar."""
