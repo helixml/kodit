@@ -3,14 +3,15 @@
 from tqdm import tqdm
 
 from kodit.domain.value_objects import ProgressState
-from kodit.infrastructure.reporting.progress import Progress
+from kodit.infrastructure.reporting.progress import Progress, ProgressConfig
 
 
 class TQDMProgress(Progress):
     """TQDM-based progress callback implementation."""
 
-    def __init__(self) -> None:
+    def __init__(self, config: ProgressConfig | None = None) -> None:
         """Initialize with a TQDM progress bar."""
+        self.config = config or ProgressConfig()
         self.pbar = tqdm()
 
     def on_update(self, state: ProgressState) -> None:

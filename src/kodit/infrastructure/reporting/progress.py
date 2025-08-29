@@ -13,6 +13,7 @@ class ProgressConfig:
 
     log_interval: int = 10  # Log every N%
     min_update_interval: timedelta = timedelta(milliseconds=100)
+    log_time_interval: timedelta = timedelta(seconds=5)  # Log every N seconds
     auto_complete: bool = True
 
 

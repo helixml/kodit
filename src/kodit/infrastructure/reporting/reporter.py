@@ -12,12 +12,10 @@ class Reporter(ReportingService):
 
     def __init__(
         self,
-        modules: list[Progress],
-        config: ProgressConfig | None = None,
+        modules: list[Progress] | None = None,
     ) -> None:
         """Initialize the reporter."""
-        self.modules = modules
-        self.config = config
+        self.modules = modules or []
 
     def update(self, state: ProgressState) -> None:
         """Update the reporter."""
@@ -32,14 +30,16 @@ class Reporter(ReportingService):
 
 def create_noop_reporter() -> Reporter:
     """Create a noop reporter."""
-    return Reporter(modules=[], config=None)
+    return Reporter(modules=[])
 
 
-def create_cli_reporter() -> Reporter:
+def create_cli_reporter(config: ProgressConfig | None = None) -> Reporter:
     """Create a CLI reporter."""
-    return Reporter(modules=[TQDMProgress()], config=None)
+    shared_config = config or ProgressConfig()
+    return Reporter(modules=[TQDMProgress(shared_config)])
 
 
-def create_server_reporter() -> Reporter:
+def create_server_reporter(config: ProgressConfig | None = None) -> Reporter:
     """Create a server reporter."""
-    return Reporter(modules=[LogProgress()], config=None)
+    shared_config = config or ProgressConfig()
+    return Reporter(modules=[LogProgress(shared_config)])
