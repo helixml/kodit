@@ -1,1 +1,0 @@
-"""UI infrastructure module."""
