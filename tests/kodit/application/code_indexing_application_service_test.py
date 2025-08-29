@@ -1,7 +1,6 @@
 """End-to-end tests for CodeIndexingApplicationService."""
 
 from pathlib import Path
-from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -15,41 +14,15 @@ from kodit.application.services.code_indexing_application_service import (
 )
 from kodit.config import AppContext
 from kodit.domain.entities import SnippetWithContext
-from kodit.domain.interfaces import ProgressCallback
 from kodit.domain.protocols import IndexRepository
 from kodit.domain.services.index_query_service import IndexQueryService
 from kodit.domain.value_objects import (
     FusionRequest,
     FusionResult,
     MultiSearchRequest,
-    ProgressEvent,
 )
 from kodit.infrastructure.indexing.fusion_service import ReciprocalRankFusionService
 from kodit.infrastructure.sqlalchemy.index_repository import SqlAlchemyIndexRepository
-
-
-class MockProgressCallback(ProgressCallback):
-    """Mock implementation of ProgressCallback for testing."""
-
-    def __init__(self) -> None:
-        """Initialize the mock progress callback."""
-        self.progress_calls: list[dict[str, Any]] = []
-        self.complete_calls: list[str] = []
-
-    def on_progress(self, event: ProgressEvent) -> None:
-        """Record progress events."""
-        self.progress_calls.append(
-            {
-                "operation": event.operation,
-                "current": event.current,
-                "total": event.total,
-                "message": event.message,
-            }
-        )
-
-    def on_complete(self, operation: str) -> None:
-        """Record completion events."""
-        self.complete_calls.append(operation)
 
 
 @pytest.fixture

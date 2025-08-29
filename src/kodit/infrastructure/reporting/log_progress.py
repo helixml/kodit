@@ -2,8 +2,8 @@
 
 import structlog
 
+from kodit.domain.value_objects import ProgressState
 from kodit.infrastructure.reporting.progress import Progress
-from kodit.infrastructure.reporting.progress_state import ProgressState
 
 
 class LogProgress(Progress):

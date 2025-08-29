@@ -2,8 +2,8 @@
 
 from tqdm import tqdm
 
+from kodit.domain.value_objects import ProgressState
 from kodit.infrastructure.reporting.progress import Progress
-from kodit.infrastructure.reporting.progress_state import ProgressState
 
 
 class TQDMProgress(Progress):

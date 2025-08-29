@@ -19,6 +19,7 @@ from kodit.domain.value_objects import (
     IndexRequest,
     MultiSearchRequest,
     MultiSearchResult,
+    ProgressState,
     SearchRequest,
     SearchResult,
     SnippetSearchFilters,
@@ -331,9 +332,11 @@ class CodeIndexingApplicationService:
         ):
             processed += len(result)
             self.reporter.update(
-                processed,
-                len(snippets),
-                "Creating code embeddings...",
+                ProgressState(
+                    current=processed,
+                    total=len(snippets),
+                    message="Creating code embeddings...",
+                )
             )
 
         self.reporter.complete()
@@ -363,9 +366,11 @@ class CodeIndexingApplicationService:
         ):
             processed += len(result)
             self.reporter.update(
-                processed,
-                len(snippets),
-                "Creating text embeddings...",
+                ProgressState(
+                    current=processed,
+                    total=len(snippets),
+                    message="Creating text embeddings...",
+                )
             )
 
         self.reporter.complete()

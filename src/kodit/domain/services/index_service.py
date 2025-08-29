@@ -15,6 +15,7 @@ from kodit.domain.value_objects import (
     EnrichmentRequest,
     FileProcessingStatus,
     LanguageMapping,
+    ProgressState,
 )
 from kodit.infrastructure.cloning.git.working_copy import GitWorkingCopyProvider
 from kodit.infrastructure.cloning.metadata import FileMetadataExtractor
@@ -127,9 +128,11 @@ class IndexDomainService:
         slicer = Slicer()
         for i, (lang, lang_files) in enumerate(lang_files_map.items()):
             self.reporter.update(
-                i,
-                len(lang_files_map.keys()),
-                f"Extracting code snippets for {lang}...",
+                ProgressState(
+                    current=i,
+                    total=len(lang_files_map.keys()),
+                    message=f"Extracting code snippets for {lang}...",
+                )
             )
             s = slicer.extract_snippets(lang_files, language=lang)
             index.snippets.extend(s)
@@ -161,7 +164,13 @@ class IndexDomainService:
             snippet_map[result.snippet_id].add_summary(result.text)
 
             processed += 1
-            self.reporter.update(processed, len(snippets), "Enriching snippets...")
+            self.reporter.update(
+                ProgressState(
+                    current=processed,
+                    total=len(snippets),
+                    message="Enriching snippets...",
+                )
+            )
 
         self.reporter.complete()
         return list(snippet_map.values())
@@ -227,9 +236,11 @@ class IndexDomainService:
         for file_path in deleted_file_paths:
             processed += 1
             self.reporter.update(
-                processed,
-                num_files_to_process,
-                f"Deleted {file_path.name}",
+                ProgressState(
+                    current=processed,
+                    total=num_files_to_process,
+                    message=f"Deleted {file_path.name}",
+                )
             )
             previous_files_map[
                 file_path
@@ -239,9 +250,11 @@ class IndexDomainService:
         for file_path in new_file_paths:
             processed += 1
             self.reporter.update(
-                processed,
-                num_files_to_process,
-                f"New {file_path.name}",
+                ProgressState(
+                    current=processed,
+                    total=num_files_to_process,
+                    message=f"New {file_path.name}",
+                )
             )
             try:
                 working_copy.files.append(
@@ -255,9 +268,11 @@ class IndexDomainService:
         for file_path in modified_file_paths:
             processed += 1
             self.reporter.update(
-                processed,
-                num_files_to_process,
-                f"Modified {file_path.name}",
+                ProgressState(
+                    current=processed,
+                    total=num_files_to_process,
+                    message=f"Modified {file_path.name}",
+                )
             )
             try:
                 previous_file = previous_files_map[file_path]

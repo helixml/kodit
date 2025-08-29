@@ -1,9 +1,9 @@
 """Progress reporter."""
 
 from kodit.domain.protocols import ReportingService
+from kodit.domain.value_objects import ProgressState
 from kodit.infrastructure.reporting.log_progress import LogProgress
 from kodit.infrastructure.reporting.progress import Progress, ProgressConfig
-from kodit.infrastructure.reporting.progress_state import ProgressState
 from kodit.infrastructure.reporting.tdqm_progress import TQDMProgress
 
 
@@ -18,17 +18,11 @@ class Reporter(ReportingService):
         """Initialize the reporter."""
         self.modules = modules
         self.config = config
-        self.state = ProgressState()
 
-    def update(self, current: int, total: int, message: str | None = None) -> None:
+    def update(self, state: ProgressState) -> None:
         """Update the reporter."""
-        self.state = ProgressState(
-            current=current,
-            total=total,
-            message=message,
-        )
         for module in self.modules:
-            module.on_update(self.state)
+            module.on_update(state)
 
     def complete(self) -> None:
         """Complete the reporter."""

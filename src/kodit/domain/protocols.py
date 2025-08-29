@@ -6,7 +6,7 @@ from typing import Protocol
 from pydantic import AnyUrl
 
 from kodit.domain.entities import Index, Snippet, SnippetWithContext, Task, WorkingCopy
-from kodit.domain.value_objects import MultiSearchRequest, TaskType
+from kodit.domain.value_objects import MultiSearchRequest, ProgressState, TaskType
 
 
 class TaskRepository(Protocol):
@@ -95,7 +95,7 @@ class IndexRepository(Protocol):
 class ReportingService(Protocol):
     """Reporting service."""
 
-    def update(self, current: int, total: int, message: str | None = None) -> None:
+    def update(self, state: ProgressState) -> None:
         """Update a reporting operation."""
         ...
 

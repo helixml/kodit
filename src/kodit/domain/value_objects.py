@@ -390,18 +390,18 @@ class IndexRunRequest:
 
 
 @dataclass
-class ProgressEvent:
-    """Domain model for progress events."""
+class ProgressState:
+    """Progress state."""
 
-    operation: str
-    current: int
-    total: int
-    message: str | None = None
+    current: int = 0
+    total: int = 0
+    operation: str = ""
+    message: str = ""
 
     @property
     def percentage(self) -> float:
         """Calculate the percentage of completion."""
-        return (self.current / self.total * 100) if self.total > 0 else 0.0
+        return (self.current / self.total) * 100 if self.total > 0 else 0.0
 
 
 @dataclass

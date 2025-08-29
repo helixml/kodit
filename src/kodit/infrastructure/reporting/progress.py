@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import timedelta
 
-from kodit.infrastructure.reporting.progress_state import ProgressState
+from kodit.domain.value_objects import ProgressState
 
 
 @dataclass
