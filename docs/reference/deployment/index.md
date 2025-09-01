@@ -58,3 +58,9 @@ export REMOTE_VERIFY_SSL=true           # Optional: verify SSL certificates
 - Store API keys securely and never commit them to version control
 - Use environment variables or secure credential stores for API keys
 - The CLI verifies SSL certificates by default (can be disabled with `REMOTE_VERIFY_SSL=false`)
+
+## Deploying Models on Helix
+
+### Deploying an Embedding Model
+
+{{< code file="embedding-model.yaml" >}}

@@ -1,0 +1,19 @@
+apiVersion: helix.ml/v1alpha1
+kind: Model
+metadata:
+  name: BAAI-bge-base-en-v1.5
+spec:
+  id: BAAI/bge-base-en-v1.5
+  runtime: vllm
+  memory: 4000000000
+  context_length: 8192
+  concurrency: 256 # 256 is VLLM default
+  description: "Test model"
+  enabled: true
+  runtime_args:
+    args:
+      - "--trust-remote-code"
+      - "--max-model-len"
+      - "8192"
+      - "--task"
+      - "embed"

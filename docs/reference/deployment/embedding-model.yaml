@@ -1,0 +1,17 @@
+apiVersion: helix.ml/v1alpha1
+kind: Model
+metadata:
+  name: ibm-granite-granite-embedding-english-r2
+spec:
+  id: ibm-granite/granite-embedding-english-r2
+  runtime: vllm
+  memory: 4000000000
+  context_length: 8192
+  concurrency: 256 # 256 is VLLM default
+  description: "Granite-embedding-english-r2 is a 149M parameter dense biencoder embedding model from the Granite Embeddings collection that can be used to generate high quality text embeddings."
+  enabled: true
+  runtime_args:
+    args:
+      - "--trust-remote-code"
+      - "--max-model-len"
+      - "8192"
