@@ -145,6 +145,7 @@ class CodeIndexingApplicationService:
             self.reporter.update_step(operation, complete_step(extract_step))
 
             await self.index_repository.update(index)
+            index = await self.index_repository.get(index.id)  # type: ignore[union-attr]
 
             if len(index.snippets) == 0:
                 self.log.info(

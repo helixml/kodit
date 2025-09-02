@@ -483,6 +483,8 @@ class SqlAlchemyIndexRepository(IndexRepository):
             if index.snippets:
                 await self._update_snippets(index)
 
+            await self.uow.commit()
+
     async def _update_source(
         self, index: domain_entities.Index, db_index: db_entities.Index
     ) -> None:
