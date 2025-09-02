@@ -18,9 +18,6 @@ from kodit.domain.protocols import ReportingService
 from kodit.domain.value_objects import TaskType
 from kodit.infrastructure.reporting.progress import ProgressConfig
 from kodit.infrastructure.reporting.reporter import create_server_reporter
-from kodit.infrastructure.sqlalchemy.operation_repository import (
-    SqlAlchemyOperationRepository,
-)
 from kodit.infrastructure.sqlalchemy.task_repository import SqlAlchemyTaskRepository
 
 
@@ -168,8 +165,7 @@ def create_indexing_worker_service(
     session_factory: Callable[[], AsyncSession],
 ) -> IndexingWorkerService:
     """Create an indexing worker service."""
-    operation_repository = SqlAlchemyOperationRepository(session=session_factory())
     reporter = create_server_reporter(
-        operation_repository=operation_repository, config=ProgressConfig()
+        session_factory=session_factory, config=ProgressConfig()
     )
     return IndexingWorkerService(app_context, session_factory, reporter)

@@ -1,6 +1,9 @@
 """Progress reporter."""
 
+from collections.abc import Callable
 from datetime import UTC, datetime
+
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.domain.protocols import OperationRepository, ReportingService
 from kodit.domain.value_objects import (
@@ -108,30 +111,15 @@ def create_cli_reporter(config: ProgressConfig | None = None) -> Reporter:
 
 
 def create_server_reporter(
-    operation_repository: OperationRepository, config: ProgressConfig | None = None
+    session_factory: Callable[[], AsyncSession], config: ProgressConfig | None = None
 ) -> Reporter:
     """Create a server reporter."""
     shared_config = config or ProgressConfig()
     return Reporter(
         modules=[
             LogProgress(shared_config),
-            DatabaseProgress(operation_repository, shared_config),
+            DatabaseProgress(session_factory, shared_config),
         ]
-    )
-
-
-def create_full_reporter(
-    operation_repository: OperationRepository,
-    config: ProgressConfig | None = None,
-) -> Reporter:
-    """Create a reporter with both logging and database persistence."""
-    shared_config = config or ProgressConfig()
-    return Reporter(
-        modules=[
-            LogProgress(shared_config),
-            DatabaseProgress(operation_repository, shared_config),
-        ],
-        operation_repository=operation_repository,
     )
 
 
