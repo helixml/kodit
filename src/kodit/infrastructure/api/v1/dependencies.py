@@ -14,10 +14,15 @@ from kodit.application.services.code_indexing_application_service import (
 )
 from kodit.application.services.queue_service import QueueService
 from kodit.config import AppContext
+from kodit.domain.protocols import ReportingService
 from kodit.domain.services.index_query_service import IndexQueryService
 from kodit.infrastructure.indexing.fusion_service import ReciprocalRankFusionService
+from kodit.infrastructure.reporting.progress import ProgressConfig
 from kodit.infrastructure.reporting.reporter import create_server_reporter
 from kodit.infrastructure.sqlalchemy.index_repository import SqlAlchemyIndexRepository
+from kodit.infrastructure.sqlalchemy.operation_repository import (
+    SqlAlchemyOperationRepository,
+)
 
 
 def get_app_context(request: Request) -> AppContext:
@@ -64,7 +69,15 @@ async def get_indexing_app_service(
     return create_code_indexing_application_service(
         app_context=app_context,
         session=session,
-        reporter=create_server_reporter(),
+        reporter=_create_reporter(session),
+    )
+
+
+def _create_reporter(session: DBSessionDep) -> ReportingService:
+    operation_repository = SqlAlchemyOperationRepository(session=session)
+    reporter_config = ProgressConfig()
+    return create_server_reporter(
+        operation_repository=operation_repository, config=reporter_config
     )
 
 

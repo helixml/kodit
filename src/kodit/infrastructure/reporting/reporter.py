@@ -107,21 +107,16 @@ def create_cli_reporter(config: ProgressConfig | None = None) -> Reporter:
     return Reporter(modules=[TQDMProgress(shared_config)])
 
 
-def create_server_reporter(config: ProgressConfig | None = None) -> Reporter:
+def create_server_reporter(
+    operation_repository: OperationRepository, config: ProgressConfig | None = None
+) -> Reporter:
     """Create a server reporter."""
     shared_config = config or ProgressConfig()
-    return Reporter(modules=[LogProgress(shared_config)])
-
-
-def create_database_reporter(
-    operation_repository: OperationRepository,
-    config: ProgressConfig | None = None,
-) -> Reporter:
-    """Create a reporter that persists operations to database."""
-    shared_config = config or ProgressConfig()
     return Reporter(
-        modules=[DatabaseProgress(operation_repository, shared_config)],
-        operation_repository=operation_repository,
+        modules=[
+            LogProgress(shared_config),
+            DatabaseProgress(operation_repository, shared_config),
+        ]
     )
 
 

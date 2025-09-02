@@ -9,7 +9,9 @@ from fastapi.responses import RedirectResponse
 
 from kodit._version import version
 from kodit.application.services.auto_indexing_service import AutoIndexingService
-from kodit.application.services.indexing_worker_service import IndexingWorkerService
+from kodit.application.services.indexing_worker_service import (
+    create_indexing_worker_service,
+)
 from kodit.application.services.sync_scheduler import SyncSchedulerService
 from kodit.config import AppContext
 from kodit.infrastructure.api.v1.routers import (
@@ -18,7 +20,6 @@ from kodit.infrastructure.api.v1.routers import (
     search_router,
 )
 from kodit.infrastructure.api.v1.schemas.context import AppLifespanState
-from kodit.infrastructure.reporting.reporter import create_server_reporter
 from kodit.mcp import mcp
 from kodit.middleware import ASGICancelledErrorMiddleware, logging_middleware
 
@@ -35,23 +36,13 @@ async def app_lifespan(_: FastAPI) -> AsyncIterator[AppLifespanState]:
     # App context has already been configured by the CLI.
     app_context = AppContext()
     db = await app_context.get_db()
-    reporter = create_server_reporter()
 
     # Start the queue worker service
-    _indexing_worker_service = IndexingWorkerService(
+    _indexing_worker_service = create_indexing_worker_service(
         app_context=app_context,
         session_factory=db.session_factory,
-        reporter=reporter,
     )
     await _indexing_worker_service.start()
-
-    # Start auto-indexing service
-    _auto_indexing_service = AutoIndexingService(
-        app_context=app_context,
-        session_factory=db.session_factory,
-        reporter=reporter,
-    )
-    await _auto_indexing_service.start_background_indexing()
 
     # Start sync scheduler service
     if app_context.periodic_sync.enabled:
