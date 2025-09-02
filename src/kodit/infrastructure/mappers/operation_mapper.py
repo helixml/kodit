@@ -15,7 +15,7 @@ class OperationMapper:
     async def to_domain_operation(
         self,
         db_operation: db_entities.Operation,
-        db_current_step: db_entities.Step | None = None
+        db_current_step: db_entities.Step | None = None,
     ) -> OperationAggregate:
         """Convert SQLAlchemy Operation to domain OperationAggregate."""
         current_step = None
@@ -27,6 +27,7 @@ class OperationMapper:
             type=db_operation.type,
             state=OperationState(db_operation.state),
             updated_at=db_operation.updated_at,
+            progress_percentage=db_operation.progress_percentage,
             error=None,  # Errors are not persisted in DB
             current_step=current_step,
         )
@@ -39,7 +40,7 @@ class OperationMapper:
             index_id=operation.index_id,
             type=operation.type,
             state=operation.state.value,
-            progress_percentage=self._calculate_progress(operation),
+            progress_percentage=operation.progress_percentage,
         )
 
     def to_domain_step(self, db_step: db_entities.Step) -> Step:
@@ -52,9 +53,7 @@ class OperationMapper:
             error=None,  # Errors are not persisted in DB
         )
 
-    async def from_domain_step(
-        self, step: Step, operation_id: int
-    ) -> db_entities.Step:
+    async def from_domain_step(self, step: Step, operation_id: int) -> db_entities.Step:
         """Convert domain Step to SQLAlchemy Step."""
         return db_entities.Step(
             operation_id=operation_id,
@@ -62,9 +61,3 @@ class OperationMapper:
             state=step.state.value,
             progress_percentage=step.progress_percentage,
         )
-
-    def _calculate_progress(self, operation: OperationAggregate) -> float:
-        """Calculate overall progress percentage for an operation."""
-        if operation.current_step:
-            return operation.current_step.progress_percentage
-        return 0.0

@@ -687,9 +687,9 @@ class StepState(Enum):
 class Step:
     """A single atomic action within an operation."""
 
+    updated_at: datetime
     name: str  # e.g., "cloning_repository", "validating_schema"
     state: StepState
-    updated_at: datetime
     progress_percentage: float
     error: Exception | None = None
 
@@ -698,9 +698,10 @@ class Step:
 class OperationAggregate:
     """A high-level user-facing operation composed of steps."""
 
+    updated_at: datetime
     index_id: int
     type: str  # e.g., "add_index", "delete_index"
     state: OperationState
-    updated_at: datetime
+    progress_percentage: float
     error: Exception | None = None
     current_step: Step | None = None

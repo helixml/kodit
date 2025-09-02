@@ -28,9 +28,12 @@ class SqlAlchemyOperationRepository(OperationRepository):
             raise ValueError(f"Operation with index_id {index_id} not found")
 
         # Get current step if exists
-        step_stmt = select(db_entities.Step).where(
-            db_entities.Step.operation_id == db_operation.id
-        ).order_by(db_entities.Step.updated_at.desc()).limit(1)
+        step_stmt = (
+            select(db_entities.Step)
+            .where(db_entities.Step.operation_id == db_operation.id)
+            .order_by(db_entities.Step.updated_at.desc())
+            .limit(1)
+        )
         current_step = await self._session.scalar(step_stmt)
 
         return await self._mapper.to_domain_operation(db_operation, current_step)
@@ -40,14 +43,14 @@ class SqlAlchemyOperationRepository(OperationRepository):
         # Check if operation exists
         stmt = select(db_entities.Operation).where(
             db_entities.Operation.index_id == operation.index_id,
-            db_entities.Operation.type == operation.type
+            db_entities.Operation.type == operation.type,
         )
         db_operation = await self._session.scalar(stmt)
 
         if db_operation:
             # Update existing operation
             db_operation.state = operation.state.value
-            db_operation.progress_percentage = self._calculate_progress(operation)
+            db_operation.progress_percentage = operation.progress_percentage
             db_operation.updated_at = operation.updated_at
         else:
             # Create new operation
@@ -60,7 +63,7 @@ class SqlAlchemyOperationRepository(OperationRepository):
             # Check if this step already exists
             step_stmt = select(db_entities.Step).where(
                 db_entities.Step.operation_id == db_operation.id,
-                db_entities.Step.name == operation.current_step.name
+                db_entities.Step.name == operation.current_step.name,
             )
             db_step = await self._session.scalar(step_stmt)
 
@@ -75,9 +78,3 @@ class SqlAlchemyOperationRepository(OperationRepository):
                     operation.current_step, db_operation.id
                 )
                 self._session.add(db_step)
-
-    def _calculate_progress(self, operation: OperationAggregate) -> float:
-        """Calculate overall progress percentage for an operation."""
-        if operation.current_step:
-            return operation.current_step.progress_percentage
-        return 0.0
