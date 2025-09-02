@@ -135,7 +135,7 @@ async def test_sync_scheduler_syncs_all_indexes(
         await scheduler._perform_sync()  # noqa: SLF001
 
         # Verify all indexes were synced
-        assert mock_index_repository.all.called
+        assert mock_query_service.list_indexes.called
         assert mock_queue_service.enqueue_task.call_count == len(dummy_indexes)
 
         # Verify each index was enqueued with correct parameters
@@ -177,7 +177,7 @@ async def test_sync_scheduler_handles_empty_indexes(
         await scheduler._perform_sync()  # noqa: SLF001
 
         # Verify no sync was attempted
-        assert mock_index_repository.all.called
+        assert mock_query_service.list_indexes.called
         assert not mock_queue_service.enqueue_task.called
 
 

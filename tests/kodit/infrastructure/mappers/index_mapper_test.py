@@ -61,7 +61,8 @@ class TestIndexMapper:
 
         # Test mapping
         mapper = IndexMapper(uow)
-        domain_file = await mapper.to_domain_file(db_file)
+        async with uow:
+            domain_file = await mapper.to_domain_file(db_file)
 
         # Verify mapping
         assert domain_file.id == db_file.id
