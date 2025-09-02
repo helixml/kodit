@@ -8,7 +8,6 @@ from fastapi import FastAPI, Response
 from fastapi.responses import RedirectResponse
 
 from kodit._version import version
-from kodit.application.services.auto_indexing_service import AutoIndexingService
 from kodit.application.services.indexing_worker_service import (
     create_indexing_worker_service,
 )
@@ -28,7 +27,6 @@ from kodit.mcp import mcp
 from kodit.middleware import ASGICancelledErrorMiddleware, logging_middleware
 
 # Global services
-_auto_indexing_service: AutoIndexingService | None = None
 _sync_scheduler_service: SyncSchedulerService | None = None
 
 
@@ -61,8 +59,6 @@ async def app_lifespan(_: FastAPI) -> AsyncIterator[AppLifespanState]:
     # Stop services
     if _sync_scheduler_service:
         await _sync_scheduler_service.stop_periodic_sync()
-    if _auto_indexing_service:
-        await _auto_indexing_service.stop()
     if _indexing_worker_service:
         await _indexing_worker_service.stop()
 

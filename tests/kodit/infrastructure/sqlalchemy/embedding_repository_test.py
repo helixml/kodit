@@ -17,8 +17,8 @@ class TestSqlAlchemyEmbeddingRepository:
     def test_init(self) -> None:
         """Test initialization."""
         mock_session = MagicMock()
-        repository = SqlAlchemyEmbeddingRepository(session=mock_session)
-        assert repository.session == mock_session
+        repository = SqlAlchemyEmbeddingRepository(mock_session)
+        assert repository.uow == mock_session
 
     @pytest.mark.asyncio
     async def test_create_embedding(self) -> None:
@@ -26,7 +26,7 @@ class TestSqlAlchemyEmbeddingRepository:
         mock_session = MagicMock()
         mock_session.commit = AsyncMock()
 
-        repository = SqlAlchemyEmbeddingRepository(session=mock_session)
+        repository = SqlAlchemyEmbeddingRepository(mock_session)
 
         embedding = Embedding()
         embedding.snippet_id = 1
@@ -47,7 +47,7 @@ class TestSqlAlchemyEmbeddingRepository:
         mock_result.scalar_one_or_none.return_value = MagicMock()
         mock_session.execute = AsyncMock(return_value=mock_result)
 
-        repository = SqlAlchemyEmbeddingRepository(session=mock_session)
+        repository = SqlAlchemyEmbeddingRepository(mock_session)
 
         result = await repository.get_embedding_by_snippet_id_and_type(
             1, EmbeddingType.CODE
@@ -64,7 +64,7 @@ class TestSqlAlchemyEmbeddingRepository:
         mock_result.scalar_one_or_none.return_value = None
         mock_session.execute = AsyncMock(return_value=mock_result)
 
-        repository = SqlAlchemyEmbeddingRepository(session=mock_session)
+        repository = SqlAlchemyEmbeddingRepository(mock_session)
 
         result = await repository.get_embedding_by_snippet_id_and_type(
             1, EmbeddingType.CODE
@@ -81,7 +81,7 @@ class TestSqlAlchemyEmbeddingRepository:
         mock_result.all.return_value = []
         mock_session.execute = AsyncMock(return_value=mock_result)
 
-        repository = SqlAlchemyEmbeddingRepository(session=mock_session)
+        repository = SqlAlchemyEmbeddingRepository(mock_session)
 
         query_embedding = [0.1, 0.2, 0.3]
         results = await repository.list_semantic_results(
@@ -98,7 +98,7 @@ class TestSqlAlchemyEmbeddingRepository:
         mock_result.all.return_value = [(1, [0.1, 0.2, 0.3])]
         mock_session.execute = AsyncMock(return_value=mock_result)
 
-        repository = SqlAlchemyEmbeddingRepository(session=mock_session)
+        repository = SqlAlchemyEmbeddingRepository(mock_session)
 
         query_embedding = [0.1, 0.2, 0.3]
         results = await repository.list_semantic_results(
@@ -123,7 +123,7 @@ class TestSqlAlchemyEmbeddingRepository:
         ]
         mock_session.execute = AsyncMock(return_value=mock_result)
 
-        repository = SqlAlchemyEmbeddingRepository(session=mock_session)
+        repository = SqlAlchemyEmbeddingRepository(mock_session)
 
         query_embedding = [1.0, 0.0, 0.0]  # Should match embedding 1 best
         results = await repository.list_semantic_results(
@@ -143,7 +143,7 @@ class TestSqlAlchemyEmbeddingRepository:
         mock_result.all.return_value = [(i, [0.1, 0.2, 0.3]) for i in range(10)]
         mock_session.execute = AsyncMock(return_value=mock_result)
 
-        repository = SqlAlchemyEmbeddingRepository(session=mock_session)
+        repository = SqlAlchemyEmbeddingRepository(mock_session)
 
         query_embedding = [0.1, 0.2, 0.3]
         results = await repository.list_semantic_results(
@@ -164,7 +164,7 @@ class TestSqlAlchemyEmbeddingRepository:
         ]
         mock_session.execute = AsyncMock(return_value=mock_result)
 
-        repository = SqlAlchemyEmbeddingRepository(session=mock_session)
+        repository = SqlAlchemyEmbeddingRepository(mock_session)
 
         query_embedding = [0.1, 0.2, 0.3]
 
@@ -184,7 +184,7 @@ class TestSqlAlchemyEmbeddingRepository:
         ]
         mock_session.execute = AsyncMock(return_value=mock_result)
 
-        repository = SqlAlchemyEmbeddingRepository(session=mock_session)
+        repository = SqlAlchemyEmbeddingRepository(mock_session)
 
         query_embedding = [0.1, 0.2, 0.3]
 
@@ -204,7 +204,7 @@ class TestSqlAlchemyEmbeddingRepository:
 
     def test_prepare_vectors(self) -> None:
         """Test vector preparation."""
-        repository = SqlAlchemyEmbeddingRepository(session=MagicMock())
+        repository = SqlAlchemyEmbeddingRepository(MagicMock())
 
         embeddings = [
             (1, [0.1, 0.2, 0.3]),
@@ -223,7 +223,7 @@ class TestSqlAlchemyEmbeddingRepository:
 
     def test_compute_similarities(self) -> None:
         """Test similarity computation."""
-        repository = SqlAlchemyEmbeddingRepository(session=MagicMock())
+        repository = SqlAlchemyEmbeddingRepository(MagicMock())
 
         stored_vecs = np.array(
             [
@@ -242,7 +242,7 @@ class TestSqlAlchemyEmbeddingRepository:
 
     def test_get_top_k_results(self) -> None:
         """Test top-k result selection."""
-        repository = SqlAlchemyEmbeddingRepository(session=MagicMock())
+        repository = SqlAlchemyEmbeddingRepository(MagicMock())
 
         similarities = np.array([0.5, 0.9, 0.3, 0.7])
         embeddings = [
@@ -274,7 +274,7 @@ class TestSqlAlchemyEmbeddingRepository:
         ]
         mock_session.execute = AsyncMock(return_value=mock_result)
 
-        repository = SqlAlchemyEmbeddingRepository(session=mock_session)
+        repository = SqlAlchemyEmbeddingRepository(mock_session)
 
         results = await repository._list_embedding_values(EmbeddingType.CODE)  # noqa: SLF001
 
@@ -292,7 +292,7 @@ class TestSqlAlchemyEmbeddingRepository:
         mock_result.all.return_value = [(1, [0.1, 0.2, 0.3])]
         mock_session.execute = AsyncMock(return_value=mock_result)
 
-        repository = SqlAlchemyEmbeddingRepository(session=mock_session)
+        repository = SqlAlchemyEmbeddingRepository(mock_session)
 
         query_embedding = [0.1, 0.2, 0.3]
         results = await repository.list_semantic_results(
@@ -322,7 +322,7 @@ class TestSqlAlchemyEmbeddingRepository:
         ]
         mock_session.execute = AsyncMock(return_value=mock_result)
 
-        repository = SqlAlchemyEmbeddingRepository(session=mock_session)
+        repository = SqlAlchemyEmbeddingRepository(mock_session)
 
         query_embedding = [0.1, 0.2, 0.3]
         results = await repository.list_semantic_results(
@@ -346,7 +346,7 @@ class TestSqlAlchemyEmbeddingRepository:
         mock_result.all.return_value = []  # No results when filtering by empty list
         mock_session.execute = AsyncMock(return_value=mock_result)
 
-        repository = SqlAlchemyEmbeddingRepository(session=mock_session)
+        repository = SqlAlchemyEmbeddingRepository(mock_session)
 
         query_embedding = [0.1, 0.2, 0.3]
         results = await repository.list_semantic_results(
@@ -366,7 +366,7 @@ class TestSqlAlchemyEmbeddingRepository:
         mock_result.all.return_value = [(1, [0.1, 0.2, 0.3])]
         mock_session.execute = AsyncMock(return_value=mock_result)
 
-        repository = SqlAlchemyEmbeddingRepository(session=mock_session)
+        repository = SqlAlchemyEmbeddingRepository(mock_session)
 
         results = await repository._list_embedding_values(  # noqa: SLF001
             EmbeddingType.CODE, snippet_ids=[1, 2]
@@ -394,7 +394,7 @@ class TestSqlAlchemyEmbeddingRepository:
         ]
         mock_session.execute = AsyncMock(return_value=mock_result)
 
-        repository = SqlAlchemyEmbeddingRepository(session=mock_session)
+        repository = SqlAlchemyEmbeddingRepository(mock_session)
 
         results = await repository._list_embedding_values(  # noqa: SLF001
             EmbeddingType.CODE, snippet_ids=None

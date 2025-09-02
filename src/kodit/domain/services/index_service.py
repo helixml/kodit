@@ -2,6 +2,7 @@
 
 from abc import ABC, abstractmethod
 from collections import defaultdict
+from datetime import UTC, datetime
 from pathlib import Path
 
 import structlog
@@ -15,6 +16,8 @@ from kodit.domain.value_objects import (
     EnrichmentRequest,
     FileProcessingStatus,
     LanguageMapping,
+    Step,
+    StepState,
 )
 from kodit.infrastructure.cloning.git.working_copy import GitWorkingCopyProvider
 from kodit.infrastructure.cloning.metadata import FileMetadataExtractor
@@ -47,13 +50,11 @@ class IndexDomainService:
         language_detector: LanguageDetectionService,
         enrichment_service: EnrichmentDomainService,
         clone_dir: Path,
-        reporter: ReportingStep,
     ) -> None:
         """Initialize the index domain service."""
         self._clone_dir = clone_dir
         self._language_detector = language_detector
         self._enrichment_service = enrichment_service
-        self.reporter = reporter
         self.log = structlog.get_logger(__name__)
 
     async def prepare_index(
@@ -69,9 +70,7 @@ class IndexDomainService:
             local_path = path_from_uri(str(sanitized_uri))
         elif source_type == domain_entities.SourceType.GIT:
             source_type = domain_entities.SourceType.GIT
-            git_working_copy_provider = GitWorkingCopyProvider(
-                self._clone_dir, self.reporter
-            )
+            git_working_copy_provider = GitWorkingCopyProvider(self._clone_dir)
             local_path = await git_working_copy_provider.prepare(uri_or_path_like)
         else:
             raise ValueError(f"Unsupported source: {uri_or_path_like}")
@@ -133,6 +132,7 @@ class IndexDomainService:
     async def enrich_snippets_in_index(
         self,
         snippets: list[domain_entities.Snippet],
+        reporter: ReportingStep,
     ) -> list[domain_entities.Snippet]:
         """Enrich snippets with AI-generated summaries."""
         if not snippets or len(snippets) == 0:
@@ -155,7 +155,14 @@ class IndexDomainService:
         ):
             snippet_map[result.snippet_id].add_summary(result.text)
             count += 1
-            self.reporter.update_step_progress(count, total)
+            progress_percentage = (count / total * 100) if total > 0 else 100.0
+            step = Step(
+                updated_at=datetime.now(UTC),
+                name="enriching_snippets",
+                state=StepState.RUNNING,
+                progress_percentage=progress_percentage,
+            )
+            reporter.update_step_progress(step)
         return list(snippet_map.values())
 
     def sanitize_uri(
@@ -181,12 +188,13 @@ class IndexDomainService:
     async def refresh_working_copy(
         self,
         working_copy: domain_entities.WorkingCopy,
+        reporter: ReportingStep,
     ) -> domain_entities.WorkingCopy:
         """Refresh the working copy."""
         metadata_extractor = FileMetadataExtractor(working_copy.source_type)
         if working_copy.source_type == domain_entities.SourceType.GIT:
             git_working_copy_provider = GitWorkingCopyProvider(
-                self._clone_dir, self.reporter
+                self._clone_dir, reporter
             )
             await git_working_copy_provider.sync(str(working_copy.remote_uri))
 
@@ -231,10 +239,18 @@ class IndexDomainService:
             finally:
                 processed_files += 1
                 # Update progress for file processing
-                if hasattr(self, "reporter") and self.reporter:
-                    self.reporter.update_step_progress(
-                        processed_files, num_files_to_process
-                    )
+                progress_percentage = (
+                    (processed_files / num_files_to_process * 100)
+                    if num_files_to_process > 0
+                    else 100.0
+                )
+                step = Step(
+                    updated_at=datetime.now(UTC),
+                    name="processing_files",
+                    state=StepState.RUNNING,
+                    progress_percentage=progress_percentage,
+                )
+                reporter.update_step_progress(step)
 
         # Finally check if there are any modified files
         for file_path in modified_file_paths:
@@ -251,10 +267,18 @@ class IndexDomainService:
             finally:
                 processed_files += 1
                 # Update progress for file processing
-                if hasattr(self, "reporter") and self.reporter:
-                    self.reporter.update_step_progress(
-                        processed_files, num_files_to_process
-                    )
+                progress_percentage = (
+                    (processed_files / num_files_to_process * 100)
+                    if num_files_to_process > 0
+                    else 100.0
+                )
+                step = Step(
+                    updated_at=datetime.now(UTC),
+                    name="processing_files",
+                    state=StepState.RUNNING,
+                    progress_percentage=progress_percentage,
+                )
+                reporter.update_step_progress(step)
         return working_copy
 
     async def delete_index(self, index: domain_entities.Index) -> None:

@@ -254,9 +254,14 @@ async def test_data(
 
     # Initialize repository
     embedding_provider = HashEmbeddingProvider()
+    # Create session factory and UoW
+    session_factory = lambda: vectorchord_session  # noqa: E731
+    from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
+    uow = SqlAlchemyUnitOfWork(session_factory)
+
     repository = VectorChordVectorSearchRepository(
         task_name="code",
-        session=vectorchord_session,
+        unit_of_work=uow,
         embedding_provider=embedding_provider,
     )
 

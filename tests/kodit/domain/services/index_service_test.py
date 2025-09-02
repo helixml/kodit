@@ -43,7 +43,6 @@ def index_domain_service(
         language_detector=MockLanguageDetectionService(),
         enrichment_service=mock_enrichment_service,
         clone_dir=tmp_path / "clones",
-        reporter=create_noop_reporter(),
     )
 
 

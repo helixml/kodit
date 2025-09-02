@@ -5,11 +5,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from kodit.application.services.queue_service import QueueService
 from kodit.domain.entities import Task
 from kodit.domain.value_objects import QueuePriority, TaskType
+from kodit.infrastructure.sqlalchemy.task_repository import SqlAlchemyTaskRepository
+from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 
 
 async def test_get_task_existing(session: AsyncSession) -> None:
     """Test getting an existing task by ID."""
-    queue_service = QueueService(session)
+    # Create a session factory (lambda to return the same session for testing)
+    session_factory = lambda: session  # noqa: E731
+    uow = SqlAlchemyUnitOfWork(session_factory)
+    task_repository = SqlAlchemyTaskRepository(uow)
+    queue_service = QueueService(task_repository)
 
     # Create and enqueue a task
     task = Task.create_index_update_task(
@@ -29,7 +35,11 @@ async def test_get_task_existing(session: AsyncSession) -> None:
 
 async def test_get_task_nonexistent(session: AsyncSession) -> None:
     """Test getting a non-existent task returns None."""
-    queue_service = QueueService(session)
+    # Create a session factory (lambda to return the same session for testing)
+    session_factory = lambda: session  # noqa: E731
+    uow = SqlAlchemyUnitOfWork(session_factory)
+    task_repository = SqlAlchemyTaskRepository(uow)
+    queue_service = QueueService(task_repository)
 
     # Try to get a task that doesn't exist
     retrieved_task = await queue_service.get_task("nonexistent-id")
@@ -39,7 +49,11 @@ async def test_get_task_nonexistent(session: AsyncSession) -> None:
 
 async def test_get_task_after_multiple_tasks(session: AsyncSession) -> None:
     """Test getting a specific task when multiple tasks exist."""
-    queue_service = QueueService(session)
+    # Create a session factory (lambda to return the same session for testing)
+    session_factory = lambda: session  # noqa: E731
+    uow = SqlAlchemyUnitOfWork(session_factory)
+    task_repository = SqlAlchemyTaskRepository(uow)
+    queue_service = QueueService(task_repository)
 
     # Create and enqueue multiple tasks
     tasks = []

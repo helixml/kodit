@@ -250,7 +250,12 @@ async def test_data(
     await vectorchord_session.commit()
 
     # Initialize repository
-    repository = VectorChordBM25Repository(session=vectorchord_session)
+    # Create session factory and UoW
+    session_factory = lambda: vectorchord_session  # noqa: E731
+    from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
+    uow = SqlAlchemyUnitOfWork(session_factory)
+
+    repository = VectorChordBM25Repository(unit_of_work=uow)
 
     # Index the documents
     await repository.index_documents(

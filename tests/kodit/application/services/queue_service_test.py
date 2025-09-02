@@ -6,12 +6,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from kodit.application.services.queue_service import QueueService
 from kodit.domain.entities import Task
 from kodit.domain.value_objects import QueuePriority, TaskType
+from kodit.infrastructure.sqlalchemy.task_repository import SqlAlchemyTaskRepository
+from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 
 
 @pytest.mark.asyncio
 async def test_enqueue_task_new_task(session: AsyncSession) -> None:
     """Test enqueuing a new task."""
-    queue_service = QueueService(session)
+    # Create a session factory (lambda to return the same session for testing)
+    session_factory = lambda: session  # noqa: E731
+    uow = SqlAlchemyUnitOfWork(session_factory)
+    task_repository = SqlAlchemyTaskRepository(uow)
+    queue_service = QueueService(task_repository)
 
     # Create a test task
     task = Task.create_index_update_task(
@@ -35,7 +41,11 @@ async def test_enqueue_task_existing_task_updates_priority(
     session: AsyncSession,
 ) -> None:
     """Test that enqueuing an existing task updates its priority."""
-    queue_service = QueueService(session)
+    # Create a session factory (lambda to return the same session for testing)
+    session_factory = lambda: session  # noqa: E731
+    uow = SqlAlchemyUnitOfWork(session_factory)
+    task_repository = SqlAlchemyTaskRepository(uow)
+    queue_service = QueueService(task_repository)
 
     # Create and enqueue a task with user-initiated priority
     task = Task.create_index_update_task(
@@ -62,7 +72,11 @@ async def test_enqueue_task_existing_task_updates_priority(
 @pytest.mark.asyncio
 async def test_enqueue_multiple_tasks(session: AsyncSession) -> None:
     """Test enqueuing multiple tasks."""
-    queue_service = QueueService(session)
+    # Create a session factory (lambda to return the same session for testing)
+    session_factory = lambda: session  # noqa: E731
+    uow = SqlAlchemyUnitOfWork(session_factory)
+    task_repository = SqlAlchemyTaskRepository(uow)
+    queue_service = QueueService(task_repository)
 
     # Create and enqueue multiple tasks
     tasks = []
@@ -89,7 +103,11 @@ async def test_enqueue_multiple_tasks(session: AsyncSession) -> None:
 @pytest.mark.asyncio
 async def test_list_tasks_by_type(session: AsyncSession) -> None:
     """Test listing tasks filtered by type."""
-    queue_service = QueueService(session)
+    # Create a session factory (lambda to return the same session for testing)
+    session_factory = lambda: session  # noqa: E731
+    uow = SqlAlchemyUnitOfWork(session_factory)
+    task_repository = SqlAlchemyTaskRepository(uow)
+    queue_service = QueueService(task_repository)
 
     # Create tasks with different types
     # Currently only INDEX_UPDATE is supported, but test the filtering logic
@@ -114,7 +132,11 @@ async def test_list_tasks_by_type(session: AsyncSession) -> None:
 @pytest.mark.asyncio
 async def test_list_tasks_empty_queue(session: AsyncSession) -> None:
     """Test listing tasks when queue is empty."""
-    queue_service = QueueService(session)
+    # Create a session factory (lambda to return the same session for testing)
+    session_factory = lambda: session  # noqa: E731
+    uow = SqlAlchemyUnitOfWork(session_factory)
+    task_repository = SqlAlchemyTaskRepository(uow)
+    queue_service = QueueService(task_repository)
 
     tasks = await queue_service.list_tasks()
     assert len(tasks) == 0
@@ -123,7 +145,11 @@ async def test_list_tasks_empty_queue(session: AsyncSession) -> None:
 @pytest.mark.asyncio
 async def test_task_priority_ordering(session: AsyncSession) -> None:
     """Test that tasks are returned in priority order."""
-    queue_service = QueueService(session)
+    # Create a session factory (lambda to return the same session for testing)
+    session_factory = lambda: session  # noqa: E731
+    uow = SqlAlchemyUnitOfWork(session_factory)
+    task_repository = SqlAlchemyTaskRepository(uow)
+    queue_service = QueueService(task_repository)
 
     # Create tasks with different priorities
     background_task = Task.create_index_update_task(

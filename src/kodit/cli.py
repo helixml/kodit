@@ -28,6 +28,7 @@ from kodit.domain.value_objects import (
 from kodit.infrastructure.api.client import IndexClient, SearchClient
 from kodit.infrastructure.indexing.fusion_service import ReciprocalRankFusionService
 from kodit.infrastructure.sqlalchemy.index_repository import SqlAlchemyIndexRepository
+from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 from kodit.log import configure_logging, configure_telemetry, log_event
 from kodit.mcp import create_stdio_mcp_server
 
@@ -183,13 +184,14 @@ async def _index_local(
 
     # Get database session
     db = await app_context.get_db()
-    async with db.session_factory() as session:
+    async with db.session_factory():
         service = create_cli_code_indexing_application_service(
             app_context=app_context,
-            session=session,
+            session_factory=db.session_factory,
         )
+        uow = SqlAlchemyUnitOfWork(db.session_factory)
         index_query_service = IndexQueryService(
-            index_repository=SqlAlchemyIndexRepository(session=session),
+            index_repository=SqlAlchemyIndexRepository(uow),
             fusion_service=ReciprocalRankFusionService(),
         )
 
@@ -316,10 +318,10 @@ async def _search_local(  # noqa: PLR0913
 
     # Get database session
     db = await app_context.get_db()
-    async with db.session_factory() as session:
+    async with db.session_factory():
         service = create_cli_code_indexing_application_service(
             app_context=app_context,
-            session=session,
+            session_factory=db.session_factory,
         )
 
         filters = _parse_filters(
@@ -781,10 +783,10 @@ async def snippets(
         # Local mode
         log_event("kodit.cli.show.snippets")
         db = await app_context.get_db()
-        async with db.session_factory() as session:
+        async with db.session_factory():
             service = create_cli_code_indexing_application_service(
                 app_context=app_context,
-                session=session,
+                session_factory=db.session_factory,
             )
             snippets = await service.list_snippets(
                 file_path=by_path, source_uri=by_source

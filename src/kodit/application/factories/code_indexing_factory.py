@@ -8,7 +8,7 @@ from kodit.application.services.code_indexing_application_service import (
     CodeIndexingApplicationService,
 )
 from kodit.config import AppContext
-from kodit.domain.protocols import ReportingService, UnitOfWork
+from kodit.domain.protocols import ReportingService
 from kodit.domain.services.bm25_service import BM25DomainService
 from kodit.domain.services.embedding_service import EmbeddingDomainService
 from kodit.domain.services.enrichment_service import EnrichmentDomainService
@@ -51,10 +51,13 @@ from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 
 def create_code_indexing_application_service(
     app_context: AppContext,
-    unit_of_work: UnitOfWork,
+    session_factory: Callable[[], AsyncSession],
     reporter: ReportingService,
 ) -> CodeIndexingApplicationService:
     """Create a unified code indexing application service with all dependencies."""
+    # Create Unit of Work
+    unit_of_work = SqlAlchemyUnitOfWork(session_factory)
+
     # Create domain services
     bm25_service = BM25DomainService(bm25_repository_factory(app_context, unit_of_work))
     code_search_service = embedding_domain_service_factory(
@@ -78,7 +81,6 @@ def create_code_indexing_application_service(
         language_detector=language_detector,
         enrichment_service=enrichment_service,
         clone_dir=app_context.get_clone_dir(),
-        reporter=reporter,
     )
     index_query_service = IndexQueryService(
         index_repository=index_repository,
@@ -93,8 +95,8 @@ def create_code_indexing_application_service(
         code_search_service=code_search_service,
         text_search_service=text_search_service,
         enrichment_service=enrichment_service,
-        unit_of_work=unit_of_work,
         reporter=reporter,
+        index_repository=index_repository,
     )
 
 
@@ -163,7 +165,6 @@ def create_fast_test_code_indexing_application_service(
         language_detector=language_detector,
         enrichment_service=enrichment_service,
         clone_dir=app_context.get_clone_dir(),
-        reporter=reporter,
     )
     index_query_service = IndexQueryService(
         index_repository=index_repository,

@@ -11,6 +11,7 @@ import kodit.domain.entities as domain_entities
 from kodit.domain.value_objects import FileProcessingStatus, SourceType
 from kodit.infrastructure.mappers.index_mapper import IndexMapper
 from kodit.infrastructure.sqlalchemy import entities as db_entities
+from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 
 
 class TestIndexMapper:
@@ -19,6 +20,10 @@ class TestIndexMapper:
     @pytest.mark.asyncio
     async def test_to_domain_file(self, session: AsyncSession) -> None:
         """Test converting a database File to domain File."""
+        # Create UoW
+        session_factory = lambda: session  # noqa: E731
+        uow = SqlAlchemyUnitOfWork(session_factory)
+
         # Create test data
         db_source = db_entities.Source(
             uri="file:///test/repo",
@@ -55,7 +60,7 @@ class TestIndexMapper:
         await session.flush()
 
         # Test mapping
-        mapper = IndexMapper(session)
+        mapper = IndexMapper(uow)
         domain_file = await mapper.to_domain_file(db_file)
 
         # Verify mapping
@@ -73,6 +78,10 @@ class TestIndexMapper:
     @pytest.mark.asyncio
     async def test_from_domain_snippet(self, session: AsyncSession) -> None:
         """Test converting a domain Snippet to database Snippet."""
+        # Create UoW
+        session_factory = lambda: session  # noqa: E731
+        uow = SqlAlchemyUnitOfWork(session_factory)
+
         # Create test data
         db_source = db_entities.Source(
             uri="file:///test/repo",
@@ -119,7 +128,7 @@ class TestIndexMapper:
         domain_snippet.add_summary("Test function")
 
         # Test mapping
-        mapper = IndexMapper(session)
+        mapper = IndexMapper(uow)
         db_snippet = await mapper.from_domain_snippet(domain_snippet, index_id=1)
 
         # Verify mapping
@@ -134,6 +143,10 @@ class TestIndexMapper:
     @pytest.mark.asyncio
     async def test_from_domain_index(self, session: AsyncSession) -> None:
         """Test converting a domain Index to database entities."""
+        # Create UoW
+        session_factory = lambda: session  # noqa: E731
+        uow = SqlAlchemyUnitOfWork(session_factory)
+
         # Create domain entities
         author = domain_entities.Author(name="Test Author", email="test@example.com")
         file = domain_entities.File(
@@ -159,7 +172,7 @@ class TestIndexMapper:
         )
 
         # Test mapping
-        mapper = IndexMapper(session)
+        mapper = IndexMapper(uow)
         db_index, db_source, db_files, db_authors = await mapper.from_domain_index(
             index
         )

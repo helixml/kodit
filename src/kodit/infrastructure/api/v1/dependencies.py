@@ -53,7 +53,7 @@ async def get_index_query_service(
 ) -> IndexQueryService:
     """Get index query service dependency."""
     return IndexQueryService(
-        index_repository=SqlAlchemyIndexRepository(uow=uow),
+        index_repository=SqlAlchemyIndexRepository(uow),
         fusion_service=ReciprocalRankFusionService(),
     )
 
@@ -66,9 +66,11 @@ async def get_indexing_app_service(
     uow: UOWDep,
 ) -> CodeIndexingApplicationService:
     """Get indexing application service dependency."""
+    # Get the session factory to pass to the service
+    db = await app_context.get_db()
     return create_code_indexing_application_service(
         app_context=app_context,
-        unit_of_work=uow,
+        session_factory=db.session_factory,
         reporter=_create_reporter(uow),
     )
 
@@ -87,7 +89,7 @@ IndexingAppServiceDep = Annotated[
 
 
 async def get_queue_service(
-    unit_of_work: UnitOfWork,
+    unit_of_work: UOWDep,
 ) -> QueueService:
     """Get queue service dependency."""
     task_repository = SqlAlchemyTaskRepository(unit_of_work)

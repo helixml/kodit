@@ -14,7 +14,7 @@ from kodit.domain.protocols import ReportingStep
 class GitWorkingCopyProvider:
     """Working copy provider for git-based sources."""
 
-    def __init__(self, clone_dir: Path, reporter: ReportingStep) -> None:
+    def __init__(self, clone_dir: Path, reporter: ReportingStep | None = None) -> None:
         """Initialize the provider."""
         self.clone_dir = clone_dir
         self.reporter = reporter

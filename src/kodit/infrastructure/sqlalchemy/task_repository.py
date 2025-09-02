@@ -30,6 +30,7 @@ class SqlAlchemyTaskRepository(TaskRepository):
         """Create a new task in the database."""
         async with self.uow:
             self.uow.session.add(self._mapper.from_domain_task(task))
+            await self.uow.commit()
 
     async def get(self, task_id: str) -> Task | None:
         """Get a task by ID."""
@@ -54,6 +55,7 @@ class SqlAlchemyTaskRepository(TaskRepository):
             if not db_task:
                 return None
             await self.uow.session.delete(db_task)
+            await self.uow.commit()
             return self._mapper.to_domain_task(db_task)
 
     async def update(self, task: Task) -> None:
@@ -68,6 +70,7 @@ class SqlAlchemyTaskRepository(TaskRepository):
 
             db_task.priority = task.priority
             db_task.payload = task.payload
+            await self.uow.commit()
 
     async def list(self, task_type: TaskType | None = None) -> list[Task]:
         """List tasks with optional status filter."""

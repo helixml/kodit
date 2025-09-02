@@ -168,10 +168,13 @@ def create_indexing_worker_service(
     session_factory: Callable[[], AsyncSession],
 ) -> IndexingWorkerService:
     """Create an indexing worker service."""
-    reporter = create_server_reporter(
-        session_factory=session_factory, config=ProgressConfig()
-    )
     uow = SqlAlchemyUnitOfWork(session_factory)
+    from kodit.infrastructure.sqlalchemy.operation_repository import SqlAlchemyOperationRepository
+    
+    operation_repository = SqlAlchemyOperationRepository(uow)
+    reporter = create_server_reporter(
+        operation_repository=operation_repository, config=ProgressConfig()
+    )
     task_repository = SqlAlchemyTaskRepository(uow)
     index_repository = SqlAlchemyIndexRepository(uow)
     return IndexingWorkerService(

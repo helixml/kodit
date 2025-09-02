@@ -3,6 +3,7 @@
 import asyncio
 import random
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -22,6 +23,7 @@ from kodit.infrastructure.sqlalchemy.entities import (
     Source,
     SourceType,
 )
+from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 
 log = structlog.get_logger(__name__)
 
@@ -77,14 +79,17 @@ async def setup_test_data(session: AsyncSession, num_embeddings: int = 5000) -> 
     await session.commit()
 
 
-async def run_benchmark(session: AsyncSession) -> None:
+async def run_benchmark(
+    session: AsyncSession, session_factory: Callable[[], AsyncSession]
+) -> None:
     """Run the semantic search benchmark."""
     # Setup test data
     log.info("Setting up test data...")
     await setup_test_data(session)
 
     # Create repository instance
-    repo = SqlAlchemyEmbeddingRepository(session)
+    uow = SqlAlchemyUnitOfWork(session_factory)
+    repo = SqlAlchemyEmbeddingRepository(uow)
 
     # Generate a test query embedding
     query_embedding = generate_random_embedding()
@@ -151,7 +156,7 @@ async def main() -> None:
 
     # Run benchmark
     async with async_session() as session:
-        await run_benchmark(session)
+        await run_benchmark(session, async_session)
 
     # Cleanup
     await engine.dispose()

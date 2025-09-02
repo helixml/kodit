@@ -28,6 +28,7 @@ from kodit.infrastructure.sqlalchemy.entities import (
     Source,
     SourceType,
 )
+from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 
 
 class TestEmbeddingIntegration:
@@ -36,8 +37,12 @@ class TestEmbeddingIntegration:
     @pytest.mark.asyncio
     async def test_full_embedding_pipeline_local(self, session: AsyncSession) -> None:
         """Test the full embedding pipeline with hash provider."""
+        # Create UoW
+        session_factory = lambda: session  # noqa: E731
+        uow = SqlAlchemyUnitOfWork(session_factory)
+
         # Create real components
-        embedding_repository = SqlAlchemyEmbeddingRepository(session=session)
+        embedding_repository = SqlAlchemyEmbeddingRepository(uow)
         embedding_provider = HashEmbeddingProvider()
         vector_search_repository = LocalVectorSearchRepository(
             embedding_repository=embedding_repository,
@@ -148,7 +153,11 @@ class TestEmbeddingIntegration:
     @pytest.mark.asyncio
     async def test_embedding_similarity_ranking(self, session: AsyncSession) -> None:
         """Test that embeddings produce meaningful similarity rankings."""
-        embedding_repository = SqlAlchemyEmbeddingRepository(session=session)
+        # Create UoW
+        session_factory = lambda: session  # noqa: E731
+        uow = SqlAlchemyUnitOfWork(session_factory)
+
+        embedding_repository = SqlAlchemyEmbeddingRepository(uow)
         embedding_provider = HashEmbeddingProvider()
         vector_search_repository = LocalVectorSearchRepository(
             embedding_repository=embedding_repository,
@@ -256,7 +265,11 @@ class TestEmbeddingIntegration:
     @pytest.mark.asyncio
     async def test_embedding_batch_processing(self, session: AsyncSession) -> None:
         """Test that embedding processing works correctly in batches."""
-        embedding_repository = SqlAlchemyEmbeddingRepository(session=session)
+        # Create UoW
+        session_factory = lambda: session  # noqa: E731
+        uow = SqlAlchemyUnitOfWork(session_factory)
+
+        embedding_repository = SqlAlchemyEmbeddingRepository(uow)
         embedding_provider = HashEmbeddingProvider()
         vector_search_repository = LocalVectorSearchRepository(
             embedding_repository=embedding_repository,
@@ -336,8 +349,12 @@ class TestEmbeddingIntegration:
     @pytest.mark.asyncio
     async def test_embedding_error_handling(self, session: AsyncSession) -> None:
         """Test error handling in the embedding pipeline."""
+        # Create UoW
+        session_factory = lambda: session  # noqa: E731
+        uow = SqlAlchemyUnitOfWork(session_factory)
+
         # Test with invalid requests
-        embedding_repository = SqlAlchemyEmbeddingRepository(session=session)
+        embedding_repository = SqlAlchemyEmbeddingRepository(uow)
         embedding_provider = HashEmbeddingProvider()
         vector_search_repository = LocalVectorSearchRepository(
             embedding_repository=embedding_repository,
@@ -367,7 +384,11 @@ class TestEmbeddingIntegration:
         self, session: AsyncSession
     ) -> None:
         """Test that embeddings are deterministic."""
-        embedding_repository = SqlAlchemyEmbeddingRepository(session=session)
+        # Create UoW
+        session_factory = lambda: session  # noqa: E731
+        uow = SqlAlchemyUnitOfWork(session_factory)
+
+        embedding_repository = SqlAlchemyEmbeddingRepository(uow)
         embedding_provider = HashEmbeddingProvider()
         vector_search_repository = LocalVectorSearchRepository(
             embedding_repository=embedding_repository,
@@ -451,7 +472,11 @@ class TestEmbeddingIntegration:
     @pytest.mark.asyncio
     async def test_embedding_type_separation(self, session: AsyncSession) -> None:
         """Test that different embedding types are handled separately."""
-        embedding_repository = SqlAlchemyEmbeddingRepository(session=session)
+        # Create UoW
+        session_factory = lambda: session  # noqa: E731
+        uow = SqlAlchemyUnitOfWork(session_factory)
+
+        embedding_repository = SqlAlchemyEmbeddingRepository(uow)
         embedding_provider = HashEmbeddingProvider()
 
         # Create two repositories with different embedding types
@@ -552,7 +577,11 @@ class TestEmbeddingIntegration:
         self, session: AsyncSession
     ) -> None:
         """Test basic performance characteristics of embedding operations."""
-        embedding_repository = SqlAlchemyEmbeddingRepository(session=session)
+        # Create UoW
+        session_factory = lambda: session  # noqa: E731
+        uow = SqlAlchemyUnitOfWork(session_factory)
+
+        embedding_repository = SqlAlchemyEmbeddingRepository(uow)
         embedding_provider = HashEmbeddingProvider()
         vector_search_repository = LocalVectorSearchRepository(
             embedding_repository=embedding_repository,
