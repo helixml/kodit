@@ -104,19 +104,21 @@ class ReportingService(Protocol):
         """Start tracking a new operation with steps."""
         ...
 
-    def update_step(self, step: Step) -> None:
+    def update_step(self, operation: OperationAggregate, step: Step) -> None:
         """Update the current step of an operation."""
         ...
 
-    def complete_operation(self) -> None:
+    def complete_operation(self, operation: OperationAggregate) -> None:
         """Mark the current operation as completed."""
         ...
 
-    def fail_operation(self, error: Exception) -> None:
+    def fail_operation(self, operation: OperationAggregate, error: Exception) -> None:
         """Mark the current operation as failed."""
         ...
 
-    def update_step_progress(self, current: int, total: int) -> None:
+    def update_step_progress(
+        self, operation: OperationAggregate, current: int, total: int
+    ) -> None:
         """Update the progress of the current step."""
         ...
 

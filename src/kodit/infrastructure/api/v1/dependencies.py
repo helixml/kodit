@@ -1,6 +1,6 @@
 """FastAPI dependencies for the REST API."""
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from typing import Annotated, cast
 
 from fastapi import Depends, Request
@@ -20,9 +20,6 @@ from kodit.infrastructure.indexing.fusion_service import ReciprocalRankFusionSer
 from kodit.infrastructure.reporting.progress import ProgressConfig
 from kodit.infrastructure.reporting.reporter import create_server_reporter
 from kodit.infrastructure.sqlalchemy.index_repository import SqlAlchemyIndexRepository
-from kodit.infrastructure.sqlalchemy.operation_repository import (
-    SqlAlchemyOperationRepository,
-)
 
 
 def get_app_context(request: Request) -> AppContext:
@@ -66,18 +63,18 @@ async def get_indexing_app_service(
     session: DBSessionDep,
 ) -> CodeIndexingApplicationService:
     """Get indexing application service dependency."""
+    db = await app_context.get_db()
     return create_code_indexing_application_service(
         app_context=app_context,
         session=session,
-        reporter=_create_reporter(session),
+        reporter=_create_reporter(db.session_factory),
     )
 
 
-def _create_reporter(session: DBSessionDep) -> ReportingService:
-    operation_repository = SqlAlchemyOperationRepository(session=session)
+def _create_reporter(session_factory: Callable[[], AsyncSession]) -> ReportingService:
     reporter_config = ProgressConfig()
     return create_server_reporter(
-        operation_repository=operation_repository, config=reporter_config
+        session_factory=session_factory, config=reporter_config
     )
 
 

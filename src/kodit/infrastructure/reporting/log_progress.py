@@ -24,10 +24,12 @@ class LogProgress(Progress):
             state=operation.state.value,
         )
 
-    def on_step_update(self, step: Step) -> None:
+    def on_step_update(self, operation: OperationAggregate, step: Step) -> None:
         """Log when a step is updated."""
         self.log.info(
             "Step update",
+            index_id=operation.index_id,
+            operation_type=operation.type,
             step=step.name,
             state=step.state.value,
             progress=f"{step.progress_percentage:.1f}%",

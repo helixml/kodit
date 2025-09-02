@@ -1,8 +1,10 @@
 """Database progress implementation that persists to OperationRepository."""
 
 import asyncio
+import concurrent.futures
 from collections.abc import Callable
 
+import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.domain.value_objects import OperationAggregate, Step
@@ -23,33 +25,38 @@ class DatabaseProgress(Progress):
         """Initialize the database progress."""
         self.session_factory = session_factory
         self.config = config or ProgressConfig()
-        self.current_operation: OperationAggregate | None = None
+        # Thread pool for running async operations synchronously
+        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        self.log = structlog.get_logger(__name__)
 
     def on_operation_start(self, operation: OperationAggregate) -> None:
         """Persist when an operation starts."""
-        self.current_operation = operation
-        self._save_operation_async(operation)
+        self._save_operation_blocking(operation)
 
-    def on_step_update(self, step: Step) -> None:
+    def on_step_update(self, operation: OperationAggregate, step: Step) -> None:
         """Persist when a step is updated."""
-        if self.current_operation:
-            self.current_operation.current_step = step
-            self._save_operation_async(self.current_operation)
+        operation.current_step = step
+        self._save_operation_blocking(operation)
 
     def on_operation_complete(self, operation: OperationAggregate) -> None:
         """Persist when an operation completes."""
-        self._save_operation_async(operation)
-        self.current_operation = None
+        self._save_operation_blocking(operation)
 
     def on_operation_fail(self, operation: OperationAggregate) -> None:
         """Persist when an operation fails."""
-        self._save_operation_async(operation)
-        self.current_operation = None
+        self._save_operation_blocking(operation)
 
-    def _save_operation_async(self, operation: OperationAggregate) -> None:
-        """Save operation using a new session in background task."""
-        loop = asyncio.get_running_loop()
-        loop.create_task(self._save_with_new_session(operation))  # noqa: RUF006
+    def _save_operation_blocking(self, operation: OperationAggregate) -> None:
+        """Save operation synchronously by blocking until complete."""
+        # Run the async save operation in a thread pool and wait for completion
+        future = self._executor.submit(
+            asyncio.run, self._save_with_new_session(operation)
+        )
+        try:
+            # Block until the save completes (with a timeout)
+            future.result(timeout=5.0)
+        except Exception as e:
+            self.log.exception("Failed to save operation progress", error=str(e))
 
     async def _save_with_new_session(self, operation: OperationAggregate) -> None:
         """Save operation with a new session and commit."""
@@ -60,7 +67,4 @@ class DatabaseProgress(Progress):
                 await session.commit()
         except Exception as e:
             # Log the error but don't crash the application
-            import structlog
-
-            log = structlog.get_logger(__name__)
-            log.exception("Failed to save operation progress", error=str(e))
+            self.log.exception("Failed to save operation progress", error=str(e))

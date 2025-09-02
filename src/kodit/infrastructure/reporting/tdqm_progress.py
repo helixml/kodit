@@ -18,7 +18,7 @@ class TQDMProgress(Progress):
         """Display when an operation starts."""
         self.pbar.set_description(f"Starting {operation.type}")
 
-    def on_step_update(self, step: Step) -> None:
+    def on_step_update(self, operation: OperationAggregate, step: Step) -> None:  # noqa: ARG002
         """Update progress bar with step information."""
         # Update the progress bar description with step info
         desc = f"{step.name} [{step.state.value}]"

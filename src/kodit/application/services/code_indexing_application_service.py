@@ -19,6 +19,7 @@ from kodit.domain.value_objects import (
     IndexRequest,
     MultiSearchRequest,
     MultiSearchResult,
+    OperationAggregate,
     SearchRequest,
     SearchResult,
     SnippetSearchFilters,
@@ -100,12 +101,13 @@ class CodeIndexingApplicationService:
             raise ValueError(msg)
 
         # Create operation to track the indexing process
-        self.reporter.start_operation(create_index_operation(index.id, "index_update"))
+        operation = create_index_operation(index.id, "index_update")
+        self.reporter.start_operation(operation)
 
         try:
             # Step 1: Refresh working copy
             refresh_step = create_step("refreshing_working_copy")
-            self.reporter.update_step(refresh_step)
+            self.reporter.update_step(operation, refresh_step)
 
             index.source.working_copy = (
                 await self.index_domain_service.refresh_working_copy(
@@ -113,33 +115,33 @@ class CodeIndexingApplicationService:
                 )
             )
 
-            self.reporter.update_step(complete_step(refresh_step))
+            self.reporter.update_step(operation, complete_step(refresh_step))
 
             if len(index.source.working_copy.changed_files()) == 0:
                 self.log.info("No new changes to index", index_id=index.id)
-                self.reporter.complete_operation()
+                self.reporter.complete_operation(operation)
                 return
 
             # Step 2: Delete old snippets
             delete_step = create_step("deleting_old_snippets")
-            self.reporter.update_step(delete_step)
+            self.reporter.update_step(operation, delete_step)
 
             changed_files = index.source.working_copy.changed_files()
             file_ids = [file.id for file in changed_files if file.id]
             await self.index_repository.delete_snippets_by_file_ids(file_ids)
 
-            self.reporter.update_step(complete_step(delete_step))
+            self.reporter.update_step(operation, complete_step(delete_step))
 
             # Step 3: Extract and create snippets
             extract_step = create_step("extracting_snippets")
-            self.reporter.update_step(extract_step)
+            self.reporter.update_step(operation, extract_step)
 
             self.log.info("Creating snippets for files", index_id=index.id)
             index = await self.index_domain_service.extract_snippets_from_index(
                 index=index
             )
 
-            self.reporter.update_step(complete_step(extract_step))
+            self.reporter.update_step(operation, complete_step(extract_step))
 
             await self.index_repository.update(index)
             await self.session.flush()
@@ -155,30 +157,30 @@ class CodeIndexingApplicationService:
                 self.log.info(
                     "No snippets to index after extraction", index_id=index.id
                 )
-                self.reporter.complete_operation()
+                self.reporter.complete_operation(operation)
                 return
 
             # Step 4: Create BM25 index
             bm25_step = create_step("creating_bm25_index")
-            self.reporter.update_step(bm25_step)
+            self.reporter.update_step(operation, bm25_step)
 
             self.log.info("Creating keyword index")
             await self._create_bm25_index(index.snippets)
 
-            self.reporter.update_step(complete_step(bm25_step))
+            self.reporter.update_step(operation, complete_step(bm25_step))
 
             # Step 5: Create code embeddings
             code_embed_step = create_step("creating_code_embeddings")
-            self.reporter.update_step(code_embed_step)
+            self.reporter.update_step(operation, code_embed_step)
 
             self.log.info("Creating semantic code index")
-            await self._create_code_embeddings(index.snippets)
+            await self._create_code_embeddings(operation, index.snippets)
 
-            self.reporter.update_step(complete_step(code_embed_step))
+            self.reporter.update_step(operation, complete_step(code_embed_step))
 
             # Step 6: Enrich snippets
             enrich_step = create_step("enriching_snippets")
-            self.reporter.update_step(enrich_step)
+            self.reporter.update_step(operation, enrich_step)
 
             self.log.info("Enriching snippets", num_snippets=len(index.snippets))
             enriched_snippets = (
@@ -189,16 +191,16 @@ class CodeIndexingApplicationService:
             # Update snippets in repository
             await self.index_repository.update_snippets(index.id, enriched_snippets)
 
-            self.reporter.update_step(complete_step(enrich_step))
+            self.reporter.update_step(operation, complete_step(enrich_step))
 
             # Step 7: Create text embeddings
             text_embed_step = create_step("creating_text_embeddings")
-            self.reporter.update_step(text_embed_step)
+            self.reporter.update_step(operation, text_embed_step)
 
             self.log.info("Creating semantic text index")
-            await self._create_text_embeddings(enriched_snippets)
+            await self._create_text_embeddings(operation, enriched_snippets)
 
-            self.reporter.update_step(complete_step(text_embed_step))
+            self.reporter.update_step(operation, complete_step(text_embed_step))
 
             # Update index timestamp
             await self.index_repository.update_index_timestamp(index.id)
@@ -217,7 +219,7 @@ class CodeIndexingApplicationService:
 
         except Exception as e:
             self.log.exception("Indexing failed", index_id=index.id)
-            self.reporter.fail_operation(e)
+            self.reporter.fail_operation(operation, e)
             raise
 
     async def search(self, request: MultiSearchRequest) -> list[MultiSearchResult]:
@@ -381,7 +383,9 @@ class CodeIndexingApplicationService:
             )
         )
 
-    async def _create_code_embeddings(self, snippets: list[Snippet]) -> None:
+    async def _create_code_embeddings(
+        self, operation: OperationAggregate, snippets: list[Snippet]
+    ) -> None:
         documents = [
             Document(snippet_id=snippet.id, text=snippet.original_text())
             for snippet in snippets
@@ -395,9 +399,11 @@ class CodeIndexingApplicationService:
             IndexRequest(documents=documents)
         ):
             count += 1
-            self.reporter.update_step_progress(count, total)
+            self.reporter.update_step_progress(operation, count, total)
 
-    async def _create_text_embeddings(self, snippets: list[Snippet]) -> None:
+    async def _create_text_embeddings(
+        self, operation: OperationAggregate, snippets: list[Snippet]
+    ) -> None:
         # Only create text embeddings for snippets that have summary content
         documents_with_summaries = []
         for snippet in snippets:
@@ -422,7 +428,7 @@ class CodeIndexingApplicationService:
             IndexRequest(documents=documents_with_summaries)
         ):
             count += 1
-            self.reporter.update_step_progress(count, total)
+            self.reporter.update_step_progress(operation, count, total)
 
     def _raise_index_not_found_error(self, index_id: int) -> None:
         """Raise ValueError for index not found."""

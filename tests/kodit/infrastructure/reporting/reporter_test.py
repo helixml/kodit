@@ -26,18 +26,19 @@ def test_reporter_operation_workflow() -> None:
 
     # Test step update
     step = create_step("test_step")
-    reporter.update_step(step)
+    reporter.update_step(operation, step)
     assert mock_progress.on_step_update.call_count == 1
-    assert mock_progress.on_step_update.call_args[0][0].name == "test_step"
-    assert mock_progress.on_step_update.call_args[0][0].state == StepState.RUNNING
+    assert mock_progress.on_step_update.call_args[0][0].index_id == 1
+    assert mock_progress.on_step_update.call_args[0][1].name == "test_step"
+    assert mock_progress.on_step_update.call_args[0][1].state == StepState.RUNNING
 
     # Test step completion
     completed_step = complete_step(step)
-    reporter.update_step(completed_step)
+    reporter.update_step(operation, completed_step)
     assert mock_progress.on_step_update.call_count == 2
-    assert mock_progress.on_step_update.call_args[0][0].state == StepState.COMPLETED
-    assert mock_progress.on_step_update.call_args[0][0].progress_percentage == 100.0
+    assert mock_progress.on_step_update.call_args[0][1].state == StepState.COMPLETED
+    assert mock_progress.on_step_update.call_args[0][1].progress_percentage == 100.0
 
     # Test operation complete
-    reporter.complete_operation()
+    reporter.complete_operation(operation)
     assert mock_progress.on_operation_complete.call_count == 1

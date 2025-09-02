@@ -22,7 +22,7 @@ class Progress(ABC):
         """Handle when an operation starts."""
 
     @abstractmethod
-    def on_step_update(self, step: Step) -> None:
+    def on_step_update(self, operation: OperationAggregate, step: Step) -> None:
         """Handle when a step is updated."""
 
     @abstractmethod

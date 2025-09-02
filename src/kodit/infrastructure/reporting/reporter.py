@@ -29,74 +29,61 @@ class Reporter(ReportingService):
         """Initialize the reporter."""
         self.modules = modules or []
         self.operation_repository = operation_repository
-        self.current_operation: OperationAggregate | None = None
 
     def start_operation(self, operation: OperationAggregate) -> None:
         """Start tracking a new operation with steps."""
-        self.current_operation = operation
-        self.current_operation.state = OperationState.IN_PROGRESS
-        self.current_operation.updated_at = datetime.now(UTC)
+        operation.state = OperationState.IN_PROGRESS
+        operation.updated_at = datetime.now(UTC)
 
         # Notify progress modules
         for module in self.modules:
             module.on_operation_start(operation)
 
-    def update_step(self, step: Step) -> None:
+    def update_step(self, operation: OperationAggregate, step: Step) -> None:
         """Update the current step of an operation."""
-        if not self.current_operation:
-            return
-
         # Update the operation's current step
-        self.current_operation.current_step = step
-        self.current_operation.updated_at = datetime.now(UTC)
+        operation.current_step = step
+        operation.updated_at = datetime.now(UTC)
 
         # Notify progress modules
         for module in self.modules:
-            module.on_step_update(step)
+            module.on_step_update(operation, step)
 
-    def complete_operation(self) -> None:
+    def complete_operation(self, operation: OperationAggregate) -> None:
         """Mark the current operation as completed."""
-        if not self.current_operation:
-            return
-
-        self.current_operation.state = OperationState.COMPLETED
-        self.current_operation.updated_at = datetime.now(UTC)
-        self.current_operation.current_step = None
+        operation.state = OperationState.COMPLETED
+        operation.updated_at = datetime.now(UTC)
+        operation.current_step = None
 
         # Notify progress modules
         for module in self.modules:
-            module.on_operation_complete(self.current_operation)
+            module.on_operation_complete(operation)
 
-        self.current_operation = None
-
-    def fail_operation(self, error: Exception) -> None:
+    def fail_operation(self, operation: OperationAggregate, error: Exception) -> None:
         """Mark the current operation as failed."""
-        if not self.current_operation:
-            return
+        operation.state = OperationState.FAILED
+        operation.error = error
+        operation.updated_at = datetime.now(UTC)
 
-        self.current_operation.state = OperationState.FAILED
-        self.current_operation.error = error
-        self.current_operation.updated_at = datetime.now(UTC)
-
-        if self.current_operation.current_step:
-            self.current_operation.current_step.state = StepState.FAILED
-            self.current_operation.current_step.error = error
+        if operation.current_step:
+            operation.current_step.state = StepState.FAILED
+            operation.current_step.error = error
 
         # Notify progress modules
         for module in self.modules:
-            module.on_operation_fail(self.current_operation)
+            module.on_operation_fail(operation)
 
-        self.current_operation = None
-
-    def update_step_progress(self, current: int, total: int) -> None:
+    def update_step_progress(
+        self, operation: OperationAggregate, current: int, total: int
+    ) -> None:
         """Update the progress of the current step."""
-        if not self.current_operation or not self.current_operation.current_step:
+        if not operation.current_step:
             return
 
         updated_step = update_step_progress(
-            self.current_operation.current_step, current, total
+            operation.current_step, current, total
         )
-        self.update_step(updated_step)
+        self.update_step(operation, updated_step)
 
 
 def create_noop_reporter() -> Reporter:
