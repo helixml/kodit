@@ -1,6 +1,5 @@
 """Log progress using structlog."""
 
-
 import structlog
 
 from kodit.domain.value_objects import OperationAggregate, Step
@@ -15,7 +14,6 @@ class LogProgress(Progress):
         self.log = structlog.get_logger()
         self.config = config or ProgressConfig()
         self.last_log_time: float = 0
-
 
     def on_operation_start(self, operation: OperationAggregate) -> None:
         """Log when an operation starts."""
@@ -43,13 +41,11 @@ class LogProgress(Progress):
             type=operation.type,
         )
 
-    def on_operation_fail(
-        self, operation: OperationAggregate, error: Exception
-    ) -> None:
+    def on_operation_fail(self, operation: OperationAggregate) -> None:
         """Log when an operation fails."""
         self.log.error(
             "Operation failed",
             index_id=operation.index_id,
             type=operation.type,
-            error=str(error),
+            error=str(operation.error),
         )

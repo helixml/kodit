@@ -33,8 +33,6 @@ class Reporter(ReportingService):
         self.current_operation = operation
         self.current_operation.state = OperationState.IN_PROGRESS
         self.current_operation.updated_at = datetime.now(UTC)
-        if self.operation_repository:
-            self.operation_repository.save(self.current_operation)
 
         # Notify progress modules
         for module in self.modules:
@@ -49,10 +47,6 @@ class Reporter(ReportingService):
         self.current_operation.current_step = step
         self.current_operation.updated_at = datetime.now(UTC)
 
-        # Save to repository if available
-        if self.operation_repository:
-            self.operation_repository.save(self.current_operation)
-
         # Notify progress modules
         for module in self.modules:
             module.on_step_update(step)
@@ -65,9 +59,6 @@ class Reporter(ReportingService):
         self.current_operation.state = OperationState.COMPLETED
         self.current_operation.updated_at = datetime.now(UTC)
         self.current_operation.current_step = None
-
-        if self.operation_repository:
-            self.operation_repository.save(self.current_operation)
 
         # Notify progress modules
         for module in self.modules:
@@ -88,12 +79,9 @@ class Reporter(ReportingService):
             self.current_operation.current_step.state = StepState.FAILED
             self.current_operation.current_step.error = error
 
-        if self.operation_repository:
-            self.operation_repository.save(self.current_operation)
-
         # Notify progress modules
         for module in self.modules:
-            module.on_operation_fail(self.current_operation, error)
+            module.on_operation_fail(self.current_operation)
 
         self.current_operation = None
 
@@ -159,6 +147,7 @@ def create_index_operation(index_id: int, operation_type: str) -> OperationAggre
         type=operation_type,
         state=OperationState.PENDING,
         updated_at=datetime.now(UTC),
+        progress_percentage=0.0,
     )
 
 

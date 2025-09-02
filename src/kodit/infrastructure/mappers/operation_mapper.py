@@ -38,7 +38,7 @@ class OperationMapper:
         """Convert domain OperationAggregate to SQLAlchemy Operation."""
         return db_entities.Operation(
             index_id=operation.index_id,
-            type=operation.type,
+            operation_type=operation.type,
             state=operation.state.value,
             progress_percentage=operation.progress_percentage,
         )

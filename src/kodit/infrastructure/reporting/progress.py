@@ -30,7 +30,5 @@ class Progress(ABC):
         """Handle when an operation completes."""
 
     @abstractmethod
-    def on_operation_fail(
-        self, operation: OperationAggregate, error: Exception
-    ) -> None:
+    def on_operation_fail(self, operation: OperationAggregate) -> None:
         """Handle when an operation fails."""

@@ -14,7 +14,6 @@ class TQDMProgress(Progress):
         self.config = config or ProgressConfig()
         self.pbar = tqdm()
 
-
     def on_operation_start(self, operation: OperationAggregate) -> None:
         """Display when an operation starts."""
         self.pbar.set_description(f"Starting {operation.type}")
@@ -40,10 +39,7 @@ class TQDMProgress(Progress):
         self.pbar.refresh()
         self.pbar.close()
 
-    def on_operation_fail(
-        self, operation: OperationAggregate, error: Exception
-    ) -> None:
+    def on_operation_fail(self, operation: OperationAggregate) -> None:
         """Display when an operation fails."""
-        del operation  # Unused parameter
-        self.pbar.set_description(f"Failed: {str(error)[:25]}")
+        self.pbar.set_description(f"Failed: {str(operation.error)[:25]}")
         self.pbar.close()

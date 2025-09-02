@@ -252,14 +252,14 @@ class Operation(Base, CommonMixin):
     def __init__(
         self,
         index_id: int,
-        type: str,
+        operation_type: str,
         state: str,
         progress_percentage: float,
     ) -> None:
         """Initialize the operation."""
         super().__init__()
         self.index_id = index_id
-        self.type = type
+        self.type = operation_type
         self.state = state
         self.progress_percentage = progress_percentage
 
