@@ -1,10 +1,9 @@
 """Log progress using structlog."""
 
-import time
 
 import structlog
 
-from kodit.domain.value_objects import ProgressState
+from kodit.domain.value_objects import OperationAggregate, Step
 from kodit.infrastructure.reporting.progress import Progress, ProgressConfig
 
 
@@ -17,20 +16,40 @@ class LogProgress(Progress):
         self.config = config or ProgressConfig()
         self.last_log_time: float = 0
 
-    def on_update(self, state: ProgressState) -> None:
-        """Log the progress with time-based throttling."""
-        current_time = time.time()
-        time_since_last_log = current_time - self.last_log_time
 
-        if time_since_last_log >= self.config.log_time_interval.total_seconds():
-            self.log.info(
-                "Progress...",
-                operation=state.operation,
-                percentage=state.percentage,
-                message=state.message,
-            )
-            self.last_log_time = current_time
+    def on_operation_start(self, operation: OperationAggregate) -> None:
+        """Log when an operation starts."""
+        self.log.info(
+            "Operation started",
+            index_id=operation.index_id,
+            type=operation.type,
+            state=operation.state.value,
+        )
 
-    def on_complete(self) -> None:
-        """Log the completion."""
-        self.log.info("Completed")
+    def on_step_update(self, step: Step) -> None:
+        """Log when a step is updated."""
+        self.log.info(
+            "Step update",
+            step=step.name,
+            state=step.state.value,
+            progress=f"{step.progress_percentage:.1f}%",
+        )
+
+    def on_operation_complete(self, operation: OperationAggregate) -> None:
+        """Log when an operation completes."""
+        self.log.info(
+            "Operation completed",
+            index_id=operation.index_id,
+            type=operation.type,
+        )
+
+    def on_operation_fail(
+        self, operation: OperationAggregate, error: Exception
+    ) -> None:
+        """Log when an operation fails."""
+        self.log.error(
+            "Operation failed",
+            index_id=operation.index_id,
+            type=operation.type,
+            error=str(error),
+        )

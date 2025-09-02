@@ -19,10 +19,14 @@ from kodit.domain.value_objects import (
     IndexRequest,
     MultiSearchRequest,
     MultiSearchResult,
-    ProgressState,
     SearchRequest,
     SearchResult,
     SnippetSearchFilters,
+)
+from kodit.infrastructure.reporting.reporter import (
+    complete_step,
+    create_index_operation,
+    create_step,
 )
 from kodit.log import log_event
 
@@ -87,7 +91,7 @@ class CodeIndexingApplicationService:
         await self.session.commit()
         return index
 
-    async def run_index(self, index: Index) -> None:
+    async def run_index(self, index: Index) -> None:  # noqa: PLR0915
         """Run the complete indexing process for a specific index."""
         log_event("kodit.index.run")
 
@@ -95,68 +99,126 @@ class CodeIndexingApplicationService:
             msg = f"Index has no ID: {index}"
             raise ValueError(msg)
 
-        # Refresh working copy
-        index.source.working_copy = (
-            await self.index_domain_service.refresh_working_copy(
-                index.source.working_copy
+        # Create operation to track the indexing process
+        self.reporter.start_operation(create_index_operation(index.id, "index_update"))
+
+        try:
+            # Step 1: Refresh working copy
+            refresh_step = create_step("refreshing_working_copy")
+            self.reporter.update_step(refresh_step)
+
+            index.source.working_copy = (
+                await self.index_domain_service.refresh_working_copy(
+                    index.source.working_copy
+                )
             )
-        )
-        if len(index.source.working_copy.changed_files()) == 0:
-            self.log.info("No new changes to index", index_id=index.id)
-            return
 
-        # Delete the old snippets from the files that have changed
-        await self.index_repository.delete_snippets_by_file_ids(
-            [file.id for file in index.source.working_copy.changed_files() if file.id]
-        )
+            self.reporter.update_step(complete_step(refresh_step))
 
-        # Extract and create snippets (domain service handles progress)
-        self.log.info("Creating snippets for files", index_id=index.id)
-        index = await self.index_domain_service.extract_snippets_from_index(index=index)
+            if len(index.source.working_copy.changed_files()) == 0:
+                self.log.info("No new changes to index", index_id=index.id)
+                self.reporter.complete_operation()
+                return
 
-        await self.index_repository.update(index)
-        await self.session.flush()
+            # Step 2: Delete old snippets
+            delete_step = create_step("deleting_old_snippets")
+            self.reporter.update_step(delete_step)
 
-        # Refresh index to get snippets with IDs, required as a ref for subsequent steps
-        flushed_index = await self.index_repository.get(index.id)
-        if not flushed_index:
-            msg = f"Index {index.id} not found after snippet extraction"
-            raise ValueError(msg)
-        index = flushed_index
-        if len(index.snippets) == 0:
-            self.log.info("No snippets to index after extraction", index_id=index.id)
-            return
+            changed_files = index.source.working_copy.changed_files()
+            file_ids = [file.id for file in changed_files if file.id]
+            await self.index_repository.delete_snippets_by_file_ids(file_ids)
 
-        # Create BM25 index
-        self.log.info("Creating keyword index")
-        await self._create_bm25_index(index.snippets)
+            self.reporter.update_step(complete_step(delete_step))
 
-        # Create code embeddings
-        self.log.info("Creating semantic code index")
-        await self._create_code_embeddings(index.snippets)
+            # Step 3: Extract and create snippets
+            extract_step = create_step("extracting_snippets")
+            self.reporter.update_step(extract_step)
 
-        # Enrich snippets
-        self.log.info("Enriching snippets", num_snippets=len(index.snippets))
-        enriched_snippets = await self.index_domain_service.enrich_snippets_in_index(
-            snippets=index.snippets
-        )
-        # Update snippets in repository
-        await self.index_repository.update_snippets(index.id, enriched_snippets)
+            self.log.info("Creating snippets for files", index_id=index.id)
+            index = await self.index_domain_service.extract_snippets_from_index(
+                index=index
+            )
 
-        # Create text embeddings (on enriched content)
-        self.log.info("Creating semantic text index")
-        await self._create_text_embeddings(enriched_snippets)
+            self.reporter.update_step(complete_step(extract_step))
 
-        # Update index timestamp
-        await self.index_repository.update_index_timestamp(index.id)
+            await self.index_repository.update(index)
+            await self.session.flush()
 
-        # Now that all file dependencies have been captured, enact the file processing
-        # statuses
-        index.source.working_copy.clear_file_processing_statuses()
-        await self.index_repository.update(index)
+            # Refresh index to get snippets with IDs, required as a ref for
+            # subsequent steps
+            flushed_index = await self.index_repository.get(index.id)
+            if not flushed_index:
+                self._raise_index_not_found_error(index.id)
+            else:
+                index = flushed_index
+            if len(index.snippets) == 0:
+                self.log.info(
+                    "No snippets to index after extraction", index_id=index.id
+                )
+                self.reporter.complete_operation()
+                return
 
-        # Single transaction commit for the entire operation
-        await self.session.commit()
+            # Step 4: Create BM25 index
+            bm25_step = create_step("creating_bm25_index")
+            self.reporter.update_step(bm25_step)
+
+            self.log.info("Creating keyword index")
+            await self._create_bm25_index(index.snippets)
+
+            self.reporter.update_step(complete_step(bm25_step))
+
+            # Step 5: Create code embeddings
+            code_embed_step = create_step("creating_code_embeddings")
+            self.reporter.update_step(code_embed_step)
+
+            self.log.info("Creating semantic code index")
+            await self._create_code_embeddings(index.snippets)
+
+            self.reporter.update_step(complete_step(code_embed_step))
+
+            # Step 6: Enrich snippets
+            enrich_step = create_step("enriching_snippets")
+            self.reporter.update_step(enrich_step)
+
+            self.log.info("Enriching snippets", num_snippets=len(index.snippets))
+            enriched_snippets = (
+                await self.index_domain_service.enrich_snippets_in_index(
+                    snippets=index.snippets
+                )
+            )
+            # Update snippets in repository
+            await self.index_repository.update_snippets(index.id, enriched_snippets)
+
+            self.reporter.update_step(complete_step(enrich_step))
+
+            # Step 7: Create text embeddings
+            text_embed_step = create_step("creating_text_embeddings")
+            self.reporter.update_step(text_embed_step)
+
+            self.log.info("Creating semantic text index")
+            await self._create_text_embeddings(enriched_snippets)
+
+            self.reporter.update_step(complete_step(text_embed_step))
+
+            # Update index timestamp
+            await self.index_repository.update_index_timestamp(index.id)
+
+            # Now that all file dependencies have been captured, enact the file
+            # processing
+            # statuses
+            index.source.working_copy.clear_file_processing_statuses()
+            await self.index_repository.update(index)
+
+            # Single transaction commit for the entire operation
+            await self.session.commit()
+
+            # Mark operation as completed
+            self.reporter.complete_operation()
+
+        except Exception as e:
+            self.log.exception("Indexing failed", index_id=index.id)
+            self.reporter.fail_operation(e)
+            raise
 
     async def search(self, request: MultiSearchRequest) -> list[MultiSearchResult]:
         """Search for relevant snippets across all indexes."""
@@ -320,27 +382,20 @@ class CodeIndexingApplicationService:
         )
 
     async def _create_code_embeddings(self, snippets: list[Snippet]) -> None:
-        processed = 0
-        async for result in self.code_search_service.index_documents(
-            IndexRequest(
-                documents=[
-                    Document(snippet_id=snippet.id, text=snippet.original_text())
-                    for snippet in snippets
-                    if snippet.id
-                ]
-            )
-        ):
-            processed += len(result)
-            self.reporter.update(
-                ProgressState(
-                    current=processed,
-                    total=len(snippets),
-                    operation="Code Embedding",
-                    message="Creating code embeddings...",
-                )
-            )
+        documents = [
+            Document(snippet_id=snippet.id, text=snippet.original_text())
+            for snippet in snippets
+            if snippet.id
+        ]
 
-        self.reporter.complete()
+        count = 0
+        total = len(documents)
+
+        async for _ in self.code_search_service.index_documents(
+            IndexRequest(documents=documents)
+        ):
+            count += 1
+            self.reporter.update_step_progress(count, total)
 
     async def _create_text_embeddings(self, snippets: list[Snippet]) -> None:
         # Only create text embeddings for snippets that have summary content
@@ -358,24 +413,21 @@ class CodeIndexingApplicationService:
                     continue
 
         if not documents_with_summaries:
-            self.reporter.complete()
             return
 
-        processed = 0
-        async for result in self.text_search_service.index_documents(
+        count = 0
+        total = len(documents_with_summaries)
+
+        async for _ in self.text_search_service.index_documents(
             IndexRequest(documents=documents_with_summaries)
         ):
-            processed += len(result)
-            self.reporter.update(
-                ProgressState(
-                    current=processed,
-                    total=len(snippets),
-                    operation="Text Embedding",
-                    message="Creating text embeddings...",
-                )
-            )
+            count += 1
+            self.reporter.update_step_progress(count, total)
 
-        self.reporter.complete()
+    def _raise_index_not_found_error(self, index_id: int) -> None:
+        """Raise ValueError for index not found."""
+        msg = f"Index {index_id} not found after snippet extraction"
+        raise ValueError(msg)
 
     async def delete_index(self, index: Index) -> None:
         """Delete an index."""

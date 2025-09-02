@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import timedelta
 
-from kodit.domain.value_objects import ProgressState
+from kodit.domain.value_objects import OperationAggregate, Step
 
 
 @dataclass
@@ -18,9 +18,19 @@ class Progress(ABC):
     """Progress."""
 
     @abstractmethod
-    def on_update(self, state: ProgressState) -> None:
-        """On update."""
+    def on_operation_start(self, operation: OperationAggregate) -> None:
+        """Handle when an operation starts."""
 
     @abstractmethod
-    def on_complete(self) -> None:
-        """On complete."""
+    def on_step_update(self, step: Step) -> None:
+        """Handle when a step is updated."""
+
+    @abstractmethod
+    def on_operation_complete(self, operation: OperationAggregate) -> None:
+        """Handle when an operation completes."""
+
+    @abstractmethod
+    def on_operation_fail(
+        self, operation: OperationAggregate, error: Exception
+    ) -> None:
+        """Handle when an operation fails."""

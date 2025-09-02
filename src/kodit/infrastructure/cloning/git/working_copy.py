@@ -9,7 +9,6 @@ import structlog
 
 from kodit.domain.entities import WorkingCopy
 from kodit.domain.protocols import ReportingService
-from kodit.domain.value_objects import ProgressState
 
 
 class GitWorkingCopyProvider:
@@ -42,19 +41,9 @@ class GitWorkingCopyProvider:
         def _clone_progress_callback(
             a: int, _: str | float | None, __: str | float | None, d: str
         ) -> None:
+            del d  # Unused parameter
             if a not in step_record:
                 step_record.append(a)
-
-            # Git reports a really weird format. This is a quick hack to get some
-            # progress.
-            self.reporter.update(
-                ProgressState(
-                    current=len(step_record),
-                    total=12,
-                    operation="Git Clone",
-                    message=d,
-                )
-            )
 
         try:
             self.log.info(

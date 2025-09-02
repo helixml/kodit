@@ -1,7 +1,15 @@
 """Progress reporter."""
 
-from kodit.domain.protocols import ReportingService
-from kodit.domain.value_objects import ProgressState
+from datetime import UTC, datetime
+
+from kodit.domain.protocols import OperationRepository, ReportingService
+from kodit.domain.value_objects import (
+    OperationAggregate,
+    OperationState,
+    Step,
+    StepState,
+)
+from kodit.infrastructure.reporting.database_progress import DatabaseProgress
 from kodit.infrastructure.reporting.log_progress import LogProgress
 from kodit.infrastructure.reporting.progress import Progress, ProgressConfig
 from kodit.infrastructure.reporting.tdqm_progress import TQDMProgress
@@ -13,19 +21,91 @@ class Reporter(ReportingService):
     def __init__(
         self,
         modules: list[Progress] | None = None,
+        operation_repository: OperationRepository | None = None,
     ) -> None:
         """Initialize the reporter."""
         self.modules = modules or []
+        self.operation_repository = operation_repository
+        self.current_operation: OperationAggregate | None = None
 
-    def update(self, state: ProgressState) -> None:
-        """Update the reporter."""
-        for module in self.modules:
-            module.on_update(state)
+    def start_operation(self, operation: OperationAggregate) -> None:
+        """Start tracking a new operation with steps."""
+        self.current_operation = operation
+        self.current_operation.state = OperationState.IN_PROGRESS
+        self.current_operation.updated_at = datetime.now(UTC)
+        if self.operation_repository:
+            self.operation_repository.save(self.current_operation)
 
-    def complete(self) -> None:
-        """Complete the reporter."""
+        # Notify progress modules
         for module in self.modules:
-            module.on_complete()
+            module.on_operation_start(operation)
+
+    def update_step(self, step: Step) -> None:
+        """Update the current step of an operation."""
+        if not self.current_operation:
+            return
+
+        # Update the operation's current step
+        self.current_operation.current_step = step
+        self.current_operation.updated_at = datetime.now(UTC)
+
+        # Save to repository if available
+        if self.operation_repository:
+            self.operation_repository.save(self.current_operation)
+
+        # Notify progress modules
+        for module in self.modules:
+            module.on_step_update(step)
+
+    def complete_operation(self) -> None:
+        """Mark the current operation as completed."""
+        if not self.current_operation:
+            return
+
+        self.current_operation.state = OperationState.COMPLETED
+        self.current_operation.updated_at = datetime.now(UTC)
+        self.current_operation.current_step = None
+
+        if self.operation_repository:
+            self.operation_repository.save(self.current_operation)
+
+        # Notify progress modules
+        for module in self.modules:
+            module.on_operation_complete(self.current_operation)
+
+        self.current_operation = None
+
+    def fail_operation(self, error: Exception) -> None:
+        """Mark the current operation as failed."""
+        if not self.current_operation:
+            return
+
+        self.current_operation.state = OperationState.FAILED
+        self.current_operation.error = error
+        self.current_operation.updated_at = datetime.now(UTC)
+
+        if self.current_operation.current_step:
+            self.current_operation.current_step.state = StepState.FAILED
+            self.current_operation.current_step.error = error
+
+        if self.operation_repository:
+            self.operation_repository.save(self.current_operation)
+
+        # Notify progress modules
+        for module in self.modules:
+            module.on_operation_fail(self.current_operation, error)
+
+        self.current_operation = None
+
+    def update_step_progress(self, current: int, total: int) -> None:
+        """Update the progress of the current step."""
+        if not self.current_operation or not self.current_operation.current_step:
+            return
+
+        updated_step = update_step_progress(
+            self.current_operation.current_step, current, total
+        )
+        self.update_step(updated_step)
 
 
 def create_noop_reporter() -> Reporter:
@@ -43,3 +123,73 @@ def create_server_reporter(config: ProgressConfig | None = None) -> Reporter:
     """Create a server reporter."""
     shared_config = config or ProgressConfig()
     return Reporter(modules=[LogProgress(shared_config)])
+
+
+def create_database_reporter(
+    operation_repository: OperationRepository,
+    config: ProgressConfig | None = None,
+) -> Reporter:
+    """Create a reporter that persists operations to database."""
+    shared_config = config or ProgressConfig()
+    return Reporter(
+        modules=[DatabaseProgress(operation_repository, shared_config)],
+        operation_repository=operation_repository,
+    )
+
+
+def create_full_reporter(
+    operation_repository: OperationRepository,
+    config: ProgressConfig | None = None,
+) -> Reporter:
+    """Create a reporter with both logging and database persistence."""
+    shared_config = config or ProgressConfig()
+    return Reporter(
+        modules=[
+            LogProgress(shared_config),
+            DatabaseProgress(operation_repository, shared_config),
+        ],
+        operation_repository=operation_repository,
+    )
+
+
+def create_index_operation(index_id: int, operation_type: str) -> OperationAggregate:
+    """Create a new operation aggregate for tracking."""
+    return OperationAggregate(
+        index_id=index_id,
+        type=operation_type,
+        state=OperationState.PENDING,
+        updated_at=datetime.now(UTC),
+    )
+
+
+def create_step(name: str, progress: float = 0.0) -> Step:
+    """Create a new step in running state."""
+    return Step(
+        name=name,
+        state=StepState.RUNNING,
+        updated_at=datetime.now(UTC),
+        progress_percentage=progress,
+    )
+
+
+def complete_step(step: Step) -> Step:
+    """Mark a step as completed with 100% progress."""
+    step.state = StepState.COMPLETED
+    step.progress_percentage = 100.0
+    step.updated_at = datetime.now(UTC)
+    return step
+
+
+def fail_step(step: Step, error: Exception) -> Step:
+    """Mark a step as failed with error."""
+    step.state = StepState.FAILED
+    step.error = error
+    step.updated_at = datetime.now(UTC)
+    return step
+
+
+def update_step_progress(step: Step, current: int, total: int) -> Step:
+    """Update step progress percentage based on current/total."""
+    step.progress_percentage = (current / total) * 100 if total > 0 else 0.0
+    step.updated_at = datetime.now(UTC)
+    return step

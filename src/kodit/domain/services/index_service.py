@@ -15,7 +15,6 @@ from kodit.domain.value_objects import (
     EnrichmentRequest,
     FileProcessingStatus,
     LanguageMapping,
-    ProgressState,
 )
 from kodit.infrastructure.cloning.git.working_copy import GitWorkingCopyProvider
 from kodit.infrastructure.cloning.metadata import FileMetadataExtractor
@@ -126,19 +125,9 @@ class IndexDomainService:
 
         # Calculate snippets for each language
         slicer = Slicer()
-        for i, (lang, lang_files) in enumerate(lang_files_map.items()):
-            self.reporter.update(
-                ProgressState(
-                    current=i,
-                    total=len(lang_files_map.keys()),
-                    operation="Code Extraction",
-                    message=f"Extracting code snippets for {lang}...",
-                )
-            )
+        for lang, lang_files in lang_files_map.items():
             s = slicer.extract_snippets(lang_files, language=lang)
             index.snippets.extend(s)
-
-        self.reporter.complete()
         return index
 
     async def enrich_snippets_in_index(
@@ -158,23 +147,15 @@ class IndexDomainService:
             ]
         )
 
-        processed = 0
+        count = 0
+        total = len(snippet_map)
+
         async for result in self._enrichment_service.enrich_documents(
             enrichment_request
         ):
             snippet_map[result.snippet_id].add_summary(result.text)
-
-            processed += 1
-            self.reporter.update(
-                ProgressState(
-                    current=processed,
-                    total=len(snippets),
-                    operation="Snippet Enrichment",
-                    message="Enriching snippets...",
-                )
-            )
-
-        self.reporter.complete()
+            count += 1
+            self.reporter.update_step_progress(count, total)
         return list(snippet_map.values())
 
     def sanitize_uri(
@@ -231,35 +212,15 @@ class IndexDomainService:
             num_dirty=len(working_copy.dirty_files()),
         )
 
-        # Setup reporter
-        processed = 0
-
         # First check to see if any files have been deleted
         for file_path in deleted_file_paths:
-            processed += 1
-            self.reporter.update(
-                ProgressState(
-                    current=processed,
-                    total=num_files_to_process,
-                    operation="File Processing",
-                    message=f"Deleted {file_path.name}",
-                )
-            )
             previous_files_map[
                 file_path
             ].file_processing_status = domain_entities.FileProcessingStatus.DELETED
 
         # Then check to see if there are any new files
+        processed_files = 0
         for file_path in new_file_paths:
-            processed += 1
-            self.reporter.update(
-                ProgressState(
-                    current=processed,
-                    total=num_files_to_process,
-                    operation="File Processing",
-                    message=f"New {file_path.name}",
-                )
-            )
             try:
                 working_copy.files.append(
                     await metadata_extractor.extract(file_path=file_path)
@@ -267,18 +228,16 @@ class IndexDomainService:
             except (OSError, ValueError) as e:
                 self.log.debug("Skipping file", file=str(file_path), error=str(e))
                 continue
+            finally:
+                processed_files += 1
+                # Update progress for file processing
+                if hasattr(self, "reporter") and self.reporter:
+                    self.reporter.update_step_progress(
+                        processed_files, num_files_to_process
+                    )
 
         # Finally check if there are any modified files
         for file_path in modified_file_paths:
-            processed += 1
-            self.reporter.update(
-                ProgressState(
-                    current=processed,
-                    total=num_files_to_process,
-                    operation="File Processing",
-                    message=f"Modified {file_path.name}",
-                )
-            )
             try:
                 previous_file = previous_files_map[file_path]
                 new_file = await metadata_extractor.extract(file_path=file_path)
@@ -289,8 +248,13 @@ class IndexDomainService:
             except (OSError, ValueError) as e:
                 self.log.info("Skipping file", file=str(file_path), error=str(e))
                 continue
-
-        self.reporter.complete()
+            finally:
+                processed_files += 1
+                # Update progress for file processing
+                if hasattr(self, "reporter") and self.reporter:
+                    self.reporter.update_step_progress(
+                        processed_files, num_files_to_process
+                    )
         return working_copy
 
     async def delete_index(self, index: domain_entities.Index) -> None:

@@ -2,7 +2,7 @@
 
 from tqdm import tqdm
 
-from kodit.domain.value_objects import ProgressState
+from kodit.domain.value_objects import OperationAggregate, Step
 from kodit.infrastructure.reporting.progress import Progress, ProgressConfig
 
 
@@ -14,30 +14,36 @@ class TQDMProgress(Progress):
         self.config = config or ProgressConfig()
         self.pbar = tqdm()
 
-    def on_update(self, state: ProgressState) -> None:
-        """Update the TQDM progress bar."""
-        # Update total if it changes
-        if state.total != self.pbar.total:
-            self.pbar.total = state.total
 
-        # Update the progress bar
-        self.pbar.n = state.current
+    def on_operation_start(self, operation: OperationAggregate) -> None:
+        """Display when an operation starts."""
+        self.pbar.set_description(f"Starting {operation.type}")
+
+    def on_step_update(self, step: Step) -> None:
+        """Update progress bar with step information."""
+        # Update the progress bar description with step info
+        desc = f"{step.name} [{step.state.value}]"
+        if len(desc) < 30:
+            self.pbar.set_description(desc + " " * (30 - len(desc)))
+        else:
+            self.pbar.set_description(desc[:30])
+
+        # Update progress percentage
+        self.pbar.n = int(step.progress_percentage)
+        self.pbar.total = 100
         self.pbar.refresh()
 
-        # Update description if message is provided
-        if state.message:
-            # Fix the event message to a specific size so it's not jumping around
-            # If it's too small, add spaces
-            # If it's too large, truncate
-            if len(state.message) < 30:
-                self.pbar.set_description(
-                    state.message + " " * (30 - len(state.message))
-                )
-            else:
-                self.pbar.set_description(state.message[-30:])
-        else:
-            self.pbar.set_description(state.operation)
+    def on_operation_complete(self, operation: OperationAggregate) -> None:
+        """Display when an operation completes."""
+        self.pbar.set_description(f"Completed {operation.type}")
+        self.pbar.n = self.pbar.total
+        self.pbar.refresh()
+        self.pbar.close()
 
-    def on_complete(self) -> None:
-        """Complete the progress bar."""
+    def on_operation_fail(
+        self, operation: OperationAggregate, error: Exception
+    ) -> None:
+        """Display when an operation fails."""
+        del operation  # Unused parameter
+        self.pbar.set_description(f"Failed: {str(error)[:25]}")
         self.pbar.close()

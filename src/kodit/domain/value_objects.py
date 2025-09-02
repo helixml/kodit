@@ -662,3 +662,45 @@ class QueuePriority(IntEnum):
 
     BACKGROUND = 10
     USER_INITIATED = 50
+
+
+class OperationState(Enum):
+    """High-level operation states."""
+
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class StepState(Enum):
+    """Individual step states."""
+
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    SKIPPED = "skipped"
+
+
+@dataclass
+class Step:
+    """A single atomic action within an operation."""
+
+    name: str  # e.g., "cloning_repository", "validating_schema"
+    state: StepState
+    updated_at: datetime
+    progress_percentage: float
+    error: Exception | None = None
+
+
+@dataclass
+class OperationAggregate:
+    """A high-level user-facing operation composed of steps."""
+
+    index_id: int
+    type: str  # e.g., "add_index", "delete_index"
+    state: OperationState
+    updated_at: datetime
+    error: Exception | None = None
+    current_step: Step | None = None

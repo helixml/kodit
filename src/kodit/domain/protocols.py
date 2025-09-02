@@ -6,7 +6,12 @@ from typing import Protocol
 from pydantic import AnyUrl
 
 from kodit.domain.entities import Index, Snippet, SnippetWithContext, Task, WorkingCopy
-from kodit.domain.value_objects import MultiSearchRequest, ProgressState, TaskType
+from kodit.domain.value_objects import (
+    MultiSearchRequest,
+    OperationAggregate,
+    Step,
+    TaskType,
+)
 
 
 class TaskRepository(Protocol):
@@ -95,10 +100,34 @@ class IndexRepository(Protocol):
 class ReportingService(Protocol):
     """Reporting service."""
 
-    def update(self, state: ProgressState) -> None:
-        """Update a reporting operation."""
+    def start_operation(self, operation: OperationAggregate) -> None:
+        """Start tracking a new operation with steps."""
         ...
 
-    def complete(self) -> None:
-        """Complete a reporting operation."""
+    def update_step(self, step: Step) -> None:
+        """Update the current step of an operation."""
+        ...
+
+    def complete_operation(self) -> None:
+        """Mark the current operation as completed."""
+        ...
+
+    def fail_operation(self, error: Exception) -> None:
+        """Mark the current operation as failed."""
+        ...
+
+    def update_step_progress(self, current: int, total: int) -> None:
+        """Update the progress of the current step."""
+        ...
+
+
+class OperationRepository(Protocol):
+    """Repository interface for Task status entities."""
+
+    def get(self, index_id: int) -> OperationAggregate:
+        """Get a task status by operation ID."""
+        ...
+
+    def save(self, task: OperationAggregate) -> None:
+        """Save a task status."""
         ...
