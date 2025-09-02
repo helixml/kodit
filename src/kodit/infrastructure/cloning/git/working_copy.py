@@ -8,13 +8,13 @@ import git
 import structlog
 
 from kodit.domain.entities import WorkingCopy
-from kodit.domain.protocols import ReportingService
+from kodit.domain.protocols import ReportingStep
 
 
 class GitWorkingCopyProvider:
     """Working copy provider for git-based sources."""
 
-    def __init__(self, clone_dir: Path, reporter: ReportingService) -> None:
+    def __init__(self, clone_dir: Path, reporter: ReportingStep) -> None:
         """Initialize the provider."""
         self.clone_dir = clone_dir
         self.reporter = reporter

@@ -5,9 +5,9 @@ from pathlib import Path
 
 from pydantic import AnyUrl
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 import kodit.domain.entities as domain_entities
+from kodit.domain.protocols import UnitOfWork
 from kodit.domain.value_objects import (
     FileProcessingStatus,
     SourceType,
@@ -18,9 +18,9 @@ from kodit.infrastructure.sqlalchemy import entities as db_entities
 class IndexMapper:
     """Mapper for converting between domain Index aggregate and database entities."""
 
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, uow: UnitOfWork) -> None:
         """Initialize mapper with database session."""
-        self._session = session
+        self.uow = uow
 
     async def to_domain_index(
         self, db_index: db_entities.Index
@@ -29,107 +29,161 @@ class IndexMapper:
 
         Loads the full aggregate including Source, WorkingCopy, Files, and Snippets.
         """
-        # Load the source
-        db_source = await self._session.get(db_entities.Source, db_index.source_id)
-        if not db_source:
-            raise ValueError(f"Source not found for index {db_index.id}")
-
-        # Load files for the source
-        files_stmt = select(db_entities.File).where(
-            db_entities.File.source_id == db_source.id
-        )
-        db_files = (await self._session.scalars(files_stmt)).all()
-
-        # Convert files to domain
-        domain_files = []
-        for db_file in db_files:
-            # Load authors for this file
-            authors_stmt = (
-                select(db_entities.Author)
-                .join(db_entities.AuthorFileMapping)
-                .where(db_entities.AuthorFileMapping.file_id == db_file.id)
+        async with self.uow:
+            # Load the source
+            db_source = await self.uow.session.get(
+                db_entities.Source, db_index.source_id
             )
-            db_authors = (await self._session.scalars(authors_stmt)).all()
+            if not db_source:
+                raise ValueError(f"Source not found for index {db_index.id}")
 
-            domain_authors = [
-                domain_entities.Author(
-                    id=author.id, name=author.name, email=author.email
+            # Load files for the source
+            files_stmt = select(db_entities.File).where(
+                db_entities.File.source_id == db_source.id
+            )
+            db_files = (await self.uow.session.scalars(files_stmt)).all()
+
+            # Convert files to domain
+            domain_files = []
+            for db_file in db_files:
+                # Load authors for this file
+                authors_stmt = (
+                    select(db_entities.Author)
+                    .join(db_entities.AuthorFileMapping)
+                    .where(db_entities.AuthorFileMapping.file_id == db_file.id)
                 )
-                for author in db_authors
-            ]
+                db_authors = (await self.uow.session.scalars(authors_stmt)).all()
 
-            domain_file = domain_entities.File(
-                id=db_file.id,
-                created_at=db_file.created_at,
-                updated_at=db_file.updated_at,
-                uri=AnyUrl(db_file.uri),
-                sha256=db_file.sha256,
-                authors=domain_authors,
-                mime_type=db_file.mime_type,
-                file_processing_status=FileProcessingStatus(
-                    db_file.file_processing_status
-                ),
+                domain_authors = [
+                    domain_entities.Author(
+                        id=author.id, name=author.name, email=author.email
+                    )
+                    for author in db_authors
+                ]
+
+                domain_file = domain_entities.File(
+                    id=db_file.id,
+                    created_at=db_file.created_at,
+                    updated_at=db_file.updated_at,
+                    uri=AnyUrl(db_file.uri),
+                    sha256=db_file.sha256,
+                    authors=domain_authors,
+                    mime_type=db_file.mime_type,
+                    file_processing_status=FileProcessingStatus(
+                        db_file.file_processing_status
+                    ),
+                )
+                domain_files.append(domain_file)
+
+            # Create working copy
+            working_copy = domain_entities.WorkingCopy(
+                created_at=db_source.created_at,
+                updated_at=db_source.updated_at,
+                remote_uri=AnyUrl(db_source.uri),
+                cloned_path=Path(db_source.cloned_path),
+                source_type=SourceType(db_source.type.value),
+                files=domain_files,
             )
-            domain_files.append(domain_file)
 
-        # Create working copy
-        working_copy = domain_entities.WorkingCopy(
-            created_at=db_source.created_at,
-            updated_at=db_source.updated_at,
-            remote_uri=AnyUrl(db_source.uri),
-            cloned_path=Path(db_source.cloned_path),
-            source_type=SourceType(db_source.type.value),
-            files=domain_files,
-        )
+            # Create source
+            domain_source = domain_entities.Source(
+                id=db_source.id,
+                created_at=db_source.created_at,
+                updated_at=db_source.updated_at,
+                working_copy=working_copy,
+            )
 
-        # Create source
-        domain_source = domain_entities.Source(
-            id=db_source.id,
-            created_at=db_source.created_at,
-            updated_at=db_source.updated_at,
-            working_copy=working_copy,
-        )
+            # Load snippets for this index
+            snippets_stmt = select(db_entities.Snippet).where(
+                db_entities.Snippet.index_id == db_index.id
+            )
+            db_snippets = (await self.uow.session.scalars(snippets_stmt)).all()
 
-        # Load snippets for this index
-        snippets_stmt = select(db_entities.Snippet).where(
-            db_entities.Snippet.index_id == db_index.id
-        )
-        db_snippets = (await self._session.scalars(snippets_stmt)).all()
+            domain_snippets = []
+            for db_snippet in db_snippets:
+                domain_snippet = await self.to_domain_snippet(db_snippet, domain_files)
+                domain_snippets.append(domain_snippet)
 
-        domain_snippets = []
-        for db_snippet in db_snippets:
-            domain_snippet = await self.to_domain_snippet(db_snippet, domain_files)
-            domain_snippets.append(domain_snippet)
-
-        # Create index aggregate
-        return domain_entities.Index(
-            id=db_index.id,
-            created_at=db_index.created_at,
-            updated_at=db_index.updated_at,
-            source=domain_source,
-            snippets=domain_snippets,
-        )
+            # Create index aggregate
+            return domain_entities.Index(
+                id=db_index.id,
+                created_at=db_index.created_at,
+                updated_at=db_index.updated_at,
+                source=domain_source,
+                snippets=domain_snippets,
+            )
 
     async def to_domain_source(
         self, db_source: db_entities.Source
     ) -> domain_entities.Source:
         """Convert SQLAlchemy Source to domain Source."""
-        # Load files for the source
-        files_stmt = select(db_entities.File).where(
-            db_entities.File.source_id == db_source.id
-        )
-        db_files = (await self._session.scalars(files_stmt)).all()
+        async with self.uow:
+            # Load files for the source
+            files_stmt = select(db_entities.File).where(
+                db_entities.File.source_id == db_source.id
+            )
+            db_files = (await self.uow.session.scalars(files_stmt)).all()
 
-        # Convert files to domain
-        domain_files = []
-        for db_file in db_files:
+            # Convert files to domain
+            domain_files = []
+            for db_file in db_files:
+                # Load authors for this file
+                authors_stmt = (
+                    select(db_entities.Author)
+                    .join(db_entities.AuthorFileMapping)
+                    .where(db_entities.AuthorFileMapping.file_id == db_file.id)
+                )
+                db_authors = (await self.uow.session.scalars(authors_stmt)).all()
+
+                domain_authors = [
+                    domain_entities.Author(
+                        id=author.id, name=author.name, email=author.email
+                    )
+                    for author in db_authors
+                ]
+
+                domain_file = domain_entities.File(
+                    id=db_file.id,
+                    created_at=db_file.created_at,
+                    updated_at=db_file.updated_at,
+                    uri=AnyUrl(db_file.uri),
+                    sha256=db_file.sha256,
+                    authors=domain_authors,
+                    mime_type=db_file.mime_type,
+                    file_processing_status=FileProcessingStatus(
+                        db_file.file_processing_status
+                    ),
+                )
+                domain_files.append(domain_file)
+
+            # Create working copy
+            working_copy = domain_entities.WorkingCopy(
+                created_at=db_source.created_at,
+                updated_at=db_source.updated_at,
+                remote_uri=AnyUrl(db_source.uri),
+                cloned_path=Path(db_source.cloned_path),
+                source_type=SourceType(db_source.type.value),
+                files=domain_files,
+            )
+
+            # Create source
+            return domain_entities.Source(
+                id=db_source.id,
+                created_at=db_source.created_at,
+                updated_at=db_source.updated_at,
+                working_copy=working_copy,
+            )
+
+    async def to_domain_file(self, db_file: db_entities.File) -> domain_entities.File:
+        """Convert SQLAlchemy File to domain File."""
+        async with self.uow:
             # Load authors for this file
             authors_stmt = (
                 select(db_entities.Author)
                 .join(db_entities.AuthorFileMapping)
                 .where(db_entities.AuthorFileMapping.file_id == db_file.id)
             )
-            db_authors = (await self._session.scalars(authors_stmt)).all()
+            db_authors = (await self.uow.session.scalars(authors_stmt)).all()
 
             domain_authors = [
                 domain_entities.Author(
@@ -138,7 +192,7 @@ class IndexMapper:
                 for author in db_authors
             ]
 
-            domain_file = domain_entities.File(
+            return domain_entities.File(
                 id=db_file.id,
                 created_at=db_file.created_at,
                 updated_at=db_file.updated_at,
@@ -150,51 +204,6 @@ class IndexMapper:
                     db_file.file_processing_status
                 ),
             )
-            domain_files.append(domain_file)
-
-        # Create working copy
-        working_copy = domain_entities.WorkingCopy(
-            created_at=db_source.created_at,
-            updated_at=db_source.updated_at,
-            remote_uri=AnyUrl(db_source.uri),
-            cloned_path=Path(db_source.cloned_path),
-            source_type=SourceType(db_source.type.value),
-            files=domain_files,
-        )
-
-        # Create source
-        return domain_entities.Source(
-            id=db_source.id,
-            created_at=db_source.created_at,
-            updated_at=db_source.updated_at,
-            working_copy=working_copy,
-        )
-
-    async def to_domain_file(self, db_file: db_entities.File) -> domain_entities.File:
-        """Convert SQLAlchemy File to domain File."""
-        # Load authors for this file
-        authors_stmt = (
-            select(db_entities.Author)
-            .join(db_entities.AuthorFileMapping)
-            .where(db_entities.AuthorFileMapping.file_id == db_file.id)
-        )
-        db_authors = (await self._session.scalars(authors_stmt)).all()
-
-        domain_authors = [
-            domain_entities.Author(id=author.id, name=author.name, email=author.email)
-            for author in db_authors
-        ]
-
-        return domain_entities.File(
-            id=db_file.id,
-            created_at=db_file.created_at,
-            updated_at=db_file.updated_at,
-            uri=AnyUrl(db_file.uri),
-            sha256=db_file.sha256,
-            authors=domain_authors,
-            mime_type=db_file.mime_type,
-            file_processing_status=FileProcessingStatus(db_file.file_processing_status),
-        )
 
     async def to_domain_snippet(
         self, db_snippet: db_entities.Snippet, domain_files: list[domain_entities.File]
@@ -334,7 +343,7 @@ class IndexMapper:
         stmt = select(db_entities.Snippet).where(
             db_entities.Snippet.index_id == index_id
         )
-        db_snippets = (await self._session.scalars(stmt)).all()
+        db_snippets = (await self.uow.session.scalars(stmt)).all()
 
         domain_snippets = []
         for db_snippet in db_snippets:

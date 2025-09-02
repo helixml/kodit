@@ -2,16 +2,12 @@
 
 import asyncio
 import concurrent.futures
-from collections.abc import Callable
 
 import structlog
-from sqlalchemy.ext.asyncio import AsyncSession
 
+from kodit.domain.protocols import OperationRepository
 from kodit.domain.value_objects import OperationAggregate, Step
 from kodit.infrastructure.reporting.progress import Progress, ProgressConfig
-from kodit.infrastructure.sqlalchemy.operation_repository import (
-    SqlAlchemyOperationRepository,
-)
 
 
 class DatabaseProgress(Progress):
@@ -19,11 +15,11 @@ class DatabaseProgress(Progress):
 
     def __init__(
         self,
-        session_factory: Callable[[], AsyncSession],
+        operation_repository: OperationRepository,
         config: ProgressConfig | None = None,
     ) -> None:
         """Initialize the database progress."""
-        self.session_factory = session_factory
+        self.operation_repository = operation_repository
         self.config = config or ProgressConfig()
         # Thread pool for running async operations synchronously
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
@@ -50,21 +46,10 @@ class DatabaseProgress(Progress):
         """Save operation synchronously by blocking until complete."""
         # Run the async save operation in a thread pool and wait for completion
         future = self._executor.submit(
-            asyncio.run, self._save_with_new_session(operation)
+            asyncio.run, self.operation_repository.save(operation)
         )
         try:
             # Block until the save completes (with a timeout)
             future.result(timeout=5.0)
         except Exception as e:
-            self.log.exception("Failed to save operation progress", error=str(e))
-
-    async def _save_with_new_session(self, operation: OperationAggregate) -> None:
-        """Save operation with a new session and commit."""
-        try:
-            async with self.session_factory() as session:
-                repository = SqlAlchemyOperationRepository(session)
-                await repository.save(operation)
-                await session.commit()
-        except Exception as e:
-            # Log the error but don't crash the application
             self.log.exception("Failed to save operation progress", error=str(e))

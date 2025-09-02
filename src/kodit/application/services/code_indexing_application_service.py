@@ -4,10 +4,9 @@ from dataclasses import replace
 from datetime import UTC, datetime
 
 import structlog
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.domain.entities import Index, Snippet
-from kodit.domain.protocols import IndexRepository, ReportingService
+from kodit.domain.protocols import ReportingService, UnitOfWork
 from kodit.domain.services.bm25_service import BM25DomainService
 from kodit.domain.services.embedding_service import EmbeddingDomainService
 from kodit.domain.services.enrichment_service import EnrichmentDomainService
@@ -29,6 +28,9 @@ from kodit.infrastructure.reporting.reporter import (
     create_index_operation,
     create_step,
 )
+from kodit.infrastructure.sqlalchemy.repository_factories import (
+    create_index_repository,
+)
 from kodit.log import log_event
 
 
@@ -38,24 +40,22 @@ class CodeIndexingApplicationService:
     def __init__(  # noqa: PLR0913
         self,
         indexing_domain_service: IndexDomainService,
-        index_repository: IndexRepository,
         index_query_service: IndexQueryService,
         bm25_service: BM25DomainService,
         code_search_service: EmbeddingDomainService,
         text_search_service: EmbeddingDomainService,
         enrichment_service: EnrichmentDomainService,
-        session: AsyncSession,
+        unit_of_work: UnitOfWork,
         reporter: ReportingService,
     ) -> None:
         """Initialize the code indexing application service."""
         self.index_domain_service = indexing_domain_service
-        self.index_repository = index_repository
         self.index_query_service = index_query_service
         self.bm25_service = bm25_service
         self.code_search_service = code_search_service
         self.text_search_service = text_search_service
         self.enrichment_service = enrichment_service
-        self.session = session
+        self.unit_of_work = unit_of_work
         self.reporter = reporter
         self.log = structlog.get_logger(__name__)
 
@@ -63,8 +63,10 @@ class CodeIndexingApplicationService:
         """Check if an index exists for a source."""
         # Check if index already exists
         sanitized_uri, _ = self.index_domain_service.sanitize_uri(uri)
-        existing_index = await self.index_repository.get_by_uri(sanitized_uri)
-        return existing_index is not None
+        async with self.unit_of_work as uow:
+            index_repository = create_index_repository(uow)
+            existing_index = await index_repository.get_by_uri(sanitized_uri)
+            return existing_index is not None
 
     async def create_index_from_uri(self, uri: str) -> Index:
         """Create a new index for a source."""
@@ -73,24 +75,27 @@ class CodeIndexingApplicationService:
         # Check if index already exists
         sanitized_uri, _ = self.index_domain_service.sanitize_uri(uri)
         self.log.info("Creating index from URI", uri=str(sanitized_uri))
-        existing_index = await self.index_repository.get_by_uri(sanitized_uri)
-        if existing_index:
-            self.log.debug(
-                "Index already exists",
-                uri=str(sanitized_uri),
-                index_id=existing_index.id,
-            )
-            return existing_index
 
-        # Only prepare working copy if we need to create a new index
-        self.log.info("Preparing working copy", uri=str(sanitized_uri))
-        working_copy = await self.index_domain_service.prepare_index(uri)
+        async with self.unit_of_work as uow:
+            index_repository = create_index_repository(uow)
+            existing_index = await index_repository.get_by_uri(sanitized_uri)
+            if existing_index:
+                self.log.debug(
+                    "Index already exists",
+                    uri=str(sanitized_uri),
+                    index_id=existing_index.id,
+                )
+                return existing_index
 
-        # Create new index
-        self.log.info("Creating index", uri=str(sanitized_uri))
-        index = await self.index_repository.create(sanitized_uri, working_copy)
-        await self.session.commit()
-        return index
+            # Only prepare working copy if we need to create a new index
+            self.log.info("Preparing working copy", uri=str(sanitized_uri))
+            working_copy = await self.index_domain_service.prepare_index(uri)
+
+            # Create new index
+            self.log.info("Creating index", uri=str(sanitized_uri))
+            index = await index_repository.create(sanitized_uri, working_copy)
+            await uow.commit()
+            return index
 
     async def run_index(self, index: Index) -> None:  # noqa: PLR0915
         """Run the complete indexing process for a specific index."""
@@ -128,7 +133,11 @@ class CodeIndexingApplicationService:
 
             changed_files = index.source.working_copy.changed_files()
             file_ids = [file.id for file in changed_files if file.id]
-            await self.index_repository.delete_snippets_by_file_ids(file_ids)
+
+            async with self.unit_of_work as uow:
+                index_repository = create_index_repository(uow)
+                await index_repository.delete_snippets_by_file_ids(file_ids)
+                await uow.commit()
 
             self.reporter.update_step(operation, complete_step(delete_step))
 
@@ -143,16 +152,20 @@ class CodeIndexingApplicationService:
 
             self.reporter.update_step(operation, complete_step(extract_step))
 
-            await self.index_repository.update(index)
-            await self.session.flush()
+            async with self.unit_of_work as uow:
+                index_repository = create_index_repository(uow)
+                await index_repository.update(index)
+                await uow.flush()
 
-            # Refresh index to get snippets with IDs, required as a ref for
-            # subsequent steps
-            flushed_index = await self.index_repository.get(index.id)
-            if not flushed_index:
-                self._raise_index_not_found_error(index.id)
-            else:
-                index = flushed_index
+                # Refresh index to get snippets with IDs, required as a ref for
+                # subsequent steps
+                flushed_index = await index_repository.get(index.id)
+                if not flushed_index:
+                    self._raise_index_not_found_error(index.id)
+                else:
+                    index = flushed_index
+                await uow.commit()
+
             if len(index.snippets) == 0:
                 self.log.info(
                     "No snippets to index after extraction", index_id=index.id
@@ -189,7 +202,10 @@ class CodeIndexingApplicationService:
                 )
             )
             # Update snippets in repository
-            await self.index_repository.update_snippets(index.id, enriched_snippets)
+            async with self.unit_of_work as uow:
+                index_repository = create_index_repository(uow)
+                await index_repository.update_snippets(index.id, enriched_snippets)
+                await uow.commit()
 
             self.reporter.update_step(operation, complete_step(enrich_step))
 
@@ -202,20 +218,20 @@ class CodeIndexingApplicationService:
 
             self.reporter.update_step(operation, complete_step(text_embed_step))
 
-            # Update index timestamp
-            await self.index_repository.update_index_timestamp(index.id)
+            # Final step: Update index metadata and clean up
+            async with self.unit_of_work as uow:
+                index_repository = create_index_repository(uow)
+                # Update index timestamp
+                await index_repository.update_index_timestamp(index.id)
 
-            # Now that all file dependencies have been captured, enact the file
-            # processing
-            # statuses
-            index.source.working_copy.clear_file_processing_statuses()
-            await self.index_repository.update(index)
-
-            # Single transaction commit for the entire operation
-            await self.session.commit()
+                # Now that all file dependencies have been captured, enact the file
+                # processing statuses
+                index.source.working_copy.clear_file_processing_statuses()
+                await index_repository.update(index)
+                await uow.commit()
 
             # Mark operation as completed
-            self.reporter.complete_operation()
+            self.reporter.complete_operation(operation)
 
         except Exception as e:
             self.log.exception("Indexing failed", index_id=index.id)
@@ -441,5 +457,7 @@ class CodeIndexingApplicationService:
         await self.index_domain_service.delete_index(index)
 
         # Delete index from the database
-        await self.index_repository.delete(index)
-        await self.session.commit()
+        async with self.unit_of_work as uow:
+            index_repository = create_index_repository(uow)
+            await index_repository.delete(index)
+            await uow.commit()

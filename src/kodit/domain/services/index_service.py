@@ -8,7 +8,7 @@ import structlog
 from pydantic import AnyUrl
 
 import kodit.domain.entities as domain_entities
-from kodit.domain.protocols import ReportingService
+from kodit.domain.protocols import ReportingStep
 from kodit.domain.services.enrichment_service import EnrichmentDomainService
 from kodit.domain.value_objects import (
     EnrichmentIndexRequest,
@@ -47,7 +47,7 @@ class IndexDomainService:
         language_detector: LanguageDetectionService,
         enrichment_service: EnrichmentDomainService,
         clone_dir: Path,
-        reporter: ReportingService,
+        reporter: ReportingStep,
     ) -> None:
         """Initialize the index domain service."""
         self._clone_dir = clone_dir

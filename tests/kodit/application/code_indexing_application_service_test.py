@@ -1,5 +1,6 @@
 """End-to-end tests for CodeIndexingApplicationService."""
 
+from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import patch
 
@@ -35,12 +36,12 @@ async def index_repository(
 
 @pytest.fixture
 async def code_indexing_service(
-    session: AsyncSession, app_context: AppContext
+    session_factory: Callable[[], AsyncSession], app_context: AppContext
 ) -> CodeIndexingApplicationService:
     """Create a real CodeIndexingApplicationService with all dependencies."""
     return create_fast_test_code_indexing_application_service(
         app_context=app_context,
-        session=session,
+        session_factory=session_factory,
     )
 
 

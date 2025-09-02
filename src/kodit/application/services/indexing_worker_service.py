@@ -14,11 +14,17 @@ from kodit.application.factories.code_indexing_factory import (
 )
 from kodit.config import AppContext
 from kodit.domain.entities import Task
-from kodit.domain.protocols import ReportingService
+from kodit.domain.protocols import (
+    IndexRepository,
+    ReportingService,
+    TaskRepository,
+)
 from kodit.domain.value_objects import TaskType
 from kodit.infrastructure.reporting.progress import ProgressConfig
 from kodit.infrastructure.reporting.reporter import create_server_reporter
+from kodit.infrastructure.sqlalchemy.index_repository import SqlAlchemyIndexRepository
 from kodit.infrastructure.sqlalchemy.task_repository import SqlAlchemyTaskRepository
+from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 
 
 class IndexingWorkerService:
@@ -31,12 +37,14 @@ class IndexingWorkerService:
     def __init__(
         self,
         app_context: AppContext,
-        session_factory: Callable[[], AsyncSession],
         reporter: ReportingService,
+        task_repository: TaskRepository,
+        index_repository: IndexRepository,
     ) -> None:
         """Initialize the indexing worker service."""
         self.app_context = app_context
-        self.session_factory = session_factory
+        self.task_repository = task_repository
+        self.index_repository = index_repository
         self._worker_task: asyncio.Task | None = None
         self._shutdown_event = asyncio.Event()
         self._executor = ThreadPoolExecutor(
@@ -76,10 +84,7 @@ class IndexingWorkerService:
 
         while not self._shutdown_event.is_set():
             try:
-                async with self.session_factory() as session:
-                    repo = SqlAlchemyTaskRepository(session)
-                    task = await repo.take()
-                    await session.commit()
+                task = await self.task_repository.take()
 
                 # If there's a task, process it in a new thread
                 if task:
@@ -145,17 +150,15 @@ class IndexingWorkerService:
         # Create a fresh database connection for this thread's event loop
         db = await self.app_context.new_db(run_migrations=True)
         try:
-            async with db.session_factory() as session:
-                service = create_code_indexing_application_service(
-                    app_context=self.app_context,
-                    session=session,
-                    reporter=self.reporter,
-                )
-                index = await service.index_repository.get(index_id)
-                if not index:
-                    raise ValueError(f"Index not found: {index_id}")
-
-                await service.run_index(index)
+            index = await self.index_repository.get(index_id)
+            if not index:
+                raise ValueError(f"Index not found: {index_id}")
+            service = create_code_indexing_application_service(
+                app_context=self.app_context,
+                session_factory=db.session_factory,
+                reporter=self.reporter,
+            )
+            await service.run_index(index)
         finally:
             await db.close()
 
@@ -168,4 +171,9 @@ def create_indexing_worker_service(
     reporter = create_server_reporter(
         session_factory=session_factory, config=ProgressConfig()
     )
-    return IndexingWorkerService(app_context, session_factory, reporter)
+    uow = SqlAlchemyUnitOfWork(session_factory)
+    task_repository = SqlAlchemyTaskRepository(uow)
+    index_repository = SqlAlchemyIndexRepository(uow)
+    return IndexingWorkerService(
+        app_context, reporter, task_repository, index_repository
+    )

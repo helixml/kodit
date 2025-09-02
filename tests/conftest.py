@@ -1,7 +1,7 @@
 """Test configuration and fixtures."""
 
 import tempfile
-from collections.abc import AsyncGenerator, Generator
+from collections.abc import AsyncGenerator, Callable, Generator
 from pathlib import Path
 from unittest.mock import patch
 
@@ -45,13 +45,17 @@ async def engine() -> AsyncGenerator[AsyncEngine, None]:
 
 
 @pytest.fixture
-async def session(engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    """Create a test database session."""
-    async_session = async_sessionmaker(
-        engine, class_=AsyncSession, expire_on_commit=False
-    )
+def session_factory(engine: AsyncEngine) -> Callable[[], AsyncSession]:
+    """Create a test database session factory."""
+    return async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
-    async with async_session() as session:
+
+@pytest.fixture
+async def session(
+    session_factory: Callable[[], AsyncSession],
+) -> AsyncGenerator[AsyncSession, None]:
+    """Create a test database session."""
+    async with session_factory() as session:
         yield session
         await session.rollback()
 

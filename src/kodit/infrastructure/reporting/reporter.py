@@ -1,11 +1,14 @@
 """Progress reporter."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Generator
+from contextlib import contextmanager
 from datetime import UTC, datetime
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from kodit.domain.protocols import OperationRepository, ReportingService
+from kodit.domain.protocols import (
+    OperationRepository,
+    ReportingService,
+    ReportingStep,
+)
 from kodit.domain.value_objects import (
     OperationAggregate,
     OperationState,
@@ -41,13 +44,23 @@ class Reporter(ReportingService):
 
     def update_step(self, operation: OperationAggregate, step: Step) -> None:
         """Update the current step of an operation."""
-        # Update the operation's current step
         operation.current_step = step
         operation.updated_at = datetime.now(UTC)
 
         # Notify progress modules
         for module in self.modules:
             module.on_step_update(operation, step)
+
+    @contextmanager
+    def reporting_step_context(
+        self, operation: OperationAggregate
+    ) -> Generator[ReportingStep, None, None]:
+        """Context manager for a reporting step."""
+
+        def on_update(step: Step) -> None:
+            self.update_step(operation, step)
+
+        yield StepReporter(on_update)
 
     def complete_operation(self, operation: OperationAggregate) -> None:
         """Mark the current operation as completed."""
@@ -73,17 +86,17 @@ class Reporter(ReportingService):
         for module in self.modules:
             module.on_operation_fail(operation)
 
-    def update_step_progress(
-        self, operation: OperationAggregate, current: int, total: int
-    ) -> None:
-        """Update the progress of the current step."""
-        if not operation.current_step:
-            return
 
-        updated_step = update_step_progress(
-            operation.current_step, current, total
-        )
-        self.update_step(operation, updated_step)
+class StepReporter(ReportingStep):
+    """Step."""
+
+    def __init__(self, on_update: Callable[[Step], None]) -> None:
+        """Initialize the step."""
+        self.on_update = on_update
+
+    def update_step_progress(self, step: Step) -> None:
+        """Update the progress of the current step."""
+        self.on_update(step)
 
 
 def create_noop_reporter() -> Reporter:
@@ -98,14 +111,16 @@ def create_cli_reporter(config: ProgressConfig | None = None) -> Reporter:
 
 
 def create_server_reporter(
-    session_factory: Callable[[], AsyncSession], config: ProgressConfig | None = None
+    operation_repository: OperationRepository, config: ProgressConfig | None = None
 ) -> Reporter:
     """Create a server reporter."""
     shared_config = config or ProgressConfig()
     return Reporter(
         modules=[
             LogProgress(shared_config),
-            DatabaseProgress(session_factory, shared_config),
+            DatabaseProgress(
+                operation_repository=operation_repository, config=shared_config
+            ),
         ]
     )
 

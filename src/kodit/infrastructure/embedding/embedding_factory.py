@@ -1,9 +1,9 @@
 """Factory for creating embedding services with DDD architecture."""
 
 import structlog
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.config import AppContext, Endpoint
+from kodit.domain.protocols import UnitOfWork
 from kodit.domain.services.embedding_service import (
     EmbeddingDomainService,
     EmbeddingProvider,
@@ -36,12 +36,12 @@ def _get_endpoint_configuration(app_context: AppContext) -> Endpoint | None:
 
 
 def embedding_domain_service_factory(
-    task_name: TaskName, app_context: AppContext, session: AsyncSession
+    task_name: TaskName, app_context: AppContext, unit_of_work: UnitOfWork
 ) -> EmbeddingDomainService:
     """Create an embedding domain service."""
     structlog.get_logger(__name__)
     # Create embedding repository
-    embedding_repository = SqlAlchemyEmbeddingRepository(session=session)
+    embedding_repository = SqlAlchemyEmbeddingRepository(unit_of_work)
 
     # Create embedding provider
     embedding_provider: EmbeddingProvider | None = None
@@ -59,7 +59,7 @@ def embedding_domain_service_factory(
     if app_context.default_search.provider == "vectorchord":
         log_event("kodit.database", {"provider": "vectorchord"})
         vector_search_repository = VectorChordVectorSearchRepository(
-            task_name, session, embedding_provider
+            task_name, unit_of_work, embedding_provider
         )
     elif app_context.default_search.provider == "sqlite":
         log_event("kodit.database", {"provider": "sqlite"})

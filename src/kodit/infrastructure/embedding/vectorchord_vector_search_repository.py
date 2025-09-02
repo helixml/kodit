@@ -1,12 +1,12 @@
 """VectorChord vector search repository implementation."""
 
 from collections.abc import AsyncGenerator
-from typing import Any, Literal
+from typing import Literal
 
 import structlog
-from sqlalchemy import Result, TextClause, text
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text
 
+from kodit.domain.protocols import UnitOfWork
 from kodit.domain.services.embedding_service import (
     EmbeddingProvider,
     VectorSearchRepository,
@@ -81,7 +81,7 @@ class VectorChordVectorSearchRepository(VectorSearchRepository):
     def __init__(
         self,
         task_name: TaskName,
-        session: AsyncSession,
+        unit_of_work: UnitOfWork,
         embedding_provider: EmbeddingProvider,
     ) -> None:
         """Initialize the VectorChord vector search repository.
@@ -93,7 +93,7 @@ class VectorChordVectorSearchRepository(VectorSearchRepository):
 
         """
         self.embedding_provider = embedding_provider
-        self._session = session
+        self.uow = unit_of_work
         self._initialized = False
         self.table_name = f"vectorchord_{task_name}_embeddings"
         self.index_name = f"{self.table_name}_idx"
@@ -111,8 +111,9 @@ class VectorChordVectorSearchRepository(VectorSearchRepository):
 
     async def _create_extensions(self) -> None:
         """Create the necessary extensions."""
-        await self._session.execute(text(CREATE_VCHORD_EXTENSION))
-        await self._commit()
+        async with self.uow:
+            await self.uow.session.execute(text(CREATE_VCHORD_EXTENSION))
+            await self.uow.commit()
 
     async def _create_tables(self) -> None:
         """Create the necessary tables."""
@@ -125,45 +126,37 @@ class VectorChordVectorSearchRepository(VectorSearchRepository):
         if vector_dim is None:
             msg = "Failed to obtain embedding dimension from provider"
             raise RuntimeError(msg)
-        await self._session.execute(
-            text(
-                f"""CREATE TABLE IF NOT EXISTS {self.table_name} (
-                    id SERIAL PRIMARY KEY,
-                    snippet_id INT NOT NULL UNIQUE,
-                    embedding VECTOR({len(vector_dim)}) NOT NULL
-                );"""
-            )
-        )
-        await self._session.execute(
-            text(
-                CREATE_VCHORD_INDEX.format(
-                    TABLE_NAME=self.table_name, INDEX_NAME=self.index_name
+        async with self.uow:
+            await self.uow.session.execute(
+                text(
+                    f"""CREATE TABLE IF NOT EXISTS {self.table_name} (
+                        id SERIAL PRIMARY KEY,
+                        snippet_id INT NOT NULL UNIQUE,
+                        embedding VECTOR({len(vector_dim)}) NOT NULL
+                    );"""
                 )
             )
-        )
-        result = await self._session.execute(
-            text(CHECK_VCHORD_EMBEDDING_DIMENSION.format(TABLE_NAME=self.table_name))
-        )
-        vector_dim_from_db = result.scalar_one()
-        if vector_dim_from_db != len(vector_dim):
-            msg = (
-                f"Embedding vector dimension does not match database, "
-                f"please delete your index: {vector_dim_from_db} != {len(vector_dim)}"
+            await self.uow.session.execute(
+                text(
+                    CREATE_VCHORD_INDEX.format(
+                        TABLE_NAME=self.table_name, INDEX_NAME=self.index_name
+                    )
+                )
             )
-            raise ValueError(msg)
-        await self._commit()
-
-    async def _execute(
-        self, query: TextClause, param_list: list[Any] | dict[str, Any] | None = None
-    ) -> Result:
-        """Execute a query."""
-        if not self._initialized:
-            await self._initialize()
-        return await self._session.execute(query, param_list)
-
-    async def _commit(self) -> None:
-        """Commit the session."""
-        await self._session.commit()
+            result = await self.uow.session.execute(
+                text(
+                    CHECK_VCHORD_EMBEDDING_DIMENSION.format(TABLE_NAME=self.table_name)
+                )
+            )
+            vector_dim_from_db = result.scalar_one()
+            if vector_dim_from_db != len(vector_dim):
+                msg = (
+                    f"Embedding vector dimension does not match database, "
+                    f"please delete your index: "
+                    f"{vector_dim_from_db} != {len(vector_dim)}"
+                )
+                raise ValueError(msg)
+            await self.uow.commit()
 
     async def index_documents(
         self, request: IndexRequest
@@ -179,18 +172,19 @@ class VectorChordVectorSearchRepository(VectorSearchRepository):
         ]
 
         async for batch in self.embedding_provider.embed(requests):
-            await self._execute(
-                text(INSERT_QUERY.format(TABLE_NAME=self.table_name)),
-                [
-                    {
-                        "snippet_id": result.snippet_id,
-                        "embedding": str(result.embedding),
-                    }
-                    for result in batch
-                ],
-            )
-            await self._commit()
-            yield [IndexResult(snippet_id=result.snippet_id) for result in batch]
+            async with self.uow:
+                await self.uow.session.execute(
+                    text(INSERT_QUERY.format(TABLE_NAME=self.table_name)),
+                    [
+                        {
+                            "snippet_id": result.snippet_id,
+                            "embedding": str(result.embedding),
+                        }
+                        for result in batch
+                    ],
+                )
+                await self.uow.commit()
+                yield [IndexResult(snippet_id=result.snippet_id) for result in batch]
 
     async def search(self, request: SearchRequest) -> list[SearchResult]:
         """Search documents using vector similarity."""
@@ -208,27 +202,28 @@ class VectorChordVectorSearchRepository(VectorSearchRepository):
             return []
 
         # Use filtered query if snippet_ids are provided
-        if request.snippet_ids is not None:
-            result = await self._execute(
-                text(SEARCH_QUERY_WITH_FILTER.format(TABLE_NAME=self.table_name)),
-                {
-                    "query": str(embedding_vec),
-                    "top_k": request.top_k,
-                    "snippet_ids": request.snippet_ids,
-                },
-            )
-        else:
-            result = await self._execute(
-                text(SEARCH_QUERY.format(TABLE_NAME=self.table_name)),
-                {"query": str(embedding_vec), "top_k": request.top_k},
-            )
+        async with self.uow:
+            if request.snippet_ids is not None:
+                result = await self.uow.session.execute(
+                    text(SEARCH_QUERY_WITH_FILTER.format(TABLE_NAME=self.table_name)),
+                    {
+                        "query": str(embedding_vec),
+                        "top_k": request.top_k,
+                        "snippet_ids": request.snippet_ids,
+                    },
+                )
+            else:
+                result = await self.uow.session.execute(
+                    text(SEARCH_QUERY.format(TABLE_NAME=self.table_name)),
+                    {"query": str(embedding_vec), "top_k": request.top_k},
+                )
 
-        rows = result.mappings().all()
+            rows = result.mappings().all()
 
-        return [
-            SearchResult(snippet_id=row["snippet_id"], score=row["score"])
-            for row in rows
-        ]
+            return [
+                SearchResult(snippet_id=row["snippet_id"], score=row["score"])
+                for row in rows
+            ]
 
     async def has_embedding(
         self, snippet_id: int, embedding_type: EmbeddingType
@@ -238,8 +233,9 @@ class VectorChordVectorSearchRepository(VectorSearchRepository):
         # Note: embedding_type is ignored since VectorChord uses separate
         # tables per task
         # ruff: noqa: ARG002
-        result = await self._execute(
-            text(CHECK_VCHORD_EMBEDDING_EXISTS.format(TABLE_NAME=self.table_name)),
-            {"snippet_id": snippet_id},
-        )
-        return bool(result.scalar())
+        async with self.uow:
+            result = await self.uow.session.execute(
+                text(CHECK_VCHORD_EMBEDDING_EXISTS.format(TABLE_NAME=self.table_name)),
+                {"snippet_id": snippet_id},
+            )
+            return bool(result.scalar())

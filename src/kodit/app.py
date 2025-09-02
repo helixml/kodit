@@ -12,7 +12,10 @@ from kodit.application.services.auto_indexing_service import AutoIndexingService
 from kodit.application.services.indexing_worker_service import (
     create_indexing_worker_service,
 )
-from kodit.application.services.sync_scheduler import SyncSchedulerService
+from kodit.application.services.sync_scheduler import (
+    SyncSchedulerService,
+    create_sync_scheduler_service,
+)
 from kodit.config import AppContext
 from kodit.infrastructure.api.v1.routers import (
     indexes_router,
@@ -20,6 +23,7 @@ from kodit.infrastructure.api.v1.routers import (
     search_router,
 )
 from kodit.infrastructure.api.v1.schemas.context import AppLifespanState
+from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 from kodit.mcp import mcp
 from kodit.middleware import ASGICancelledErrorMiddleware, logging_middleware
 
@@ -31,11 +35,12 @@ _sync_scheduler_service: SyncSchedulerService | None = None
 @asynccontextmanager
 async def app_lifespan(_: FastAPI) -> AsyncIterator[AppLifespanState]:
     """Manage application lifespan for auto-indexing and sync."""
-    global _auto_indexing_service, _sync_scheduler_service  # noqa: PLW0603
+    global _sync_scheduler_service  # noqa: PLW0603
 
     # App context has already been configured by the CLI.
     app_context = AppContext()
     db = await app_context.get_db()
+    uow = SqlAlchemyUnitOfWork(db.session_factory)
 
     # Start the queue worker service
     _indexing_worker_service = create_indexing_worker_service(
@@ -46,9 +51,7 @@ async def app_lifespan(_: FastAPI) -> AsyncIterator[AppLifespanState]:
 
     # Start sync scheduler service
     if app_context.periodic_sync.enabled:
-        _sync_scheduler_service = SyncSchedulerService(
-            session_factory=db.session_factory,
-        )
+        _sync_scheduler_service = create_sync_scheduler_service(uow)
         _sync_scheduler_service.start_periodic_sync(
             interval_seconds=app_context.periodic_sync.interval_seconds
         )

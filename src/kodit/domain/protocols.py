@@ -1,9 +1,12 @@
 """Repository protocol interfaces for the domain layer."""
 
-from collections.abc import Sequence
+from collections.abc import Generator, Sequence
+from contextlib import contextmanager
+from types import TracebackType
 from typing import Protocol
 
 from pydantic import AnyUrl
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.domain.entities import Index, Snippet, SnippetWithContext, Task, WorkingCopy
 from kodit.domain.value_objects import (
@@ -97,6 +100,14 @@ class IndexRepository(Protocol):
         ...
 
 
+class ReportingStep(Protocol):
+    """Reporting step."""
+
+    def update_step_progress(self, step: Step) -> None:
+        """Update the progress of the current step."""
+        ...
+
+
 class ReportingService(Protocol):
     """Reporting service."""
 
@@ -116,10 +127,11 @@ class ReportingService(Protocol):
         """Mark the current operation as failed."""
         ...
 
-    def update_step_progress(
-        self, operation: OperationAggregate, current: int, total: int
-    ) -> None:
-        """Update the progress of the current step."""
+    @contextmanager
+    def reporting_step_context(
+        self, operation: OperationAggregate
+    ) -> Generator[ReportingStep, None, None]:
+        """Context manager for a reporting step."""
         ...
 
 
@@ -132,4 +144,41 @@ class OperationRepository(Protocol):
 
     async def save(self, operation: OperationAggregate) -> None:
         """Save a task status."""
+        ...
+
+
+class UnitOfWork(Protocol):
+    """Unit of Work protocol for managing database lifecycle only.
+
+    Repository creation should be handled externally.
+    """
+
+    @property
+    def session(self) -> AsyncSession:
+        """Get the current database session."""
+        ...
+
+    async def __aenter__(self) -> "UnitOfWork":
+        """Enter the unit of work context."""
+        ...
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        """Exit the unit of work context."""
+        ...
+
+    async def commit(self) -> None:
+        """Commit the current transaction."""
+        ...
+
+    async def rollback(self) -> None:
+        """Rollback the current transaction."""
+        ...
+
+    async def flush(self) -> None:
+        """Flush pending changes to the database without committing."""
         ...

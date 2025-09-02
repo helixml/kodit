@@ -1,11 +1,10 @@
 """Queue service for managing tasks."""
 
 import structlog
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.domain.entities import Task
+from kodit.domain.protocols import TaskRepository
 from kodit.domain.value_objects import TaskType
-from kodit.infrastructure.sqlalchemy.task_repository import SqlAlchemyTaskRepository
 
 
 class QueueService:
@@ -17,26 +16,24 @@ class QueueService:
 
     def __init__(
         self,
-        session: AsyncSession,
+        task_repository: TaskRepository,
     ) -> None:
         """Initialize the queue service."""
-        self.session = session
+        self.task_repository = task_repository
         self.log = structlog.get_logger(__name__)
 
     async def enqueue_task(self, task: Task) -> None:
         """Queue a task in the database."""
-        repo = SqlAlchemyTaskRepository(self.session)
-
         # See if task already exists
-        db_task = await repo.get(task.id)
+        db_task = await self.task_repository.get(task.id)
         if db_task:
             # Task already exists, update priority
             db_task.priority = task.priority
-            await repo.update(db_task)
+            await self.task_repository.update(db_task)
             self.log.info("Task updated", task_id=task.id, task_type=task.type)
         else:
             # Otherwise, add task
-            await repo.add(task)
+            await self.task_repository.add(task)
             self.log.info(
                 "Task queued",
                 task_id=task.id,
@@ -44,14 +41,10 @@ class QueueService:
                 payload=task.payload,
             )
 
-        await self.session.commit()
-
     async def list_tasks(self, task_type: TaskType | None = None) -> list[Task]:
         """List all tasks in the queue."""
-        repo = SqlAlchemyTaskRepository(self.session)
-        return await repo.list(task_type)
+        return await self.task_repository.list(task_type)
 
     async def get_task(self, task_id: str) -> Task | None:
         """Get a specific task by ID."""
-        repo = SqlAlchemyTaskRepository(self.session)
-        return await repo.get(task_id)
+        return await self.task_repository.get(task_id)

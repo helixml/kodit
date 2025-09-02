@@ -8,9 +8,6 @@ from contextlib import suppress
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.application.factories.code_indexing_factory import (
-    create_code_indexing_application_service,
-)
 from kodit.application.services.queue_service import QueueService
 from kodit.config import AppContext
 from kodit.domain.entities import Task
@@ -55,11 +52,16 @@ class AutoIndexingService:
 
     async def _index_sources(self, sources: list[str]) -> None:
         """Index all configured sources in the background."""
+        from kodit.application.factories.code_indexing_factory import (
+            create_code_indexing_application_service,
+        )
+
         async with self.session_factory() as session:
             queue_service = QueueService(session=session)
+
             service = create_code_indexing_application_service(
                 app_context=self.app_context,
-                session=session,
+                session_factory=self.session_factory,
                 reporter=self.reporter,
             )
 
