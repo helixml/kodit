@@ -12,7 +12,7 @@ from kodit.domain.services.index_service import (
     IndexDomainService,
     LanguageDetectionService,
 )
-from kodit.infrastructure.reporting.reporter import create_noop_reporter
+from kodit.infrastructure.reporting.reporter import StepReporter
 
 
 class MockLanguageDetectionService(LanguageDetectionService):
@@ -69,7 +69,7 @@ async def test_prepare_index_creates_working_copy(
 
     # Now refresh to actually scan the files
     refreshed_working_copy = await index_domain_service.refresh_working_copy(
-        working_copy
+        working_copy, StepReporter(lambda _: None)
     )
     assert len(refreshed_working_copy.files) == 1
     assert refreshed_working_copy.files[0].uri.path.endswith("test.py")  # type: ignore[union-attr]
@@ -88,7 +88,10 @@ async def test_extract_snippets_from_index_returns_snippets(
     working_copy = await index_domain_service.prepare_index(str(tmp_path))
 
     # Now refresh to scan the files
-    working_copy = await index_domain_service.refresh_working_copy(working_copy)
+    noop_reporter = StepReporter(lambda _: None)
+    working_copy = await index_domain_service.refresh_working_copy(
+        working_copy, noop_reporter
+    )
 
     from datetime import UTC, datetime
 
@@ -138,7 +141,6 @@ async def test_enrich_snippets_in_index_returns_enriched_snippets(
         language_detector=MockLanguageDetectionService(),
         enrichment_service=enrichment_service,
         clone_dir=tmp_path / "clones",
-        reporter=create_noop_reporter(),
     )
 
     # Create mock snippets
@@ -148,7 +150,10 @@ async def test_enrich_snippets_in_index_returns_enriched_snippets(
     snippets = [snippet]
 
     # Enrich snippets
-    enriched_snippets = await domain_service.enrich_snippets_in_index(snippets=snippets)
+    noop_reporter = StepReporter(lambda _: None)
+    enriched_snippets = await domain_service.enrich_snippets_in_index(
+        snippets=snippets, reporter=noop_reporter
+    )
 
     # Verify snippets were returned (null provider doesn't actually enrich)
     assert len(enriched_snippets) == 1
@@ -160,7 +165,10 @@ async def test_enrich_snippets_with_empty_list_returns_empty_list(
     index_domain_service: IndexDomainService,
 ) -> None:
     """Test that enriching an empty list returns an empty list."""
-    enriched_snippets = await index_domain_service.enrich_snippets_in_index(snippets=[])
+    noop_reporter = StepReporter(lambda _: None)
+    enriched_snippets = await index_domain_service.enrich_snippets_in_index(
+        snippets=[], reporter=noop_reporter
+    )
     assert enriched_snippets == []
 
 
@@ -184,7 +192,10 @@ async def test_extract_snippets_only_processes_relevant_files(
 
     # Prepare working copy
     working_copy = await index_domain_service.prepare_index(str(tmp_path))
-    working_copy = await index_domain_service.refresh_working_copy(working_copy)
+    noop_reporter = StepReporter(lambda _: None)
+    working_copy = await index_domain_service.refresh_working_copy(
+        working_copy, noop_reporter
+    )
 
     # Verify all files were discovered
     assert len(working_copy.files) == 4
@@ -244,7 +255,10 @@ async def test_extract_snippets_filters_by_language_mapping(
 
     # Prepare working copy
     working_copy = await index_domain_service.prepare_index(str(tmp_path))
-    working_copy = await index_domain_service.refresh_working_copy(working_copy)
+    noop_reporter = StepReporter(lambda _: None)
+    working_copy = await index_domain_service.refresh_working_copy(
+        working_copy, noop_reporter
+    )
 
     # Should discover all files
     assert len(working_copy.files) == 4
@@ -296,7 +310,10 @@ async def test_extract_snippets_handles_no_matching_files(
 
     # Prepare working copy
     working_copy = await index_domain_service.prepare_index(str(tmp_path))
-    working_copy = await index_domain_service.refresh_working_copy(working_copy)
+    noop_reporter = StepReporter(lambda _: None)
+    working_copy = await index_domain_service.refresh_working_copy(
+        working_copy, noop_reporter
+    )
 
     # Should discover files
     assert len(working_copy.files) == 2

@@ -15,7 +15,7 @@ from kodit.application.services.code_indexing_application_service import (
 )
 from kodit.config import AppContext
 from kodit.domain.entities import SnippetWithContext
-from kodit.domain.protocols import IndexRepository
+from kodit.domain.protocols import IndexRepository, UnitOfWork
 from kodit.domain.services.index_query_service import IndexQueryService
 from kodit.domain.value_objects import (
     FusionRequest,
@@ -28,10 +28,10 @@ from kodit.infrastructure.sqlalchemy.index_repository import SqlAlchemyIndexRepo
 
 @pytest.fixture
 async def index_repository(
-    session: AsyncSession,
+    unit_of_work: UnitOfWork,
 ) -> IndexRepository:
     """Create a real CodeIndexingApplicationService with all dependencies."""
-    return SqlAlchemyIndexRepository(session=session)
+    return SqlAlchemyIndexRepository(uow=unit_of_work)
 
 
 @pytest.fixture
@@ -133,6 +133,7 @@ def new_function():
 async def test_search_finds_relevant_snippets(
     code_indexing_service: CodeIndexingApplicationService,
     tmp_path: Path,
+    unit_of_work: UnitOfWork,
 ) -> None:
     """Test that search function finds relevant snippets using different search modes.
 
@@ -194,7 +195,7 @@ def validate_input(value: str) -> bool:
     )
 
     # Verify the index has been properly persisted with snippets
-    index_repo = SqlAlchemyIndexRepository(session=code_indexing_service.session)
+    index_repo = SqlAlchemyIndexRepository(uow=unit_of_work)
     persisted_index = await index_repo.get(index.id)
     assert persisted_index is not None, "Index should be persisted"
     assert len(persisted_index.snippets) > 0, "Index should have snippets"

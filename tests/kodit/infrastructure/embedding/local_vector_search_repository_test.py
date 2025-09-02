@@ -5,8 +5,8 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
 
+from kodit.domain.protocols import UnitOfWork
 from kodit.domain.value_objects import (
     Document,
     EmbeddingResponse,
@@ -417,14 +417,14 @@ class TestLocalVectorSearchRepository:
 
 
 @pytest.mark.asyncio
-async def test_retrieve_documents(session: AsyncSession) -> None:
+async def test_retrieve_documents(unit_of_work: UnitOfWork) -> None:
     """Test retrieving documents with actual embedding values.
 
     This test is based on the user's example and tests the actual embedding
     functionality with real data.
     """
     # Create embedding repository
-    embedding_repository = SqlAlchemyEmbeddingRepository(session=session)
+    embedding_repository = SqlAlchemyEmbeddingRepository(uow=unit_of_work)
 
     # Create embedding provider
     embedding_provider = LocalEmbeddingProvider()
@@ -442,8 +442,9 @@ async def test_retrieve_documents(session: AsyncSession) -> None:
         cloned_path="/tmp/test_repo",  # noqa: S108
         source_type=SourceType.GIT,
     )
-    session.add(source)
-    await session.commit()
+    async with unit_of_work:
+        unit_of_work.session.add(source)
+        await unit_of_work.commit()
 
     file = File(
         created_at=datetime.now(UTC),
@@ -457,12 +458,14 @@ async def test_retrieve_documents(session: AsyncSession) -> None:
         extension="py",
         file_processing_status=FileProcessingStatus.CLEAN.value,
     )
-    session.add(file)
-    await session.commit()
+    async with unit_of_work:
+        unit_of_work.session.add(file)
+        await unit_of_work.commit()
 
     index = Index(source_id=source.id)
-    session.add(index)
-    await session.commit()
+    async with unit_of_work:
+        unit_of_work.session.add(index)
+        await unit_of_work.commit()
 
     # Create snippets
     snippet1 = Snippet(
@@ -483,10 +486,11 @@ async def test_retrieve_documents(session: AsyncSession) -> None:
         content="java enterprise applications",
         summary="",
     )
-    session.add(snippet1)
-    session.add(snippet2)
-    session.add(snippet3)
-    await session.commit()
+    async with unit_of_work:
+        unit_of_work.session.add(snippet1)
+        unit_of_work.session.add(snippet2)
+        unit_of_work.session.add(snippet3)
+        await unit_of_work.commit()
 
     # Index the snippets
     request = IndexRequest(

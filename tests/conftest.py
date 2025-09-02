@@ -20,6 +20,7 @@ from kodit.config import AppContext, LogFormat
 from kodit.infrastructure.sqlalchemy.entities import (
     Base,
 )
+from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 
 
 @pytest.fixture
@@ -58,6 +59,12 @@ async def session(
     async with session_factory() as session:
         yield session
         await session.rollback()
+
+
+@pytest.fixture
+def unit_of_work(session_factory: Callable[[], AsyncSession]) -> SqlAlchemyUnitOfWork:
+    """Create a test unit of work."""
+    return SqlAlchemyUnitOfWork(session_factory)
 
 
 @pytest.fixture

@@ -143,10 +143,13 @@ class SqlAlchemyIndexRepository(IndexRepository):
 
     async def update_index_timestamp(self, index_id: int) -> None:
         """Update the timestamp of an index."""
-        db_index = await self.uow.session.get(db_entities.Index, index_id)
-        if db_index:
+        async with self.uow:
+            db_index = await self.uow.session.get(db_entities.Index, index_id)
+            if not db_index:
+                raise ValueError(f"Index {index_id} not found")
+
             db_index.updated_at = datetime.now(UTC)
-            # SQLAlchemy will automatically track this change
+            await self.uow.commit()
 
     async def add_snippets(
         self, index_id: int, snippets: list[domain_entities.Snippet]
@@ -170,6 +173,9 @@ class SqlAlchemyIndexRepository(IndexRepository):
                     domain_snippet, index_id
                 )
                 self.uow.session.add(db_snippet)
+
+            # Commit the transaction
+            await self.uow.commit()
 
     async def update_snippets(
         self, index_id: int, snippets: list[domain_entities.Snippet]

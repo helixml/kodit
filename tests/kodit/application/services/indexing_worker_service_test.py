@@ -1,19 +1,18 @@
 """Tests for the IndexingWorkerService."""
 
 import asyncio
-from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic import AnyUrl
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.application.services.indexing_worker_service import IndexingWorkerService
 from kodit.application.services.queue_service import QueueService
 from kodit.config import AppContext
 from kodit.domain.entities import File, Index, Source, Task, WorkingCopy
+from kodit.domain.protocols import UnitOfWork
 from kodit.domain.value_objects import (
     FileProcessingStatus,
     QueuePriority,
@@ -24,15 +23,15 @@ from kodit.infrastructure.reporting.reporter import create_noop_reporter
 
 
 @pytest.fixture
-def session_factory(session: AsyncSession) -> Callable[[], AsyncSession]:
-    """Create a session factory for the worker service."""
+def mock_task_repository() -> AsyncMock:
+    """Create a mock task repository."""
+    return AsyncMock()
 
-    # Return a simple callable that returns the session directly
-    # The session itself is already an async context manager
-    def factory() -> AsyncSession:
-        return session
 
-    return factory
+@pytest.fixture
+def mock_index_repository() -> AsyncMock:
+    """Create a mock index repository."""
+    return AsyncMock()
 
 
 @pytest.fixture
@@ -77,20 +76,22 @@ def dummy_index(tmp_path: Path) -> Index:
 @pytest.mark.asyncio
 async def test_worker_processes_task(
     app_context: AppContext,
-    session_factory: Callable[[], AsyncSession],
-    session: AsyncSession,
+    mock_task_repository: AsyncMock,
+    mock_index_repository: AsyncMock,
     dummy_index: Index,
 ) -> None:
     """Test that the worker processes a task from the queue."""
     # Add a task to the queue
-    queue_service = QueueService(session)
+    queue_service = QueueService(mock_task_repository)
     task = Task.create_index_update_task(
         index_id=dummy_index.id, priority=QueuePriority.USER_INITIATED
     )
     await queue_service.enqueue_task(task)
 
     # Create worker service
-    worker = IndexingWorkerService(app_context, session_factory, create_noop_reporter())
+    worker = IndexingWorkerService(
+        app_context, create_noop_reporter(), mock_task_repository, mock_index_repository
+    )
 
     # Mock the indexing service
     with patch(
@@ -117,12 +118,12 @@ async def test_worker_processes_task(
 @pytest.mark.asyncio
 async def test_worker_handles_missing_index(
     app_context: AppContext,
-    session_factory: Callable[[], AsyncSession],
-    session: AsyncSession,
+    mock_task_repository: AsyncMock,
+    mock_index_repository: AsyncMock,
 ) -> None:
     """Test that the worker handles missing index gracefully."""
     # Add a task with non-existent index
-    queue_service = QueueService(session)
+    queue_service = QueueService(mock_task_repository)
     task = Task.create_index_update_task(
         index_id=999,  # Non-existent
         priority=QueuePriority.USER_INITIATED,
@@ -130,7 +131,9 @@ async def test_worker_handles_missing_index(
     await queue_service.enqueue_task(task)
 
     # Create worker service
-    worker = IndexingWorkerService(app_context, session_factory, create_noop_reporter())
+    worker = IndexingWorkerService(
+        app_context, create_noop_reporter(), mock_task_repository, mock_index_repository
+    )
 
     # Mock the indexing service
     with patch(
@@ -155,12 +158,13 @@ async def test_worker_handles_missing_index(
 @pytest.mark.asyncio
 async def test_worker_handles_invalid_task_payload(
     app_context: AppContext,
-    session_factory: Callable[[], AsyncSession],
-    session: AsyncSession,
+    mock_task_repository: AsyncMock,
+    mock_index_repository: AsyncMock,
+    unit_of_work: UnitOfWork,
 ) -> None:
     """Test that the worker handles invalid task payload gracefully."""
     # Add a task with invalid payload
-    QueueService(session)
+    QueueService(mock_task_repository)
     task = Task(
         id="test-task-1",
         type=TaskType.INDEX_UPDATE,
@@ -171,12 +175,13 @@ async def test_worker_handles_invalid_task_payload(
     # Manually add the task to bypass validation
     from kodit.infrastructure.sqlalchemy.task_repository import SqlAlchemyTaskRepository
 
-    repo = SqlAlchemyTaskRepository(session)
+    repo = SqlAlchemyTaskRepository(unit_of_work)
     await repo.add(task)
-    await session.commit()
 
     # Create worker service
-    worker = IndexingWorkerService(app_context, session_factory, create_noop_reporter())
+    worker = IndexingWorkerService(
+        app_context, create_noop_reporter(), mock_task_repository, mock_index_repository
+    )
 
     # Start the worker
     await worker.start()
@@ -193,12 +198,12 @@ async def test_worker_handles_invalid_task_payload(
 @pytest.mark.asyncio
 async def test_worker_processes_multiple_tasks_sequentially(
     app_context: AppContext,
-    session_factory: Callable[[], AsyncSession],
-    session: AsyncSession,
+    mock_task_repository: AsyncMock,
+    mock_index_repository: AsyncMock,
 ) -> None:
     """Test that the worker processes multiple tasks sequentially."""
     # Add multiple tasks to the queue
-    queue_service = QueueService(session)
+    queue_service = QueueService(mock_task_repository)
     tasks = []
     for i in range(3):
         task = Task.create_index_update_task(
@@ -209,7 +214,9 @@ async def test_worker_processes_multiple_tasks_sequentially(
         await queue_service.enqueue_task(task)
 
     # Create worker service
-    worker = IndexingWorkerService(app_context, session_factory, create_noop_reporter())
+    worker = IndexingWorkerService(
+        app_context, create_noop_reporter(), mock_task_repository, mock_index_repository
+    )
 
     # Track processing order
     processed_tasks = []
@@ -253,11 +260,14 @@ async def test_worker_processes_multiple_tasks_sequentially(
 @pytest.mark.asyncio
 async def test_worker_stops_gracefully(
     app_context: AppContext,
-    session_factory: Callable[[], AsyncSession],
+    mock_task_repository: AsyncMock,
+    mock_index_repository: AsyncMock,
 ) -> None:
     """Test that the worker stops gracefully when requested."""
     # Create worker service
-    worker = IndexingWorkerService(app_context, session_factory, create_noop_reporter())
+    worker = IndexingWorkerService(
+        app_context, create_noop_reporter(), mock_task_repository, mock_index_repository
+    )
 
     # Start the worker
     await worker.start()
@@ -276,12 +286,12 @@ async def test_worker_stops_gracefully(
 @pytest.mark.asyncio
 async def test_worker_continues_after_error(
     app_context: AppContext,
-    session_factory: Callable[[], AsyncSession],
-    session: AsyncSession,
+    mock_task_repository: AsyncMock,
+    mock_index_repository: AsyncMock,
 ) -> None:
     """Test that the worker continues processing after encountering an error."""
     # Add tasks to the queue
-    queue_service = QueueService(session)
+    queue_service = QueueService(mock_task_repository)
 
     # First task will succeed
     task1 = Task.create_index_update_task(
@@ -298,7 +308,9 @@ async def test_worker_continues_after_error(
     await queue_service.enqueue_task(task3)
 
     # Create worker service
-    worker = IndexingWorkerService(app_context, session_factory, create_noop_reporter())
+    worker = IndexingWorkerService(
+        app_context, create_noop_reporter(), mock_task_repository, mock_index_repository
+    )
 
     # Track processed tasks
     processed_ids = []
@@ -351,12 +363,12 @@ async def test_worker_continues_after_error(
 @pytest.mark.asyncio
 async def test_worker_respects_task_priority(
     app_context: AppContext,
-    session_factory: Callable[[], AsyncSession],
-    session: AsyncSession,
+    mock_task_repository: AsyncMock,
+    mock_index_repository: AsyncMock,
 ) -> None:
     """Test that the worker processes tasks in priority order."""
     # Add tasks with different priorities
-    queue_service = QueueService(session)
+    queue_service = QueueService(mock_task_repository)
 
     # Add in reverse priority order
     background_task = Task.create_index_update_task(
@@ -370,7 +382,9 @@ async def test_worker_respects_task_priority(
     await queue_service.enqueue_task(user_task)
 
     # Create worker service
-    worker = IndexingWorkerService(app_context, session_factory, create_noop_reporter())
+    worker = IndexingWorkerService(
+        app_context, create_noop_reporter(), mock_task_repository, mock_index_repository
+    )
 
     # Track processing order
     processed_order = []

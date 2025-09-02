@@ -179,6 +179,6 @@ def create_fast_test_code_indexing_application_service(
         code_search_service=code_search_service,
         text_search_service=text_search_service,
         enrichment_service=enrichment_service,
-        unit_of_work=unit_of_work,
+        index_repository=index_repository,
         reporter=reporter,
     )
