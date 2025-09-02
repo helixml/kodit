@@ -145,11 +145,12 @@ class CodeIndexingApplicationService:
             self.reporter.update_step(operation, complete_step(extract_step))
 
             await self.index_repository.update(index)
-            index = await self.index_repository.get(index.id)  # type: ignore[union-attr]
 
-            if len(index.snippets) == 0:
+            # Check if there are valid snippets with IDs to index
+            valid_snippets = [snippet for snippet in index.snippets if snippet.id]
+            if len(valid_snippets) == 0:
                 self.log.info(
-                    "No snippets to index after extraction", index_id=index.id
+                    "No valid snippets to index after extraction", index_id=index.id
                 )
                 self.reporter.complete_operation(operation)
                 return
