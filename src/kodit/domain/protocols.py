@@ -124,10 +124,10 @@ class ReportingService(Protocol):
 class OperationRepository(Protocol):
     """Repository interface for Task status entities."""
 
-    def get(self, index_id: int) -> OperationAggregate:
-        """Get a task status by operation ID."""
+    async def get_by_index_id(self, index_id: int) -> OperationAggregate:
+        """Get a task status by index ID. Raises exception if not found."""
         ...
 
-    def save(self, task: OperationAggregate) -> None:
+    async def save(self, operation: OperationAggregate) -> None:
         """Save a task status."""
         ...
