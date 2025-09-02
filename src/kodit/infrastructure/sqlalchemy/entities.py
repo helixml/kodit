@@ -6,6 +6,7 @@ from enum import Enum
 from git import Actor
 from sqlalchemy import (
     DateTime,
+    Float,
     ForeignKey,
     Integer,
     String,
@@ -236,3 +237,53 @@ class Task(Base, CommonMixin):
         self.type = type
         self.payload = payload
         self.priority = priority
+
+
+class Operation(Base, CommonMixin):
+    """Operation model."""
+
+    __tablename__ = "operations"
+
+    index_id: Mapped[int] = mapped_column(ForeignKey("indexes.id"), index=True)
+    type: Mapped[str] = mapped_column(String(255), index=True)
+    state: Mapped[str] = mapped_column(String(255), index=True)
+    progress_percentage: Mapped[float] = mapped_column(Float)
+
+    def __init__(
+        self,
+        index_id: int,
+        type: str,
+        state: str,
+        progress_percentage: float,
+    ) -> None:
+        """Initialize the operation."""
+        super().__init__()
+        self.index_id = index_id
+        self.type = type
+        self.state = state
+        self.progress_percentage = progress_percentage
+
+
+class Step(Base, CommonMixin):
+    """Step model."""
+
+    __tablename__ = "steps"
+
+    operation_id: Mapped[int] = mapped_column(ForeignKey("operations.id"), index=True)
+    name: Mapped[str] = mapped_column(String(255), index=True)
+    state: Mapped[str] = mapped_column(String(255), index=True)
+    progress_percentage: Mapped[float] = mapped_column(Float)
+
+    def __init__(
+        self,
+        operation_id: int,
+        name: str,
+        state: str,
+        progress_percentage: float,
+    ) -> None:
+        """Initialize the step."""
+        super().__init__()
+        self.operation_id = operation_id
+        self.name = name
+        self.state = state
+        self.progress_percentage = progress_percentage
