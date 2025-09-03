@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 import structlog
 
 from kodit.domain.protocols import ReportingModule
-from kodit.domain.value_objects import ProgressState, ReportingState, StepSnapshot
+from kodit.domain.value_objects import Progress, ProgressState, ReportingState
 from kodit.infrastructure.reporting.progress import Progress, ProgressConfig
 
 
@@ -19,7 +19,7 @@ class LoggingReportingModule(ReportingModule):
         self._log = structlog.get_logger(__name__)
         self._last_log_time: datetime = datetime.now(UTC)
 
-    def on_change(self, step: StepSnapshot) -> None:
+    def on_change(self, step: Progress) -> None:
         """On step changed."""
         current_time = datetime.now(UTC)
         time_since_last_log = current_time - self._last_log_time

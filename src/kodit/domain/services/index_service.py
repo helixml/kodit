@@ -9,7 +9,7 @@ from pydantic import AnyUrl
 
 import kodit.domain.entities as domain_entities
 from kodit.application.factories.reporting_factory import create_noop_operation
-from kodit.application.services.reporting import Step
+from kodit.application.services.reporting import ProgressTracker
 from kodit.domain.services.enrichment_service import EnrichmentDomainService
 from kodit.domain.value_objects import (
     EnrichmentIndexRequest,
@@ -58,7 +58,7 @@ class IndexDomainService:
     async def prepare_index(
         self,
         uri_or_path_like: str,  # Must include user/pass, etc
-        step: Step | None = None,
+        step: ProgressTracker | None = None,
     ) -> domain_entities.WorkingCopy:
         """Prepare an index by scanning files and creating working copy."""
         step = step or create_noop_operation()
@@ -85,7 +85,7 @@ class IndexDomainService:
     async def extract_snippets_from_index(
         self,
         index: domain_entities.Index,
-        step: Step | None = None,
+        step: ProgressTracker | None = None,
     ) -> domain_entities.Index:
         """Extract code snippets from files in the index."""
         step = step or create_noop_operation()
@@ -137,7 +137,7 @@ class IndexDomainService:
     async def enrich_snippets_in_index(
         self,
         snippets: list[domain_entities.Snippet],
-        reporting_step: Step | None = None,
+        reporting_step: ProgressTracker | None = None,
     ) -> list[domain_entities.Snippet]:
         """Enrich snippets with AI-generated summaries."""
         reporting_step = reporting_step or create_noop_operation()
@@ -189,7 +189,7 @@ class IndexDomainService:
     async def refresh_working_copy(
         self,
         working_copy: domain_entities.WorkingCopy,
-        step: Step | None = None,
+        step: ProgressTracker | None = None,
     ) -> domain_entities.WorkingCopy:
         """Refresh the working copy."""
         step = step or create_noop_operation()

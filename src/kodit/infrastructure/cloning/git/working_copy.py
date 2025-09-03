@@ -8,7 +8,7 @@ import git
 import structlog
 
 from kodit.application.factories.reporting_factory import create_noop_operation
-from kodit.application.services.reporting import Step
+from kodit.application.services.reporting import ProgressTracker
 from kodit.domain.entities import WorkingCopy
 
 
@@ -30,7 +30,7 @@ class GitWorkingCopyProvider:
     async def prepare(
         self,
         uri: str,
-        step: Step | None = None,
+        step: ProgressTracker | None = None,
     ) -> Path:
         """Prepare a Git working copy."""
         step = step or create_noop_operation()
@@ -71,7 +71,7 @@ class GitWorkingCopyProvider:
 
         return clone_path
 
-    async def sync(self, uri: str, step: Step | None = None) -> Path:
+    async def sync(self, uri: str, step: ProgressTracker | None = None) -> Path:
         """Refresh a Git working copy."""
         step = step or create_noop_operation()
         clone_path = self.get_clone_path(uri)

@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 import structlog
 
-from kodit.domain.value_objects import ReportingState, StepSnapshot
+from kodit.domain.value_objects import Progress, ReportingState
 
 if TYPE_CHECKING:
     from kodit.domain.protocols import ReportingModule
@@ -20,20 +20,18 @@ class OperationType(StrEnum):
     RUN_INDEX = "kodit.index.run"
 
 
-class Step:
-    """Step."""
+class ProgressTracker:
+    """Progress tracker."""
 
-    def __init__(self, name: str, parent: "Step | None" = None) -> None:
-        """Initialize the step."""
-        self._parent: Step | None = parent
-        self._children: list[Step] = []
+    def __init__(self, name: str, parent: "ProgressTracker | None" = None) -> None:
+        """Initialize the progress tracker."""
+        self._parent: ProgressTracker | None = parent
+        self._children: list[ProgressTracker] = []
         self._log = structlog.get_logger(__name__)
         self._subscribers: list[ReportingModule] = []
-        self._snapshot: StepSnapshot = StepSnapshot(
-            name=name, state=ReportingState.IN_PROGRESS
-        )
+        self._snapshot: Progress = Progress(name=name, state=ReportingState.IN_PROGRESS)
 
-    def __enter__(self) -> "Step":
+    def __enter__(self) -> "ProgressTracker":
         """Enter the operation."""
         self._notify_subscribers()
         return self
@@ -56,9 +54,9 @@ class Step:
             self._snapshot = self._snapshot.with_state(ReportingState.COMPLETED)
         self._notify_subscribers()
 
-    def create_child(self, name: str) -> "Step":
+    def create_child(self, name: str) -> "ProgressTracker":
         """Create a child step."""
-        s = Step(name, self)
+        s = ProgressTracker(name, self)
         self._children.append(s)
         for subscriber in self._subscribers:
             s.subscribe(subscriber)

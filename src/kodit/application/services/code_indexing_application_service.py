@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.application.services.reporting import (
     OperationType,
-    Step,
+    ProgressTracker,
 )
 from kodit.domain.entities import Index, Snippet
 from kodit.domain.protocols import IndexRepository
@@ -43,7 +43,7 @@ class CodeIndexingApplicationService:
         text_search_service: EmbeddingDomainService,
         enrichment_service: EnrichmentDomainService,
         session: AsyncSession,
-        operation: Step,
+        operation: ProgressTracker,
     ) -> None:
         """Initialize the code indexing application service."""
         self.index_domain_service = indexing_domain_service
@@ -338,7 +338,7 @@ class CodeIndexingApplicationService:
         )
 
     async def _create_code_embeddings(
-        self, snippets: list[Snippet], reporting_step: Step
+        self, snippets: list[Snippet], reporting_step: ProgressTracker
     ) -> None:
         reporting_step.set_total(len(snippets))
         processed = 0
@@ -355,7 +355,7 @@ class CodeIndexingApplicationService:
             reporting_step.set_current(processed)
 
     async def _create_text_embeddings(
-        self, snippets: list[Snippet], reporting_step: Step
+        self, snippets: list[Snippet], reporting_step: ProgressTracker
     ) -> None:
         # Only create text embeddings for snippets that have summary content
         documents_with_summaries = []

@@ -678,7 +678,7 @@ class ReportingState(StrEnum):
 
 
 @dataclass(frozen=True)
-class StepSnapshot:
+class Progress:
     """Immutable representation of a step's state."""
 
     name: str
@@ -695,18 +695,18 @@ class StepSnapshot:
             return 0.0
         return min(100.0, max(0.0, (self.current / self.total) * 100.0))
 
-    def with_error(self, error: BaseException) -> "StepSnapshot":
+    def with_error(self, error: BaseException) -> "Progress":
         """Return a new snapshot with updated error."""
         return replace(self, error=error)
 
-    def with_total(self, total: int) -> "StepSnapshot":
+    def with_total(self, total: int) -> "Progress":
         """Return a new snapshot with updated total."""
         return replace(self, total=total)
 
-    def with_progress(self, current: int) -> "StepSnapshot":
+    def with_progress(self, current: int) -> "Progress":
         """Return a new snapshot with updated progress."""
         return replace(self, current=current)
 
-    def with_state(self, state: ReportingState, message: str = "") -> "StepSnapshot":
+    def with_state(self, state: ReportingState, message: str = "") -> "Progress":
         """Return a new snapshot with updated state."""
         return replace(self, state=state, message=message)

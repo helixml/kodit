@@ -3,7 +3,7 @@
 from tqdm import tqdm
 
 from kodit.domain.protocols import ReportingModule
-from kodit.domain.value_objects import ProgressState, ReportingState, StepSnapshot
+from kodit.domain.value_objects import Progress, ProgressState, ReportingState
 from kodit.infrastructure.reporting.progress import Progress, ProgressConfig
 
 
@@ -15,7 +15,7 @@ class TQDMReportingModule(ReportingModule):
         self.config = config
         self.pbar = tqdm()
 
-    def on_change(self, step: StepSnapshot) -> None:
+    def on_change(self, step: Progress) -> None:
         """On step changed."""
         if step.state == ReportingState.COMPLETED:
             self.pbar.close()

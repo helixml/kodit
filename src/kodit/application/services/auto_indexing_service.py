@@ -13,7 +13,7 @@ from kodit.application.factories.code_indexing_factory import (
 )
 from kodit.application.factories.reporting_factory import create_noop_operation
 from kodit.application.services.queue_service import QueueService
-from kodit.application.services.reporting import Step
+from kodit.application.services.reporting import ProgressTracker
 from kodit.config import AppContext
 from kodit.domain.entities import Task
 from kodit.domain.value_objects import QueuePriority
@@ -33,7 +33,9 @@ class AutoIndexingService:
         self.log = structlog.get_logger(__name__)
         self._indexing_task: asyncio.Task | None = None
 
-    async def start_background_indexing(self, operation: Step | None = None) -> None:
+    async def start_background_indexing(
+        self, operation: ProgressTracker | None = None
+    ) -> None:
         """Start background indexing of configured sources."""
         operation = operation or create_noop_operation()
         if (
@@ -56,7 +58,7 @@ class AutoIndexingService:
         )
 
     async def _index_sources(
-        self, sources: list[str], operation: Step | None = None
+        self, sources: list[str], operation: ProgressTracker | None = None
     ) -> None:
         """Index all configured sources in the background."""
         operation = operation or create_noop_operation()

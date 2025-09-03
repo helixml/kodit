@@ -12,7 +12,7 @@ from kodit.application.factories.code_indexing_factory import (
     create_code_indexing_application_service,
 )
 from kodit.application.factories.reporting_factory import create_noop_operation
-from kodit.application.services.reporting import Step
+from kodit.application.services.reporting import ProgressTracker
 from kodit.config import AppContext
 from kodit.domain.entities import Task
 from kodit.domain.value_objects import TaskType
@@ -39,7 +39,7 @@ class IndexingWorkerService:
         self.task_repository = create_task_repository(session_factory)
         self.log = structlog.get_logger(__name__)
 
-    async def start(self, operation: Step | None = None) -> None:
+    async def start(self, operation: ProgressTracker | None = None) -> None:
         """Start the worker to process the queue."""
         operation = operation or create_noop_operation()
         self._running = True
@@ -63,7 +63,7 @@ class IndexingWorkerService:
 
         self.log.info("Indexing worker stopped")
 
-    async def _worker_loop(self, operation: Step) -> None:
+    async def _worker_loop(self, operation: ProgressTracker) -> None:
         self.log.debug("Worker loop started")
 
         while not self._shutdown_event.is_set():
@@ -90,7 +90,7 @@ class IndexingWorkerService:
 
         self.log.info("Worker loop stopped")
 
-    async def _process_task(self, task: Task, operation: Step) -> None:
+    async def _process_task(self, task: Task, operation: ProgressTracker) -> None:
         """Process a single task."""
         self.log.info(
             "Processing task",
@@ -125,7 +125,9 @@ class IndexingWorkerService:
             duration_seconds=duration,
         )
 
-    async def _process_index_update(self, task: Task, operation: Step) -> None:
+    async def _process_index_update(
+        self, task: Task, operation: ProgressTracker
+    ) -> None:
         """Process index update/sync task."""
         index_id = task.payload.get("index_id")
         if not index_id:

@@ -13,7 +13,7 @@ from kodit.application.services.code_indexing_application_service import (
     CodeIndexingApplicationService,
 )
 from kodit.application.services.reporting import (
-    Step,
+    ProgressTracker,
 )
 from kodit.config import AppContext
 from kodit.domain.services.bm25_service import BM25DomainService
@@ -57,7 +57,7 @@ def create_code_indexing_application_service(
     app_context: AppContext,
     session: AsyncSession,
     session_factory: Callable[[], AsyncSession],
-    operation: Step,
+    operation: ProgressTracker,
 ) -> CodeIndexingApplicationService:
     """Create a unified code indexing application service with all dependencies."""
     # Create domain services
