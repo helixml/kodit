@@ -34,7 +34,7 @@ class TestSqlAlchemyEmbeddingRepository:
         """Test creating an embedding."""
         mock_session = MagicMock()
         mock_session.add = MagicMock()
-        
+
         mock_uow = MagicMock()
         mock_uow.session = mock_session
         mock_uow.__aenter__ = AsyncMock(return_value=mock_uow)
@@ -59,7 +59,7 @@ class TestSqlAlchemyEmbeddingRepository:
         """Test getting an embedding that exists."""
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = MagicMock()
-        
+
         mock_session = MagicMock()
         mock_session.execute = AsyncMock(return_value=mock_result)
 
@@ -82,10 +82,10 @@ class TestSqlAlchemyEmbeddingRepository:
         """Test getting an embedding that doesn't exist."""
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = None
-        
+
         mock_session = MagicMock()
         mock_session.execute = AsyncMock(return_value=mock_result)
-        
+
         mock_uow = create_mock_uow(mock_session)
         repository = SqlAlchemyEmbeddingRepository(mock_uow)
 
@@ -101,10 +101,10 @@ class TestSqlAlchemyEmbeddingRepository:
         """Test semantic search with empty database."""
         mock_result = MagicMock()
         mock_result.all.return_value = []
-        
+
         mock_session = MagicMock()
         mock_session.execute = AsyncMock(return_value=mock_result)
-        
+
         mock_uow = create_mock_uow(mock_session)
         repository = SqlAlchemyEmbeddingRepository(mock_uow)
 
@@ -120,10 +120,10 @@ class TestSqlAlchemyEmbeddingRepository:
         """Test semantic search with a single embedding."""
         mock_result = MagicMock()
         mock_result.all.return_value = [(1, [0.1, 0.2, 0.3])]
-        
+
         mock_session = MagicMock()
         mock_session.execute = AsyncMock(return_value=mock_result)
-        
+
         mock_uow = create_mock_uow(mock_session)
         repository = SqlAlchemyEmbeddingRepository(mock_uow)
 
@@ -147,10 +147,10 @@ class TestSqlAlchemyEmbeddingRepository:
             (2, [0.0, 1.0, 0.0]),  # Less similar
             (3, [0.0, 0.0, 1.0]),  # Least similar
         ]
-        
+
         mock_session = MagicMock()
         mock_session.execute = AsyncMock(return_value=mock_result)
-        
+
         mock_uow = create_mock_uow(mock_session)
         repository = SqlAlchemyEmbeddingRepository(mock_uow)
 
@@ -169,10 +169,10 @@ class TestSqlAlchemyEmbeddingRepository:
         """Test that top_k limits the number of results."""
         mock_result = MagicMock()
         mock_result.all.return_value = [(i, [0.1, 0.2, 0.3]) for i in range(10)]
-        
+
         mock_session = MagicMock()
         mock_session.execute = AsyncMock(return_value=mock_result)
-        
+
         mock_uow = create_mock_uow(mock_session)
         repository = SqlAlchemyEmbeddingRepository(mock_uow)
 

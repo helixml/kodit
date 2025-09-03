@@ -100,9 +100,11 @@ class SqlAlchemyIndexRepository(IndexRepository):
             # 7. Create the index
             db_index = db_entities.Index(source_id=db_source.id)
             self.uow.session.add(db_index)
+
+            # Commit the transaction
+            await self.uow.session.flush()
             await self.uow.commit()
 
-            # 8. Return the new index
             return await self._mapper.to_domain_index(db_index)
 
     async def get(self, index_id: int) -> domain_entities.Index | None:
@@ -212,6 +214,8 @@ class SqlAlchemyIndexRepository(IndexRepository):
                 # Update timestamps if provided
                 if domain_snippet.updated_at:
                     db_snippet.updated_at = domain_snippet.updated_at
+
+            await self.uow.commit()
 
     async def search(  # noqa: C901
         self, request: MultiSearchRequest
@@ -427,6 +431,8 @@ class SqlAlchemyIndexRepository(IndexRepository):
             )
             await self.uow.session.execute(snippet_stmt)
 
+            await self.uow.commit()
+
     async def delete_snippets_by_file_ids(self, file_ids: list[int]) -> None:
         """Delete snippets by file IDs.
 
@@ -457,6 +463,8 @@ class SqlAlchemyIndexRepository(IndexRepository):
             )
             await self.uow.session.execute(snippet_stmt)
 
+            await self.uow.commit()
+
     async def update(self, index: domain_entities.Index) -> None:
         """Update an index by ensuring all domain objects are saved to database."""
         if not index.id:
@@ -482,6 +490,8 @@ class SqlAlchemyIndexRepository(IndexRepository):
             # 5. Handle snippets
             if index.snippets:
                 await self._update_snippets(index)
+
+            await self.uow.commit()
 
     async def _update_source(
         self, index: domain_entities.Index, db_index: db_entities.Index
@@ -609,30 +619,50 @@ class SqlAlchemyIndexRepository(IndexRepository):
                 self.uow.session.add(db_snippet)
 
     async def delete(self, index: domain_entities.Index) -> None:
-        """Delete everything related to an index."""
-        # Delete all snippets and embeddings
-        await self.delete_snippets(index.id)
-
-        # Delete all author file mappings
-        stmt = delete(db_entities.AuthorFileMapping).where(
-            db_entities.AuthorFileMapping.file_id.in_(
-                [file.id for file in index.source.working_copy.files]
+        """Delete a whole index."""
+        async with self.uow:
+            # First get all snippets for this index
+            stmt = select(db_entities.Snippet).where(
+                db_entities.Snippet.index_id == index.id
             )
-        )
-        await self.uow.session.execute(stmt)
+            result = await self.uow.session.scalars(stmt)
+            snippets = result.all()
 
-        # Delete all files
-        stmt = delete(db_entities.File).where(
-            db_entities.File.source_id == index.source.id
-        )
-        await self.uow.session.execute(stmt)
+            # Delete all embeddings for these snippets
+            for snippet in snippets:
+                embedding_stmt = delete(db_entities.Embedding).where(
+                    db_entities.Embedding.snippet_id == snippet.id
+                )
+                await self.uow.session.execute(embedding_stmt)
 
-        # Delete the index
-        stmt = delete(db_entities.Index).where(db_entities.Index.id == index.id)
-        await self.uow.session.execute(stmt)
+            # Now delete the snippets
+            snippet_stmt = delete(db_entities.Snippet).where(
+                db_entities.Snippet.index_id == index.id
+            )
+            await self.uow.session.execute(snippet_stmt)
 
-        # Delete the source
-        stmt = delete(db_entities.Source).where(
-            db_entities.Source.id == index.source.id
-        )
-        await self.uow.session.execute(stmt)
+            # Delete all author file mappings
+            stmt = delete(db_entities.AuthorFileMapping).where(
+                db_entities.AuthorFileMapping.file_id.in_(
+                    [file.id for file in index.source.working_copy.files]
+                )
+            )
+            await self.uow.session.execute(stmt)
+
+            # Delete all files
+            stmt = delete(db_entities.File).where(
+                db_entities.File.source_id == index.source.id
+            )
+            await self.uow.session.execute(stmt)
+
+            # Delete the index
+            stmt = delete(db_entities.Index).where(db_entities.Index.id == index.id)
+            await self.uow.session.execute(stmt)
+
+            # Delete the source
+            stmt = delete(db_entities.Source).where(
+                db_entities.Source.id == index.source.id
+            )
+            await self.uow.session.execute(stmt)
+
+            await self.uow.commit()
