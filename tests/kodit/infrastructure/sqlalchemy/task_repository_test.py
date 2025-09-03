@@ -320,7 +320,7 @@ class TestList:
     async def test_sorts_tasks_by_priority_and_created_at(
         self, unit_of_work: SqlAlchemyUnitOfWork
     ) -> None:
-        """Test that list method returns tasks sorted by priority (desc) then created_at.
+        """Test that list method returns tasks by priority (desc) then created_at.
 
         Test priority descending, then created_at ascending for equal priorities.
         """
@@ -373,4 +373,3 @@ class TestList:
         assert result[0].id == "task-3"
         # The last task should be the lowest priority
         assert result[-1].id == "task-4"
-

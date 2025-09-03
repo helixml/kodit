@@ -1,6 +1,6 @@
 """MCP server for kodit."""
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -33,6 +33,7 @@ class MCPContext:
     """Context for the MCP server."""
 
     session: AsyncSession
+    session_factory: Callable[[], AsyncSession]
     app_context: AppContext
 
 
@@ -56,7 +57,11 @@ async def mcp_lifespan(_: FastMCP) -> AsyncIterator[MCPContext]:
     if _mcp_db is None:
         _mcp_db = await app_context.get_db()
     async with _mcp_db.session_factory() as session:
-        yield MCPContext(session=session, app_context=app_context)
+        yield MCPContext(
+            session=session,
+            app_context=app_context,
+            session_factory=_mcp_db.session_factory,
+        )
 
 
 def create_mcp_server(name: str, instructions: str | None = None) -> FastMCP:
@@ -176,6 +181,7 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:
             app_context=mcp_context.app_context,
             session=mcp_context.session,
             reporter=create_noop_reporter(),
+            session_factory=mcp_context.session_factory,
         )
 
         log.debug("Searching for snippets")
