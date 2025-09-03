@@ -43,7 +43,7 @@ from kodit.infrastructure.slicing.language_detection_service import (
     FileSystemLanguageDetectionService,
 )
 from kodit.infrastructure.sqlalchemy.embedding_repository import (
-    SqlAlchemyEmbeddingRepository,
+    create_embedding_repository,
 )
 from kodit.infrastructure.sqlalchemy.entities import EmbeddingType
 from kodit.infrastructure.sqlalchemy.index_repository import (
@@ -60,8 +60,12 @@ def create_code_indexing_application_service(
     """Create a unified code indexing application service with all dependencies."""
     # Create domain services
     bm25_service = BM25DomainService(bm25_repository_factory(app_context, session))
-    code_search_service = embedding_domain_service_factory("code", app_context, session)
-    text_search_service = embedding_domain_service_factory("text", app_context, session)
+    code_search_service = embedding_domain_service_factory(
+        "code", app_context, session, session_factory
+    )
+    text_search_service = embedding_domain_service_factory(
+        "text", app_context, session, session_factory
+    )
     enrichment_service = enrichment_domain_service_factory(app_context)
     index_repository = create_index_repository(session_factory=session_factory)
     # Use the unified language mapping from the domain layer
@@ -125,7 +129,7 @@ def create_fast_test_code_indexing_application_service(
     """Create a fast test code indexing application service."""
     # Create domain services
     bm25_service = BM25DomainService(bm25_repository_factory(app_context, session))
-    embedding_repository = SqlAlchemyEmbeddingRepository(session=session)
+    embedding_repository = create_embedding_repository(session_factory=session_factory)
     reporter = create_noop_reporter()
 
     code_search_repository = LocalVectorSearchRepository(

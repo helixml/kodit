@@ -1,85 +1,64 @@
 """SQLAlchemy implementation of embedding repository."""
 
+from collections.abc import Callable
+
 import numpy as np
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.infrastructure.sqlalchemy.entities import Embedding, EmbeddingType
+from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
+
+
+def create_embedding_repository(
+    session_factory: Callable[[], AsyncSession],
+) -> "SqlAlchemyEmbeddingRepository":
+    """Create an embedding repository."""
+    uow = SqlAlchemyUnitOfWork(session_factory=session_factory)
+    return SqlAlchemyEmbeddingRepository(uow)
 
 
 class SqlAlchemyEmbeddingRepository:
     """SQLAlchemy implementation of embedding repository."""
 
-    def __init__(self, session: AsyncSession) -> None:
-        """Initialize the SQLAlchemy embedding repository.
+    def __init__(self, uow: SqlAlchemyUnitOfWork) -> None:
+        """Initialize the SQLAlchemy embedding repository."""
+        self.uow = uow
 
-        Args:
-            session: The SQLAlchemy async session to use for database operations
-
-        """
-        self.session = session
-
-    async def create_embedding(self, embedding: Embedding) -> Embedding:
-        """Create a new embedding record in the database.
-
-        Args:
-            embedding: The Embedding instance to create
-
-        Returns:
-            The created Embedding instance
-
-        """
-        self.session.add(embedding)
-        return embedding
+    async def create_embedding(self, embedding: Embedding) -> None:
+        """Create a new embedding record in the database."""
+        async with self.uow:
+            self.uow.session.add(embedding)
 
     async def get_embedding_by_snippet_id_and_type(
         self, snippet_id: int, embedding_type: EmbeddingType
     ) -> Embedding | None:
-        """Get an embedding by its snippet ID and type.
-
-        Args:
-            snippet_id: The ID of the snippet to get the embedding for
-            embedding_type: The type of embedding to get
-
-        Returns:
-            The Embedding instance if found, None otherwise
-
-        """
-        query = select(Embedding).where(
-            Embedding.snippet_id == snippet_id,
-            Embedding.type == embedding_type,
-        )
-        result = await self.session.execute(query)
-        return result.scalar_one_or_none()
+        """Get an embedding by its snippet ID and type."""
+        async with self.uow:
+            query = select(Embedding).where(
+                Embedding.snippet_id == snippet_id,
+                Embedding.type == embedding_type,
+            )
+            result = await self.uow.session.execute(query)
+            return result.scalar_one_or_none()
 
     async def list_embeddings_by_type(
         self, embedding_type: EmbeddingType
     ) -> list[Embedding]:
-        """List all embeddings of a given type.
-
-        Args:
-            embedding_type: The type of embeddings to list
-
-        Returns:
-            A list of Embedding instances
-
-        """
-        query = select(Embedding).where(Embedding.type == embedding_type)
-        result = await self.session.execute(query)
-        return list(result.scalars())
+        """List all embeddings of a given type."""
+        async with self.uow:
+            query = select(Embedding).where(Embedding.type == embedding_type)
+            result = await self.uow.session.execute(query)
+            return list(result.scalars())
 
     async def delete_embeddings_by_snippet_id(self, snippet_id: int) -> None:
-        """Delete all embeddings for a snippet.
-
-        Args:
-            snippet_id: The ID of the snippet to delete embeddings for
-
-        """
-        query = select(Embedding).where(Embedding.snippet_id == snippet_id)
-        result = await self.session.execute(query)
-        embeddings = result.scalars().all()
-        for embedding in embeddings:
-            await self.session.delete(embedding)
+        """Delete all embeddings for a snippet."""
+        async with self.uow:
+            query = select(Embedding).where(Embedding.snippet_id == snippet_id)
+            result = await self.uow.session.execute(query)
+            embeddings = result.scalars().all()
+            for embedding in embeddings:
+                await self.uow.session.delete(embedding)
 
     async def list_semantic_results(
         self,
@@ -130,17 +109,17 @@ class SqlAlchemyEmbeddingRepository:
             List of (snippet_id, embedding) tuples
 
         """
-        # Only select the fields we need and use a more efficient query
-        query = select(Embedding.snippet_id, Embedding.embedding).where(
-            Embedding.type == embedding_type
-        )
+        async with self.uow:
+            query = select(Embedding.snippet_id, Embedding.embedding).where(
+                Embedding.type == embedding_type
+            )
 
-        # Add snippet_ids filter if provided
-        if snippet_ids is not None:
-            query = query.where(Embedding.snippet_id.in_(snippet_ids))
+            # Add snippet_ids filter if provided
+            if snippet_ids is not None:
+                query = query.where(Embedding.snippet_id.in_(snippet_ids))
 
-        rows = await self.session.execute(query)
-        return [tuple(row) for row in rows.all()]  # Convert Row objects to tuples
+            rows = await self.uow.session.execute(query)
+            return [tuple(row) for row in rows.all()]  # Convert Row objects to tuples
 
     def _prepare_vectors(
         self, embeddings: list[tuple[int, list[float]]], query_embedding: list[float]

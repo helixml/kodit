@@ -1,5 +1,7 @@
 """Test the embedding domain service factory."""
 
+from collections.abc import Callable
+
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,7 +22,9 @@ from kodit.infrastructure.embedding.local_vector_search_repository import (
 
 @pytest.mark.asyncio
 async def test_embedding_domain_service_factory(
-    app_context: AppContext, session: AsyncSession
+    app_context: AppContext,
+    session: AsyncSession,
+    session_factory: Callable[[], AsyncSession],
 ) -> None:
     """Test the embedding domain service factory."""
     # Set search provider to sqlite to override environment variable
@@ -29,7 +33,10 @@ async def test_embedding_domain_service_factory(
     # With defaults, no settings
     app_context.embedding_endpoint = None
     service = embedding_domain_service_factory(
-        "code", app_context=app_context, session=session
+        "code",
+        app_context=app_context,
+        session=session,
+        session_factory=session_factory,
     )
     assert isinstance(service.vector_search_repository, LocalVectorSearchRepository)
     assert isinstance(service.embedding_provider, LocalEmbeddingProvider)
@@ -41,7 +48,10 @@ async def test_embedding_domain_service_factory(
         api_key="default",
     )
     service = embedding_domain_service_factory(
-        "code", app_context=app_context, session=session
+        "code",
+        app_context=app_context,
+        session=session,
+        session_factory=session_factory,
     )
     assert isinstance(service.vector_search_repository, LocalVectorSearchRepository)
     assert isinstance(service.embedding_provider, LiteLLMEmbeddingProvider)
