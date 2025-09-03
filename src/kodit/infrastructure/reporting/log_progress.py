@@ -1,11 +1,40 @@
 """Log progress using structlog."""
 
 import time
+from datetime import UTC, datetime
 
 import structlog
 
-from kodit.domain.value_objects import ProgressState
+from kodit.domain.protocols import ReportingModule
+from kodit.domain.value_objects import ProgressState, ReportingState, StepSnapshot
 from kodit.infrastructure.reporting.progress import Progress, ProgressConfig
+
+
+class LoggingReportingModule(ReportingModule):
+    """Logging reporting module."""
+
+    def __init__(self, config: ProgressConfig) -> None:
+        """Initialize the logging reporting module."""
+        self.config = config
+        self._log = structlog.get_logger(__name__)
+        self._last_log_time: datetime = datetime.now(UTC)
+
+    def on_change(self, step: StepSnapshot) -> None:
+        """On step changed."""
+        current_time = datetime.now(UTC)
+        time_since_last_log = current_time - self._last_log_time
+
+        if (
+            step.state != ReportingState.IN_PROGRESS
+            or time_since_last_log >= self.config.log_time_interval
+        ):
+            self._log.info(
+                step.name,
+                state=step.state,
+                message=step.message,
+                completion_percent=step.completion_percent,
+            )
+            self._last_log_time = current_time
 
 
 class LogProgress(Progress):

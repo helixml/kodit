@@ -2,20 +2,19 @@
 
 import hashlib
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import git
 import pytest
 
 from kodit.domain.entities import WorkingCopy
 from kodit.infrastructure.cloning.git.working_copy import GitWorkingCopyProvider
-from kodit.infrastructure.reporting.reporter import create_noop_reporter
 
 
 @pytest.fixture
 def working_copy(tmp_path: Path) -> GitWorkingCopyProvider:
     """Create a GitWorkingCopyProvider instance."""
-    return GitWorkingCopyProvider(tmp_path, reporter=create_noop_reporter())
+    return GitWorkingCopyProvider(tmp_path)
 
 
 def get_expected_directory_name(uri: str) -> str:
@@ -217,7 +216,7 @@ async def test_sync_directory_does_not_exist_should_call_prepare(
         result_path = await working_copy.sync(url)
 
         # Verify prepare was called
-        mock_prepare.assert_called_once_with(url)
+        mock_prepare.assert_called_once_with(url, ANY)
         assert result_path == Path("/fake/path")
 
 
@@ -240,7 +239,7 @@ async def test_sync_directory_exists_but_no_git_should_call_prepare(
         result_path = await working_copy.sync(url)
 
         # Verify prepare was called
-        mock_prepare.assert_called_once_with(url)
+        mock_prepare.assert_called_once_with(url, ANY)
         assert result_path == clone_path
 
 
@@ -310,7 +309,7 @@ async def test_sync_invalid_git_repository_should_reclone(
             mock_rmtree.assert_called_once_with(clone_path)
 
             # Verify prepare was called to re-clone
-            mock_prepare.assert_called_once_with(url)
+            mock_prepare.assert_called_once_with(url, ANY)
 
             # Verify the correct path was returned
             assert result_path == clone_path
@@ -335,4 +334,4 @@ async def test_sync_get_clone_path_should_match_prepare(
 
         # Verify paths match
         assert result_path == sync_path
-        mock_prepare.assert_called_once_with(url)
+        mock_prepare.assert_called_once_with(url, ANY)

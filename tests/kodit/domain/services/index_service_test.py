@@ -12,7 +12,6 @@ from kodit.domain.services.index_service import (
     IndexDomainService,
     LanguageDetectionService,
 )
-from kodit.infrastructure.reporting.reporter import create_noop_reporter
 
 
 class MockLanguageDetectionService(LanguageDetectionService):
@@ -43,7 +42,6 @@ def index_domain_service(
         language_detector=MockLanguageDetectionService(),
         enrichment_service=mock_enrichment_service,
         clone_dir=tmp_path / "clones",
-        reporter=create_noop_reporter(),
     )
 
 
@@ -139,7 +137,6 @@ async def test_enrich_snippets_in_index_returns_enriched_snippets(
         language_detector=MockLanguageDetectionService(),
         enrichment_service=enrichment_service,
         clone_dir=tmp_path / "clones",
-        reporter=create_noop_reporter(),
     )
 
     # Create mock snippets

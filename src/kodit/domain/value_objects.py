@@ -1,9 +1,9 @@
 """Pure domain value objects and DTOs."""
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
-from enum import Enum, IntEnum
+from enum import Enum, IntEnum, StrEnum
 from pathlib import Path
 from typing import ClassVar
 
@@ -662,3 +662,51 @@ class QueuePriority(IntEnum):
 
     BACKGROUND = 10
     USER_INITIATED = 50
+
+
+# Reporting value objects
+
+
+class ReportingState(StrEnum):
+    """Reporting state."""
+
+    STARTED = "started"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    SKIPPED = "skipped"
+
+
+@dataclass(frozen=True)
+class StepSnapshot:
+    """Immutable representation of a step's state."""
+
+    name: str
+    state: ReportingState
+    message: str = ""
+    error: BaseException | None = None
+    total: int = 0
+    current: int = 0
+
+    @property
+    def completion_percent(self) -> float:
+        """Calculate the percentage of completion."""
+        if self.total == 0:
+            return 0.0
+        return min(100.0, max(0.0, (self.current / self.total) * 100.0))
+
+    def with_error(self, error: BaseException) -> "StepSnapshot":
+        """Return a new snapshot with updated error."""
+        return replace(self, error=error)
+
+    def with_total(self, total: int) -> "StepSnapshot":
+        """Return a new snapshot with updated total."""
+        return replace(self, total=total)
+
+    def with_progress(self, current: int) -> "StepSnapshot":
+        """Return a new snapshot with updated progress."""
+        return replace(self, current=current)
+
+    def with_state(self, state: ReportingState, message: str = "") -> "StepSnapshot":
+        """Return a new snapshot with updated state."""
+        return replace(self, state=state, message=message)
