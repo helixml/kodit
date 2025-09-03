@@ -51,6 +51,9 @@ from kodit.infrastructure.sqlalchemy.entities import EmbeddingType
 from kodit.infrastructure.sqlalchemy.index_repository import (
     create_index_repository,
 )
+from kodit.infrastructure.sqlalchemy.task_status_repository import (
+    create_task_status_repository,
+)
 
 
 def create_code_indexing_application_service(
@@ -121,7 +124,10 @@ def create_server_code_indexing_application_service(
 ) -> CodeIndexingApplicationService:
     """Create a server code indexing application service."""
     return create_code_indexing_application_service(
-        app_context, session, session_factory, create_server_operation()
+        app_context,
+        session,
+        session_factory,
+        create_server_operation(create_task_status_repository(session_factory)),
     )
 
 

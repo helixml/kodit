@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 
 import structlog
 
+from kodit.application.services.reporting import ProgressTracker
 from kodit.config import ReportingConfig
 from kodit.domain.protocols import ReportingModule
 from kodit.domain.value_objects import Progress, ProgressState, ReportingState
@@ -19,10 +20,11 @@ class LoggingReportingModule(ReportingModule):
         self._log = structlog.get_logger(__name__)
         self._last_log_time: datetime = datetime.now(UTC)
 
-    def on_change(self, step: Progress) -> None:
+    async def on_change(self, progress: ProgressTracker) -> None:
         """On step changed."""
         current_time = datetime.now(UTC)
         time_since_last_log = current_time - self._last_log_time
+        step = await progress.status()
 
         if (
             step.state != ReportingState.IN_PROGRESS

@@ -25,18 +25,19 @@ class ProgressTracker:
 
     def __init__(self, name: str, parent: "ProgressTracker | None" = None) -> None:
         """Initialize the progress tracker."""
-        self._parent: ProgressTracker | None = parent
+        self.parent: ProgressTracker | None = parent
         self._children: list[ProgressTracker] = []
         self._log = structlog.get_logger(__name__)
         self._subscribers: list[ReportingModule] = []
         self._snapshot: Progress = Progress(name=name, state=ReportingState.IN_PROGRESS)
+        self._index_id: int | None = None
 
-    def __enter__(self) -> "ProgressTracker":
+    async def __aenter__(self) -> "ProgressTracker":
         """Enter the operation."""
-        self._notify_subscribers()
+        await self._notify_subscribers()
         return self
 
-    def __exit__(
+    async def __aexit__(
         self,
         exc_type: type[BaseException] | None,
         exc_value: BaseException | None,
@@ -52,7 +53,7 @@ class ProgressTracker:
         if self._snapshot.state == ReportingState.IN_PROGRESS:
             self._snapshot = self._snapshot.with_progress(100)
             self._snapshot = self._snapshot.with_state(ReportingState.COMPLETED)
-        self._notify_subscribers()
+        await self._notify_subscribers()
 
     def create_child(self, name: str) -> "ProgressTracker":
         """Create a child step."""
@@ -62,7 +63,7 @@ class ProgressTracker:
             s.subscribe(subscriber)
         return s
 
-    def skip(self, reason: str | None = None) -> None:
+    async def skip(self, reason: str | None = None) -> None:
         """Skip the step."""
         self._snapshot = self._snapshot.with_state(ReportingState.SKIPPED, reason or "")
 
@@ -70,17 +71,35 @@ class ProgressTracker:
         """Subscribe to the step."""
         self._subscribers.append(subscriber)
 
-    def set_total(self, total: int) -> None:
+    async def set_total(self, total: int) -> None:
         """Set the total for the step."""
         self._snapshot = self._snapshot.with_total(total)
-        self._notify_subscribers()
+        await self._notify_subscribers()
 
-    def set_current(self, current: int) -> None:
+    async def set_current(self, current: int) -> None:
         """Progress the step."""
         self._snapshot = self._snapshot.with_progress(current)
-        self._notify_subscribers()
+        await self._notify_subscribers()
 
-    def _notify_subscribers(self) -> None:
+    async def _notify_subscribers(self) -> None:
         """Notify the subscribers."""
         for subscriber in self._subscribers:
-            subscriber.on_change(self._snapshot)
+            await subscriber.on_change(self)
+
+    async def status(self) -> Progress:
+        """Get the state of the step."""
+        return self._snapshot
+
+    async def set_index_id(self, index_id: int) -> None:
+        """Set the index id."""
+        self._index_id = index_id
+        await self._notify_subscribers()
+
+    @property
+    def index_id(self) -> int | None:
+        """Get the index id."""
+        if self._index_id:
+            return self._index_id
+        if self.parent:
+            return self.parent.index_id
+        return None

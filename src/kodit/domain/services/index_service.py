@@ -126,9 +126,9 @@ class IndexDomainService:
 
         # Calculate snippets for each language
         slicer = Slicer()
-        step.set_total(len(lang_files_map.keys()))
+        await step.set_total(len(lang_files_map.keys()))
         for i, (lang, lang_files) in enumerate(lang_files_map.items()):
-            step.set_current(i)
+            await step.set_current(i)
             s = slicer.extract_snippets(lang_files, language=lang)
             index.snippets.extend(s)
 
@@ -142,10 +142,10 @@ class IndexDomainService:
         """Enrich snippets with AI-generated summaries."""
         reporting_step = reporting_step or create_noop_operation()
         if not snippets or len(snippets) == 0:
-            reporting_step.skip("No snippets to enrich")
+            await reporting_step.skip("No snippets to enrich")
             return snippets
 
-        reporting_step.set_total(len(snippets))
+        await reporting_step.set_total(len(snippets))
         snippet_map = {snippet.id: snippet for snippet in snippets if snippet.id}
 
         enrichment_request = EnrichmentIndexRequest(
@@ -162,7 +162,7 @@ class IndexDomainService:
             snippet_map[result.snippet_id].add_summary(result.text)
 
             processed += 1
-            reporting_step.set_current(processed)
+            await reporting_step.set_current(processed)
 
         return list(snippet_map.values())
 
@@ -222,12 +222,12 @@ class IndexDomainService:
 
         # Setup reporter
         processed = 0
-        step.set_total(num_files_to_process)
+        await step.set_total(num_files_to_process)
 
         # First check to see if any files have been deleted
         for file_path in deleted_file_paths:
             processed += 1
-            step.set_current(processed)
+            await step.set_current(processed)
             previous_files_map[
                 file_path
             ].file_processing_status = domain_entities.FileProcessingStatus.DELETED
@@ -235,7 +235,7 @@ class IndexDomainService:
         # Then check to see if there are any new files
         for file_path in new_file_paths:
             processed += 1
-            step.set_current(processed)
+            await step.set_current(processed)
             try:
                 working_copy.files.append(
                     await metadata_extractor.extract(file_path=file_path)
@@ -247,7 +247,7 @@ class IndexDomainService:
         # Finally check if there are any modified files
         for file_path in modified_file_paths:
             processed += 1
-            step.set_current(processed)
+            await step.set_current(processed)
             try:
                 previous_file = previous_files_map[file_path]
                 new_file = await metadata_extractor.extract(file_path=file_path)

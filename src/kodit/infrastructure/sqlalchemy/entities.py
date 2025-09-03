@@ -262,3 +262,21 @@ class Task(Base, CommonMixin):
         self.type = type
         self.payload = payload
         self.priority = priority
+
+
+class TaskStatus(Base, CommonMixin):
+    """Task status model."""
+
+    __tablename__ = "task_status"
+    index_id: Mapped[int] = mapped_column(
+        ForeignKey("indexes.id"), index=True, nullable=True
+    )
+    parent: Mapped[int] = mapped_column(
+        ForeignKey("task_status.id"), index=True, nullable=True
+    )
+    name: Mapped[str] = mapped_column(String(255), index=True, nullable=False)
+    state: Mapped[str] = mapped_column(String(255), default="")
+    message: Mapped[str] = mapped_column(UnicodeText, default="")
+    error: Mapped[str] = mapped_column(UnicodeText, default="")
+    total: Mapped[int] = mapped_column(Integer, default=0)
+    current: Mapped[int] = mapped_column(Integer, default=0)

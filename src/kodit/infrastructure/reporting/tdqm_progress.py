@@ -2,6 +2,7 @@
 
 from tqdm import tqdm
 
+from kodit.application.services.reporting import ProgressTracker
 from kodit.config import ReportingConfig
 from kodit.domain.protocols import ReportingModule
 from kodit.domain.value_objects import Progress, ProgressState, ReportingState
@@ -15,8 +16,9 @@ class TQDMReportingModule(ReportingModule):
         self.config = config
         self.pbar = tqdm()
 
-    def on_change(self, step: Progress) -> None:
+    async def on_change(self, progress: ProgressTracker) -> None:
         """On step changed."""
+        step = await progress.status()
         if step.state == ReportingState.COMPLETED:
             self.pbar.close()
             return
