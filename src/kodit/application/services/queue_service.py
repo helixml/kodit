@@ -1,5 +1,7 @@
 """Queue service for managing tasks."""
 
+from collections.abc import Callable
+
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,11 +21,10 @@ class QueueService:
 
     def __init__(
         self,
-        session: AsyncSession,
+        session_factory: Callable[[], AsyncSession],
     ) -> None:
         """Initialize the queue service."""
-        self.session = session
-        self.task_repository = create_task_repository(session)
+        self.task_repository = create_task_repository(session_factory=session_factory)
         self.log = structlog.get_logger(__name__)
 
     async def enqueue_task(self, task: Task) -> None:

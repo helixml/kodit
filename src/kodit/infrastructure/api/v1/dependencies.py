@@ -85,11 +85,11 @@ IndexingAppServiceDep = Annotated[
 
 
 async def get_queue_service(
-    session: DBSessionDep,
+    session_factory: DBSessionFactoryDep,
 ) -> QueueService:
     """Get queue service dependency."""
     return QueueService(
-        session=session,
+        session_factory=session_factory,
     )
 
 

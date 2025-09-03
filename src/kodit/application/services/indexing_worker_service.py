@@ -41,7 +41,7 @@ class IndexingWorkerService:
             max_workers=1, thread_name_prefix="indexing-worker"
         )
         self.reporter = reporter
-        self.task_repository = create_task_repository(session_factory())
+        self.task_repository = create_task_repository(session_factory)
         self.log = structlog.get_logger(__name__)
 
     async def start(self) -> None:
