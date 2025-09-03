@@ -1,5 +1,6 @@
 """Database configuration for kodit."""
 
+from collections.abc import Callable
 from pathlib import Path
 
 import structlog
@@ -28,7 +29,7 @@ class Database:
         )
 
     @property
-    def session_factory(self) -> async_sessionmaker[AsyncSession]:
+    def session_factory(self) -> Callable[[], AsyncSession]:
         """Get the session factory."""
         return self.db_session_factory
 

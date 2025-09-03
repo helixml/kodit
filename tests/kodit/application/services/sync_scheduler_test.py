@@ -121,7 +121,7 @@ async def test_sync_scheduler_syncs_all_indexes(
         patch(
             "kodit.application.services.sync_scheduler.IndexQueryService"
         ) as mock_query_service_class,
-        patch("kodit.application.services.sync_scheduler.SqlAlchemyIndexRepository"),
+        patch("kodit.application.services.sync_scheduler.create_index_repository"),
     ):
         # Set up mocks
         mock_queue_service = AsyncMock()
@@ -150,7 +150,7 @@ async def test_sync_scheduler_syncs_all_indexes(
 
 @pytest.mark.asyncio
 async def test_sync_scheduler_handles_empty_indexes(
-    mock_session_factory: Callable[[], AsyncSession]
+    mock_session_factory: Callable[[], AsyncSession],
 ) -> None:
     """Test that the sync scheduler handles the case when no indexes exist."""
     with (
@@ -160,7 +160,7 @@ async def test_sync_scheduler_handles_empty_indexes(
         patch(
             "kodit.application.services.sync_scheduler.IndexQueryService"
         ) as mock_query_service_class,
-        patch("kodit.application.services.sync_scheduler.SqlAlchemyIndexRepository"),
+        patch("kodit.application.services.sync_scheduler.create_index_repository"),
     ):
         # Set up mocks for no indexes
         mock_queue_service = AsyncMock()
@@ -194,7 +194,7 @@ async def test_sync_scheduler_handles_sync_failures(
         patch(
             "kodit.application.services.sync_scheduler.IndexQueryService"
         ) as mock_query_service_class,
-        patch("kodit.application.services.sync_scheduler.SqlAlchemyIndexRepository"),
+        patch("kodit.application.services.sync_scheduler.create_index_repository"),
     ):
         # Set up mocks with one failure
         mock_queue_service = AsyncMock()

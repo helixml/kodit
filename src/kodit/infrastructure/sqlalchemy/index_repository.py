@@ -1,6 +1,7 @@
 """SQLAlchemy implementation of IndexRepository using Index aggregate root."""
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
+from datetime import UTC, datetime
 from typing import cast
 
 from pydantic import AnyUrl
@@ -15,6 +16,15 @@ from kodit.domain.value_objects import (
 )
 from kodit.infrastructure.mappers.index_mapper import IndexMapper
 from kodit.infrastructure.sqlalchemy import entities as db_entities
+from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
+
+
+def create_index_repository(
+    session_factory: Callable[[], AsyncSession],
+) -> IndexRepository:
+    """Create an index repository."""
+    uow = SqlAlchemyUnitOfWork(session_factory=session_factory)
+    return SqlAlchemyIndexRepository(uow)
 
 
 class SqlAlchemyIndexRepository(IndexRepository):
@@ -27,120 +37,134 @@ class SqlAlchemyIndexRepository(IndexRepository):
     - Snippet entities with their contents
     """
 
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, uow: SqlAlchemyUnitOfWork) -> None:
         """Initialize the repository."""
-        self._session = session
-        self._mapper = IndexMapper(session)
+        self.uow = uow
+
+    @property
+    def _mapper(self) -> IndexMapper:
+        if self.uow.session is None:
+            raise RuntimeError("UnitOfWork must be used within async context")
+        return IndexMapper(self.uow.session)
+
+    @property
+    def _session(self) -> AsyncSession:
+        if self.uow.session is None:
+            raise RuntimeError("UnitOfWork must be used within async context")
+        return self.uow.session
 
     async def create(
         self, uri: AnyUrl, working_copy: domain_entities.WorkingCopy
     ) -> domain_entities.Index:
         """Create an index with all the files and authors in the working copy."""
-        # 1. Verify that a source with this URI does not exist
-        existing_source = await self._get_source_by_uri(uri)
-        if existing_source:
-            # Check if index already exists for this source
-            existing_index = await self._get_index_by_source_id(existing_source.id)
-            if existing_index:
-                return await self._mapper.to_domain_index(existing_index)
+        async with self.uow:
+            # 1. Verify that a source with this URI does not exist
+            existing_source = await self._get_source_by_uri(uri)
+            if existing_source:
+                # Check if index already exists for this source
+                existing_index = await self._get_index_by_source_id(existing_source.id)
+                if existing_index:
+                    return await self._mapper.to_domain_index(existing_index)
 
-        # 2. Create the source
-        db_source = db_entities.Source(
-            uri=str(uri),
-            cloned_path=str(working_copy.cloned_path),
-            source_type=db_entities.SourceType(working_copy.source_type.value),
-        )
-        self._session.add(db_source)
-        await self._session.flush()  # Get source ID
-
-        # 3. Create a set of unique authors
-        unique_authors = {}
-        for domain_file in working_copy.files:
-            for author in domain_file.authors:
-                key = (author.name, author.email)
-                if key not in unique_authors:
-                    unique_authors[key] = author
-
-        # 4. Create authors if they don't exist and store their IDs
-        author_id_map = {}
-        for domain_author in unique_authors.values():
-            db_author = await self._find_or_create_author(domain_author)
-            author_id_map[(domain_author.name, domain_author.email)] = db_author.id
-
-        # 5. Create files
-        for domain_file in working_copy.files:
-            db_file = db_entities.File(
-                created_at=domain_file.created_at or db_source.created_at,
-                updated_at=domain_file.updated_at or db_source.updated_at,
-                source_id=db_source.id,
-                mime_type=domain_file.mime_type,
-                uri=str(domain_file.uri),
-                cloned_path=str(domain_file.uri),  # Use URI as cloned path
-                sha256=domain_file.sha256,
-                size_bytes=0,  # Deprecated
-                extension="",  # Deprecated
-                file_processing_status=domain_file.file_processing_status.value,
+            # 2. Create the source
+            db_source = db_entities.Source(
+                uri=str(uri),
+                cloned_path=str(working_copy.cloned_path),
+                source_type=db_entities.SourceType(working_copy.source_type.value),
             )
-            self._session.add(db_file)
-            await self._session.flush()  # Get file ID
+            self._session.add(db_source)
+            await self._session.flush()  # Get source ID
 
-            # 6. Create author_file_mappings
-            for author in domain_file.authors:
-                author_id = author_id_map[(author.name, author.email)]
-                mapping = db_entities.AuthorFileMapping(
-                    author_id=author_id, file_id=db_file.id
+            # 3. Create a set of unique authors
+            unique_authors = {}
+            for domain_file in working_copy.files:
+                for author in domain_file.authors:
+                    key = (author.name, author.email)
+                    if key not in unique_authors:
+                        unique_authors[key] = author
+
+            # 4. Create authors if they don't exist and store their IDs
+            author_id_map = {}
+            for domain_author in unique_authors.values():
+                db_author = await self._find_or_create_author(domain_author)
+                author_id_map[(domain_author.name, domain_author.email)] = db_author.id
+
+            # 5. Create files
+            for domain_file in working_copy.files:
+                db_file = db_entities.File(
+                    created_at=domain_file.created_at or db_source.created_at,
+                    updated_at=domain_file.updated_at or db_source.updated_at,
+                    source_id=db_source.id,
+                    mime_type=domain_file.mime_type,
+                    uri=str(domain_file.uri),
+                    cloned_path=str(domain_file.uri),  # Use URI as cloned path
+                    sha256=domain_file.sha256,
+                    size_bytes=0,  # Deprecated
+                    extension="",  # Deprecated
+                    file_processing_status=domain_file.file_processing_status.value,
                 )
-                await self._upsert_author_file_mapping(mapping)
+                self._session.add(db_file)
+                await self._session.flush()  # Get file ID
 
-        # 7. Create the index
-        db_index = db_entities.Index(source_id=db_source.id)
-        self._session.add(db_index)
-        await self._session.flush()  # Get index ID
+                # 6. Create author_file_mappings
+                for author in domain_file.authors:
+                    author_id = author_id_map[(author.name, author.email)]
+                    mapping = db_entities.AuthorFileMapping(
+                        author_id=author_id, file_id=db_file.id
+                    )
+                    await self._upsert_author_file_mapping(mapping)
 
-        # 8. Return the new index
-        return await self._mapper.to_domain_index(db_index)
+            # 7. Create the index
+            db_index = db_entities.Index(source_id=db_source.id)
+            self._session.add(db_index)
+            await self._session.flush()  # Get index ID
+
+            # 8. Return the new index
+            return await self._mapper.to_domain_index(db_index)
 
     async def get(self, index_id: int) -> domain_entities.Index | None:
         """Get an index by ID."""
-        db_index = await self._session.get(db_entities.Index, index_id)
-        if not db_index:
-            return None
+        async with self.uow:
+            db_index = await self._session.get(db_entities.Index, index_id)
+            if not db_index:
+                return None
 
-        return await self._mapper.to_domain_index(db_index)
+            return await self._mapper.to_domain_index(db_index)
 
     async def get_by_uri(self, uri: AnyUrl) -> domain_entities.Index | None:
         """Get an index by source URI."""
-        db_source = await self._get_source_by_uri(uri)
-        if not db_source:
-            return None
+        async with self.uow:
+            db_source = await self._get_source_by_uri(uri)
+            if not db_source:
+                return None
 
-        db_index = await self._get_index_by_source_id(db_source.id)
-        if not db_index:
-            return None
+            db_index = await self._get_index_by_source_id(db_source.id)
+            if not db_index:
+                return None
 
-        return await self._mapper.to_domain_index(db_index)
+            return await self._mapper.to_domain_index(db_index)
 
     async def all(self) -> list[domain_entities.Index]:
         """List all indexes."""
-        stmt = select(db_entities.Index)
-        result = await self._session.scalars(stmt)
-        db_indexes = result.all()
+        async with self.uow:
+            stmt = select(db_entities.Index)
+            result = await self._session.scalars(stmt)
+            db_indexes = result.all()
 
-        domain_indexes = []
-        for db_index in db_indexes:
-            domain_index = await self._mapper.to_domain_index(db_index)
-            domain_indexes.append(domain_index)
+            domain_indexes = []
+            for db_index in db_indexes:
+                domain_index = await self._mapper.to_domain_index(db_index)
+                domain_indexes.append(domain_index)
 
-        return domain_indexes
+            return domain_indexes
 
     async def update_index_timestamp(self, index_id: int) -> None:
         """Update the timestamp of an index."""
-        from datetime import UTC, datetime
-
-        db_index = await self._session.get(db_entities.Index, index_id)
-        if db_index:
+        async with self.uow:
+            db_index = await self._session.get(db_entities.Index, index_id)
+            if not db_index:
+                raise ValueError(f"Index {index_id} not found")
             db_index.updated_at = datetime.now(UTC)
-            # SQLAlchemy will automatically track this change
 
     async def add_snippets(
         self, index_id: int, snippets: list[domain_entities.Snippet]
@@ -152,17 +176,18 @@ class SqlAlchemyIndexRepository(IndexRepository):
         if not snippets:
             return
 
-        # Validate the index exists
-        db_index = await self._session.get(db_entities.Index, index_id)
-        if not db_index:
-            raise ValueError(f"Index {index_id} not found")
+        async with self.uow:
+            # Validate the index exists
+            db_index = await self._session.get(db_entities.Index, index_id)
+            if not db_index:
+                raise ValueError(f"Index {index_id} not found")
 
-        # Convert domain snippets to database entities
-        for domain_snippet in snippets:
-            db_snippet = await self._mapper.from_domain_snippet(
-                domain_snippet, index_id
-            )
-            self._session.add(db_snippet)
+            # Convert domain snippets to database entities
+            for domain_snippet in snippets:
+                db_snippet = await self._mapper.from_domain_snippet(
+                    domain_snippet, index_id
+                )
+                self._session.add(db_snippet)
 
     async def update_snippets(
         self, index_id: int, snippets: list[domain_entities.Snippet]
@@ -175,27 +200,30 @@ class SqlAlchemyIndexRepository(IndexRepository):
         if not snippets:
             return
 
-        # Validate the index exists
-        db_index = await self._session.get(db_entities.Index, index_id)
-        if not db_index:
-            raise ValueError(f"Index {index_id} not found")
+        async with self.uow:
+            # Validate the index exists
+            db_index = await self._session.get(db_entities.Index, index_id)
+            if not db_index:
+                raise ValueError(f"Index {index_id} not found")
 
-        # Update each snippet
-        for domain_snippet in snippets:
-            if not domain_snippet.id:
-                raise ValueError("Snippet must have an ID for update")
+            # Update each snippet
+            for domain_snippet in snippets:
+                if not domain_snippet.id:
+                    raise ValueError("Snippet must have an ID for update")
 
-            # Get the existing snippet
-            db_snippet = await self._session.get(db_entities.Snippet, domain_snippet.id)
-            if not db_snippet:
-                raise ValueError(f"Snippet {domain_snippet.id} not found")
+                # Get the existing snippet
+                db_snippet = await self._session.get(
+                    db_entities.Snippet, domain_snippet.id
+                )
+                if not db_snippet:
+                    raise ValueError(f"Snippet {domain_snippet.id} not found")
 
-            db_snippet.content = domain_snippet.original_text()
-            db_snippet.summary = domain_snippet.summary_text()
+                db_snippet.content = domain_snippet.original_text()
+                db_snippet.summary = domain_snippet.summary_text()
 
-            # Update timestamps if provided
-            if domain_snippet.updated_at:
-                db_snippet.updated_at = domain_snippet.updated_at
+                # Update timestamps if provided
+                if domain_snippet.updated_at:
+                    db_snippet.updated_at = domain_snippet.updated_at
 
     async def search(  # noqa: C901
         self, request: MultiSearchRequest
@@ -258,71 +286,77 @@ class SqlAlchemyIndexRepository(IndexRepository):
         query = query.limit(request.top_k)
 
         # Execute query
-        result = await self._session.scalars(query)
-        db_snippets = result.all()
+        async with self.uow:
+            result = await self._session.scalars(query)
+            db_snippets = result.all()
 
-        # Convert to SnippetWithContext
-        snippet_contexts = []
-        for db_snippet in db_snippets:
-            # Get the file for this snippet
-            db_file = await self._session.get(db_entities.File, db_snippet.file_id)
-            if not db_file:
-                continue
+            # Convert to SnippetWithContext
+            snippet_contexts = []
+            for db_snippet in db_snippets:
+                # Get the file for this snippet
+                db_file = await self._session.get(db_entities.File, db_snippet.file_id)
+                if not db_file:
+                    continue
 
-            # Get the source for this file
-            db_source = await self._session.get(db_entities.Source, db_file.source_id)
-            if not db_source:
-                continue
+                # Get the source for this file
+                db_source = await self._session.get(
+                    db_entities.Source, db_file.source_id
+                )
+                if not db_source:
+                    continue
 
-            domain_file = await self._mapper.to_domain_file(db_file)
-            snippet_context = SnippetWithContext(
-                source=await self._mapper.to_domain_source(db_source),
-                file=domain_file,
-                authors=domain_file.authors,
-                snippet=await self._mapper.to_domain_snippet(
-                    db_snippet=db_snippet, domain_files=[domain_file]
-                ),
-            )
-            snippet_contexts.append(snippet_context)
+                domain_file = await self._mapper.to_domain_file(db_file)
+                snippet_context = SnippetWithContext(
+                    source=await self._mapper.to_domain_source(db_source),
+                    file=domain_file,
+                    authors=domain_file.authors,
+                    snippet=await self._mapper.to_domain_snippet(
+                        db_snippet=db_snippet, domain_files=[domain_file]
+                    ),
+                )
+                snippet_contexts.append(snippet_context)
 
-        return snippet_contexts
+            return snippet_contexts
 
     async def get_snippets_by_ids(self, ids: list[int]) -> list[SnippetWithContext]:
         """Get snippets by their IDs."""
         if not ids:
             return []
 
-        # Query snippets by IDs
-        query = select(db_entities.Snippet).where(db_entities.Snippet.id.in_(ids))
+        async with self.uow:
+            # Query snippets by IDs
+            query = select(db_entities.Snippet).where(db_entities.Snippet.id.in_(ids))
 
-        result = await self._session.scalars(query)
-        db_snippets = result.all()
+            result = await self._session.scalars(query)
+            db_snippets = result.all()
 
-        # Convert to SnippetWithContext using similar logic as search
-        snippet_contexts = []
-        for db_snippet in db_snippets:
-            # Get the file for this snippet
-            db_file = await self._session.get(db_entities.File, db_snippet.file_id)
-            if not db_file:
-                continue
+            # Convert to SnippetWithContext using similar logic as search
+            snippet_contexts = []
+            for db_snippet in db_snippets:
+                # Get the file for this snippet
+                db_file = await self._session.get(db_entities.File, db_snippet.file_id)
+                if not db_file:
+                    continue
 
-            # Get the source for this file
-            db_source = await self._session.get(db_entities.Source, db_file.source_id)
-            if not db_source:
-                continue
+                # Get the source for this file
+                db_source = await self._session.get(
+                    db_entities.Source, db_file.source_id
+                )
+                if not db_source:
+                    continue
 
-            domain_file = await self._mapper.to_domain_file(db_file)
-            snippet_context = SnippetWithContext(
-                source=await self._mapper.to_domain_source(db_source),
-                file=domain_file,
-                authors=domain_file.authors,
-                snippet=await self._mapper.to_domain_snippet(
-                    db_snippet=db_snippet, domain_files=[domain_file]
-                ),
-            )
-            snippet_contexts.append(snippet_context)
+                domain_file = await self._mapper.to_domain_file(db_file)
+                snippet_context = SnippetWithContext(
+                    source=await self._mapper.to_domain_source(db_source),
+                    file=domain_file,
+                    authors=domain_file.authors,
+                    snippet=await self._mapper.to_domain_snippet(
+                        db_snippet=db_snippet, domain_files=[domain_file]
+                    ),
+                )
+                snippet_contexts.append(snippet_context)
 
-        return snippet_contexts
+            return snippet_contexts
 
     async def _get_source_by_uri(self, uri: AnyUrl) -> db_entities.Source | None:
         """Get source by URI."""
@@ -379,25 +413,26 @@ class SqlAlchemyIndexRepository(IndexRepository):
 
     async def delete_snippets(self, index_id: int) -> None:
         """Delete all snippets from an index."""
-        # First get all snippets for this index
-        stmt = select(db_entities.Snippet).where(
-            db_entities.Snippet.index_id == index_id
-        )
-        result = await self._session.scalars(stmt)
-        snippets = result.all()
-
-        # Delete all embeddings for these snippets
-        for snippet in snippets:
-            embedding_stmt = delete(db_entities.Embedding).where(
-                db_entities.Embedding.snippet_id == snippet.id
+        async with self.uow:
+            # First get all snippets for this index
+            stmt = select(db_entities.Snippet).where(
+                db_entities.Snippet.index_id == index_id
             )
-            await self._session.execute(embedding_stmt)
+            result = await self._session.scalars(stmt)
+            snippets = result.all()
 
-        # Now delete the snippets
-        snippet_stmt = delete(db_entities.Snippet).where(
-            db_entities.Snippet.index_id == index_id
-        )
-        await self._session.execute(snippet_stmt)
+            # Delete all embeddings for these snippets
+            for snippet in snippets:
+                embedding_stmt = delete(db_entities.Embedding).where(
+                    db_entities.Embedding.snippet_id == snippet.id
+                )
+                await self._session.execute(embedding_stmt)
+
+            # Now delete the snippets
+            snippet_stmt = delete(db_entities.Snippet).where(
+                db_entities.Snippet.index_id == index_id
+            )
+            await self._session.execute(snippet_stmt)
 
     async def delete_snippets_by_file_ids(self, file_ids: list[int]) -> None:
         """Delete snippets by file IDs.
@@ -408,50 +443,52 @@ class SqlAlchemyIndexRepository(IndexRepository):
         if not file_ids:
             return
 
-        # First get all snippets for these files
-        stmt = select(db_entities.Snippet).where(
-            db_entities.Snippet.file_id.in_(file_ids)
-        )
-        result = await self._session.scalars(stmt)
-        snippets = result.all()
-
-        # Delete all embeddings for these snippets
-        for snippet in snippets:
-            embedding_stmt = delete(db_entities.Embedding).where(
-                db_entities.Embedding.snippet_id == snippet.id
+        async with self.uow:
+            # First get all snippets for these files
+            stmt = select(db_entities.Snippet).where(
+                db_entities.Snippet.file_id.in_(file_ids)
             )
-            await self._session.execute(embedding_stmt)
+            result = await self._session.scalars(stmt)
+            snippets = result.all()
 
-        # Now delete the snippets
-        snippet_stmt = delete(db_entities.Snippet).where(
-            db_entities.Snippet.file_id.in_(file_ids)
-        )
-        await self._session.execute(snippet_stmt)
+            # Delete all embeddings for these snippets
+            for snippet in snippets:
+                embedding_stmt = delete(db_entities.Embedding).where(
+                    db_entities.Embedding.snippet_id == snippet.id
+                )
+                await self._session.execute(embedding_stmt)
+
+            # Now delete the snippets
+            snippet_stmt = delete(db_entities.Snippet).where(
+                db_entities.Snippet.file_id.in_(file_ids)
+            )
+            await self._session.execute(snippet_stmt)
 
     async def update(self, index: domain_entities.Index) -> None:
         """Update an index by ensuring all domain objects are saved to database."""
         if not index.id:
             raise ValueError("Index must have an ID to be updated")
 
-        # 1. Verify the index exists in the database
-        db_index = await self._session.get(db_entities.Index, index.id)
-        if not db_index:
-            raise ValueError(f"Index {index.id} not found")
+        async with self.uow:
+            # 1. Verify the index exists in the database
+            db_index = await self._session.get(db_entities.Index, index.id)
+            if not db_index:
+                raise ValueError(f"Index {index.id} not found")
 
-        # 2. Update index timestamps
-        if index.updated_at:
-            db_index.updated_at = index.updated_at
+            # 2. Update index timestamps
+            if index.updated_at:
+                db_index.updated_at = index.updated_at
 
-        # 3. Update source if it exists
-        await self._update_source(index, db_index)
+            # 3. Update source if it exists
+            await self._update_source(index, db_index)
 
-        # 4. Handle files and authors from working copy
-        if index.source and index.source.working_copy:
-            await self._update_files_and_authors(index, db_index)
+            # 4. Handle files and authors from working copy
+            if index.source and index.source.working_copy:
+                await self._update_files_and_authors(index, db_index)
 
-        # 5. Handle snippets
-        if index.snippets:
-            await self._update_snippets(index)
+            # 5. Handle snippets
+            if index.snippets:
+                await self._update_snippets(index)
 
     async def _update_source(
         self, index: domain_entities.Index, db_index: db_entities.Index
@@ -583,26 +620,27 @@ class SqlAlchemyIndexRepository(IndexRepository):
         # Delete all snippets and embeddings
         await self.delete_snippets(index.id)
 
-        # Delete all author file mappings
-        stmt = delete(db_entities.AuthorFileMapping).where(
-            db_entities.AuthorFileMapping.file_id.in_(
-                [file.id for file in index.source.working_copy.files]
+        async with self.uow:
+            # Delete all author file mappings
+            stmt = delete(db_entities.AuthorFileMapping).where(
+                db_entities.AuthorFileMapping.file_id.in_(
+                    [file.id for file in index.source.working_copy.files]
+                )
             )
-        )
-        await self._session.execute(stmt)
+            await self._session.execute(stmt)
 
-        # Delete all files
-        stmt = delete(db_entities.File).where(
-            db_entities.File.source_id == index.source.id
-        )
-        await self._session.execute(stmt)
+            # Delete all files
+            stmt = delete(db_entities.File).where(
+                db_entities.File.source_id == index.source.id
+            )
+            await self._session.execute(stmt)
 
-        # Delete the index
-        stmt = delete(db_entities.Index).where(db_entities.Index.id == index.id)
-        await self._session.execute(stmt)
+            # Delete the index
+            stmt = delete(db_entities.Index).where(db_entities.Index.id == index.id)
+            await self._session.execute(stmt)
 
-        # Delete the source
-        stmt = delete(db_entities.Source).where(
-            db_entities.Source.id == index.source.id
-        )
-        await self._session.execute(stmt)
+            # Delete the source
+            stmt = delete(db_entities.Source).where(
+                db_entities.Source.id == index.source.id
+            )
+            await self._session.execute(stmt)
