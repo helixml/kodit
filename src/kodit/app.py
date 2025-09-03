@@ -8,11 +8,11 @@ from fastapi import FastAPI, Response
 from fastapi.responses import RedirectResponse
 
 from kodit._version import version
+from kodit.application.factories.reporting_factory import create_server_operation
 from kodit.application.services.auto_indexing_service import AutoIndexingService
 from kodit.application.services.indexing_worker_service import IndexingWorkerService
 from kodit.application.services.sync_scheduler import SyncSchedulerService
 from kodit.config import AppContext
-from kodit.domain.services.reporting_service import create_server_operation
 from kodit.infrastructure.api.v1.routers import (
     indexes_router,
     queue_router,

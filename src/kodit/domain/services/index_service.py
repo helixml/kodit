@@ -8,8 +8,9 @@ import structlog
 from pydantic import AnyUrl
 
 import kodit.domain.entities as domain_entities
+from kodit.application.factories.reporting_factory import create_noop_operation
+from kodit.application.services.reporting import Step
 from kodit.domain.services.enrichment_service import EnrichmentDomainService
-from kodit.domain.services.reporting_service import Step, create_noop_operation
 from kodit.domain.value_objects import (
     EnrichmentIndexRequest,
     EnrichmentRequest,

@@ -6,6 +6,10 @@ from datetime import UTC, datetime
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from kodit.application.services.reporting import (
+    OperationType,
+    Step,
+)
 from kodit.domain.entities import Index, Snippet
 from kodit.domain.protocols import IndexRepository
 from kodit.domain.services.bm25_service import BM25DomainService
@@ -13,10 +17,6 @@ from kodit.domain.services.embedding_service import EmbeddingDomainService
 from kodit.domain.services.enrichment_service import EnrichmentDomainService
 from kodit.domain.services.index_query_service import IndexQueryService
 from kodit.domain.services.index_service import IndexDomainService
-from kodit.domain.services.reporting_service import (
-    OperationType,
-    Step,
-)
 from kodit.domain.value_objects import (
     Document,
     FusionRequest,

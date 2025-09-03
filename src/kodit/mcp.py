@@ -15,9 +15,9 @@ from kodit._version import version
 from kodit.application.factories.code_indexing_factory import (
     create_code_indexing_application_service,
 )
+from kodit.application.factories.reporting_factory import create_server_operation
 from kodit.config import AppContext
 from kodit.database import Database
-from kodit.domain.services.reporting_service import create_server_operation
 from kodit.domain.value_objects import (
     MultiSearchRequest,
     MultiSearchResult,

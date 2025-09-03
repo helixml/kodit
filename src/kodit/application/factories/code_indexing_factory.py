@@ -4,8 +4,16 @@ from collections.abc import Callable
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from kodit.application.factories.reporting_factory import (
+    create_cli_operation,
+    create_noop_operation,
+    create_server_operation,
+)
 from kodit.application.services.code_indexing_application_service import (
     CodeIndexingApplicationService,
+)
+from kodit.application.services.reporting import (
+    Step,
 )
 from kodit.config import AppContext
 from kodit.domain.services.bm25_service import BM25DomainService
@@ -14,12 +22,6 @@ from kodit.domain.services.enrichment_service import EnrichmentDomainService
 from kodit.domain.services.index_query_service import IndexQueryService
 from kodit.domain.services.index_service import (
     IndexDomainService,
-)
-from kodit.domain.services.reporting_service import (
-    Step,
-    create_cli_operation,
-    create_noop_operation,
-    create_server_operation,
 )
 from kodit.domain.value_objects import LanguageMapping
 from kodit.infrastructure.bm25.bm25_factory import bm25_repository_factory

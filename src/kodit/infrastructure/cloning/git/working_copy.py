@@ -7,8 +7,9 @@ from pathlib import Path
 import git
 import structlog
 
+from kodit.application.factories.reporting_factory import create_noop_operation
+from kodit.application.services.reporting import Step
 from kodit.domain.entities import WorkingCopy
-from kodit.domain.services.reporting_service import Step, create_noop_operation
 
 
 class GitWorkingCopyProvider:

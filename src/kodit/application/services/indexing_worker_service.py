@@ -11,9 +11,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from kodit.application.factories.code_indexing_factory import (
     create_code_indexing_application_service,
 )
+from kodit.application.factories.reporting_factory import create_noop_operation
+from kodit.application.services.reporting import Step
 from kodit.config import AppContext
 from kodit.domain.entities import Task
-from kodit.domain.services.reporting_service import Step, create_noop_operation
 from kodit.domain.value_objects import TaskType
 from kodit.infrastructure.sqlalchemy.task_repository import create_task_repository
 
