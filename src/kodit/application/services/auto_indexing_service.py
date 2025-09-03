@@ -56,10 +56,11 @@ class AutoIndexingService:
     async def _index_sources(self, sources: list[str]) -> None:
         """Index all configured sources in the background."""
         async with self.session_factory() as session:
-            queue_service = QueueService(session=session)
+            queue_service = QueueService(session_factory=self.session_factory)
             service = create_code_indexing_application_service(
                 app_context=self.app_context,
                 session=session,
+                session_factory=self.session_factory,
                 reporter=self.reporter,
             )
 

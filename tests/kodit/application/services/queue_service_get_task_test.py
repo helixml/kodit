@@ -1,5 +1,7 @@
 """Tests for the queue service get_task method."""
 
+from collections.abc import Callable
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.application.services.queue_service import QueueService
@@ -7,9 +9,9 @@ from kodit.domain.entities import Task
 from kodit.domain.value_objects import QueuePriority, TaskType
 
 
-async def test_get_task_existing(session: AsyncSession) -> None:
+async def test_get_task_existing(session_factory: Callable[[], AsyncSession]) -> None:
     """Test getting an existing task by ID."""
-    queue_service = QueueService(session)
+    queue_service = QueueService(session_factory=session_factory)
 
     # Create and enqueue a task
     task = Task.create_index_update_task(
@@ -27,9 +29,11 @@ async def test_get_task_existing(session: AsyncSession) -> None:
     assert retrieved_task.priority == QueuePriority.USER_INITIATED
 
 
-async def test_get_task_nonexistent(session: AsyncSession) -> None:
+async def test_get_task_nonexistent(
+    session_factory: Callable[[], AsyncSession],
+) -> None:
     """Test getting a non-existent task returns None."""
-    queue_service = QueueService(session)
+    queue_service = QueueService(session_factory=session_factory)
 
     # Try to get a task that doesn't exist
     retrieved_task = await queue_service.get_task("nonexistent-id")
@@ -37,9 +41,11 @@ async def test_get_task_nonexistent(session: AsyncSession) -> None:
     assert retrieved_task is None
 
 
-async def test_get_task_after_multiple_tasks(session: AsyncSession) -> None:
+async def test_get_task_after_multiple_tasks(
+    session_factory: Callable[[], AsyncSession],
+) -> None:
     """Test getting a specific task when multiple tasks exist."""
-    queue_service = QueueService(session)
+    queue_service = QueueService(session_factory=session_factory)
 
     # Create and enqueue multiple tasks
     tasks = []

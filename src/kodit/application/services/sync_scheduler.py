@@ -12,7 +12,7 @@ from kodit.domain.entities import Task
 from kodit.domain.services.index_query_service import IndexQueryService
 from kodit.domain.value_objects import QueuePriority
 from kodit.infrastructure.indexing.fusion_service import ReciprocalRankFusionService
-from kodit.infrastructure.sqlalchemy.index_repository import SqlAlchemyIndexRepository
+from kodit.infrastructure.sqlalchemy.index_repository import create_index_repository
 
 
 class SyncSchedulerService:
@@ -67,27 +67,28 @@ class SyncSchedulerService:
         """Perform a sync operation on all indexes."""
         self.log.info("Starting sync operation")
 
-        async with self.session_factory() as session:
-            # Create services
-            queue_service = QueueService(session=session)
-            index_query_service = IndexQueryService(
-                index_repository=SqlAlchemyIndexRepository(session=session),
-                fusion_service=ReciprocalRankFusionService(),
+        # Create services
+        queue_service = QueueService(session_factory=self.session_factory)
+        index_query_service = IndexQueryService(
+            index_repository=create_index_repository(
+                session_factory=self.session_factory
+            ),
+            fusion_service=ReciprocalRankFusionService(),
+        )
+
+        # Get all existing indexes
+        all_indexes = await index_query_service.list_indexes()
+
+        if not all_indexes:
+            self.log.info("No indexes found to sync")
+            return
+
+        self.log.info("Adding sync tasks to queue", count=len(all_indexes))
+
+        # Sync each index
+        for index in all_indexes:
+            await queue_service.enqueue_task(
+                Task.create_index_update_task(index.id, QueuePriority.BACKGROUND)
             )
 
-            # Get all existing indexes
-            all_indexes = await index_query_service.list_indexes()
-
-            if not all_indexes:
-                self.log.info("No indexes found to sync")
-                return
-
-            self.log.info("Adding sync tasks to queue", count=len(all_indexes))
-
-            # Sync each index
-            for index in all_indexes:
-                await queue_service.enqueue_task(
-                    Task.create_index_update_task(index.id, QueuePriority.BACKGROUND)
-                )
-
-            self.log.info("Sync operation completed")
+        self.log.info("Sync operation completed")

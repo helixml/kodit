@@ -1,5 +1,7 @@
 """Tests for the QueueService."""
 
+from collections.abc import Callable
+
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,9 +11,11 @@ from kodit.domain.value_objects import QueuePriority, TaskType
 
 
 @pytest.mark.asyncio
-async def test_enqueue_task_new_task(session: AsyncSession) -> None:
+async def test_enqueue_task_new_task(
+    session_factory: Callable[[], AsyncSession],
+) -> None:
     """Test enqueuing a new task."""
-    queue_service = QueueService(session)
+    queue_service = QueueService(session_factory=session_factory)
 
     # Create a test task
     task = Task.create_index_update_task(
@@ -32,10 +36,10 @@ async def test_enqueue_task_new_task(session: AsyncSession) -> None:
 
 @pytest.mark.asyncio
 async def test_enqueue_task_existing_task_updates_priority(
-    session: AsyncSession,
+    session_factory: Callable[[], AsyncSession],
 ) -> None:
     """Test that enqueuing an existing task updates its priority."""
-    queue_service = QueueService(session)
+    queue_service = QueueService(session_factory=session_factory)
 
     # Create and enqueue a task with user-initiated priority
     task = Task.create_index_update_task(
@@ -60,9 +64,11 @@ async def test_enqueue_task_existing_task_updates_priority(
 
 
 @pytest.mark.asyncio
-async def test_enqueue_multiple_tasks(session: AsyncSession) -> None:
+async def test_enqueue_multiple_tasks(
+    session_factory: Callable[[], AsyncSession],
+) -> None:
     """Test enqueuing multiple tasks."""
-    queue_service = QueueService(session)
+    queue_service = QueueService(session_factory=session_factory)
 
     # Create and enqueue multiple tasks
     tasks = []
@@ -87,9 +93,9 @@ async def test_enqueue_multiple_tasks(session: AsyncSession) -> None:
 
 
 @pytest.mark.asyncio
-async def test_list_tasks_by_type(session: AsyncSession) -> None:
+async def test_list_tasks_by_type(session_factory: Callable[[], AsyncSession]) -> None:
     """Test listing tasks filtered by type."""
-    queue_service = QueueService(session)
+    queue_service = QueueService(session_factory=session_factory)
 
     # Create tasks with different types
     # Currently only INDEX_UPDATE is supported, but test the filtering logic
@@ -112,18 +118,22 @@ async def test_list_tasks_by_type(session: AsyncSession) -> None:
 
 
 @pytest.mark.asyncio
-async def test_list_tasks_empty_queue(session: AsyncSession) -> None:
+async def test_list_tasks_empty_queue(
+    session_factory: Callable[[], AsyncSession],
+) -> None:
     """Test listing tasks when queue is empty."""
-    queue_service = QueueService(session)
+    queue_service = QueueService(session_factory=session_factory)
 
     tasks = await queue_service.list_tasks()
     assert len(tasks) == 0
 
 
 @pytest.mark.asyncio
-async def test_task_priority_ordering(session: AsyncSession) -> None:
+async def test_task_priority_ordering(
+    session_factory: Callable[[], AsyncSession],
+) -> None:
     """Test that tasks are returned in priority order."""
-    queue_service = QueueService(session)
+    queue_service = QueueService(session_factory=session_factory)
 
     # Create tasks with different priorities
     background_task = Task.create_index_update_task(

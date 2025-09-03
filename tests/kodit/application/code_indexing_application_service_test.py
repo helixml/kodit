@@ -1,5 +1,6 @@
 """End-to-end tests for CodeIndexingApplicationService."""
 
+from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import patch
 
@@ -22,25 +23,28 @@ from kodit.domain.value_objects import (
     MultiSearchRequest,
 )
 from kodit.infrastructure.indexing.fusion_service import ReciprocalRankFusionService
-from kodit.infrastructure.sqlalchemy.index_repository import SqlAlchemyIndexRepository
+from kodit.infrastructure.sqlalchemy.index_repository import create_index_repository
 
 
 @pytest.fixture
 async def index_repository(
-    session: AsyncSession,
+    session_factory: Callable[[], AsyncSession],
 ) -> IndexRepository:
     """Create a real CodeIndexingApplicationService with all dependencies."""
-    return SqlAlchemyIndexRepository(session=session)
+    return create_index_repository(session_factory=session_factory)
 
 
 @pytest.fixture
 async def code_indexing_service(
-    session: AsyncSession, app_context: AppContext
+    session: AsyncSession,
+    app_context: AppContext,
+    session_factory: Callable[[], AsyncSession],
 ) -> CodeIndexingApplicationService:
     """Create a real CodeIndexingApplicationService with all dependencies."""
     return create_fast_test_code_indexing_application_service(
         app_context=app_context,
         session=session,
+        session_factory=session_factory,
     )
 
 
@@ -132,6 +136,7 @@ def new_function():
 async def test_search_finds_relevant_snippets(
     code_indexing_service: CodeIndexingApplicationService,
     tmp_path: Path,
+    session_factory: Callable[[], AsyncSession],
 ) -> None:
     """Test that search function finds relevant snippets using different search modes.
 
@@ -188,12 +193,9 @@ def validate_input(value: str) -> bool:
     # that we can retrieve snippets by ID. This is crucial because the BM25 index
     # uses database IDs, so we need to ensure the snippets have been persisted
     # with their proper IDs before searching.
-    from kodit.infrastructure.sqlalchemy.index_repository import (
-        SqlAlchemyIndexRepository,
-    )
 
     # Verify the index has been properly persisted with snippets
-    index_repo = SqlAlchemyIndexRepository(session=code_indexing_service.session)
+    index_repo = create_index_repository(session_factory=session_factory)
     persisted_index = await index_repo.get(index.id)
     assert persisted_index is not None, "Index should be persisted"
     assert len(persisted_index.snippets) > 0, "Index should have snippets"

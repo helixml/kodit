@@ -16,7 +16,7 @@ from kodit.config import AppContext
 from kodit.domain.entities import Task
 from kodit.domain.protocols import ReportingService
 from kodit.domain.value_objects import TaskType
-from kodit.infrastructure.sqlalchemy.task_repository import SqlAlchemyTaskRepository
+from kodit.infrastructure.sqlalchemy.task_repository import create_task_repository
 
 
 class IndexingWorkerService:
@@ -41,6 +41,7 @@ class IndexingWorkerService:
             max_workers=1, thread_name_prefix="indexing-worker"
         )
         self.reporter = reporter
+        self.task_repository = create_task_repository(session_factory)
         self.log = structlog.get_logger(__name__)
 
     async def start(self) -> None:
@@ -75,8 +76,7 @@ class IndexingWorkerService:
         while not self._shutdown_event.is_set():
             try:
                 async with self.session_factory() as session:
-                    repo = SqlAlchemyTaskRepository(session)
-                    task = await repo.take()
+                    task = await self.task_repository.take()
                     await session.commit()
 
                 # If there's a task, process it in a new thread
@@ -147,6 +147,7 @@ class IndexingWorkerService:
                 service = create_code_indexing_application_service(
                     app_context=self.app_context,
                     session=session,
+                    session_factory=self.session_factory,
                     reporter=self.reporter,
                 )
                 index = await service.index_repository.get(index_id)

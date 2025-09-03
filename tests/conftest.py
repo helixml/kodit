@@ -1,7 +1,7 @@
 """Test configuration and fixtures."""
 
 import tempfile
-from collections.abc import AsyncGenerator, Generator
+from collections.abc import AsyncGenerator, Callable, Generator
 from pathlib import Path
 from unittest.mock import patch
 
@@ -20,6 +20,7 @@ from kodit.config import AppContext, LogFormat
 from kodit.infrastructure.sqlalchemy.entities import (
     Base,
 )
+from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 
 
 @pytest.fixture
@@ -91,3 +92,15 @@ def app_context() -> Generator[AppContext, None, None]:
                 _env_file=None,  # type: ignore[call-arg]
             )
         yield app_context
+
+
+@pytest.fixture
+def session_factory(engine: AsyncEngine) -> Callable[[], AsyncSession]:
+    """Create a test database session factory."""
+    return async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+
+@pytest.fixture
+def unit_of_work(session_factory: Callable[[], AsyncSession]) -> SqlAlchemyUnitOfWork:
+    """Create a test unit of work."""
+    return SqlAlchemyUnitOfWork(session_factory)

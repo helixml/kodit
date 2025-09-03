@@ -15,6 +15,7 @@ from kodit.domain.value_objects import (
 from kodit.infrastructure.sqlalchemy import entities as db_entities
 
 
+# TODO(Phil): Make this a pure mapper without any DB access # noqa: TD003, FIX002
 class IndexMapper:
     """Mapper for converting between domain Index aggregate and database entities."""
 

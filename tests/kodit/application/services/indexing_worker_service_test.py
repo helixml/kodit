@@ -21,6 +21,7 @@ from kodit.domain.value_objects import (
     TaskType,
 )
 from kodit.infrastructure.reporting.reporter import create_noop_reporter
+from kodit.infrastructure.sqlalchemy.task_repository import create_task_repository
 
 
 @pytest.fixture
@@ -78,12 +79,11 @@ def dummy_index(tmp_path: Path) -> Index:
 async def test_worker_processes_task(
     app_context: AppContext,
     session_factory: Callable[[], AsyncSession],
-    session: AsyncSession,
     dummy_index: Index,
 ) -> None:
     """Test that the worker processes a task from the queue."""
     # Add a task to the queue
-    queue_service = QueueService(session)
+    queue_service = QueueService(session_factory=session_factory)
     task = Task.create_index_update_task(
         index_id=dummy_index.id, priority=QueuePriority.USER_INITIATED
     )
@@ -118,11 +118,10 @@ async def test_worker_processes_task(
 async def test_worker_handles_missing_index(
     app_context: AppContext,
     session_factory: Callable[[], AsyncSession],
-    session: AsyncSession,
 ) -> None:
     """Test that the worker handles missing index gracefully."""
     # Add a task with non-existent index
-    queue_service = QueueService(session)
+    queue_service = QueueService(session_factory=session_factory)
     task = Task.create_index_update_task(
         index_id=999,  # Non-existent
         priority=QueuePriority.USER_INITIATED,
@@ -156,11 +155,9 @@ async def test_worker_handles_missing_index(
 async def test_worker_handles_invalid_task_payload(
     app_context: AppContext,
     session_factory: Callable[[], AsyncSession],
-    session: AsyncSession,
 ) -> None:
     """Test that the worker handles invalid task payload gracefully."""
     # Add a task with invalid payload
-    QueueService(session)
     task = Task(
         id="test-task-1",
         type=TaskType.INDEX_UPDATE,
@@ -168,12 +165,8 @@ async def test_worker_handles_invalid_task_payload(
         priority=QueuePriority.USER_INITIATED,
     )
 
-    # Manually add the task to bypass validation
-    from kodit.infrastructure.sqlalchemy.task_repository import SqlAlchemyTaskRepository
-
-    repo = SqlAlchemyTaskRepository(session)
+    repo = create_task_repository(session_factory=session_factory)
     await repo.add(task)
-    await session.commit()
 
     # Create worker service
     worker = IndexingWorkerService(app_context, session_factory, create_noop_reporter())
@@ -194,11 +187,10 @@ async def test_worker_handles_invalid_task_payload(
 async def test_worker_processes_multiple_tasks_sequentially(
     app_context: AppContext,
     session_factory: Callable[[], AsyncSession],
-    session: AsyncSession,
 ) -> None:
     """Test that the worker processes multiple tasks sequentially."""
     # Add multiple tasks to the queue
-    queue_service = QueueService(session)
+    queue_service = QueueService(session_factory=session_factory)
     tasks = []
     for i in range(3):
         task = Task.create_index_update_task(
@@ -277,11 +269,10 @@ async def test_worker_stops_gracefully(
 async def test_worker_continues_after_error(
     app_context: AppContext,
     session_factory: Callable[[], AsyncSession],
-    session: AsyncSession,
 ) -> None:
     """Test that the worker continues processing after encountering an error."""
     # Add tasks to the queue
-    queue_service = QueueService(session)
+    queue_service = QueueService(session_factory=session_factory)
 
     # First task will succeed
     task1 = Task.create_index_update_task(
@@ -352,11 +343,10 @@ async def test_worker_continues_after_error(
 async def test_worker_respects_task_priority(
     app_context: AppContext,
     session_factory: Callable[[], AsyncSession],
-    session: AsyncSession,
 ) -> None:
     """Test that the worker processes tasks in priority order."""
     # Add tasks with different priorities
-    queue_service = QueueService(session)
+    queue_service = QueueService(session_factory=session_factory)
 
     # Add in reverse priority order
     background_task = Task.create_index_update_task(

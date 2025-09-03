@@ -1,5 +1,8 @@
 """Integration tests for embedding functionality."""
 
+from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
+
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,7 +21,7 @@ from kodit.infrastructure.embedding.local_vector_search_repository import (
     LocalVectorSearchRepository,
 )
 from kodit.infrastructure.sqlalchemy.embedding_repository import (
-    SqlAlchemyEmbeddingRepository,
+    create_embedding_repository,
 )
 from kodit.infrastructure.sqlalchemy.entities import (
     EmbeddingType,
@@ -28,16 +31,22 @@ from kodit.infrastructure.sqlalchemy.entities import (
     Source,
     SourceType,
 )
+from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 
 
 class TestEmbeddingIntegration:
     """Integration tests for embedding functionality."""
 
     @pytest.mark.asyncio
-    async def test_full_embedding_pipeline_local(self, session: AsyncSession) -> None:
+    async def test_full_embedding_pipeline_local(
+        self, session_factory: Callable[[], AsyncSession]
+    ) -> None:
         """Test the full embedding pipeline with hash provider."""
         # Create real components
-        embedding_repository = SqlAlchemyEmbeddingRepository(session=session)
+        uow = SqlAlchemyUnitOfWork(session_factory=session_factory)
+        embedding_repository = create_embedding_repository(
+            session_factory=session_factory
+        )
         embedding_provider = HashEmbeddingProvider()
         vector_search_repository = LocalVectorSearchRepository(
             embedding_repository=embedding_repository,
@@ -52,61 +61,59 @@ class TestEmbeddingIntegration:
         )
 
         # Create actual snippets in the database first
-        from datetime import UTC, datetime
+        async with uow:
+            # Create source
+            source = Source(
+                uri="test_repo",
+                cloned_path="/tmp/test_repo",  # noqa: S108
+                source_type=SourceType.GIT,
+            )
+            uow.session.add(source)
+            await uow.flush()
 
-        # Create source
-        source = Source(
-            uri="test_repo",
-            cloned_path="/tmp/test_repo",  # noqa: S108
-            source_type=SourceType.GIT,
-        )
-        session.add(source)
-        await session.commit()
+            # Create file
+            file = File(
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
+                source_id=source.id,
+                mime_type="text/plain",
+                uri="test.py",
+                cloned_path="/tmp/test_repo/test.py",  # noqa: S108
+                sha256="abc123",
+                size_bytes=100,
+                extension="py",
+                file_processing_status=FileProcessingStatus.CLEAN.value,
+            )
+            uow.session.add(file)
+            await uow.flush()
 
-        # Create file
-        file = File(
-            created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
-            source_id=source.id,
-            mime_type="text/plain",
-            uri="test.py",
-            cloned_path="/tmp/test_repo/test.py",  # noqa: S108
-            sha256="abc123",
-            size_bytes=100,
-            extension="py",
-            file_processing_status=FileProcessingStatus.CLEAN.value,
-        )
-        session.add(file)
-        await session.commit()
+            # Create index
+            index = Index(source_id=source.id)
+            uow.session.add(index)
+            await uow.flush()
 
-        # Create index
-        index = Index(source_id=source.id)
-        session.add(index)
-        await session.commit()
-
-        # Create snippets
-        snippet1 = Snippet(
-            file_id=file.id,
-            index_id=index.id,
-            content="python programming language",
-            summary="",
-        )
-        snippet2 = Snippet(
-            file_id=file.id,
-            index_id=index.id,
-            content="javascript web development",
-            summary="",
-        )
-        snippet3 = Snippet(
-            file_id=file.id,
-            index_id=index.id,
-            content="java enterprise applications",
-            summary="",
-        )
-        session.add(snippet1)
-        session.add(snippet2)
-        session.add(snippet3)
-        await session.commit()
+            # Create snippets
+            snippet1 = Snippet(
+                file_id=file.id,
+                index_id=index.id,
+                content="python programming language",
+                summary="",
+            )
+            snippet2 = Snippet(
+                file_id=file.id,
+                index_id=index.id,
+                content="javascript web development",
+                summary="",
+            )
+            snippet3 = Snippet(
+                file_id=file.id,
+                index_id=index.id,
+                content="java enterprise applications",
+                summary="",
+            )
+            uow.session.add(snippet1)
+            uow.session.add(snippet2)
+            uow.session.add(snippet3)
 
         # Test indexing with real snippet IDs
         index_request = IndexRequest(
@@ -146,9 +153,14 @@ class TestEmbeddingIntegration:
         assert has_embedding is False
 
     @pytest.mark.asyncio
-    async def test_embedding_similarity_ranking(self, session: AsyncSession) -> None:
+    async def test_embedding_similarity_ranking(
+        self, session_factory: Callable[[], AsyncSession]
+    ) -> None:
         """Test that embeddings produce meaningful similarity rankings."""
-        embedding_repository = SqlAlchemyEmbeddingRepository(session=session)
+        uow = SqlAlchemyUnitOfWork(session_factory=session_factory)
+        embedding_repository = create_embedding_repository(
+            session_factory=session_factory
+        )
         embedding_provider = HashEmbeddingProvider()
         vector_search_repository = LocalVectorSearchRepository(
             embedding_repository=embedding_repository,
@@ -162,68 +174,67 @@ class TestEmbeddingIntegration:
         )
 
         # Create actual snippets in the database first
-        from datetime import UTC, datetime
+        async with uow:
+            # Create source
+            source = Source(
+                uri="test_repo",
+                cloned_path="/tmp/test_repo",  # noqa: S108
+                source_type=SourceType.GIT,
+            )
+            uow.session.add(source)
+            await uow.flush()
 
-        # Create source
-        source = Source(
-            uri="test_repo",
-            cloned_path="/tmp/test_repo",  # noqa: S108
-            source_type=SourceType.GIT,
-        )
-        session.add(source)
-        await session.commit()
+            # Create file
+            file = File(
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
+                source_id=source.id,
+                mime_type="text/plain",
+                uri="test.py",
+                cloned_path="/tmp/test_repo/test.py",  # noqa: S108
+                sha256="abc123",
+                size_bytes=100,
+                extension="py",
+                file_processing_status=FileProcessingStatus.CLEAN.value,
+            )
+            uow.session.add(file)
+            await uow.flush()
 
-        # Create file
-        file = File(
-            created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
-            source_id=source.id,
-            mime_type="text/plain",
-            uri="test.py",
-            cloned_path="/tmp/test_repo/test.py",  # noqa: S108
-            sha256="abc123",
-            size_bytes=100,
-            extension="py",
-            file_processing_status=FileProcessingStatus.CLEAN.value,
-        )
-        session.add(file)
-        await session.commit()
+            # Create index
+            index = Index(source_id=source.id)
+            uow.session.add(index)
+            await uow.flush()
 
-        # Create index
-        index = Index(source_id=source.id)
-        session.add(index)
-        await session.commit()
-
-        # Create snippets
-        snippet1 = Snippet(
-            file_id=file.id,
-            index_id=index.id,
-            content="python function definition",
-            summary="",
-        )
-        snippet2 = Snippet(
-            file_id=file.id,
-            index_id=index.id,
-            content="javascript function definition",
-            summary="",
-        )
-        snippet3 = Snippet(
-            file_id=file.id,
-            index_id=index.id,
-            content="java function definition",
-            summary="",
-        )
-        snippet4 = Snippet(
-            file_id=file.id,
-            index_id=index.id,
-            content="database query optimization",
-            summary="",
-        )
-        session.add(snippet1)
-        session.add(snippet2)
-        session.add(snippet3)
-        session.add(snippet4)
-        await session.commit()
+            # Create snippets
+            snippet1 = Snippet(
+                file_id=file.id,
+                index_id=index.id,
+                content="python function definition",
+                summary="",
+            )
+            snippet2 = Snippet(
+                file_id=file.id,
+                index_id=index.id,
+                content="javascript function definition",
+                summary="",
+            )
+            snippet3 = Snippet(
+                file_id=file.id,
+                index_id=index.id,
+                content="java function definition",
+                summary="",
+            )
+            snippet4 = Snippet(
+                file_id=file.id,
+                index_id=index.id,
+                content="database query optimization",
+                summary="",
+            )
+            uow.session.add(snippet1)
+            uow.session.add(snippet2)
+            uow.session.add(snippet3)
+            uow.session.add(snippet4)
+            await uow.flush()
 
         # Index documents with different content
         index_request = IndexRequest(
@@ -254,9 +265,14 @@ class TestEmbeddingIntegration:
         assert len(python_snippet_ids) > 0
 
     @pytest.mark.asyncio
-    async def test_embedding_batch_processing(self, session: AsyncSession) -> None:
+    async def test_embedding_batch_processing(
+        self, session_factory: Callable[[], AsyncSession]
+    ) -> None:
         """Test that embedding processing works correctly in batches."""
-        embedding_repository = SqlAlchemyEmbeddingRepository(session=session)
+        uow = SqlAlchemyUnitOfWork(session_factory=session_factory)
+        embedding_repository = create_embedding_repository(
+            session_factory=session_factory
+        )
         embedding_provider = HashEmbeddingProvider()
         vector_search_repository = LocalVectorSearchRepository(
             embedding_repository=embedding_repository,
@@ -270,50 +286,49 @@ class TestEmbeddingIntegration:
         )
 
         # Create actual snippets in the database first
-        from datetime import UTC, datetime
-
-        # Create source
-        source = Source(
-            uri="test_repo",
-            cloned_path="/tmp/test_repo",  # noqa: S108
-            source_type=SourceType.GIT,
-        )
-        session.add(source)
-        await session.commit()
-
-        # Create file
-        file = File(
-            created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
-            source_id=source.id,
-            mime_type="text/plain",
-            uri="test.py",
-            cloned_path="/tmp/test_repo/test.py",  # noqa: S108
-            sha256="abc123",
-            size_bytes=100,
-            extension="py",
-            file_processing_status=FileProcessingStatus.CLEAN.value,
-        )
-        session.add(file)
-        await session.commit()
-
-        # Create index
-        index = Index(source_id=source.id)
-        session.add(index)
-        await session.commit()
-
-        # Create snippets
-        snippets = []
-        for i in range(25):
-            snippet = Snippet(
-                file_id=file.id,
-                index_id=index.id,
-                content=f"document {i} content",
-                summary="",
+        async with uow:
+            # Create source
+            source = Source(
+                uri="test_repo",
+                cloned_path="/tmp/test_repo",  # noqa: S108
+                source_type=SourceType.GIT,
             )
-            snippets.append(snippet)
-            session.add(snippet)
-        await session.commit()
+            uow.session.add(source)
+            await uow.flush()
+
+            # Create file
+            file = File(
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
+                source_id=source.id,
+                mime_type="text/plain",
+                uri="test.py",
+                cloned_path="/tmp/test_repo/test.py",  # noqa: S108
+                sha256="abc123",
+                size_bytes=100,
+                extension="py",
+                file_processing_status=FileProcessingStatus.CLEAN.value,
+            )
+            uow.session.add(file)
+            await uow.flush()
+
+            # Create index
+            index = Index(source_id=source.id)
+            uow.session.add(index)
+            await uow.flush()
+
+            # Create snippets
+            snippets = []
+            for i in range(25):
+                snippet = Snippet(
+                    file_id=file.id,
+                    index_id=index.id,
+                    content=f"document {i} content",
+                    summary="",
+                )
+                snippets.append(snippet)
+                uow.session.add(snippet)
+            await uow.flush()
 
         # Create many documents to test batch processing
         documents = []
@@ -334,10 +349,14 @@ class TestEmbeddingIntegration:
         assert batch_count >= 2  # Should be processed in multiple batches
 
     @pytest.mark.asyncio
-    async def test_embedding_error_handling(self, session: AsyncSession) -> None:
+    async def test_embedding_error_handling(
+        self, session_factory: Callable[[], AsyncSession]
+    ) -> None:
         """Test error handling in the embedding pipeline."""
         # Test with invalid requests
-        embedding_repository = SqlAlchemyEmbeddingRepository(session=session)
+        embedding_repository = create_embedding_repository(
+            session_factory=session_factory
+        )
         embedding_provider = HashEmbeddingProvider()
         vector_search_repository = LocalVectorSearchRepository(
             embedding_repository=embedding_repository,
@@ -364,10 +383,13 @@ class TestEmbeddingIntegration:
 
     @pytest.mark.asyncio
     async def test_embedding_deterministic_behavior(
-        self, session: AsyncSession
+        self, session_factory: Callable[[], AsyncSession]
     ) -> None:
         """Test that embeddings are deterministic."""
-        embedding_repository = SqlAlchemyEmbeddingRepository(session=session)
+        uow = SqlAlchemyUnitOfWork(session_factory=session_factory)
+        embedding_repository = create_embedding_repository(
+            session_factory=session_factory
+        )
         embedding_provider = HashEmbeddingProvider()
         vector_search_repository = LocalVectorSearchRepository(
             embedding_repository=embedding_repository,
@@ -381,44 +403,46 @@ class TestEmbeddingIntegration:
         )
 
         # Create actual snippets in the database first
-        from datetime import UTC, datetime
+        async with uow:
+            # Create source
+            source = Source(
+                uri="test_repo",
+                cloned_path="/tmp/test_repo",  # noqa: S108
+                source_type=SourceType.GIT,
+            )
+            uow.session.add(source)
+            await uow.flush()
 
-        # Create source
-        source = Source(
-            uri="test_repo",
-            cloned_path="/tmp/test_repo",  # noqa: S108
-            source_type=SourceType.GIT,
-        )
-        session.add(source)
-        await session.commit()
+            # Create file
+            file = File(
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
+                source_id=source.id,
+                mime_type="text/plain",
+                uri="test.py",
+                cloned_path="/tmp/test_repo/test.py",  # noqa: S108
+                sha256="abc123",
+                size_bytes=100,
+                extension="py",
+                file_processing_status=FileProcessingStatus.CLEAN.value,
+            )
+            uow.session.add(file)
+            await uow.flush()
 
-        # Create file
-        file = File(
-            created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
-            source_id=source.id,
-            mime_type="text/plain",
-            uri="test.py",
-            cloned_path="/tmp/test_repo/test.py",  # noqa: S108
-            sha256="abc123",
-            size_bytes=100,
-            extension="py",
-            file_processing_status=FileProcessingStatus.CLEAN.value,
-        )
-        session.add(file)
-        await session.commit()
+            # Create index
+            index = Index(source_id=source.id)
+            uow.session.add(index)
+            await uow.flush()
 
-        # Create index
-        index = Index(source_id=source.id)
-        session.add(index)
-        await session.commit()
-
-        # Create snippet
-        snippet = Snippet(
-            file_id=file.id, index_id=index.id, content="python programming", summary=""
-        )
-        session.add(snippet)
-        await session.commit()
+            # Create snippet
+            snippet = Snippet(
+                file_id=file.id,
+                index_id=index.id,
+                content="python programming",
+                summary="",
+            )
+            uow.session.add(snippet)
+            await uow.flush()
 
         # Index the same content twice
         index_request = IndexRequest(
@@ -449,9 +473,14 @@ class TestEmbeddingIntegration:
             assert abs(results1[0].score - results2[0].score) < 1e-6
 
     @pytest.mark.asyncio
-    async def test_embedding_type_separation(self, session: AsyncSession) -> None:
+    async def test_embedding_type_separation(
+        self, session_factory: Callable[[], AsyncSession]
+    ) -> None:
         """Test that different embedding types are handled separately."""
-        embedding_repository = SqlAlchemyEmbeddingRepository(session=session)
+        uow = SqlAlchemyUnitOfWork(session_factory=session_factory)
+        embedding_repository = create_embedding_repository(
+            session_factory=session_factory
+        )
         embedding_provider = HashEmbeddingProvider()
 
         # Create two repositories with different embedding types
@@ -478,45 +507,46 @@ class TestEmbeddingIntegration:
         )
 
         # Create actual snippets in the database first
-        from datetime import UTC, datetime
+        async with uow:
+            # Create source
+            source = Source(
+                uri="test_repo",
+                cloned_path="/tmp/test_repo",  # noqa: S108
+                source_type=SourceType.GIT,
+            )
+            uow.session.add(source)
+            await uow.flush()
 
-        # Create source
-        source = Source(
-            uri="test_repo",
-            cloned_path="/tmp/test_repo",  # noqa: S108
-            source_type=SourceType.GIT,
-        )
-        session.add(source)
-        await session.commit()
+            # Create file
+            file = File(
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
+                source_id=source.id,
+                mime_type="text/plain",
+                uri="test.py",
+                cloned_path="/tmp/test_repo/test.py",  # noqa: S108
+                sha256="abc123",
+                size_bytes=100,
+                extension="py",
+                file_processing_status=FileProcessingStatus.CLEAN.value,
+            )
+            uow.session.add(file)
+            await uow.flush()
 
-        # Create file
-        file = File(
-            created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
-            source_id=source.id,
-            mime_type="text/plain",
-            uri="test.py",
-            cloned_path="/tmp/test_repo/test.py",  # noqa: S108
-            sha256="abc123",
-            size_bytes=100,
-            extension="py",
-            file_processing_status=FileProcessingStatus.CLEAN.value,
-        )
-        session.add(file)
-        await session.commit()
+            # Create index
+            index = Index(source_id=source.id)
+            uow.session.add(index)
+            await uow.flush()
 
-        # Create index
-        index = Index(source_id=source.id)
-        session.add(index)
-        await session.commit()
-
-        # Create snippet
-        snippet = Snippet(
-            file_id=file.id, index_id=index.id, content="python programming", summary=""
-        )
-        session.add(snippet)
-        await session.commit()
-
+            # Create snippet
+            snippet = Snippet(
+                file_id=file.id,
+                index_id=index.id,
+                content="python programming",
+                summary="",
+            )
+            uow.session.add(snippet)
+            await uow.flush()
         # Index same content with different types
         index_request = IndexRequest(
             documents=[
@@ -549,10 +579,13 @@ class TestEmbeddingIntegration:
 
     @pytest.mark.asyncio
     async def test_embedding_performance_characteristics(
-        self, session: AsyncSession
+        self, session_factory: Callable[[], AsyncSession]
     ) -> None:
         """Test basic performance characteristics of embedding operations."""
-        embedding_repository = SqlAlchemyEmbeddingRepository(session=session)
+        uow = SqlAlchemyUnitOfWork(session_factory=session_factory)
+        embedding_repository = create_embedding_repository(
+            session_factory=session_factory
+        )
         embedding_provider = HashEmbeddingProvider()
         vector_search_repository = LocalVectorSearchRepository(
             embedding_repository=embedding_repository,
@@ -566,54 +599,51 @@ class TestEmbeddingIntegration:
         )
 
         # Create actual snippets in the database first
-        from datetime import UTC, datetime
-
-        # Create source
-        source = Source(
-            uri="test_repo",
-            cloned_path="/tmp/test_repo",  # noqa: S108
-            source_type=SourceType.GIT,
-        )
-        session.add(source)
-        await session.commit()
-
-        # Create file
-        file = File(
-            created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
-            source_id=source.id,
-            mime_type="text/plain",
-            uri="test.py",
-            cloned_path="/tmp/test_repo/test.py",  # noqa: S108
-            sha256="abc123",
-            size_bytes=100,
-            extension="py",
-            file_processing_status=FileProcessingStatus.CLEAN.value,
-        )
-        session.add(file)
-        await session.commit()
-
-        # Create index
-        index = Index(source_id=source.id)
-        session.add(index)
-        await session.commit()
-
-        # Create snippets
-        snippets = []
-        for i in range(10):
-            snippet = Snippet(
-                file_id=file.id,
-                index_id=index.id,
-                content=f"document {i} with some content",
-                summary="",
+        async with uow:
+            # Create source
+            source = Source(
+                uri="test_repo",
+                cloned_path="/tmp/test_repo",  # noqa: S108
+                source_type=SourceType.GIT,
             )
-            snippets.append(snippet)
-            session.add(snippet)
-        await session.commit()
+            uow.session.add(source)
+            await uow.flush()
+
+            # Create file
+            file = File(
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
+                source_id=source.id,
+                mime_type="text/plain",
+                uri="test.py",
+                cloned_path="/tmp/test_repo/test.py",  # noqa: S108
+                sha256="abc123",
+                size_bytes=100,
+                extension="py",
+                file_processing_status=FileProcessingStatus.CLEAN.value,
+            )
+            uow.session.add(file)
+            await uow.flush()
+
+            # Create index
+            index = Index(source_id=source.id)
+            uow.session.add(index)
+            await uow.flush()
+
+            # Create snippets
+            snippets = []
+            for i in range(10):
+                snippet = Snippet(
+                    file_id=file.id,
+                    index_id=index.id,
+                    content=f"document {i} with some content",
+                    summary="",
+                )
+                snippets.append(snippet)
+                uow.session.add(snippet)
+            await uow.flush()
 
         # Test indexing performance with multiple documents
-        import time
-
         documents = []
         for i, snippet in enumerate(snippets):
             documents.append(
@@ -622,21 +652,23 @@ class TestEmbeddingIntegration:
 
         index_request = IndexRequest(documents=documents)
 
-        start_time = time.time()
+        start_time = datetime.now(UTC)
         async for _ in domain_service.index_documents(index_request):
             pass
-        indexing_time = time.time() - start_time
+        indexing_time = datetime.now(UTC) - start_time
 
         # Indexing should complete in reasonable time
-        assert indexing_time < 10.0  # Should complete within 10 seconds
+        assert indexing_time < timedelta(
+            seconds=10
+        )  # Should complete within 10 seconds
 
         # Test search performance
         search_request = SearchRequest(query="document content", top_k=5)
 
-        start_time = time.time()
+        start_time = datetime.now(UTC)
         results = await domain_service.search(search_request)
-        search_time = time.time() - start_time
+        search_time = datetime.now(UTC) - start_time
 
         # Search should complete quickly
-        assert search_time < 5.0  # Should complete within 5 seconds
+        assert search_time < timedelta(seconds=5)  # Should complete within 5 seconds
         assert len(results) == 5

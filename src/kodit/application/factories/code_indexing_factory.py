@@ -1,5 +1,7 @@
 """Factory for creating the unified code indexing application service."""
 
+from collections.abc import Callable
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.application.services.code_indexing_application_service import (
@@ -35,29 +37,37 @@ from kodit.infrastructure.indexing.fusion_service import ReciprocalRankFusionSer
 from kodit.infrastructure.reporting.reporter import (
     create_cli_reporter,
     create_noop_reporter,
+    create_server_reporter,
 )
 from kodit.infrastructure.slicing.language_detection_service import (
     FileSystemLanguageDetectionService,
 )
 from kodit.infrastructure.sqlalchemy.embedding_repository import (
-    SqlAlchemyEmbeddingRepository,
+    create_embedding_repository,
 )
 from kodit.infrastructure.sqlalchemy.entities import EmbeddingType
-from kodit.infrastructure.sqlalchemy.index_repository import SqlAlchemyIndexRepository
+from kodit.infrastructure.sqlalchemy.index_repository import (
+    create_index_repository,
+)
 
 
 def create_code_indexing_application_service(
     app_context: AppContext,
     session: AsyncSession,
     reporter: ReportingService,
+    session_factory: Callable[[], AsyncSession],
 ) -> CodeIndexingApplicationService:
     """Create a unified code indexing application service with all dependencies."""
     # Create domain services
     bm25_service = BM25DomainService(bm25_repository_factory(app_context, session))
-    code_search_service = embedding_domain_service_factory("code", app_context, session)
-    text_search_service = embedding_domain_service_factory("text", app_context, session)
+    code_search_service = embedding_domain_service_factory(
+        "code", app_context, session, session_factory
+    )
+    text_search_service = embedding_domain_service_factory(
+        "text", app_context, session, session_factory
+    )
     enrichment_service = enrichment_domain_service_factory(app_context)
-    index_repository = SqlAlchemyIndexRepository(session=session)
+    index_repository = create_index_repository(session_factory=session_factory)
     # Use the unified language mapping from the domain layer
     language_map = LanguageMapping.get_extension_to_language_map()
 
@@ -92,21 +102,34 @@ def create_code_indexing_application_service(
 def create_cli_code_indexing_application_service(
     app_context: AppContext,
     session: AsyncSession,
+    session_factory: Callable[[], AsyncSession],
 ) -> CodeIndexingApplicationService:
     """Create a CLI code indexing application service."""
     return create_code_indexing_application_service(
-        app_context, session, create_cli_reporter()
+        app_context, session, create_cli_reporter(), session_factory
+    )
+
+
+def create_server_code_indexing_application_service(
+    app_context: AppContext,
+    session: AsyncSession,
+    session_factory: Callable[[], AsyncSession],
+) -> CodeIndexingApplicationService:
+    """Create a server code indexing application service."""
+    return create_code_indexing_application_service(
+        app_context, session, create_server_reporter(), session_factory
     )
 
 
 def create_fast_test_code_indexing_application_service(
     app_context: AppContext,
     session: AsyncSession,
+    session_factory: Callable[[], AsyncSession],
 ) -> CodeIndexingApplicationService:
     """Create a fast test code indexing application service."""
     # Create domain services
     bm25_service = BM25DomainService(bm25_repository_factory(app_context, session))
-    embedding_repository = SqlAlchemyEmbeddingRepository(session=session)
+    embedding_repository = create_embedding_repository(session_factory=session_factory)
     reporter = create_noop_reporter()
 
     code_search_repository = LocalVectorSearchRepository(
@@ -135,7 +158,7 @@ def create_fast_test_code_indexing_application_service(
         enrichment_provider=NullEnrichmentProvider()
     )
 
-    index_repository = SqlAlchemyIndexRepository(session=session)
+    index_repository = create_index_repository(session_factory=session_factory)
     # Use the unified language mapping from the domain layer
     language_map = LanguageMapping.get_extension_to_language_map()
 

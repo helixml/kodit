@@ -1,6 +1,6 @@
 """Tests for local vector search repository."""
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
@@ -24,6 +24,7 @@ from kodit.infrastructure.embedding.local_vector_search_repository import (
 )
 from kodit.infrastructure.sqlalchemy.embedding_repository import (
     SqlAlchemyEmbeddingRepository,
+    create_embedding_repository,
 )
 from kodit.infrastructure.sqlalchemy.entities import (
     EmbeddingType,
@@ -33,6 +34,7 @@ from kodit.infrastructure.sqlalchemy.entities import (
     Source,
     SourceType,
 )
+from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 
 
 class TestLocalVectorSearchRepository:
@@ -417,14 +419,15 @@ class TestLocalVectorSearchRepository:
 
 
 @pytest.mark.asyncio
-async def test_retrieve_documents(session: AsyncSession) -> None:
+async def test_retrieve_documents(session_factory: Callable[[], AsyncSession]) -> None:
     """Test retrieving documents with actual embedding values.
 
     This test is based on the user's example and tests the actual embedding
     functionality with real data.
     """
+    uow = SqlAlchemyUnitOfWork(session_factory=session_factory)
     # Create embedding repository
-    embedding_repository = SqlAlchemyEmbeddingRepository(session=session)
+    embedding_repository = create_embedding_repository(session_factory=session_factory)
 
     # Create embedding provider
     embedding_provider = LocalEmbeddingProvider()
@@ -436,57 +439,58 @@ async def test_retrieve_documents(session: AsyncSession) -> None:
         embedding_type=EmbeddingType.CODE,
     )
 
-    # Create dummy source, file, and index
-    source = Source(
-        uri="test_repo",
-        cloned_path="/tmp/test_repo",  # noqa: S108
-        source_type=SourceType.GIT,
-    )
-    session.add(source)
-    await session.commit()
+    async with uow:
+        # Create dummy source, file, and index
+        source = Source(
+            uri="test_repo",
+            cloned_path="/tmp/test_repo",  # noqa: S108
+            source_type=SourceType.GIT,
+        )
+        uow.session.add(source)
+        await uow.session.commit()
 
-    file = File(
-        created_at=datetime.now(UTC),
-        updated_at=datetime.now(UTC),
-        source_id=source.id,
-        mime_type="text/plain",
-        uri="test.py",
-        cloned_path="/tmp/test_repo/test.py",  # noqa: S108
-        sha256="abc123",
-        size_bytes=100,
-        extension="py",
-        file_processing_status=FileProcessingStatus.CLEAN.value,
-    )
-    session.add(file)
-    await session.commit()
+        file = File(
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+            source_id=source.id,
+            mime_type="text/plain",
+            uri="test.py",
+            cloned_path="/tmp/test_repo/test.py",  # noqa: S108
+            sha256="abc123",
+            size_bytes=100,
+            extension="py",
+            file_processing_status=FileProcessingStatus.CLEAN.value,
+        )
+        uow.session.add(file)
+        await uow.session.commit()
 
-    index = Index(source_id=source.id)
-    session.add(index)
-    await session.commit()
+        index = Index(source_id=source.id)
+        uow.session.add(index)
+        await uow.session.commit()
 
-    # Create snippets
-    snippet1 = Snippet(
-        index_id=index.id,
-        file_id=file.id,
-        content="python programming language",
-        summary="",
-    )
-    snippet2 = Snippet(
-        index_id=index.id,
-        file_id=file.id,
-        content="javascript web development",
-        summary="",
-    )
-    snippet3 = Snippet(
-        index_id=index.id,
-        file_id=file.id,
-        content="java enterprise applications",
-        summary="",
-    )
-    session.add(snippet1)
-    session.add(snippet2)
-    session.add(snippet3)
-    await session.commit()
+        # Create snippets
+        snippet1 = Snippet(
+            index_id=index.id,
+            file_id=file.id,
+            content="python programming language",
+            summary="",
+        )
+        snippet2 = Snippet(
+            index_id=index.id,
+            file_id=file.id,
+            content="javascript web development",
+            summary="",
+        )
+        snippet3 = Snippet(
+            index_id=index.id,
+            file_id=file.id,
+            content="java enterprise applications",
+            summary="",
+        )
+        uow.session.add(snippet1)
+        uow.session.add(snippet2)
+        uow.session.add(snippet3)
+        await uow.session.commit()
 
     # Index the snippets
     request = IndexRequest(

@@ -1,5 +1,7 @@
 """Factory for creating embedding services with DDD architecture."""
 
+from collections.abc import Callable
+
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,7 +26,7 @@ from kodit.infrastructure.embedding.vectorchord_vector_search_repository import 
     VectorChordVectorSearchRepository,
 )
 from kodit.infrastructure.sqlalchemy.embedding_repository import (
-    SqlAlchemyEmbeddingRepository,
+    create_embedding_repository,
 )
 from kodit.infrastructure.sqlalchemy.entities import EmbeddingType
 from kodit.log import log_event
@@ -36,12 +38,15 @@ def _get_endpoint_configuration(app_context: AppContext) -> Endpoint | None:
 
 
 def embedding_domain_service_factory(
-    task_name: TaskName, app_context: AppContext, session: AsyncSession
+    task_name: TaskName,
+    app_context: AppContext,
+    session: AsyncSession,
+    session_factory: Callable[[], AsyncSession],
 ) -> EmbeddingDomainService:
     """Create an embedding domain service."""
     structlog.get_logger(__name__)
     # Create embedding repository
-    embedding_repository = SqlAlchemyEmbeddingRepository(session=session)
+    embedding_repository = create_embedding_repository(session_factory=session_factory)
 
     # Create embedding provider
     embedding_provider: EmbeddingProvider | None = None

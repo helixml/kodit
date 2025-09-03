@@ -3,6 +3,7 @@
 import asyncio
 import random
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -11,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from kodit.domain.value_objects import FileProcessingStatus
 from kodit.infrastructure.sqlalchemy.embedding_repository import (
-    SqlAlchemyEmbeddingRepository,
+    create_embedding_repository,
 )
 from kodit.infrastructure.sqlalchemy.entities import (
     Embedding,
@@ -22,6 +23,7 @@ from kodit.infrastructure.sqlalchemy.entities import (
     Source,
     SourceType,
 )
+from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 
 log = structlog.get_logger(__name__)
 
@@ -31,60 +33,64 @@ def generate_random_embedding(dim: int = 750) -> list[float]:
     return [random.uniform(-1, 1) for _ in range(dim)]  # noqa: S311
 
 
-async def setup_test_data(session: AsyncSession, num_embeddings: int = 5000) -> None:
+async def setup_test_data(
+    session_factory: Callable[[], AsyncSession], num_embeddings: int = 5000
+) -> None:
     """Set up test data with random embeddings."""
-    # Create a test index
-    source = Source(uri="test", cloned_path="test", source_type=SourceType.FOLDER)
-    session.add(source)
-    await session.commit()
-    index = Index(source_id=source.id)
-    session.add(index)
-    await session.commit()
-    now = datetime.now(UTC)
-    file = File(
-        created_at=now,
-        updated_at=now,
-        source_id=source.id,
-        mime_type="text/plain",
-        uri="test",
-        cloned_path="test",
-        sha256="abc123",
-        size_bytes=100,
-        extension="txt",
-        file_processing_status=FileProcessingStatus.CLEAN,
-    )
-    session.add(file)
-    await session.commit()
-    snippet = Snippet(
-        file_id=file.id,
-        index_id=index.id,
-        content="This is a test snippet",
-        summary="",
-    )
-    session.add(snippet)
-    await session.commit()
+    uow = SqlAlchemyUnitOfWork(session_factory=session_factory)
+    async with uow:
+        # Create a test index
+        source = Source(uri="test", cloned_path="test", source_type=SourceType.FOLDER)
+        uow.session.add(source)
+        await uow.commit()
+        index = Index(source_id=source.id)
+        uow.session.add(index)
+        await uow.commit()
+        now = datetime.now(UTC)
+        file = File(
+            created_at=now,
+            updated_at=now,
+            source_id=source.id,
+            mime_type="text/plain",
+            uri="test",
+            cloned_path="test",
+            sha256="abc123",
+            size_bytes=100,
+            extension="txt",
+            file_processing_status=FileProcessingStatus.CLEAN,
+        )
+        uow.session.add(file)
+        await uow.commit()
+        snippet = Snippet(
+            file_id=file.id,
+            index_id=index.id,
+            content="This is a test snippet",
+            summary="",
+        )
+        uow.session.add(snippet)
+        await uow.commit()
 
-    # Create test embeddings
-    embeddings = []
-    for _ in range(num_embeddings):
-        embedding = Embedding()
-        embedding.snippet_id = snippet.id
-        embedding.type = EmbeddingType.CODE
-        embedding.embedding = generate_random_embedding()
-        embeddings.append(embedding)
+        # Create test embeddings
+        embeddings = []
+        for _ in range(num_embeddings):
+            embedding = Embedding()
+            embedding.snippet_id = snippet.id
+            embedding.type = EmbeddingType.CODE
+            embedding.embedding = generate_random_embedding()
+            embeddings.append(embedding)
 
-    session.add_all(embeddings)
-    await session.commit()
+        uow.session.add_all(embeddings)
+        await uow.commit()
 
 
-async def run_benchmark(session: AsyncSession) -> None:
+async def run_benchmark(session_factory: Callable[[], AsyncSession]) -> None:
     """Run the semantic search benchmark."""
     # Setup test data
     log.info("Setting up test data...")
-    await setup_test_data(session)
+    await setup_test_data(session_factory=session_factory)
 
     # Create repository instance
-    repo = SqlAlchemyEmbeddingRepository(session)
+    repo = create_embedding_repository(session_factory=session_factory)
 
     # Generate a test query embedding
     query_embedding = generate_random_embedding()
@@ -150,8 +156,7 @@ async def main() -> None:
     async_session = async_sessionmaker(engine, expire_on_commit=False)
 
     # Run benchmark
-    async with async_session() as session:
-        await run_benchmark(session)
+    await run_benchmark(session_factory=async_session)
 
     # Cleanup
     await engine.dispose()
