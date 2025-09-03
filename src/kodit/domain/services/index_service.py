@@ -8,14 +8,14 @@ import structlog
 from pydantic import AnyUrl
 
 import kodit.domain.entities as domain_entities
-from kodit.domain.protocols import ReportingService
+from kodit.application.factories.reporting_factory import create_noop_operation
+from kodit.application.services.reporting import ProgressTracker
 from kodit.domain.services.enrichment_service import EnrichmentDomainService
 from kodit.domain.value_objects import (
     EnrichmentIndexRequest,
     EnrichmentRequest,
     FileProcessingStatus,
     LanguageMapping,
-    ProgressState,
 )
 from kodit.infrastructure.cloning.git.working_copy import GitWorkingCopyProvider
 from kodit.infrastructure.cloning.metadata import FileMetadataExtractor
@@ -48,20 +48,20 @@ class IndexDomainService:
         language_detector: LanguageDetectionService,
         enrichment_service: EnrichmentDomainService,
         clone_dir: Path,
-        reporter: ReportingService,
     ) -> None:
         """Initialize the index domain service."""
         self._clone_dir = clone_dir
         self._language_detector = language_detector
         self._enrichment_service = enrichment_service
-        self.reporter = reporter
         self.log = structlog.get_logger(__name__)
 
     async def prepare_index(
         self,
         uri_or_path_like: str,  # Must include user/pass, etc
+        step: ProgressTracker | None = None,
     ) -> domain_entities.WorkingCopy:
         """Prepare an index by scanning files and creating working copy."""
+        step = step or create_noop_operation()
         self.log.info("Preparing index")
         sanitized_uri, source_type = self.sanitize_uri(uri_or_path_like)
         self.log.info("Preparing source", uri=str(sanitized_uri))
@@ -70,10 +70,8 @@ class IndexDomainService:
             local_path = path_from_uri(str(sanitized_uri))
         elif source_type == domain_entities.SourceType.GIT:
             source_type = domain_entities.SourceType.GIT
-            git_working_copy_provider = GitWorkingCopyProvider(
-                self._clone_dir, self.reporter
-            )
-            local_path = await git_working_copy_provider.prepare(uri_or_path_like)
+            git_working_copy_provider = GitWorkingCopyProvider(self._clone_dir)
+            local_path = await git_working_copy_provider.prepare(uri_or_path_like, step)
         else:
             raise ValueError(f"Unsupported source: {uri_or_path_like}")
 
@@ -87,8 +85,10 @@ class IndexDomainService:
     async def extract_snippets_from_index(
         self,
         index: domain_entities.Index,
+        step: ProgressTracker | None = None,
     ) -> domain_entities.Index:
         """Extract code snippets from files in the index."""
+        step = step or create_noop_operation()
         file_count = len(index.source.working_copy.files)
 
         self.log.info(
@@ -126,29 +126,26 @@ class IndexDomainService:
 
         # Calculate snippets for each language
         slicer = Slicer()
+        step.set_total(len(lang_files_map.keys()))
         for i, (lang, lang_files) in enumerate(lang_files_map.items()):
-            self.reporter.update(
-                ProgressState(
-                    current=i,
-                    total=len(lang_files_map.keys()),
-                    operation="Code Extraction",
-                    message=f"Extracting code snippets for {lang}...",
-                )
-            )
+            step.set_current(i)
             s = slicer.extract_snippets(lang_files, language=lang)
             index.snippets.extend(s)
 
-        self.reporter.complete()
         return index
 
     async def enrich_snippets_in_index(
         self,
         snippets: list[domain_entities.Snippet],
+        reporting_step: ProgressTracker | None = None,
     ) -> list[domain_entities.Snippet]:
         """Enrich snippets with AI-generated summaries."""
+        reporting_step = reporting_step or create_noop_operation()
         if not snippets or len(snippets) == 0:
+            reporting_step.skip("No snippets to enrich")
             return snippets
 
+        reporting_step.set_total(len(snippets))
         snippet_map = {snippet.id: snippet for snippet in snippets if snippet.id}
 
         enrichment_request = EnrichmentIndexRequest(
@@ -165,16 +162,8 @@ class IndexDomainService:
             snippet_map[result.snippet_id].add_summary(result.text)
 
             processed += 1
-            self.reporter.update(
-                ProgressState(
-                    current=processed,
-                    total=len(snippets),
-                    operation="Snippet Enrichment",
-                    message="Enriching snippets...",
-                )
-            )
+            reporting_step.set_current(processed)
 
-        self.reporter.complete()
         return list(snippet_map.values())
 
     def sanitize_uri(
@@ -200,14 +189,14 @@ class IndexDomainService:
     async def refresh_working_copy(
         self,
         working_copy: domain_entities.WorkingCopy,
+        step: ProgressTracker | None = None,
     ) -> domain_entities.WorkingCopy:
         """Refresh the working copy."""
+        step = step or create_noop_operation()
         metadata_extractor = FileMetadataExtractor(working_copy.source_type)
         if working_copy.source_type == domain_entities.SourceType.GIT:
-            git_working_copy_provider = GitWorkingCopyProvider(
-                self._clone_dir, self.reporter
-            )
-            await git_working_copy_provider.sync(str(working_copy.remote_uri))
+            git_working_copy_provider = GitWorkingCopyProvider(self._clone_dir)
+            await git_working_copy_provider.sync(str(working_copy.remote_uri), step)
 
         current_file_paths = working_copy.list_filesystem_paths(
             GitIgnorePatternProvider(working_copy.cloned_path)
@@ -233,18 +222,12 @@ class IndexDomainService:
 
         # Setup reporter
         processed = 0
+        step.set_total(num_files_to_process)
 
         # First check to see if any files have been deleted
         for file_path in deleted_file_paths:
             processed += 1
-            self.reporter.update(
-                ProgressState(
-                    current=processed,
-                    total=num_files_to_process,
-                    operation="File Processing",
-                    message=f"Deleted {file_path.name}",
-                )
-            )
+            step.set_current(processed)
             previous_files_map[
                 file_path
             ].file_processing_status = domain_entities.FileProcessingStatus.DELETED
@@ -252,14 +235,7 @@ class IndexDomainService:
         # Then check to see if there are any new files
         for file_path in new_file_paths:
             processed += 1
-            self.reporter.update(
-                ProgressState(
-                    current=processed,
-                    total=num_files_to_process,
-                    operation="File Processing",
-                    message=f"New {file_path.name}",
-                )
-            )
+            step.set_current(processed)
             try:
                 working_copy.files.append(
                     await metadata_extractor.extract(file_path=file_path)
@@ -271,14 +247,7 @@ class IndexDomainService:
         # Finally check if there are any modified files
         for file_path in modified_file_paths:
             processed += 1
-            self.reporter.update(
-                ProgressState(
-                    current=processed,
-                    total=num_files_to_process,
-                    operation="File Processing",
-                    message=f"Modified {file_path.name}",
-                )
-            )
+            step.set_current(processed)
             try:
                 previous_file = previous_files_map[file_path]
                 new_file = await metadata_extractor.extract(file_path=file_path)
@@ -290,7 +259,6 @@ class IndexDomainService:
                 self.log.info("Skipping file", file=str(file_path), error=str(e))
                 continue
 
-        self.reporter.complete()
         return working_copy
 
     async def delete_index(self, index: domain_entities.Index) -> None:

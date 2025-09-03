@@ -6,8 +6,12 @@ from datetime import UTC, datetime
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from kodit.application.services.reporting import (
+    OperationType,
+    ProgressTracker,
+)
 from kodit.domain.entities import Index, Snippet
-from kodit.domain.protocols import IndexRepository, ReportingService
+from kodit.domain.protocols import IndexRepository
 from kodit.domain.services.bm25_service import BM25DomainService
 from kodit.domain.services.embedding_service import EmbeddingDomainService
 from kodit.domain.services.enrichment_service import EnrichmentDomainService
@@ -19,7 +23,6 @@ from kodit.domain.value_objects import (
     IndexRequest,
     MultiSearchRequest,
     MultiSearchResult,
-    ProgressState,
     SearchRequest,
     SearchResult,
     SnippetSearchFilters,
@@ -40,7 +43,7 @@ class CodeIndexingApplicationService:
         text_search_service: EmbeddingDomainService,
         enrichment_service: EnrichmentDomainService,
         session: AsyncSession,
-        reporter: ReportingService,
+        operation: ProgressTracker,
     ) -> None:
         """Initialize the code indexing application service."""
         self.index_domain_service = indexing_domain_service
@@ -51,7 +54,7 @@ class CodeIndexingApplicationService:
         self.text_search_service = text_search_service
         self.enrichment_service = enrichment_service
         self.session = session
-        self.reporter = reporter
+        self.operation = operation
         self.log = structlog.get_logger(__name__)
 
     async def does_index_exist(self, uri: str) -> bool:
@@ -64,99 +67,114 @@ class CodeIndexingApplicationService:
     async def create_index_from_uri(self, uri: str) -> Index:
         """Create a new index for a source."""
         log_event("kodit.index.create")
+        with self.operation.create_child(OperationType.CREATE_INDEX.value) as operation:
+            # Check if index already exists
+            sanitized_uri, _ = self.index_domain_service.sanitize_uri(uri)
+            self.log.info("Creating index from URI", uri=str(sanitized_uri))
+            existing_index = await self.index_repository.get_by_uri(sanitized_uri)
+            if existing_index:
+                self.log.debug(
+                    "Index already exists",
+                    uri=str(sanitized_uri),
+                    index_id=existing_index.id,
+                )
+                return existing_index
 
-        # Check if index already exists
-        sanitized_uri, _ = self.index_domain_service.sanitize_uri(uri)
-        self.log.info("Creating index from URI", uri=str(sanitized_uri))
-        existing_index = await self.index_repository.get_by_uri(sanitized_uri)
-        if existing_index:
-            self.log.debug(
-                "Index already exists",
-                uri=str(sanitized_uri),
-                index_id=existing_index.id,
-            )
-            return existing_index
+            # Only prepare working copy if we need to create a new index
+            self.log.info("Preparing working copy", uri=str(sanitized_uri))
+            working_copy = await self.index_domain_service.prepare_index(uri, operation)
 
-        # Only prepare working copy if we need to create a new index
-        self.log.info("Preparing working copy", uri=str(sanitized_uri))
-        working_copy = await self.index_domain_service.prepare_index(uri)
-
-        # Create new index
-        self.log.info("Creating index", uri=str(sanitized_uri))
-        index = await self.index_repository.create(sanitized_uri, working_copy)
-        await self.session.commit()
-        return index
+            # Create new index
+            self.log.info("Creating index", uri=str(sanitized_uri))
+            index = await self.index_repository.create(sanitized_uri, working_copy)
+            await self.session.commit()
+            return index
 
     async def run_index(self, index: Index) -> None:
         """Run the complete indexing process for a specific index."""
-        log_event("kodit.index.run")
+        # Create a new operation
+        with self.operation.create_child(OperationType.RUN_INDEX.value) as operation:
+            # TODO(philwinder): Move this into a reporter # noqa: TD003, FIX002
+            log_event("kodit.index.run")
 
-        if not index or not index.id:
-            msg = f"Index has no ID: {index}"
-            raise ValueError(msg)
+            if not index or not index.id:
+                msg = f"Index has no ID: {index}"
+                raise ValueError(msg)
 
-        # Refresh working copy
-        index.source.working_copy = (
-            await self.index_domain_service.refresh_working_copy(
-                index.source.working_copy
-            )
-        )
-        if len(index.source.working_copy.changed_files()) == 0:
-            self.log.info("No new changes to index", index_id=index.id)
-            return
+            # Refresh working copy
+            with operation.create_child("Refresh working copy") as step:
+                index.source.working_copy = (
+                    await self.index_domain_service.refresh_working_copy(
+                        index.source.working_copy, step
+                    )
+                )
+                if len(index.source.working_copy.changed_files()) == 0:
+                    self.log.info("No new changes to index", index_id=index.id)
+                    step.skip("No new changes to index")
+                    return
 
-        # Delete the old snippets from the files that have changed
-        await self.index_repository.delete_snippets_by_file_ids(
-            [file.id for file in index.source.working_copy.changed_files() if file.id]
-        )
+            # Delete the old snippets from the files that have changed
+            with operation.create_child("Delete old snippets") as step:
+                await self.index_repository.delete_snippets_by_file_ids(
+                    [
+                        file.id
+                        for file in index.source.working_copy.changed_files()
+                        if file.id
+                    ]
+                )
 
-        # Extract and create snippets (domain service handles progress)
-        self.log.info("Creating snippets for files", index_id=index.id)
-        index = await self.index_domain_service.extract_snippets_from_index(index=index)
+            # Extract and create snippets (domain service handles progress)
+            with operation.create_child("Extract snippets") as step:
+                index = await self.index_domain_service.extract_snippets_from_index(
+                    index=index, step=step
+                )
+                await self.index_repository.update(index)
 
-        await self.index_repository.update(index)
-        await self.session.flush()
+                # Refresh index to get snippets with IDs, required for subsequent steps
+                flushed_index = await self.index_repository.get(index.id)
+                if not flushed_index:
+                    msg = f"Index {index.id} not found after snippet extraction"
+                    raise ValueError(msg)
+                index = flushed_index
+                if len(index.snippets) == 0:
+                    self.log.info(
+                        "No snippets to index after extraction", index_id=index.id
+                    )
+                    step.skip("No snippets to index after extraction")
+                    return
 
-        # Refresh index to get snippets with IDs, required as a ref for subsequent steps
-        flushed_index = await self.index_repository.get(index.id)
-        if not flushed_index:
-            msg = f"Index {index.id} not found after snippet extraction"
-            raise ValueError(msg)
-        index = flushed_index
-        if len(index.snippets) == 0:
-            self.log.info("No snippets to index after extraction", index_id=index.id)
-            return
+            # Create BM25 index
+            self.log.info("Creating keyword index")
+            with operation.create_child("Create BM25 index") as step:
+                await self._create_bm25_index(index.snippets)
 
-        # Create BM25 index
-        self.log.info("Creating keyword index")
-        await self._create_bm25_index(index.snippets)
+            # Create code embeddings
+            with operation.create_child("Create code embeddings") as step:
+                await self._create_code_embeddings(index.snippets, step)
 
-        # Create code embeddings
-        self.log.info("Creating semantic code index")
-        await self._create_code_embeddings(index.snippets)
+            # Enrich snippets
+            with operation.create_child("Enrich snippets") as step:
+                enriched_snippets = (
+                    await self.index_domain_service.enrich_snippets_in_index(
+                        snippets=index.snippets,
+                        reporting_step=step,
+                    )
+                )
+                # Update snippets in repository
+                await self.index_repository.update_snippets(index.id, enriched_snippets)
 
-        # Enrich snippets
-        self.log.info("Enriching snippets", num_snippets=len(index.snippets))
-        enriched_snippets = await self.index_domain_service.enrich_snippets_in_index(
-            snippets=index.snippets
-        )
-        # Update snippets in repository
-        await self.index_repository.update_snippets(index.id, enriched_snippets)
+            # Create text embeddings (on enriched content)
+            with operation.create_child("Create text embeddings") as step:
+                await self._create_text_embeddings(enriched_snippets, step)
 
-        # Create text embeddings (on enriched content)
-        self.log.info("Creating semantic text index")
-        await self._create_text_embeddings(enriched_snippets)
+            # Update index timestamp
+            with operation.create_child("Update index timestamp") as step:
+                await self.index_repository.update_index_timestamp(index.id)
 
-        # Update index timestamp
-        await self.index_repository.update_index_timestamp(index.id)
-
-        # Now that all file dependencies have been captured, enact the file processing
-        # statuses
-        index.source.working_copy.clear_file_processing_statuses()
-        await self.index_repository.update(index)
-
-        # Single transaction commit for the entire operation
-        await self.session.commit()
+            # After indexing, clear the file processing statuses
+            with operation.create_child("Clear file processing statuses") as step:
+                index.source.working_copy.clear_file_processing_statuses()
+                await self.index_repository.update(index)
 
     async def search(self, request: MultiSearchRequest) -> list[MultiSearchResult]:
         """Search for relevant snippets across all indexes."""
@@ -319,7 +337,10 @@ class CodeIndexingApplicationService:
             )
         )
 
-    async def _create_code_embeddings(self, snippets: list[Snippet]) -> None:
+    async def _create_code_embeddings(
+        self, snippets: list[Snippet], reporting_step: ProgressTracker
+    ) -> None:
+        reporting_step.set_total(len(snippets))
         processed = 0
         async for result in self.code_search_service.index_documents(
             IndexRequest(
@@ -331,18 +352,11 @@ class CodeIndexingApplicationService:
             )
         ):
             processed += len(result)
-            self.reporter.update(
-                ProgressState(
-                    current=processed,
-                    total=len(snippets),
-                    operation="Code Embedding",
-                    message="Creating code embeddings...",
-                )
-            )
+            reporting_step.set_current(processed)
 
-        self.reporter.complete()
-
-    async def _create_text_embeddings(self, snippets: list[Snippet]) -> None:
+    async def _create_text_embeddings(
+        self, snippets: list[Snippet], reporting_step: ProgressTracker
+    ) -> None:
         # Only create text embeddings for snippets that have summary content
         documents_with_summaries = []
         for snippet in snippets:
@@ -358,24 +372,16 @@ class CodeIndexingApplicationService:
                     continue
 
         if not documents_with_summaries:
-            self.reporter.complete()
+            reporting_step.skip("No snippets with summaries to create text embeddings")
             return
 
+        reporting_step.set_total(len(documents_with_summaries))
         processed = 0
         async for result in self.text_search_service.index_documents(
             IndexRequest(documents=documents_with_summaries)
         ):
             processed += len(result)
-            self.reporter.update(
-                ProgressState(
-                    current=processed,
-                    total=len(snippets),
-                    operation="Text Embedding",
-                    message="Creating text embeddings...",
-                )
-            )
-
-        self.reporter.complete()
+            reporting_step.set_current(processed)
 
     async def delete_index(self, index: Index) -> None:
         """Delete an index."""

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import timedelta
 from enum import Enum
 from functools import wraps
 from pathlib import Path
@@ -39,6 +40,15 @@ DEFAULT_DISABLE_TELEMETRY = False
 T = TypeVar("T")
 
 EndpointType = Literal["openai", "litellm"]
+
+
+class ReportingConfig(BaseModel):
+    """Reporting configuration."""
+
+    log_time_interval: timedelta = Field(
+        default=timedelta(seconds=5),
+        description="Time interval to log progress in seconds",
+    )
 
 
 class Endpoint(BaseModel):
@@ -223,6 +233,9 @@ class AppContext(BaseSettings):
     )
     remote: RemoteConfig = Field(
         default_factory=RemoteConfig, description="Remote server configuration"
+    )
+    reporting: ReportingConfig = Field(
+        default=ReportingConfig(), description="Reporting configuration"
     )
 
     @field_validator("api_keys", mode="before")

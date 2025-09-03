@@ -4,11 +4,18 @@ from collections.abc import Callable
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from kodit.application.factories.reporting_factory import (
+    create_cli_operation,
+    create_noop_operation,
+    create_server_operation,
+)
 from kodit.application.services.code_indexing_application_service import (
     CodeIndexingApplicationService,
 )
+from kodit.application.services.reporting import (
+    ProgressTracker,
+)
 from kodit.config import AppContext
-from kodit.domain.protocols import ReportingService
 from kodit.domain.services.bm25_service import BM25DomainService
 from kodit.domain.services.embedding_service import EmbeddingDomainService
 from kodit.domain.services.enrichment_service import EnrichmentDomainService
@@ -34,11 +41,6 @@ from kodit.infrastructure.enrichment.null_enrichment_provider import (
     NullEnrichmentProvider,
 )
 from kodit.infrastructure.indexing.fusion_service import ReciprocalRankFusionService
-from kodit.infrastructure.reporting.reporter import (
-    create_cli_reporter,
-    create_noop_reporter,
-    create_server_reporter,
-)
 from kodit.infrastructure.slicing.language_detection_service import (
     FileSystemLanguageDetectionService,
 )
@@ -54,8 +56,8 @@ from kodit.infrastructure.sqlalchemy.index_repository import (
 def create_code_indexing_application_service(
     app_context: AppContext,
     session: AsyncSession,
-    reporter: ReportingService,
     session_factory: Callable[[], AsyncSession],
+    operation: ProgressTracker,
 ) -> CodeIndexingApplicationService:
     """Create a unified code indexing application service with all dependencies."""
     # Create domain services
@@ -78,7 +80,6 @@ def create_code_indexing_application_service(
         language_detector=language_detector,
         enrichment_service=enrichment_service,
         clone_dir=app_context.get_clone_dir(),
-        reporter=reporter,
     )
     index_query_service = IndexQueryService(
         index_repository=index_repository,
@@ -95,7 +96,7 @@ def create_code_indexing_application_service(
         text_search_service=text_search_service,
         enrichment_service=enrichment_service,
         session=session,
-        reporter=reporter,
+        operation=operation,
     )
 
 
@@ -106,7 +107,10 @@ def create_cli_code_indexing_application_service(
 ) -> CodeIndexingApplicationService:
     """Create a CLI code indexing application service."""
     return create_code_indexing_application_service(
-        app_context, session, create_cli_reporter(), session_factory
+        app_context,
+        session,
+        session_factory,
+        create_cli_operation(),
     )
 
 
@@ -117,7 +121,7 @@ def create_server_code_indexing_application_service(
 ) -> CodeIndexingApplicationService:
     """Create a server code indexing application service."""
     return create_code_indexing_application_service(
-        app_context, session, create_server_reporter(), session_factory
+        app_context, session, session_factory, create_server_operation()
     )
 
 
@@ -130,7 +134,7 @@ def create_fast_test_code_indexing_application_service(
     # Create domain services
     bm25_service = BM25DomainService(bm25_repository_factory(app_context, session))
     embedding_repository = create_embedding_repository(session_factory=session_factory)
-    reporter = create_noop_reporter()
+    operation = create_noop_operation()
 
     code_search_repository = LocalVectorSearchRepository(
         embedding_repository=embedding_repository,
@@ -169,7 +173,6 @@ def create_fast_test_code_indexing_application_service(
         language_detector=language_detector,
         enrichment_service=enrichment_service,
         clone_dir=app_context.get_clone_dir(),
-        reporter=reporter,
     )
     index_query_service = IndexQueryService(
         index_repository=index_repository,
@@ -186,5 +189,5 @@ def create_fast_test_code_indexing_application_service(
         text_search_service=text_search_service,
         enrichment_service=enrichment_service,
         session=session,
-        reporter=reporter,
+        operation=operation,
     )

@@ -7,18 +7,17 @@ from pathlib import Path
 import git
 import structlog
 
+from kodit.application.factories.reporting_factory import create_noop_operation
+from kodit.application.services.reporting import ProgressTracker
 from kodit.domain.entities import WorkingCopy
-from kodit.domain.protocols import ReportingService
-from kodit.domain.value_objects import ProgressState
 
 
 class GitWorkingCopyProvider:
     """Working copy provider for git-based sources."""
 
-    def __init__(self, clone_dir: Path, reporter: ReportingService) -> None:
+    def __init__(self, clone_dir: Path) -> None:
         """Initialize the provider."""
         self.clone_dir = clone_dir
-        self.reporter = reporter
         self.log = structlog.get_logger(__name__)
 
     def get_clone_path(self, uri: str) -> Path:
@@ -31,30 +30,26 @@ class GitWorkingCopyProvider:
     async def prepare(
         self,
         uri: str,
+        step: ProgressTracker | None = None,
     ) -> Path:
         """Prepare a Git working copy."""
+        step = step or create_noop_operation()
         sanitized_uri = WorkingCopy.sanitize_git_url(uri)
         clone_path = self.get_clone_path(uri)
         clone_path.mkdir(parents=True, exist_ok=True)
 
         step_record = []
+        step.set_total(12)
 
         def _clone_progress_callback(
-            a: int, _: str | float | None, __: str | float | None, d: str
+            a: int, _: str | float | None, __: str | float | None, _d: str
         ) -> None:
             if a not in step_record:
                 step_record.append(a)
 
             # Git reports a really weird format. This is a quick hack to get some
             # progress.
-            self.reporter.update(
-                ProgressState(
-                    current=len(step_record),
-                    total=12,
-                    operation="Git Clone",
-                    message=d,
-                )
-            )
+            step.set_current(len(step_record))
 
         try:
             self.log.info(
@@ -76,8 +71,9 @@ class GitWorkingCopyProvider:
 
         return clone_path
 
-    async def sync(self, uri: str) -> Path:
+    async def sync(self, uri: str, step: ProgressTracker | None = None) -> Path:
         """Refresh a Git working copy."""
+        step = step or create_noop_operation()
         clone_path = self.get_clone_path(uri)
 
         # Check if the clone directory exists and is a valid Git repository
@@ -88,7 +84,7 @@ class GitWorkingCopyProvider:
                 uri=uri,
                 clone_path=str(clone_path),
             )
-            return await self.prepare(uri)
+            return await self.prepare(uri, step)
 
         try:
             repo = git.Repo(clone_path)
@@ -101,6 +97,6 @@ class GitWorkingCopyProvider:
             )
             # Remove the invalid directory and re-clone
             shutil.rmtree(clone_path)
-            return await self.prepare(uri)
+            return await self.prepare(uri, step)
 
         return clone_path

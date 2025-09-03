@@ -2,7 +2,6 @@
 
 import asyncio
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
 from datetime import UTC, datetime
 
@@ -12,9 +11,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from kodit.application.factories.code_indexing_factory import (
     create_code_indexing_application_service,
 )
+from kodit.application.factories.reporting_factory import create_noop_operation
+from kodit.application.services.reporting import ProgressTracker
 from kodit.config import AppContext
 from kodit.domain.entities import Task
-from kodit.domain.protocols import ReportingService
 from kodit.domain.value_objects import TaskType
 from kodit.infrastructure.sqlalchemy.task_repository import create_task_repository
 
@@ -30,26 +30,22 @@ class IndexingWorkerService:
         self,
         app_context: AppContext,
         session_factory: Callable[[], AsyncSession],
-        reporter: ReportingService,
     ) -> None:
         """Initialize the indexing worker service."""
         self.app_context = app_context
         self.session_factory = session_factory
         self._worker_task: asyncio.Task | None = None
         self._shutdown_event = asyncio.Event()
-        self._executor = ThreadPoolExecutor(
-            max_workers=1, thread_name_prefix="indexing-worker"
-        )
-        self.reporter = reporter
         self.task_repository = create_task_repository(session_factory)
         self.log = structlog.get_logger(__name__)
 
-    async def start(self) -> None:
+    async def start(self, operation: ProgressTracker | None = None) -> None:
         """Start the worker to process the queue."""
+        operation = operation or create_noop_operation()
         self._running = True
 
         # Start single worker task
-        self._worker_task = asyncio.create_task(self._worker_loop())
+        self._worker_task = asyncio.create_task(self._worker_loop(operation))
 
         self.log.info(
             "Indexing worker started",
@@ -61,16 +57,13 @@ class IndexingWorkerService:
         self._shutdown_event.set()
 
         if self._worker_task and not self._worker_task.done():
-            self._worker_task.cancel()
             with suppress(asyncio.CancelledError):
+                self._worker_task.cancel()
                 await self._worker_task
-
-        # Shutdown the thread pool executor
-        self._executor.shutdown(wait=True)
 
         self.log.info("Indexing worker stopped")
 
-    async def _worker_loop(self) -> None:
+    async def _worker_loop(self, operation: ProgressTracker) -> None:
         self.log.debug("Worker loop started")
 
         while not self._shutdown_event.is_set():
@@ -81,9 +74,7 @@ class IndexingWorkerService:
 
                 # If there's a task, process it in a new thread
                 if task:
-                    await asyncio.get_event_loop().run_in_executor(
-                        self._executor, self._process_task, task
-                    )
+                    await self._process_task(task, operation)
                     continue
 
                 # If no task, sleep for a bit
@@ -99,7 +90,7 @@ class IndexingWorkerService:
 
         self.log.info("Worker loop stopped")
 
-    def _process_task(self, task: Task) -> None:
+    async def _process_task(self, task: Task, operation: ProgressTracker) -> None:
         """Process a single task."""
         self.log.info(
             "Processing task",
@@ -116,7 +107,7 @@ class IndexingWorkerService:
         try:
             # Process based on task type (currently only INDEX_UPDATE is supported)
             if task.type is TaskType.INDEX_UPDATE:
-                loop.run_until_complete(self._process_index_update(task))
+                await self._process_index_update(task, operation)
             else:
                 self.log.warning(
                     "Unknown task type",
@@ -134,7 +125,9 @@ class IndexingWorkerService:
             duration_seconds=duration,
         )
 
-    async def _process_index_update(self, task: Task) -> None:
+    async def _process_index_update(
+        self, task: Task, operation: ProgressTracker
+    ) -> None:
         """Process index update/sync task."""
         index_id = task.payload.get("index_id")
         if not index_id:
@@ -148,7 +141,7 @@ class IndexingWorkerService:
                     app_context=self.app_context,
                     session=session,
                     session_factory=self.session_factory,
-                    reporter=self.reporter,
+                    operation=operation,
                 )
                 index = await service.index_repository.get(index_id)
                 if not index:

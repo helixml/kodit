@@ -11,10 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from kodit.application.factories.code_indexing_factory import (
     create_code_indexing_application_service,
 )
+from kodit.application.factories.reporting_factory import create_noop_operation
 from kodit.application.services.queue_service import QueueService
+from kodit.application.services.reporting import ProgressTracker
 from kodit.config import AppContext
 from kodit.domain.entities import Task
-from kodit.domain.protocols import ReportingService
 from kodit.domain.value_objects import QueuePriority
 
 
@@ -25,17 +26,18 @@ class AutoIndexingService:
         self,
         app_context: AppContext,
         session_factory: Callable[[], AsyncSession],
-        reporter: ReportingService,
     ) -> None:
         """Initialize the auto-indexing service."""
         self.app_context = app_context
         self.session_factory = session_factory
-        self.reporter = reporter
         self.log = structlog.get_logger(__name__)
         self._indexing_task: asyncio.Task | None = None
 
-    async def start_background_indexing(self) -> None:
+    async def start_background_indexing(
+        self, operation: ProgressTracker | None = None
+    ) -> None:
         """Start background indexing of configured sources."""
+        operation = operation or create_noop_operation()
         if (
             not self.app_context.auto_indexing
             or len(self.app_context.auto_indexing.sources) == 0
@@ -51,17 +53,22 @@ class AutoIndexingService:
 
         auto_sources = [source.uri for source in self.app_context.auto_indexing.sources]
         self.log.info("Starting background indexing", num_sources=len(auto_sources))
-        self._indexing_task = asyncio.create_task(self._index_sources(auto_sources))
+        self._indexing_task = asyncio.create_task(
+            self._index_sources(auto_sources, operation)
+        )
 
-    async def _index_sources(self, sources: list[str]) -> None:
+    async def _index_sources(
+        self, sources: list[str], operation: ProgressTracker | None = None
+    ) -> None:
         """Index all configured sources in the background."""
+        operation = operation or create_noop_operation()
         async with self.session_factory() as session:
             queue_service = QueueService(session_factory=self.session_factory)
             service = create_code_indexing_application_service(
                 app_context=self.app_context,
                 session=session,
                 session_factory=self.session_factory,
-                reporter=self.reporter,
+                operation=operation,
             )
 
             for source in sources:
