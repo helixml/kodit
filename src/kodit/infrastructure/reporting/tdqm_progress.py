@@ -2,15 +2,15 @@
 
 from tqdm import tqdm
 
+from kodit.config import ReportingConfig
 from kodit.domain.protocols import ReportingModule
 from kodit.domain.value_objects import Progress, ProgressState, ReportingState
-from kodit.infrastructure.reporting.progress import Progress, ProgressConfig
 
 
 class TQDMReportingModule(ReportingModule):
     """TQDM reporting module."""
 
-    def __init__(self, config: ProgressConfig) -> None:
+    def __init__(self, config: ReportingConfig) -> None:
         """Initialize the TQDM reporting module."""
         self.config = config
         self.pbar = tqdm()
@@ -39,9 +39,9 @@ class TQDMReportingModule(ReportingModule):
 class TQDMProgress(Progress):
     """TQDM-based progress callback implementation."""
 
-    def __init__(self, config: ProgressConfig | None = None) -> None:
+    def __init__(self, config: ReportingConfig | None = None) -> None:
         """Initialize with a TQDM progress bar."""
-        self.config = config or ProgressConfig()
+        self.config = config or ReportingConfig()
         self.pbar = tqdm()
 
     def on_update(self, state: ProgressState) -> None:

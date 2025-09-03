@@ -5,15 +5,15 @@ from datetime import UTC, datetime
 
 import structlog
 
+from kodit.config import ReportingConfig
 from kodit.domain.protocols import ReportingModule
 from kodit.domain.value_objects import Progress, ProgressState, ReportingState
-from kodit.infrastructure.reporting.progress import Progress, ProgressConfig
 
 
 class LoggingReportingModule(ReportingModule):
     """Logging reporting module."""
 
-    def __init__(self, config: ProgressConfig) -> None:
+    def __init__(self, config: ReportingConfig) -> None:
         """Initialize the logging reporting module."""
         self.config = config
         self._log = structlog.get_logger(__name__)
@@ -40,10 +40,10 @@ class LoggingReportingModule(ReportingModule):
 class LogProgress(Progress):
     """Log progress using structlog with time-based throttling."""
 
-    def __init__(self, config: ProgressConfig | None = None) -> None:
+    def __init__(self, config: ReportingConfig | None = None) -> None:
         """Initialize the log progress."""
         self.log = structlog.get_logger()
-        self.config = config or ProgressConfig()
+        self.config = config or ReportingConfig()
         self.last_log_time: float = 0
 
     def on_update(self, state: ProgressState) -> None:
