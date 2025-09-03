@@ -11,6 +11,13 @@ from kodit.infrastructure.mappers.task_mapper import TaskMapper, TaskTypeMapper
 from kodit.infrastructure.sqlalchemy import entities as db_entities
 
 
+def create_task_repository(
+    session: AsyncSession,
+) -> TaskRepository:
+    """Create an index repository."""
+    return SqlAlchemyTaskRepository(session)
+
+
 class SqlAlchemyTaskRepository(TaskRepository):
     """Repository for task persistence using the existing Task entity."""
 

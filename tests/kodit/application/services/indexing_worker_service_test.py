@@ -21,6 +21,7 @@ from kodit.domain.value_objects import (
     TaskType,
 )
 from kodit.infrastructure.reporting.reporter import create_noop_reporter
+from kodit.infrastructure.sqlalchemy.task_repository import create_task_repository
 
 
 @pytest.fixture
@@ -168,10 +169,7 @@ async def test_worker_handles_invalid_task_payload(
         priority=QueuePriority.USER_INITIATED,
     )
 
-    # Manually add the task to bypass validation
-    from kodit.infrastructure.sqlalchemy.task_repository import SqlAlchemyTaskRepository
-
-    repo = SqlAlchemyTaskRepository(session)
+    repo = create_task_repository(session)
     await repo.add(task)
     await session.commit()
 
