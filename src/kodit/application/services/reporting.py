@@ -23,12 +23,21 @@ class OperationType(StrEnum):
 class ProgressTracker:
     """Progress tracker."""
 
-    def __init__(self, name: str, parent: "ProgressTracker | None" = None) -> None:
+    def __init__(
+        self,
+        name: str,
+        parent: "ProgressTracker | None" = None,
+        initial_progress: Progress | None = None,
+    ) -> None:
         """Initialize the progress tracker."""
         self.parent: ProgressTracker | None = parent
         self._log = structlog.get_logger(__name__)
         self._subscribers: list[ReportingModule] = []
-        self.snapshot: Progress = Progress(name=name, state=ReportingState.STARTED)
+        self.snapshot: Progress = (
+            initial_progress
+            if initial_progress
+            else Progress(name=name, state=ReportingState.STARTED)
+        )
         self.trackable_id: int | None = None
         self.trackable_type: TrackableType | None = None
 
@@ -45,29 +54,31 @@ class ProgressTracker:
     ) -> None:
         """Exit the operation."""
         if exc_value:
-            self._snapshot = self._snapshot.with_error(exc_value)
-            self._snapshot = self._snapshot.with_state(
+            self.snapshot = self.snapshot.with_error(exc_value)
+            self.snapshot = self.snapshot.with_state(
                 ReportingState.FAILED, str(exc_value)
             )
         # TODO(philwinder): Probably need some state machine here # noqa: TD003, FIX002
-        elif not ReportingState.is_terminal(self._snapshot.state):
-            self._snapshot = self._snapshot.with_progress(100)
-            self._snapshot = self._snapshot.with_state(ReportingState.COMPLETED)
+        elif not ReportingState.is_terminal(self.snapshot.state):
+            self.snapshot = self.snapshot.with_progress(self.snapshot.total)
+            self.snapshot = self.snapshot.with_state(ReportingState.COMPLETED)
         await self._notify_subscribers()
 
     def create_child(self, name: str) -> "ProgressTracker":
         """Create a child step."""
         s = ProgressTracker(name, self)
         s.parent = self
-        s.trackable_id = self.trackable_id
-        s.trackable_type = self.trackable_type
+        if self.trackable_id:
+            s.trackable_id = self.trackable_id
+        if self.trackable_type:
+            s.trackable_type = self.trackable_type
         for subscriber in self._subscribers:
             s.subscribe(subscriber)
         return s
 
     async def skip(self, reason: str | None = None) -> None:
         """Skip the step."""
-        self._snapshot = self._snapshot.with_state(ReportingState.SKIPPED, reason or "")
+        self.snapshot = self.snapshot.with_state(ReportingState.SKIPPED, reason or "")
 
     def subscribe(self, subscriber: "ReportingModule") -> None:
         """Subscribe to the step."""
@@ -75,13 +86,13 @@ class ProgressTracker:
 
     async def set_total(self, total: int) -> None:
         """Set the total for the step."""
-        self._snapshot = self._snapshot.with_total(total)
+        self.snapshot = self.snapshot.with_total(total)
         await self._notify_subscribers()
 
     async def set_current(self, current: int) -> None:
         """Progress the step."""
-        self._snapshot = self._snapshot.with_state(ReportingState.IN_PROGRESS)
-        self._snapshot = self._snapshot.with_progress(current)
+        self.snapshot = self.snapshot.with_state(ReportingState.IN_PROGRESS)
+        self.snapshot = self.snapshot.with_progress(current)
         await self._notify_subscribers()
 
     async def _notify_subscribers(self) -> None:
@@ -91,12 +102,12 @@ class ProgressTracker:
 
     async def status(self) -> Progress:
         """Get the state of the step."""
-        return self._snapshot
+        return self.snapshot
 
     async def set_tracking_info(
         self, trackable_id: int, trackable_type: TrackableType
     ) -> None:
         """Set the index id."""
-        self._trackable_id = trackable_id
-        self._trackable_type = trackable_type
+        self.trackable_id = trackable_id
+        self.trackable_type = trackable_type
         await self._notify_subscribers()

@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.application.services.reporting import ProgressTracker
 from kodit.domain.protocols import TaskStatusRepository
-from kodit.domain.value_objects import TrackableType
+from kodit.domain.value_objects import Progress, ReportingState, TrackableType
 from kodit.infrastructure.sqlalchemy import entities as db_entities
 from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 
@@ -76,14 +76,21 @@ class SqlAlchemyTaskStatusRepository(TaskStatusRepository):
         self, db_task_status: db_entities.TaskStatus
     ) -> ProgressTracker:
         """Convert a database task status to a progress tracker."""
+        err = Exception(db_task_status.error) if db_task_status.error != "" else None
         p = ProgressTracker(
             name=db_task_status.name,
+            initial_progress=Progress(
+                name=db_task_status.name,
+                state=ReportingState(db_task_status.state),
+                message=db_task_status.message,
+                error=err,
+                total=db_task_status.total,
+                current=db_task_status.current,
+            ),
         )
         await p.set_tracking_info(
             db_task_status.trackable_id, TrackableType(db_task_status.trackable_type)
         )
-        await p.set_total(db_task_status.total)
-        await p.set_current(db_task_status.current)
         return p
 
     async def _to_list_of_parents(

@@ -15,8 +15,12 @@ from kodit.application.services.code_indexing_application_service import (
 from kodit.application.services.queue_service import QueueService
 from kodit.config import AppContext
 from kodit.domain.services.index_query_service import IndexQueryService
+from kodit.domain.services.task_status_query_service import TaskStatusQueryService
 from kodit.infrastructure.indexing.fusion_service import ReciprocalRankFusionService
 from kodit.infrastructure.sqlalchemy.index_repository import create_index_repository
+from kodit.infrastructure.sqlalchemy.task_status_repository import (
+    create_task_status_repository,
+)
 
 
 def get_app_context(request: Request) -> AppContext:
@@ -94,3 +98,17 @@ async def get_queue_service(
 
 
 QueueServiceDep = Annotated[QueueService, Depends(get_queue_service)]
+
+
+async def get_task_status_query_service(
+    session_factory: DBSessionFactoryDep,
+) -> TaskStatusQueryService:
+    """Get task status query service dependency."""
+    return TaskStatusQueryService(
+        repository=create_task_status_repository(session_factory=session_factory)
+    )
+
+
+TaskStatusQueryServiceDep = Annotated[
+    TaskStatusQueryService, Depends(get_task_status_query_service)
+]
