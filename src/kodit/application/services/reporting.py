@@ -6,11 +6,10 @@ from typing import TYPE_CHECKING
 
 import structlog
 
-from kodit.domain.value_objects import Progress, ReportingState, TrackableType
+from kodit.domain.entities import TaskStatus
+from kodit.domain.value_objects import ReportingState, TaskStep, TrackableType
 
 if TYPE_CHECKING:
-    from kodit.domain.protocols import ReportingModule
-else:
     from kodit.domain.protocols import ReportingModule
 
 
@@ -27,31 +26,29 @@ class ProgressTracker:
 
     def __init__(
         self,
-        progress: Progress,
-        parent: "ProgressTracker | None" = None,
+        task_status: TaskStatus,
     ) -> None:
         """Initialize the progress tracker."""
-        self.progress: Progress = progress
-        self.parent: ProgressTracker | None = parent
+        self.task_status = task_status
         self._log = structlog.get_logger(__name__)
         self._subscribers: list[ReportingModule] = []
 
-    @classmethod
+    @staticmethod
     def create(
-        cls,
-        name: str,
-        parent: "ProgressTracker | None" = None,
-        trackable_id: int | None = None,
+        step: TaskStep,
+        parent: "TaskStatus | None" = None,
         trackable_type: TrackableType | None = None,
+        trackable_id: int | None = None,
     ) -> "ProgressTracker":
-        """Create a new tracker."""
-        progress = Progress(
-            name=name,
-            state=ReportingState.STARTED,
-            trackable_id=trackable_id,
-            trackable_type=trackable_type,
+        """Create a progress tracker."""
+        return ProgressTracker(
+            TaskStatus.create(
+                step=step,
+                trackable_type=trackable_type,
+                trackable_id=trackable_id,
+                parent=parent,
+            )
         )
-        return cls(progress=progress, parent=parent)
 
     async def __aenter__(self) -> "ProgressTracker":
         """Enter the operation."""
@@ -66,31 +63,29 @@ class ProgressTracker:
     ) -> None:
         """Exit the operation."""
         if exc_value:
-            self.progress = self.progress.with_error(exc_value)
-            self.progress = self.progress.with_state(
-                ReportingState.FAILED, str(exc_value)
-            )
+            self.task_status.error = str(exc_value)
+            self.task_status.state = ReportingState.FAILED
         # TODO(philwinder): Probably need some state machine here # noqa: TD003, FIX002
-        elif not ReportingState.is_terminal(self.progress.state):
-            self.progress = self.progress.with_progress(self.progress.total)
-            self.progress = self.progress.with_state(ReportingState.COMPLETED)
+        elif not ReportingState.is_terminal(self.task_status.state):
+            self.task_status.state = ReportingState.COMPLETED
+            self.task_status.current = self.task_status.total
         await self._notify_subscribers()
 
     def create_child(self, name: str) -> "ProgressTracker":
         """Create a child step."""
-        s = ProgressTracker.create(
-            name=name,
-            parent=self,
-            trackable_id=self.progress.trackable_id,
-            trackable_type=self.progress.trackable_type,
+        c = ProgressTracker.create(
+            step=name,
+            parent=self.task_status,
+            trackable_type=self.task_status.trackable_type,
+            trackable_id=self.task_status.trackable_id,
         )
         for subscriber in self._subscribers:
-            s.subscribe(subscriber)
-        return s
+            c.subscribe(subscriber)
+        return c
 
-    async def skip(self, reason: str | None = None) -> None:
+    async def skip(self, _reason: str) -> None:
         """Skip the step."""
-        self.progress = self.progress.with_state(ReportingState.SKIPPED, reason or "")
+        self.task_status.state = ReportingState.SKIPPED
         await self._notify_subscribers()
 
     def subscribe(self, subscriber: "ReportingModule") -> None:
@@ -99,66 +94,24 @@ class ProgressTracker:
 
     async def set_total(self, total: int) -> None:
         """Set the total for the step."""
-        self.progress = self.progress.with_total(total)
+        self.task_status.total = total
         await self._notify_subscribers()
 
     async def set_current(self, current: int) -> None:
         """Progress the step."""
-        self.progress = self.progress.with_state(ReportingState.IN_PROGRESS)
-        self.progress = self.progress.with_progress(current)
+        self.task_status.state = ReportingState.IN_PROGRESS
+        self.task_status.current = current
         await self._notify_subscribers()
 
     async def _notify_subscribers(self) -> None:
         """Notify the subscribers only if progress has changed."""
         for subscriber in self._subscribers:
-            await subscriber.on_change(self)
-
-    async def status(self) -> Progress:
-        """Get the state of the step."""
-        return self.progress
+            await subscriber.on_change(self.task_status)
 
     async def set_tracking_info(
         self, trackable_id: int, trackable_type: TrackableType
     ) -> None:
         """Set the index id."""
-        self.progress = self.progress.with_tracking(trackable_id, trackable_type)
+        self.task_status.trackable_id = trackable_id
+        self.task_status.trackable_type = trackable_type
         await self._notify_subscribers()
-
-
-class ProgressTrackerFactory:
-    """Factory for reconstructing ProgressTracker from persisted state."""
-
-    @staticmethod
-    def from_progress_with_hierarchy(
-        progress_with_hierarchy: list[tuple[int, Progress, int | None]],
-        subscribers: list[ReportingModule] | None = None,
-    ) -> list[ProgressTracker]:
-        """Reconstruct tracker tree from Progress objects with database IDs.
-
-        Args:
-            progress_with_hierarchy: List of (db_id, Progress, parent_db_id) tuples
-            subscribers: Optional list of subscribers to attach
-
-        Returns:
-            List of root ProgressTrackers with children linked
-
-        """
-        # Build tracker map by database ID
-        trackers_by_db_id: dict[int, ProgressTracker] = {}
-
-        # First pass: create all trackers
-        for db_id, progress, _ in progress_with_hierarchy:
-            tracker = ProgressTracker(progress=progress)
-            # Notification state is already initialized to None in constructor
-            if subscribers:
-                for sub in subscribers:
-                    tracker.subscribe(sub)
-            trackers_by_db_id[db_id] = tracker
-
-        # Second pass: link parents using database IDs
-        for db_id, _, parent_id in progress_with_hierarchy:
-            if parent_id and parent_id in trackers_by_db_id:
-                trackers_by_db_id[db_id].parent = trackers_by_db_id[parent_id]
-
-        # Return root trackers (those without parents)
-        return [t for t in trackers_by_db_id.values() if not t.parent]

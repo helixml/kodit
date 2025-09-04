@@ -1,15 +1,19 @@
 """Repository protocol interfaces for the domain layer."""
 
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Protocol
+from typing import Protocol
 
 from pydantic import AnyUrl
 
-from kodit.domain.entities import Index, Snippet, SnippetWithContext, Task, WorkingCopy
-from kodit.domain.value_objects import MultiSearchRequest, Progress, TaskType
-
-if TYPE_CHECKING:
-    from kodit.application.services.reporting import ProgressTracker
+from kodit.domain.entities import (
+    Index,
+    Snippet,
+    SnippetWithContext,
+    Task,
+    TaskStatus,
+    WorkingCopy,
+)
+from kodit.domain.value_objects import MultiSearchRequest, TaskType
 
 
 class TaskRepository(Protocol):
@@ -98,7 +102,7 @@ class IndexRepository(Protocol):
 class ReportingModule(Protocol):
     """Reporting module."""
 
-    async def on_change(self, progress: "ProgressTracker") -> None:
+    async def on_change(self, progress: TaskStatus) -> None:
         """On step changed."""
         ...
 
@@ -106,24 +110,16 @@ class ReportingModule(Protocol):
 class TaskStatusRepository(Protocol):
     """Repository interface for persisting progress state only."""
 
-    async def save_progress(self, progress: Progress) -> None:
+    async def save(self, status: TaskStatus) -> None:
         """Save a progress state."""
         ...
 
-    async def load_progress(
+    async def load_with_hierarchy(
         self, trackable_type: str, trackable_id: int
-    ) -> list[Progress]:
-        """Load progress states."""
-        ...
-
-    async def load_progress_with_hierarchy(
-        self, trackable_type: str, trackable_id: int
-    ) -> list[tuple[int, Progress, int | None]]:
+    ) -> list[TaskStatus]:
         """Load progress states with IDs and parent IDs from database."""
         ...
 
-    async def delete_progress(
-        self, trackable_type: str, trackable_id: int, name: str
-    ) -> None:
+    async def delete(self, status: TaskStatus) -> None:
         """Delete a progress state."""
         ...

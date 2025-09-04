@@ -129,19 +129,17 @@ async def get_index_status(
 
     # Convert progress trackers to API response format
     task_statuses = []
-    for i, tracker in enumerate(progress_trackers):
-        status = await tracker.status()
+    for _i, status in enumerate(progress_trackers):
         task_statuses.append(
             TaskStatusData(
-                id=f"{index_id}-{i}",  # Generate a unique ID for each status
+                id=status.id,
                 attributes=TaskStatusAttributes(
-                    name=status.name,
+                    step=status.step,
                     state=status.state,
-                    message=status.message,
                     progress=status.completion_percent,
                     total=status.total,
                     current=status.current,
-                )
+                ),
             )
         )
 

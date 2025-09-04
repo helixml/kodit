@@ -2,7 +2,7 @@
 
 import shutil
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
 from urllib.parse import urlparse, urlunparse
@@ -12,10 +12,13 @@ from pydantic import AnyUrl, BaseModel
 from kodit.domain.value_objects import (
     FileProcessingStatus,
     QueuePriority,
+    ReportingState,
     SnippetContent,
     SnippetContentType,
     SourceType,
+    TaskStep,
     TaskType,
+    TrackableType,
 )
 from kodit.utils.path_utils import path_from_uri
 
@@ -321,3 +324,54 @@ class Task(BaseModel):
             priority=priority.value,
             payload={"index_id": index_id},
         )
+
+
+class TaskStatus(BaseModel):
+    """Task status domain entity."""
+
+    id: str
+    state: ReportingState
+    step: TaskStep
+
+    created_at: datetime = datetime.now(UTC)
+    updated_at: datetime = datetime.now(UTC)
+    total: int = 0
+    current: int = 0
+
+    error: str | None = None
+    parent: "TaskStatus | None" = None
+    trackable_id: int | None = None
+    trackable_type: TrackableType | None = None
+
+    @staticmethod
+    def create(
+        step: TaskStep,
+        parent: "TaskStatus | None" = None,
+        trackable_type: TrackableType | None = None,
+        trackable_id: int | None = None,
+    ) -> "TaskStatus":
+        """Create a task status."""
+        return TaskStatus(
+            id=TaskStatus._create_id(step, trackable_type, trackable_id),
+            step=step,
+            parent=parent,
+            trackable_type=trackable_type,
+            trackable_id=trackable_id,
+            state=ReportingState.STARTED,
+        )
+
+    @staticmethod
+    def _create_id(
+        step: TaskStep,
+        trackable_type: TrackableType | None = None,
+        trackable_id: int | None = None,
+    ) -> str:
+        """Create a unique id for a task."""
+        return "-".join([str(step), str(trackable_type), str(trackable_id)])
+
+    @property
+    def completion_percent(self) -> float:
+        """Calculate the percentage of completion."""
+        if self.total == 0:
+            return 0.0
+        return min(100.0, max(0.0, (self.current / self.total) * 100.0))

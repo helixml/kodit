@@ -6,8 +6,9 @@ import structlog
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from kodit.domain import entities as domain_entities
 from kodit.domain.protocols import TaskStatusRepository
-from kodit.domain.value_objects import Progress, ReportingState, TrackableType
+from kodit.infrastructure.mappers.task_status_mapper import TaskStatusMapper
 from kodit.infrastructure.sqlalchemy import entities as db_entities
 from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 
@@ -21,44 +22,43 @@ def create_task_status_repository(
 
 
 class SqlAlchemyTaskStatusRepository(TaskStatusRepository):
-    """Repository for persisting progress state only."""
+    """Repository for persisting TaskStatus entities."""
 
     def __init__(self, uow: SqlAlchemyUnitOfWork) -> None:
         """Initialize the repository."""
         self.uow = uow
         self.log = structlog.get_logger(__name__)
+        self.mapper = TaskStatusMapper()
 
-    async def save_progress(self, progress: Progress) -> None:
-        """Save a Progress state to database."""
+    async def save(self, status: domain_entities.TaskStatus) -> None:
+        """Save a TaskStatus to database."""
         async with self.uow:
+            # Convert domain entity to database entity
+            db_status = self.mapper.from_domain_task_status(status)
             stmt = select(db_entities.TaskStatus).where(
-                db_entities.TaskStatus.trackable_id == progress.trackable_id,
-                db_entities.TaskStatus.trackable_type == progress.trackable_type,
-                db_entities.TaskStatus.name == progress.name,
+                db_entities.TaskStatus.id == db_status.id,
             )
             result = await self.uow.session.execute(stmt)
-            db_task_status = result.scalar_one_or_none()
+            existing = result.scalar_one_or_none()
 
-            if not db_task_status:
-                db_task_status = db_entities.TaskStatus(
-                    trackable_id=progress.trackable_id,
-                    trackable_type=progress.trackable_type,
-                    name=progress.name,
-                )
-                self.uow.session.add(db_task_status)
+            if not existing:
+                self.uow.session.add(db_status)
+            else:
+                # Update existing record with new values
+                existing.step = db_status.step
+                existing.state = db_status.state
+                existing.error = db_status.error
+                existing.total = db_status.total
+                existing.current = db_status.current
+                existing.updated_at = db_status.updated_at
+                existing.parent = db_status.parent
+                existing.trackable_id = db_status.trackable_id
+                existing.trackable_type = db_status.trackable_type
 
-            # Direct mapping from Progress to DB
-            db_task_status.state = progress.state
-            db_task_status.message = progress.message
-            db_task_status.error = str(progress.error) if progress.error else ""
-            db_task_status.total = progress.total
-            db_task_status.current = progress.current
-            # Parent relationship is handled by the caller
-
-    async def load_progress_with_hierarchy(
+    async def load_with_hierarchy(
         self, trackable_type: str, trackable_id: int
-    ) -> list[tuple[int, Progress, int | None]]:
-        """Load Progress states with IDs and parent IDs from database."""
+    ) -> list[domain_entities.TaskStatus]:
+        """Load TaskStatus entities with hierarchy from database."""
         async with self.uow:
             stmt = select(db_entities.TaskStatus).where(
                 db_entities.TaskStatus.trackable_id == trackable_id,
@@ -67,42 +67,17 @@ class SqlAlchemyTaskStatusRepository(TaskStatusRepository):
             result = await self.uow.session.execute(stmt)
             db_statuses = list(result.scalars().all())
 
-            # Return (db_id, Progress, parent_id) for hierarchy reconstruction
+            # Convert database entities to domain entities
+            # Parent relationships would need to be reconstructed based on parent IDs
             return [
-                (
-                    db.id,  # Database ID
-                    Progress(
-                        name=db.name,
-                        state=ReportingState(db.state),
-                        message=db.message or "",
-                        error=Exception(db.error) if db.error else None,
-                        total=db.total,
-                        current=db.current,
-                        trackable_id=db.trackable_id,
-                        trackable_type=TrackableType(db.trackable_type),
-                    ),
-                    db.parent,  # Parent ID from database
-                )
-                for db in db_statuses
+                self.mapper.to_domain_task_status(db_status)
+                for db_status in db_statuses
             ]
 
-    async def load_progress(
-        self, trackable_type: str, trackable_id: int
-    ) -> list[Progress]:
-        """Load Progress states from database (without hierarchy info)."""
-        progress_with_hierarchy = await self.load_progress_with_hierarchy(
-            trackable_type, trackable_id
-        )
-        return [progress for _, progress, _ in progress_with_hierarchy]
-
-    async def delete_progress(
-        self, trackable_type: str, trackable_id: int, name: str
-    ) -> None:
-        """Delete a progress state."""
+    async def delete(self, status: domain_entities.TaskStatus) -> None:
+        """Delete a TaskStatus."""
         async with self.uow:
             stmt = delete(db_entities.TaskStatus).where(
-                db_entities.TaskStatus.trackable_id == trackable_id,
-                db_entities.TaskStatus.trackable_type == trackable_type,
-                db_entities.TaskStatus.name == name,
+                db_entities.TaskStatus.id == status.id,
             )
             await self.uow.session.execute(stmt)

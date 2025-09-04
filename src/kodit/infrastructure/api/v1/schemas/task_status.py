@@ -8,14 +8,10 @@ from pydantic import BaseModel, Field
 class TaskStatusAttributes(BaseModel):
     """Task status attributes for JSON:API responses."""
 
-    name: str = Field(..., description="Name of the task/operation")
+    step: str = Field(..., description="Name of the task/operation")
     state: str = Field(..., description="Current state of the task")
-    message: str = Field(default="", description="Status message")
     progress: float = Field(
-        default=0.0,
-        ge=0.0,
-        le=100.0,
-        description="Progress percentage (0-100)"
+        default=0.0, ge=0.0, le=100.0, description="Progress percentage (0-100)"
     )
     total: int = Field(default=0, description="Total number of items to process")
     current: int = Field(default=0, description="Current number of items processed")

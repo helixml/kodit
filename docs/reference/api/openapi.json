@@ -952,21 +952,15 @@
       },
       "TaskStatusAttributes": {
         "properties": {
-          "name": {
+          "step": {
             "type": "string",
-            "title": "Name",
+            "title": "Step",
             "description": "Name of the task/operation"
           },
           "state": {
             "type": "string",
             "title": "State",
             "description": "Current state of the task"
-          },
-          "message": {
-            "type": "string",
-            "title": "Message",
-            "description": "Status message",
-            "default": ""
           },
           "progress": {
             "type": "number",
@@ -1017,7 +1011,7 @@
         },
         "type": "object",
         "required": [
-          "name",
+          "step",
           "state"
         ],
         "title": "TaskStatusAttributes",

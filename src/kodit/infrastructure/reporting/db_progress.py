@@ -2,8 +2,8 @@
 
 import structlog
 
-from kodit.application.services.reporting import ProgressTracker
 from kodit.config import ReportingConfig
+from kodit.domain.entities import TaskStatus
 from kodit.domain.protocols import ReportingModule, TaskStatusRepository
 
 
@@ -18,6 +18,6 @@ class DBProgressReportingModule(ReportingModule):
         self.config = config
         self._log = structlog.get_logger(__name__)
 
-    async def on_change(self, progress: ProgressTracker) -> None:
+    async def on_change(self, progress: TaskStatus) -> None:
         """On step changed - update task status in database."""
-        await self.task_status_repository.save_progress(progress.progress)
+        await self.task_status_repository.save(progress)

@@ -487,9 +487,8 @@ Task status attributes for JSON:API responses.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| name | string | Name of the task/operation |
+| step | string | Name of the task/operation |
 | state | string | Current state of the task |
-| message | string | Status message |
 | progress | number | Progress percentage (0-100) |
 | total | integer | Total number of items to process |
 | current | integer | Current number of items processed |

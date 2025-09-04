@@ -264,18 +264,59 @@ class Task(Base, CommonMixin):
         self.priority = priority
 
 
-class TaskStatus(Base, CommonMixin):
+class TaskStatus(Base):
     """Task status model."""
 
     __tablename__ = "task_status"
-    trackable_id: Mapped[int] = mapped_column(Integer, index=True, nullable=True)
-    trackable_type: Mapped[str] = mapped_column(String(255), index=True, nullable=True)
-    parent: Mapped[int] = mapped_column(
+    id: Mapped[str] = mapped_column(
+        String(255), primary_key=True, index=True, nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        TZDateTime, nullable=False, default=lambda: datetime.now(UTC)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TZDateTime,
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+    trackable_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
+    step: Mapped[str] = mapped_column(String(255), index=True, nullable=False)
+    trackable_type: Mapped[str | None] = mapped_column(
+        String(255), index=True, nullable=True
+    )
+    parent: Mapped[str | None] = mapped_column(
         ForeignKey("task_status.id"), index=True, nullable=True
     )
-    name: Mapped[str] = mapped_column(String(255), index=True, nullable=False)
     state: Mapped[str] = mapped_column(String(255), default="")
-    message: Mapped[str] = mapped_column(UnicodeText, default="")
     error: Mapped[str] = mapped_column(UnicodeText, default="")
     total: Mapped[int] = mapped_column(Integer, default=0)
     current: Mapped[int] = mapped_column(Integer, default=0)
+
+    def __init__(  # noqa: PLR0913
+        self,
+        id: str,  # noqa: A002
+        step: str,
+        created_at: datetime,
+        updated_at: datetime,
+        trackable_id: int | None,
+        trackable_type: str | None,
+        parent: str | None,
+        state: str,
+        error: str | None,
+        total: int,
+        current: int,
+    ) -> None:
+        """Initialize the task status."""
+        super().__init__()
+        self.id = id
+        self.step = step
+        self.created_at = created_at
+        self.updated_at = updated_at
+        self.trackable_id = trackable_id
+        self.trackable_type = trackable_type
+        self.parent = parent
+        self.state = state
+        self.error = error or ""
+        self.total = total
+        self.current = current
