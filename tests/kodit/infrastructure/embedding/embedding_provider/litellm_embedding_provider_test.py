@@ -19,11 +19,11 @@ class TestLiteLLMEmbeddingProvider:
         """Test initialization with default values."""
         endpoint = Endpoint()
         provider = LiteLLMEmbeddingProvider(endpoint)
-        assert provider.model_name == "text-embedding-3-small"
-        assert provider.api_key is None
-        assert provider.base_url is None
-        assert provider.timeout == 30.0
-        assert provider.extra_params == {}
+        assert provider.endpoint.model is None
+        assert provider.endpoint.api_key is None
+        assert provider.endpoint.base_url is None
+        assert provider.endpoint.timeout is None
+        assert provider.endpoint.extra_params is None
         assert provider.log is not None
 
     def test_init_custom_values(self) -> None:
@@ -37,11 +37,11 @@ class TestLiteLLMEmbeddingProvider:
             extra_params=extra_params,
         )
         provider = LiteLLMEmbeddingProvider(endpoint)
-        assert provider.model_name == "text-embedding-3-large"
-        assert provider.api_key == "test-api-key"
-        assert provider.base_url == "https://custom.openai.com"
-        assert provider.timeout == 60.0
-        assert provider.extra_params == extra_params
+        assert provider.endpoint.model == "text-embedding-3-large"
+        assert provider.endpoint.api_key == "test-api-key"
+        assert provider.endpoint.base_url == "https://custom.openai.com"
+        assert provider.endpoint.timeout == 60.0
+        assert provider.endpoint.extra_params == extra_params
 
     @pytest.mark.asyncio
     async def test_embed_empty_requests(self) -> None:
@@ -63,7 +63,7 @@ class TestLiteLLMEmbeddingProvider:
         self, mock_aembedding: AsyncMock
     ) -> None:
         """Test successful embedding with a single request."""
-        endpoint = Endpoint()
+        endpoint = Endpoint(model="text-embedding-3-small")
         provider = LiteLLMEmbeddingProvider(endpoint)
 
         # Mock LiteLLM response
@@ -90,7 +90,7 @@ class TestLiteLLMEmbeddingProvider:
         mock_aembedding.assert_called_once_with(
             model="text-embedding-3-small",
             input=["python programming"],
-            timeout=30.0,
+            timeout=None,
         )
 
     @pytest.mark.asyncio
@@ -101,7 +101,7 @@ class TestLiteLLMEmbeddingProvider:
         self, mock_aembedding: AsyncMock
     ) -> None:
         """Test successful embedding with multiple requests."""
-        endpoint = Endpoint()
+        endpoint = Endpoint(model="text-embedding-3-small")
         provider = LiteLLMEmbeddingProvider(endpoint)
 
         # Mock LiteLLM response
@@ -139,7 +139,7 @@ class TestLiteLLMEmbeddingProvider:
                 "javascript development",
                 "java enterprise",
             ],
-            timeout=30.0,
+            timeout=None,
         )
 
     @pytest.mark.asyncio
@@ -148,7 +148,7 @@ class TestLiteLLMEmbeddingProvider:
     )
     async def test_embed_with_base_url(self, mock_aembedding: AsyncMock) -> None:
         """Test embedding with custom base URL."""
-        endpoint = Endpoint(base_url="https://custom.api.com")
+        endpoint = Endpoint(model="text-embedding-3-small", base_url="https://custom.api.com")
         provider = LiteLLMEmbeddingProvider(endpoint)
 
         mock_response = Mock()
@@ -165,7 +165,7 @@ class TestLiteLLMEmbeddingProvider:
         mock_aembedding.assert_called_once_with(
             model="text-embedding-3-small",
             input=["test"],
-            timeout=30.0,
+            timeout=None,
             api_base="https://custom.api.com",
         )
 
@@ -175,7 +175,7 @@ class TestLiteLLMEmbeddingProvider:
     )
     async def test_embed_with_api_key(self, mock_aembedding: AsyncMock) -> None:
         """Test embedding with API key."""
-        endpoint = Endpoint(api_key="sk-test-key-123")
+        endpoint = Endpoint(model="text-embedding-3-small", api_key="sk-test-key-123")
         provider = LiteLLMEmbeddingProvider(endpoint)
 
         mock_response = Mock()
@@ -192,7 +192,7 @@ class TestLiteLLMEmbeddingProvider:
         mock_aembedding.assert_called_once_with(
             model="text-embedding-3-small",
             input=["test"],
-            timeout=30.0,
+            timeout=None,
             api_key="sk-test-key-123",
         )
 
@@ -203,7 +203,7 @@ class TestLiteLLMEmbeddingProvider:
     async def test_embed_with_extra_params(self, mock_aembedding: AsyncMock) -> None:
         """Test embedding with extra parameters."""
         extra_params = {"temperature": 0.5, "max_tokens": 100}
-        endpoint = Endpoint(extra_params=extra_params)
+        endpoint = Endpoint(model="text-embedding-3-small", extra_params=extra_params)
         provider = LiteLLMEmbeddingProvider(endpoint)
 
         mock_response = Mock()
@@ -220,7 +220,7 @@ class TestLiteLLMEmbeddingProvider:
         mock_aembedding.assert_called_once_with(
             model="text-embedding-3-small",
             input=["test"],
-            timeout=30.0,
+            timeout=None,
             temperature=0.5,
             max_tokens=100,
         )
@@ -264,18 +264,16 @@ class TestLiteLLMEmbeddingProvider:
     )
     async def test_embed_api_error_handling(self, mock_aembedding: AsyncMock) -> None:
         """Test handling of API errors."""
-        endpoint = Endpoint()
+        endpoint = Endpoint(model="text-embedding-3-small")
         provider = LiteLLMEmbeddingProvider(endpoint)
         mock_aembedding.side_effect = Exception("LiteLLM API Error")
 
         requests = [EmbeddingRequest(snippet_id=1, text="python programming")]
 
-        results = []
-        async for batch in provider.embed(requests):
-            results.extend(batch)
-
-        # Should return no embeddings on error (empty batch)
-        assert len(results) == 0
+        # Should raise exception on error
+        with pytest.raises(Exception, match="LiteLLM API Error"):
+            async for _ in provider.embed(requests):
+                pass
 
     @pytest.mark.asyncio
     @patch(
@@ -325,7 +323,7 @@ class TestLiteLLMEmbeddingProvider:
         mock_aembedding.assert_called_once_with(
             model="claude-3-haiku-20240307",
             input=["test text"],
-            timeout=30.0,
+            timeout=None,
         )
 
     @pytest.mark.asyncio
@@ -338,7 +336,7 @@ class TestLiteLLMEmbeddingProvider:
         provider = LiteLLMEmbeddingProvider(endpoint)
 
         # Verify socket_path was stored
-        assert provider.socket_path == "/var/run/test.sock"
+        assert provider.endpoint.socket_path == "/var/run/test.sock"
         # Verify mock is available (to satisfy linter)
         assert mock_litellm is not None
 

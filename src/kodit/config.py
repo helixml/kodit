@@ -60,7 +60,10 @@ class Endpoint(BaseModel):
         description="Model to use for the endpoint in litellm format (e.g. 'openai/text-embedding-3-small')",  # noqa: E501
     )
     api_key: str | None = None
-    num_parallel_tasks: int | None = None
+    num_parallel_tasks: int = Field(
+        default=10,
+        description="Number of parallel tasks to use for the endpoint",
+    )
     socket_path: str | None = Field(
         default=None,
         description="Unix socket path for local communication (e.g., /tmp/openai.sock)",
@@ -73,6 +76,13 @@ class Endpoint(BaseModel):
         default=None,
         description="Extra provider-specific non-secret parameters for LiteLLM",
     )
+    max_tokens: int = Field(
+        default=8000,  # Reasonable default (with headroom) for most models.
+        description="Conservative token limit for the embedding model",
+    )
+
+
+DEFAULT_NUM_PARALLEL_TASKS = 10  # Semaphore limit for concurrent requests
 
 
 class Search(BaseModel):
