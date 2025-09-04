@@ -702,6 +702,10 @@ class Progress:
     error: BaseException | None = None
     total: int = 0
     current: int = 0
+    # Tracking information
+    trackable_id: int | None = None
+    trackable_type: TrackableType | None = None
+    # Note: parent relationships are handled by ProgressTracker, not stored in Progress
 
     @property
     def completion_percent(self) -> float:
@@ -725,3 +729,10 @@ class Progress:
     def with_state(self, state: ReportingState, message: str = "") -> "Progress":
         """Return a new snapshot with updated state."""
         return replace(self, state=state, message=message)
+
+    def with_tracking(
+        self, trackable_id: int, trackable_type: TrackableType
+    ) -> "Progress":
+        """Return a new snapshot with updated tracking info."""
+        return replace(self, trackable_id=trackable_id, trackable_type=trackable_type)
+

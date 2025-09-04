@@ -1,13 +1,15 @@
 """Repository protocol interfaces for the domain layer."""
 
 from collections.abc import Sequence
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from pydantic import AnyUrl
 
-from kodit.application.services.reporting import ProgressTracker
 from kodit.domain.entities import Index, Snippet, SnippetWithContext, Task, WorkingCopy
-from kodit.domain.value_objects import MultiSearchRequest, TaskType
+from kodit.domain.value_objects import MultiSearchRequest, Progress, TaskType
+
+if TYPE_CHECKING:
+    from kodit.application.services.reporting import ProgressTracker
 
 
 class TaskRepository(Protocol):
@@ -96,24 +98,32 @@ class IndexRepository(Protocol):
 class ReportingModule(Protocol):
     """Reporting module."""
 
-    async def on_change(self, progress: ProgressTracker) -> None:
+    async def on_change(self, progress: "ProgressTracker") -> None:
         """On step changed."""
         ...
 
 
 class TaskStatusRepository(Protocol):
-    """Repository interface for Task entities."""
+    """Repository interface for persisting progress state only."""
 
-    async def update(self, progress_tracker: ProgressTracker) -> None:
-        """Update a task status."""
+    async def save_progress(self, progress: Progress) -> None:
+        """Save a progress state."""
         ...
 
-    async def delete(self, progress_tracker: ProgressTracker) -> None:
-        """Delete a task status."""
-        ...
-
-    async def find(
+    async def load_progress(
         self, trackable_type: str, trackable_id: int
-    ) -> list[ProgressTracker]:
-        """Find a task status by trackable type and ID."""
+    ) -> list[Progress]:
+        """Load progress states."""
+        ...
+
+    async def load_progress_with_hierarchy(
+        self, trackable_type: str, trackable_id: int
+    ) -> list[tuple[int, Progress, int | None]]:
+        """Load progress states with IDs and parent IDs from database."""
+        ...
+
+    async def delete_progress(
+        self, trackable_type: str, trackable_id: int, name: str
+    ) -> None:
+        """Delete a progress state."""
         ...

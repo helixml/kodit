@@ -126,6 +126,32 @@ Delete an index.
 
 - 404: Index not found
 
+### GET /api/v1/indexes/{index_id}/status
+
+Get the status of tasks for an index.
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| index_id | integer | True |  |
+
+
+#### Responses
+
+- 200: Successful Response
+
+[TaskStatusListResponse](#taskstatuslistresponse)
+
+- 500: Internal server error
+
+- 401: Unauthorized
+
+- 422: Invalid request
+
+- 404: Index not found
+
 ### GET /api/v1/queue
 
 List all tasks in the queue.
@@ -451,6 +477,48 @@ JSON:API response for single task.
 | Field | Type | Description |
 |-------|------|-------------|
 | data |  |  |
+
+
+### TaskStatusAttributes
+
+
+Task status attributes for JSON:API responses.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| name | string | Name of the task/operation |
+| state | string | Current state of the task |
+| message | string | Status message |
+| progress | number | Progress percentage (0-100) |
+| total | integer | Total number of items to process |
+| current | integer | Current number of items processed |
+| created_at |  | Task start time |
+| updated_at |  | Last update time |
+
+
+### TaskStatusData
+
+
+Task status data for JSON:API responses.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| type | string |  |
+| id | string |  |
+| attributes |  |  |
+
+
+### TaskStatusListResponse
+
+
+JSON:API response for task status list.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data | array |  |
 
 
 ### TaskType

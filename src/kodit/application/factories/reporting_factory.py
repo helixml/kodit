@@ -10,13 +10,13 @@ from kodit.infrastructure.reporting.tdqm_progress import TQDMReportingModule
 
 def create_noop_operation() -> ProgressTracker:
     """Create a noop reporter."""
-    return ProgressTracker(OperationType.ROOT.value)
+    return ProgressTracker.create(OperationType.ROOT.value)
 
 
 def create_cli_operation(config: ReportingConfig | None = None) -> ProgressTracker:
     """Create a CLI reporter."""
     shared_config = config or ReportingConfig()
-    s = ProgressTracker(OperationType.ROOT.value)
+    s = ProgressTracker.create(OperationType.ROOT.value)
     s.subscribe(TQDMReportingModule(shared_config))
     return s
 
@@ -26,7 +26,7 @@ def create_server_operation(
 ) -> ProgressTracker:
     """Create a server reporter."""
     shared_config = config or ReportingConfig()
-    s = ProgressTracker(OperationType.ROOT.value)
+    s = ProgressTracker.create(OperationType.ROOT.value)
     s.subscribe(LoggingReportingModule(shared_config))
     s.subscribe(DBProgressReportingModule(task_status_repository, shared_config))
     return s

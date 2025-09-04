@@ -6,7 +6,6 @@ import structlog
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.application.services.reporting import ProgressTracker
 from kodit.domain.protocols import TaskStatusRepository
 from kodit.domain.value_objects import Progress, ReportingState, TrackableType
 from kodit.infrastructure.sqlalchemy import entities as db_entities
@@ -22,107 +21,88 @@ def create_task_status_repository(
 
 
 class SqlAlchemyTaskStatusRepository(TaskStatusRepository):
-    """Repository for task persistence using the existing Task entity."""
+    """Repository for persisting progress state only."""
 
     def __init__(self, uow: SqlAlchemyUnitOfWork) -> None:
         """Initialize the repository."""
         self.uow = uow
         self.log = structlog.get_logger(__name__)
 
-    async def update(self, progress_tracker: ProgressTracker) -> None:
-        """Create or update a task status."""
-        status = await progress_tracker.status()
+    async def save_progress(self, progress: Progress) -> None:
+        """Save a Progress state to database."""
         async with self.uow:
-            # See if this specific status exists already
             stmt = select(db_entities.TaskStatus).where(
-                db_entities.TaskStatus.trackable_id == progress_tracker.trackable_id,
-                db_entities.TaskStatus.trackable_type
-                == progress_tracker.trackable_type,
-                db_entities.TaskStatus.name == status.name,
+                db_entities.TaskStatus.trackable_id == progress.trackable_id,
+                db_entities.TaskStatus.trackable_type == progress.trackable_type,
+                db_entities.TaskStatus.name == progress.name,
             )
             result = await self.uow.session.execute(stmt)
             db_task_status = result.scalar_one_or_none()
 
-            # If not, then create it
             if not db_task_status:
                 db_task_status = db_entities.TaskStatus(
-                    trackable_id=progress_tracker.trackable_id,
-                    trackable_type=progress_tracker.trackable_type,
-                    name=status.name,
+                    trackable_id=progress.trackable_id,
+                    trackable_type=progress.trackable_type,
+                    name=progress.name,
                 )
                 self.uow.session.add(db_task_status)
-                await self.uow.session.flush()
 
-            # Now update the status
-            db_task_status.state = status.state
-            db_task_status.message = status.message
-            db_task_status.error = str(status.error)
-            db_task_status.total = status.total
-            db_task_status.current = status.current
+            # Direct mapping from Progress to DB
+            db_task_status.state = progress.state
+            db_task_status.message = progress.message
+            db_task_status.error = str(progress.error) if progress.error else ""
+            db_task_status.total = progress.total
+            db_task_status.current = progress.current
+            # Parent relationship is handled by the caller
 
-    async def delete(self, progress_tracker: ProgressTracker) -> None:
-        """Delete a task status and all children."""
-        status = await progress_tracker.status()
-        async with self.uow:
-            stmt = delete(db_entities.TaskStatus).where(
-                db_entities.TaskStatus.trackable_id == progress_tracker.trackable_id,
-                db_entities.TaskStatus.trackable_type
-                == progress_tracker.trackable_type,
-                db_entities.TaskStatus.name == status.name,
-            )
-            await self.uow.session.execute(stmt)
-
-    async def _to_progress_tracker(
-        self, db_task_status: db_entities.TaskStatus
-    ) -> ProgressTracker:
-        """Convert a database task status to a progress tracker."""
-        err = Exception(db_task_status.error) if db_task_status.error != "" else None
-        p = ProgressTracker(
-            name=db_task_status.name,
-            initial_progress=Progress(
-                name=db_task_status.name,
-                state=ReportingState(db_task_status.state),
-                message=db_task_status.message,
-                error=err,
-                total=db_task_status.total,
-                current=db_task_status.current,
-            ),
-        )
-        await p.set_tracking_info(
-            db_task_status.trackable_id, TrackableType(db_task_status.trackable_type)
-        )
-        return p
-
-    async def _to_list_of_parents(
-        self, db_task_statuses: list[db_entities.TaskStatus]
-    ) -> dict[int, ProgressTracker]:
-        """Convert a list of database task statuses to a map of progress trackers."""
-        return {
-            db_task_status.parent: await self._to_progress_tracker(db_task_status)
-            for db_task_status in db_task_statuses
-        }
-
-    async def _to_progress_tracker_list(
-        self, db_task_statuses: list[db_entities.TaskStatus]
-    ) -> list[ProgressTracker]:
-        """Convert a list of database task statuses to a list of progress trackers."""
-        parents = await self._to_list_of_parents(db_task_statuses)
-        final = []
-        for db_status in db_task_statuses:
-            p = await self._to_progress_tracker(db_status)
-            p.parent = parents[db_status.parent]
-            final.append(p)
-        return final
-
-    async def find(
+    async def load_progress_with_hierarchy(
         self, trackable_type: str, trackable_id: int
-    ) -> list[ProgressTracker]:
-        """Find a task status by trackable type and ID."""
+    ) -> list[tuple[int, Progress, int | None]]:
+        """Load Progress states with IDs and parent IDs from database."""
         async with self.uow:
             stmt = select(db_entities.TaskStatus).where(
                 db_entities.TaskStatus.trackable_id == trackable_id,
                 db_entities.TaskStatus.trackable_type == trackable_type,
             )
             result = await self.uow.session.execute(stmt)
-            db_task_statuses = list(result.scalars().all())
-            return await self._to_progress_tracker_list(db_task_statuses)
+            db_statuses = list(result.scalars().all())
+
+            # Return (db_id, Progress, parent_id) for hierarchy reconstruction
+            return [
+                (
+                    db.id,  # Database ID
+                    Progress(
+                        name=db.name,
+                        state=ReportingState(db.state),
+                        message=db.message or "",
+                        error=Exception(db.error) if db.error else None,
+                        total=db.total,
+                        current=db.current,
+                        trackable_id=db.trackable_id,
+                        trackable_type=TrackableType(db.trackable_type),
+                    ),
+                    db.parent,  # Parent ID from database
+                )
+                for db in db_statuses
+            ]
+
+    async def load_progress(
+        self, trackable_type: str, trackable_id: int
+    ) -> list[Progress]:
+        """Load Progress states from database (without hierarchy info)."""
+        progress_with_hierarchy = await self.load_progress_with_hierarchy(
+            trackable_type, trackable_id
+        )
+        return [progress for _, progress, _ in progress_with_hierarchy]
+
+    async def delete_progress(
+        self, trackable_type: str, trackable_id: int, name: str
+    ) -> None:
+        """Delete a progress state."""
+        async with self.uow:
+            stmt = delete(db_entities.TaskStatus).where(
+                db_entities.TaskStatus.trackable_id == trackable_id,
+                db_entities.TaskStatus.trackable_type == trackable_type,
+                db_entities.TaskStatus.name == name,
+            )
+            await self.uow.session.execute(stmt)

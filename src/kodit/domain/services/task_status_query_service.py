@@ -1,6 +1,6 @@
 """Domain service for querying task status."""
 
-from kodit.application.services.reporting import ProgressTracker
+from kodit.application.services.reporting import ProgressTracker, ProgressTrackerFactory
 from kodit.domain.protocols import TaskStatusRepository
 from kodit.domain.value_objects import TrackableType
 
@@ -19,10 +19,14 @@ class TaskStatusQueryService:
             index_id: ID of the index to query status for
 
         Returns:
-            List of progress trackers for the index
+            List of progress trackers for the index (reconstructed from database)
 
         """
-        return await self._repository.find(
+        progress_with_hierarchy = await self._repository.load_progress_with_hierarchy(
             trackable_type=TrackableType.INDEX.value,
             trackable_id=index_id
+        )
+
+        return ProgressTrackerFactory.from_progress_with_hierarchy(
+            progress_with_hierarchy
         )

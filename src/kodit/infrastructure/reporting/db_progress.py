@@ -20,4 +20,4 @@ class DBProgressReportingModule(ReportingModule):
 
     async def on_change(self, progress: ProgressTracker) -> None:
         """On step changed - update task status in database."""
-        await self.task_status_repository.update(progress)
+        await self.task_status_repository.save_progress(progress.progress)
