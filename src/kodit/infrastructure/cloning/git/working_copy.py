@@ -1,5 +1,6 @@
 """Working copy provider for git-based sources."""
 
+import asyncio
 import hashlib
 import shutil
 from pathlib import Path
@@ -39,7 +40,7 @@ class GitWorkingCopyProvider:
         clone_path.mkdir(parents=True, exist_ok=True)
 
         step_record = []
-        step.set_total(12)
+        await step.set_total(12)
 
         def _clone_progress_callback(
             a: int, _: str | float | None, __: str | float | None, _d: str
@@ -49,7 +50,9 @@ class GitWorkingCopyProvider:
 
             # Git reports a really weird format. This is a quick hack to get some
             # progress.
-            step.set_current(len(step_record))
+            # Normally this would fail because the loop is already running,
+            # but in this case, this callback is called by some git sub-thread.
+            asyncio.run(step.set_current(len(step_record)))
 
         try:
             self.log.info(

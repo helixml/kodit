@@ -676,6 +676,15 @@ class ReportingState(StrEnum):
     FAILED = "failed"
     SKIPPED = "skipped"
 
+    @staticmethod
+    def is_terminal(state: "ReportingState") -> bool:
+        """Check if a state is completed."""
+        return state in [
+            ReportingState.COMPLETED,
+            ReportingState.FAILED,
+            ReportingState.SKIPPED,
+        ]
+
 
 class TrackableType(StrEnum):
     """Trackable type."""

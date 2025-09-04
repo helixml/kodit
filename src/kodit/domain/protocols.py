@@ -111,3 +111,9 @@ class TaskStatusRepository(Protocol):
     async def delete(self, progress_tracker: ProgressTracker) -> None:
         """Delete a task status."""
         ...
+
+    async def find(
+        self, trackable_type: str, trackable_id: int
+    ) -> list[ProgressTracker]:
+        """Find a task status by trackable type and ID."""
+        ...

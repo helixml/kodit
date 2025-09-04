@@ -26,12 +26,11 @@ class ProgressTracker:
     def __init__(self, name: str, parent: "ProgressTracker | None" = None) -> None:
         """Initialize the progress tracker."""
         self.parent: ProgressTracker | None = parent
-        self._children: list[ProgressTracker] = []
         self._log = structlog.get_logger(__name__)
         self._subscribers: list[ReportingModule] = []
-        self._snapshot: Progress = Progress(name=name, state=ReportingState.STARTED)
-        self._trackable_id: int | None = None
-        self._trackable_type: TrackableType | None = None
+        self.snapshot: Progress = Progress(name=name, state=ReportingState.STARTED)
+        self.trackable_id: int | None = None
+        self.trackable_type: TrackableType | None = None
 
     async def __aenter__(self) -> "ProgressTracker":
         """Enter the operation."""
@@ -50,7 +49,8 @@ class ProgressTracker:
             self._snapshot = self._snapshot.with_state(
                 ReportingState.FAILED, str(exc_value)
             )
-        else:
+        # TODO(philwinder): Probably need some state machine here # noqa: TD003, FIX002
+        elif not ReportingState.is_terminal(self._snapshot.state):
             self._snapshot = self._snapshot.with_progress(100)
             self._snapshot = self._snapshot.with_state(ReportingState.COMPLETED)
         await self._notify_subscribers()
@@ -58,7 +58,9 @@ class ProgressTracker:
     def create_child(self, name: str) -> "ProgressTracker":
         """Create a child step."""
         s = ProgressTracker(name, self)
-        self._children.append(s)
+        s.parent = self
+        s.trackable_id = self.trackable_id
+        s.trackable_type = self.trackable_type
         for subscriber in self._subscribers:
             s.subscribe(subscriber)
         return s
@@ -98,26 +100,3 @@ class ProgressTracker:
         self._trackable_id = trackable_id
         self._trackable_type = trackable_type
         await self._notify_subscribers()
-
-    @property
-    def trackable_id(self) -> int | None:
-        """Get the index id."""
-        if self._trackable_id:
-            return self._trackable_id
-        if self.parent:
-            return self.parent.trackable_id
-        return None
-
-    @property
-    def trackable_type(self) -> str | None:
-        """Get the index type."""
-        if self._trackable_type:
-            return self._trackable_type
-        if self.parent:
-            return self.parent.trackable_type
-        return None
-
-    @property
-    def children(self) -> list["ProgressTracker"]:
-        """Get the children."""
-        return self._children
