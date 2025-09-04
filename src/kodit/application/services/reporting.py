@@ -81,7 +81,7 @@ class ProgressTracker:
             c.task_status.fail(str(e))
         finally:
             c.task_status.complete()
-            await self.notify_subscribers()
+            await c.notify_subscribers()
 
     async def skip(self, _reason: str) -> None:
         """Skip the step."""
