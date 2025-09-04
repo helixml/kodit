@@ -7,16 +7,15 @@ from typing import Any
 import httpx
 import litellm
 import structlog
+import tiktoken
 from litellm import aembedding
 
 from kodit.config import Endpoint
 from kodit.domain.services.embedding_service import EmbeddingProvider
 from kodit.domain.value_objects import EmbeddingRequest, EmbeddingResponse
-
-# Constants
-MAX_TOKENS = 8192  # Conservative token limit for the embedding model
-BATCH_SIZE = 10  # Maximum number of items per API call
-DEFAULT_NUM_PARALLEL_TASKS = 10  # Semaphore limit for concurrent requests
+from kodit.infrastructure.embedding.embedding_providers.batching import (
+    split_sub_batches,
+)
 
 
 class LiteLLMEmbeddingProvider(EmbeddingProvider):
@@ -32,46 +31,36 @@ class LiteLLMEmbeddingProvider(EmbeddingProvider):
             endpoint: The endpoint configuration containing all settings.
 
         """
-        self.model_name = endpoint.model or "text-embedding-3-small"
-        self.api_key = endpoint.api_key
-        self.base_url = endpoint.base_url
-        self.socket_path = endpoint.socket_path
-        self.num_parallel_tasks = (
-            endpoint.num_parallel_tasks or DEFAULT_NUM_PARALLEL_TASKS
-        )
-        self.timeout = endpoint.timeout or 30.0
-        self.extra_params = endpoint.extra_params or {}
+        self.endpoint = endpoint
         self.log = structlog.get_logger(__name__)
+        self._encoding: tiktoken.Encoding | None = None
 
         # Configure LiteLLM with custom HTTPX client for Unix socket support if needed
         self._setup_litellm_client()
 
     def _setup_litellm_client(self) -> None:
         """Set up LiteLLM with custom HTTPX client for Unix socket support."""
-        if self.socket_path:
+        if self.endpoint.socket_path:
             # Create HTTPX client with Unix socket transport
-            transport = httpx.AsyncHTTPTransport(uds=self.socket_path)
+            transport = httpx.AsyncHTTPTransport(uds=self.endpoint.socket_path)
             unix_client = httpx.AsyncClient(
                 transport=transport,
                 base_url="http://localhost",  # Base URL for Unix socket
-                timeout=self.timeout,
+                timeout=self.endpoint.timeout,
             )
             # Set as LiteLLM's async client session
             litellm.aclient_session = unix_client
 
     def _split_sub_batches(
-        self, data: list[EmbeddingRequest]
+        self, encoding: tiktoken.Encoding, data: list[EmbeddingRequest]
     ) -> list[list[EmbeddingRequest]]:
-        """Split data into manageable batches.
-
-        For LiteLLM, we use a simpler batching approach since token counting
-        varies by provider. We use a conservative batch size approach.
-        """
-        batches = []
-        for i in range(0, len(data), BATCH_SIZE):
-            batch = data[i : i + BATCH_SIZE]
-            batches.append(batch)
-        return batches
+        """Proxy to the shared batching utility (kept for backward-compat)."""
+        return split_sub_batches(
+            encoding,
+            data,
+            max_tokens=self.endpoint.max_tokens,
+            batch_size=self.endpoint.num_parallel_tasks,
+        )
 
     async def _call_embeddings_api(self, texts: list[str]) -> Any:
         """Call the embeddings API using LiteLLM.
@@ -84,21 +73,21 @@ class LiteLLMEmbeddingProvider(EmbeddingProvider):
 
         """
         kwargs = {
-            "model": self.model_name,
+            "model": self.endpoint.model,
             "input": texts,
-            "timeout": self.timeout,
+            "timeout": self.endpoint.timeout,
         }
 
         # Add API key if provided
-        if self.api_key:
-            kwargs["api_key"] = self.api_key
+        if self.endpoint.api_key:
+            kwargs["api_key"] = self.endpoint.api_key
 
         # Add base_url if provided
-        if self.base_url:
-            kwargs["api_base"] = self.base_url
+        if self.endpoint.base_url:
+            kwargs["api_base"] = self.endpoint.base_url
 
         # Add extra parameters
-        kwargs.update(self.extra_params)
+        kwargs.update(self.endpoint.extra_params or {})
 
         try:
             # Use litellm's async embedding function
@@ -108,7 +97,7 @@ class LiteLLMEmbeddingProvider(EmbeddingProvider):
             )
         except Exception as e:
             self.log.exception(
-                "LiteLLM embedding API error", error=str(e), model=self.model_name
+                "LiteLLM embedding API error", error=str(e), model=self.endpoint.model
             )
             raise
 
@@ -121,32 +110,28 @@ class LiteLLMEmbeddingProvider(EmbeddingProvider):
             return
 
         # Split into batches
-        batched_data = self._split_sub_batches(data)
+        encoding = self._get_encoding()
+        batched_data = self._split_sub_batches(encoding, data)
 
         # Process batches concurrently with semaphore
-        sem = asyncio.Semaphore(self.num_parallel_tasks)
+        sem = asyncio.Semaphore(self.endpoint.num_parallel_tasks or 10)
 
         async def _process_batch(
             batch: list[EmbeddingRequest],
         ) -> list[EmbeddingResponse]:
             async with sem:
-                try:
-                    response = await self._call_embeddings_api(
-                        [item.text for item in batch]
-                    )
-                    embeddings_data = response.get("data", [])
+                response = await self._call_embeddings_api(
+                    [item.text for item in batch]
+                )
+                embeddings_data = response.get("data", [])
 
-                    return [
-                        EmbeddingResponse(
-                            snippet_id=item.snippet_id,
-                            embedding=emb_data.get("embedding", []),
-                        )
-                        for item, emb_data in zip(batch, embeddings_data, strict=True)
-                    ]
-                except Exception as e:
-                    self.log.exception("Error embedding batch", error=str(e))
-                    # Return no embeddings for this batch if there was an error
-                    return []
+                return [
+                    EmbeddingResponse(
+                        snippet_id=item.snippet_id,
+                        embedding=emb_data.get("embedding", []),
+                    )
+                    for item, emb_data in zip(batch, embeddings_data, strict=True)
+                ]
 
         tasks = [_process_batch(batch) for batch in batched_data]
         for task in asyncio.as_completed(tasks):
@@ -155,9 +140,17 @@ class LiteLLMEmbeddingProvider(EmbeddingProvider):
     async def close(self) -> None:
         """Close the provider and cleanup HTTPX client if using Unix sockets."""
         if (
-            self.socket_path
+            self.endpoint.socket_path
             and hasattr(litellm, "aclient_session")
             and litellm.aclient_session
         ):
             await litellm.aclient_session.aclose()
             litellm.aclient_session = None
+
+    def _get_encoding(self) -> tiktoken.Encoding:
+        """Return (and cache) the tiktoken encoding for the chosen model."""
+        if self._encoding is None:
+            self._encoding = tiktoken.get_encoding(
+                "o200k_base"
+            )  # Reasonable default for most models, but might not be perfect.
+        return self._encoding
