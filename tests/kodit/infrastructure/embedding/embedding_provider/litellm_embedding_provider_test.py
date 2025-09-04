@@ -19,11 +19,11 @@ class TestLiteLLMEmbeddingProvider:
         """Test initialization with default values."""
         endpoint = Endpoint()
         provider = LiteLLMEmbeddingProvider(endpoint)
-        assert provider.model_name == "text-embedding-3-small"
-        assert provider.api_key is None
-        assert provider.base_url is None
-        assert provider.timeout == 30.0
-        assert provider.extra_params == {}
+        assert provider.endpoint.model == "text-embedding-3-small"
+        assert provider.endpoint.api_key is None
+        assert provider.endpoint.base_url is None
+        assert provider.endpoint.timeout == 30.0
+        assert provider.endpoint.extra_params == {}
         assert provider.log is not None
 
     def test_init_custom_values(self) -> None:
@@ -37,11 +37,11 @@ class TestLiteLLMEmbeddingProvider:
             extra_params=extra_params,
         )
         provider = LiteLLMEmbeddingProvider(endpoint)
-        assert provider.model_name == "text-embedding-3-large"
-        assert provider.api_key == "test-api-key"
-        assert provider.base_url == "https://custom.openai.com"
-        assert provider.timeout == 60.0
-        assert provider.extra_params == extra_params
+        assert provider.endpoint.model == "text-embedding-3-large"
+        assert provider.endpoint.api_key == "test-api-key"
+        assert provider.endpoint.base_url == "https://custom.openai.com"
+        assert provider.endpoint.timeout == 60.0
+        assert provider.endpoint.extra_params == extra_params
 
     @pytest.mark.asyncio
     async def test_embed_empty_requests(self) -> None:
@@ -338,7 +338,7 @@ class TestLiteLLMEmbeddingProvider:
         provider = LiteLLMEmbeddingProvider(endpoint)
 
         # Verify socket_path was stored
-        assert provider.socket_path == "/var/run/test.sock"
+        assert provider.endpoint.socket_path == "/var/run/test.sock"
         # Verify mock is available (to satisfy linter)
         assert mock_litellm is not None
 

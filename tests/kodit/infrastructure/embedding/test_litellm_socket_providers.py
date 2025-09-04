@@ -161,10 +161,10 @@ async def test_litellm_providers_initialization() -> None:
     embedding_provider = LiteLLMEmbeddingProvider(endpoint=embedding_endpoint)
 
     # Verify initialization
-    assert embedding_provider.socket_path == "/tmp/test.sock"  # noqa: S108
-    assert embedding_provider.base_url == "http://localhost/v1"
-    assert embedding_provider.model_name == "text-embedding-3-small"
-    assert embedding_provider.api_key == "test-key"
+    assert embedding_provider.endpoint.socket_path == "/tmp/test.sock"  # noqa: S108
+    assert embedding_provider.endpoint.base_url == "http://localhost/v1"
+    assert embedding_provider.endpoint.model == "text-embedding-3-small"
+    assert embedding_provider.endpoint.api_key == "test-key"
 
     # Test enrichment provider initialization with socket path
     enrichment_endpoint = Endpoint(
