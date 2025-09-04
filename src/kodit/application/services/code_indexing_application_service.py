@@ -4,7 +4,6 @@ from dataclasses import replace
 from datetime import UTC, datetime
 
 import structlog
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.application.services.reporting import (
     OperationType,
@@ -43,7 +42,6 @@ class CodeIndexingApplicationService:
         code_search_service: EmbeddingDomainService,
         text_search_service: EmbeddingDomainService,
         enrichment_service: EnrichmentDomainService,
-        session: AsyncSession,
         operation: ProgressTracker,
     ) -> None:
         """Initialize the code indexing application service."""
@@ -54,7 +52,6 @@ class CodeIndexingApplicationService:
         self.code_search_service = code_search_service
         self.text_search_service = text_search_service
         self.enrichment_service = enrichment_service
-        self.session = session
         self.operation = operation
         self.log = structlog.get_logger(__name__)
 
@@ -89,9 +86,7 @@ class CodeIndexingApplicationService:
 
             # Create new index
             self.log.info("Creating index", uri=str(sanitized_uri))
-            index = await self.index_repository.create(sanitized_uri, working_copy)
-            await self.session.commit()
-            return index
+            return await self.index_repository.create(sanitized_uri, working_copy)
 
     async def run_index(self, index: Index) -> None:
         """Run the complete indexing process for a specific index."""
@@ -398,4 +393,3 @@ class CodeIndexingApplicationService:
 
         # Delete index from the database
         await self.index_repository.delete(index)
-        await self.session.commit()
