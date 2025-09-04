@@ -375,3 +375,36 @@ class TaskStatus(BaseModel):
         if self.total == 0:
             return 0.0
         return min(100.0, max(0.0, (self.current / self.total) * 100.0))
+
+    def skip(self) -> None:
+        """Skip the task."""
+        self.state = ReportingState.SKIPPED
+
+    def fail(self, error: str) -> None:
+        """Fail the task."""
+        self.state = ReportingState.FAILED
+        self.error = error
+
+    def set_total(self, total: int) -> None:
+        """Set the total for the step."""
+        self.total = total
+
+    def set_current(self, current: int) -> None:
+        """Progress the step."""
+        self.state = ReportingState.IN_PROGRESS
+        self.current = current
+
+    def set_tracking_info(
+        self, trackable_id: int, trackable_type: TrackableType
+    ) -> None:
+        """Set the tracking info."""
+        self.trackable_id = trackable_id
+        self.trackable_type = trackable_type
+
+    def complete(self) -> None:
+        """Complete the task."""
+        if ReportingState.is_terminal(self.state):
+            return  # Already in terminal state
+
+        self.state = ReportingState.COMPLETED
+        self.current = self.total  # Ensure progress shows 100%
