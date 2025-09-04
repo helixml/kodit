@@ -105,7 +105,6 @@ def create_code_indexing_application_service(
 
 def create_cli_code_indexing_application_service(
     app_context: AppContext,
-    session: AsyncSession,
     session_factory: Callable[[], AsyncSession],
 ) -> CodeIndexingApplicationService:
     """Create a CLI code indexing application service."""
@@ -118,7 +117,6 @@ def create_cli_code_indexing_application_service(
 
 def create_server_code_indexing_application_service(
     app_context: AppContext,
-    session: AsyncSession,
     session_factory: Callable[[], AsyncSession],
 ) -> CodeIndexingApplicationService:
     """Create a server code indexing application service."""
@@ -131,12 +129,13 @@ def create_server_code_indexing_application_service(
 
 def create_fast_test_code_indexing_application_service(
     app_context: AppContext,
-    session: AsyncSession,
     session_factory: Callable[[], AsyncSession],
 ) -> CodeIndexingApplicationService:
     """Create a fast test code indexing application service."""
     # Create domain services
-    bm25_service = BM25DomainService(bm25_repository_factory(app_context, session))
+    bm25_service = BM25DomainService(
+        bm25_repository_factory(app_context, session_factory())
+    )
     embedding_repository = create_embedding_repository(session_factory=session_factory)
     operation = create_noop_operation()
 

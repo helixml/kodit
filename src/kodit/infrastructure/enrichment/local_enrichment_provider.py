@@ -114,7 +114,7 @@ class LocalEnrichmentProvider(EnrichmentProvider):
                 )
                 input_ids = model_inputs["input_ids"][0]
                 output_ids = generated_ids[0][len(input_ids) :].tolist()
-                return self.tokenizer.decode(  # type: ignore[misc]
+                return self.tokenizer.decode(  # type: ignore[attr-defined]
                     output_ids, skip_special_tokens=True
                 ).strip(  # type: ignore[attr-defined]
                     "\n"

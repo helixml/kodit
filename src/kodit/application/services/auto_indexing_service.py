@@ -62,38 +62,34 @@ class AutoIndexingService:
     ) -> None:
         """Index all configured sources in the background."""
         operation = operation or create_noop_operation()
-        async with self.session_factory() as session:
-            queue_service = QueueService(session_factory=self.session_factory)
-            service = create_code_indexing_application_service(
-                app_context=self.app_context,
-                session=session,
-                session_factory=self.session_factory,
-                operation=operation,
-            )
+        queue_service = QueueService(session_factory=self.session_factory)
+        service = create_code_indexing_application_service(
+            app_context=self.app_context,
+            session_factory=self.session_factory,
+            operation=operation,
+        )
 
-            for source in sources:
-                try:
-                    # Only auto-index a source if it is new
-                    if await service.does_index_exist(source):
-                        self.log.info("Index already exists, skipping", source=source)
-                        continue
+        for source in sources:
+            try:
+                # Only auto-index a source if it is new
+                if await service.does_index_exist(source):
+                    self.log.info("Index already exists, skipping", source=source)
+                    continue
 
-                    self.log.info("Adding auto-indexing task to queue", source=source)
+                self.log.info("Adding auto-indexing task to queue", source=source)
 
-                    # Create index
-                    index = await service.create_index_from_uri(source)
+                # Create index
+                index = await service.create_index_from_uri(source)
 
-                    await queue_service.enqueue_task(
-                        Task.create_index_update_task(
-                            index.id, QueuePriority.BACKGROUND
-                        )
-                    )
+                await queue_service.enqueue_task(
+                    Task.create_index_update_task(index.id, QueuePriority.BACKGROUND)
+                )
 
-                except Exception as exc:
-                    self.log.exception(
-                        "Failed to auto-index source", source=source, error=str(exc)
-                    )
-                    # Continue with other sources even if one fails
+            except Exception as exc:
+                self.log.exception(
+                    "Failed to auto-index source", source=source, error=str(exc)
+                )
+                # Continue with other sources even if one fails
 
     async def stop(self) -> None:
         """Stop background indexing."""

@@ -182,7 +182,6 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:
         # Use the unified application service
         service = create_code_indexing_application_service(
             app_context=mcp_context.app_context,
-            session=mcp_context.session,
             session_factory=mcp_context.session_factory,
             operation=create_server_operation(
                 create_task_status_repository(mcp_context.session_factory)

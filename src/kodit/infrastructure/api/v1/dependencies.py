@@ -74,13 +74,10 @@ IndexQueryServiceDep = Annotated[IndexQueryService, Depends(get_index_query_serv
 
 async def get_indexing_app_service(
     app_context: AppContextDep,
-    session: DBSessionDep,
     session_factory: DBSessionFactoryDep,
 ) -> CodeIndexingApplicationService:
     """Get indexing application service dependency."""
-    return create_server_code_indexing_application_service(
-        app_context, session, session_factory
-    )
+    return create_server_code_indexing_application_service(app_context, session_factory)
 
 
 IndexingAppServiceDep = Annotated[

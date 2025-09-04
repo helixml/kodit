@@ -183,56 +183,52 @@ async def _index_local(
 
     # Get database session
     db = await app_context.get_db()
-    async with db.session_factory() as session:
-        service = create_cli_code_indexing_application_service(
-            app_context=app_context,
-            session=session,
-            session_factory=db.session_factory,
-        )
-        index_query_service = IndexQueryService(
-            index_repository=create_index_repository(
-                session_factory=db.session_factory
-            ),
-            fusion_service=ReciprocalRankFusionService(),
-        )
+    service = create_cli_code_indexing_application_service(
+        app_context=app_context,
+        session_factory=db.session_factory,
+    )
+    index_query_service = IndexQueryService(
+        index_repository=create_index_repository(session_factory=db.session_factory),
+        fusion_service=ReciprocalRankFusionService(),
+    )
 
-        if auto_index:
-            sources = await _handle_auto_index(app_context, sources)
-            if not sources:
-                return
-
-        if sync:
-            await _handle_sync(service, index_query_service, sources)
-            return
-
+    if auto_index:
+        sources = await _handle_auto_index(app_context, sources)
         if not sources:
-            await _handle_list_indexes(index_query_service)
             return
 
-        # Handle source indexing
-        for source in sources:
-            if Path(source).is_file():
-                msg = "File indexing is not implemented yet"
-                raise click.UsageError(msg)
+    if sync:
+        await _handle_sync(service, index_query_service, sources)
+        return
 
-            # Index source with progress
-            log_event("kodit.cli.index.create")
+    if not sources:
+        await _handle_list_indexes(index_query_service)
+        return
 
-            # Create a lazy progress callback that only shows progress when needed
-            index = await service.create_index_from_uri(source)
+    # Handle source indexing
+    for source in sources:
+        if Path(source).is_file():
+            msg = "File indexing is not implemented yet"
+            raise click.UsageError(msg)
 
-            # Create a new progress callback for the indexing operations
-            try:
-                await service.run_index(index)
-            except EmptySourceError as e:
-                log.exception("Empty source error", error=e)
-                msg = f"""{e}. This could mean:
+        # Index source with progress
+        log_event("kodit.cli.index.create")
+
+        # Create a lazy progress callback that only shows progress when needed
+        index = await service.create_index_from_uri(source)
+
+        # Create a new progress callback for the indexing operations
+        try:
+            await service.run_index(index)
+        except EmptySourceError as e:
+            log.exception("Empty source error", error=e)
+            msg = f"""{e}. This could mean:
 • The repository contains no supported file types
 • All files are excluded by ignore patterns
 • The files contain no extractable code snippets
 Please check the repository contents and try again.
 """
-                click.echo(msg)
+            click.echo(msg)
 
 
 async def _index_remote(
@@ -319,35 +315,33 @@ async def _search_local(  # noqa: PLR0913
 
     # Get database session
     db = await app_context.get_db()
-    async with db.session_factory() as session:
-        service = create_cli_code_indexing_application_service(
-            app_context=app_context,
-            session=session,
-            session_factory=db.session_factory,
+    service = create_cli_code_indexing_application_service(
+        app_context=app_context,
+        session_factory=db.session_factory,
+    )
+
+    filters = _parse_filters(
+        language, author, created_after, created_before, source_repo
+    )
+
+    snippets = await service.search(
+        MultiSearchRequest(
+            keywords=keywords,
+            code_query=code_query,
+            text_query=text_query,
+            top_k=top_k,
+            filters=filters,
         )
+    )
 
-        filters = _parse_filters(
-            language, author, created_after, created_before, source_repo
-        )
+    if len(snippets) == 0:
+        click.echo("No snippets found")
+        return
 
-        snippets = await service.search(
-            MultiSearchRequest(
-                keywords=keywords,
-                code_query=code_query,
-                text_query=text_query,
-                top_k=top_k,
-                filters=filters,
-            )
-        )
-
-        if len(snippets) == 0:
-            click.echo("No snippets found")
-            return
-
-        if output_format == "text":
-            click.echo(MultiSearchResult.to_string(snippets))
-        elif output_format == "json":
-            click.echo(MultiSearchResult.to_jsonlines(snippets))
+    if output_format == "text":
+        click.echo(MultiSearchResult.to_string(snippets))
+    elif output_format == "json":
+        click.echo(MultiSearchResult.to_jsonlines(snippets))
 
 
 async def _search_remote(  # noqa: PLR0913
@@ -785,19 +779,15 @@ async def snippets(
         # Local mode
         log_event("kodit.cli.show.snippets")
         db = await app_context.get_db()
-        async with db.session_factory() as session:
-            service = create_cli_code_indexing_application_service(
-                app_context=app_context,
-                session=session,
-                session_factory=db.session_factory,
-            )
-            snippets = await service.list_snippets(
-                file_path=by_path, source_uri=by_source
-            )
-            if output_format == "text":
-                click.echo(MultiSearchResult.to_string(snippets))
-            elif output_format == "json":
-                click.echo(MultiSearchResult.to_jsonlines(snippets))
+        service = create_cli_code_indexing_application_service(
+            app_context=app_context,
+            session_factory=db.session_factory,
+        )
+        snippets = await service.list_snippets(file_path=by_path, source_uri=by_source)
+        if output_format == "text":
+            click.echo(MultiSearchResult.to_string(snippets))
+        elif output_format == "json":
+            click.echo(MultiSearchResult.to_jsonlines(snippets))
     else:
         # Remote mode - not supported
         click.echo("⚠️  Warning: 'show snippets' is not implemented in remote mode")
