@@ -65,22 +65,22 @@ class ProgressTracker:
     @asynccontextmanager
     async def create_child(self, name: str) -> AsyncGenerator["ProgressTracker", None]:
         """Create a child step."""
+        c = ProgressTracker.create(
+            step=name,
+            parent=self.task_status,
+            trackable_type=self.task_status.trackable_type,
+            trackable_id=self.task_status.trackable_id,
+        )
         try:
-            c = ProgressTracker.create(
-                step=name,
-                parent=self.task_status,
-                trackable_type=self.task_status.trackable_type,
-                trackable_id=self.task_status.trackable_id,
-            )
             for subscriber in self._subscribers:
                 c.subscribe(subscriber)
 
             await c.notify_subscribers()
             yield c
         except Exception as e:  # noqa: BLE001
-            self.task_status.fail(str(e))
+            c.task_status.fail(str(e))
         finally:
-            self.task_status.complete()
+            c.task_status.complete()
             await self.notify_subscribers()
 
     async def skip(self, _reason: str) -> None:
