@@ -26,6 +26,7 @@ from kodit.domain.value_objects import (
     SearchRequest,
     SearchResult,
     SnippetSearchFilters,
+    TrackableType,
 )
 from kodit.log import log_event
 
@@ -100,7 +101,7 @@ class CodeIndexingApplicationService:
         ) as operation:
             # TODO(philwinder): Move this into a reporter # noqa: TD003, FIX002
             log_event("kodit.index.run")
-            await operation.set_index_id(index.id)
+            await operation.set_tracking_info(index.id, TrackableType.INDEX)
 
             if not index or not index.id:
                 msg = f"Index has no ID: {index}"

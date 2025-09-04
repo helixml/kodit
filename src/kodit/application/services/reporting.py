@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 import structlog
 
-from kodit.domain.value_objects import Progress, ReportingState
+from kodit.domain.value_objects import Progress, ReportingState, TrackableType
 
 if TYPE_CHECKING:
     from kodit.domain.protocols import ReportingModule
@@ -29,8 +29,9 @@ class ProgressTracker:
         self._children: list[ProgressTracker] = []
         self._log = structlog.get_logger(__name__)
         self._subscribers: list[ReportingModule] = []
-        self._snapshot: Progress = Progress(name=name, state=ReportingState.IN_PROGRESS)
-        self._index_id: int | None = None
+        self._snapshot: Progress = Progress(name=name, state=ReportingState.STARTED)
+        self._trackable_id: int | None = None
+        self._trackable_type: TrackableType | None = None
 
     async def __aenter__(self) -> "ProgressTracker":
         """Enter the operation."""
@@ -49,8 +50,7 @@ class ProgressTracker:
             self._snapshot = self._snapshot.with_state(
                 ReportingState.FAILED, str(exc_value)
             )
-
-        if self._snapshot.state == ReportingState.IN_PROGRESS:
+        else:
             self._snapshot = self._snapshot.with_progress(100)
             self._snapshot = self._snapshot.with_state(ReportingState.COMPLETED)
         await self._notify_subscribers()
@@ -78,6 +78,7 @@ class ProgressTracker:
 
     async def set_current(self, current: int) -> None:
         """Progress the step."""
+        self._snapshot = self._snapshot.with_state(ReportingState.IN_PROGRESS)
         self._snapshot = self._snapshot.with_progress(current)
         await self._notify_subscribers()
 
@@ -90,16 +91,33 @@ class ProgressTracker:
         """Get the state of the step."""
         return self._snapshot
 
-    async def set_index_id(self, index_id: int) -> None:
+    async def set_tracking_info(
+        self, trackable_id: int, trackable_type: TrackableType
+    ) -> None:
         """Set the index id."""
-        self._index_id = index_id
+        self._trackable_id = trackable_id
+        self._trackable_type = trackable_type
         await self._notify_subscribers()
 
     @property
-    def index_id(self) -> int | None:
+    def trackable_id(self) -> int | None:
         """Get the index id."""
-        if self._index_id:
-            return self._index_id
+        if self._trackable_id:
+            return self._trackable_id
         if self.parent:
-            return self.parent.index_id
+            return self.parent.trackable_id
         return None
+
+    @property
+    def trackable_type(self) -> str | None:
+        """Get the index type."""
+        if self._trackable_type:
+            return self._trackable_type
+        if self.parent:
+            return self.parent.trackable_type
+        return None
+
+    @property
+    def children(self) -> list["ProgressTracker"]:
+        """Get the children."""
+        return self._children

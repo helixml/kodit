@@ -677,6 +677,12 @@ class ReportingState(StrEnum):
     SKIPPED = "skipped"
 
 
+class TrackableType(StrEnum):
+    """Trackable type."""
+
+    INDEX = "indexes"
+
+
 @dataclass(frozen=True)
 class Progress:
     """Immutable representation of a step's state."""

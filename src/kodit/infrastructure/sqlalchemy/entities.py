@@ -268,9 +268,8 @@ class TaskStatus(Base, CommonMixin):
     """Task status model."""
 
     __tablename__ = "task_status"
-    index_id: Mapped[int] = mapped_column(
-        ForeignKey("indexes.id"), index=True, nullable=True
-    )
+    trackable_id: Mapped[int] = mapped_column(Integer, index=True, nullable=True)
+    trackable_type: Mapped[str] = mapped_column(String(255), index=True, nullable=True)
     parent: Mapped[int] = mapped_column(
         ForeignKey("task_status.id"), index=True, nullable=True
     )

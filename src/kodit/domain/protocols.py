@@ -107,3 +107,7 @@ class TaskStatusRepository(Protocol):
     async def update(self, progress_tracker: ProgressTracker) -> None:
         """Update a task status."""
         ...
+
+    async def delete(self, progress_tracker: ProgressTracker) -> None:
+        """Delete a task status."""
+        ...

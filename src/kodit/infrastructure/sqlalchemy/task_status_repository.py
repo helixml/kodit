@@ -3,7 +3,7 @@
 from collections.abc import Callable
 
 import structlog
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.application.services.reporting import ProgressTracker
@@ -34,7 +34,9 @@ class SqlAlchemyTaskStatusRepository(TaskStatusRepository):
         async with self.uow:
             # See if this specific status exists already
             stmt = select(db_entities.TaskStatus).where(
-                db_entities.TaskStatus.index_id == progress_tracker.index_id,
+                db_entities.TaskStatus.trackable_id == progress_tracker.trackable_id,
+                db_entities.TaskStatus.trackable_type
+                == progress_tracker.trackable_type,
                 db_entities.TaskStatus.name == status.name,
             )
             result = await self.uow.session.execute(stmt)
@@ -43,7 +45,8 @@ class SqlAlchemyTaskStatusRepository(TaskStatusRepository):
             # If not, then create it
             if not db_task_status:
                 db_task_status = db_entities.TaskStatus(
-                    index_id=progress_tracker.index_id,
+                    trackable_id=progress_tracker.trackable_id,
+                    trackable_type=progress_tracker.trackable_type,
                     name=status.name,
                 )
                 self.uow.session.add(db_task_status)
@@ -55,3 +58,22 @@ class SqlAlchemyTaskStatusRepository(TaskStatusRepository):
             db_task_status.error = str(status.error)
             db_task_status.total = status.total
             db_task_status.current = status.current
+
+    async def _recursive_delete(self, progress_tracker: ProgressTracker) -> None:
+        """Delete a task status and all children."""
+        status = await progress_tracker.status()
+        # First delete all children
+        for child in progress_tracker.children:
+            await self._recursive_delete(child)
+        # Then delete the current task status
+        stmt = delete(db_entities.TaskStatus).where(
+            db_entities.TaskStatus.trackable_id == progress_tracker.trackable_id,
+            db_entities.TaskStatus.trackable_type == progress_tracker.trackable_type,
+            db_entities.TaskStatus.name == status.name,
+        )
+        await self.uow.session.execute(stmt)
+
+    async def delete(self, progress_tracker: ProgressTracker) -> None:
+        """Delete a task status and all children."""
+        async with self.uow:
+            await self._recursive_delete(progress_tracker)
