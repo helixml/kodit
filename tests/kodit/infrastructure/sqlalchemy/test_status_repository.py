@@ -160,7 +160,7 @@ class TestLoadWithHierarchy:
         # Create database entities with parent-child relationships
         parent_db = db_entities.TaskStatus(
             id="parent-1",
-            operation="cloning",
+            operation=TaskOperation.RUN_INDEX.value,
             state=ReportingState.COMPLETED.value,
             created_at=datetime(2024, 1, 1, 9, 0, 0, tzinfo=UTC),
             updated_at=datetime(2024, 1, 1, 9, 30, 0, tzinfo=UTC),
@@ -175,7 +175,7 @@ class TestLoadWithHierarchy:
 
         child1_db = db_entities.TaskStatus(
             id="child-1",
-            operation="indexing",
+            operation=TaskOperation.REFRESH_WORKING_COPY.value,
             state=ReportingState.IN_PROGRESS.value,
             created_at=datetime(2024, 1, 1, 10, 0, 0, tzinfo=UTC),
             updated_at=datetime(2024, 1, 1, 10, 30, 0, tzinfo=UTC),
@@ -190,7 +190,7 @@ class TestLoadWithHierarchy:
 
         child2_db = db_entities.TaskStatus(
             id="child-2",
-            operation="embedding",
+            operation=TaskOperation.CREATE_CODE_EMBEDDINGS.value,
             state=ReportingState.STARTED.value,
             created_at=datetime(2024, 1, 1, 10, 0, 0, tzinfo=UTC),
             updated_at=datetime(2024, 1, 1, 10, 0, 0, tzinfo=UTC),
@@ -205,7 +205,7 @@ class TestLoadWithHierarchy:
 
         grandchild_db = db_entities.TaskStatus(
             id="grandchild-1",
-            operation="slicing",
+            operation=TaskOperation.CREATE_TEXT_EMBEDDINGS.value,
             state=ReportingState.STARTED.value,
             created_at=datetime(2024, 1, 1, 11, 0, 0, tzinfo=UTC),
             updated_at=datetime(2024, 1, 1, 11, 0, 0, tzinfo=UTC),
@@ -273,7 +273,7 @@ class TestLoadWithHierarchy:
         # Create standalone task status
         standalone_db = db_entities.TaskStatus(
             id="standalone-1",
-            operation="indexing",
+            operation=TaskOperation.RUN_INDEX.value,
             state=ReportingState.COMPLETED.value,
             created_at=datetime(2024, 1, 1, 10, 0, 0, tzinfo=UTC),
             updated_at=datetime(2024, 1, 1, 10, 30, 0, tzinfo=UTC),
