@@ -64,7 +64,6 @@ class CodeIndexingApplicationService:
 
     async def create_index_from_uri(self, uri: str) -> Index:
         """Create a new index for a source."""
-        log_event("kodit.index.create")
         async with self.operation.create_child(TaskOperation.CREATE_INDEX) as operation:
             # Check if index already exists
             sanitized_uri, _ = self.index_domain_service.sanitize_uri(uri)
@@ -94,9 +93,6 @@ class CodeIndexingApplicationService:
             trackable_type=TrackableType.INDEX,
             trackable_id=index.id,
         ) as operation:
-            # TODO(philwinder): Move this into a reporter # noqa: TD003, FIX002
-            log_event("kodit.index.run")
-
             if not index or not index.id:
                 msg = f"Index has no ID: {index}"
                 raise ValueError(msg)
