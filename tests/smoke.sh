@@ -97,7 +97,12 @@ if wait_for_server; then
         -H "Content-Type: application/json" \
         -d '{"data": {"type": "index", "attributes": {"uri": "https://gist.github.com/7aa38185e20433c04c533f2b28f4e217.git"}}}' \
         || echo "Create index test failed")
-    
+    INDEX_ID=$(echo "$INDEX_RESPONSE" | jq -r '.data.id')
+
+    # Test GET /api/v1/indexes/$INDEX_ID/status
+    echo "Testing GET /api/v1/indexes/$INDEX_ID/status"
+    curl -s -f http://127.0.0.1:8080/api/v1/indexes/$INDEX_ID/status || echo "Get index status test failed"
+
     # Test search API as well
     echo "Testing POST /api/v1/search"
     curl -s -f -X POST http://127.0.0.1:8080/api/v1/search \

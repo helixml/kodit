@@ -139,6 +139,8 @@ async def get_index_status(
                     progress=status.completion_percent,
                     total=status.total,
                     current=status.current,
+                    created_at=status.created_at,
+                    updated_at=status.updated_at,
                 ),
             )
         )

@@ -1,7 +1,7 @@
 """Task status mapper."""
 
 from kodit.domain import entities as domain_entities
-from kodit.domain.value_objects import ReportingState, TrackableType
+from kodit.domain.value_objects import ReportingState, TaskOperation, TrackableType
 from kodit.infrastructure.sqlalchemy import entities as db_entities
 
 
@@ -41,7 +41,7 @@ class TaskStatusMapper:
         """Convert database TaskStatus to domain TaskStatus."""
         return domain_entities.TaskStatus(
             id=db_status.id,
-            operation=db_status.operation,
+            operation=TaskOperation(db_status.operation),
             state=ReportingState(db_status.state),
             created_at=db_status.created_at,
             updated_at=db_status.updated_at,

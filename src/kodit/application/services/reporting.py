@@ -55,14 +55,17 @@ class ProgressTracker:
 
     @asynccontextmanager
     async def create_child(
-        self, operation: TaskOperation
+        self,
+        operation: TaskOperation,
+        trackable_type: TrackableType | None = None,
+        trackable_id: int | None = None,
     ) -> AsyncGenerator["ProgressTracker", None]:
         """Create a child step."""
         c = ProgressTracker.create(
             operation=operation,
             parent=self.task_status,
-            trackable_type=self.task_status.trackable_type,
-            trackable_id=self.task_status.trackable_id,
+            trackable_type=trackable_type or self.task_status.trackable_type,
+            trackable_id=trackable_id or self.task_status.trackable_id,
         )
         try:
             for subscriber in self._subscribers:
@@ -99,10 +102,3 @@ class ProgressTracker:
         """Notify the subscribers only if progress has changed."""
         for subscriber in self._subscribers:
             await subscriber.on_change(self.task_status)
-
-    async def set_tracking_info(
-        self, trackable_id: int, trackable_type: TrackableType
-    ) -> None:
-        """Set the index id."""
-        self.task_status.set_tracking_info(trackable_id, trackable_type)
-        await self.notify_subscribers()

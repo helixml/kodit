@@ -89,10 +89,13 @@ class CodeIndexingApplicationService:
     async def run_index(self, index: Index) -> None:
         """Run the complete indexing process for a specific index."""
         # Create a new operation
-        async with self.operation.create_child(TaskOperation.RUN_INDEX) as operation:
+        async with self.operation.create_child(
+            TaskOperation.RUN_INDEX,
+            trackable_type=TrackableType.INDEX,
+            trackable_id=index.id,
+        ) as operation:
             # TODO(philwinder): Move this into a reporter # noqa: TD003, FIX002
             log_event("kodit.index.run")
-            await operation.set_tracking_info(index.id, TrackableType.INDEX)
 
             if not index or not index.id:
                 msg = f"Index has no ID: {index}"
