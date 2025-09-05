@@ -692,4 +692,4 @@ class TrackableType(StrEnum):
     INDEX = "indexes"
 
 
-TaskStep = str
+TaskOperation = str

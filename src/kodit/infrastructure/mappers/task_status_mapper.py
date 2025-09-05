@@ -15,14 +15,12 @@ class TaskStatusMapper:
         """Convert domain TaskStatus to database TaskStatus."""
         return db_entities.TaskStatus(
             id=task_status.id,
-            step=task_status.step,
+            step=task_status.operation,
             created_at=task_status.created_at,
             updated_at=task_status.updated_at,
             trackable_id=task_status.trackable_id,
             trackable_type=(
-                task_status.trackable_type.value
-                if task_status.trackable_type
-                else None
+                task_status.trackable_type.value if task_status.trackable_type else None
             ),
             parent=task_status.parent.id if task_status.parent else None,
             state=(
@@ -34,6 +32,7 @@ class TaskStatusMapper:
             total=task_status.total,
             current=task_status.current,
         )
+
     @staticmethod
     def to_domain_task_status(
         db_status: db_entities.TaskStatus,
@@ -41,7 +40,7 @@ class TaskStatusMapper:
         """Convert database TaskStatus to domain TaskStatus."""
         return domain_entities.TaskStatus(
             id=db_status.id,
-            step=db_status.step,
+            operation=db_status.step,
             state=ReportingState(db_status.state),
             created_at=db_status.created_at,
             updated_at=db_status.updated_at,
@@ -77,9 +76,7 @@ class TaskStatusMapper:
         id_to_entity = {status.id: status for status in domain_statuses}
 
         # Second pass: Reconstruct parent-child relationships
-        for db_status, domain_status in zip(
-            db_statuses, domain_statuses, strict=True
-        ):
+        for db_status, domain_status in zip(db_statuses, domain_statuses, strict=True):
             if db_status.parent and db_status.parent in id_to_entity:
                 domain_status.parent = id_to_entity[db_status.parent]
 

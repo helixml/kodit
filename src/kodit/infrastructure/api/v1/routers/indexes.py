@@ -134,7 +134,7 @@ async def get_index_status(
             TaskStatusData(
                 id=status.id,
                 attributes=TaskStatusAttributes(
-                    step=status.step,
+                    step=status.operation,
                     state=status.state,
                     progress=status.completion_percent,
                     total=status.total,

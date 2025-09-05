@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 import structlog
 
 from kodit.domain.entities import TaskStatus
-from kodit.domain.value_objects import TaskStep, TrackableType
+from kodit.domain.value_objects import TaskOperation, TrackableType
 
 if TYPE_CHECKING:
     from kodit.domain.protocols import ReportingModule
@@ -47,7 +47,7 @@ class ProgressTracker:
 
     @staticmethod
     def create(
-        step: TaskStep,
+        step: TaskOperation,
         parent: "TaskStatus | None" = None,
         trackable_type: TrackableType | None = None,
         trackable_id: int | None = None,

@@ -30,7 +30,7 @@ class LoggingReportingModule(ReportingModule):
             or time_since_last_log >= self.config.log_time_interval
         ):
             self._log.info(
-                step.step,
+                step.operation,
                 state=step.state,
                 completion_percent=step.completion_percent,
             )

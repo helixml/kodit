@@ -23,7 +23,7 @@ class TQDMReportingModule(ReportingModule):
             self.pbar.close()
             return
 
-        self.pbar.set_description(step.step)
+        self.pbar.set_description(step.operation)
         self.pbar.refresh()
         # Update description if message is provided
         if step.error:
@@ -35,4 +35,4 @@ class TQDMReportingModule(ReportingModule):
             else:
                 self.pbar.set_description(step.error[-30:])
         else:
-            self.pbar.set_description(step.step)
+            self.pbar.set_description(step.operation)

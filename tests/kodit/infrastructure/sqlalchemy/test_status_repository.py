@@ -46,7 +46,7 @@ def sample_task_status() -> domain_entities.TaskStatus:
     """Create a sample TaskStatus domain entity."""
     return domain_entities.TaskStatus(
         id="task-1",
-        step="indexing",
+        operation="indexing",
         state=ReportingState.IN_PROGRESS,
         created_at=datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC),
         updated_at=datetime(2024, 1, 1, 12, 30, 0, tzinfo=UTC),
@@ -103,7 +103,7 @@ class TestSaveTaskStatus:
         # Verify the added entity has correct attributes
         added_entity = mock_session.add.call_args[0][0]
         assert added_entity.id == sample_task_status.id
-        assert added_entity.step == sample_task_status.step
+        assert added_entity.step == sample_task_status.operation
         assert added_entity.state == sample_task_status.state.value
         assert added_entity.total == sample_task_status.total
         assert added_entity.current == sample_task_status.current
@@ -134,7 +134,7 @@ class TestSaveTaskStatus:
         mock_session.add.assert_not_called()
 
         # Verify all fields were updated - checking that assignments were made
-        assert existing_entity.step == sample_task_status.step
+        assert existing_entity.step == sample_task_status.operation
         assert existing_entity.state == sample_task_status.state.value
         # Mapper returns None for error, which gets assigned to existing.error
         # The test checks the assignment was made (mock attribute access is tracked)
@@ -156,7 +156,7 @@ class TestSaveTaskStatus:
         # Create parent task for hierarchy test
         parent_status = domain_entities.TaskStatus(
             id="parent-1",
-            step="cloning",
+            operation="cloning",
             state=ReportingState.COMPLETED,
             created_at=datetime(2024, 1, 1, 9, 0, 0, tzinfo=UTC),
             updated_at=datetime(2024, 1, 1, 9, 30, 0, tzinfo=UTC),
@@ -171,7 +171,7 @@ class TestSaveTaskStatus:
         # Create initial and updated status
         initial_status = domain_entities.TaskStatus(
             id="task-2",
-            step="indexing",
+            operation="indexing",
             state=ReportingState.IN_PROGRESS,
             created_at=datetime(2024, 1, 1, 10, 0, 0, tzinfo=UTC),
             updated_at=datetime(2024, 1, 1, 10, 0, 0, tzinfo=UTC),
@@ -186,7 +186,7 @@ class TestSaveTaskStatus:
         # Update all fields with new values
         updated_status = domain_entities.TaskStatus(
             id="task-2",  # Same ID for update
-            step="embedding",  # Changed
+            operation="embedding",  # Changed
             state=ReportingState.FAILED,  # Changed
             created_at=initial_status.created_at,  # Keep original
             updated_at=datetime(2024, 1, 1, 11, 0, 0, tzinfo=UTC),  # Changed

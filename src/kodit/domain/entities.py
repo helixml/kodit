@@ -16,7 +16,7 @@ from kodit.domain.value_objects import (
     SnippetContent,
     SnippetContentType,
     SourceType,
-    TaskStep,
+    TaskOperation,
     TaskType,
     TrackableType,
 )
@@ -331,7 +331,8 @@ class TaskStatus(BaseModel):
 
     id: str
     state: ReportingState
-    step: TaskStep
+    operation: TaskOperation
+    message: str | None = None
 
     created_at: datetime = datetime.now(UTC)
     updated_at: datetime = datetime.now(UTC)
@@ -345,7 +346,7 @@ class TaskStatus(BaseModel):
 
     @staticmethod
     def create(
-        step: TaskStep,
+        step: TaskOperation,
         parent: "TaskStatus | None" = None,
         trackable_type: TrackableType | None = None,
         trackable_id: int | None = None,
@@ -353,7 +354,7 @@ class TaskStatus(BaseModel):
         """Create a task status."""
         return TaskStatus(
             id=TaskStatus._create_id(step, trackable_type, trackable_id),
-            step=step,
+            operation=step,
             parent=parent,
             trackable_type=trackable_type,
             trackable_id=trackable_id,
@@ -362,12 +363,19 @@ class TaskStatus(BaseModel):
 
     @staticmethod
     def _create_id(
-        step: TaskStep,
+        step: TaskOperation,
         trackable_type: TrackableType | None = None,
         trackable_id: int | None = None,
     ) -> str:
         """Create a unique id for a task."""
-        return "-".join([str(step), str(trackable_type), str(trackable_id)])
+        result = []
+        # Nice to be prefixed by tracking information if it exists
+        if trackable_type:
+            result.append(str(trackable_type))
+        if trackable_id:
+            result.append(str(trackable_id))
+        result.append(str(step))
+        return "-".join(result)
 
     @property
     def completion_percent(self) -> float:
