@@ -9,7 +9,7 @@ import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.domain import entities as domain_entities
-from kodit.domain.value_objects import ReportingState, TrackableType
+from kodit.domain.value_objects import ReportingState, TaskOperation, TrackableType
 from kodit.infrastructure.sqlalchemy import entities as db_entities
 from kodit.infrastructure.sqlalchemy.task_status_repository import (
     SqlAlchemyTaskStatusRepository,
@@ -46,7 +46,7 @@ def sample_task_status() -> domain_entities.TaskStatus:
     """Create a sample TaskStatus domain entity."""
     return domain_entities.TaskStatus(
         id="task-1",
-        operation="indexing",
+        operation=TaskOperation.RUN_INDEX,
         state=ReportingState.IN_PROGRESS,
         created_at=datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC),
         updated_at=datetime(2024, 1, 1, 12, 30, 0, tzinfo=UTC),
