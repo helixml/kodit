@@ -332,7 +332,7 @@ class TaskStatus(BaseModel):
     id: str
     state: ReportingState
     operation: TaskOperation
-    message: str | None = None
+    message: str = ""
 
     created_at: datetime = datetime.now(UTC)
     updated_at: datetime = datetime.now(UTC)
@@ -384,9 +384,10 @@ class TaskStatus(BaseModel):
             return 0.0
         return min(100.0, max(0.0, (self.current / self.total) * 100.0))
 
-    def skip(self) -> None:
+    def skip(self, message: str) -> None:
         """Skip the task."""
         self.state = ReportingState.SKIPPED
+        self.message = message
 
     def fail(self, error: str) -> None:
         """Fail the task."""
@@ -397,10 +398,12 @@ class TaskStatus(BaseModel):
         """Set the total for the step."""
         self.total = total
 
-    def set_current(self, current: int) -> None:
+    def set_current(self, current: int, message: str | None = None) -> None:
         """Progress the step."""
         self.state = ReportingState.IN_PROGRESS
         self.current = current
+        if message:
+            self.message = message
 
     def set_tracking_info(
         self, trackable_id: int, trackable_type: TrackableType

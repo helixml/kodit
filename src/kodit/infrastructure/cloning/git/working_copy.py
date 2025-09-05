@@ -52,7 +52,11 @@ class GitWorkingCopyProvider:
             # progress.
             # Normally this would fail because the loop is already running,
             # but in this case, this callback is called by some git sub-thread.
-            asyncio.run(step.set_current(len(step_record)))
+            asyncio.run(
+                step.set_current(
+                    len(step_record), f"Cloning repository ({step_record[-1]})"
+                )
+            )
 
         try:
             self.log.info(

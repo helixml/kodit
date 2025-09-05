@@ -45,7 +45,7 @@ class SqlAlchemyTaskStatusRepository(TaskStatusRepository):
                 self.uow.session.add(db_status)
             else:
                 # Update existing record with new values
-                existing.step = db_status.step
+                existing.operation = db_status.operation
                 existing.state = db_status.state
                 existing.error = db_status.error
                 existing.total = db_status.total

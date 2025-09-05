@@ -64,7 +64,7 @@ def sample_db_task_status() -> db_entities.TaskStatus:
     """Create a sample TaskStatus database entity."""
     return db_entities.TaskStatus(
         id="task-1",
-        step="indexing",
+        operation="indexing",
         state=ReportingState.IN_PROGRESS.value,
         created_at=datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC),
         updated_at=datetime(2024, 1, 1, 12, 30, 0, tzinfo=UTC),
@@ -74,6 +74,7 @@ def sample_db_task_status() -> db_entities.TaskStatus:
         parent=None,
         trackable_id=123,
         trackable_type=TrackableType.INDEX.value,
+        message="",
     )
 
 
@@ -103,7 +104,7 @@ class TestSaveTaskStatus:
         # Verify the added entity has correct attributes
         added_entity = mock_session.add.call_args[0][0]
         assert added_entity.id == sample_task_status.id
-        assert added_entity.step == sample_task_status.operation
+        assert added_entity.task_operation == sample_task_status.operation
         assert added_entity.state == sample_task_status.state.value
         assert added_entity.total == sample_task_status.total
         assert added_entity.current == sample_task_status.current
@@ -134,7 +135,7 @@ class TestSaveTaskStatus:
         mock_session.add.assert_not_called()
 
         # Verify all fields were updated - checking that assignments were made
-        assert existing_entity.step == sample_task_status.operation
+        assert existing_entity.task_operation == sample_task_status.operation
         assert existing_entity.state == sample_task_status.state.value
         # Mapper returns None for error, which gets assigned to existing.error
         # The test checks the assignment was made (mock attribute access is tracked)
@@ -209,7 +210,7 @@ class TestSaveTaskStatus:
 
         # Assert all fields were updated
         field_updates = {
-            "step": "embedding",
+            "task_operation": "embedding",
             "state": ReportingState.FAILED.value,
             "error": "Test error message",
             "total": 200,
@@ -240,7 +241,7 @@ class TestLoadWithHierarchy:
         # Create database entities with parent-child relationships
         parent_db = db_entities.TaskStatus(
             id="parent-1",
-            step="cloning",
+            operation="cloning",
             state=ReportingState.COMPLETED.value,
             created_at=datetime(2024, 1, 1, 9, 0, 0, tzinfo=UTC),
             updated_at=datetime(2024, 1, 1, 9, 30, 0, tzinfo=UTC),
@@ -250,11 +251,12 @@ class TestLoadWithHierarchy:
             parent=None,
             trackable_id=123,
             trackable_type=TrackableType.INDEX.value,
+            message="",
         )
 
         child1_db = db_entities.TaskStatus(
             id="child-1",
-            step="indexing",
+            operation="indexing",
             state=ReportingState.IN_PROGRESS.value,
             created_at=datetime(2024, 1, 1, 10, 0, 0, tzinfo=UTC),
             updated_at=datetime(2024, 1, 1, 10, 30, 0, tzinfo=UTC),
@@ -264,11 +266,12 @@ class TestLoadWithHierarchy:
             parent="parent-1",  # Reference to parent
             trackable_id=123,
             trackable_type=TrackableType.INDEX.value,
+            message="",
         )
 
         child2_db = db_entities.TaskStatus(
             id="child-2",
-            step="embedding",
+            operation="embedding",
             state=ReportingState.STARTED.value,
             created_at=datetime(2024, 1, 1, 10, 0, 0, tzinfo=UTC),
             updated_at=datetime(2024, 1, 1, 10, 0, 0, tzinfo=UTC),
@@ -278,11 +281,12 @@ class TestLoadWithHierarchy:
             parent="parent-1",  # Reference to parent
             trackable_id=123,
             trackable_type=TrackableType.INDEX.value,
+            message="",
         )
 
         grandchild_db = db_entities.TaskStatus(
             id="grandchild-1",
-            step="slicing",
+            operation="slicing",
             state=ReportingState.STARTED.value,
             created_at=datetime(2024, 1, 1, 11, 0, 0, tzinfo=UTC),
             updated_at=datetime(2024, 1, 1, 11, 0, 0, tzinfo=UTC),
@@ -292,6 +296,7 @@ class TestLoadWithHierarchy:
             parent="child-1",  # Reference to child-1
             trackable_id=123,
             trackable_type=TrackableType.INDEX.value,
+            message="",
         )
 
         # Setup mock to return the database entities
@@ -349,7 +354,7 @@ class TestLoadWithHierarchy:
         # Create standalone task status
         standalone_db = db_entities.TaskStatus(
             id="standalone-1",
-            step="indexing",
+            operation="indexing",
             state=ReportingState.COMPLETED.value,
             created_at=datetime(2024, 1, 1, 10, 0, 0, tzinfo=UTC),
             updated_at=datetime(2024, 1, 1, 10, 30, 0, tzinfo=UTC),
@@ -359,6 +364,7 @@ class TestLoadWithHierarchy:
             parent=None,
             trackable_id=456,
             trackable_type=None,  # Test with None trackable_type
+            message="",
         )
 
         # Setup mock

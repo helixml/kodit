@@ -353,7 +353,9 @@ class CodeIndexingApplicationService:
             )
         ):
             processed += len(result)
-            await reporting_step.set_current(processed)
+            await reporting_step.set_current(
+                processed, f"Creating code embeddings for {processed} snippets"
+            )
 
     async def _create_text_embeddings(
         self, snippets: list[Snippet], reporting_step: ProgressTracker
@@ -384,7 +386,9 @@ class CodeIndexingApplicationService:
             IndexRequest(documents=documents_with_summaries)
         ):
             processed += len(result)
-            await reporting_step.set_current(processed)
+            await reporting_step.set_current(
+                processed, f"Creating text embeddings for {processed} snippets"
+            )
 
     async def delete_index(self, index: Index) -> None:
         """Delete an index."""

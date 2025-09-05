@@ -15,7 +15,7 @@ class TaskStatusMapper:
         """Convert domain TaskStatus to database TaskStatus."""
         return db_entities.TaskStatus(
             id=task_status.id,
-            step=task_status.operation,
+            operation=task_status.operation,
             created_at=task_status.created_at,
             updated_at=task_status.updated_at,
             trackable_id=task_status.trackable_id,
@@ -31,6 +31,7 @@ class TaskStatusMapper:
             error=task_status.error,
             total=task_status.total,
             current=task_status.current,
+            message=task_status.message,
         )
 
     @staticmethod
@@ -40,7 +41,7 @@ class TaskStatusMapper:
         """Convert database TaskStatus to domain TaskStatus."""
         return domain_entities.TaskStatus(
             id=db_status.id,
-            operation=db_status.step,
+            operation=db_status.operation,
             state=ReportingState(db_status.state),
             created_at=db_status.created_at,
             updated_at=db_status.updated_at,
@@ -54,6 +55,7 @@ class TaskStatusMapper:
             error=db_status.error if db_status.error else None,
             total=db_status.total,
             current=db_status.current,
+            message=db_status.message,
         )
 
     @staticmethod

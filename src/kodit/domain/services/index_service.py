@@ -128,7 +128,7 @@ class IndexDomainService:
         slicer = Slicer()
         await step.set_total(len(lang_files_map.keys()))
         for i, (lang, lang_files) in enumerate(lang_files_map.items()):
-            await step.set_current(i)
+            await step.set_current(i, f"Extracting snippets for {lang}")
             s = slicer.extract_snippets(lang_files, language=lang)
             index.snippets.extend(s)
 
@@ -162,7 +162,9 @@ class IndexDomainService:
             snippet_map[result.snippet_id].add_summary(result.text)
 
             processed += 1
-            await reporting_step.set_current(processed)
+            await reporting_step.set_current(
+                processed, f"Enriching snippets for {processed} snippets"
+            )
 
         return list(snippet_map.values())
 
@@ -227,7 +229,7 @@ class IndexDomainService:
         # First check to see if any files have been deleted
         for file_path in deleted_file_paths:
             processed += 1
-            await step.set_current(processed)
+            await step.set_current(processed, f"Deleting file {file_path}")
             previous_files_map[
                 file_path
             ].file_processing_status = domain_entities.FileProcessingStatus.DELETED
@@ -235,7 +237,7 @@ class IndexDomainService:
         # Then check to see if there are any new files
         for file_path in new_file_paths:
             processed += 1
-            await step.set_current(processed)
+            await step.set_current(processed, f"Adding new file {file_path}")
             try:
                 working_copy.files.append(
                     await metadata_extractor.extract(file_path=file_path)
@@ -247,7 +249,7 @@ class IndexDomainService:
         # Finally check if there are any modified files
         for file_path in modified_file_paths:
             processed += 1
-            await step.set_current(processed)
+            await step.set_current(processed, f"Modifying file {file_path}")
             try:
                 previous_file = previous_files_map[file_path]
                 new_file = await metadata_extractor.extract(file_path=file_path)

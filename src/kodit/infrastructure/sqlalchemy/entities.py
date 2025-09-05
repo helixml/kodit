@@ -280,14 +280,15 @@ class TaskStatus(Base):
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
     )
+    operation: Mapped[str] = mapped_column(String(255), index=True, nullable=False)
     trackable_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
-    step: Mapped[str] = mapped_column(String(255), index=True, nullable=False)
     trackable_type: Mapped[str | None] = mapped_column(
         String(255), index=True, nullable=True
     )
     parent: Mapped[str | None] = mapped_column(
         ForeignKey("task_status.id"), index=True, nullable=True
     )
+    message: Mapped[str] = mapped_column(UnicodeText, default="")
     state: Mapped[str] = mapped_column(String(255), default="")
     error: Mapped[str] = mapped_column(UnicodeText, default="")
     total: Mapped[int] = mapped_column(Integer, default=0)
@@ -296,7 +297,7 @@ class TaskStatus(Base):
     def __init__(  # noqa: PLR0913
         self,
         id: str,  # noqa: A002
-        step: str,
+        operation: str,
         created_at: datetime,
         updated_at: datetime,
         trackable_id: int | None,
@@ -306,11 +307,12 @@ class TaskStatus(Base):
         error: str | None,
         total: int,
         current: int,
+        message: str,
     ) -> None:
         """Initialize the task status."""
         super().__init__()
         self.id = id
-        self.step = step
+        self.operation = operation
         self.created_at = created_at
         self.updated_at = updated_at
         self.trackable_id = trackable_id
@@ -320,3 +322,4 @@ class TaskStatus(Base):
         self.error = error or ""
         self.total = total
         self.current = current
+        self.message = message or ""
