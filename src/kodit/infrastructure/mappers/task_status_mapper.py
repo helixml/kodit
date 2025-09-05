@@ -56,3 +56,31 @@ class TaskStatusMapper:
             total=db_status.total,
             current=db_status.current,
         )
+
+    @staticmethod
+    def to_domain_task_status_with_hierarchy(
+        db_statuses: list[db_entities.TaskStatus],
+    ) -> list[domain_entities.TaskStatus]:
+        """Convert database TaskStatus list to domain with parent-child hierarchy.
+
+        This method performs a two-pass conversion:
+        1. First pass: Convert all DB entities to domain entities
+        2. Second pass: Reconstruct parent-child relationships using ID mapping
+        """
+        # First pass: Convert all database entities to domain entities
+        domain_statuses = [
+            TaskStatusMapper.to_domain_task_status(db_status)
+            for db_status in db_statuses
+        ]
+
+        # Create ID-to-entity mapping for efficient parent lookup
+        id_to_entity = {status.id: status for status in domain_statuses}
+
+        # Second pass: Reconstruct parent-child relationships
+        for db_status, domain_status in zip(
+            db_statuses, domain_statuses, strict=True
+        ):
+            if db_status.parent and db_status.parent in id_to_entity:
+                domain_status.parent = id_to_entity[db_status.parent]
+
+        return domain_statuses

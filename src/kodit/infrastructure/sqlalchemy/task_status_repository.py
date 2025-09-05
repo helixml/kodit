@@ -67,12 +67,8 @@ class SqlAlchemyTaskStatusRepository(TaskStatusRepository):
             result = await self.uow.session.execute(stmt)
             db_statuses = list(result.scalars().all())
 
-            # Convert database entities to domain entities
-            # Parent relationships would need to be reconstructed based on parent IDs
-            return [
-                self.mapper.to_domain_task_status(db_status)
-                for db_status in db_statuses
-            ]
+            # Use mapper to convert and reconstruct hierarchy
+            return self.mapper.to_domain_task_status_with_hierarchy(db_statuses)
 
     async def delete(self, status: domain_entities.TaskStatus) -> None:
         """Delete a TaskStatus."""

@@ -25,4 +25,7 @@
     "python.analysis.completeFunctionParens": true,
     "python.analysis.inlayHints.functionReturnTypes": true,
     "python.analysis.typeCheckingMode": "standard",
+    "cursorpyright.analysis.autoImportCompletions": true,
+    "cursorpyright.analysis.inlayHints.functionReturnTypes": true,
+    "cursorpyright.analysis.typeCheckingMode": "standard",
 }
