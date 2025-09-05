@@ -6,8 +6,8 @@ from datetime import UTC, datetime
 import structlog
 
 from kodit.application.services.reporting import (
-    OperationType,
     ProgressTracker,
+    TaskOperation,
 )
 from kodit.domain.entities import Index, Snippet
 from kodit.domain.protocols import IndexRepository
@@ -65,9 +65,7 @@ class CodeIndexingApplicationService:
     async def create_index_from_uri(self, uri: str) -> Index:
         """Create a new index for a source."""
         log_event("kodit.index.create")
-        async with self.operation.create_child(
-            OperationType.CREATE_INDEX.value
-        ) as operation:
+        async with self.operation.create_child(TaskOperation.CREATE_INDEX) as operation:
             # Check if index already exists
             sanitized_uri, _ = self.index_domain_service.sanitize_uri(uri)
             self.log.info("Creating index from URI", uri=str(sanitized_uri))
@@ -91,9 +89,7 @@ class CodeIndexingApplicationService:
     async def run_index(self, index: Index) -> None:
         """Run the complete indexing process for a specific index."""
         # Create a new operation
-        async with self.operation.create_child(
-            OperationType.RUN_INDEX.value
-        ) as operation:
+        async with self.operation.create_child(TaskOperation.RUN_INDEX) as operation:
             # TODO(philwinder): Move this into a reporter # noqa: TD003, FIX002
             log_event("kodit.index.run")
             await operation.set_tracking_info(index.id, TrackableType.INDEX)
@@ -103,7 +99,9 @@ class CodeIndexingApplicationService:
                 raise ValueError(msg)
 
             # Refresh working copy
-            async with operation.create_child("Refresh working copy") as step:
+            async with operation.create_child(
+                TaskOperation.REFRESH_WORKING_COPY
+            ) as step:
                 index.source.working_copy = (
                     await self.index_domain_service.refresh_working_copy(
                         index.source.working_copy, step
@@ -115,7 +113,9 @@ class CodeIndexingApplicationService:
                     return
 
             # Delete the old snippets from the files that have changed
-            async with operation.create_child("Delete old snippets") as step:
+            async with operation.create_child(
+                TaskOperation.DELETE_OLD_SNIPPETS
+            ) as step:
                 await self.index_repository.delete_snippets_by_file_ids(
                     [
                         file.id
@@ -125,7 +125,7 @@ class CodeIndexingApplicationService:
                 )
 
             # Extract and create snippets (domain service handles progress)
-            async with operation.create_child("Extract snippets") as step:
+            async with operation.create_child(TaskOperation.EXTRACT_SNIPPETS) as step:
                 index = await self.index_domain_service.extract_snippets_from_index(
                     index=index, step=step
                 )
@@ -146,15 +146,17 @@ class CodeIndexingApplicationService:
 
             # Create BM25 index
             self.log.info("Creating keyword index")
-            async with operation.create_child("Create BM25 index") as step:
+            async with operation.create_child(TaskOperation.CREATE_BM25_INDEX) as step:
                 await self._create_bm25_index(index.snippets)
 
             # Create code embeddings
-            async with operation.create_child("Create code embeddings") as step:
+            async with operation.create_child(
+                TaskOperation.CREATE_CODE_EMBEDDINGS
+            ) as step:
                 await self._create_code_embeddings(index.snippets, step)
 
             # Enrich snippets
-            async with operation.create_child("Enrich snippets") as step:
+            async with operation.create_child(TaskOperation.ENRICH_SNIPPETS) as step:
                 enriched_snippets = (
                     await self.index_domain_service.enrich_snippets_in_index(
                         snippets=index.snippets,
@@ -165,15 +167,21 @@ class CodeIndexingApplicationService:
                 await self.index_repository.update_snippets(index.id, enriched_snippets)
 
             # Create text embeddings (on enriched content)
-            async with operation.create_child("Create text embeddings") as step:
+            async with operation.create_child(
+                TaskOperation.CREATE_TEXT_EMBEDDINGS
+            ) as step:
                 await self._create_text_embeddings(enriched_snippets, step)
 
             # Update index timestamp
-            async with operation.create_child("Update index timestamp") as step:
+            async with operation.create_child(
+                TaskOperation.UPDATE_INDEX_TIMESTAMP
+            ) as step:
                 await self.index_repository.update_index_timestamp(index.id)
 
             # After indexing, clear the file processing statuses
-            async with operation.create_child("Clear file processing statuses") as step:
+            async with operation.create_child(
+                TaskOperation.CLEAR_FILE_PROCESSING_STATUSES
+            ) as step:
                 index.source.working_copy.clear_file_processing_statuses()
                 await self.index_repository.update(index)
 

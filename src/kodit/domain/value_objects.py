@@ -692,4 +692,18 @@ class TrackableType(StrEnum):
     INDEX = "indexes"
 
 
-TaskOperation = str
+class TaskOperation(StrEnum):
+    """Task operation."""
+
+    ROOT = "kodit.root"
+    CREATE_INDEX = "kodit.index.create"
+    RUN_INDEX = "kodit.index.run"
+    REFRESH_WORKING_COPY = "kodit.index.run.refresh_working_copy"
+    DELETE_OLD_SNIPPETS = "kodit.index.run.delete_old_snippets"
+    EXTRACT_SNIPPETS = "kodit.index.run.extract_snippets"
+    CREATE_BM25_INDEX = "kodit.index.run.create_bm25_index"
+    CREATE_CODE_EMBEDDINGS = "kodit.index.run.create_code_embeddings"
+    ENRICH_SNIPPETS = "kodit.index.run.enrich_snippets"
+    CREATE_TEXT_EMBEDDINGS = "kodit.index.run.create_text_embeddings"
+    UPDATE_INDEX_TIMESTAMP = "kodit.index.run.update_index_timestamp"
+    CLEAR_FILE_PROCESSING_STATUSES = "kodit.index.run.clear_file_processing_statuses"

@@ -346,15 +346,15 @@ class TaskStatus(BaseModel):
 
     @staticmethod
     def create(
-        step: TaskOperation,
+        operation: TaskOperation,
         parent: "TaskStatus | None" = None,
         trackable_type: TrackableType | None = None,
         trackable_id: int | None = None,
     ) -> "TaskStatus":
         """Create a task status."""
         return TaskStatus(
-            id=TaskStatus._create_id(step, trackable_type, trackable_id),
-            operation=step,
+            id=TaskStatus._create_id(operation, trackable_type, trackable_id),
+            operation=operation,
             parent=parent,
             trackable_type=trackable_type,
             trackable_id=trackable_id,

@@ -2,7 +2,6 @@
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from enum import StrEnum
 from typing import TYPE_CHECKING
 
 import structlog
@@ -12,14 +11,6 @@ from kodit.domain.value_objects import TaskOperation, TrackableType
 
 if TYPE_CHECKING:
     from kodit.domain.protocols import ReportingModule
-
-
-class OperationType(StrEnum):
-    """Operation type."""
-
-    ROOT = "kodit.root"
-    CREATE_INDEX = "kodit.index.create"
-    RUN_INDEX = "kodit.index.run"
 
 
 class ProgressTracker:
@@ -47,7 +38,7 @@ class ProgressTracker:
 
     @staticmethod
     def create(
-        step: TaskOperation,
+        operation: TaskOperation,
         parent: "TaskStatus | None" = None,
         trackable_type: TrackableType | None = None,
         trackable_id: int | None = None,
@@ -55,7 +46,7 @@ class ProgressTracker:
         """Create a progress tracker."""
         return ProgressTracker(
             TaskStatus.create(
-                step=step,
+                operation=operation,
                 trackable_type=trackable_type,
                 trackable_id=trackable_id,
                 parent=parent,
@@ -63,10 +54,12 @@ class ProgressTracker:
         )
 
     @asynccontextmanager
-    async def create_child(self, name: str) -> AsyncGenerator["ProgressTracker", None]:
+    async def create_child(
+        self, operation: TaskOperation
+    ) -> AsyncGenerator["ProgressTracker", None]:
         """Create a child step."""
         c = ProgressTracker.create(
-            step=name,
+            operation=operation,
             parent=self.task_status,
             trackable_type=self.task_status.trackable_type,
             trackable_id=self.task_status.trackable_id,
