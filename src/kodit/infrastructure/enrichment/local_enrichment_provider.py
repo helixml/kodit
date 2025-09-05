@@ -1,7 +1,9 @@
 """Local enrichment provider implementation."""
 
+import asyncio
 import os
 from collections.abc import AsyncGenerator
+from typing import Any
 
 import structlog
 import tiktoken
@@ -60,23 +62,26 @@ class LocalEnrichmentProvider(EnrichmentProvider):
             self.log.warning("No valid requests for enrichment")
             return
 
-        from transformers.models.auto.modeling_auto import (
-            AutoModelForCausalLM,
-        )
-        from transformers.models.auto.tokenization_auto import AutoTokenizer
+        def _init_model() -> None:
+            from transformers.models.auto.modeling_auto import (
+                AutoModelForCausalLM,
+            )
+            from transformers.models.auto.tokenization_auto import AutoTokenizer
 
-        if self.tokenizer is None:
-            self.tokenizer = AutoTokenizer.from_pretrained(
-                self.model_name, padding_side="left"
-            )
-        if self.model is None:
-            os.environ["TOKENIZERS_PARALLELISM"] = "false"  # Avoid warnings
-            self.model = AutoModelForCausalLM.from_pretrained(
-                self.model_name,
-                torch_dtype="auto",
-                trust_remote_code=True,
-                device_map="auto",
-            )
+            if self.tokenizer is None:
+                self.tokenizer = AutoTokenizer.from_pretrained(
+                    self.model_name, padding_side="left"
+                )
+            if self.model is None:
+                os.environ["TOKENIZERS_PARALLELISM"] = "false"  # Avoid warnings
+                self.model = AutoModelForCausalLM.from_pretrained(
+                    self.model_name,
+                    torch_dtype="auto",
+                    trust_remote_code=True,
+                    device_map="auto",
+                )
+
+        await asyncio.to_thread(_init_model)
 
         # Prepare prompts
         prompts = [
@@ -96,20 +101,26 @@ class LocalEnrichmentProvider(EnrichmentProvider):
         ]
 
         for prompt in prompts:
-            model_inputs = self.tokenizer(  # type: ignore[misc]
-                prompt["text"],
-                return_tensors="pt",
-                padding=True,
-                truncation=True,
-            ).to(self.model.device)  # type: ignore[attr-defined]
-            generated_ids = self.model.generate(  # type: ignore[attr-defined]
-                **model_inputs, max_new_tokens=self.context_window
-            )
-            input_ids = model_inputs["input_ids"][0]
-            output_ids = generated_ids[0][len(input_ids) :].tolist()
-            content = self.tokenizer.decode(output_ids, skip_special_tokens=True).strip(  # type: ignore[attr-defined]
-                "\n"
-            )
+
+            def process_prompt(prompt: dict[str, Any]) -> str:
+                model_inputs = self.tokenizer(  # type: ignore[misc]
+                    prompt["text"],
+                    return_tensors="pt",
+                    padding=True,
+                    truncation=True,
+                ).to(self.model.device)  # type: ignore[attr-defined]
+                generated_ids = self.model.generate(  # type: ignore[attr-defined]
+                    **model_inputs, max_new_tokens=self.context_window
+                )
+                input_ids = model_inputs["input_ids"][0]
+                output_ids = generated_ids[0][len(input_ids) :].tolist()
+                return self.tokenizer.decode(  # type: ignore[attr-defined]
+                    output_ids, skip_special_tokens=True
+                ).strip(  # type: ignore[attr-defined]
+                    "\n"
+                )
+
+            content = await asyncio.to_thread(process_prompt, prompt)
             # Remove thinking tags from the response
             cleaned_content = clean_thinking_tags(content)
             yield EnrichmentResponse(

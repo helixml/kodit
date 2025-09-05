@@ -23,6 +23,9 @@ from kodit.domain.value_objects import (
     MultiSearchResult,
     SnippetSearchFilters,
 )
+from kodit.infrastructure.sqlalchemy.task_status_repository import (
+    create_task_status_repository,
+)
 
 # Global database connection for MCP server
 _mcp_db: Database | None = None
@@ -179,9 +182,10 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:
         # Use the unified application service
         service = create_code_indexing_application_service(
             app_context=mcp_context.app_context,
-            session=mcp_context.session,
             session_factory=mcp_context.session_factory,
-            operation=create_server_operation(),
+            operation=create_server_operation(
+                create_task_status_repository(mcp_context.session_factory)
+            ),
         )
 
         log.debug("Searching for snippets")

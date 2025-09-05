@@ -19,6 +19,9 @@ from kodit.infrastructure.api.v1.routers import (
     search_router,
 )
 from kodit.infrastructure.api.v1.schemas.context import AppLifespanState
+from kodit.infrastructure.sqlalchemy.task_status_repository import (
+    create_task_status_repository,
+)
 from kodit.mcp import mcp
 from kodit.middleware import ASGICancelledErrorMiddleware, logging_middleware
 
@@ -35,7 +38,9 @@ async def app_lifespan(_: FastAPI) -> AsyncIterator[AppLifespanState]:
     # App context has already been configured by the CLI.
     app_context = AppContext()
     db = await app_context.get_db()
-    operation = create_server_operation()
+    operation = create_server_operation(
+        create_task_status_repository(db.session_factory)
+    )
 
     # Start the queue worker service
     _indexing_worker_service = IndexingWorkerService(

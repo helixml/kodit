@@ -9,6 +9,7 @@ from kodit.infrastructure.api.v1.dependencies import (
     IndexingAppServiceDep,
     IndexQueryServiceDep,
     QueueServiceDep,
+    TaskStatusQueryServiceDep,
 )
 from kodit.infrastructure.api.v1.schemas.index import (
     IndexAttributes,
@@ -17,6 +18,11 @@ from kodit.infrastructure.api.v1.schemas.index import (
     IndexDetailResponse,
     IndexListResponse,
     IndexResponse,
+)
+from kodit.infrastructure.api.v1.schemas.task_status import (
+    TaskStatusAttributes,
+    TaskStatusData,
+    TaskStatusListResponse,
 )
 
 router = APIRouter(
@@ -101,6 +107,45 @@ async def get_index(
             ),
         ),
     )
+
+
+@router.get(
+    "/{index_id}/status",
+    responses={404: {"description": "Index not found"}},
+)
+async def get_index_status(
+    index_id: int,
+    query_service: IndexQueryServiceDep,
+    status_service: TaskStatusQueryServiceDep,
+) -> TaskStatusListResponse:
+    """Get the status of tasks for an index."""
+    # Verify the index exists
+    index = await query_service.get_index_by_id(index_id)
+    if not index:
+        raise HTTPException(status_code=404, detail="Index not found")
+
+    # Get all task statuses for this index
+    progress_trackers = await status_service.get_index_status(index_id)
+
+    # Convert progress trackers to API response format
+    task_statuses = []
+    for _i, status in enumerate(progress_trackers):
+        task_statuses.append(
+            TaskStatusData(
+                id=status.id,
+                attributes=TaskStatusAttributes(
+                    step=status.operation,
+                    state=status.state,
+                    progress=status.completion_percent,
+                    total=status.total,
+                    current=status.current,
+                    created_at=status.created_at,
+                    updated_at=status.updated_at,
+                ),
+            )
+        )
+
+    return TaskStatusListResponse(data=task_statuses)
 
 
 @router.delete(

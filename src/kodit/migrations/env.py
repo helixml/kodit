@@ -1,4 +1,3 @@
-# ruff: noqa: F401
 """Alembic environment file for kodit."""
 
 import asyncio

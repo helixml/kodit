@@ -2,7 +2,7 @@
 
 import shutil
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
 from urllib.parse import urlparse, urlunparse
@@ -12,10 +12,13 @@ from pydantic import AnyUrl, BaseModel
 from kodit.domain.value_objects import (
     FileProcessingStatus,
     QueuePriority,
+    ReportingState,
     SnippetContent,
     SnippetContentType,
     SourceType,
+    TaskOperation,
     TaskType,
+    TrackableType,
 )
 from kodit.utils.path_utils import path_from_uri
 
@@ -321,3 +324,98 @@ class Task(BaseModel):
             priority=priority.value,
             payload={"index_id": index_id},
         )
+
+
+class TaskStatus(BaseModel):
+    """Task status domain entity."""
+
+    id: str
+    state: ReportingState
+    operation: TaskOperation
+    message: str = ""
+
+    created_at: datetime = datetime.now(UTC)
+    updated_at: datetime = datetime.now(UTC)
+    total: int = 0
+    current: int = 0
+
+    error: str | None = None
+    parent: "TaskStatus | None" = None
+    trackable_id: int | None = None
+    trackable_type: TrackableType | None = None
+
+    @staticmethod
+    def create(
+        operation: TaskOperation,
+        parent: "TaskStatus | None" = None,
+        trackable_type: TrackableType | None = None,
+        trackable_id: int | None = None,
+    ) -> "TaskStatus":
+        """Create a task status."""
+        return TaskStatus(
+            id=TaskStatus._create_id(operation, trackable_type, trackable_id),
+            operation=operation,
+            parent=parent,
+            trackable_type=trackable_type,
+            trackable_id=trackable_id,
+            state=ReportingState.STARTED,
+        )
+
+    @staticmethod
+    def _create_id(
+        step: TaskOperation,
+        trackable_type: TrackableType | None = None,
+        trackable_id: int | None = None,
+    ) -> str:
+        """Create a unique id for a task."""
+        result = []
+        # Nice to be prefixed by tracking information if it exists
+        if trackable_type:
+            result.append(str(trackable_type))
+        if trackable_id:
+            result.append(str(trackable_id))
+        result.append(str(step))
+        return "-".join(result)
+
+    @property
+    def completion_percent(self) -> float:
+        """Calculate the percentage of completion."""
+        if self.total == 0:
+            return 0.0
+        return min(100.0, max(0.0, (self.current / self.total) * 100.0))
+
+    def skip(self, message: str) -> None:
+        """Skip the task."""
+        self.state = ReportingState.SKIPPED
+        self.message = message
+
+    def fail(self, error: str) -> None:
+        """Fail the task."""
+        self.state = ReportingState.FAILED
+        self.error = error
+
+    def set_total(self, total: int) -> None:
+        """Set the total for the step."""
+        self.total = total
+
+    def set_current(self, current: int, message: str | None = None) -> None:
+        """Progress the step."""
+        self.state = ReportingState.IN_PROGRESS
+        self.current = current
+        if message:
+            self.message = message
+
+    def set_tracking_info(
+        self, trackable_id: int, trackable_type: TrackableType
+    ) -> None:
+        """Set the tracking info."""
+        self.trackable_id = trackable_id
+        self.trackable_type = trackable_type
+
+    def complete(self) -> None:
+        """Complete the task."""
+        if ReportingState.is_terminal(self.state):
+            return  # Already in terminal state
+
+        self.state = ReportingState.COMPLETED
+        self.current = self.total  # Ensure progress shows 100%

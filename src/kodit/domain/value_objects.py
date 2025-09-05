@@ -1,7 +1,7 @@
 """Pure domain value objects and DTOs."""
 
 import json
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum, IntEnum, StrEnum
 from pathlib import Path
@@ -676,37 +676,34 @@ class ReportingState(StrEnum):
     FAILED = "failed"
     SKIPPED = "skipped"
 
+    @staticmethod
+    def is_terminal(state: "ReportingState") -> bool:
+        """Check if a state is completed."""
+        return state in [
+            ReportingState.COMPLETED,
+            ReportingState.FAILED,
+            ReportingState.SKIPPED,
+        ]
 
-@dataclass(frozen=True)
-class Progress:
-    """Immutable representation of a step's state."""
 
-    name: str
-    state: ReportingState
-    message: str = ""
-    error: BaseException | None = None
-    total: int = 0
-    current: int = 0
+class TrackableType(StrEnum):
+    """Trackable type."""
 
-    @property
-    def completion_percent(self) -> float:
-        """Calculate the percentage of completion."""
-        if self.total == 0:
-            return 0.0
-        return min(100.0, max(0.0, (self.current / self.total) * 100.0))
+    INDEX = "indexes"
 
-    def with_error(self, error: BaseException) -> "Progress":
-        """Return a new snapshot with updated error."""
-        return replace(self, error=error)
 
-    def with_total(self, total: int) -> "Progress":
-        """Return a new snapshot with updated total."""
-        return replace(self, total=total)
+class TaskOperation(StrEnum):
+    """Task operation."""
 
-    def with_progress(self, current: int) -> "Progress":
-        """Return a new snapshot with updated progress."""
-        return replace(self, current=current)
-
-    def with_state(self, state: ReportingState, message: str = "") -> "Progress":
-        """Return a new snapshot with updated state."""
-        return replace(self, state=state, message=message)
+    ROOT = "kodit.root"
+    CREATE_INDEX = "kodit.index.create"
+    RUN_INDEX = "kodit.index.run"
+    REFRESH_WORKING_COPY = "kodit.index.run.refresh_working_copy"
+    DELETE_OLD_SNIPPETS = "kodit.index.run.delete_old_snippets"
+    EXTRACT_SNIPPETS = "kodit.index.run.extract_snippets"
+    CREATE_BM25_INDEX = "kodit.index.run.create_bm25_index"
+    CREATE_CODE_EMBEDDINGS = "kodit.index.run.create_code_embeddings"
+    ENRICH_SNIPPETS = "kodit.index.run.enrich_snippets"
+    CREATE_TEXT_EMBEDDINGS = "kodit.index.run.create_text_embeddings"
+    UPDATE_INDEX_TIMESTAMP = "kodit.index.run.update_index_timestamp"
+    CLEAR_FILE_PROCESSING_STATUSES = "kodit.index.run.clear_file_processing_statuses"

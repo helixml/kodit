@@ -12,7 +12,7 @@ look at the [hosted version](https://kodit.helix.ml/docs).
 This is the REST API for the Kodit server. Please refer to the
 [Kodit documentation](https://docs.helix.ml/kodit/) for more information.
     
-Current version: 0.4.2
+Current version: 0.4.3
 
 ## Authentication
 
@@ -117,6 +117,32 @@ Delete an index.
 #### Responses
 
 - 204: Successful Response
+
+- 500: Internal server error
+
+- 401: Unauthorized
+
+- 422: Invalid request
+
+- 404: Index not found
+
+### GET /api/v1/indexes/{index_id}/status
+
+Get the status of tasks for an index.
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| index_id | integer | True |  |
+
+
+#### Responses
+
+- 200: Successful Response
+
+[TaskStatusListResponse](#taskstatuslistresponse)
 
 - 500: Internal server error
 
@@ -451,6 +477,47 @@ JSON:API response for single task.
 | Field | Type | Description |
 |-------|------|-------------|
 | data |  |  |
+
+
+### TaskStatusAttributes
+
+
+Task status attributes for JSON:API responses.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| step | string | Name of the task/operation |
+| state | string | Current state of the task |
+| progress | number | Progress percentage (0-100) |
+| total | integer | Total number of items to process |
+| current | integer | Current number of items processed |
+| created_at |  | Task start time |
+| updated_at |  | Last update time |
+
+
+### TaskStatusData
+
+
+Task status data for JSON:API responses.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| type | string |  |
+| id | string |  |
+| attributes |  |  |
+
+
+### TaskStatusListResponse
+
+
+JSON:API response for task status list.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data | array |  |
 
 
 ### TaskType

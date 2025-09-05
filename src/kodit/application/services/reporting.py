@@ -1,86 +1,104 @@
 """Reporting."""
 
-from enum import StrEnum
-from types import TracebackType
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
 import structlog
 
-from kodit.domain.value_objects import Progress, ReportingState
+from kodit.domain.entities import TaskStatus
+from kodit.domain.value_objects import TaskOperation, TrackableType
 
 if TYPE_CHECKING:
     from kodit.domain.protocols import ReportingModule
 
 
-class OperationType(StrEnum):
-    """Operation type."""
-
-    ROOT = "kodit.root"
-    CREATE_INDEX = "kodit.index.create"
-    RUN_INDEX = "kodit.index.run"
-
-
 class ProgressTracker:
-    """Progress tracker."""
+    """Progress tracker.
 
-    def __init__(self, name: str, parent: "ProgressTracker | None" = None) -> None:
+    Provides a reactive wrapper around TaskStatus domain entities that automatically
+    propagates state changes to the database and reporting modules. This pattern was
+    chosen over a traditional service-repository approach because:
+    - State changes must trigger immediate side effects (database writes, notifications)
+    - Multiple consumers need real-time updates without polling
+    - The wrapper pattern allows transparent interception of all state mutations
+
+    The tracker monitors all modifications to the underlying TaskStatus and ensures
+    consistency across all downstream systems.
+    """
+
+    def __init__(
+        self,
+        task_status: TaskStatus,
+    ) -> None:
         """Initialize the progress tracker."""
-        self._parent: ProgressTracker | None = parent
-        self._children: list[ProgressTracker] = []
+        self.task_status = task_status
         self._log = structlog.get_logger(__name__)
         self._subscribers: list[ReportingModule] = []
-        self._snapshot: Progress = Progress(name=name, state=ReportingState.IN_PROGRESS)
 
-    def __enter__(self) -> "ProgressTracker":
-        """Enter the operation."""
-        self._notify_subscribers()
-        return self
-
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_value: BaseException | None,
-        traceback: TracebackType | None,
-    ) -> None:
-        """Exit the operation."""
-        if exc_value:
-            self._snapshot = self._snapshot.with_error(exc_value)
-            self._snapshot = self._snapshot.with_state(
-                ReportingState.FAILED, str(exc_value)
+    @staticmethod
+    def create(
+        operation: TaskOperation,
+        parent: "TaskStatus | None" = None,
+        trackable_type: TrackableType | None = None,
+        trackable_id: int | None = None,
+    ) -> "ProgressTracker":
+        """Create a progress tracker."""
+        return ProgressTracker(
+            TaskStatus.create(
+                operation=operation,
+                trackable_type=trackable_type,
+                trackable_id=trackable_id,
+                parent=parent,
             )
+        )
 
-        if self._snapshot.state == ReportingState.IN_PROGRESS:
-            self._snapshot = self._snapshot.with_progress(100)
-            self._snapshot = self._snapshot.with_state(ReportingState.COMPLETED)
-        self._notify_subscribers()
-
-    def create_child(self, name: str) -> "ProgressTracker":
+    @asynccontextmanager
+    async def create_child(
+        self,
+        operation: TaskOperation,
+        trackable_type: TrackableType | None = None,
+        trackable_id: int | None = None,
+    ) -> AsyncGenerator["ProgressTracker", None]:
         """Create a child step."""
-        s = ProgressTracker(name, self)
-        self._children.append(s)
-        for subscriber in self._subscribers:
-            s.subscribe(subscriber)
-        return s
+        c = ProgressTracker.create(
+            operation=operation,
+            parent=self.task_status,
+            trackable_type=trackable_type or self.task_status.trackable_type,
+            trackable_id=trackable_id or self.task_status.trackable_id,
+        )
+        try:
+            for subscriber in self._subscribers:
+                c.subscribe(subscriber)
 
-    def skip(self, reason: str | None = None) -> None:
+            await c.notify_subscribers()
+            yield c
+        except Exception as e:  # noqa: BLE001
+            c.task_status.fail(str(e))
+        finally:
+            c.task_status.complete()
+            await c.notify_subscribers()
+
+    async def skip(self, reason: str) -> None:
         """Skip the step."""
-        self._snapshot = self._snapshot.with_state(ReportingState.SKIPPED, reason or "")
+        self.task_status.skip(reason)
+        await self.notify_subscribers()
 
     def subscribe(self, subscriber: "ReportingModule") -> None:
         """Subscribe to the step."""
         self._subscribers.append(subscriber)
 
-    def set_total(self, total: int) -> None:
+    async def set_total(self, total: int) -> None:
         """Set the total for the step."""
-        self._snapshot = self._snapshot.with_total(total)
-        self._notify_subscribers()
+        self.task_status.set_total(total)
+        await self.notify_subscribers()
 
-    def set_current(self, current: int) -> None:
+    async def set_current(self, current: int, message: str | None = None) -> None:
         """Progress the step."""
-        self._snapshot = self._snapshot.with_progress(current)
-        self._notify_subscribers()
+        self.task_status.set_current(current, message)
+        await self.notify_subscribers()
 
-    def _notify_subscribers(self) -> None:
-        """Notify the subscribers."""
+    async def notify_subscribers(self) -> None:
+        """Notify the subscribers only if progress has changed."""
         for subscriber in self._subscribers:
-            subscriber.on_change(self._snapshot)
+            await subscriber.on_change(self.task_status)

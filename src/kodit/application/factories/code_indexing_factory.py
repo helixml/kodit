@@ -51,22 +51,26 @@ from kodit.infrastructure.sqlalchemy.entities import EmbeddingType
 from kodit.infrastructure.sqlalchemy.index_repository import (
     create_index_repository,
 )
+from kodit.infrastructure.sqlalchemy.task_status_repository import (
+    create_task_status_repository,
+)
 
 
 def create_code_indexing_application_service(
     app_context: AppContext,
-    session: AsyncSession,
     session_factory: Callable[[], AsyncSession],
     operation: ProgressTracker,
 ) -> CodeIndexingApplicationService:
     """Create a unified code indexing application service with all dependencies."""
     # Create domain services
-    bm25_service = BM25DomainService(bm25_repository_factory(app_context, session))
+    bm25_service = BM25DomainService(
+        bm25_repository_factory(app_context, session_factory())
+    )
     code_search_service = embedding_domain_service_factory(
-        "code", app_context, session, session_factory
+        "code", app_context, session_factory(), session_factory
     )
     text_search_service = embedding_domain_service_factory(
-        "text", app_context, session, session_factory
+        "text", app_context, session_factory(), session_factory
     )
     enrichment_service = enrichment_domain_service_factory(app_context)
     index_repository = create_index_repository(session_factory=session_factory)
@@ -95,20 +99,17 @@ def create_code_indexing_application_service(
         code_search_service=code_search_service,
         text_search_service=text_search_service,
         enrichment_service=enrichment_service,
-        session=session,
         operation=operation,
     )
 
 
 def create_cli_code_indexing_application_service(
     app_context: AppContext,
-    session: AsyncSession,
     session_factory: Callable[[], AsyncSession],
 ) -> CodeIndexingApplicationService:
     """Create a CLI code indexing application service."""
     return create_code_indexing_application_service(
         app_context,
-        session,
         session_factory,
         create_cli_operation(),
     )
@@ -116,23 +117,25 @@ def create_cli_code_indexing_application_service(
 
 def create_server_code_indexing_application_service(
     app_context: AppContext,
-    session: AsyncSession,
     session_factory: Callable[[], AsyncSession],
 ) -> CodeIndexingApplicationService:
     """Create a server code indexing application service."""
     return create_code_indexing_application_service(
-        app_context, session, session_factory, create_server_operation()
+        app_context,
+        session_factory,
+        create_server_operation(create_task_status_repository(session_factory)),
     )
 
 
 def create_fast_test_code_indexing_application_service(
     app_context: AppContext,
-    session: AsyncSession,
     session_factory: Callable[[], AsyncSession],
 ) -> CodeIndexingApplicationService:
     """Create a fast test code indexing application service."""
     # Create domain services
-    bm25_service = BM25DomainService(bm25_repository_factory(app_context, session))
+    bm25_service = BM25DomainService(
+        bm25_repository_factory(app_context, session_factory())
+    )
     embedding_repository = create_embedding_repository(session_factory=session_factory)
     operation = create_noop_operation()
 
@@ -188,6 +191,5 @@ def create_fast_test_code_indexing_application_service(
         code_search_service=code_search_service,
         text_search_service=text_search_service,
         enrichment_service=enrichment_service,
-        session=session,
         operation=operation,
     )

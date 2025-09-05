@@ -305,7 +305,7 @@ class AppContext(BaseSettings):
 with_app_context = click.make_pass_decorator(AppContext)
 
 
-def wrap_async(f: Callable[..., Coroutine[Any, Any, T]]) -> Callable[..., T]:
+def wrap_async[T](f: Callable[..., Coroutine[Any, Any, T]]) -> Callable[..., T]:
     """Decorate async Click commands.
 
     This decorator wraps an async function to run it with asyncio.run().
@@ -326,7 +326,7 @@ def wrap_async(f: Callable[..., Coroutine[Any, Any, T]]) -> Callable[..., T]:
     return wrapper
 
 
-def with_session(f: Callable[..., Coroutine[Any, Any, T]]) -> Callable[..., T]:
+def with_session[T](f: Callable[..., Coroutine[Any, Any, T]]) -> Callable[..., T]:
     """Provide a database session to CLI commands."""
 
     @wraps(f)

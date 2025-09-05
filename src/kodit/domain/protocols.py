@@ -5,8 +5,15 @@ from typing import Protocol
 
 from pydantic import AnyUrl
 
-from kodit.domain.entities import Index, Snippet, SnippetWithContext, Task, WorkingCopy
-from kodit.domain.value_objects import MultiSearchRequest, Progress, TaskType
+from kodit.domain.entities import (
+    Index,
+    Snippet,
+    SnippetWithContext,
+    Task,
+    TaskStatus,
+    WorkingCopy,
+)
+from kodit.domain.value_objects import MultiSearchRequest, TaskType
 
 
 class TaskRepository(Protocol):
@@ -95,6 +102,24 @@ class IndexRepository(Protocol):
 class ReportingModule(Protocol):
     """Reporting module."""
 
-    def on_change(self, step: Progress) -> None:
+    async def on_change(self, progress: TaskStatus) -> None:
         """On step changed."""
+        ...
+
+
+class TaskStatusRepository(Protocol):
+    """Repository interface for persisting progress state only."""
+
+    async def save(self, status: TaskStatus) -> None:
+        """Save a progress state."""
+        ...
+
+    async def load_with_hierarchy(
+        self, trackable_type: str, trackable_id: int
+    ) -> list[TaskStatus]:
+        """Load progress states with IDs and parent IDs from database."""
+        ...
+
+    async def delete(self, status: TaskStatus) -> None:
+        """Delete a progress state."""
         ...
