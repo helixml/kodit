@@ -9,8 +9,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from kodit.application.factories.code_indexing_factory import (
     create_server_code_indexing_application_service,
 )
+from kodit.application.factories.code_search_factory import (
+    create_server_code_search_application_service,
+)
 from kodit.application.services.code_indexing_application_service import (
     CodeIndexingApplicationService,
+)
+from kodit.application.services.code_search_application_service import (
+    CodeSearchApplicationService,
 )
 from kodit.application.services.queue_service import QueueService
 from kodit.config import AppContext
@@ -82,6 +88,19 @@ async def get_indexing_app_service(
 
 IndexingAppServiceDep = Annotated[
     CodeIndexingApplicationService, Depends(get_indexing_app_service)
+]
+
+
+async def get_search_app_service(
+    app_context: AppContextDep,
+    session_factory: DBSessionFactoryDep,
+) -> CodeSearchApplicationService:
+    """Get search application service dependency."""
+    return create_server_code_search_application_service(app_context, session_factory)
+
+
+SearchAppServiceDep = Annotated[
+    CodeSearchApplicationService, Depends(get_search_app_service)
 ]
 
 

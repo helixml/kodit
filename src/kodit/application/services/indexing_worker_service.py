@@ -134,17 +134,13 @@ class IndexingWorkerService:
             raise ValueError("Missing index_id in task payload")
 
         # Create a fresh database connection for this thread's event loop
-        db = await self.app_context.new_db(run_migrations=True)
-        try:
-            service = create_code_indexing_application_service(
-                app_context=self.app_context,
-                session_factory=self.session_factory,
-                operation=operation,
-            )
-            index = await service.index_repository.get(index_id)
-            if not index:
-                raise ValueError(f"Index not found: {index_id}")
+        service = create_code_indexing_application_service(
+            app_context=self.app_context,
+            session_factory=self.session_factory,
+            operation=operation,
+        )
+        index = await service.index_repository.get(index_id)
+        if not index:
+            raise ValueError(f"Index not found: {index_id}")
 
-            await service.run_index(index)
-        finally:
-            await db.close()
+        await service.run_index(index)

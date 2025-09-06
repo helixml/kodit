@@ -13,6 +13,9 @@ from pytable_formatter import Cell, Table  # type: ignore[import-untyped]
 from kodit.application.factories.code_indexing_factory import (
     create_cli_code_indexing_application_service,
 )
+from kodit.application.factories.code_search_factory import (
+    create_cli_code_search_application_service,
+)
 from kodit.config import (
     AppContext,
     with_app_context,
@@ -315,7 +318,7 @@ async def _search_local(  # noqa: PLR0913
 
     # Get database session
     db = await app_context.get_db()
-    service = create_cli_code_indexing_application_service(
+    service = create_cli_code_search_application_service(
         app_context=app_context,
         session_factory=db.session_factory,
     )
