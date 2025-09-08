@@ -339,7 +339,7 @@ def test_search_created_before_filter(runner: CliRunner) -> None:
     mock_service.search = AsyncMock(return_value=mock_snippets)
 
     with patch(
-        "kodit.cli.create_cli_code_indexing_application_service",
+        "kodit.cli.create_cli_code_search_application_service",
         return_value=mock_service,
     ):
         # Test with created-before filter
@@ -604,7 +604,7 @@ def test_search_output_format_text_default(runner: CliRunner) -> None:
     mock_service.search = AsyncMock(return_value=mock_snippets)
 
     with patch(
-        "kodit.cli.create_cli_code_indexing_application_service",
+        "kodit.cli.create_cli_code_search_application_service",
         return_value=mock_service,
     ):
         # Test code search with default output format (text)
@@ -649,7 +649,7 @@ def test_search_output_format_text_explicit(runner: CliRunner) -> None:
     mock_service.search = AsyncMock(return_value=mock_snippets)
 
     with patch(
-        "kodit.cli.create_cli_code_indexing_application_service",
+        "kodit.cli.create_cli_code_search_application_service",
         return_value=mock_service,
     ):
         # Test with explicit --output-format text
@@ -709,7 +709,7 @@ def test_search_output_format_json(runner: CliRunner) -> None:
     mock_service.search = AsyncMock(return_value=mock_snippets)
 
     with patch(
-        "kodit.cli.create_cli_code_indexing_application_service",
+        "kodit.cli.create_cli_code_search_application_service",
         return_value=mock_service,
     ):
         # Test with --output-format json
@@ -774,7 +774,7 @@ def test_search_output_format_all_commands(runner: CliRunner) -> None:
     mock_service.search = AsyncMock(return_value=mock_snippets)
 
     with patch(
-        "kodit.cli.create_cli_code_indexing_application_service",
+        "kodit.cli.create_cli_code_search_application_service",
         return_value=mock_service,
     ):
         # Test keyword search with JSON output
@@ -834,7 +834,7 @@ def test_search_output_format_no_results(runner: CliRunner) -> None:
     mock_service.search = AsyncMock(return_value=[])  # Empty results
 
     with patch(
-        "kodit.cli.create_cli_code_indexing_application_service",
+        "kodit.cli.create_cli_code_search_application_service",
         return_value=mock_service,
     ):
         # Test with text format
