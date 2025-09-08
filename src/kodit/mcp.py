@@ -12,19 +12,15 @@ from pydantic import Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit._version import version
-from kodit.application.factories.code_indexing_factory import (
-    create_code_indexing_application_service,
+from kodit.application.factories.code_search_factory import (
+    create_server_code_search_application_service,
 )
-from kodit.application.factories.reporting_factory import create_server_operation
 from kodit.config import AppContext
 from kodit.database import Database
 from kodit.domain.value_objects import (
     MultiSearchRequest,
     MultiSearchResult,
     SnippetSearchFilters,
-)
-from kodit.infrastructure.sqlalchemy.task_status_repository import (
-    create_task_status_repository,
 )
 
 # Global database connection for MCP server
@@ -180,12 +176,9 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:
         mcp_context: MCPContext = ctx.request_context.lifespan_context
 
         # Use the unified application service
-        service = create_code_indexing_application_service(
+        service = create_server_code_search_application_service(
             app_context=mcp_context.app_context,
             session_factory=mcp_context.session_factory,
-            operation=create_server_operation(
-                create_task_status_repository(mcp_context.session_factory)
-            ),
         )
 
         log.debug("Searching for snippets")
