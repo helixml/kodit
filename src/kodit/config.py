@@ -14,9 +14,7 @@ import structlog
 from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import (
     BaseSettings,
-    EnvSettingsSource,
     NoDecode,
-    PydanticBaseSettingsSource,
     SettingsConfigDict,
 )
 
@@ -91,46 +89,12 @@ class Search(BaseModel):
     provider: Literal["sqlite", "vectorchord"] = Field(default="sqlite")
 
 
-class AutoIndexingSource(BaseModel):
-    """Configuration for a single auto-indexing source."""
-
-    uri: str = Field(description="URI of the source to index (git URL or local path)")
-
-
-class AutoIndexingConfig(BaseModel):
-    """Configuration for auto-indexing."""
-
-    sources: list[AutoIndexingSource] = Field(
-        default_factory=list, description="List of sources to auto-index"
-    )
-
-    @field_validator("sources", mode="before")
-    @classmethod
-    def parse_sources(cls, v: Any) -> Any:
-        """Parse sources from environment variables or other formats."""
-        if v is None:
-            return []
-        if isinstance(v, list):
-            return v
-        if isinstance(v, dict):
-            # Handle case where env vars are numbered keys like {'0': {'uri': '...'}}
-            sources = []
-            i = 0
-            while str(i) in v:
-                source_data = v[str(i)]
-                if isinstance(source_data, dict) and "uri" in source_data:
-                    sources.append(AutoIndexingSource(uri=source_data["uri"]))
-                i += 1
-            return sources
-        return v
-
-
 class PeriodicSyncConfig(BaseModel):
     """Configuration for periodic/scheduled syncing."""
 
     enabled: bool = Field(default=True, description="Enable periodic sync")
     interval_seconds: float = Field(
-        default=1800, description="Interval between automatic syncs in seconds"
+        default=1800, description="Interval between periodic syncs in seconds"
     )
     retry_attempts: int = Field(
         default=3, description="Number of retry attempts for failed syncs"
@@ -147,36 +111,6 @@ class RemoteConfig(BaseModel):
     verify_ssl: bool = Field(default=True, description="Verify SSL certificates")
 
 
-class CustomAutoIndexingEnvSource(EnvSettingsSource):
-    """Custom environment source for parsing AutoIndexingConfig."""
-
-    def __call__(self) -> dict[str, Any]:
-        """Load settings from env vars with custom auto-indexing parsing."""
-        d: dict[str, Any] = {}
-
-        # First get the standard env vars
-        env_vars = super().__call__()
-        d.update(env_vars)
-
-        # Custom parsing for auto-indexing sources
-        auto_indexing_sources = []
-        i = 0
-        while True:
-            # Note: env_vars keys are lowercase due to Pydantic Settings normalization
-            uri_key = f"auto_indexing_sources_{i}_uri"
-            if uri_key in self.env_vars:
-                uri_value = self.env_vars[uri_key]
-                auto_indexing_sources.append({"uri": uri_value})
-                i += 1
-            else:
-                break
-
-        if auto_indexing_sources:
-            d["auto_indexing"] = {"sources": auto_indexing_sources}
-
-        return d
-
-
 class AppContext(BaseSettings):
     """Global context for the kodit project. Provides a shared state for the app."""
 
@@ -188,30 +122,6 @@ class AppContext(BaseSettings):
         nested_model_default_partial_update=True,
         extra="ignore",
     )
-
-    @classmethod
-    def settings_customise_sources(
-        cls,
-        settings_cls: type[BaseSettings],
-        init_settings: PydanticBaseSettingsSource,
-        env_settings: PydanticBaseSettingsSource,  # noqa: ARG003
-        dotenv_settings: PydanticBaseSettingsSource,
-        file_secret_settings: PydanticBaseSettingsSource,
-    ) -> tuple[PydanticBaseSettingsSource, ...]:
-        """Customize settings sources to use custom auto-indexing parsing."""
-        custom_env_settings = CustomAutoIndexingEnvSource(
-            settings_cls,
-            env_nested_delimiter=settings_cls.model_config.get("env_nested_delimiter"),
-            env_ignore_empty=settings_cls.model_config.get("env_ignore_empty", False),
-            env_parse_none_str=settings_cls.model_config.get("env_parse_none_str", ""),
-            env_parse_enums=settings_cls.model_config.get("env_parse_enums", None),
-        )
-        return (
-            init_settings,
-            custom_env_settings,
-            dotenv_settings,
-            file_secret_settings,
-        )
 
     data_dir: Path = Field(default=DEFAULT_BASE_DIR)
     db_url: str = Field(
@@ -230,9 +140,6 @@ class AppContext(BaseSettings):
     )
     default_search: Search = Field(
         default=Search(),
-    )
-    auto_indexing: AutoIndexingConfig | None = Field(
-        default=AutoIndexingConfig(), description="Auto-indexing configuration"
     )
     periodic_sync: PeriodicSyncConfig = Field(
         default=PeriodicSyncConfig(), description="Periodic sync configuration"

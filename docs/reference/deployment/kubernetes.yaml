@@ -69,10 +69,6 @@ spec:
               value: "REPLACE_WITH_YOUR_API_KEY"
             - name: ENRICHMENT_ENDPOINT_MODEL
               value: "openai/gpt-5-nano"
-            - name: AUTO_INDEXING_SOURCES_0_URI
-              value: "https://github.com/pydantic/pydantic"
-            - name: AUTO_INDEXING_SOURCES_1_URI
-              value: "https://github.com/helix-ml/kodit"
             - name: SYNC_PERIODIC_ENABLED
               value: "true"
             - name: SYNC_PERIODIC_INTERVAL_SECONDS

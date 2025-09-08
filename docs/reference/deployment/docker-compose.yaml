@@ -26,10 +26,6 @@ services:
       ENRICHMENT_ENDPOINT_API_KEY: ${OPENAI_API_KEY:-}
       ENRICHMENT_ENDPOINT_MODEL: openai/gpt-5-nano
 
-      # Auto-indexing configuration
-      AUTO_INDEXING_SOURCES_0_URI: https://github.com/helixml/kodit
-      AUTO_INDEXING_SOURCES_1_URI: https://github.com/helixml/helix
-
       # Sync configuration
       SYNC_PERIODIC_ENABLED: true
       SYNC_PERIODIC_INTERVAL_SECONDS: 1800  # 30 minutes
