@@ -31,9 +31,7 @@ class SqlAlchemySnippetRepository(SnippetRepository):
 
     @property
     def _mapper(self) -> SnippetMapper:
-        if self.uow.session is None:
-            raise RuntimeError("UnitOfWork must be used within async context")
-        return SnippetMapper(self.uow.session)
+        return SnippetMapper()
 
     @property
     def _session(self) -> AsyncSession:
@@ -54,9 +52,7 @@ class SqlAlchemySnippetRepository(SnippetRepository):
 
             # Convert domain snippets to database entities
             for domain_snippet in snippets:
-                db_snippet = await self._mapper.from_domain_snippet(
-                    domain_snippet, index_id
-                )
+                db_snippet = self._mapper.from_domain_snippet(domain_snippet, index_id)
                 self._session.add(db_snippet)
 
     async def update(self, snippets: list[domain_entities.Snippet]) -> None:
@@ -257,14 +253,46 @@ class SqlAlchemySnippetRepository(SnippetRepository):
         if not db_source:
             return None
 
-        domain_file = await self._mapper.to_domain_file(db_file)
-        domain_source = await self._mapper.to_domain_source(db_source)
+        # Load authors for this file
+        from sqlalchemy import select
+
+        authors_stmt = (
+            select(db_entities.Author)
+            .join(db_entities.AuthorFileMapping)
+            .where(db_entities.AuthorFileMapping.file_id == db_file.id)
+        )
+        db_authors = list((await self._session.scalars(authors_stmt)).all())
+
+        # Load all files for the source (needed for working copy)
+        files_stmt = select(db_entities.File).where(
+            db_entities.File.source_id == db_source.id
+        )
+        db_files = (await self._session.scalars(files_stmt)).all()
+
+        # Convert file to domain (with its authors)
+        domain_file = self._mapper.to_domain_file(db_file, db_authors)
+
+        # Convert all files to domain for the source
+        domain_files = []
+        for db_f in db_files:
+            # Load authors for each file
+            f_authors_stmt = (
+                select(db_entities.Author)
+                .join(db_entities.AuthorFileMapping)
+                .where(db_entities.AuthorFileMapping.file_id == db_f.id)
+            )
+            db_f_authors = list((await self._session.scalars(f_authors_stmt)).all())
+            domain_f = self._mapper.to_domain_file(db_f, db_f_authors)
+            domain_files.append(domain_f)
+
+        # Convert source to domain (with all its files)
+        domain_source = self._mapper.to_domain_source(db_source, domain_files)
 
         return SnippetWithContext(
             source=domain_source,
             file=domain_file,
             authors=domain_file.authors,
-            snippet=await self._mapper.to_domain_snippet(
+            snippet=self._mapper.to_domain_snippet(
                 db_snippet=db_snippet, domain_files=[domain_file]
             ),
         )

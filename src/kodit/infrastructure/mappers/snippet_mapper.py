@@ -1,22 +1,18 @@
 """Mapping between domain Snippet entities and SQLAlchemy entities."""
 
+from pathlib import Path
+
 from pydantic import AnyUrl
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 import kodit.domain.entities as domain_entities
-from kodit.domain.value_objects import FileProcessingStatus
+from kodit.domain.value_objects import FileProcessingStatus, SourceType
 from kodit.infrastructure.sqlalchemy import entities as db_entities
 
 
 class SnippetMapper:
     """Mapper for converting between domain Snippet entities and database entities."""
 
-    def __init__(self, session: AsyncSession) -> None:
-        """Initialize mapper with database session."""
-        self._session = session
-
-    async def to_domain_snippet(
+    def to_domain_snippet(
         self, db_snippet: db_entities.Snippet, domain_files: list[domain_entities.File]
     ) -> domain_entities.Snippet:
         """Convert SQLAlchemy Snippet to domain Snippet."""
@@ -45,7 +41,7 @@ class SnippetMapper:
 
         return domain_snippet
 
-    async def from_domain_snippet(
+    def from_domain_snippet(
         self, domain_snippet: domain_entities.Snippet, index_id: int
     ) -> db_entities.Snippet:
         """Convert domain Snippet to SQLAlchemy Snippet."""
@@ -73,16 +69,10 @@ class SnippetMapper:
 
         return db_snippet
 
-    async def to_domain_file(self, db_file: db_entities.File) -> domain_entities.File:
+    def to_domain_file(
+        self, db_file: db_entities.File, db_authors: list[db_entities.Author]
+    ) -> domain_entities.File:
         """Convert SQLAlchemy File to domain File."""
-        # Load authors for this file
-        authors_stmt = (
-            select(db_entities.Author)
-            .join(db_entities.AuthorFileMapping)
-            .where(db_entities.AuthorFileMapping.file_id == db_file.id)
-        )
-        db_authors = (await self._session.scalars(authors_stmt)).all()
-
         domain_authors = [
             domain_entities.Author(id=author.id, name=author.name, email=author.email)
             for author in db_authors
@@ -99,25 +89,10 @@ class SnippetMapper:
             file_processing_status=FileProcessingStatus(db_file.file_processing_status),
         )
 
-    async def to_domain_source(
-        self, db_source: db_entities.Source
+    def to_domain_source(
+        self, db_source: db_entities.Source, domain_files: list[domain_entities.File]
     ) -> domain_entities.Source:
         """Convert SQLAlchemy Source to domain Source."""
-        from pathlib import Path
-        from kodit.domain.value_objects import SourceType
-
-        # Load files for the source
-        files_stmt = select(db_entities.File).where(
-            db_entities.File.source_id == db_source.id
-        )
-        db_files = (await self._session.scalars(files_stmt)).all()
-
-        # Convert files to domain
-        domain_files = []
-        for db_file in db_files:
-            domain_file = await self.to_domain_file(db_file)
-            domain_files.append(domain_file)
-
         # Create working copy
         working_copy = domain_entities.WorkingCopy(
             created_at=db_source.created_at,
