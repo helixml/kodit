@@ -9,7 +9,6 @@ from fastapi.responses import RedirectResponse
 
 from kodit._version import version
 from kodit.application.factories.reporting_factory import create_server_operation
-from kodit.application.services.auto_indexing_service import AutoIndexingService
 from kodit.application.services.indexing_worker_service import IndexingWorkerService
 from kodit.application.services.sync_scheduler import SyncSchedulerService
 from kodit.config import AppContext
@@ -26,14 +25,13 @@ from kodit.mcp import mcp
 from kodit.middleware import ASGICancelledErrorMiddleware, logging_middleware
 
 # Global services
-_auto_indexing_service: AutoIndexingService | None = None
 _sync_scheduler_service: SyncSchedulerService | None = None
 
 
 @asynccontextmanager
 async def app_lifespan(_: FastAPI) -> AsyncIterator[AppLifespanState]:
     """Manage application lifespan for auto-indexing and sync."""
-    global _auto_indexing_service, _sync_scheduler_service  # noqa: PLW0603
+    global _sync_scheduler_service  # noqa: PLW0603
 
     # App context has already been configured by the CLI.
     app_context = AppContext()
@@ -49,13 +47,6 @@ async def app_lifespan(_: FastAPI) -> AsyncIterator[AppLifespanState]:
     )
     await _indexing_worker_service.start(operation)
 
-    # Start auto-indexing service
-    _auto_indexing_service = AutoIndexingService(
-        app_context=app_context,
-        session_factory=db.session_factory,
-    )
-    await _auto_indexing_service.start_background_indexing(operation)
-
     # Start sync scheduler service
     if app_context.periodic_sync.enabled:
         _sync_scheduler_service = SyncSchedulerService(
@@ -70,8 +61,6 @@ async def app_lifespan(_: FastAPI) -> AsyncIterator[AppLifespanState]:
     # Stop services
     if _sync_scheduler_service:
         await _sync_scheduler_service.stop_periodic_sync()
-    if _auto_indexing_service:
-        await _auto_indexing_service.stop()
     if _indexing_worker_service:
         await _indexing_worker_service.stop()
 

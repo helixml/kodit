@@ -65,21 +65,6 @@ def cli(
     ctx.obj = config
 
 
-async def _handle_auto_index(
-    app_context: AppContext,
-    sources: list[str],  # noqa: ARG001
-) -> list[str]:
-    """Handle auto-index option and return sources to process."""
-    log = structlog.get_logger(__name__)
-    log.info("Auto-indexing configuration", config=app_context.auto_indexing)
-    if not app_context.auto_indexing or not app_context.auto_indexing.sources:
-        click.echo("No auto-index sources configured.")
-        return []
-    auto_sources = app_context.auto_indexing.sources
-    click.echo(f"Auto-indexing {len(auto_sources)} configured sources...")
-    return [source.uri for source in auto_sources]
-
-
 async def _handle_sync(
     service: Any,
     index_query_service: IndexQueryService,
@@ -154,9 +139,6 @@ async def _handle_list_indexes(index_query_service: IndexQueryService) -> None:
 
 @cli.command()
 @click.argument("sources", nargs=-1)
-@click.option(
-    "--auto-index", is_flag=True, help="Index all configured auto-index sources"
-)
 @click.option("--sync", is_flag=True, help="Sync existing indexes with their remotes")
 @with_app_context
 @wrap_async
@@ -164,22 +146,20 @@ async def index(
     app_context: AppContext,
     sources: list[str],
     *,  # Force keyword-only arguments
-    auto_index: bool,
     sync: bool,
 ) -> None:
     """List indexes, index data sources, or sync existing indexes."""
     if not app_context.is_remote:
         # Local mode - use existing implementation
-        await _index_local(app_context, sources, auto_index, sync)
+        await _index_local(app_context, sources, sync)
     else:
         # Remote mode - use API clients
-        await _index_remote(app_context, sources, auto_index, sync)
+        await _index_remote(app_context, sources, sync)
 
 
 async def _index_local(
     app_context: AppContext,
     sources: list[str],
-    auto_index: bool,  # noqa: FBT001
     sync: bool,  # noqa: FBT001
 ) -> None:
     """Handle index operations in local mode."""
@@ -196,11 +176,6 @@ async def _index_local(
         snippet_repository=create_snippet_repository(session_factory=db.session_factory),
         fusion_service=ReciprocalRankFusionService(),
     )
-
-    if auto_index:
-        sources = await _handle_auto_index(app_context, sources)
-        if not sources:
-            return
 
     if sync:
         await _handle_sync(service, index_query_service, sources)
@@ -239,7 +214,6 @@ Please check the repository contents and try again.
 async def _index_remote(
     app_context: AppContext,
     sources: list[str],
-    auto_index: bool,  # noqa: FBT001
     sync: bool,  # noqa: FBT001
 ) -> None:
     """Handle index operations in remote mode."""
@@ -247,11 +221,6 @@ async def _index_remote(
         # Sync operation not available in remote mode
         click.echo("⚠️  Warning: Index sync is not implemented in remote mode")
         click.echo("Please use the server's auto-sync functionality or sync locally")
-        return
-
-    if auto_index:
-        click.echo("⚠️  Warning: Auto-index is not implemented in remote mode")
-        click.echo("Please configure sources to be auto-indexed on the server")
         return
 
     # Create API client

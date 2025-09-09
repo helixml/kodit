@@ -29,10 +29,6 @@ echo -e "def main():\n    print('Hello, world!')" > $tmp_dir/test.py
 # Test version command
 $prefix kodit version
 
-# Test auto-indexing
-AUTO_INDEXING_SOURCES_0_URI=https://gist.github.com/7aa38185e20433c04c533f2b28f4e217.git \
- $prefix kodit index --auto-index
-
 # Test index command
 $prefix kodit index $tmp_dir
 $prefix kodit index https://github.com/winderai/analytics-ai-agent-demo
