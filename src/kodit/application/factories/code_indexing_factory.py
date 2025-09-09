@@ -87,6 +87,7 @@ def create_code_indexing_application_service(
     index_domain_service = IndexDomainService(
         language_detector=language_detector,
         enrichment_service=enrichment_service,
+        snippet_repository=snippet_repository,
         clone_dir=app_context.get_clone_dir(),
     )
     index_query_service = IndexQueryService(
@@ -182,6 +183,7 @@ def create_fast_test_code_indexing_application_service(
     index_domain_service = IndexDomainService(
         language_detector=language_detector,
         enrichment_service=enrichment_service,
+        snippet_repository=snippet_repository,
         clone_dir=app_context.get_clone_dir(),
     )
     index_query_service = IndexQueryService(

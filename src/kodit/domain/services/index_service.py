@@ -10,6 +10,7 @@ from pydantic import AnyUrl
 import kodit.domain.entities as domain_entities
 from kodit.application.factories.reporting_factory import create_noop_operation
 from kodit.application.services.reporting import ProgressTracker
+from kodit.domain.protocols import SnippetRepository
 from kodit.domain.services.enrichment_service import EnrichmentDomainService
 from kodit.domain.value_objects import (
     EnrichmentIndexRequest,
@@ -47,12 +48,14 @@ class IndexDomainService:
         self,
         language_detector: LanguageDetectionService,
         enrichment_service: EnrichmentDomainService,
+        snippet_repository: SnippetRepository,
         clone_dir: Path,
     ) -> None:
         """Initialize the index domain service."""
         self._clone_dir = clone_dir
         self._language_detector = language_detector
         self._enrichment_service = enrichment_service
+        self._snippet_repository = snippet_repository
         self.log = structlog.get_logger(__name__)
 
     async def prepare_index(
@@ -86,8 +89,12 @@ class IndexDomainService:
         self,
         index: domain_entities.Index,
         step: ProgressTracker | None = None,
-    ) -> domain_entities.Index:
-        """Extract code snippets from files in the index."""
+    ) -> list[domain_entities.Snippet]:
+        """Extract code snippets from files in the index and return them.
+
+        This method extracts snippets from changed files but does not persist them.
+        The caller is responsible for persistence via SnippetRepository.
+        """
         step = step or create_noop_operation()
         file_count = len(index.source.working_copy.files)
 
@@ -99,7 +106,12 @@ class IndexDomainService:
 
         # Only create snippets for files that have been added or modified
         files = index.source.working_copy.changed_files()
-        index.delete_snippets_for_files(files)
+
+        # Delete existing snippets for changed files from repository
+        if index.id:
+            changed_file_ids = [f.id for f in files if f.id is not None]
+            if changed_file_ids:
+                await self._snippet_repository.delete_by_file_ids(changed_file_ids)
 
         # Filter out deleted files - they don't exist on disk anymore
         files = [
@@ -125,14 +137,14 @@ class IndexDomainService:
         )
 
         # Calculate snippets for each language
+        all_snippets = []
         slicer = Slicer()
         await step.set_total(len(lang_files_map.keys()))
         for i, (lang, lang_files) in enumerate(lang_files_map.items()):
             await step.set_current(i, f"Extracting snippets for {lang}")
-            s = slicer.extract_snippets(lang_files, language=lang)
-            index.snippets.extend(s)
-
-        return index
+            snippets = slicer.extract_snippets(lang_files, language=lang)
+            all_snippets.extend(snippets)
+        return all_snippets
 
     async def enrich_snippets_in_index(
         self,

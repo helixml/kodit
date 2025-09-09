@@ -123,40 +123,46 @@ class CodeIndexingApplicationService:
 
             # Extract and create snippets (domain service handles progress)
             async with operation.create_child(TaskOperation.EXTRACT_SNIPPETS) as step:
-                index = await self.index_domain_service.extract_snippets_from_index(
-                    index=index, step=step
+                extracted_snippets = (
+                    await self.index_domain_service.extract_snippets_from_index(
+                        index=index, step=step
+                    )
                 )
-                await self.index_repository.update(index)
 
-                # Refresh index to get snippets with IDs, required for subsequent steps
-                flushed_index = await self.index_repository.get(index.id)
-                if not flushed_index:
-                    msg = f"Index {index.id} not found after snippet extraction"
-                    raise ValueError(msg)
-                index = flushed_index
-                if len(index.snippets) == 0:
+                # Update index first to persist files with IDs
+                await self.index_repository.update(index)
+                
+                # Now persist extracted snippets (files have IDs now)
+                if extracted_snippets and index.id:
+                    await self.snippet_repository.add(extracted_snippets, index.id)
+
+                if len(extracted_snippets) == 0:
                     self.log.info(
                         "No snippets to index after extraction", index_id=index.id
                     )
                     await step.skip("No snippets to index after extraction")
                     return
 
+                # Get snippets with IDs for subsequent steps
+                snippets = await self.snippet_repository.get_by_index_id(index.id)
+                snippet_list = [sc.snippet for sc in snippets]
+
             # Create BM25 index
             self.log.info("Creating keyword index")
             async with operation.create_child(TaskOperation.CREATE_BM25_INDEX) as step:
-                await self._create_bm25_index(index.snippets)
+                await self._create_bm25_index(snippet_list)
 
             # Create code embeddings
             async with operation.create_child(
                 TaskOperation.CREATE_CODE_EMBEDDINGS
             ) as step:
-                await self._create_code_embeddings(index.snippets, step)
+                await self._create_code_embeddings(snippet_list, step)
 
             # Enrich snippets
             async with operation.create_child(TaskOperation.ENRICH_SNIPPETS) as step:
                 enriched_snippets = (
                     await self.index_domain_service.enrich_snippets_in_index(
-                        snippets=index.snippets,
+                        snippets=snippet_list,
                         reporting_step=step,
                     )
                 )

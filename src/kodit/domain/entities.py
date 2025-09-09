@@ -253,21 +253,34 @@ class Snippet(BaseModel):
 
 
 class Index(BaseModel):
-    """Index domain entity."""
+    """Index domain entity.
+
+    The snippets field is optional and only loaded when explicitly needed.
+    Most operations should use the SnippetRepository directly instead of
+    accessing this field.
+    """
 
     id: int
     created_at: datetime
     updated_at: datetime
     source: Source
-    snippets: list[Snippet]
+    snippets: list[Snippet] = []
 
     def delete_snippets_for_files(self, files: list[File]) -> None:
-        """Delete the snippets that derive from a list of files."""
+        """Delete the snippets that derive from a list of files.
+
+        Note: This method only operates on loaded snippets. For persistence,
+        use SnippetRepository.delete_by_file_ids() directly.
+        """
         self.snippets = [
             snippet
             for snippet in self.snippets
             if not any(file in snippet.derives_from for file in files)
         ]
+
+    def has_snippets_loaded(self) -> bool:
+        """Check if snippets have been loaded into this entity."""
+        return len(self.snippets) > 0
 
 
 # FUTURE: Remove this type, use the domain to get the required information.

@@ -148,12 +148,16 @@ def validate_input(value: str) -> bool:
     index_repo = create_index_repository(session_factory=session_factory)
     persisted_index = await index_repo.get(index.id)
     assert persisted_index is not None, "Index should be persisted"
-    assert len(persisted_index.snippets) > 0, "Index should have snippets"
+    
+    # Verify snippets via SnippetRepository
+    snippet_repo = create_snippet_repository(session_factory=session_factory)
+    snippets = await snippet_repo.get_by_index_id(index.id)
+    assert len(snippets) > 0, "Index should have snippets"
 
     # Verify that snippets have proper IDs (not None)
-    for snippet in persisted_index.snippets:
-        snippet_preview = snippet.original_text()[:50]
-        assert snippet.id is not None, f"Snippet should have ID: {snippet_preview}..."
+    for snippet_context in snippets:
+        snippet_preview = snippet_context.snippet.original_text()[:50]
+        assert snippet_context.snippet.id is not None, f"Snippet should have ID: {snippet_preview}..."
 
     # Test keyword search - search for "add" which should find the add method
     keyword_results = await code_search_service.search(
@@ -192,6 +196,7 @@ def validate_input(value: str) -> bool:
 async def test_vectorchord_bug_zip_mismatch(
     code_indexing_service: CodeIndexingApplicationService,
     code_search_service: CodeSearchApplicationService,
+    snippet_repository: SnippetRepository,
     tmp_path: Path,
 ) -> None:
     """Test that reproduces the vectorchord bug with zip() length mismatch.
@@ -213,7 +218,9 @@ def subtract(a: int, b: int) -> int:
     # Create initial index
     index = await code_indexing_service.create_index_from_uri(str(tmp_path))
     await code_indexing_service.run_index(index)
-    assert len(index.snippets) > 0, "Should have snippets for initial file"
+    # Verify snippets via SnippetRepository
+    initial_snippets = await snippet_repository.get_by_index_id(index.id)
+    assert len(initial_snippets) > 0, "Should have snippets for initial file"
 
     # Mock perform_fusion to always return some fake results
     # This ensures final_results is not empty

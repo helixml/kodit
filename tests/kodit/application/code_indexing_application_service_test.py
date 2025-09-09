@@ -64,6 +64,7 @@ async def indexing_query_service(
 @pytest.mark.asyncio
 async def test_run_index_with_empty_source_succeeds(
     code_indexing_service: CodeIndexingApplicationService,
+    snippet_repository: SnippetRepository,
     tmp_path: Path,
 ) -> None:
     """Test that create_index_from_uri succeeds with empty directory."""
@@ -75,14 +76,16 @@ async def test_run_index_with_empty_source_succeeds(
     # Run indexing on empty directory should complete without error
     await code_indexing_service.run_index(index)
 
-    # Should have no snippets since there are no files
-    assert len(index.snippets) == 0, "Empty directory should have no snippets"
+    # Should have no snippets since there are no files - verify via SnippetRepository
+    snippets = await snippet_repository.get_by_index_id(index.id)
+    assert len(snippets) == 0, "Empty directory should have no snippets"
 
 
 @pytest.mark.asyncio
 async def test_run_index_deletes_old_snippets(
     code_indexing_service: CodeIndexingApplicationService,
     indexing_query_service: IndexQueryService,
+    snippet_repository: SnippetRepository,
     tmp_path: Path,
 ) -> None:
     """Test that run_index processes only modified files in the new system."""
@@ -103,7 +106,9 @@ def old_function():
 
     # In the new system, only files marked as ADDED/MODIFIED are processed
     # Since this is a new file, it should be processed and create snippets
-    assert len(created_index.snippets) > 0, "Snippets should be created for new files"
+    # Verify snippets via SnippetRepository
+    snippets = await snippet_repository.get_by_index_id(created_index.id)
+    assert len(snippets) > 0, "Snippets should be created for new files"
 
     # Update the file content
     test_file.write_text("""
@@ -125,10 +130,12 @@ def new_function():
     assert updated_index
 
     # In the current implementation, a new index is created, so we should have snippets
-    assert len(updated_index.snippets) > 0, "Should have snippets after refresh"
+    # Verify snippets via SnippetRepository
+    updated_snippets = await snippet_repository.get_by_index_id(updated_index.id)
+    assert len(updated_snippets) > 0, "Should have snippets after refresh"
 
     # Check that the content reflects the new function
-    snippet_contents = [snippet.original_text() for snippet in updated_index.snippets]
+    snippet_contents = [snippet.snippet.original_text() for snippet in updated_snippets]
     assert any("new_function" in content for content in snippet_contents), (
         "Should contain new function content"
     )
@@ -138,6 +145,7 @@ def new_function():
 async def test_file_deletion_after_refresh_handles_slicer_correctly(
     code_indexing_service: CodeIndexingApplicationService,
     indexing_query_service: IndexQueryService,
+    snippet_repository: SnippetRepository,
     tmp_path: Path,
 ) -> None:
     """Test that deleted files don't cause FileNotFoundError in slicer after refresh."""
@@ -154,7 +162,9 @@ def subtract(a: int, b: int) -> int:
     # Create initial index
     index = await code_indexing_service.create_index_from_uri(str(tmp_path))
     await code_indexing_service.run_index(index)
-    assert len(index.snippets) > 0, "Should have snippets for initial file"
+    # Verify snippets via SnippetRepository
+    initial_snippets = await snippet_repository.get_by_index_id(index.id)
+    assert len(initial_snippets) > 0, "Should have snippets for initial file"
 
     # Delete the file from filesystem (simulating git pull that removes files)
     test_file.unlink()
