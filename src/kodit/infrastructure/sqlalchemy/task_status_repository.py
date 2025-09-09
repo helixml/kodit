@@ -3,14 +3,14 @@
 from collections.abc import Callable
 
 import structlog
-from sqlalchemy import delete, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.domain import entities as domain_entities
 from kodit.domain.protocols import TaskStatusRepository
 from kodit.infrastructure.mappers.task_status_mapper import TaskStatusMapper
 from kodit.infrastructure.sqlalchemy import entities as db_entities
 from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
+from sqlalchemy import delete, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 def create_task_status_repository(

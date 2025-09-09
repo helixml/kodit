@@ -33,7 +33,7 @@ class ProgressTracker:
     ) -> None:
         """Initialize the progress tracker."""
         self.task_status = task_status
-        self._log = structlog.get_logger(__name__)
+        self._log: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
         self._subscribers: list[ReportingModule] = []
 
     @staticmethod
@@ -74,6 +74,7 @@ class ProgressTracker:
             await c.notify_subscribers()
             yield c
         except Exception as e:  # noqa: BLE001
+            self._log.exception("Step failed", error=str(e))
             c.task_status.fail(str(e))
         finally:
             c.task_status.complete()

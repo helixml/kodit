@@ -141,6 +141,8 @@ async def get_index_status(
                     current=status.current,
                     created_at=status.created_at,
                     updated_at=status.updated_at,
+                    error=status.error,
+                    message=status.message,
                 ),
             )
         )
