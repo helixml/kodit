@@ -32,6 +32,19 @@ class SqlAlchemyTaskStatusRepository(TaskStatusRepository):
 
     async def save(self, status: domain_entities.TaskStatus) -> None:
         """Save a TaskStatus to database."""
+        # If this task has a parent, ensure the parent exists in the database first
+        if status.parent is not None:
+            async with self.uow:
+                parent_stmt = select(db_entities.TaskStatus).where(
+                    db_entities.TaskStatus.id == status.parent.id,
+                )
+                parent_result = await self.uow.session.execute(parent_stmt)
+                existing_parent = parent_result.scalar_one_or_none()
+
+            if not existing_parent:
+                # Recursively save the parent first
+                await self.save(status.parent)
+
         async with self.uow:
             # Convert domain entity to database entity
             db_status = self.mapper.from_domain_task_status(status)
