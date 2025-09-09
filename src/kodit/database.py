@@ -6,6 +6,7 @@ from pathlib import Path
 import structlog
 from alembic import command
 from alembic.config import Config as AlembicConfig
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -21,7 +22,37 @@ class Database:
     def __init__(self, db_url: str) -> None:
         """Initialize the database."""
         self.log = structlog.get_logger(__name__)
-        self.db_engine = create_async_engine(db_url, echo=False)
+
+        # Configure SQLite-specific connection arguments to prevent locking issues
+        connect_args = {}
+        if "sqlite" in db_url.lower():
+            connect_args = {
+                "timeout": 20,  # 20 second timeout for database operations
+                "check_same_thread": False,  # Allow use from different threads
+            }
+
+        self.db_engine = create_async_engine(
+            db_url,
+            echo=False,
+            connect_args=connect_args,
+        )
+
+        # Configure SQLite pragmas for better concurrency and performance
+        if "sqlite" in db_url.lower():
+
+            @event.listens_for(self.db_engine.sync_engine, "connect")
+            def set_sqlite_pragma(dbapi_connection, connection_record):
+                cursor = dbapi_connection.cursor()
+                # Enable WAL mode for better concurrency
+                cursor.execute("PRAGMA journal_mode=WAL")
+                # Set busy timeout to prevent immediate locking failures
+                cursor.execute("PRAGMA busy_timeout=20000")
+                # Enable foreign key constraints
+                cursor.execute("PRAGMA foreign_keys=ON")
+                # Optimize for speed over safety (acceptable for indexing workloads)
+                cursor.execute("PRAGMA synchronous=NORMAL")
+                cursor.close()
+
         self.db_session_factory = async_sessionmaker(
             self.db_engine,
             class_=AsyncSession,
