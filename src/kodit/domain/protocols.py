@@ -1,6 +1,5 @@
 """Repository protocol interfaces for the domain layer."""
 
-from collections.abc import Sequence
 from typing import Protocol
 
 from pydantic import AnyUrl

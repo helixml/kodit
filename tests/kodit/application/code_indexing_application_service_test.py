@@ -13,10 +13,11 @@ from kodit.application.services.code_indexing_application_service import (
     CodeIndexingApplicationService,
 )
 from kodit.config import AppContext
-from kodit.domain.protocols import IndexRepository
+from kodit.domain.protocols import IndexRepository, SnippetRepository
 from kodit.domain.services.index_query_service import IndexQueryService
 from kodit.infrastructure.indexing.fusion_service import ReciprocalRankFusionService
 from kodit.infrastructure.sqlalchemy.index_repository import create_index_repository
+from kodit.infrastructure.sqlalchemy.snippet_repository import create_snippet_repository
 
 
 @pytest.fixture
@@ -40,12 +41,22 @@ async def code_indexing_service(
 
 
 @pytest.fixture
+async def snippet_repository(
+    session_factory: Callable[[], AsyncSession],
+) -> SnippetRepository:
+    """Create a real SnippetRepository with all dependencies."""
+    return create_snippet_repository(session_factory=session_factory)
+
+
+@pytest.fixture
 async def indexing_query_service(
     index_repository: IndexRepository,
+    snippet_repository: SnippetRepository,
 ) -> IndexQueryService:
     """Create a real IndexQueryService with all dependencies."""
     return IndexQueryService(
         index_repository=index_repository,
+        snippet_repository=snippet_repository,
         fusion_service=ReciprocalRankFusionService(),
     )
 

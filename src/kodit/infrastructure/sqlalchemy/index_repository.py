@@ -1,6 +1,6 @@
 """SQLAlchemy implementation of IndexRepository using Index aggregate root."""
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import cast
 
@@ -9,11 +9,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.domain import entities as domain_entities
-from kodit.domain.entities import SnippetWithContext
 from kodit.domain.protocols import IndexRepository
-from kodit.domain.value_objects import (
-    MultiSearchRequest,
-)
 from kodit.infrastructure.mappers.index_mapper import IndexMapper
 from kodit.infrastructure.sqlalchemy import entities as db_entities
 from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork

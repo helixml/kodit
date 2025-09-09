@@ -71,67 +71,6 @@ class TestIndexMapper:
         assert domain_file.authors[0].email == "test@example.com"
 
     @pytest.mark.asyncio
-    async def test_from_domain_snippet(self, session: AsyncSession) -> None:
-        """Test converting a domain Snippet to database Snippet."""
-        # Create test data
-        db_source = db_entities.Source(
-            uri="file:///test/repo",
-            cloned_path="/test/repo",
-            source_type=db_entities.SourceType.FOLDER,
-        )
-        session.add(db_source)
-        await session.flush()
-
-        db_file = db_entities.File(
-            created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
-            source_id=db_source.id,
-            mime_type="text/plain",
-            uri="file:///test/file.txt",
-            cloned_path="/test/file.txt",
-            sha256="abc123",
-            size_bytes=100,
-            extension="txt",
-            file_processing_status=FileProcessingStatus.CLEAN.value,
-        )
-        session.add(db_file)
-        await session.flush()
-
-        # Create domain snippet
-        domain_file = domain_entities.File(
-            id=db_file.id,
-            created_at=db_file.created_at,
-            updated_at=db_file.updated_at,
-            uri=AnyUrl(db_file.uri),
-            sha256=db_file.sha256,
-            authors=[],
-            mime_type=db_file.mime_type,
-            file_processing_status=FileProcessingStatus.CLEAN,
-        )
-
-        domain_snippet = domain_entities.Snippet(
-            id=1,
-            created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
-            derives_from=[domain_file],
-        )
-        domain_snippet.add_original_content("def test(): pass", "python")
-        domain_snippet.add_summary("Test function")
-
-        # Test mapping
-        mapper = IndexMapper(session)
-        db_snippet = await mapper.from_domain_snippet(domain_snippet, index_id=1)
-
-        # Verify mapping
-        assert db_snippet.id == domain_snippet.id
-        assert db_snippet.created_at == domain_snippet.created_at
-        assert db_snippet.updated_at == domain_snippet.updated_at
-        assert db_snippet.file_id == domain_file.id
-        assert db_snippet.index_id == 1
-        assert db_snippet.content == "def test(): pass"
-        assert db_snippet.summary == "Test function"
-
-    @pytest.mark.asyncio
     async def test_from_domain_index(self, session: AsyncSession) -> None:
         """Test converting a domain Index to database entities."""
         # Create domain entities

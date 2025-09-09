@@ -21,7 +21,7 @@ from kodit.application.services.code_search_application_service import (
 )
 from kodit.config import AppContext
 from kodit.domain.entities import SnippetWithContext
-from kodit.domain.protocols import IndexRepository
+from kodit.domain.protocols import IndexRepository, SnippetRepository
 from kodit.domain.services.index_query_service import IndexQueryService
 from kodit.domain.value_objects import (
     FusionRequest,
@@ -30,6 +30,7 @@ from kodit.domain.value_objects import (
 )
 from kodit.infrastructure.indexing.fusion_service import ReciprocalRankFusionService
 from kodit.infrastructure.sqlalchemy.index_repository import create_index_repository
+from kodit.infrastructure.sqlalchemy.snippet_repository import create_snippet_repository
 
 
 @pytest.fixture
@@ -65,12 +66,22 @@ async def code_search_service(
 
 
 @pytest.fixture
+async def snippet_repository(
+    session_factory: Callable[[], AsyncSession],
+) -> SnippetRepository:
+    """Create a real SnippetRepository with all dependencies."""
+    return create_snippet_repository(session_factory=session_factory)
+
+
+@pytest.fixture
 async def indexing_query_service(
     index_repository: IndexRepository,
+    snippet_repository: SnippetRepository,
 ) -> IndexQueryService:
     """Create a real IndexQueryService with all dependencies."""
     return IndexQueryService(
         index_repository=index_repository,
+        snippet_repository=snippet_repository,
         fusion_service=ReciprocalRankFusionService(),
     )
 
@@ -132,11 +143,6 @@ def validate_input(value: str) -> bool:
     # In the new system, since this is a new file, it will be marked as ADDED
     # and processed to create snippets
     await code_indexing_service.run_index(index)
-
-    # Ensure that the search indexes have been properly created by checking
-    # that we can retrieve snippets by ID. This is crucial because the BM25 index
-    # uses database IDs, so we need to ensure the snippets have been persisted
-    # with their proper IDs before searching.
 
     # Verify the index has been properly persisted with snippets
     index_repo = create_index_repository(session_factory=session_factory)
