@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import structlog
 from alembic import command
@@ -41,7 +42,12 @@ class Database:
         if "sqlite" in db_url.lower():
 
             @event.listens_for(self.db_engine.sync_engine, "connect")
-            def set_sqlite_pragma(dbapi_connection, connection_record):
+            def set_sqlite_pragma(
+                dbapi_connection: Any, connection_record: Any
+            ) -> None:
+                del (
+                    connection_record
+                )  # Unused but required by SQLAlchemy event interface
                 cursor = dbapi_connection.cursor()
                 # Enable WAL mode for better concurrency
                 cursor.execute("PRAGMA journal_mode=WAL")
