@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 
 from kodit.domain.entities import Index, SnippetWithContext
-from kodit.domain.protocols import IndexRepository
+from kodit.domain.protocols import IndexRepository, SnippetRepository
 from kodit.domain.value_objects import (
     FusionRequest,
     FusionResult,
@@ -27,10 +27,12 @@ class IndexQueryService:
     def __init__(
         self,
         index_repository: IndexRepository,
+        snippet_repository: SnippetRepository,
         fusion_service: FusionService,
     ) -> None:
         """Initialize the index query service."""
         self.index_repository = index_repository
+        self.snippet_repository = snippet_repository
         self.fusion_service = fusion_service
 
     async def get_index_by_id(self, index_id: int) -> Index | None:
@@ -53,7 +55,7 @@ class IndexQueryService:
             List of matching snippet items with context
 
         """
-        return list(await self.index_repository.search(request))
+        return await self.snippet_repository.search(request)
 
     async def perform_fusion(
         self, rankings: list[list[FusionRequest]], k: float = 60
@@ -63,7 +65,7 @@ class IndexQueryService:
 
     async def get_snippets_by_ids(self, ids: list[int]) -> list[SnippetWithContext]:
         """Get snippets by their IDs."""
-        snippets = await self.index_repository.get_snippets_by_ids(ids)
+        snippets = await self.snippet_repository.get_by_ids(ids)
 
         # Return snippets in the same order as the ids
         snippets.sort(key=lambda x: ids.index(x.snippet.id or 0))

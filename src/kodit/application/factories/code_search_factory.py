@@ -37,6 +37,9 @@ from kodit.infrastructure.sqlalchemy.entities import EmbeddingType
 from kodit.infrastructure.sqlalchemy.index_repository import (
     create_index_repository,
 )
+from kodit.infrastructure.sqlalchemy.snippet_repository import (
+    create_snippet_repository,
+)
 from kodit.infrastructure.sqlalchemy.task_status_repository import (
     create_task_status_repository,
 )
@@ -61,10 +64,12 @@ def create_code_search_application_service(
         "text", app_context, session_factory(), session_factory
     )
     index_repository = create_index_repository(session_factory=session_factory)
+    snippet_repository = create_snippet_repository(session_factory=session_factory)
     # Use the unified language mapping from the domain layer
 
     index_query_service = IndexQueryService(
         index_repository=index_repository,
+        snippet_repository=snippet_repository,
         fusion_service=ReciprocalRankFusionService(),
     )
 
@@ -135,8 +140,10 @@ def create_fast_test_code_search_application_service(
         vector_search_repository=text_search_repository,
     )
     index_repository = create_index_repository(session_factory=session_factory)
+    snippet_repository = create_snippet_repository(session_factory=session_factory)
     index_query_service = IndexQueryService(
         index_repository=index_repository,
+        snippet_repository=snippet_repository,
         fusion_service=ReciprocalRankFusionService(),
     )
 

@@ -7,6 +7,7 @@ import pytest
 from pydantic import AnyUrl
 
 from kodit.domain.entities import Index, Snippet, Source, SourceType, WorkingCopy
+from kodit.domain.protocols import SnippetRepository
 from kodit.domain.services.enrichment_service import EnrichmentDomainService
 from kodit.domain.services.index_service import (
     IndexDomainService,
@@ -33,14 +34,25 @@ def mock_enrichment_service() -> EnrichmentDomainService:
 
 
 @pytest.fixture
+def mock_snippet_repository() -> SnippetRepository:
+    """Create a mock snippet repository."""
+    mock_repo = AsyncMock(spec=SnippetRepository)
+    # Configure the mock to not do anything for delete operations
+    mock_repo.delete_by_file_ids.return_value = None
+    return mock_repo
+
+
+@pytest.fixture
 def index_domain_service(
     mock_enrichment_service: EnrichmentDomainService,
+    mock_snippet_repository: SnippetRepository,
     tmp_path: Path,
 ) -> IndexDomainService:
     """Create an IndexDomainService for testing."""
     return IndexDomainService(
         language_detector=MockLanguageDetectionService(),
         enrichment_service=mock_enrichment_service,
+        snippet_repository=mock_snippet_repository,
         clone_dir=tmp_path / "clones",
     )
 
@@ -104,17 +116,17 @@ async def test_extract_snippets_from_index_returns_snippets(
         updated_at=datetime.now(UTC),
     )
 
-    # Extract snippets - this method returns the updated Index, not just snippets
-    updated_index = await index_domain_service.extract_snippets_from_index(
+    # Extract snippets - this method now returns snippets, not an updated Index
+    extracted_snippets = await index_domain_service.extract_snippets_from_index(
         index=index,
     )
 
     # Verify snippets were extracted
-    assert len(updated_index.snippets) > 0
-    assert isinstance(updated_index.snippets[0], Snippet)
+    assert len(extracted_snippets) > 0
+    assert isinstance(extracted_snippets[0], Snippet)
     # The actual Slicer is used now, so we should check for the actual function
-    assert "def hello" in updated_index.snippets[0].original_text()
-    assert "pass" in updated_index.snippets[0].original_text()
+    assert "def hello" in extracted_snippets[0].original_text()
+    assert "pass" in extracted_snippets[0].original_text()
 
 
 @pytest.mark.asyncio
@@ -133,9 +145,14 @@ async def test_enrich_snippets_in_index_returns_enriched_snippets(
     )
 
     # Create domain service with real enrichment service
+    from unittest.mock import AsyncMock
+    mock_snippet_repo = AsyncMock(spec=SnippetRepository)
+    mock_snippet_repo.delete_by_file_ids.return_value = None
+
     domain_service = IndexDomainService(
         language_detector=MockLanguageDetectionService(),
         enrichment_service=enrichment_service,
+        snippet_repository=mock_snippet_repo,
         clone_dir=tmp_path / "clones",
     )
 
@@ -202,21 +219,21 @@ async def test_extract_snippets_only_processes_relevant_files(
     )
 
     # Extract snippets - should process all supported languages found in files
-    updated_index = await index_domain_service.extract_snippets_from_index(index)
+    extracted_snippets = await index_domain_service.extract_snippets_from_index(index)
 
     # Should have snippets from both Python and JavaScript files (2 supported languages)
     # PNG and TXT files should be ignored as they're not supported
-    assert len(updated_index.snippets) == 2  # Python and JavaScript files
+    assert len(extracted_snippets) == 2  # Python and JavaScript files
 
     # Get snippet texts
-    snippet_texts = [s.original_text() for s in updated_index.snippets]
+    snippet_texts = [s.original_text() for s in extracted_snippets]
 
     # Should contain content from both supported languages
     assert any("def hello" in text for text in snippet_texts)  # Python file
     assert any("function hello" in text for text in snippet_texts)  # JavaScript file
 
     # Verify the snippets derive from the correct files
-    source_files = [s.derives_from[0].uri.path for s in updated_index.snippets]
+    source_files = [s.derives_from[0].uri.path for s in extracted_snippets]
     assert any(path.endswith("test.py") for path in source_files)  # type: ignore[union-attr]
     assert any(path.endswith("test.js") for path in source_files)  # type: ignore[union-attr]
 
@@ -262,14 +279,14 @@ async def test_extract_snippets_filters_by_language_mapping(
     )
 
     # Extract snippets - should process supported languages only
-    updated_index = await index_domain_service.extract_snippets_from_index(index)
+    extracted_snippets = await index_domain_service.extract_snippets_from_index(index)
 
     # Should have snippets from Python, JavaScript, and Java files
     # (unknown file should be ignored)
-    assert len(updated_index.snippets) == 3
+    assert len(extracted_snippets) == 3
 
     # Get the snippet texts
-    snippet_texts = [s.original_text() for s in updated_index.snippets]
+    snippet_texts = [s.original_text() for s in extracted_snippets]
 
     # Should contain content from all supported languages
     assert any("def python_func" in text for text in snippet_texts)
@@ -314,7 +331,7 @@ async def test_extract_snippets_handles_no_matching_files(
     )
 
     # Extract snippets - should return empty list since no supported files
-    updated_index = await index_domain_service.extract_snippets_from_index(index)
+    extracted_snippets = await index_domain_service.extract_snippets_from_index(index)
 
     # Should have no snippets
-    assert len(updated_index.snippets) == 0
+    assert len(extracted_snippets) == 0

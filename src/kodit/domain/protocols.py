@@ -1,6 +1,5 @@
 """Repository protocol interfaces for the domain layer."""
 
-from collections.abc import Sequence
 from typing import Protocol
 
 from pydantic import AnyUrl
@@ -74,28 +73,37 @@ class IndexRepository(Protocol):
         """Update the timestamp of an index."""
         ...
 
-    async def add_snippets(self, index_id: int, snippets: list[Snippet]) -> None:
+
+
+class SnippetRepository(Protocol):
+    """Repository interface for Snippet entities."""
+
+    async def add(self, snippets: list[Snippet], index_id: int) -> None:
         """Add snippets to an index."""
         ...
 
-    async def update_snippets(self, index_id: int, snippets: list[Snippet]) -> None:
-        """Update snippets for an index."""
+    async def update(self, snippets: list[Snippet]) -> None:
+        """Update existing snippets."""
         ...
 
-    async def delete_snippets(self, index_id: int) -> None:
-        """Delete all snippets from an index."""
+    async def get_by_ids(self, ids: list[int]) -> list[SnippetWithContext]:
+        """Get snippets by their IDs."""
         ...
 
-    async def delete_snippets_by_file_ids(self, file_ids: list[int]) -> None:
-        """Delete snippets by file IDs."""
-        ...
-
-    async def search(self, request: MultiSearchRequest) -> Sequence[SnippetWithContext]:
+    async def search(self, request: MultiSearchRequest) -> list[SnippetWithContext]:
         """Search snippets with filters."""
         ...
 
-    async def get_snippets_by_ids(self, ids: list[int]) -> list[SnippetWithContext]:
-        """Get snippets by their IDs."""
+    async def delete_by_index_id(self, index_id: int) -> None:
+        """Delete all snippets from an index."""
+        ...
+
+    async def delete_by_file_ids(self, file_ids: list[int]) -> None:
+        """Delete snippets by file IDs."""
+        ...
+
+    async def get_by_index_id(self, index_id: int) -> list[SnippetWithContext]:
+        """Get all snippets for an index."""
         ...
 
 

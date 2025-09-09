@@ -13,6 +13,7 @@ from kodit.domain.services.index_query_service import IndexQueryService
 from kodit.domain.value_objects import QueuePriority
 from kodit.infrastructure.indexing.fusion_service import ReciprocalRankFusionService
 from kodit.infrastructure.sqlalchemy.index_repository import create_index_repository
+from kodit.infrastructure.sqlalchemy.snippet_repository import create_snippet_repository
 
 
 class SyncSchedulerService:
@@ -71,6 +72,9 @@ class SyncSchedulerService:
         queue_service = QueueService(session_factory=self.session_factory)
         index_query_service = IndexQueryService(
             index_repository=create_index_repository(
+                session_factory=self.session_factory
+            ),
+            snippet_repository=create_snippet_repository(
                 session_factory=self.session_factory
             ),
             fusion_service=ReciprocalRankFusionService(),

@@ -31,6 +31,7 @@ from kodit.domain.value_objects import (
 from kodit.infrastructure.api.client import IndexClient, SearchClient
 from kodit.infrastructure.indexing.fusion_service import ReciprocalRankFusionService
 from kodit.infrastructure.sqlalchemy.index_repository import create_index_repository
+from kodit.infrastructure.sqlalchemy.snippet_repository import create_snippet_repository
 from kodit.log import configure_logging, configure_telemetry, log_event
 from kodit.mcp import create_stdio_mcp_server
 
@@ -192,6 +193,7 @@ async def _index_local(
     )
     index_query_service = IndexQueryService(
         index_repository=create_index_repository(session_factory=db.session_factory),
+        snippet_repository=create_snippet_repository(session_factory=db.session_factory),
         fusion_service=ReciprocalRankFusionService(),
     )
 

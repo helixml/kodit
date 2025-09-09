@@ -21,7 +21,7 @@ from kodit.application.services.code_search_application_service import (
 )
 from kodit.config import AppContext
 from kodit.domain.entities import SnippetWithContext
-from kodit.domain.protocols import IndexRepository
+from kodit.domain.protocols import IndexRepository, SnippetRepository
 from kodit.domain.services.index_query_service import IndexQueryService
 from kodit.domain.value_objects import (
     FusionRequest,
@@ -30,6 +30,7 @@ from kodit.domain.value_objects import (
 )
 from kodit.infrastructure.indexing.fusion_service import ReciprocalRankFusionService
 from kodit.infrastructure.sqlalchemy.index_repository import create_index_repository
+from kodit.infrastructure.sqlalchemy.snippet_repository import create_snippet_repository
 
 
 @pytest.fixture
@@ -65,12 +66,22 @@ async def code_search_service(
 
 
 @pytest.fixture
+async def snippet_repository(
+    session_factory: Callable[[], AsyncSession],
+) -> SnippetRepository:
+    """Create a real SnippetRepository with all dependencies."""
+    return create_snippet_repository(session_factory=session_factory)
+
+
+@pytest.fixture
 async def indexing_query_service(
     index_repository: IndexRepository,
+    snippet_repository: SnippetRepository,
 ) -> IndexQueryService:
     """Create a real IndexQueryService with all dependencies."""
     return IndexQueryService(
         index_repository=index_repository,
+        snippet_repository=snippet_repository,
         fusion_service=ReciprocalRankFusionService(),
     )
 
@@ -133,21 +144,22 @@ def validate_input(value: str) -> bool:
     # and processed to create snippets
     await code_indexing_service.run_index(index)
 
-    # Ensure that the search indexes have been properly created by checking
-    # that we can retrieve snippets by ID. This is crucial because the BM25 index
-    # uses database IDs, so we need to ensure the snippets have been persisted
-    # with their proper IDs before searching.
-
     # Verify the index has been properly persisted with snippets
     index_repo = create_index_repository(session_factory=session_factory)
     persisted_index = await index_repo.get(index.id)
     assert persisted_index is not None, "Index should be persisted"
-    assert len(persisted_index.snippets) > 0, "Index should have snippets"
+
+    # Verify snippets via SnippetRepository
+    snippet_repo = create_snippet_repository(session_factory=session_factory)
+    snippets = await snippet_repo.get_by_index_id(index.id)
+    assert len(snippets) > 0, "Index should have snippets"
 
     # Verify that snippets have proper IDs (not None)
-    for snippet in persisted_index.snippets:
-        snippet_preview = snippet.original_text()[:50]
-        assert snippet.id is not None, f"Snippet should have ID: {snippet_preview}..."
+    for snippet_context in snippets:
+        snippet_preview = snippet_context.snippet.original_text()[:50]
+        assert snippet_context.snippet.id is not None, (
+            f"Snippet should have ID: {snippet_preview}..."
+        )
 
     # Test keyword search - search for "add" which should find the add method
     keyword_results = await code_search_service.search(
@@ -186,6 +198,7 @@ def validate_input(value: str) -> bool:
 async def test_vectorchord_bug_zip_mismatch(
     code_indexing_service: CodeIndexingApplicationService,
     code_search_service: CodeSearchApplicationService,
+    snippet_repository: SnippetRepository,
     tmp_path: Path,
 ) -> None:
     """Test that reproduces the vectorchord bug with zip() length mismatch.
@@ -207,7 +220,9 @@ def subtract(a: int, b: int) -> int:
     # Create initial index
     index = await code_indexing_service.create_index_from_uri(str(tmp_path))
     await code_indexing_service.run_index(index)
-    assert len(index.snippets) > 0, "Should have snippets for initial file"
+    # Verify snippets via SnippetRepository
+    initial_snippets = await snippet_repository.get_by_index_id(index.id)
+    assert len(initial_snippets) > 0, "Should have snippets for initial file"
 
     # Mock perform_fusion to always return some fake results
     # This ensures final_results is not empty
