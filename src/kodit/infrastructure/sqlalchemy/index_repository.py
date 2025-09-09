@@ -162,10 +162,6 @@ class SqlAlchemyIndexRepository(IndexRepository):
                 raise ValueError(f"Index {index_id} not found")
             db_index.updated_at = datetime.now(UTC)
 
-
-
-
-
     async def _get_source_by_uri(self, uri: AnyUrl) -> db_entities.Source | None:
         """Get source by URI."""
         stmt = select(db_entities.Source).where(db_entities.Source.uri == str(uri))
@@ -219,8 +215,6 @@ class SqlAlchemyIndexRepository(IndexRepository):
         self._session.add(mapping)
         return mapping
 
-
-
     async def update(self, index: domain_entities.Index) -> None:
         """Update an index by ensuring all domain objects are saved to database."""
         if not index.id:
@@ -242,7 +236,6 @@ class SqlAlchemyIndexRepository(IndexRepository):
             # 4. Handle files and authors from working copy
             if index.source and index.source.working_copy:
                 await self._update_files_and_authors(index, db_index)
-
 
     async def _update_source(
         self, index: domain_entities.Index, db_index: db_entities.Index
@@ -346,16 +339,19 @@ class SqlAlchemyIndexRepository(IndexRepository):
             )
             await self._upsert_author_file_mapping(mapping)
 
-
     async def delete(self, index: domain_entities.Index) -> None:
         """Delete everything related to an index."""
-        # Note: Snippets should be deleted separately via SnippetRepository
-
         async with self.uow:
+            # Delete all snippets first to avoid foreign key constraint issues
+            stmt = delete(db_entities.Snippet).where(
+                db_entities.Snippet.index_id == index.id
+            )
+            await self._session.execute(stmt)
+
             # Delete all author file mappings
             stmt = delete(db_entities.AuthorFileMapping).where(
                 db_entities.AuthorFileMapping.file_id.in_(
-                    [file.id for file in index.source.working_copy.files]
+                    [file.id for file in index.source.working_copy.files if file.id]
                 )
             )
             await self._session.execute(stmt)
