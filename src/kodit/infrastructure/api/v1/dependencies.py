@@ -24,6 +24,7 @@ from kodit.domain.services.index_query_service import IndexQueryService
 from kodit.domain.services.task_status_query_service import TaskStatusQueryService
 from kodit.infrastructure.indexing.fusion_service import ReciprocalRankFusionService
 from kodit.infrastructure.sqlalchemy.index_repository import create_index_repository
+from kodit.infrastructure.sqlalchemy.snippet_repository import create_snippet_repository
 from kodit.infrastructure.sqlalchemy.task_status_repository import (
     create_task_status_repository,
 )
@@ -71,6 +72,7 @@ async def get_index_query_service(
     """Get index query service dependency."""
     return IndexQueryService(
         index_repository=create_index_repository(session_factory=session_factory),
+        snippet_repository=create_snippet_repository(session_factory=session_factory),
         fusion_service=ReciprocalRankFusionService(),
     )
 

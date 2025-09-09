@@ -9,7 +9,7 @@ from kodit.application.services.reporting import (
     TaskOperation,
 )
 from kodit.domain.entities import Index, Snippet
-from kodit.domain.protocols import IndexRepository
+from kodit.domain.protocols import IndexRepository, SnippetRepository
 from kodit.domain.services.bm25_service import BM25DomainService
 from kodit.domain.services.embedding_service import EmbeddingDomainService
 from kodit.domain.services.enrichment_service import EnrichmentDomainService
@@ -33,6 +33,7 @@ class CodeIndexingApplicationService:
         self,
         indexing_domain_service: IndexDomainService,
         index_repository: IndexRepository,
+        snippet_repository: SnippetRepository,
         index_query_service: IndexQueryService,
         bm25_service: BM25DomainService,
         code_search_service: EmbeddingDomainService,
@@ -43,6 +44,7 @@ class CodeIndexingApplicationService:
         """Initialize the code indexing application service."""
         self.index_domain_service = indexing_domain_service
         self.index_repository = index_repository
+        self.snippet_repository = snippet_repository
         self.index_query_service = index_query_service
         self.bm25_service = bm25_service
         self.code_search_service = code_search_service
@@ -111,7 +113,7 @@ class CodeIndexingApplicationService:
             async with operation.create_child(
                 TaskOperation.DELETE_OLD_SNIPPETS
             ) as step:
-                await self.index_repository.delete_snippets_by_file_ids(
+                await self.snippet_repository.delete_by_file_ids(
                     [
                         file.id
                         for file in index.source.working_copy.changed_files()
@@ -159,7 +161,7 @@ class CodeIndexingApplicationService:
                     )
                 )
                 # Update snippets in repository
-                await self.index_repository.update_snippets(index.id, enriched_snippets)
+                await self.snippet_repository.update(enriched_snippets)
 
             # Create text embeddings (on enriched content)
             async with operation.create_child(

@@ -51,6 +51,9 @@ from kodit.infrastructure.sqlalchemy.entities import EmbeddingType
 from kodit.infrastructure.sqlalchemy.index_repository import (
     create_index_repository,
 )
+from kodit.infrastructure.sqlalchemy.snippet_repository import (
+    create_snippet_repository,
+)
 from kodit.infrastructure.sqlalchemy.task_status_repository import (
     create_task_status_repository,
 )
@@ -74,6 +77,7 @@ def create_code_indexing_application_service(
     )
     enrichment_service = enrichment_domain_service_factory(app_context)
     index_repository = create_index_repository(session_factory=session_factory)
+    snippet_repository = create_snippet_repository(session_factory=session_factory)
     # Use the unified language mapping from the domain layer
     language_map = LanguageMapping.get_extension_to_language_map()
 
@@ -87,6 +91,7 @@ def create_code_indexing_application_service(
     )
     index_query_service = IndexQueryService(
         index_repository=index_repository,
+        snippet_repository=snippet_repository,
         fusion_service=ReciprocalRankFusionService(),
     )
 
@@ -94,6 +99,7 @@ def create_code_indexing_application_service(
     return CodeIndexingApplicationService(
         indexing_domain_service=index_domain_service,
         index_repository=index_repository,
+        snippet_repository=snippet_repository,
         index_query_service=index_query_service,
         bm25_service=bm25_service,
         code_search_service=code_search_service,
@@ -166,6 +172,7 @@ def create_fast_test_code_indexing_application_service(
     )
 
     index_repository = create_index_repository(session_factory=session_factory)
+    snippet_repository = create_snippet_repository(session_factory=session_factory)
     # Use the unified language mapping from the domain layer
     language_map = LanguageMapping.get_extension_to_language_map()
 
@@ -179,6 +186,7 @@ def create_fast_test_code_indexing_application_service(
     )
     index_query_service = IndexQueryService(
         index_repository=index_repository,
+        snippet_repository=snippet_repository,
         fusion_service=ReciprocalRankFusionService(),
     )
 
@@ -186,6 +194,7 @@ def create_fast_test_code_indexing_application_service(
     return CodeIndexingApplicationService(
         indexing_domain_service=index_domain_service,
         index_repository=index_repository,
+        snippet_repository=snippet_repository,
         index_query_service=index_query_service,
         bm25_service=bm25_service,
         code_search_service=code_search_service,

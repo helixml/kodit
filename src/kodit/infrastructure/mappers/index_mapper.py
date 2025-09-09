@@ -28,7 +28,7 @@ class IndexMapper:
     ) -> domain_entities.Index:
         """Convert SQLAlchemy Index to domain Index aggregate.
 
-        Loads the full aggregate including Source, WorkingCopy, Files, and Snippets.
+        Loads the full aggregate including Source, WorkingCopy, and Files.
         """
         # Load the source
         db_source = await self._session.get(db_entities.Source, db_index.source_id)
@@ -91,16 +91,6 @@ class IndexMapper:
             working_copy=working_copy,
         )
 
-        # Load snippets for this index
-        snippets_stmt = select(db_entities.Snippet).where(
-            db_entities.Snippet.index_id == db_index.id
-        )
-        db_snippets = (await self._session.scalars(snippets_stmt)).all()
-
-        domain_snippets = []
-        for db_snippet in db_snippets:
-            domain_snippet = await self.to_domain_snippet(db_snippet, domain_files)
-            domain_snippets.append(domain_snippet)
 
         # Create index aggregate
         return domain_entities.Index(
@@ -108,7 +98,7 @@ class IndexMapper:
             created_at=db_index.created_at,
             updated_at=db_index.updated_at,
             source=domain_source,
-            snippets=domain_snippets,
+            snippets=[],
         )
 
     async def to_domain_source(
@@ -197,34 +187,6 @@ class IndexMapper:
             file_processing_status=FileProcessingStatus(db_file.file_processing_status),
         )
 
-    async def to_domain_snippet(
-        self, db_snippet: db_entities.Snippet, domain_files: list[domain_entities.File]
-    ) -> domain_entities.Snippet:
-        """Convert SQLAlchemy Snippet to domain Snippet."""
-        # Find the file this snippet derives from
-        derives_from = []
-        for domain_file in domain_files:
-            if domain_file.id == db_snippet.file_id:
-                derives_from.append(domain_file)
-                break
-
-        # Create domain snippet with original content
-        domain_snippet = domain_entities.Snippet(
-            id=db_snippet.id,
-            created_at=db_snippet.created_at,
-            updated_at=db_snippet.updated_at,
-            derives_from=derives_from,
-        )
-
-        # Add original content
-        if db_snippet.content:
-            domain_snippet.add_original_content(db_snippet.content, "unknown")
-
-        # Add summary content if it exists
-        if db_snippet.summary:
-            domain_snippet.add_summary(db_snippet.summary)
-
-        return domain_snippet
 
     async def from_domain_index(  # noqa: C901
         self, domain_index: domain_entities.Index
@@ -300,46 +262,4 @@ class IndexMapper:
 
         return db_index, db_source, db_files, list(unique_authors.values())
 
-    async def from_domain_snippet(
-        self, domain_snippet: domain_entities.Snippet, index_id: int
-    ) -> db_entities.Snippet:
-        """Convert domain Snippet to SQLAlchemy Snippet."""
-        # Get file ID from derives_from (use first file if multiple)
-        if not domain_snippet.derives_from:
-            raise ValueError("Snippet must derive from at least one file")
 
-        file_id = domain_snippet.derives_from[0].id
-        if file_id is None:
-            raise ValueError("File must have an ID")
-
-        db_snippet = db_entities.Snippet(
-            file_id=file_id,
-            index_id=index_id,
-            content=domain_snippet.original_text(),
-            summary=domain_snippet.summary_text(),
-        )
-
-        if domain_snippet.id:
-            db_snippet.id = domain_snippet.id
-        if domain_snippet.created_at:
-            db_snippet.created_at = domain_snippet.created_at
-        if domain_snippet.updated_at:
-            db_snippet.updated_at = domain_snippet.updated_at
-
-        return db_snippet
-
-    async def load_snippets_for_index(
-        self, index_id: int, domain_files: list[domain_entities.File]
-    ) -> list[domain_entities.Snippet]:
-        """Load all snippets for an index and convert to domain entities."""
-        stmt = select(db_entities.Snippet).where(
-            db_entities.Snippet.index_id == index_id
-        )
-        db_snippets = (await self._session.scalars(stmt)).all()
-
-        domain_snippets = []
-        for db_snippet in db_snippets:
-            domain_snippet = await self.to_domain_snippet(db_snippet, domain_files)
-            domain_snippets.append(domain_snippet)
-
-        return domain_snippets
