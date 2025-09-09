@@ -131,7 +131,7 @@ class CodeIndexingApplicationService:
 
                 # Update index first to persist files with IDs
                 await self.index_repository.update(index)
-                
+
                 # Now persist extracted snippets (files have IDs now)
                 if extracted_snippets and index.id:
                     await self.snippet_repository.add(extracted_snippets, index.id)

@@ -148,7 +148,7 @@ def validate_input(value: str) -> bool:
     index_repo = create_index_repository(session_factory=session_factory)
     persisted_index = await index_repo.get(index.id)
     assert persisted_index is not None, "Index should be persisted"
-    
+
     # Verify snippets via SnippetRepository
     snippet_repo = create_snippet_repository(session_factory=session_factory)
     snippets = await snippet_repo.get_by_index_id(index.id)
@@ -157,7 +157,9 @@ def validate_input(value: str) -> bool:
     # Verify that snippets have proper IDs (not None)
     for snippet_context in snippets:
         snippet_preview = snippet_context.snippet.original_text()[:50]
-        assert snippet_context.snippet.id is not None, f"Snippet should have ID: {snippet_preview}..."
+        assert snippet_context.snippet.id is not None, (
+            f"Snippet should have ID: {snippet_preview}..."
+        )
 
     # Test keyword search - search for "add" which should find the add method
     keyword_results = await code_search_service.search(
