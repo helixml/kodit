@@ -130,9 +130,6 @@ class SnippetRepository(Protocol):
         """Reset all processing states for given snippet IDs."""
         ...
 
-    async def load_processing_states(self, snippets: list[Snippet]) -> None:
-        """Load processing states for snippets from database."""
-        ...
 
 
 class ReportingModule(Protocol):

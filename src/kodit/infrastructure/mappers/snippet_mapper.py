@@ -5,7 +5,7 @@ from pathlib import Path
 from pydantic import AnyUrl
 
 import kodit.domain.entities as domain_entities
-from kodit.domain.value_objects import FileProcessingStatus, SourceType
+from kodit.domain.value_objects import FileProcessingStatus, SourceType, TaskOperation
 from kodit.infrastructure.sqlalchemy import entities as db_entities
 
 
@@ -13,7 +13,10 @@ class SnippetMapper:
     """Mapper for converting between domain Snippet entities and database entities."""
 
     def to_domain_snippet(
-        self, db_snippet: db_entities.Snippet, domain_files: list[domain_entities.File]
+        self,
+        db_snippet: db_entities.Snippet,
+        domain_files: list[domain_entities.File],
+        processing_states: list[TaskOperation],
     ) -> domain_entities.Snippet:
         """Convert SQLAlchemy Snippet to domain Snippet."""
         # Find the file this snippet derives from
@@ -39,6 +42,9 @@ class SnippetMapper:
         # Add summary content if it exists
         if db_snippet.summary:
             domain_snippet.add_summary(db_snippet.summary)
+
+        for step in processing_states:
+            domain_snippet.mark_processing_completed(step)
 
         return domain_snippet
 

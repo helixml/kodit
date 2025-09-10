@@ -240,8 +240,8 @@ class CodeIndexingApplicationService:
                 Task.create(task, QueuePriority.USER_INITIATED, {"index_id": index.id})
             )
 
-    async def process_sync(self, index_id: int) -> None:
-        """Handle SYNC task - refresh working copy."""
+    async def process_refresh_working_copy(self, index_id: int) -> None:
+        """Refresh working copy of the index."""
         index = await self.index_repository.get(index_id)
         if not index:
             raise ValueError(f"Index not found: {index_id}")
@@ -258,22 +258,11 @@ class CodeIndexingApplicationService:
             )
             await self.index_repository.update(index)
 
-            if len(index.source.working_copy.changed_files()) == 0:
-                self.log.info("No new changes to index", index_id=index_id)
-                await step.skip("No new changes to index")
-                # Don't queue further tasks if no changes
-                return
-
-    async def process_extract(self, index_id: int) -> None:  # noqa: C901
-        """Extract snippets from changed files WITH incremental processing."""
+    async def process_extract(self, index_id: int) -> None:
+        """Extract snippets from changed files."""
         index = await self.index_repository.get(index_id)
         if not index:
             raise ValueError(f"Index not found: {index_id}")
-
-        # Safety check: ensure we have changed files to process
-        if len(index.source.working_copy.changed_files()) == 0:
-            self.log.info("No files to extract", index_id=index_id)
-            return
 
         async with self.operation.create_child(
             TaskOperation.EXTRACT_SNIPPETS,
@@ -282,6 +271,9 @@ class CodeIndexingApplicationService:
         ) as operation:
             changed_files = index.source.working_copy.changed_files()
             changed_file_ids = [f.id for f in changed_files if f.id]
+            if len(changed_file_ids) == 0:
+                await operation.skip("No changed files")
+                return
 
             # Get existing snippets for changed files to compare content hashes
             existing_snippets = []
@@ -290,8 +282,6 @@ class CodeIndexingApplicationService:
                     await self.snippet_repository.get_by_file_ids(changed_file_ids)
                 )
                 existing_snippets = [sc.snippet for sc in existing_snippet_contexts]
-                # Load processing states for existing snippets
-                await self.snippet_repository.load_processing_states(existing_snippets)
 
             # Extract new snippets from changed files
             extracted_snippets = (
@@ -486,7 +476,7 @@ class CodeIndexingApplicationService:
         """Run a task."""
         index_id = task.payload["index_id"]
         if task.type == TaskOperation.REFRESH_WORKING_COPY:
-            await self.process_sync(index_id)
+            await self.process_refresh_working_copy(index_id)
         elif task.type == TaskOperation.EXTRACT_SNIPPETS:
             await self.process_extract(index_id)
         elif task.type == TaskOperation.CREATE_BM25_INDEX:

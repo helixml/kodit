@@ -288,12 +288,31 @@ class SqlAlchemySnippetRepository(SnippetRepository):
         # Convert source to domain (with all its files)
         domain_source = self._mapper.to_domain_source(db_source, domain_files)
 
+        # Load processing states for this snippet
+        processing_states = []
+        if db_snippet.id:
+            query = select(db_entities.SnippetProcessingState.processing_step).where(
+                db_entities.SnippetProcessingState.snippet_id == db_snippet.id
+            )
+            result = await self._session.scalars(query)
+            state_strings = result.all()
+
+            # Convert to TaskOperation enum values
+            for state_str in state_strings:
+                try:
+                    processing_states.append(TaskOperation(state_str))
+                except ValueError:
+                    # Skip unknown processing steps for forward compatibility
+                    continue
+
         return SnippetWithContext(
             source=domain_source,
             file=domain_file,
             authors=domain_file.authors,
             snippet=self._mapper.to_domain_snippet(
-                db_snippet=db_snippet, domain_files=[domain_file]
+                db_snippet=db_snippet, 
+                domain_files=[domain_file], 
+                processing_states=processing_states
             ),
         )
 
@@ -381,37 +400,3 @@ class SqlAlchemySnippetRepository(SnippetRepository):
             )
             await self._session.execute(stmt)
 
-    async def load_processing_states(
-        self, snippets: list[domain_entities.Snippet]
-    ) -> None:
-        """Load processing states for snippets from database."""
-        if not snippets:
-            return
-
-        snippet_ids = [s.id for s in snippets if s.id is not None]
-        if not snippet_ids:
-            return
-
-        async with self.uow:
-            # Load all processing states for these snippets
-            query = select(db_entities.SnippetProcessingState).where(
-                db_entities.SnippetProcessingState.snippet_id.in_(snippet_ids)
-            )
-            result = await self._session.scalars(query)
-            processing_states = result.all()
-
-            # Group by snippet_id
-            states_by_snippet: dict[int, set[TaskOperation]] = {}
-            for state in processing_states:
-                if state.snippet_id not in states_by_snippet:
-                    states_by_snippet[state.snippet_id] = set()
-                states_by_snippet[state.snippet_id].add(
-                    TaskOperation(state.processing_step)
-                )
-
-            # Set processing states on domain entities
-            for snippet in snippets:
-                if snippet.id and snippet.id in states_by_snippet:
-                    snippet.set_completed_processing_steps(
-                        states_by_snippet[snippet.id]
-                    )
