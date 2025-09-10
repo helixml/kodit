@@ -12,6 +12,7 @@ from kodit.application.factories.reporting_factory import (
 from kodit.application.services.code_indexing_application_service import (
     CodeIndexingApplicationService,
 )
+from kodit.application.services.queue_service import QueueService
 from kodit.application.services.reporting import (
     ProgressTracker,
 )
@@ -107,7 +108,7 @@ def create_code_indexing_application_service(
         text_search_service=text_search_service,
         enrichment_service=enrichment_service,
         operation=operation,
-        session_factory=session_factory,
+        queue_service=QueueService(session_factory),
     )
 
 
@@ -204,5 +205,5 @@ def create_fast_test_code_indexing_application_service(
         text_search_service=text_search_service,
         enrichment_service=enrichment_service,
         operation=operation,
-        session_factory=session_factory,
+        queue_service=QueueService(session_factory),
     )

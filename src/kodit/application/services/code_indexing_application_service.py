@@ -1,11 +1,9 @@
 """Unified application service for code indexing operations."""
 
-from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
 import structlog
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.application.services.queue_service import QueueService
 from kodit.application.services.reporting import (
@@ -35,6 +33,15 @@ from kodit.log import log_event
 class CodeIndexingApplicationService:
     """Unified application service for all code indexing operations."""
 
+    # List of tasks that form an indexing pipeline. Order is important.
+    INDEXING_TASK_LIST = [
+        DomainTaskOperation.REFRESH_WORKING_COPY,
+        DomainTaskOperation.EXTRACT_SNIPPETS,
+        DomainTaskOperation.CREATE_BM25_INDEX,
+        DomainTaskOperation.CREATE_CODE_EMBEDDINGS,
+        DomainTaskOperation.ENRICH_SNIPPETS,
+    ]
+
     def __init__(  # noqa: PLR0913
         self,
         indexing_domain_service: IndexDomainService,
@@ -46,7 +53,7 @@ class CodeIndexingApplicationService:
         text_search_service: EmbeddingDomainService,
         enrichment_service: EnrichmentDomainService,
         operation: ProgressTracker,
-        session_factory: Callable[[], AsyncSession],
+        queue_service: QueueService,
     ) -> None:
         """Initialize the code indexing application service."""
         self.index_domain_service = indexing_domain_service
@@ -58,9 +65,8 @@ class CodeIndexingApplicationService:
         self.text_search_service = text_search_service
         self.enrichment_service = enrichment_service
         self.operation = operation
-        self.session_factory = session_factory
         self.log = structlog.get_logger(__name__)
-        self.queue = QueueService(self.session_factory)
+        self.queue = queue_service
 
     async def does_index_exist(self, uri: str) -> bool:
         """Check if an index exists for a source."""
@@ -215,35 +221,12 @@ class CodeIndexingApplicationService:
         )
 
         # Queue tasks with descending priority to ensure execution order
-        await self.queue.enqueue_task(
-            Task.create(
-                DomainTaskOperation.REFRESH_WORKING_COPY,
-                base + 40,
-                {"index_id": index_id},
+        priority_offset = len(self.INDEXING_TASK_LIST) * 10
+        for task in self.INDEXING_TASK_LIST:
+            await self.queue.enqueue_task(
+                Task.create(task, base + priority_offset, {"index_id": index_id})
             )
-        )
-        await self.queue.enqueue_task(
-            Task.create(
-                DomainTaskOperation.EXTRACT_SNIPPETS, base + 30, {"index_id": index_id}
-            )
-        )
-        await self.queue.enqueue_task(
-            Task.create(
-                DomainTaskOperation.CREATE_BM25_INDEX, base + 20, {"index_id": index_id}
-            )
-        )
-        await self.queue.enqueue_task(
-            Task.create(
-                DomainTaskOperation.CREATE_CODE_EMBEDDINGS,
-                base + 10,
-                {"index_id": index_id},
-            )
-        )
-        await self.queue.enqueue_task(
-            Task.create(
-                DomainTaskOperation.ENRICH_SNIPPETS, base, {"index_id": index_id}
-            )
-        )
+            priority_offset -= 10
 
     async def run_index_tasks_sync(self, index: Index) -> None:
         """Run all indexing phases synchronously."""
@@ -251,11 +234,10 @@ class CodeIndexingApplicationService:
             raise ValueError("Index must have an ID")
 
         # Run all phases sequentially
-        await self.process_sync(index.id)
-        await self.process_extract(index.id)
-        await self.process_bm25_index(index.id)
-        await self.process_code_embeddings(index.id)
-        await self.process_enrich(index.id)
+        for task in self.INDEXING_TASK_LIST:
+            await self.run_task(
+                Task.create(task, QueuePriority.USER_INITIATED, {"index_id": index.id})
+            )
 
     async def process_sync(self, index_id: int) -> None:
         """Handle SYNC task - refresh working copy."""
@@ -400,3 +382,19 @@ class CodeIndexingApplicationService:
 
         # Delete index from the database
         await self.index_repository.delete(index)
+
+    async def run_task(self, task: Task) -> None:
+        """Run a task."""
+        index_id = task.payload["index_id"]
+        if task.type == TaskOperation.REFRESH_WORKING_COPY:
+            await self.process_sync(index_id)
+        elif task.type == TaskOperation.EXTRACT_SNIPPETS:
+            await self.process_extract(index_id)
+        elif task.type == TaskOperation.CREATE_BM25_INDEX:
+            await self.process_bm25_index(index_id)
+        elif task.type == TaskOperation.CREATE_CODE_EMBEDDINGS:
+            await self.process_code_embeddings(index_id)
+        elif task.type == TaskOperation.ENRICH_SNIPPETS:
+            await self.process_enrich(index_id)
+        else:
+            raise ValueError(f"Unknown task type: {task.type}")

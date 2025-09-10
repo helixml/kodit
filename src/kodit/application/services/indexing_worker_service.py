@@ -15,7 +15,6 @@ from kodit.application.factories.reporting_factory import create_noop_operation
 from kodit.application.services.reporting import ProgressTracker
 from kodit.config import AppContext
 from kodit.domain.entities import Task
-from kodit.domain.value_objects import TaskOperation
 from kodit.infrastructure.sqlalchemy.task_repository import create_task_repository
 
 
@@ -114,24 +113,7 @@ class IndexingWorkerService:
                 session_factory=self.session_factory,
                 operation=operation,
             )
-
-            if task.type == TaskOperation.REFRESH_WORKING_COPY:
-                await service.process_sync(index_id)
-            elif task.type == TaskOperation.EXTRACT_SNIPPETS:
-                await service.process_extract(index_id)
-            elif task.type == TaskOperation.CREATE_BM25_INDEX:
-                await service.process_bm25_index(index_id)
-            elif task.type == TaskOperation.CREATE_CODE_EMBEDDINGS:
-                await service.process_code_embeddings(index_id)
-            elif task.type == TaskOperation.ENRICH_SNIPPETS:
-                await service.process_enrich(index_id)
-            else:
-                self.log.warning(
-                    "Unknown task type",
-                    task_id=task.id,
-                    task_type=task.type,
-                )
-                return
+            await service.run_task(task)
         finally:
             loop.close()
 
