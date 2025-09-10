@@ -36,7 +36,6 @@ dependencies = [
     "aiosqlite>=0.20.0",
     "pytable-formatter>=0.1.1",
     "aiofiles>=24.1.0",
-    "tdqm>=0.0.1",
     "uritools>=5.0.0",
     "tree-sitter-language-pack>=0.7.3",
     "tree-sitter>=0.24.0",

@@ -2,15 +2,17 @@
 
 from collections.abc import Callable
 from datetime import UTC, datetime
+from pathlib import Path
 
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from kodit.application.services.queue_service import QueueService
 from kodit.application.services.reporting import (
     ProgressTracker,
     TaskOperation,
 )
-from kodit.domain.entities import Index, Snippet
+from kodit.domain.entities import Index, Snippet, Task
 from kodit.domain.protocols import IndexRepository, SnippetRepository
 from kodit.domain.services.bm25_service import BM25DomainService
 from kodit.domain.services.embedding_service import EmbeddingDomainService
@@ -22,9 +24,11 @@ from kodit.domain.value_objects import (
     IndexRequest,
     MultiSearchRequest,
     MultiSearchResult,
+    QueuePriority,
     SnippetSearchFilters,
     TrackableType,
 )
+from kodit.domain.value_objects import TaskOperation as DomainTaskOperation
 from kodit.log import log_event
 
 
@@ -42,7 +46,7 @@ class CodeIndexingApplicationService:
         text_search_service: EmbeddingDomainService,
         enrichment_service: EnrichmentDomainService,
         operation: ProgressTracker,
-        session_factory: Callable[[], AsyncSession] | None = None,
+        session_factory: Callable[[], AsyncSession],
     ) -> None:
         """Initialize the code indexing application service."""
         self.index_domain_service = indexing_domain_service
@@ -56,6 +60,7 @@ class CodeIndexingApplicationService:
         self.operation = operation
         self.session_factory = session_factory
         self.log = structlog.get_logger(__name__)
+        self.queue = QueueService(self.session_factory)
 
     async def does_index_exist(self, uri: str) -> bool:
         """Check if an index exists for a source."""
@@ -66,6 +71,9 @@ class CodeIndexingApplicationService:
 
     async def create_index_from_uri(self, uri: str) -> Index:
         """Create a new index for a source."""
+        if Path(uri).is_file():
+            raise ValueError("Individual file indexing is not supported")
+
         async with self.operation.create_child(TaskOperation.CREATE_INDEX) as operation:
             # Check if index already exists
             sanitized_uri, _ = self.index_domain_service.sanitize_uri(uri)
@@ -199,17 +207,6 @@ class CodeIndexingApplicationService:
             is_user_initiated: True for API/CLI calls, False for background syncs
 
         """
-        from kodit.application.services.queue_service import QueueService
-        from kodit.domain.entities import Task
-        from kodit.domain.value_objects import QueuePriority
-        from kodit.domain.value_objects import TaskOperation as DomainTaskOperation
-
-        if not self.session_factory:
-            msg = "Session factory not provided to CodeIndexingApplicationService"
-            raise RuntimeError(msg)
-
-        queue = QueueService(self.session_factory)
-
         # Use different base priority for user vs background tasks
         base = (
             QueuePriority.USER_INITIATED
@@ -218,35 +215,47 @@ class CodeIndexingApplicationService:
         )
 
         # Queue tasks with descending priority to ensure execution order
-        await queue.enqueue_task(
+        await self.queue.enqueue_task(
             Task.create(
                 DomainTaskOperation.REFRESH_WORKING_COPY,
                 base + 40,
                 {"index_id": index_id},
             )
         )
-        await queue.enqueue_task(
+        await self.queue.enqueue_task(
             Task.create(
                 DomainTaskOperation.EXTRACT_SNIPPETS, base + 30, {"index_id": index_id}
             )
         )
-        await queue.enqueue_task(
+        await self.queue.enqueue_task(
             Task.create(
                 DomainTaskOperation.CREATE_BM25_INDEX, base + 20, {"index_id": index_id}
             )
         )
-        await queue.enqueue_task(
+        await self.queue.enqueue_task(
             Task.create(
                 DomainTaskOperation.CREATE_CODE_EMBEDDINGS,
                 base + 10,
                 {"index_id": index_id},
             )
         )
-        await queue.enqueue_task(
+        await self.queue.enqueue_task(
             Task.create(
                 DomainTaskOperation.ENRICH_SNIPPETS, base, {"index_id": index_id}
             )
         )
+
+    async def run_index_tasks_sync(self, index: Index) -> None:
+        """Run all indexing phases synchronously."""
+        if not index.id:
+            raise ValueError("Index must have an ID")
+
+        # Run all phases sequentially
+        await self.process_sync(index.id)
+        await self.process_extract(index.id)
+        await self.process_bm25_index(index.id)
+        await self.process_code_embeddings(index.id)
+        await self.process_enrich(index.id)
 
     async def process_sync(self, index_id: int) -> None:
         """Handle SYNC task - refresh working copy."""
@@ -383,22 +392,6 @@ class CodeIndexingApplicationService:
             ) as step:
                 index.source.working_copy.clear_file_processing_statuses()
                 await self.index_repository.update(index)
-
-    async def run_index_sync(self, index: Index) -> None:
-        """Run all indexing phases synchronously (for testing purposes only).
-
-        This method runs the same phases as the queue approach but synchronously.
-        It should only be used in tests.
-        """
-        if not index.id:
-            raise ValueError("Index must have an ID")
-
-        # Run all phases sequentially
-        await self.process_sync(index.id)
-        await self.process_extract(index.id)
-        await self.process_bm25_index(index.id)
-        await self.process_code_embeddings(index.id)
-        await self.process_enrich(index.id)
 
     async def delete_index(self, index: Index) -> None:
         """Delete an index."""

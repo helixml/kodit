@@ -74,7 +74,7 @@ async def test_run_index_with_empty_source_succeeds(
     assert index is not None, "Index should be created for empty directory"
 
     # Run indexing on empty directory should complete without error
-    await code_indexing_service.run_index_sync(index)
+    await code_indexing_service.run_index_tasks_sync(index)
 
     # Should have no snippets since there are no files - verify via SnippetRepository
     snippets = await snippet_repository.get_by_index_id(index.id)
@@ -98,7 +98,7 @@ def old_function():
 
     # Create initial index
     index = await code_indexing_service.create_index_from_uri(str(tmp_path))
-    await code_indexing_service.run_index_sync(index)
+    await code_indexing_service.run_index_tasks_sync(index)
 
     # Verify snippets were created for the initial file
     created_index = await indexing_query_service.get_index_by_id(index.id)
@@ -123,7 +123,7 @@ def new_function():
     assert existing_index.id == index.id, "Should return same index for same URI"
 
     # Run indexing again to process the modified file
-    await code_indexing_service.run_index_sync(existing_index)
+    await code_indexing_service.run_index_tasks_sync(existing_index)
 
     # Verify the updated content is reflected
     updated_index = await indexing_query_service.get_index_by_id(existing_index.id)
@@ -161,7 +161,7 @@ def subtract(a: int, b: int) -> int:
 
     # Create initial index
     index = await code_indexing_service.create_index_from_uri(str(tmp_path))
-    await code_indexing_service.run_index_sync(index)
+    await code_indexing_service.run_index_tasks_sync(index)
     # Verify snippets via SnippetRepository
     initial_snippets = await snippet_repository.get_by_index_id(index.id)
     assert len(initial_snippets) > 0, "Should have snippets for initial file"
@@ -172,7 +172,7 @@ def subtract(a: int, b: int) -> int:
 
     # Run indexing again - this should handle deleted files correctly
     # This is where the FileNotFoundError would occur if the bug exists
-    await code_indexing_service.run_index_sync(index)
+    await code_indexing_service.run_index_tasks_sync(index)
 
     # The above should not raise an error
     final_index = await indexing_query_service.get_index_by_id(index.id)

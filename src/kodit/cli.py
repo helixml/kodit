@@ -173,7 +173,9 @@ async def _index_local(
     )
     index_query_service = IndexQueryService(
         index_repository=create_index_repository(session_factory=db.session_factory),
-        snippet_repository=create_snippet_repository(session_factory=db.session_factory),
+        snippet_repository=create_snippet_repository(
+            session_factory=db.session_factory
+        ),
         fusion_service=ReciprocalRankFusionService(),
     )
 
@@ -187,19 +189,10 @@ async def _index_local(
 
     # Handle source indexing
     for source in sources:
-        if Path(source).is_file():
-            msg = "File indexing is not implemented yet"
-            raise click.UsageError(msg)
-
-        # Index source with progress
-        log_event("kodit.cli.index.create")
-
-        # Create a lazy progress callback that only shows progress when needed
-        index = await service.create_index_from_uri(source)
-
-        # Create a new progress callback for the indexing operations
         try:
-            await service.queue_index_tasks(index.id, is_user_initiated=True)
+            index = await service.create_index_from_uri(source)
+            await service.run_index_tasks_sync(index)
+
         except EmptySourceError as e:
             log.exception("Empty source error", error=e)
             msg = f"""{e}. This could mean:
