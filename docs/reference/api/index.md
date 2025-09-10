@@ -494,6 +494,8 @@ Task status attributes for JSON:API responses.
 | current | integer | Current number of items processed |
 | created_at |  | Task start time |
 | updated_at |  | Last update time |
+| error | string | Error message |
+| message | string | Message |
 
 
 ### TaskStatusData

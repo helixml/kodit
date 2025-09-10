@@ -1007,6 +1007,18 @@
             ],
             "title": "Updated At",
             "description": "Last update time"
+          },
+          "error": {
+            "type": "string",
+            "title": "Error",
+            "description": "Error message",
+            "default": ""
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Message",
+            "default": ""
           }
         },
         "type": "object",
