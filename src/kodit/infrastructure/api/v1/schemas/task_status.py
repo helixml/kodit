@@ -17,6 +17,8 @@ class TaskStatusAttributes(BaseModel):
     current: int = Field(default=0, description="Current number of items processed")
     created_at: datetime | None = Field(default=None, description="Task start time")
     updated_at: datetime | None = Field(default=None, description="Last update time")
+    error: str = Field(default="", description="Error message")
+    message: str = Field(default="", description="Message")
 
 
 class TaskStatusData(BaseModel):
