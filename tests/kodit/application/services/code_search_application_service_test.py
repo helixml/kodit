@@ -142,7 +142,7 @@ def validate_input(value: str) -> bool:
     # Run indexing to create snippets and search indexes
     # In the new system, since this is a new file, it will be marked as ADDED
     # and processed to create snippets
-    await code_indexing_service.run_queue_until_completion(index)
+    await code_indexing_service.run_index_tasks_sync(index)
 
     # Verify the index has been properly persisted with snippets
     index_repo = create_index_repository(session_factory=session_factory)
@@ -219,7 +219,7 @@ def subtract(a: int, b: int) -> int:
 
     # Create initial index
     index = await code_indexing_service.create_index_from_uri(str(tmp_path))
-    await code_indexing_service.run_queue_until_completion(index)
+    await code_indexing_service.run_index_tasks_sync(index)
     # Verify snippets via SnippetRepository
     initial_snippets = await snippet_repository.get_by_index_id(index.id)
     assert len(initial_snippets) > 0, "Should have snippets for initial file"
