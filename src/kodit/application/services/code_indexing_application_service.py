@@ -29,18 +29,19 @@ from kodit.domain.value_objects import (
 from kodit.domain.value_objects import TaskOperation as DomainTaskOperation
 from kodit.log import log_event
 
+INDEXING_TASK_LIST = [
+    DomainTaskOperation.REFRESH_WORKING_COPY,
+    DomainTaskOperation.EXTRACT_SNIPPETS,
+    DomainTaskOperation.CREATE_BM25_INDEX,
+    DomainTaskOperation.CREATE_CODE_EMBEDDINGS,
+    DomainTaskOperation.ENRICH_SNIPPETS,
+]
+
 
 class CodeIndexingApplicationService:
     """Unified application service for all code indexing operations."""
 
     # List of tasks that form an indexing pipeline. Order is important.
-    INDEXING_TASK_LIST = [
-        DomainTaskOperation.REFRESH_WORKING_COPY,
-        DomainTaskOperation.EXTRACT_SNIPPETS,
-        DomainTaskOperation.CREATE_BM25_INDEX,
-        DomainTaskOperation.CREATE_CODE_EMBEDDINGS,
-        DomainTaskOperation.ENRICH_SNIPPETS,
-    ]
 
     def __init__(  # noqa: PLR0913
         self,
@@ -221,8 +222,8 @@ class CodeIndexingApplicationService:
         )
 
         # Queue tasks with descending priority to ensure execution order
-        priority_offset = len(self.INDEXING_TASK_LIST) * 10
-        for task in self.INDEXING_TASK_LIST:
+        priority_offset = len(INDEXING_TASK_LIST) * 10
+        for task in INDEXING_TASK_LIST:
             await self.queue.enqueue_task(
                 Task.create(task, base + priority_offset, {"index_id": index_id})
             )
@@ -234,7 +235,7 @@ class CodeIndexingApplicationService:
             raise ValueError("Index must have an ID")
 
         # Run all phases sequentially
-        for task in self.INDEXING_TASK_LIST:
+        for task in INDEXING_TASK_LIST:
             await self.run_task(
                 Task.create(task, QueuePriority.USER_INITIATED, {"index_id": index.id})
             )
