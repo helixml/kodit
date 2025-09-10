@@ -639,13 +639,13 @@ class Slicer:
             qualified_name, snippet_content, state, path_to_file_map
         )
 
-        # Create the snippet entity
-        snippet = Snippet(derives_from=derives_from_files)
+        # Create the snippet entity with content
+        return Snippet.create_with_content(
+            derives_from=derives_from_files,
+            content=snippet_content,
+            language=language,
+        )
 
-        # Add the original content
-        snippet.add_original_content(snippet_content, language)
-
-        return snippet
 
     def _find_source_files_for_snippet(
         self,

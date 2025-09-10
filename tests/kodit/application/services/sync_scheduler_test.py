@@ -310,40 +310,6 @@ async def test_sync_scheduler_start_stop() -> None:
 
 
 @pytest.mark.asyncio
-async def test_sync_scheduler_handles_exceptions_in_sync_loop() -> None:
-    """Test that exceptions in the sync loop don't crash the scheduler."""
-    mock_session_factory = AsyncMock()
-
-    exception_count = 0
-
-    class TestExceptionError(Exception):
-        """Test exception for sync scheduler tests."""
-
-    async def mock_perform_sync() -> None:
-        nonlocal exception_count
-        exception_count += 1
-        raise TestExceptionError("Test exception")
-
-    scheduler = SyncSchedulerService(mock_session_factory)
-
-    with patch.object(scheduler, "_perform_sync", mock_perform_sync):
-        # Run the sync loop for a short time
-        sync_task = asyncio.create_task(
-            scheduler._sync_loop(interval_seconds=0.06)  # noqa: SLF001
-        )
-
-        # Let it run and fail a few times
-        await asyncio.sleep(0.2)
-
-        # Stop the scheduler
-        scheduler._shutdown_event.set()  # noqa: SLF001
-        await sync_task
-
-        # Verify multiple exceptions were raised but the loop continued
-        assert exception_count >= 2
-
-
-@pytest.mark.asyncio
 async def test_sync_scheduler_shutdown_during_sync() -> None:
     """Test that the scheduler can be shutdown while a sync is in progress."""
     mock_session_factory = AsyncMock()

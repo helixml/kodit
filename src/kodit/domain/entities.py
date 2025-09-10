@@ -1,5 +1,6 @@
 """Pure domain entities using Pydantic."""
 
+import hashlib
 import shutil
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -212,19 +213,41 @@ class Source(BaseModel):
 
 
 class Snippet(BaseModel):
-    """Snippet domain entity."""
+    """Snippet domain entity with processing state tracking."""
 
     id: int | None = None  # Is populated by repository
     created_at: datetime | None = None  # Is populated by repository
     updated_at: datetime | None = None  # Is populated by repository
     derives_from: list[File]
-    original_content: SnippetContent | None = None
+    original_content: SnippetContent
+    content_hash: str
     summary_content: SnippetContent | None = None
+
+    # Processing state tracking - loaded from repository when needed
+    _completed_processing_steps: set[TaskOperation] = set()
+
+    @staticmethod
+    def create_with_content(
+        derives_from: list[File],
+        content: str,
+        language: str,
+    ) -> "Snippet":
+        """Create a snippet with content and automatically calculated hash."""
+        original_content = SnippetContent(
+            type=SnippetContentType.ORIGINAL,
+            value=content,
+            language=language,
+        )
+        content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+        return Snippet(
+            derives_from=derives_from,
+            original_content=original_content,
+            content_hash=content_hash,
+        )
 
     def original_text(self) -> str:
         """Return the original content of the snippet."""
-        if self.original_content is None:
-            return ""
         return self.original_content.value
 
     def summary_text(self) -> str:
@@ -234,12 +257,16 @@ class Snippet(BaseModel):
         return self.summary_content.value
 
     def add_original_content(self, content: str, language: str) -> None:
-        """Add an original content to the snippet."""
+        """Update the original content of the snippet."""
         self.original_content = SnippetContent(
             type=SnippetContentType.ORIGINAL,
             value=content,
             language=language,
         )
+        # Update content hash when content changes
+        self.content_hash = self._calculate_content_hash()
+        # Reset processing states since content changed
+        self.reset_processing_states()
 
     def add_summary(self, summary: str) -> None:
         """Add a summary to the snippet."""
@@ -248,6 +275,31 @@ class Snippet(BaseModel):
             value=summary,
             language="markdown",
         )
+
+    def _calculate_content_hash(self) -> str:
+        """Calculate SHA256 hash of the original content."""
+        content = self.original_text()
+        return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+    def needs_processing(self, step: TaskOperation) -> bool:
+        """Check if a processing step needs to be done."""
+        return step not in self._completed_processing_steps
+
+    def mark_processing_completed(self, step: TaskOperation) -> None:
+        """Mark a processing step as completed."""
+        self._completed_processing_steps.add(step)
+
+    def reset_processing_states(self) -> None:
+        """Reset all processing states (used when content changes)."""
+        self._completed_processing_steps.clear()
+
+    def set_completed_processing_steps(self, steps: set[TaskOperation]) -> None:
+        """Set the completed processing steps (used by repository to load state)."""
+        self._completed_processing_steps = steps
+
+    def get_completed_processing_steps(self) -> set[TaskOperation]:
+        """Get the completed processing steps."""
+        return self._completed_processing_steps.copy()
 
 
 class Index(BaseModel):

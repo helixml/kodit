@@ -78,8 +78,12 @@ def sample_working_copy(
 @pytest.fixture
 def sample_snippet(sample_file: domain_entities.File) -> domain_entities.Snippet:
     """Create a sample snippet."""
-    snippet = domain_entities.Snippet(id=1, derives_from=[sample_file])
-    snippet.add_original_content("def hello():\n    pass", "python")
+    snippet = domain_entities.Snippet.create_with_content(
+        derives_from=[sample_file],
+        content="def hello():\n    pass",
+        language="python"
+    )
+    snippet.id = 1
     snippet.add_summary("A simple hello function")
     return snippet
 
@@ -411,8 +415,11 @@ class TestSnippetRepositorySearch:
         # Create multiple snippets
         snippets = []
         for i in range(5):
-            snippet = domain_entities.Snippet(derives_from=sample_working_copy.files)
-            snippet.add_original_content(f"def function_{i}():\n    pass", "python")
+            snippet = domain_entities.Snippet.create_with_content(
+                derives_from=sample_working_copy.files,
+                content=f"def function_{i}():\n    pass",
+                language="python"
+            )
             snippets.append(snippet)
 
         await snippet_repository.add(snippets, test_index.id)
@@ -492,8 +499,11 @@ class TestSnippetRepositoryGetByIndexId:
         """Test that get_by_index_id() returns all snippets for an index."""
         # Add multiple snippets
         snippet1 = sample_snippet
-        snippet2 = domain_entities.Snippet(derives_from=sample_working_copy.files)
-        snippet2.add_original_content("def another():\n    return 42", "python")
+        snippet2 = domain_entities.Snippet.create_with_content(
+            derives_from=sample_working_copy.files,
+            content="def another():\n    return 42",
+            language="python"
+        )
 
         await snippet_repository.add([snippet1, snippet2], test_index.id)
 

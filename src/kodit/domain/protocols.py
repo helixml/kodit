@@ -74,7 +74,6 @@ class IndexRepository(Protocol):
         ...
 
 
-
 class SnippetRepository(Protocol):
     """Repository interface for Snippet entities."""
 
@@ -102,8 +101,36 @@ class SnippetRepository(Protocol):
         """Delete snippets by file IDs."""
         ...
 
+    async def delete_by_ids(self, snippet_ids: list[int]) -> None:
+        """Delete snippets by their IDs."""
+        ...
+
     async def get_by_index_id(self, index_id: int) -> list[SnippetWithContext]:
         """Get all snippets for an index."""
+        ...
+
+    async def get_by_file_ids(self, file_ids: list[int]) -> list[SnippetWithContext]:
+        """Get snippets by file IDs."""
+        ...
+
+    async def get_snippets_needing_processing(
+        self, index_id: int, step: TaskOperation
+    ) -> list[SnippetWithContext]:
+        """Get snippets that need processing for a specific step.
+
+        Returns snippets where no SnippetProcessingState record exists
+        for the given processing step.
+        """
+        ...
+
+    async def mark_processing_completed(
+        self, snippet_ids: list[int], step: TaskOperation
+    ) -> None:
+        """Mark processing step as completed for given snippet IDs."""
+        ...
+
+    async def reset_processing_states(self, snippet_ids: list[int]) -> None:
+        """Reset all processing states for given snippet IDs."""
         ...
 
 
