@@ -275,6 +275,13 @@ class CodeIndexingApplicationService:
                 await operation.skip("No changed files")
                 return
 
+            # Extract new snippets from changed files
+            extracted_snippets = (
+                await self.index_domain_service.extract_snippets_from_index(
+                    index=index, step=operation
+                )
+            )
+
             # Get existing snippets for changed files to compare content hashes
             existing_snippet_contexts = (
                 await self.snippet_repository.get_by_file_ids(changed_file_ids)
@@ -283,60 +290,52 @@ class CodeIndexingApplicationService:
             )
             existing_snippets = [sc.snippet for sc in existing_snippet_contexts]
 
-            # Extract new snippets from changed files
-            extracted_snippets = (
-                await self.index_domain_service.extract_snippets_from_index(
-                    index=index, step=operation
-                )
-            )
+            # Efficiently handle four types of snippet changes:
+            # 1. Deleted: in existing but not in extracted
+            # 2. Added: in extracted but not in existing
+            # 3. Modified: different content hash between existing and extracted
+            # 4. Unchanged: same content hash (no database operation needed)
 
-            # Compare content hashes and preserve processing state where possible
-            snippets_to_reset_processing = []
-            snippets_to_preserve = []
-            snippets_to_add = []
+            # Create hash-to-existing mapping for O(1) lookup
+            existing_by_hash = {
+                existing.content_hash: existing for existing in existing_snippets
+            }
+            all_existing_ids = {
+                existing.id for existing in existing_snippets if existing.id
+            }
 
+            # Track changes for efficient database operations
+            snippets_to_add = []  # New or modified snippets
+            snippet_ids_to_delete = []  # Deleted snippet IDs
+            matched_existing_ids = set()  # IDs of unchanged snippets
+
+            # Process extracted snippets to identify changes
             for new_snippet in extracted_snippets:
-                # Content hash is now automatically calculated when snippet is created
-
-                # Try to find matching existing snippet by content hash
-                matching_existing = None
-                for existing in existing_snippets:
-                    if existing.content_hash == new_snippet.content_hash:
-                        matching_existing = existing
-                        break
+                matching_existing = existing_by_hash.get(new_snippet.content_hash)
 
                 if matching_existing:
-                    # Content unchanged - preserve processing state and ID
-                    new_snippet.id = matching_existing.id
-                    new_snippet.created_at = matching_existing.created_at
-                    new_snippet.set_completed_processing_steps(
-                        matching_existing.get_completed_processing_steps()
-                    )
-                    snippets_to_preserve.append(new_snippet)
+                    # UNCHANGED: Content hash matches - no database operation needed
+                    # Just track that this existing snippet is still valid
+                    matched_existing_ids.add(matching_existing.id)
                 else:
-                    # New or changed content - reset processing state
+                    # ADDED or MODIFIED: New content hash - needs to be added
                     new_snippet.reset_processing_states()
                     snippets_to_add.append(new_snippet)
 
-            # Find snippets that need processing state reset (content changed)
-            for existing in existing_snippets:
-                found_match = any(
-                    s.content_hash == existing.content_hash for s in extracted_snippets
-                )
-                if not found_match and existing.id:
-                    snippets_to_reset_processing.append(existing.id)
+            # DELETED: Existing snippets that weren't matched
+            snippet_ids_to_delete = list(all_existing_ids - matched_existing_ids)
 
-            # Delete old snippets and their processing states
-            async with operation.create_child(TaskOperation.DELETE_OLD_SNIPPETS):
-                await self.snippet_repository.delete_by_file_ids(changed_file_ids)
+            # Perform efficient database operations
+            if snippet_ids_to_delete:
+                async with operation.create_child(TaskOperation.DELETE_OLD_SNIPPETS):
+                    await self.snippet_repository.delete_by_ids(snippet_ids_to_delete)
 
-            # Add new/updated snippets
-            all_snippets = snippets_to_preserve + snippets_to_add
+            # Add new and modified snippets
+            if snippets_to_add:
+                await self.snippet_repository.add(snippets_to_add, index.id)
 
-            # Persist files and snippets
+            # Persist updated index metadata
             await self.index_repository.update(index)
-            if all_snippets and index.id:
-                await self.snippet_repository.add(all_snippets, index.id)
 
     async def process_bm25_index(self, index_id: int) -> None:
         """Handle BM25_INDEX task - create keyword index INCREMENTALLY."""

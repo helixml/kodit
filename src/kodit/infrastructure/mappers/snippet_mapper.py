@@ -65,8 +65,6 @@ class SnippetMapper:
         if file_id is None:
             raise ValueError("File must have an ID")
 
-        # Content hash is now always available since it's required
-
         db_snippet = db_entities.Snippet(
             file_id=file_id,
             index_id=index_id,

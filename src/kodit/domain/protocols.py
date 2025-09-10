@@ -74,7 +74,6 @@ class IndexRepository(Protocol):
         ...
 
 
-
 class SnippetRepository(Protocol):
     """Repository interface for Snippet entities."""
 
@@ -100,6 +99,10 @@ class SnippetRepository(Protocol):
 
     async def delete_by_file_ids(self, file_ids: list[int]) -> None:
         """Delete snippets by file IDs."""
+        ...
+
+    async def delete_by_ids(self, snippet_ids: list[int]) -> None:
+        """Delete snippets by their IDs."""
         ...
 
     async def get_by_index_id(self, index_id: int) -> list[SnippetWithContext]:
@@ -129,7 +132,6 @@ class SnippetRepository(Protocol):
     async def reset_processing_states(self, snippet_ids: list[int]) -> None:
         """Reset all processing states for given snippet IDs."""
         ...
-
 
 
 class ReportingModule(Protocol):

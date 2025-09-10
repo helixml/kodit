@@ -219,6 +219,24 @@ class SqlAlchemySnippetRepository(SnippetRepository):
             )
             await self._session.execute(snippet_stmt)
 
+    async def delete_by_ids(self, snippet_ids: list[int]) -> None:
+        """Delete snippets by their IDs."""
+        if not snippet_ids:
+            return
+
+        async with self.uow:
+            # Delete all embeddings for these snippets first
+            embedding_stmt = delete(db_entities.Embedding).where(
+                db_entities.Embedding.snippet_id.in_(snippet_ids)
+            )
+            await self._session.execute(embedding_stmt)
+
+            # Delete the snippets
+            snippet_stmt = delete(db_entities.Snippet).where(
+                db_entities.Snippet.id.in_(snippet_ids)
+            )
+            await self._session.execute(snippet_stmt)
+
     async def get_by_index_id(self, index_id: int) -> list[SnippetWithContext]:
         """Get all snippets for an index."""
         async with self.uow:
@@ -312,7 +330,7 @@ class SqlAlchemySnippetRepository(SnippetRepository):
             snippet=self._mapper.to_domain_snippet(
                 db_snippet=db_snippet,
                 domain_files=[domain_file],
-                processing_states=processing_states
+                processing_states=processing_states,
             ),
         )
 
@@ -399,4 +417,3 @@ class SqlAlchemySnippetRepository(SnippetRepository):
                 db_entities.SnippetProcessingState.snippet_id.in_(snippet_ids)
             )
             await self._session.execute(stmt)
-
