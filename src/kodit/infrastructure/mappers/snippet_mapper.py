@@ -26,18 +26,23 @@ class SnippetMapper:
                 derives_from.append(domain_file)
                 break
 
-        # Create domain snippet with original content
-        domain_snippet = domain_entities.Snippet(
-            id=db_snippet.id,
-            created_at=db_snippet.created_at,
-            updated_at=db_snippet.updated_at,
+        # Create domain snippet with content using factory method
+        if not db_snippet.content:
+            raise ValueError("Database snippet must have content")
+
+        domain_snippet = domain_entities.Snippet.create_with_content(
             derives_from=derives_from,
-            content_hash=db_snippet.content_hash,
+            content=db_snippet.content,
+            language="unknown",
         )
 
-        # Add original content
-        if db_snippet.content:
-            domain_snippet.add_original_content(db_snippet.content, "unknown")
+        # Set database-loaded fields
+        domain_snippet.id = db_snippet.id
+        domain_snippet.created_at = db_snippet.created_at
+        domain_snippet.updated_at = db_snippet.updated_at
+        # Use the hash from database if it exists, otherwise keep the calculated one
+        if db_snippet.content_hash:
+            domain_snippet.content_hash = db_snippet.content_hash
 
         # Add summary content if it exists
         if db_snippet.summary:
@@ -60,8 +65,7 @@ class SnippetMapper:
         if file_id is None:
             raise ValueError("File must have an ID")
 
-        # Ensure content hash is calculated
-        domain_snippet.ensure_content_hash()
+        # Content hash is now always available since it's required
 
         db_snippet = db_entities.Snippet(
             file_id=file_id,

@@ -157,9 +157,10 @@ async def test_enrich_snippets_in_index_returns_enriched_snippets(
     )
 
     # Create mock snippets
-    snippet = Snippet(derives_from=[])
+    snippet = Snippet.create_with_content(
+        derives_from=[], content="def test(): pass", language="python"
+    )
     snippet.id = 1
-    snippet.add_original_content("def test(): pass", "python")
     snippets = [snippet]
 
     # Enrich snippets

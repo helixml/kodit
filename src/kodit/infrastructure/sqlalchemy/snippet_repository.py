@@ -310,8 +310,8 @@ class SqlAlchemySnippetRepository(SnippetRepository):
             file=domain_file,
             authors=domain_file.authors,
             snippet=self._mapper.to_domain_snippet(
-                db_snippet=db_snippet, 
-                domain_files=[domain_file], 
+                db_snippet=db_snippet,
+                domain_files=[domain_file],
                 processing_states=processing_states
             ),
         )

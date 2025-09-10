@@ -219,17 +219,35 @@ class Snippet(BaseModel):
     created_at: datetime | None = None  # Is populated by repository
     updated_at: datetime | None = None  # Is populated by repository
     derives_from: list[File]
-    original_content: SnippetContent | None = None
+    original_content: SnippetContent
+    content_hash: str
     summary_content: SnippetContent | None = None
-    content_hash: str | None = None  # SHA256 hash of original content
 
     # Processing state tracking - loaded from repository when needed
     _completed_processing_steps: set[TaskOperation] = set()
 
+    @staticmethod
+    def create_with_content(
+        derives_from: list[File],
+        content: str,
+        language: str,
+    ) -> "Snippet":
+        """Create a snippet with content and automatically calculated hash."""
+        original_content = SnippetContent(
+            type=SnippetContentType.ORIGINAL,
+            value=content,
+            language=language,
+        )
+        content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+        return Snippet(
+            derives_from=derives_from,
+            original_content=original_content,
+            content_hash=content_hash,
+        )
+
     def original_text(self) -> str:
         """Return the original content of the snippet."""
-        if self.original_content is None:
-            return ""
         return self.original_content.value
 
     def summary_text(self) -> str:
@@ -239,7 +257,7 @@ class Snippet(BaseModel):
         return self.summary_content.value
 
     def add_original_content(self, content: str, language: str) -> None:
-        """Add an original content to the snippet."""
+        """Update the original content of the snippet."""
         self.original_content = SnippetContent(
             type=SnippetContentType.ORIGINAL,
             value=content,
@@ -247,6 +265,8 @@ class Snippet(BaseModel):
         )
         # Update content hash when content changes
         self.content_hash = self._calculate_content_hash()
+        # Reset processing states since content changed
+        self.reset_processing_states()
 
     def add_summary(self, summary: str) -> None:
         """Add a summary to the snippet."""
@@ -260,11 +280,6 @@ class Snippet(BaseModel):
         """Calculate SHA256 hash of the original content."""
         content = self.original_text()
         return hashlib.sha256(content.encode("utf-8")).hexdigest()
-
-    def ensure_content_hash(self) -> None:
-        """Ensure content hash is calculated if not already present."""
-        if self.content_hash is None:
-            self.content_hash = self._calculate_content_hash()
 
     def needs_processing(self, step: TaskOperation) -> bool:
         """Check if a processing step needs to be done."""

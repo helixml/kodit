@@ -276,12 +276,12 @@ class CodeIndexingApplicationService:
                 return
 
             # Get existing snippets for changed files to compare content hashes
-            existing_snippets = []
-            if changed_file_ids:
-                existing_snippet_contexts = (
-                    await self.snippet_repository.get_by_file_ids(changed_file_ids)
-                )
-                existing_snippets = [sc.snippet for sc in existing_snippet_contexts]
+            existing_snippet_contexts = (
+                await self.snippet_repository.get_by_file_ids(changed_file_ids)
+                if changed_file_ids
+                else []
+            )
+            existing_snippets = [sc.snippet for sc in existing_snippet_contexts]
 
             # Extract new snippets from changed files
             extracted_snippets = (
@@ -296,7 +296,7 @@ class CodeIndexingApplicationService:
             snippets_to_add = []
 
             for new_snippet in extracted_snippets:
-                new_snippet.ensure_content_hash()
+                # Content hash is now automatically calculated when snippet is created
 
                 # Try to find matching existing snippet by content hash
                 matching_existing = None
