@@ -27,7 +27,6 @@ def upgrade() -> None:
         "snippet_processing_states",
         sa.Column("snippet_id", sa.Integer(), nullable=False),
         sa.Column("processing_step", sa.String(length=100), nullable=False),
-        sa.Column("completed_at", sa.DateTime(), nullable=True),
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),

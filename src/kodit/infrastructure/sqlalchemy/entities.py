@@ -248,19 +248,16 @@ class SnippetProcessingState(Base, CommonMixin):
         ForeignKey("snippets.id", ondelete="CASCADE"), index=True
     )
     processing_step: Mapped[str] = mapped_column(String(100), index=True)
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     def __init__(
         self,
         snippet_id: int,
         processing_step: str,
-        completed_at: datetime | None = None,
     ) -> None:
         """Initialize the snippet processing state."""
         super().__init__()
         self.snippet_id = snippet_id
         self.processing_step = processing_step
-        self.completed_at = completed_at or datetime.now(UTC)
 
 
 # Removed TaskType enum - now using string-based operations
