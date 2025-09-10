@@ -25,7 +25,14 @@ class LoggingReportingModule(ReportingModule):
         time_since_last_log = current_time - self._last_log_time
         step = progress
 
-        if (
+        if step.state == ReportingState.FAILED:
+            self._log.exception(
+                step.operation,
+                state=step.state,
+                completion_percent=step.completion_percent,
+                error=step.error,
+            )
+        elif (
             step.state != ReportingState.IN_PROGRESS
             or time_since_last_log >= self.config.log_time_interval
         ):
