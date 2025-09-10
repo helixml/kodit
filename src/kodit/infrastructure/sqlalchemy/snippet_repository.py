@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from kodit.domain import entities as domain_entities
 from kodit.domain.entities import SnippetWithContext
 from kodit.domain.protocols import SnippetRepository
-from kodit.domain.value_objects import MultiSearchRequest
+from kodit.domain.value_objects import MultiSearchRequest, TaskOperation
 from kodit.infrastructure.mappers.snippet_mapper import SnippetMapper
 from kodit.infrastructure.sqlalchemy import entities as db_entities
 from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
@@ -296,3 +296,122 @@ class SqlAlchemySnippetRepository(SnippetRepository):
                 db_snippet=db_snippet, domain_files=[domain_file]
             ),
         )
+
+    async def get_by_file_ids(self, file_ids: list[int]) -> list[SnippetWithContext]:
+        """Get snippets by file IDs."""
+        if not file_ids:
+            return []
+
+        async with self.uow:
+            # Query snippets by file IDs
+            query = select(db_entities.Snippet).where(
+                db_entities.Snippet.file_id.in_(file_ids)
+            )
+
+            result = await self._session.scalars(query)
+            db_snippets = result.all()
+
+            # Convert to SnippetWithContext
+            snippet_contexts = []
+            for db_snippet in db_snippets:
+                snippet_context = await self._build_snippet_with_context(db_snippet)
+                if snippet_context:
+                    snippet_contexts.append(snippet_context)
+
+            return snippet_contexts
+
+    async def get_snippets_needing_processing(
+        self, index_id: int, step: TaskOperation
+    ) -> list[SnippetWithContext]:
+        """Get snippets that need processing for a specific step."""
+        async with self.uow:
+            # LEFT JOIN to find snippets without processing state for this step
+            query = (
+                select(db_entities.Snippet)
+                .outerjoin(
+                    db_entities.SnippetProcessingState,
+                    (
+                        db_entities.Snippet.id
+                        == db_entities.SnippetProcessingState.snippet_id
+                    )
+                    & (db_entities.SnippetProcessingState.processing_step == str(step)),
+                )
+                .where(
+                    (db_entities.Snippet.index_id == index_id)
+                    & (db_entities.SnippetProcessingState.id.is_(None))
+                )
+            )
+
+            result = await self._session.scalars(query)
+            db_snippets = result.all()
+
+            # Convert to SnippetWithContext
+            snippet_contexts = []
+            for db_snippet in db_snippets:
+                snippet_context = await self._build_snippet_with_context(db_snippet)
+                if snippet_context:
+                    snippet_contexts.append(snippet_context)
+
+            return snippet_contexts
+
+    async def mark_processing_completed(
+        self, snippet_ids: list[int], step: TaskOperation
+    ) -> None:
+        """Mark processing step as completed for given snippet IDs."""
+        if not snippet_ids:
+            return
+
+        async with self.uow:
+            for snippet_id in snippet_ids:
+                # Create or update processing state record
+                processing_state = db_entities.SnippetProcessingState(
+                    snippet_id=snippet_id, processing_step=str(step)
+                )
+                self._session.add(processing_state)
+
+    async def reset_processing_states(self, snippet_ids: list[int]) -> None:
+        """Reset all processing states for given snippet IDs."""
+        if not snippet_ids:
+            return
+
+        async with self.uow:
+            # Delete all processing states for these snippets
+            stmt = delete(db_entities.SnippetProcessingState).where(
+                db_entities.SnippetProcessingState.snippet_id.in_(snippet_ids)
+            )
+            await self._session.execute(stmt)
+
+    async def load_processing_states(
+        self, snippets: list[domain_entities.Snippet]
+    ) -> None:
+        """Load processing states for snippets from database."""
+        if not snippets:
+            return
+
+        snippet_ids = [s.id for s in snippets if s.id is not None]
+        if not snippet_ids:
+            return
+
+        async with self.uow:
+            # Load all processing states for these snippets
+            query = select(db_entities.SnippetProcessingState).where(
+                db_entities.SnippetProcessingState.snippet_id.in_(snippet_ids)
+            )
+            result = await self._session.scalars(query)
+            processing_states = result.all()
+
+            # Group by snippet_id
+            states_by_snippet: dict[int, set[TaskOperation]] = {}
+            for state in processing_states:
+                if state.snippet_id not in states_by_snippet:
+                    states_by_snippet[state.snippet_id] = set()
+                states_by_snippet[state.snippet_id].add(
+                    TaskOperation(state.processing_step)
+                )
+
+            # Set processing states on domain entities
+            for snippet in snippets:
+                if snippet.id and snippet.id in states_by_snippet:
+                    snippet.set_completed_processing_steps(
+                        states_by_snippet[snippet.id]
+                    )

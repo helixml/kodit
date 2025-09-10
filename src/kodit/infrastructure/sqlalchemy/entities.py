@@ -213,6 +213,9 @@ class Snippet(Base, CommonMixin):
     index_id: Mapped[int] = mapped_column(ForeignKey("indexes.id"), index=True)
     content: Mapped[str] = mapped_column(UnicodeText, default="")
     summary: Mapped[str] = mapped_column(UnicodeText, default="")
+    content_hash: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, index=True
+    )
 
     def __init__(
         self,
@@ -220,6 +223,7 @@ class Snippet(Base, CommonMixin):
         index_id: int,
         content: str,
         summary: str = "",
+        content_hash: str | None = None,
     ) -> None:
         """Initialize the snippet."""
         super().__init__()
@@ -227,6 +231,36 @@ class Snippet(Base, CommonMixin):
         self.index_id = index_id
         self.content = content
         self.summary = summary
+        self.content_hash = content_hash
+
+
+class SnippetProcessingState(Base, CommonMixin):
+    """Snippet processing state model."""
+
+    __tablename__ = "snippet_processing_states"
+    __table_args__ = (
+        UniqueConstraint(
+            "snippet_id", "processing_step", name="uix_snippet_processing_step"
+        ),
+    )
+
+    snippet_id: Mapped[int] = mapped_column(
+        ForeignKey("snippets.id", ondelete="CASCADE"), index=True
+    )
+    processing_step: Mapped[str] = mapped_column(String(100), index=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    def __init__(
+        self,
+        snippet_id: int,
+        processing_step: str,
+        completed_at: datetime | None = None,
+    ) -> None:
+        """Initialize the snippet processing state."""
+        super().__init__()
+        self.snippet_id = snippet_id
+        self.processing_step = processing_step
+        self.completed_at = completed_at or datetime.now(UTC)
 
 
 # Removed TaskType enum - now using string-based operations

@@ -1,5 +1,6 @@
 """Pure domain entities using Pydantic."""
 
+import hashlib
 import shutil
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -212,7 +213,7 @@ class Source(BaseModel):
 
 
 class Snippet(BaseModel):
-    """Snippet domain entity."""
+    """Snippet domain entity with processing state tracking."""
 
     id: int | None = None  # Is populated by repository
     created_at: datetime | None = None  # Is populated by repository
@@ -220,6 +221,10 @@ class Snippet(BaseModel):
     derives_from: list[File]
     original_content: SnippetContent | None = None
     summary_content: SnippetContent | None = None
+    content_hash: str | None = None  # SHA256 hash of original content
+
+    # Processing state tracking - loaded from repository when needed
+    _completed_processing_steps: set[TaskOperation] = set()
 
     def original_text(self) -> str:
         """Return the original content of the snippet."""
@@ -240,6 +245,8 @@ class Snippet(BaseModel):
             value=content,
             language=language,
         )
+        # Update content hash when content changes
+        self.content_hash = self._calculate_content_hash()
 
     def add_summary(self, summary: str) -> None:
         """Add a summary to the snippet."""
@@ -248,6 +255,36 @@ class Snippet(BaseModel):
             value=summary,
             language="markdown",
         )
+
+    def _calculate_content_hash(self) -> str:
+        """Calculate SHA256 hash of the original content."""
+        content = self.original_text()
+        return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+    def ensure_content_hash(self) -> None:
+        """Ensure content hash is calculated if not already present."""
+        if self.content_hash is None:
+            self.content_hash = self._calculate_content_hash()
+
+    def needs_processing(self, step: TaskOperation) -> bool:
+        """Check if a processing step needs to be done."""
+        return step not in self._completed_processing_steps
+
+    def mark_processing_completed(self, step: TaskOperation) -> None:
+        """Mark a processing step as completed."""
+        self._completed_processing_steps.add(step)
+
+    def reset_processing_states(self) -> None:
+        """Reset all processing states (used when content changes)."""
+        self._completed_processing_steps.clear()
+
+    def set_completed_processing_steps(self, steps: set[TaskOperation]) -> None:
+        """Set the completed processing steps (used by repository to load state)."""
+        self._completed_processing_steps = steps
+
+    def get_completed_processing_steps(self) -> set[TaskOperation]:
+        """Get the completed processing steps."""
+        return self._completed_processing_steps.copy()
 
 
 class Index(BaseModel):

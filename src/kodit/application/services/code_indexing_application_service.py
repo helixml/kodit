@@ -264,8 +264,8 @@ class CodeIndexingApplicationService:
                 # Don't queue further tasks if no changes
                 return
 
-    async def process_extract(self, index_id: int) -> None:
-        """Handle EXTRACT task - extract snippets from changed files."""
+    async def process_extract(self, index_id: int) -> None:  # noqa: C901
+        """Extract snippets from changed files WITH incremental processing."""
         index = await self.index_repository.get(index_id)
         if not index:
             raise ValueError(f"Index not found: {index_id}")
@@ -280,58 +280,130 @@ class CodeIndexingApplicationService:
             trackable_type=TrackableType.INDEX,
             trackable_id=index_id,
         ) as operation:
-            # Delete old snippets
-            async with operation.create_child(TaskOperation.DELETE_OLD_SNIPPETS):
-                await self.snippet_repository.delete_by_file_ids(
-                    [f.id for f in index.source.working_copy.changed_files() if f.id]
-                )
+            changed_files = index.source.working_copy.changed_files()
+            changed_file_ids = [f.id for f in changed_files if f.id]
 
-            # Extract new snippets
+            # Get existing snippets for changed files to compare content hashes
+            existing_snippets = []
+            if changed_file_ids:
+                existing_snippet_contexts = (
+                    await self.snippet_repository.get_by_file_ids(changed_file_ids)
+                )
+                existing_snippets = [sc.snippet for sc in existing_snippet_contexts]
+                # Load processing states for existing snippets
+                await self.snippet_repository.load_processing_states(existing_snippets)
+
+            # Extract new snippets from changed files
             extracted_snippets = (
                 await self.index_domain_service.extract_snippets_from_index(
                     index=index, step=operation
                 )
             )
 
+            # Compare content hashes and preserve processing state where possible
+            snippets_to_reset_processing = []
+            snippets_to_preserve = []
+            snippets_to_add = []
+
+            for new_snippet in extracted_snippets:
+                new_snippet.ensure_content_hash()
+
+                # Try to find matching existing snippet by content hash
+                matching_existing = None
+                for existing in existing_snippets:
+                    if existing.content_hash == new_snippet.content_hash:
+                        matching_existing = existing
+                        break
+
+                if matching_existing:
+                    # Content unchanged - preserve processing state and ID
+                    new_snippet.id = matching_existing.id
+                    new_snippet.created_at = matching_existing.created_at
+                    new_snippet.set_completed_processing_steps(
+                        matching_existing.get_completed_processing_steps()
+                    )
+                    snippets_to_preserve.append(new_snippet)
+                else:
+                    # New or changed content - reset processing state
+                    new_snippet.reset_processing_states()
+                    snippets_to_add.append(new_snippet)
+
+            # Find snippets that need processing state reset (content changed)
+            for existing in existing_snippets:
+                found_match = any(
+                    s.content_hash == existing.content_hash for s in extracted_snippets
+                )
+                if not found_match and existing.id:
+                    snippets_to_reset_processing.append(existing.id)
+
+            # Delete old snippets and their processing states
+            async with operation.create_child(TaskOperation.DELETE_OLD_SNIPPETS):
+                await self.snippet_repository.delete_by_file_ids(changed_file_ids)
+
+            # Add new/updated snippets
+            all_snippets = snippets_to_preserve + snippets_to_add
+
             # Persist files and snippets
             await self.index_repository.update(index)
-            if extracted_snippets and index.id:
-                await self.snippet_repository.add(extracted_snippets, index.id)
+            if all_snippets and index.id:
+                await self.snippet_repository.add(all_snippets, index.id)
 
     async def process_bm25_index(self, index_id: int) -> None:
-        """Handle BM25_INDEX task - create keyword index."""
+        """Handle BM25_INDEX task - create keyword index INCREMENTALLY."""
         async with self.operation.create_child(
             TaskOperation.CREATE_BM25_INDEX,
             trackable_type=TrackableType.INDEX,
             trackable_id=index_id,
-        ):
-            snippets = await self.snippet_repository.get_by_index_id(index_id)
-            snippet_list = [sc.snippet for sc in snippets]
+        ) as step:
+            # ENHANCED: Get only snippets needing BM25 processing
+            snippets_needing_processing = (
+                await self.snippet_repository.get_snippets_needing_processing(
+                    index_id, TaskOperation.CREATE_BM25_INDEX
+                )
+            )
+            pending_snippets = [sc.snippet for sc in snippets_needing_processing]
 
-            if not snippet_list:
-                self.log.info("No snippets to index", index_id=index_id)
+            if not pending_snippets:
+                await step.skip("All snippets already have BM25 index")
                 return
 
-            await self._create_bm25_index(snippet_list)
+            await self._create_bm25_index(pending_snippets)
+
+            # ENHANCED: Mark processing state as completed
+            await self.snippet_repository.mark_processing_completed(
+                [s.id for s in pending_snippets if s.id],
+                TaskOperation.CREATE_BM25_INDEX,
+            )
 
     async def process_code_embeddings(self, index_id: int) -> None:
-        """Handle CODE_EMBEDDINGS task - create code embeddings."""
+        """Handle CODE_EMBEDDINGS task - create code embeddings INCREMENTALLY."""
         async with self.operation.create_child(
             TaskOperation.CREATE_CODE_EMBEDDINGS,
             trackable_type=TrackableType.INDEX,
             trackable_id=index_id,
         ) as step:
-            snippets = await self.snippet_repository.get_by_index_id(index_id)
-            snippet_list = [sc.snippet for sc in snippets]
+            # ENHANCED: Get only snippets needing code embeddings
+            snippets_needing_processing = (
+                await self.snippet_repository.get_snippets_needing_processing(
+                    index_id, TaskOperation.CREATE_CODE_EMBEDDINGS
+                )
+            )
+            pending_snippets = [sc.snippet for sc in snippets_needing_processing]
 
-            if not snippet_list:
-                self.log.info("No snippets for embeddings", index_id=index_id)
+            if not pending_snippets:
+                await step.skip("All snippets already have code embeddings")
                 return
 
-            await self._create_code_embeddings(snippet_list, step)
+            await self._create_code_embeddings(pending_snippets, step)
+
+            # ENHANCED: Mark processing state as completed
+            await self.snippet_repository.mark_processing_completed(
+                [s.id for s in pending_snippets if s.id],
+                TaskOperation.CREATE_CODE_EMBEDDINGS,
+            )
 
     async def process_enrich(self, index_id: int) -> None:
-        """Handle ENRICH task - enrich snippets and create text embeddings."""
+        """Enrich snippets incrementally."""
         index = await self.index_repository.get(index_id)
         if not index:
             raise ValueError(f"Index not found: {index_id}")
@@ -341,27 +413,53 @@ class CodeIndexingApplicationService:
             trackable_type=TrackableType.INDEX,
             trackable_id=index_id,
         ) as operation:
-            snippets = await self.snippet_repository.get_by_index_id(index_id)
-            snippet_list = [sc.snippet for sc in snippets]
-
-            if not snippet_list:
-                self.log.info("No snippets to enrich", index_id=index_id)
-                return
-
-            # Enrich snippets
-            enriched_snippets = (
-                await self.index_domain_service.enrich_snippets_in_index(
-                    snippets=snippet_list,
-                    reporting_step=operation,
+            # ENHANCED: Get only snippets needing enrichment
+            snippets_needing_processing = (
+                await self.snippet_repository.get_snippets_needing_processing(
+                    index_id, TaskOperation.ENRICH_SNIPPETS
                 )
             )
-            await self.snippet_repository.update(enriched_snippets)
+            pending_snippets = [sc.snippet for sc in snippets_needing_processing]
 
-            # Create text embeddings
-            async with operation.create_child(
-                TaskOperation.CREATE_TEXT_EMBEDDINGS
-            ) as step:
-                await self._create_text_embeddings(enriched_snippets, step)
+            if not pending_snippets:
+                self.log.info("No snippets need enrichment", index_id=index_id)
+            else:
+                # Enrich snippets
+                enriched_snippets = (
+                    await self.index_domain_service.enrich_snippets_in_index(
+                        snippets=pending_snippets,
+                        reporting_step=operation,
+                    )
+                )
+                await self.snippet_repository.update(enriched_snippets)
+
+                # ENHANCED: Mark enrichment processing as completed
+                await self.snippet_repository.mark_processing_completed(
+                    [s.id for s in enriched_snippets if s.id],
+                    TaskOperation.ENRICH_SNIPPETS,
+                )
+
+            # Create text embeddings for snippets needing them
+            text_embeddings_needing_processing = (
+                await self.snippet_repository.get_snippets_needing_processing(
+                    index_id, TaskOperation.CREATE_TEXT_EMBEDDINGS
+                )
+            )
+            text_pending_snippets = [
+                sc.snippet for sc in text_embeddings_needing_processing
+            ]
+
+            if text_pending_snippets:
+                async with operation.create_child(
+                    TaskOperation.CREATE_TEXT_EMBEDDINGS
+                ) as step:
+                    await self._create_text_embeddings(text_pending_snippets, step)
+
+                    # ENHANCED: Mark text embeddings processing as completed
+                    await self.snippet_repository.mark_processing_completed(
+                        [s.id for s in text_pending_snippets if s.id],
+                        TaskOperation.CREATE_TEXT_EMBEDDINGS,
+                    )
 
             # Update timestamp
             async with operation.create_child(

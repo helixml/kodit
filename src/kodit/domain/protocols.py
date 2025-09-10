@@ -106,6 +106,34 @@ class SnippetRepository(Protocol):
         """Get all snippets for an index."""
         ...
 
+    async def get_by_file_ids(self, file_ids: list[int]) -> list[SnippetWithContext]:
+        """Get snippets by file IDs."""
+        ...
+
+    async def get_snippets_needing_processing(
+        self, index_id: int, step: TaskOperation
+    ) -> list[SnippetWithContext]:
+        """Get snippets that need processing for a specific step.
+
+        Returns snippets where no SnippetProcessingState record exists
+        for the given processing step.
+        """
+        ...
+
+    async def mark_processing_completed(
+        self, snippet_ids: list[int], step: TaskOperation
+    ) -> None:
+        """Mark processing step as completed for given snippet IDs."""
+        ...
+
+    async def reset_processing_states(self, snippet_ids: list[int]) -> None:
+        """Reset all processing states for given snippet IDs."""
+        ...
+
+    async def load_processing_states(self, snippets: list[Snippet]) -> None:
+        """Load processing states for snippets from database."""
+        ...
+
 
 class ReportingModule(Protocol):
     """Reporting module."""

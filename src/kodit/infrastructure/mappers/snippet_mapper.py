@@ -29,6 +29,7 @@ class SnippetMapper:
             created_at=db_snippet.created_at,
             updated_at=db_snippet.updated_at,
             derives_from=derives_from,
+            content_hash=db_snippet.content_hash,
         )
 
         # Add original content
@@ -53,11 +54,15 @@ class SnippetMapper:
         if file_id is None:
             raise ValueError("File must have an ID")
 
+        # Ensure content hash is calculated
+        domain_snippet.ensure_content_hash()
+
         db_snippet = db_entities.Snippet(
             file_id=file_id,
             index_id=index_id,
             content=domain_snippet.original_text(),
             summary=domain_snippet.summary_text(),
+            content_hash=domain_snippet.content_hash,
         )
 
         if domain_snippet.id:
