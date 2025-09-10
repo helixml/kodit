@@ -229,10 +229,7 @@ class Snippet(Base, CommonMixin):
         self.summary = summary
 
 
-class TaskType(Enum):
-    """Task type."""
-
-    INDEX_UPDATE = 1
+# Removed TaskType enum - now using string-based operations
 
 
 class Task(Base, CommonMixin):
@@ -243,7 +240,7 @@ class Task(Base, CommonMixin):
     # dedup_key is used to deduplicate items in the queue
     dedup_key: Mapped[str] = mapped_column(String(255), index=True)
     # type represents what the task is meant to achieve
-    type: Mapped[TaskType] = mapped_column(SQLAlchemyEnum(TaskType), index=True)
+    type: Mapped[str] = mapped_column(String(50), index=True)
     # payload contains the task-specific payload data
     payload: Mapped[dict] = mapped_column(JSON)
     # priority is used to determine the order of the items in the queue
@@ -252,7 +249,7 @@ class Task(Base, CommonMixin):
     def __init__(
         self,
         dedup_key: str,
-        type: TaskType,  # noqa: A002
+        type: str,  # noqa: A002
         payload: dict,
         priority: int,
     ) -> None:

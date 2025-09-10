@@ -11,13 +11,11 @@ from pydantic import AnyUrl, BaseModel
 
 from kodit.domain.value_objects import (
     FileProcessingStatus,
-    QueuePriority,
     ReportingState,
     SnippetContent,
     SnippetContentType,
     SourceType,
     TaskOperation,
-    TaskType,
     TrackableType,
 )
 from kodit.utils.path_utils import path_from_uri
@@ -302,7 +300,7 @@ class Task(BaseModel):
     """
 
     id: str  # Is a unique key to deduplicate items in the queue
-    type: TaskType  # Task type
+    type: TaskOperation  # Task operation
     priority: int  # Priority (higher number = higher priority)
     payload: dict[str, Any]  # Task-specific data
 
@@ -310,33 +308,38 @@ class Task(BaseModel):
     updated_at: datetime | None = None  # Is populated by repository
 
     @staticmethod
-    def create(task_type: TaskType, priority: int, payload: dict[str, Any]) -> "Task":
+    def create(
+        operation: TaskOperation, priority: int, payload: dict[str, Any]
+    ) -> "Task":
         """Create a task."""
         return Task(
-            id=Task._create_id(task_type, payload),
-            type=task_type,
+            id=Task.create_id(operation, payload),
+            type=operation,
             priority=priority,
             payload=payload,
         )
 
     @staticmethod
-    def _create_id(task_type: TaskType, payload: dict[str, Any]) -> str:
+    def create_id(operation: TaskOperation, payload: dict[str, Any]) -> str:
         """Create a unique id for a task."""
-        if task_type == TaskType.INDEX_UPDATE:
-            return str(payload["index_id"])
+        if operation in (
+            TaskOperation.REFRESH_WORKING_COPY,
+            TaskOperation.EXTRACT_SNIPPETS,
+            TaskOperation.CREATE_BM25_INDEX,
+            TaskOperation.CREATE_CODE_EMBEDDINGS,
+            TaskOperation.ENRICH_SNIPPETS,
+        ):
+            # Use a shortened name for the ID to keep it concise
+            operation_short_names = {
+                TaskOperation.REFRESH_WORKING_COPY: "SYNC",
+                TaskOperation.EXTRACT_SNIPPETS: "EXTRACT",
+                TaskOperation.CREATE_BM25_INDEX: "BM25_INDEX",
+                TaskOperation.CREATE_CODE_EMBEDDINGS: "CODE_EMBEDDINGS",
+                TaskOperation.ENRICH_SNIPPETS: "ENRICH",
+            }
+            return f"{operation_short_names[operation]}:{payload['index_id']}"
 
-        raise ValueError(f"Unknown task type: {task_type}")
-
-    @staticmethod
-    def create_index_update_task(
-        index_id: int, priority: QueuePriority = QueuePriority.USER_INITIATED
-    ) -> "Task":
-        """Create an index update task."""
-        return Task.create(
-            task_type=TaskType.INDEX_UPDATE,
-            priority=priority.value,
-            payload={"index_id": index_id},
-        )
+        raise ValueError(f"Unknown operation: {operation}")
 
 
 class TaskStatus(BaseModel):

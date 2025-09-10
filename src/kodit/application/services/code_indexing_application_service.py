@@ -1,8 +1,10 @@
 """Unified application service for code indexing operations."""
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 
 import structlog
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.application.services.reporting import (
     ProgressTracker,
@@ -40,6 +42,7 @@ class CodeIndexingApplicationService:
         text_search_service: EmbeddingDomainService,
         enrichment_service: EnrichmentDomainService,
         operation: ProgressTracker,
+        session_factory: Callable[[], AsyncSession] | None = None,
     ) -> None:
         """Initialize the code indexing application service."""
         self.index_domain_service = indexing_domain_service
@@ -51,6 +54,7 @@ class CodeIndexingApplicationService:
         self.text_search_service = text_search_service
         self.enrichment_service = enrichment_service
         self.operation = operation
+        self.session_factory = session_factory
         self.log = structlog.get_logger(__name__)
 
     async def does_index_exist(self, uri: str) -> bool:
@@ -82,111 +86,6 @@ class CodeIndexingApplicationService:
             # Create new index
             self.log.info("Creating index", uri=str(sanitized_uri))
             return await self.index_repository.create(sanitized_uri, working_copy)
-
-    async def run_index(self, index: Index) -> None:
-        """Run the complete indexing process for a specific index."""
-        # Create a new operation
-        async with self.operation.create_child(
-            TaskOperation.RUN_INDEX,
-            trackable_type=TrackableType.INDEX,
-            trackable_id=index.id,
-        ) as operation:
-            if not index or not index.id:
-                msg = f"Index has no ID: {index}"
-                raise ValueError(msg)
-
-            # Refresh working copy
-            async with operation.create_child(
-                TaskOperation.REFRESH_WORKING_COPY
-            ) as step:
-                index.source.working_copy = (
-                    await self.index_domain_service.refresh_working_copy(
-                        index.source.working_copy, step
-                    )
-                )
-                if len(index.source.working_copy.changed_files()) == 0:
-                    self.log.info("No new changes to index", index_id=index.id)
-                    await step.skip("No new changes to index")
-                    return
-
-            # Delete the old snippets from the files that have changed
-            async with operation.create_child(
-                TaskOperation.DELETE_OLD_SNIPPETS
-            ) as step:
-                await self.snippet_repository.delete_by_file_ids(
-                    [
-                        file.id
-                        for file in index.source.working_copy.changed_files()
-                        if file.id
-                    ]
-                )
-
-            # Extract and create snippets (domain service handles progress)
-            async with operation.create_child(TaskOperation.EXTRACT_SNIPPETS) as step:
-                extracted_snippets = (
-                    await self.index_domain_service.extract_snippets_from_index(
-                        index=index, step=step
-                    )
-                )
-
-                # Update index first to persist files with IDs
-                await self.index_repository.update(index)
-
-                # Now persist extracted snippets (files have IDs now)
-                if extracted_snippets and index.id:
-                    await self.snippet_repository.add(extracted_snippets, index.id)
-
-                if len(extracted_snippets) == 0:
-                    self.log.info(
-                        "No snippets to index after extraction", index_id=index.id
-                    )
-                    await step.skip("No snippets to index after extraction")
-                    return
-
-                # Get snippets with IDs for subsequent steps
-                snippets = await self.snippet_repository.get_by_index_id(index.id)
-                snippet_list = [sc.snippet for sc in snippets]
-
-            # Create BM25 index
-            self.log.info("Creating keyword index")
-            async with operation.create_child(TaskOperation.CREATE_BM25_INDEX) as step:
-                await self._create_bm25_index(snippet_list)
-
-            # Create code embeddings
-            async with operation.create_child(
-                TaskOperation.CREATE_CODE_EMBEDDINGS
-            ) as step:
-                await self._create_code_embeddings(snippet_list, step)
-
-            # Enrich snippets
-            async with operation.create_child(TaskOperation.ENRICH_SNIPPETS) as step:
-                enriched_snippets = (
-                    await self.index_domain_service.enrich_snippets_in_index(
-                        snippets=snippet_list,
-                        reporting_step=step,
-                    )
-                )
-                # Update snippets in repository
-                await self.snippet_repository.update(enriched_snippets)
-
-            # Create text embeddings (on enriched content)
-            async with operation.create_child(
-                TaskOperation.CREATE_TEXT_EMBEDDINGS
-            ) as step:
-                await self._create_text_embeddings(enriched_snippets, step)
-
-            # Update index timestamp
-            async with operation.create_child(
-                TaskOperation.UPDATE_INDEX_TIMESTAMP
-            ) as step:
-                await self.index_repository.update_index_timestamp(index.id)
-
-            # After indexing, clear the file processing statuses
-            async with operation.create_child(
-                TaskOperation.CLEAR_FILE_PROCESSING_STATUSES
-            ) as step:
-                index.source.working_copy.clear_file_processing_statuses()
-                await self.index_repository.update(index)
 
     async def list_snippets(
         self, file_path: str | None = None, source_uri: str | None = None
@@ -287,6 +186,219 @@ class CodeIndexingApplicationService:
             await reporting_step.set_current(
                 processed, f"Creating text embeddings for {processed} snippets"
             )
+
+    async def queue_index_tasks(
+        self, index_id: int, *, is_user_initiated: bool = True
+    ) -> None:
+        """Queue the 5 indexing tasks with priority ordering.
+
+        This replaces the old run_index() method entirely.
+
+        Args:
+            index_id: The ID of the index to process
+            is_user_initiated: True for API/CLI calls, False for background syncs
+
+        """
+        from kodit.application.services.queue_service import QueueService
+        from kodit.domain.entities import Task
+        from kodit.domain.value_objects import QueuePriority
+        from kodit.domain.value_objects import TaskOperation as DomainTaskOperation
+
+        if not self.session_factory:
+            msg = "Session factory not provided to CodeIndexingApplicationService"
+            raise RuntimeError(msg)
+
+        queue = QueueService(self.session_factory)
+
+        # Use different base priority for user vs background tasks
+        base = (
+            QueuePriority.USER_INITIATED
+            if is_user_initiated
+            else QueuePriority.BACKGROUND
+        )
+
+        # Queue tasks with descending priority to ensure execution order
+        await queue.enqueue_task(
+            Task.create(
+                DomainTaskOperation.REFRESH_WORKING_COPY,
+                base + 40,
+                {"index_id": index_id},
+            )
+        )
+        await queue.enqueue_task(
+            Task.create(
+                DomainTaskOperation.EXTRACT_SNIPPETS, base + 30, {"index_id": index_id}
+            )
+        )
+        await queue.enqueue_task(
+            Task.create(
+                DomainTaskOperation.CREATE_BM25_INDEX, base + 20, {"index_id": index_id}
+            )
+        )
+        await queue.enqueue_task(
+            Task.create(
+                DomainTaskOperation.CREATE_CODE_EMBEDDINGS,
+                base + 10,
+                {"index_id": index_id},
+            )
+        )
+        await queue.enqueue_task(
+            Task.create(
+                DomainTaskOperation.ENRICH_SNIPPETS, base, {"index_id": index_id}
+            )
+        )
+
+    async def process_sync(self, index_id: int) -> None:
+        """Handle SYNC task - refresh working copy."""
+        index = await self.index_repository.get(index_id)
+        if not index:
+            raise ValueError(f"Index not found: {index_id}")
+
+        async with self.operation.create_child(
+            TaskOperation.REFRESH_WORKING_COPY,
+            trackable_type=TrackableType.INDEX,
+            trackable_id=index_id,
+        ) as step:
+            index.source.working_copy = (
+                await self.index_domain_service.refresh_working_copy(
+                    index.source.working_copy, step
+                )
+            )
+            await self.index_repository.update(index)
+
+            if len(index.source.working_copy.changed_files()) == 0:
+                self.log.info("No new changes to index", index_id=index_id)
+                await step.skip("No new changes to index")
+                # Don't queue further tasks if no changes
+                return
+
+    async def process_extract(self, index_id: int) -> None:
+        """Handle EXTRACT task - extract snippets from changed files."""
+        index = await self.index_repository.get(index_id)
+        if not index:
+            raise ValueError(f"Index not found: {index_id}")
+
+        # Safety check: ensure we have changed files to process
+        if len(index.source.working_copy.changed_files()) == 0:
+            self.log.info("No files to extract", index_id=index_id)
+            return
+
+        async with self.operation.create_child(
+            TaskOperation.EXTRACT_SNIPPETS,
+            trackable_type=TrackableType.INDEX,
+            trackable_id=index_id,
+        ) as operation:
+            # Delete old snippets
+            async with operation.create_child(TaskOperation.DELETE_OLD_SNIPPETS):
+                await self.snippet_repository.delete_by_file_ids(
+                    [f.id for f in index.source.working_copy.changed_files() if f.id]
+                )
+
+            # Extract new snippets
+            extracted_snippets = (
+                await self.index_domain_service.extract_snippets_from_index(
+                    index=index, step=operation
+                )
+            )
+
+            # Persist files and snippets
+            await self.index_repository.update(index)
+            if extracted_snippets and index.id:
+                await self.snippet_repository.add(extracted_snippets, index.id)
+
+    async def process_bm25_index(self, index_id: int) -> None:
+        """Handle BM25_INDEX task - create keyword index."""
+        async with self.operation.create_child(
+            TaskOperation.CREATE_BM25_INDEX,
+            trackable_type=TrackableType.INDEX,
+            trackable_id=index_id,
+        ):
+            snippets = await self.snippet_repository.get_by_index_id(index_id)
+            snippet_list = [sc.snippet for sc in snippets]
+
+            if not snippet_list:
+                self.log.info("No snippets to index", index_id=index_id)
+                return
+
+            await self._create_bm25_index(snippet_list)
+
+    async def process_code_embeddings(self, index_id: int) -> None:
+        """Handle CODE_EMBEDDINGS task - create code embeddings."""
+        async with self.operation.create_child(
+            TaskOperation.CREATE_CODE_EMBEDDINGS,
+            trackable_type=TrackableType.INDEX,
+            trackable_id=index_id,
+        ) as step:
+            snippets = await self.snippet_repository.get_by_index_id(index_id)
+            snippet_list = [sc.snippet for sc in snippets]
+
+            if not snippet_list:
+                self.log.info("No snippets for embeddings", index_id=index_id)
+                return
+
+            await self._create_code_embeddings(snippet_list, step)
+
+    async def process_enrich(self, index_id: int) -> None:
+        """Handle ENRICH task - enrich snippets and create text embeddings."""
+        index = await self.index_repository.get(index_id)
+        if not index:
+            raise ValueError(f"Index not found: {index_id}")
+
+        async with self.operation.create_child(
+            TaskOperation.ENRICH_SNIPPETS,
+            trackable_type=TrackableType.INDEX,
+            trackable_id=index_id,
+        ) as operation:
+            snippets = await self.snippet_repository.get_by_index_id(index_id)
+            snippet_list = [sc.snippet for sc in snippets]
+
+            if not snippet_list:
+                self.log.info("No snippets to enrich", index_id=index_id)
+                return
+
+            # Enrich snippets
+            enriched_snippets = (
+                await self.index_domain_service.enrich_snippets_in_index(
+                    snippets=snippet_list,
+                    reporting_step=operation,
+                )
+            )
+            await self.snippet_repository.update(enriched_snippets)
+
+            # Create text embeddings
+            async with operation.create_child(
+                TaskOperation.CREATE_TEXT_EMBEDDINGS
+            ) as step:
+                await self._create_text_embeddings(enriched_snippets, step)
+
+            # Update timestamp
+            async with operation.create_child(
+                TaskOperation.UPDATE_INDEX_TIMESTAMP
+            ) as step:
+                await self.index_repository.update_index_timestamp(index_id)
+
+            # Clear file processing statuses
+            async with operation.create_child(
+                TaskOperation.CLEAR_FILE_PROCESSING_STATUSES
+            ) as step:
+                index.source.working_copy.clear_file_processing_statuses()
+                await self.index_repository.update(index)
+
+    async def run_index_sync(self, index: Index) -> None:
+        """Run all indexing phases synchronously (for testing purposes only).
+
+        This method runs the same phases as the queue approach but synchronously.
+        It should only be used in tests.
+        """
+        if not index.id:
+            raise ValueError("Index must have an ID")
+
+        # Run all phases sequentially
+        await self.process_sync(index.id)
+        await self.process_extract(index.id)
+        await self.process_bm25_index(index.id)
+        await self.process_code_embeddings(index.id)
+        await self.process_enrich(index.id)
 
     async def delete_index(self, index: Index) -> None:
         """Delete an index."""

@@ -107,6 +107,7 @@ def create_code_indexing_application_service(
         text_search_service=text_search_service,
         enrichment_service=enrichment_service,
         operation=operation,
+        session_factory=session_factory,
     )
 
 
@@ -203,4 +204,5 @@ def create_fast_test_code_indexing_application_service(
         text_search_service=text_search_service,
         enrichment_service=enrichment_service,
         operation=operation,
+        session_factory=session_factory,
     )

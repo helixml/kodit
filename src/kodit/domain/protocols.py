@@ -12,7 +12,7 @@ from kodit.domain.entities import (
     TaskStatus,
     WorkingCopy,
 )
-from kodit.domain.value_objects import MultiSearchRequest, TaskType
+from kodit.domain.value_objects import MultiSearchRequest, TaskOperation
 
 
 class TaskRepository(Protocol):
@@ -37,7 +37,7 @@ class TaskRepository(Protocol):
         """Update a task."""
         ...
 
-    async def list(self, task_type: TaskType | None = None) -> list[Task]:
+    async def list(self, task_operation: TaskOperation | None = None) -> list[Task]:
         """List tasks with optional status filter."""
         ...
 

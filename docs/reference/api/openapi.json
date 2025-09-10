@@ -268,7 +268,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "$ref": "#/components/schemas/TaskType"
+                  "$ref": "#/components/schemas/TaskOperation"
                 },
                 {
                   "type": "null"
@@ -937,6 +937,25 @@
         "title": "TaskListResponse",
         "description": "JSON:API response for task list."
       },
+      "TaskOperation": {
+        "type": "string",
+        "enum": [
+          "kodit.root",
+          "kodit.index.create",
+          "kodit.index.run",
+          "kodit.index.run.refresh_working_copy",
+          "kodit.index.run.delete_old_snippets",
+          "kodit.index.run.extract_snippets",
+          "kodit.index.run.create_bm25_index",
+          "kodit.index.run.create_code_embeddings",
+          "kodit.index.run.enrich_snippets",
+          "kodit.index.run.create_text_embeddings",
+          "kodit.index.run.update_index_timestamp",
+          "kodit.index.run.clear_file_processing_statuses"
+        ],
+        "title": "TaskOperation",
+        "description": "Task operation."
+      },
       "TaskResponse": {
         "properties": {
           "data": {
@@ -1056,14 +1075,6 @@
         ],
         "title": "TaskStatusListResponse",
         "description": "JSON:API response for task status list."
-      },
-      "TaskType": {
-        "type": "integer",
-        "enum": [
-          1
-        ],
-        "title": "TaskType",
-        "description": "Task type."
       },
       "ValidationError": {
         "properties": {

@@ -15,7 +15,7 @@ from kodit.application.factories.reporting_factory import create_noop_operation
 from kodit.application.services.reporting import ProgressTracker
 from kodit.config import AppContext
 from kodit.domain.entities import Task
-from kodit.domain.value_objects import TaskType
+from kodit.domain.value_objects import TaskOperation
 from kodit.infrastructure.sqlalchemy.task_repository import create_task_repository
 
 
@@ -91,7 +91,7 @@ class IndexingWorkerService:
         self.log.info("Worker loop stopped")
 
     async def _process_task(self, task: Task, operation: ProgressTracker) -> None:
-        """Process a single task."""
+        """Process a task based on its type."""
         self.log.info(
             "Processing task",
             task_id=task.id,
@@ -105,9 +105,26 @@ class IndexingWorkerService:
         asyncio.set_event_loop(loop)
 
         try:
-            # Process based on task type (currently only INDEX_UPDATE is supported)
-            if task.type is TaskType.INDEX_UPDATE:
-                await self._process_index_update(task, operation)
+            index_id = task.payload.get("index_id")
+            if not index_id:
+                raise ValueError("Missing index_id in task payload")
+
+            service = create_code_indexing_application_service(
+                app_context=self.app_context,
+                session_factory=self.session_factory,
+                operation=operation,
+            )
+
+            if task.type == TaskOperation.REFRESH_WORKING_COPY:
+                await service.process_sync(index_id)
+            elif task.type == TaskOperation.EXTRACT_SNIPPETS:
+                await service.process_extract(index_id)
+            elif task.type == TaskOperation.CREATE_BM25_INDEX:
+                await service.process_bm25_index(index_id)
+            elif task.type == TaskOperation.CREATE_CODE_EMBEDDINGS:
+                await service.process_code_embeddings(index_id)
+            elif task.type == TaskOperation.ENRICH_SNIPPETS:
+                await service.process_enrich(index_id)
             else:
                 self.log.warning(
                     "Unknown task type",
@@ -124,23 +141,3 @@ class IndexingWorkerService:
             task_id=task.id,
             duration_seconds=duration,
         )
-
-    async def _process_index_update(
-        self, task: Task, operation: ProgressTracker
-    ) -> None:
-        """Process index update/sync task."""
-        index_id = task.payload.get("index_id")
-        if not index_id:
-            raise ValueError("Missing index_id in task payload")
-
-        # Create a fresh database connection for this thread's event loop
-        service = create_code_indexing_application_service(
-            app_context=self.app_context,
-            session_factory=self.session_factory,
-            operation=operation,
-        )
-        index = await service.index_repository.get(index_id)
-        if not index:
-            raise ValueError(f"Index not found: {index_id}")
-
-        await service.run_index(index)

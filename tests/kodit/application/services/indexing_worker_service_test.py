@@ -4,7 +4,7 @@ import asyncio
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from pydantic import AnyUrl
@@ -18,7 +18,7 @@ from kodit.domain.value_objects import (
     FileProcessingStatus,
     QueuePriority,
     SourceType,
-    TaskType,
+    TaskOperation,
 )
 from kodit.infrastructure.sqlalchemy.task_repository import create_task_repository
 
@@ -83,8 +83,10 @@ async def test_worker_processes_task(
     """Test that the worker processes a task from the queue."""
     # Add a task to the queue
     queue_service = QueueService(session_factory=session_factory)
-    task = Task.create_index_update_task(
-        index_id=dummy_index.id, priority=QueuePriority.USER_INITIATED
+    task = Task.create(
+        TaskOperation.REFRESH_WORKING_COPY,
+        QueuePriority.USER_INITIATED,
+        {"index_id": dummy_index.id},
     )
     await queue_service.enqueue_task(task)
 
@@ -96,8 +98,7 @@ async def test_worker_processes_task(
         "kodit.application.services.indexing_worker_service.create_code_indexing_application_service"
     ) as mock_create_service:
         mock_service = AsyncMock()
-        mock_service.index_repository.get.return_value = dummy_index
-        mock_service.run_index = AsyncMock()
+        mock_service.process_sync = AsyncMock()
         mock_create_service.return_value = mock_service
 
         # Start the worker
@@ -110,7 +111,7 @@ async def test_worker_processes_task(
         await worker.stop()
 
         # Verify the task was processed
-        mock_service.run_index.assert_called_once_with(dummy_index)
+        mock_service.process_sync.assert_called_once_with(dummy_index.id)
 
 
 @pytest.mark.asyncio
@@ -121,9 +122,10 @@ async def test_worker_handles_missing_index(
     """Test that the worker handles missing index gracefully."""
     # Add a task with non-existent index
     queue_service = QueueService(session_factory=session_factory)
-    task = Task.create_index_update_task(
-        index_id=999,  # Non-existent
-        priority=QueuePriority.USER_INITIATED,
+    task = Task.create(
+        TaskOperation.REFRESH_WORKING_COPY,
+        QueuePriority.USER_INITIATED,
+        {"index_id": 999},  # Non-existent
     )
     await queue_service.enqueue_task(task)
 
@@ -159,7 +161,7 @@ async def test_worker_handles_invalid_task_payload(
     # Add a task with invalid payload
     task = Task(
         id="test-task-1",
-        type=TaskType.INDEX_UPDATE,
+        type=TaskOperation.REFRESH_WORKING_COPY,
         payload={},  # Missing index_id
         priority=QueuePriority.USER_INITIATED,
     )
@@ -192,9 +194,10 @@ async def test_worker_processes_multiple_tasks_sequentially(
     queue_service = QueueService(session_factory=session_factory)
     tasks = []
     for i in range(3):
-        task = Task.create_index_update_task(
-            index_id=i + 1,  # Use different index IDs to avoid deduplication
-            priority=QueuePriority.BACKGROUND,
+        task = Task.create(
+            TaskOperation.REFRESH_WORKING_COPY,
+            QueuePriority.BACKGROUND,
+            {"index_id": i + 1},  # Use different index IDs to avoid deduplication
         )
         tasks.append(task)
         await queue_service.enqueue_task(task)
@@ -205,8 +208,8 @@ async def test_worker_processes_multiple_tasks_sequentially(
     # Track processing order
     processed_tasks = []
 
-    async def mock_run_index(index: Index) -> None:
-        processed_tasks.append(index.id)
+    async def mock_process_sync(index_id: int) -> None:
+        processed_tasks.append(index_id)
         # No sleep needed for testing
 
     # Mock the indexing service
@@ -215,14 +218,8 @@ async def test_worker_processes_multiple_tasks_sequentially(
     ) as mock_create_service:
         mock_service = AsyncMock()
 
-        # Mock to return a different index for each ID
-        def mock_get_index(index_id: int) -> Index | None:
-            index = MagicMock(spec=Index)
-            index.id = index_id
-            return index
-
-        mock_service.index_repository.get.side_effect = mock_get_index
-        mock_service.run_index = mock_run_index
+        # Mock doesn't need index repository since process_sync takes index_id directly
+        mock_service.process_sync = mock_process_sync
         mock_create_service.return_value = mock_service
 
         # Start the worker
@@ -274,17 +271,23 @@ async def test_worker_continues_after_error(
     queue_service = QueueService(session_factory=session_factory)
 
     # First task will succeed
-    task1 = Task.create_index_update_task(
-        index_id=1, priority=QueuePriority.USER_INITIATED
+    task1 = Task.create(
+        TaskOperation.REFRESH_WORKING_COPY,
+        QueuePriority.USER_INITIATED,
+        {"index_id": 1},
     )
     await queue_service.enqueue_task(task1)
 
     # Second task will fail
-    task2 = Task.create_index_update_task(index_id=2, priority=QueuePriority.BACKGROUND)
+    task2 = Task.create(
+        TaskOperation.REFRESH_WORKING_COPY, QueuePriority.BACKGROUND, {"index_id": 2}
+    )
     await queue_service.enqueue_task(task2)
 
     # Third task will succeed
-    task3 = Task.create_index_update_task(index_id=3, priority=QueuePriority.BACKGROUND)
+    task3 = Task.create(
+        TaskOperation.REFRESH_WORKING_COPY, QueuePriority.BACKGROUND, {"index_id": 3}
+    )
     await queue_service.enqueue_task(task3)
 
     # Create worker service
@@ -293,14 +296,14 @@ async def test_worker_continues_after_error(
     # Track processed tasks
     processed_ids = []
 
-    async def mock_run_index(index: Index) -> None:
-        if index.id == 2:
+    async def mock_process_sync(index_id: int) -> None:
+        if index_id == 2:
 
             class TestError(Exception):
                 pass
 
             raise TestError("Test error")
-        processed_ids.append(index.id)
+        processed_ids.append(index_id)
 
     # Mock the indexing service
     with patch(
@@ -308,15 +311,8 @@ async def test_worker_continues_after_error(
     ) as mock_create_service:
         mock_service = AsyncMock()
 
-        # Return different dummy indexes for each task
-        def get_index(index_id: int) -> Index | None:
-            # Return a dummy index for any ID
-            index = MagicMock(spec=Index)
-            index.id = index_id
-            return index
-
-        mock_service.index_repository.get.side_effect = get_index
-        mock_service.run_index = mock_run_index
+        # Mock doesn't need index repository since process_sync takes index_id directly
+        mock_service.process_sync = mock_process_sync
         mock_create_service.return_value = mock_service
 
         # Start the worker
@@ -348,11 +344,13 @@ async def test_worker_respects_task_priority(
     queue_service = QueueService(session_factory=session_factory)
 
     # Add in reverse priority order
-    background_task = Task.create_index_update_task(
-        index_id=1, priority=QueuePriority.BACKGROUND
+    background_task = Task.create(
+        TaskOperation.REFRESH_WORKING_COPY, QueuePriority.BACKGROUND, {"index_id": 1}
     )
-    user_task = Task.create_index_update_task(
-        index_id=2, priority=QueuePriority.USER_INITIATED
+    user_task = Task.create(
+        TaskOperation.REFRESH_WORKING_COPY,
+        QueuePriority.USER_INITIATED,
+        {"index_id": 2},
     )
 
     await queue_service.enqueue_task(background_task)
@@ -364,8 +362,8 @@ async def test_worker_respects_task_priority(
     # Track processing order
     processed_order = []
 
-    async def mock_run_index(index: Index) -> None:
-        processed_order.append(index.id)
+    async def mock_process_sync(index_id: int) -> None:
+        processed_order.append(index_id)
 
     # Mock the indexing service
     with patch(
@@ -373,13 +371,8 @@ async def test_worker_respects_task_priority(
     ) as mock_create_service:
         mock_service = AsyncMock()
 
-        def get_index(index_id: int) -> Index | None:
-            index = MagicMock(spec=Index)
-            index.id = index_id
-            return index
-
-        mock_service.index_repository.get.side_effect = get_index
-        mock_service.run_index = mock_run_index
+        # Mock doesn't need index repository since process_sync takes index_id directly
+        mock_service.process_sync = mock_process_sync
         mock_create_service.return_value = mock_service
 
         # Start the worker

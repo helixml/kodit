@@ -6,7 +6,7 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.domain.entities import Task
-from kodit.domain.value_objects import TaskType
+from kodit.domain.value_objects import TaskOperation
 from kodit.infrastructure.sqlalchemy.task_repository import (
     create_task_repository,
 )
@@ -46,9 +46,11 @@ class QueueService:
                 payload=task.payload,
             )
 
-    async def list_tasks(self, task_type: TaskType | None = None) -> list[Task]:
+    async def list_tasks(
+        self, task_operation: TaskOperation | None = None
+    ) -> list[Task]:
         """List all tasks in the queue."""
-        return await self.task_repository.list(task_type)
+        return await self.task_repository.list(task_operation)
 
     async def get_task(self, task_id: str) -> Task | None:
         """Get a specific task by ID."""

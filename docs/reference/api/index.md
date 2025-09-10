@@ -468,6 +468,14 @@ JSON:API response for task list.
 | data | array |  |
 
 
+### TaskOperation
+
+
+Task operation.
+
+
+
+
 ### TaskResponse
 
 
@@ -518,14 +526,6 @@ JSON:API response for task status list.
 | Field | Type | Description |
 |-------|------|-------------|
 | data | array |  |
-
-
-### TaskType
-
-
-Task type.
-
-
 
 
 ### ValidationError

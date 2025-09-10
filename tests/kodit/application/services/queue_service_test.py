@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.application.services.queue_service import QueueService
 from kodit.domain.entities import Task
-from kodit.domain.value_objects import QueuePriority, TaskType
+from kodit.domain.value_objects import QueuePriority, TaskOperation
 
 
 @pytest.mark.asyncio
@@ -18,8 +18,10 @@ async def test_enqueue_task_new_task(
     queue_service = QueueService(session_factory=session_factory)
 
     # Create a test task
-    task = Task.create_index_update_task(
-        index_id=1, priority=QueuePriority.USER_INITIATED
+    task = Task.create(
+        TaskOperation.REFRESH_WORKING_COPY,
+        QueuePriority.USER_INITIATED,
+        {"index_id": 1},
     )
 
     # Enqueue the task
@@ -29,7 +31,7 @@ async def test_enqueue_task_new_task(
     tasks = await queue_service.list_tasks()
     assert len(tasks) == 1
     assert tasks[0].id == task.id
-    assert tasks[0].type == TaskType.INDEX_UPDATE
+    assert tasks[0].type == TaskOperation.REFRESH_WORKING_COPY
     assert tasks[0].payload["index_id"] == 1
     assert tasks[0].priority == QueuePriority.USER_INITIATED
 
@@ -42,15 +44,17 @@ async def test_enqueue_task_existing_task_updates_priority(
     queue_service = QueueService(session_factory=session_factory)
 
     # Create and enqueue a task with user-initiated priority
-    task = Task.create_index_update_task(
-        index_id=1, priority=QueuePriority.USER_INITIATED
+    task = Task.create(
+        TaskOperation.REFRESH_WORKING_COPY,
+        QueuePriority.USER_INITIATED,
+        {"index_id": 1},
     )
     await queue_service.enqueue_task(task)
 
     # Create the same task with background priority
     background_priority_task = Task(
         id=task.id,
-        type=TaskType.INDEX_UPDATE,
+        type=TaskOperation.REFRESH_WORKING_COPY,
         payload={"index_id": 1},
         priority=QueuePriority.BACKGROUND,
     )
@@ -73,11 +77,10 @@ async def test_enqueue_multiple_tasks(
     # Create and enqueue multiple tasks
     tasks = []
     for i in range(3):
-        task = Task.create_index_update_task(
-            index_id=i,
-            priority=QueuePriority.BACKGROUND
-            if i % 2 == 0
-            else QueuePriority.USER_INITIATED,
+        task = Task.create(
+            TaskOperation.REFRESH_WORKING_COPY,
+            QueuePriority.BACKGROUND if i % 2 == 0 else QueuePriority.USER_INITIATED,
+            {"index_id": i},
         )
         tasks.append(task)
         await queue_service.enqueue_task(task)
@@ -98,10 +101,12 @@ async def test_list_tasks_by_type(session_factory: Callable[[], AsyncSession]) -
     queue_service = QueueService(session_factory=session_factory)
 
     # Create tasks with different types
-    # Currently only INDEX_UPDATE is supported, but test the filtering logic
-    task1 = Task.create_index_update_task(index_id=1, priority=QueuePriority.BACKGROUND)
-    task2 = Task.create_index_update_task(
-        index_id=2, priority=QueuePriority.USER_INITIATED
+    # Test the filtering logic
+    task1 = Task.create(
+        TaskOperation.REFRESH_WORKING_COPY, QueuePriority.BACKGROUND, {"index_id": 1}
+    )
+    task2 = Task.create(
+        TaskOperation.EXTRACT_SNIPPETS, QueuePriority.USER_INITIATED, {"index_id": 2}
     )
 
     await queue_service.enqueue_task(task1)
@@ -111,10 +116,18 @@ async def test_list_tasks_by_type(session_factory: Callable[[], AsyncSession]) -
     all_tasks = await queue_service.list_tasks()
     assert len(all_tasks) == 2
 
-    # List tasks by type
-    index_tasks = await queue_service.list_tasks(task_type=TaskType.INDEX_UPDATE)
-    assert len(index_tasks) == 2
-    assert all(t.type == TaskType.INDEX_UPDATE for t in index_tasks)
+    # List tasks by operation
+    sync_tasks = await queue_service.list_tasks(
+        task_operation=TaskOperation.REFRESH_WORKING_COPY
+    )
+    assert len(sync_tasks) == 1
+    assert all(t.type == TaskOperation.REFRESH_WORKING_COPY for t in sync_tasks)
+
+    extract_tasks = await queue_service.list_tasks(
+        task_operation=TaskOperation.EXTRACT_SNIPPETS
+    )
+    assert len(extract_tasks) == 1
+    assert all(t.type == TaskOperation.EXTRACT_SNIPPETS for t in extract_tasks)
 
 
 @pytest.mark.asyncio
@@ -136,11 +149,13 @@ async def test_task_priority_ordering(
     queue_service = QueueService(session_factory=session_factory)
 
     # Create tasks with different priorities
-    background_task = Task.create_index_update_task(
-        index_id=1, priority=QueuePriority.BACKGROUND
+    background_task = Task.create(
+        TaskOperation.REFRESH_WORKING_COPY, QueuePriority.BACKGROUND, {"index_id": 1}
     )
-    user_task = Task.create_index_update_task(
-        index_id=2, priority=QueuePriority.USER_INITIATED
+    user_task = Task.create(
+        TaskOperation.REFRESH_WORKING_COPY,
+        QueuePriority.USER_INITIATED,
+        {"index_id": 2},
     )
 
     # Enqueue in random order

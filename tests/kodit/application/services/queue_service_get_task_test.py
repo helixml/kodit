@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.application.services.queue_service import QueueService
 from kodit.domain.entities import Task
-from kodit.domain.value_objects import QueuePriority, TaskType
+from kodit.domain.value_objects import QueuePriority, TaskOperation
 
 
 async def test_get_task_existing(session_factory: Callable[[], AsyncSession]) -> None:
@@ -14,8 +14,10 @@ async def test_get_task_existing(session_factory: Callable[[], AsyncSession]) ->
     queue_service = QueueService(session_factory=session_factory)
 
     # Create and enqueue a task
-    task = Task.create_index_update_task(
-        index_id=1, priority=QueuePriority.USER_INITIATED
+    task = Task.create(
+        TaskOperation.REFRESH_WORKING_COPY,
+        QueuePriority.USER_INITIATED,
+        {"index_id": 1},
     )
     await queue_service.enqueue_task(task)
 
@@ -24,7 +26,7 @@ async def test_get_task_existing(session_factory: Callable[[], AsyncSession]) ->
 
     assert retrieved_task is not None
     assert retrieved_task.id == task.id
-    assert retrieved_task.type == TaskType.INDEX_UPDATE
+    assert retrieved_task.type == TaskOperation.REFRESH_WORKING_COPY
     assert retrieved_task.payload["index_id"] == 1
     assert retrieved_task.priority == QueuePriority.USER_INITIATED
 
@@ -50,11 +52,10 @@ async def test_get_task_after_multiple_tasks(
     # Create and enqueue multiple tasks
     tasks = []
     for i in range(3):
-        task = Task.create_index_update_task(
-            index_id=i,
-            priority=QueuePriority.BACKGROUND
-            if i % 2 == 0
-            else QueuePriority.USER_INITIATED,
+        task = Task.create(
+            TaskOperation.REFRESH_WORKING_COPY,
+            QueuePriority.BACKGROUND if i % 2 == 0 else QueuePriority.USER_INITIATED,
+            {"index_id": i},
         )
         tasks.append(task)
         await queue_service.enqueue_task(task)

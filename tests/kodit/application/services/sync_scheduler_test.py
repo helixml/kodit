@@ -139,11 +139,14 @@ async def test_sync_scheduler_syncs_all_indexes(
 
         # Verify all indexes were synced
         assert mock_query_service.list_indexes.called
-        assert mock_queue_service.enqueue_task.call_count == len(dummy_indexes)
+        # Each index now queues 5 tasks
+        assert mock_queue_service.enqueue_task.call_count == len(dummy_indexes) * 5
 
         # Verify each index was enqueued with correct parameters
+        # Each index generates 5 tasks, so we need to check every 5th call
         for i, index in enumerate(dummy_indexes):
-            call_args = mock_queue_service.enqueue_task.call_args_list[i]
+            # Check the first task (SYNC) for each index
+            call_args = mock_queue_service.enqueue_task.call_args_list[i * 5]
             task = call_args[0][0]
             assert task.payload["index_id"] == index.id
 
@@ -198,9 +201,14 @@ async def test_sync_scheduler_handles_sync_failures(
     ):
         # Set up mocks with one failure
         mock_queue_service = AsyncMock()
+        # First index: 5 successful calls, Second index: fail on first call
         mock_queue_service.enqueue_task.side_effect = [
-            None,  # First index succeeds
-            Exception("Enqueue failed"),  # Second index fails
+            None,
+            None,
+            None,
+            None,
+            None,  # First index succeeds (5 calls)
+            Exception("Enqueue failed"),  # Second index fails on first call
         ]
         mock_queue_service_class.return_value = mock_queue_service
 
@@ -215,8 +223,8 @@ async def test_sync_scheduler_handles_sync_failures(
         with pytest.raises(Exception, match="Enqueue failed"):
             await scheduler._perform_sync()  # noqa: SLF001
 
-        # Verify first index was attempted
-        assert mock_queue_service.enqueue_task.call_count == 2
+        # Verify first index completed and second index started - 5 + 1 = 6 calls
+        assert mock_queue_service.enqueue_task.call_count == 6
 
 
 @pytest.mark.asyncio
