@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from kodit.domain.value_objects import TaskType
+from kodit.domain.value_objects import TaskOperation
 from kodit.infrastructure.api.middleware.auth import api_key_auth
 from kodit.infrastructure.api.v1.dependencies import QueueServiceDep
 from kodit.infrastructure.api.v1.schemas.queue import (
@@ -26,7 +26,7 @@ router = APIRouter(
 @router.get("")
 async def list_queue_tasks(
     queue_service: QueueServiceDep,
-    task_type: TaskType | None = None,
+    task_type: TaskOperation | None = None,
 ) -> TaskListResponse:
     """List all tasks in the queue.
 

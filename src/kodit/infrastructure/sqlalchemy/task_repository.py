@@ -8,8 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.domain.entities import Task
 from kodit.domain.protocols import TaskRepository
-from kodit.domain.value_objects import TaskType
-from kodit.infrastructure.mappers.task_mapper import TaskMapper, TaskTypeMapper
+from kodit.domain.value_objects import TaskOperation
+from kodit.infrastructure.mappers.task_mapper import TaskMapper
 from kodit.infrastructure.sqlalchemy import entities as db_entities
 from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 
@@ -76,15 +76,13 @@ class SqlAlchemyTaskRepository(TaskRepository):
             db_task.priority = task.priority
             db_task.payload = task.payload
 
-    async def list(self, task_type: TaskType | None = None) -> list[Task]:
+    async def list(self, task_operation: TaskOperation | None = None) -> list[Task]:
         """List tasks with optional status filter."""
         async with self.uow:
             stmt = select(db_entities.Task)
 
-            if task_type:
-                stmt = stmt.where(
-                    db_entities.Task.type == TaskTypeMapper.from_domain_type(task_type)
-                )
+            if task_operation:
+                stmt = stmt.where(db_entities.Task.type == task_operation.value)
 
             stmt = stmt.order_by(
                 db_entities.Task.priority.desc(), db_entities.Task.created_at

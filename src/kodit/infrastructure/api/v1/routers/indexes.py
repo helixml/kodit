@@ -2,13 +2,10 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from kodit.domain.entities import Task
-from kodit.domain.value_objects import QueuePriority
 from kodit.infrastructure.api.middleware.auth import api_key_auth
 from kodit.infrastructure.api.v1.dependencies import (
     IndexingAppServiceDep,
     IndexQueryServiceDep,
-    QueueServiceDep,
     TaskStatusQueryServiceDep,
 )
 from kodit.infrastructure.api.v1.schemas.index import (
@@ -62,16 +59,13 @@ async def list_indexes(
 async def create_index(
     request: IndexCreateRequest,
     app_service: IndexingAppServiceDep,
-    queue_service: QueueServiceDep,
 ) -> IndexResponse:
     """Create a new index and start async indexing."""
     # Create index using the application service
     index = await app_service.create_index_from_uri(request.data.attributes.uri)
 
-    # Add the indexing task to the queue
-    await queue_service.enqueue_task(
-        Task.create_index_update_task(index.id, QueuePriority.USER_INITIATED)
-    )
+    # Queue the indexing tasks
+    await app_service.queue_index_tasks(index.id, is_user_initiated=True)
 
     return IndexResponse(
         data=IndexData(

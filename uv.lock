@@ -1184,7 +1184,6 @@ dependencies = [
     { name = "sentence-transformers" },
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "structlog" },
-    { name = "tdqm" },
     { name = "tiktoken" },
     { name = "transformers" },
     { name = "tree-sitter" },
@@ -1235,7 +1234,6 @@ requires-dist = [
     { name = "sentence-transformers", specifier = ">=4.1.0" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.40" },
     { name = "structlog", specifier = ">=25.3.0" },
-    { name = "tdqm", specifier = ">=0.0.1" },
     { name = "tiktoken", specifier = ">=0.9.0" },
     { name = "transformers", specifier = ">=4.51.3" },
     { name = "tree-sitter", specifier = ">=0.24.0" },
@@ -2878,15 +2876,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/83/d3/803453b36afefb7c2
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a2/09/77d55d46fd61b4a135c444fc97158ef34a095e5681d0a6c10b75bf356191/sympy-1.14.0-py3-none-any.whl", hash = "sha256:e091cc3e99d2141a0ba2847328f5479b05d94a6635cb96148ccb3f34671bd8f5", size = 6299353, upload-time = "2025-04-27T18:04:59.103Z" },
 ]
-
-[[package]]
-name = "tdqm"
-version = "0.0.1"
-source = { registry = "https://pypi.org/simple/" }
-dependencies = [
-    { name = "tqdm" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/5a/38/58c9e22b95e98666fe29f35e217ab6126a03798dadf3f4f8f3e5f898510b/tdqm-0.0.1.tar.gz", hash = "sha256:f050004a76b1d22f70b78209b48781353c82440215b6ba7d22b1f499b05a0101", size = 1388, upload-time = "2020-08-19T20:16:22.191Z" }
 
 [[package]]
 name = "threadpoolctl"
