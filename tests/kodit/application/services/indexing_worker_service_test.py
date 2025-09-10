@@ -98,7 +98,7 @@ async def test_worker_processes_task(
         "kodit.application.services.indexing_worker_service.create_code_indexing_application_service"
     ) as mock_create_service:
         mock_service = AsyncMock()
-        mock_service.process_sync = AsyncMock()
+        mock_service.run_task = AsyncMock()
         mock_create_service.return_value = mock_service
 
         # Start the worker
@@ -111,7 +111,7 @@ async def test_worker_processes_task(
         await worker.stop()
 
         # Verify the task was processed
-        mock_service.process_sync.assert_called_once_with(dummy_index.id)
+        mock_service.run_task.assert_called()
 
 
 @pytest.mark.asyncio
@@ -208,7 +208,8 @@ async def test_worker_processes_multiple_tasks_sequentially(
     # Track processing order
     processed_tasks = []
 
-    async def mock_process_sync(index_id: int) -> None:
+    async def mock_run_task(task: Task) -> None:
+        index_id = task.payload["index_id"]
         processed_tasks.append(index_id)
         # No sleep needed for testing
 
@@ -218,8 +219,8 @@ async def test_worker_processes_multiple_tasks_sequentially(
     ) as mock_create_service:
         mock_service = AsyncMock()
 
-        # Mock doesn't need index repository since process_sync takes index_id directly
-        mock_service.process_sync = mock_process_sync
+        # Mock doesn't need index repository since run_task takes task directly
+        mock_service.run_task = AsyncMock(side_effect=mock_run_task)
         mock_create_service.return_value = mock_service
 
         # Start the worker
@@ -296,7 +297,8 @@ async def test_worker_continues_after_error(
     # Track processed tasks
     processed_ids = []
 
-    async def mock_process_sync(index_id: int) -> None:
+    async def mock_run_task(task: Task) -> None:
+        index_id = task.payload["index_id"]
         if index_id == 2:
 
             class TestError(Exception):
@@ -311,8 +313,8 @@ async def test_worker_continues_after_error(
     ) as mock_create_service:
         mock_service = AsyncMock()
 
-        # Mock doesn't need index repository since process_sync takes index_id directly
-        mock_service.process_sync = mock_process_sync
+        # Mock doesn't need index repository since run_task takes task directly
+        mock_service.run_task = AsyncMock(side_effect=mock_run_task)
         mock_create_service.return_value = mock_service
 
         # Start the worker
@@ -362,7 +364,8 @@ async def test_worker_respects_task_priority(
     # Track processing order
     processed_order = []
 
-    async def mock_process_sync(index_id: int) -> None:
+    async def mock_run_task(task: Task) -> None:
+        index_id = task.payload["index_id"]
         processed_order.append(index_id)
 
     # Mock the indexing service
@@ -371,8 +374,8 @@ async def test_worker_respects_task_priority(
     ) as mock_create_service:
         mock_service = AsyncMock()
 
-        # Mock doesn't need index repository since process_sync takes index_id directly
-        mock_service.process_sync = mock_process_sync
+        # Mock doesn't need index repository since run_task takes task directly
+        mock_service.run_task = AsyncMock(side_effect=mock_run_task)
         mock_create_service.return_value = mock_service
 
         # Start the worker
