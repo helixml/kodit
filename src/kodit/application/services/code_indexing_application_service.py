@@ -17,8 +17,10 @@ from kodit.domain.services.embedding_service import EmbeddingDomainService
 from kodit.domain.services.enrichment_service import EnrichmentDomainService
 from kodit.domain.services.index_query_service import IndexQueryService
 from kodit.domain.services.index_service import IndexDomainService
+from kodit.domain.services.snippet_service import (
+    SnippetDomainService,
+)
 from kodit.domain.value_objects import (
-    Document,
     IndexRequest,
     MultiSearchRequest,
     MultiSearchResult,
@@ -68,6 +70,7 @@ class CodeIndexingApplicationService:
         self.operation = operation
         self.log = structlog.get_logger(__name__)
         self.queue = queue_service
+        self.snippet_domain_service = SnippetDomainService()
 
     async def does_index_exist(self, uri: str) -> bool:
         """Check if an index exists for a source."""
@@ -140,29 +143,17 @@ class CodeIndexingApplicationService:
 
     # FUTURE: BM25 index enriched content too
     async def _create_bm25_index(self, snippets: list[Snippet]) -> None:
-        await self.bm25_service.index_documents(
-            IndexRequest(
-                documents=[
-                    Document(snippet_id=snippet.id, text=snippet.original_text())
-                    for snippet in snippets
-                    if snippet.id
-                ]
-            )
-        )
+        documents = self.snippet_domain_service.prepare_documents_for_indexing(snippets)
+        await self.bm25_service.index_documents(IndexRequest(documents=documents))
 
     async def _create_code_embeddings(
         self, snippets: list[Snippet], reporting_step: ProgressTracker
     ) -> None:
+        documents = self.snippet_domain_service.prepare_documents_for_indexing(snippets)
         await reporting_step.set_total(len(snippets))
         processed = 0
         async for result in self.code_search_service.index_documents(
-            IndexRequest(
-                documents=[
-                    Document(snippet_id=snippet.id, text=snippet.original_text())
-                    for snippet in snippets
-                    if snippet.id
-                ]
-            )
+            IndexRequest(documents=documents)
         ):
             processed += len(result)
             await reporting_step.set_current(
@@ -172,19 +163,10 @@ class CodeIndexingApplicationService:
     async def _create_text_embeddings(
         self, snippets: list[Snippet], reporting_step: ProgressTracker
     ) -> None:
-        # Only create text embeddings for snippets that have summary content
-        documents_with_summaries = []
-        for snippet in snippets:
-            if snippet.id:
-                try:
-                    summary_text = snippet.summary_text()
-                    if summary_text.strip():  # Only add if summary is not empty
-                        documents_with_summaries.append(
-                            Document(snippet_id=snippet.id, text=summary_text)
-                        )
-                except ValueError:
-                    # Skip snippets without summary content
-                    continue
+        # Prepare summary documents using domain service
+        documents_with_summaries = (
+            self.snippet_domain_service.prepare_summary_documents(snippets)
+        )
 
         if not documents_with_summaries:
             await reporting_step.skip(
@@ -290,40 +272,12 @@ class CodeIndexingApplicationService:
             )
             existing_snippets = [sc.snippet for sc in existing_snippet_contexts]
 
-            # Efficiently handle four types of snippet changes:
-            # 1. Deleted: in existing but not in extracted
-            # 2. Added: in extracted but not in existing
-            # 3. Modified: different content hash between existing and extracted
-            # 4. Unchanged: same content hash (no database operation needed)
-
-            # Create hash-to-existing mapping for O(1) lookup
-            existing_by_hash = {
-                existing.content_hash: existing for existing in existing_snippets
-            }
-            all_existing_ids = {
-                existing.id for existing in existing_snippets if existing.id
-            }
-
-            # Track changes for efficient database operations
-            snippets_to_add = []  # New or modified snippets
-            snippet_ids_to_delete = []  # Deleted snippet IDs
-            matched_existing_ids = set()  # IDs of unchanged snippets
-
-            # Process extracted snippets to identify changes
-            for new_snippet in extracted_snippets:
-                matching_existing = existing_by_hash.get(new_snippet.content_hash)
-
-                if matching_existing:
-                    # UNCHANGED: Content hash matches - no database operation needed
-                    # Just track that this existing snippet is still valid
-                    matched_existing_ids.add(matching_existing.id)
-                else:
-                    # ADDED or MODIFIED: New content hash - needs to be added
-                    new_snippet.reset_processing_states()
-                    snippets_to_add.append(new_snippet)
-
-            # DELETED: Existing snippets that weren't matched
-            snippet_ids_to_delete = list(all_existing_ids - matched_existing_ids)
+            # Analyze snippet changes using domain service
+            change_analysis = self.snippet_domain_service.analyze_snippet_changes(
+                existing_snippets, extracted_snippets
+            )
+            snippets_to_add = change_analysis.snippets_to_add
+            snippet_ids_to_delete = change_analysis.snippet_ids_to_delete
 
             # Perform efficient database operations
             if snippet_ids_to_delete:
