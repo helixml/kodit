@@ -83,7 +83,7 @@ class GitRepositoryScanner:
                     files = [
                         GitFile(
                             blob_sha=f["blob_sha"],
-                            path=f["path"],
+                            path=str(cloned_path / f["path"]),
                             mime_type=f.get("mime_type", "application/octet-stream"),
                             size=f["size"],
                         )

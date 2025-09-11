@@ -699,3 +699,4 @@ class TaskOperation(StrEnum):
     CREATE_TEXT_EMBEDDINGS = "kodit.index.run.create_text_embeddings"
     UPDATE_INDEX_TIMESTAMP = "kodit.index.run.update_index_timestamp"
     CLEAR_FILE_PROCESSING_STATUSES = "kodit.index.run.clear_file_processing_statuses"
+    INDEX_COMMIT = "kodit.index.run.index_commit"

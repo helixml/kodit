@@ -14,7 +14,7 @@ import structlog
 from tree_sitter import Node, Parser, Tree
 from tree_sitter_language_pack import get_language
 
-from kodit.domain.entities import File, Snippet
+from kodit.domain.entities import File, GitFile, Snippet, SnippetV2
 from kodit.domain.value_objects import LanguageMapping
 
 
@@ -149,6 +149,98 @@ class Slicer:
         """Initialize an empty slicer."""
         self.log = structlog.get_logger(__name__)
 
+    def extract_snippets_from_git_files(  # noqa: C901
+        self, files: list[GitFile], language: str = "python"
+    ) -> list[SnippetV2]:
+        """Extract code snippets from a list of files.
+
+        Args:
+            files: List of domain File objects to analyze
+            language: Programming language for analysis
+
+        Returns:
+            List of extracted code snippets as domain entities
+
+        Raises:
+            ValueError: If no files provided or language unsupported
+            FileNotFoundError: If any file doesn't exist
+
+        """
+        if not files:
+            raise ValueError("No files provided")
+
+        language = language.lower()
+
+        # Get language configuration
+        if language not in LanguageConfig.CONFIGS:
+            self.log.debug("Skipping", language=language)
+            return []
+
+        config = LanguageConfig.CONFIGS[language]
+
+        # Initialize tree-sitter
+        tree_sitter_name = self._get_tree_sitter_language_name(language)
+        try:
+            ts_language = get_language(tree_sitter_name)  # type: ignore[arg-type]
+            parser = Parser(ts_language)
+        except Exception as e:
+            raise RuntimeError(f"Failed to load {language} parser: {e}") from e
+
+        # Create mapping from Paths to File objects and extract paths
+        path_to_file_map: dict[Path, GitFile] = {}
+        file_paths: list[Path] = []
+        for file in files:
+            file_path = Path(file.path)
+
+            # Validate file matches language
+            if not self._file_matches_language(file_path.suffix, language):
+                raise ValueError(f"File {file_path} does not match language {language}")
+
+            # Validate file exists
+            if not file_path.exists():
+                raise FileNotFoundError(f"File not found: {file_path}")
+
+            path_to_file_map[file_path] = file
+            file_paths.append(file_path)
+
+        # Initialize state
+        state = AnalyzerState(parser=parser)
+        state.files = file_paths
+        file_contents: dict[Path, str] = {}
+
+        # Parse all files
+        for file_path in file_paths:
+            try:
+                with file_path.open("rb") as f:
+                    source_code = f.read()
+                tree = state.parser.parse(source_code)
+                state.asts[file_path] = tree
+            except OSError:
+                # Skip files that can't be parsed
+                continue
+
+        # Build indexes
+        self._build_definition_and_import_indexes(state, config, language)
+        self._build_call_graph(state, config)
+        self._build_reverse_call_graph(state)
+
+        # Extract snippets for all functions
+        snippets: list[SnippetV2] = []
+        for qualified_name in state.def_index:
+            snippet_content = self._get_snippet(
+                qualified_name,
+                state,
+                file_contents,
+                {"max_depth": 2, "max_functions": 8},
+            )
+            if "not found" not in snippet_content:
+                snippet = self._create_snippet_entity_from_git_files(
+                    qualified_name, snippet_content, language, state, path_to_file_map
+                )
+                snippets.append(snippet)
+
+        return snippets
+
     def extract_snippets(  # noqa: C901
         self, files: list[File], language: str = "python"
     ) -> list[Snippet]:
@@ -247,8 +339,8 @@ class Slicer:
             return False
 
         try:
-            return (
-                language == LanguageMapping.get_language_for_extension(file_extension)
+            return language == LanguageMapping.get_language_for_extension(
+                file_extension
             )
         except ValueError:
             # Extension not supported, so it doesn't match any language
@@ -646,6 +738,65 @@ class Slicer:
         snippet.add_original_content(snippet_content, language)
 
         return snippet
+
+    def _create_snippet_entity_from_git_files(
+        self,
+        qualified_name: str,
+        snippet_content: str,
+        language: str,
+        state: AnalyzerState,
+        path_to_file_map: dict[Path, GitFile],
+    ) -> SnippetV2:
+        """Create a Snippet domain entity from extracted content."""
+        # Determine all files that this snippet derives from
+        derives_from_files = self._find_source_files_for_snippet_from_git_files(
+            qualified_name, snippet_content, state, path_to_file_map
+        )
+
+        # Create the snippet entity
+        snippet = SnippetV2(derives_from=derives_from_files)
+
+        # Add the original content
+        snippet.add_original_content(snippet_content, language)
+
+        return snippet
+
+    def _find_source_files_for_snippet_from_git_files(
+        self,
+        qualified_name: str,
+        snippet_content: str,
+        state: AnalyzerState,
+        path_to_file_map: dict[Path, GitFile],
+    ) -> list[GitFile]:
+        """Find all source files that a snippet derives from."""
+        source_files: list[GitFile] = []
+        source_file_paths: set[Path] = set()
+
+        # Add the primary function's file
+        if qualified_name in state.def_index:
+            primary_file_path = state.def_index[qualified_name].file
+            if (
+                primary_file_path in path_to_file_map
+                and primary_file_path not in source_file_paths
+            ):
+                source_files.append(path_to_file_map[primary_file_path])
+                source_file_paths.add(primary_file_path)
+
+        # Find all dependencies mentioned in the snippet and add their source files
+        dependencies = self._extract_dependency_names_from_snippet(
+            snippet_content, state
+        )
+        for dep_name in dependencies:
+            if dep_name in state.def_index:
+                dep_file_path = state.def_index[dep_name].file
+                if (
+                    dep_file_path in path_to_file_map
+                    and dep_file_path not in source_file_paths
+                ):
+                    source_files.append(path_to_file_map[dep_file_path])
+                    source_file_paths.add(dep_file_path)
+
+        return source_files
 
     def _find_source_files_for_snippet(
         self,

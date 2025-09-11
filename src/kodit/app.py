@@ -13,6 +13,7 @@ from kodit.application.services.indexing_worker_service import IndexingWorkerSer
 from kodit.application.services.sync_scheduler import SyncSchedulerService
 from kodit.config import AppContext
 from kodit.infrastructure.api.v1.routers import (
+    commits_router,
     indexes_router,
     queue_router,
     repositories_router,
@@ -113,6 +114,7 @@ async def healthz() -> Response:
 
 
 # Include API routers
+app.include_router(commits_router)
 app.include_router(indexes_router)
 app.include_router(queue_router)
 app.include_router(repositories_router)

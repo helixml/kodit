@@ -81,6 +81,14 @@ class InMemoryGitCommitRepository(GitCommitRepository):
 
         return result
 
+    async def get_by_commit_sha(self, commit_sha: str) -> GitCommit | None:
+        """Get a commit by SHA."""
+        for commits in self._commits.values():
+            for commit in commits:
+                if commit.commit_sha == commit_sha:
+                    return commit
+        return None
+
 
 class InMemoryGitBranchRepository(GitBranchRepository):
     """Simple in-memory implementation of GitBranchRepository."""

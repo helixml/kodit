@@ -85,6 +85,50 @@ class IndexDomainService:
             files=[],
         )
 
+    async def extract_snippets_from_git_commit(
+        self,
+        commit: domain_entities.GitCommit,
+        step: ProgressTracker | None = None,
+    ) -> list[domain_entities.SnippetV2]:
+        step = step or create_noop_operation()
+        file_count = len(commit.files)
+
+        self.log.info(
+            "Extracting snippets",
+            file_count=file_count,
+        )
+
+        # Only create snippets for files that have been added or modified
+        files = commit.files
+
+        # Create a set of languages to extract snippets for
+        extensions = {file.extension() for file in files}
+        lang_files_map: dict[str, list[domain_entities.GitFile]] = defaultdict(list)
+        for ext in extensions:
+            try:
+                lang = LanguageMapping.get_language_for_extension(ext)
+                lang_files_map[lang].extend(
+                    file for file in files if file.extension() == ext
+                )
+            except ValueError as e:
+                self.log.debug("Skipping", error=str(e))
+                continue
+
+        self.log.info(
+            "Languages to process",
+            languages=lang_files_map.keys(),
+        )
+
+        # Calculate snippets for each language
+        all_snippets: list[domain_entities.SnippetV2] = []
+        slicer = Slicer()
+        await step.set_total(len(lang_files_map.keys()))
+        for i, (lang, lang_files) in enumerate(lang_files_map.items()):
+            await step.set_current(i, f"Extracting snippets for {lang}")
+            snippets = slicer.extract_snippets_from_git_files(lang_files, language=lang)
+            all_snippets.extend(snippets)
+        return all_snippets
+
     async def extract_snippets_from_index(
         self,
         index: domain_entities.Index,

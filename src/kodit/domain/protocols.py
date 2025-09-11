@@ -7,11 +7,13 @@ from typing import Any, Protocol
 from pydantic import AnyUrl
 
 from kodit.domain.entities import (
+    CommitIndex,
     GitBranch,
     GitCommit,
     GitRepo,
     Index,
     Snippet,
+    SnippetV2,
     SnippetWithContext,
     Task,
     TaskStatus,
@@ -170,6 +172,10 @@ class GitCommitRepository(ABC):
     ) -> list[GitCommit]:
         """Get commits for a specific branch."""
 
+    @abstractmethod
+    async def get_by_commit_sha(self, commit_sha: str) -> GitCommit | None:
+        """Get a commit by SHA."""
+
 
 class GitBranchRepository(ABC):
     """Repository for branch operations."""
@@ -235,3 +241,39 @@ class GitAdapter(ABC):
         self, local_path: Path, branch_name: str = "HEAD"
     ) -> str:
         """Get the latest commit SHA for a branch."""
+
+
+class CommitIndexRepository(ABC):
+    """Repository for commit indexing operations."""
+
+    @abstractmethod
+    async def save(self, commit_index: CommitIndex) -> None:
+        """Save or update a commit index."""
+
+    @abstractmethod
+    async def get_by_commit(self, repo_uri: str, commit_sha: str) -> CommitIndex | None:
+        """Get index data for a specific commit."""
+
+    @abstractmethod
+    async def get_indexed_commits_for_repo(self, repo_uri: str) -> list[CommitIndex]:
+        """Get all indexed commits for a repository."""
+
+    @abstractmethod
+    async def delete(self, repo_uri: str, commit_sha: str) -> bool:
+        """Delete index data for a commit."""
+
+
+class SnippetRepositoryV2(ABC):
+    """Repository for snippet operations."""
+
+    @abstractmethod
+    async def save_snippets(
+        self, repo_uri: str, commit_sha: str, snippets: list[SnippetV2]
+    ) -> None:
+        """Batch save snippets for a commit."""
+
+    @abstractmethod
+    async def get_snippets_for_commit(
+        self, repo_uri: str, commit_sha: str
+    ) -> list[SnippetV2]:
+        """Get all snippets for a specific commit."""

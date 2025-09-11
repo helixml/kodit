@@ -12,9 +12,7 @@ from kodit.application.factories.code_indexing_factory import (
 from kodit.application.factories.code_search_factory import (
     create_server_code_search_application_service,
 )
-from kodit.application.factories.git_application_factory import (
-    create_git_application_service,
-)
+from kodit.application.factories.server_factory import ServerFactory
 from kodit.application.services.code_indexing_application_service import (
     CodeIndexingApplicationService,
 )
@@ -135,17 +133,28 @@ TaskStatusQueryServiceDep = Annotated[
     TaskStatusQueryService, Depends(get_task_status_query_service)
 ]
 
-_git_application_service = None
+_server_factory = None
+
+
+async def get_server_factory(
+    app_context: AppContextDep,
+    session_factory: DBSessionFactoryDep,
+) -> ServerFactory:
+    """Get server factory dependency."""
+    global _server_factory
+    if not _server_factory:
+        _server_factory = ServerFactory(app_context, session_factory)
+    return _server_factory
+
+
+ServerFactoryDep = Annotated[ServerFactory, Depends(get_server_factory)]
 
 
 async def get_git_app_service(
-    app_context: AppContextDep,
+    server_factory: ServerFactoryDep,
 ) -> GitApplicationService:
     """Get git application service dependency."""
-    global _git_application_service
-    if not _git_application_service:
-        _git_application_service = create_git_application_service(app_context)
-    return _git_application_service
+    return server_factory.git_application_service()
 
 
 GitAppServiceDep = Annotated[GitApplicationService, Depends(get_git_app_service)]

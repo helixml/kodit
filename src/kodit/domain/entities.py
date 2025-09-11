@@ -3,6 +3,7 @@
 import shutil
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from enum import StrEnum
 from pathlib import Path
 from typing import Any, Protocol
 from urllib.parse import urlparse, urlunparse
@@ -66,6 +67,10 @@ class GitFile(BaseModel):
     mime_type: str
     size: int
 
+    def extension(self) -> str:
+        """Return the file extension."""
+        return Path(self.path).suffix.lstrip(".")
+
 
 class GitCommit(BaseModel):
     """Commit domain entity."""
@@ -98,14 +103,30 @@ class GitRepo(BaseModel):
     total_unique_commits: int = 0
 
 
+class IndexStatus(StrEnum):
+    """Status of commit indexing."""
+
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
 class CommitIndex(BaseModel):
-    """Commit index domain entity."""
+    """Aggregate root for indexed commit data."""
 
     commit_sha: str  # Primary key
-    created_at: datetime | None = None  # Is populated by repository
-    updated_at: datetime | None = None  # Is populated by repository
-    commit: GitCommit
-    snippets: list["Snippet"]
+    repo_uri: str
+    snippets: list["SnippetV2"]
+    status: IndexStatus
+    indexed_at: datetime | None = None
+    error_message: str | None = None
+    files_processed: int = 0
+    processing_time_seconds: float = 0.0
+
+    def get_snippet_count(self) -> int:
+        """Get total number of snippets."""
+        return len(self.snippets)
 
 
 class WorkingCopy(BaseModel):
@@ -273,6 +294,45 @@ class Source(BaseModel):
     created_at: datetime | None = None  # Is populated by repository
     updated_at: datetime | None = None  # Is populated by repository
     working_copy: WorkingCopy
+
+
+class SnippetV2(BaseModel):
+    """Snippet domain entity."""
+
+    id: int | None = None  # Is populated by repository
+    created_at: datetime | None = None  # Is populated by repository
+    updated_at: datetime | None = None  # Is populated by repository
+    derives_from: list[GitFile]
+    original_content: SnippetContent | None = None
+    summary_content: SnippetContent | None = None
+
+    def original_text(self) -> str:
+        """Return the original content of the snippet."""
+        if self.original_content is None:
+            return ""
+        return self.original_content.value
+
+    def summary_text(self) -> str:
+        """Return the summary content of the snippet."""
+        if self.summary_content is None:
+            return ""
+        return self.summary_content.value
+
+    def add_original_content(self, content: str, language: str) -> None:
+        """Add an original content to the snippet."""
+        self.original_content = SnippetContent(
+            type=SnippetContentType.ORIGINAL,
+            value=content,
+            language=language,
+        )
+
+    def add_summary(self, summary: str) -> None:
+        """Add a summary to the snippet."""
+        self.summary_content = SnippetContent(
+            type=SnippetContentType.SUMMARY,
+            value=summary,
+            language="markdown",
+        )
 
 
 class Snippet(BaseModel):
