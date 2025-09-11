@@ -5,7 +5,7 @@ from kodit.domain.protocols import CommitIndexRepository
 class InMemoryCommitIndexRepository(CommitIndexRepository):
     """Simple in-memory implementation of CommitIndexRepository."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._indexes: dict[
             str, CommitIndex
         ] = {}  # f"{repo_uri}:{commit_sha}" -> CommitIndex

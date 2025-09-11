@@ -18,6 +18,12 @@ from kodit.infrastructure.api.v1.schemas.repository import (
     RepositoryResponse,
     RepositoryUpdateRequest,
 )
+from kodit.infrastructure.api.v1.schemas.tag import (
+    TagAttributes,
+    TagData,
+    TagListResponse,
+    TagResponse,
+)
 
 router = APIRouter(
     prefix="/api/v1/repositories",
@@ -260,3 +266,68 @@ async def rescan_repository(
     except Exception as e:
         msg = f"Failed to rescan repository: {e}"
         raise HTTPException(status_code=500, detail=msg) from e
+
+
+@router.get(
+    "/{repo_id}/tags",
+    summary="List repository tags",
+    responses={404: {"description": "Repository not found"}},
+)
+async def list_repository_tags(
+    repo_id: str,
+    git_service: GitAppServiceDep,
+) -> TagListResponse:
+    """List all tags for a repository."""
+    repo = await git_service.repo_repository.get_by_id(repo_id)
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repository not found")
+
+    tags = await git_service.tag_repository.get_tags_for_repo(repo.sanitized_remote_uri)
+
+    return TagListResponse(
+        data=[
+            TagData(
+                type="tag",
+                id=tag.id,
+                attributes=TagAttributes(
+                    name=tag.name,
+                    target_commit_sha=tag.target_commit_sha,
+                    is_version_tag=tag.is_version_tag,
+                ),
+            )
+            for tag in tags
+        ]
+    )
+
+
+@router.get(
+    "/{repo_id}/tags/{tag_id}",
+    summary="Get repository tag",
+    responses={404: {"description": "Repository or tag not found"}},
+)
+async def get_repository_tag(
+    repo_id: str,
+    tag_id: str,
+    git_service: GitAppServiceDep,
+) -> TagResponse:
+    """Get a specific tag for a repository."""
+    repo = await git_service.repo_repository.get_by_id(repo_id)
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repository not found")
+
+    try:
+        tag = await git_service.tag_repository.get_tag_by_id(tag_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+
+    return TagResponse(
+        data=TagData(
+            type="tag",
+            id=tag.id,
+            attributes=TagAttributes(
+                name=tag.name,
+                target_commit_sha=tag.target_commit_sha,
+                is_version_tag=tag.is_version_tag,
+            ),
+        )
+    )

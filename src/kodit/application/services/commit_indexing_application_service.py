@@ -26,7 +26,7 @@ class CommitIndexingApplicationService:
         domain_indexer: IndexDomainService,
         commit_repository: GitCommitRepository,
         operation: ProgressTracker,
-    ):
+    ) -> None:
         self.commit_index_repository = commit_index_repository
         self.snippet_repository = snippet_v2_repository
         self.repo_repository = repo_repository
@@ -84,7 +84,7 @@ class CommitIndexQueryService:
         self,
         commit_index_repository: CommitIndexRepository,
         snippet_repository: SnippetRepository,
-    ):
+    ) -> None:
         self.commit_index_repository = commit_index_repository
         self.snippet_repository = snippet_repository
 

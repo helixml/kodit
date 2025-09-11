@@ -18,6 +18,7 @@ from kodit.domain.protocols import (
     GitBranchRepository,
     GitCommitRepository,
     GitRepoRepository,
+    GitTagRepository,
     SnippetRepository,
     SnippetRepositoryV2,
     TaskStatusRepository,
@@ -43,6 +44,9 @@ from kodit.infrastructure.memory.in_memory_git_repository import (
 )
 from kodit.infrastructure.memory.in_memory_snippet_v2_repository import (
     InMemorySnippetRepository,
+)
+from kodit.infrastructure.memory.in_memory_tag_repository import (
+    InMemoryGitTagRepository,
 )
 from kodit.infrastructure.slicing.language_detection_service import (
     FileSystemLanguageDetectionService,
@@ -80,6 +84,7 @@ class ServerFactory:
         self._task_status_repository = None
         self._operation = None
         self._commit_index_query_service = None
+        self._tag_repository = None
 
     def task_status_repository(self) -> TaskStatusRepository:
         """Create a TaskStatusRepository instance."""
@@ -107,6 +112,7 @@ class ServerFactory:
                 scanner=self.scanner(),
                 cloner=self.cloner(),
                 git_adapter=self.git_adapter(),
+                tag_repository=self.tag_repository(),
             )
         return self._git_application_service
 
@@ -160,6 +166,12 @@ class ServerFactory:
         if not self._git_adapter:
             self._git_adapter = GitPythonAdapter()
         return self._git_adapter
+
+    def tag_repository(self) -> GitTagRepository:
+        """Create a GitTagRepository instance."""
+        if not self._tag_repository:
+            self._tag_repository = InMemoryGitTagRepository()
+        return self._tag_repository
 
     def scanner(self) -> GitRepositoryScanner:
         """Create a GitRepositoryScanner instance."""

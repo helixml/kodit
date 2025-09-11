@@ -18,6 +18,7 @@ from kodit.domain.entities import (
     GitCommit,
     GitFile,
     GitRepo,
+    GitTag,
     WorkingCopy,
 )
 
@@ -111,6 +112,9 @@ class GitService:
         # Get all unique commits across all branches
         all_commits = self._get_all_commits(repo)
 
+        # Get all tags
+        all_tags = self._get_all_tags(repo)
+
         # Get current branch as tracking branch
         try:
             current_branch = repo.active_branch
@@ -130,6 +134,7 @@ class GitService:
             sanitized_remote_uri=sanitized_remote_uri,
             branches=branches,
             commits=all_commits,
+            tags=all_tags,
             tracking_branch=tracking_branch,
             cloned_path=repo_path,
             remote_uri=remote_uri,
@@ -201,6 +206,29 @@ class GitService:
                 continue
 
         return list(commit_cache.values())
+
+    def _get_all_tags(self, repo: Repo) -> list[GitTag]:
+        """Get all tags in the repository."""
+        tags = []
+
+        try:
+            for tag_ref in repo.tags:
+                try:
+                    # Get the commit that the tag points to
+                    target_commit = tag_ref.commit
+                    tag = GitTag(
+                        name=tag_ref.name,
+                        target_commit_sha=target_commit.hexsha,
+                    )
+                    tags.append(tag)
+                except Exception:  # noqa: BLE001, S112
+                    # Skip tags that can't be processed
+                    continue
+        except Exception:  # noqa: BLE001
+            # If we can't get tags, return empty list
+            return []
+
+        return tags
 
     def _convert_commit(self, repo: Repo, commit: "Commit") -> GitCommit:
         """Convert a GitPython commit object to domain GitCommit."""

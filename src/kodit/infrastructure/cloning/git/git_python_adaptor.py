@@ -30,9 +30,13 @@ class GitPythonAdapter(GitAdapter):
                     )
                     shutil.rmtree(local_path)
                 local_path.mkdir(parents=True, exist_ok=True)
-                self._log.info(f"Cloning {remote_uri} to {local_path}")
-                Repo.clone_from(remote_uri, local_path)
-                self._log.info(f"Successfully cloned {remote_uri}")
+                self._log.debug(f"Cloning {remote_uri} to {local_path}")
+
+                repo = Repo.clone_from(remote_uri, local_path)
+
+                self._log.debug(
+                    f"Successfully cloned {remote_uri} with {len(repo.tags)} tags"
+                )
             except Exception as e:
                 self._log.error(f"Failed to clone {remote_uri}: {e}")
                 raise
@@ -302,3 +306,24 @@ class GitPythonAdapter(GitAdapter):
         """Cleanup executor on deletion."""
         if hasattr(self, "executor"):
             self.executor.shutdown(wait=True)
+
+    async def get_all_tags(self, local_path: Path) -> list[dict[str, Any]]:
+        """Get all tags in repository."""
+
+        def _get_tags():
+            try:
+                repo = Repo(local_path)
+                self._log.info(f"Getting all tags for {local_path}: {len(repo.tags)}")
+                return [
+                    {
+                        "name": tag.name,
+                        "target_commit_sha": tag.commit.hexsha,
+                    }
+                    for tag in repo.tags
+                ]
+
+            except Exception as e:
+                self._log.error(f"Failed to get tags for {local_path}: {e}")
+                raise
+
+        return await asyncio.get_event_loop().run_in_executor(self.executor, _get_tags)

@@ -5,7 +5,7 @@ from kodit.domain.protocols import SnippetRepositoryV2
 class InMemorySnippetRepository(SnippetRepositoryV2):
     """Simple in-memory implementation of SnippetRepository."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._snippets: dict[
             str, list[SnippetV2]
         ] = {}  # f"{repo_uri}:{commit_sha}" -> List[Snippet]

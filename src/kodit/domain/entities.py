@@ -83,6 +83,27 @@ class GitCommit(BaseModel):
     author: str
 
 
+class GitTag(BaseModel):
+    """Git tag domain entity."""
+
+    name: str  # e.g., "v1.0.0", "release-2023"
+    target_commit_sha: str  # The commit this tag points to
+
+    @property
+    def id(self) -> str:
+        """Get the unique id for a tag."""
+        return self.target_commit_sha
+
+    @property
+    def is_version_tag(self) -> bool:
+        """Check if this appears to be a version tag."""
+        import re
+
+        # Simple heuristic for version tags
+        version_pattern = r"^v?\d+\.\d+(\.\d+)?(-\w+)?$"
+        return bool(re.match(version_pattern, self.name))
+
+
 class GitBranch(BaseModel):
     """Branch domain entity."""
 
@@ -98,6 +119,7 @@ class GitRepo(BaseModel):
     sanitized_remote_uri: AnyUrl
     branches: list[GitBranch]
     commits: list[GitCommit]
+    tags: list[GitTag] = []
     tracking_branch: GitBranch
     cloned_path: Path
     remote_uri: AnyUrl  # May include credentials

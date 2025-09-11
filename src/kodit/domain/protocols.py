@@ -11,6 +11,7 @@ from kodit.domain.entities import (
     GitBranch,
     GitCommit,
     GitRepo,
+    GitTag,
     Index,
     Snippet,
     SnippetV2,
@@ -250,6 +251,10 @@ class GitAdapter(ABC):
     ) -> str:
         """Get the latest commit SHA for a branch."""
 
+    @abstractmethod
+    async def get_all_tags(self, local_path: Path) -> list[dict[str, Any]]:
+        """Get all tags in repository."""
+
 
 class CommitIndexRepository(ABC):
     """Repository for commit indexing operations."""
@@ -281,3 +286,19 @@ class SnippetRepositoryV2(ABC):
     @abstractmethod
     async def get_snippets_for_commit(self, commit_sha: str) -> list[SnippetV2]:
         """Get all snippets for a specific commit."""
+
+
+class GitTagRepository(ABC):
+    """Repository for tag operations."""
+
+    @abstractmethod
+    async def save_tags(self, repo_uri: AnyUrl, tags: list[GitTag]) -> None:
+        """Save tags for a repository."""
+
+    @abstractmethod
+    async def get_tags_for_repo(self, repo_uri: AnyUrl) -> list[GitTag]:
+        """Get all tags for a repository."""
+
+    @abstractmethod
+    async def get_tag_by_id(self, tag_id: str) -> GitTag:
+        """Get a tag by its ID."""

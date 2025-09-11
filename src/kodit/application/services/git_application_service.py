@@ -7,6 +7,7 @@ from kodit.domain.protocols import (
     GitBranchRepository,
     GitCommitRepository,
     GitRepoRepository,
+    GitTagRepository,
 )
 from kodit.domain.services.git_repository_scanner import (
     GitRepoFactory,
@@ -27,6 +28,7 @@ class GitApplicationService:
         scanner: GitRepositoryScanner,
         cloner: RepositoryCloner,
         git_adapter: GitAdapter,
+        tag_repository: GitTagRepository,
     ) -> None:
         self.repo_repository = repo_repository
         self.commit_repository = commit_repository
@@ -35,6 +37,7 @@ class GitApplicationService:
         self.cloner = cloner
         self.git_adapter = git_adapter
         self.repo_factory = GitRepoFactory()
+        self.tag_repository = tag_repository
         self._log = structlog.getLogger(__name__)
 
     async def clone_and_map_repository(self, remote_uri: AnyUrl) -> GitRepo:
@@ -63,6 +66,7 @@ class GitApplicationService:
             sanitized_uri, scan_result.all_commits
         )
         await self.branch_repository.save_branches(sanitized_uri, repo.branches)
+        await self.tag_repository.save_tags(sanitized_uri, repo.tags)
 
         self._log.info(f"Successfully mapped repository {remote_uri}")
         return repo

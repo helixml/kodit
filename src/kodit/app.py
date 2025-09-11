@@ -13,8 +13,8 @@ from kodit.application.services.indexing_worker_service import IndexingWorkerSer
 from kodit.application.services.sync_scheduler import SyncSchedulerService
 from kodit.config import AppContext
 from kodit.infrastructure.api.v1.routers import (
-    commits_router,
     commit_indexes_router,
+    commits_router,
     queue_router,
     repositories_router,
     search_router,

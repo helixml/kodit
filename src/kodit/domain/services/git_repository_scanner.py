@@ -7,7 +7,14 @@ from pathlib import Path
 import structlog
 from pydantic import AnyUrl
 
-from kodit.domain.entities import GitBranch, GitCommit, GitFile, GitRepo, WorkingCopy
+from kodit.domain.entities import (
+    GitBranch,
+    GitCommit,
+    GitFile,
+    GitRepo,
+    GitTag,
+    WorkingCopy,
+)
 from kodit.domain.protocols import GitAdapter
 
 
@@ -17,6 +24,7 @@ class RepositoryScanResult:
 
     branches: list[GitBranch]
     all_commits: list[GitCommit]
+    all_tags: list[GitTag]
     scan_timestamp: datetime
     total_unique_commits: int
     total_files_across_commits: int
@@ -122,12 +130,31 @@ class GitRepositoryScanner:
 
         total_files = sum(len(commit.files) for commit in commit_cache.values())
 
+        # Process tags
+        tag_data = await self.git_adapter.get_all_tags(cloned_path)
+        tags = []
+        for tag_info in tag_data:
+            try:
+                git_tag = GitTag(
+                    name=tag_info["name"],
+                    target_commit_sha=tag_info["target_commit_sha"],
+                )
+                tags.append(git_tag)
+            except Exception as e:
+                self._log.warning(
+                    f"Failed to process tag {tag_info.get('name', 'unknown')}: {e}"
+                )
+                continue
+
+        self._log.info(f"Found {len(tags)} tags")
+
         scan_result = RepositoryScanResult(
             branches=branches,
             all_commits=list(commit_cache.values()),
             scan_timestamp=datetime.now(UTC),
             total_unique_commits=len(commit_cache),
             total_files_across_commits=total_files,
+            all_tags=tags,
         )
 
         self._log.info(
@@ -170,6 +197,7 @@ class GitRepoFactory:
             last_scanned_at=scan_result.scan_timestamp,
             total_unique_commits=scan_result.total_unique_commits,
             commits=scan_result.all_commits,
+            tags=scan_result.all_tags,
         )
 
 
