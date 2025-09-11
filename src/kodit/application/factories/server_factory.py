@@ -79,6 +79,7 @@ class ServerFactory:
         self._enrichment_service = None
         self._task_status_repository = None
         self._operation = None
+        self._commit_index_query_service = None
 
     def task_status_repository(self) -> TaskStatusRepository:
         """Create a TaskStatusRepository instance."""
