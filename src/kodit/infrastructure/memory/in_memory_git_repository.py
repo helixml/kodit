@@ -16,11 +16,22 @@ class InMemoryGitRepoRepository(GitRepoRepository):
 
     async def save(self, repo: GitRepo) -> None:
         """Save or update a repository."""
-        self._repos[str(repo.sanitized_remote_uri)] = repo
+        self._repos[repo.id] = repo
+
+    async def get_by_id(self, repo_id: str) -> GitRepo | None:
+        """Get repository by ID."""
+        return self._repos.get(repo_id)
 
     async def get_by_uri(self, sanitized_uri: AnyUrl) -> GitRepo | None:
         """Get repository by sanitized URI."""
-        return self._repos.get(str(sanitized_uri))
+        return next(
+            (
+                repo
+                for repo in self._repos.values()
+                if repo.sanitized_remote_uri == sanitized_uri
+            ),
+            None,
+        )
 
     async def get_by_commit(self, commit_sha: str) -> GitRepo | None:
         """Get repository by commit SHA."""

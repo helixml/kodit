@@ -19,6 +19,10 @@ from kodit.application.services.code_indexing_application_service import (
 from kodit.application.services.code_search_application_service import (
     CodeSearchApplicationService,
 )
+from kodit.application.services.commit_indexing_application_service import (
+    CommitIndexingApplicationService,
+    CommitIndexQueryService,
+)
 from kodit.application.services.git_application_service import GitApplicationService
 from kodit.application.services.queue_service import QueueService
 from kodit.config import AppContext
@@ -158,3 +162,27 @@ async def get_git_app_service(
 
 
 GitAppServiceDep = Annotated[GitApplicationService, Depends(get_git_app_service)]
+
+
+async def get_commit_indexing_app_service(
+    server_factory: ServerFactoryDep,
+) -> CommitIndexingApplicationService:
+    """Get commit indexing application service dependency."""
+    return server_factory.commit_indexing_application_service()
+
+
+CommitIndexingAppServiceDep = Annotated[
+    CommitIndexingApplicationService, Depends(get_commit_indexing_app_service)
+]
+
+
+async def get_commit_index_query_service(
+    server_factory: ServerFactoryDep,
+) -> CommitIndexQueryService:
+    """Get commit index query service dependency."""
+    return server_factory.commit_index_query_service()
+
+
+CommitIndexQueryServiceDep = Annotated[
+    CommitIndexQueryService, Depends(get_commit_index_query_service)
+]

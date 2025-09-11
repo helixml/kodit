@@ -1,30 +1,23 @@
-"""Commit indexing router for the REST API."""
-
-from datetime import UTC, datetime
+"""Commit management router for the REST API."""
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from kodit.infrastructure.api.middleware.auth import api_key_auth
-from kodit.infrastructure.api.v1.dependencies import (
-    ServerFactoryDep,
-)
+from kodit.infrastructure.api.v1.dependencies import GitAppServiceDep
 from kodit.infrastructure.api.v1.schemas.commit import (
     CommitAttributes,
     CommitData,
-    CommitGetRequest,
-    CommitIndexRequest,
-    CommitListRequest,
     CommitListResponse,
     CommitResponse,
-    CommitStatsAttributes,
-    CommitStatsData,
-    CommitStatsRequest,
-    CommitStatsResponse,
+    FileAttributes,
+    FileData,
+    FileListResponse,
+    FileResponse,
 )
 
 router = APIRouter(
-    prefix="/api/v1/commits",
-    tags=["commit-indexing"],
+    prefix="/api/v1/repositories",
+    tags=["commits"],
     dependencies=[Depends(api_key_auth)],
     responses={
         401: {"description": "Unauthorized"},
@@ -33,139 +26,142 @@ router = APIRouter(
 )
 
 
-@router.post("/index", status_code=201)
-async def index_commit(
-    request: CommitIndexRequest,
-    server_factory: ServerFactoryDep,
-) -> CommitResponse:
-    """Index a specific commit in a repository."""
-    try:
-        commit_sha = request.data.attributes.commit_sha
-        commit_index = (
-            await server_factory.commit_indexing_application_service().index_commit(
-                commit_sha
-            )
-        )
-
-        return CommitResponse(
-            data=CommitData(
-                type="commit_index",
-                id=f"{commit_sha}",
-                attributes=CommitAttributes(
-                    commit_sha=commit_index.commit_sha,
-                    status=commit_index.status,
-                    snippet_count=commit_index.get_snippet_count(),
-                    indexed_at=commit_index.indexed_at or datetime.now(UTC),
-                ),
-            )
-        )
-    except ValueError as e:
-        if "not found" in str(e):
-            raise HTTPException(status_code=404, detail=str(e)) from e
-        raise HTTPException(status_code=400, detail=str(e)) from e
-    except Exception as e:
-        msg = f"Failed to index commit: {e}"
-        raise HTTPException(status_code=500, detail=msg) from e
-
-
-@router.post("/list")
-async def list_indexed_commits(
-    request: CommitListRequest,
-    server_factory: ServerFactoryDep,
+@router.get("/{repo_id}/commits", summary="List repository commits")
+async def list_repository_commits(
+    repo_id: str,
+    git_service: GitAppServiceDep,
 ) -> CommitListResponse:
-    """List all indexed commits for a repository."""
-    try:
-        repo_uri = request.data.attributes.repo_uri
+    """List all commits for a repository."""
+    repo = await git_service.repo_repository.get_by_id(repo_id)
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repository not found")
 
-        indexed_commits = (
-            await server_factory.commit_index_query_service().get_indexed_commits(
-                repo_uri
-            )
-        )
+    # Get all commits for the repository
+    commits = repo.commits
 
-        return CommitListResponse(
-            data=[
-                CommitData(
-                    type="commit_index",
-                    id=f"{repo_uri}#{commit.commit_sha}",
-                    attributes=CommitAttributes(
-                        commit_sha=commit.commit_sha,
-                        status=commit.status,
-                        snippet_count=commit.get_snippet_count(),
-                        indexed_at=commit.indexed_at or datetime.now(UTC),
-                    ),
-                )
-                for commit in indexed_commits
-            ]
-        )
-    except Exception as e:
-        msg = f"Failed to list indexed commits: {e}"
-        raise HTTPException(status_code=500, detail=msg) from e
-
-
-@router.post("/stats")
-async def get_commit_stats(
-    request: CommitStatsRequest,
-    server_factory: ServerFactoryDep,
-) -> CommitStatsResponse:
-    """Get commit indexing statistics for a repository."""
-    try:
-        repo_uri = request.data.attributes.repo_uri
-
-        stats = (
-            await server_factory.commit_index_query_service().get_commit_index_stats(
-                repo_uri
-            )
-        )
-
-        return CommitStatsResponse(
-            data=CommitStatsData(
-                type="commit_stats",
-                id=repo_uri,
-                attributes=CommitStatsAttributes(
-                    total_indexed_commits=stats["total_indexed_commits"],
-                    completed_commits=stats["completed_commits"],
-                    failed_commits=stats["failed_commits"],
-                    total_snippets=stats["total_snippets"],
-                    average_snippets_per_commit=stats["average_snippets_per_commit"],
-                ),
-            )
-        )
-    except Exception as e:
-        msg = f"Failed to get commit stats: {e}"
-        raise HTTPException(status_code=500, detail=msg) from e
-
-
-@router.post("/get")
-async def get_commit_index(
-    request: CommitGetRequest,
-    server_factory: ServerFactoryDep,
-) -> CommitResponse:
-    """Get the index status for a specific commit."""
-    try:
-        commit_sha = request.data.attributes.commit_sha
-
-        commit_index = await server_factory.commit_index_repository().get_by_commit(
-            commit_sha
-        )
-
-        if not commit_index:
-            raise HTTPException(status_code=404, detail="Commit index not found")
-
-        return CommitResponse(
-            data=CommitData(
-                type="commit_index",
-                id=commit_sha,
+    return CommitListResponse(
+        data=[
+            CommitData(
+                type="commit",
+                id=commit.commit_sha,
                 attributes=CommitAttributes(
-                    commit_sha=commit_index.commit_sha,
-                    status=commit_index.status,
-                    snippet_count=commit_index.get_snippet_count(),
-                    indexed_at=commit_index.indexed_at or datetime.now(UTC),
+                    commit_sha=commit.commit_sha,
+                    date=commit.date,
+                    message=commit.message,
+                    parent_commit_sha=commit.parent_commit_sha,
+                    author=commit.author,
                 ),
             )
+            for commit in commits
+        ]
+    )
+
+
+@router.get(
+    "/{repo_id}/commits/{commit_sha}",
+    summary="Get repository commit",
+    responses={404: {"description": "Repository or commit not found"}},
+)
+async def get_repository_commit(
+    repo_id: str,
+    commit_sha: str,
+    git_service: GitAppServiceDep,
+) -> CommitResponse:
+    """Get a specific commit for a repository."""
+    repo = await git_service.repo_repository.get_by_id(repo_id)
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repository not found")
+
+    # Find the specific commit
+    commit = next((c for c in repo.commits if c.commit_sha == commit_sha), None)
+    if not commit:
+        raise HTTPException(status_code=404, detail="Commit not found")
+
+    return CommitResponse(
+        data=CommitData(
+            type="commit",
+            id=commit.commit_sha,
+            attributes=CommitAttributes(
+                commit_sha=commit.commit_sha,
+                date=commit.date,
+                message=commit.message,
+                parent_commit_sha=commit.parent_commit_sha,
+                author=commit.author,
+            ),
         )
-    except HTTPException:
-        raise
-    except Exception as e:
-        msg = f"Failed to get commit index: {e}"
-        raise HTTPException(status_code=500, detail=msg) from e
+    )
+
+
+@router.get("/{repo_id}/commits/{commit_sha}/files", summary="List commit files")
+async def list_commit_files(
+    repo_id: str,
+    commit_sha: str,
+    git_service: GitAppServiceDep,
+) -> FileListResponse:
+    """List all files in a specific commit."""
+    repo = await git_service.repo_repository.get_by_id(repo_id)
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repository not found")
+
+    # Find the specific commit
+    commit = next((c for c in repo.commits if c.commit_sha == commit_sha), None)
+    if not commit:
+        raise HTTPException(status_code=404, detail="Commit not found")
+
+    return FileListResponse(
+        data=[
+            FileData(
+                type="file",
+                id=file.blob_sha,
+                attributes=FileAttributes(
+                    blob_sha=file.blob_sha,
+                    path=file.path,
+                    mime_type=file.mime_type,
+                    size=file.size,
+                    extension=file.extension(),
+                ),
+            )
+            for file in commit.files
+        ]
+    )
+
+
+@router.get(
+    "/{repo_id}/commits/{commit_sha}/files/{blob_sha}",
+    summary="Get commit file",
+    responses={404: {"description": "Repository, commit or file not found"}},
+)
+async def get_commit_file(
+    repo_id: str,
+    commit_sha: str,
+    blob_sha: str,
+    git_service: GitAppServiceDep,
+) -> FileResponse:
+    """Get a specific file from a commit."""
+    repo = await git_service.repo_repository.get_by_id(repo_id)
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repository not found")
+
+    # Find the specific commit
+    commit = next((c for c in repo.commits if c.commit_sha == commit_sha), None)
+    if not commit:
+        raise HTTPException(status_code=404, detail="Commit not found")
+
+    # Find the specific file
+    file = next((f for f in commit.files if f.blob_sha == blob_sha), None)
+    if not file:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    return FileResponse(
+        data=FileData(
+            type="file",
+            id=file.blob_sha,
+            attributes=FileAttributes(
+                blob_sha=file.blob_sha,
+                path=file.path,
+                mime_type=file.mime_type,
+                size=file.size,
+                extension=file.extension(),
+            ),
+        )
+    )

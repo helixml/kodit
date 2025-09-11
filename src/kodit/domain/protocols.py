@@ -147,6 +147,10 @@ class GitRepoRepository(ABC):
         """Save or update a repository."""
 
     @abstractmethod
+    async def get_by_id(self, repo_id: str) -> GitRepo | None:
+        """Get repository by ID."""
+
+    @abstractmethod
     async def get_by_uri(self, sanitized_uri: AnyUrl) -> GitRepo | None:
         """Get repository by sanitized URI."""
 

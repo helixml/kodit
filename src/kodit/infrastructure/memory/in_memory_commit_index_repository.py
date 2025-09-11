@@ -17,7 +17,7 @@ class InMemoryCommitIndexRepository(CommitIndexRepository):
         return self._indexes.get(commit_sha)
 
     async def get_indexed_commits_for_repo(self, repo_uri: str) -> list[CommitIndex]:
-        return [idx for idx in self._indexes.values() if idx.repo_uri == repo_uri]
+        return list(self._indexes.values())
 
     async def delete(self, commit_sha: str) -> bool:
         if commit_sha in self._indexes:

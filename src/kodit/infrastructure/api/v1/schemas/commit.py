@@ -1,136 +1,74 @@
-"""Request and response schemas for commit indexing management."""
+"""Commit JSON-API schemas."""
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
-from kodit.domain.entities import IndexStatus
+
+class GitFileData(BaseModel):
+    """Git file data."""
+
+    blob_sha: str
+    path: str
+    mime_type: str
+    size: int
 
 
 class CommitAttributes(BaseModel):
-    """Commit attributes in API responses."""
+    """Commit attributes following JSON-API spec."""
 
     commit_sha: str
-    status: IndexStatus
-    snippet_count: int
-    indexed_at: datetime
-
-
-class CommitIndexAttributes(BaseModel):
-    """Attributes for indexing a commit."""
-
-    commit_sha: str = Field(..., description="The commit SHA to index")
+    date: datetime
+    message: str
+    parent_commit_sha: str
+    author: str
 
 
 class CommitData(BaseModel):
-    """Commit data in API responses."""
+    """Commit data following JSON-API spec."""
 
-    type: str = "commit_index"
+    type: str = "commit"
     id: str
     attributes: CommitAttributes
 
 
-class CommitIndexData(BaseModel):
-    """Commit data for index requests."""
-
-    type: str = "commit_index"
-    attributes: CommitIndexAttributes
-
-
 class CommitResponse(BaseModel):
-    """Single commit index response."""
+    """Single commit response following JSON-API spec."""
 
     data: CommitData
 
 
 class CommitListResponse(BaseModel):
-    """Multiple commit indexes response."""
+    """Commit list response following JSON-API spec."""
 
     data: list[CommitData]
 
 
-class CommitIndexRequest(BaseModel):
-    """Request to index a commit."""
+class FileAttributes(BaseModel):
+    """File attributes following JSON-API spec."""
 
-    data: CommitIndexData
-
-
-class CommitStatsAttributes(BaseModel):
-    """Statistics about commit indexing for a repository."""
-
-    total_indexed_commits: int
-    completed_commits: int
-    failed_commits: int
-    total_snippets: int
-    average_snippets_per_commit: float
+    blob_sha: str
+    path: str
+    mime_type: str
+    size: int
+    extension: str
 
 
-class CommitStatsData(BaseModel):
-    """Commit stats data in API responses."""
+class FileData(BaseModel):
+    """File data following JSON-API spec."""
 
-    type: str = "commit_stats"
+    type: str = "file"
     id: str
-    attributes: CommitStatsAttributes
+    attributes: FileAttributes
 
 
-class CommitStatsResponse(BaseModel):
-    """Commit indexing statistics response."""
+class FileResponse(BaseModel):
+    """Single file response following JSON-API spec."""
 
-    data: CommitStatsData
-
-
-class CommitListRequestAttributes(BaseModel):
-    """Attributes for listing commits."""
-
-    repo_uri: str = Field(..., description="The repository URI")
+    data: FileData
 
 
-class CommitListRequestData(BaseModel):
-    """Data for listing commits request."""
+class FileListResponse(BaseModel):
+    """File list response following JSON-API spec."""
 
-    type: str = "commit_list_request"
-    attributes: CommitListRequestAttributes
-
-
-class CommitListRequest(BaseModel):
-    """Request to list indexed commits."""
-
-    data: CommitListRequestData
-
-
-class CommitStatsRequestAttributes(BaseModel):
-    """Attributes for getting commit stats."""
-
-    repo_uri: str = Field(..., description="The repository URI")
-
-
-class CommitStatsRequestData(BaseModel):
-    """Data for commit stats request."""
-
-    type: str = "commit_stats_request"
-    attributes: CommitStatsRequestAttributes
-
-
-class CommitStatsRequest(BaseModel):
-    """Request to get commit statistics."""
-
-    data: CommitStatsRequestData
-
-
-class CommitGetRequestAttributes(BaseModel):
-    """Attributes for getting a specific commit."""
-
-    commit_sha: str = Field(..., description="The commit SHA")
-
-
-class CommitGetRequestData(BaseModel):
-    """Data for getting a commit request."""
-
-    type: str = "commit_get_request"
-    attributes: CommitGetRequestAttributes
-
-
-class CommitGetRequest(BaseModel):
-    """Request to get a specific commit index."""
-
-    data: CommitGetRequestData
+    data: list[FileData]
