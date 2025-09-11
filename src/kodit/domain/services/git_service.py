@@ -1,0 +1,225 @@
+"""Service for git operations."""
+
+import asyncio
+import hashlib
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+import git
+import structlog
+from git import InvalidGitRepositoryError, Repo
+from pydantic import AnyUrl
+
+from kodit.application.factories.reporting_factory import create_noop_operation
+from kodit.application.services.reporting import ProgressTracker
+from kodit.domain.entities import File, GitBranch, GitCommit, GitRepo, WorkingCopy
+from kodit.domain.value_objects import FileProcessingStatus
+
+if TYPE_CHECKING:
+    from git.objects import Commit
+
+
+class GitService:
+    """Service for git operations."""
+
+    def __init__(self, clone_dir: Path) -> None:
+        """Initialize the git service."""
+        self.clone_dir = clone_dir
+        self.log = structlog.get_logger(__name__)
+
+    def get_clone_path(self, uri: str) -> Path:
+        """Get the clone path for a Git working copy."""
+        sanitized_uri = WorkingCopy.sanitize_git_url(uri)
+        dir_hash = hashlib.sha256(str(sanitized_uri).encode("utf-8")).hexdigest()[:16]
+        dir_name = f"repo-{dir_hash}"
+        return self.clone_dir / dir_name
+
+    async def clone_and_extract_repo_info(
+        self, uri: str, step: ProgressTracker | None = None
+    ) -> GitRepo:
+        """Clone repository and extract complete git repository information."""
+        step = step or create_noop_operation()
+        # Verify the clone path doesn't already exist
+        clone_path = self.get_clone_path(uri)
+        if clone_path.exists():
+            raise ValueError(f"Clone path already exists: {clone_path}")
+        sanitized_uri = WorkingCopy.sanitize_git_url(uri)
+        clone_path.mkdir(parents=True, exist_ok=True)
+
+        step_record = []
+        await step.set_total(12)
+
+        def _clone_progress_callback(
+            a: int, _: str | float | None, __: str | float | None, _d: str
+        ) -> None:
+            if a not in step_record:
+                step_record.append(a)
+
+            # Git reports a really weird format. This is a quick hack to get some
+            # progress.
+            # Normally this would fail because the loop is already running,
+            # but in this case, this callback is called by some git sub-thread.
+            asyncio.run(
+                step.set_current(
+                    len(step_record), f"Cloning repository ({step_record[-1]})"
+                )
+            )
+
+        try:
+            self.log.info(
+                "Cloning repository", uri=sanitized_uri, clone_path=str(clone_path)
+            )
+            # Use the original URI for cloning (with credentials if present)
+            options = ["--depth=1", "--single-branch"]
+            git.Repo.clone_from(
+                uri,
+                clone_path,
+                progress=_clone_progress_callback,
+                multi_options=options,
+            )
+        except git.GitCommandError as e:
+            if "already exists and is not an empty directory" not in str(e):
+                msg = f"Failed to clone repository: {e}"
+                raise ValueError(msg) from e
+            self.log.info("Repository already exists, reusing...", uri=sanitized_uri)
+
+        # Extract git repository information from cloned path
+        # Convert original URI to AnyUrl for GitRepo
+        from pydantic import AnyUrl
+
+        original_uri = AnyUrl(uri)
+        return self.get_repo_info_from_path(clone_path, original_uri, sanitized_uri)
+
+    def get_repo_info_from_path(
+        self, repo_path: Path, remote_uri: AnyUrl, sanitized_remote_uri: AnyUrl
+    ) -> GitRepo:
+        """Extract complete git repository information from a local path."""
+        try:
+            repo = Repo(repo_path)
+        except InvalidGitRepositoryError as e:
+            raise ValueError(f"Path is not a git repository: {repo_path}") from e
+
+        # Get all branches with their commit histories
+        branches = self._get_all_branches(repo)
+
+        # Get current branch as tracking branch
+        try:
+            current_branch = repo.active_branch
+            tracking_branch = next(
+                (b for b in branches if b.name == current_branch.name),
+                branches[0] if branches else None,
+            )
+        except Exception:  # noqa: BLE001
+            # Handle detached HEAD state
+            tracking_branch = branches[0] if branches else None
+
+        if tracking_branch is None:
+            raise ValueError("No branches found in repository")
+
+        return GitRepo(
+            branches=branches,
+            tracking_branch=tracking_branch,
+            cloned_path=repo_path,
+            remote_uri=remote_uri,
+            sanitized_remote_uri=sanitized_remote_uri,
+        )
+
+    def get_commit_history(
+        self, repo_path: Path, branch_name: str, limit: int = 100
+    ) -> list[GitCommit]:
+        """Get commit history for a specific branch."""
+        try:
+            repo = Repo(repo_path)
+
+            # Get the branch reference
+            branch_ref = None
+            for branch in repo.branches:
+                if branch.name == branch_name:
+                    branch_ref = branch
+                    break
+
+            if branch_ref is None:
+                return []
+
+            # Get commit history for the branch
+            commits = []
+            for commit in repo.iter_commits(branch_ref, max_count=limit):
+                try:
+                    git_commit = self._convert_commit(repo, commit)
+                    commits.append(git_commit)
+                except Exception:  # noqa: BLE001, S112
+                    # Skip commits we can't process
+                    continue
+
+        except (InvalidGitRepositoryError, Exception):
+            return []
+        else:
+            return commits
+
+    def _get_all_branches(self, repo: Repo) -> list[GitBranch]:
+        """Get all branches with their commit histories."""
+        branches = []
+
+        for branch in repo.branches:
+            try:
+                # Get head commit for this branch
+                head_commit = self._convert_commit(repo, branch.commit)
+                branches.append(GitBranch(name=branch.name, head_commit=head_commit))
+            except Exception:  # noqa: BLE001, S112
+                # Skip branches that can't be accessed
+                continue
+
+        return branches
+
+    def _convert_commit(self, repo: Repo, commit: "Commit") -> GitCommit:
+        """Convert a GitPython commit object to domain GitCommit."""
+        # Convert timestamp to datetime
+        commit_date = datetime.fromtimestamp(commit.committed_date, tz=UTC)
+
+        # Get parent commit SHA (first parent if merge commit)
+        parent_sha = commit.parents[0].hexsha if commit.parents else ""
+
+        # Get files changed in this commit
+        files = self._get_commit_files(repo, commit)
+
+        return GitCommit(
+            commit_sha=commit.hexsha,
+            date=commit_date,
+            message=str(commit.message).strip(),
+            parent_commit_sha=parent_sha,
+            files=files,
+        )
+
+    def _get_commit_files(self, repo: Repo, commit: "Commit") -> list[File]:
+        """Get files changed in a specific commit."""
+        try:
+            files = []
+
+            # Get files changed in this commit
+            if commit.parents:
+                # Compare with first parent to get changed files
+                changed_files = commit.parents[0].diff(commit)
+            else:
+                # Initial commit - get all files
+                changed_files = commit.diff(None)
+
+            for diff_item in changed_files:
+                # Handle both a_path and b_path (for renames/moves)
+                file_path = diff_item.b_path or diff_item.a_path
+                if file_path:
+                    full_path = Path(repo.working_dir) / file_path
+                    file_entity = File(
+                        uri=AnyUrl(full_path.as_uri()),
+                        sha256="",  # Would need to calculate
+                        authors=[],  # Would need to extract from git blame
+                        mime_type="",  # Would need to detect
+                        file_processing_status=FileProcessingStatus.CLEAN,
+                    )
+                    files.append(file_entity)
+
+        except Exception:  # noqa: BLE001
+            # If we can't get files for this commit, return empty list
+            return []
+        else:
+            return files

@@ -12,12 +12,16 @@ from kodit.application.factories.code_indexing_factory import (
 from kodit.application.factories.code_search_factory import (
     create_server_code_search_application_service,
 )
+from kodit.application.factories.git_application_factory import (
+    create_git_application_service,
+)
 from kodit.application.services.code_indexing_application_service import (
     CodeIndexingApplicationService,
 )
 from kodit.application.services.code_search_application_service import (
     CodeSearchApplicationService,
 )
+from kodit.application.services.git_application_service import GitApplicationService
 from kodit.application.services.queue_service import QueueService
 from kodit.config import AppContext
 from kodit.domain.services.index_query_service import IndexQueryService
@@ -130,3 +134,18 @@ async def get_task_status_query_service(
 TaskStatusQueryServiceDep = Annotated[
     TaskStatusQueryService, Depends(get_task_status_query_service)
 ]
+
+_git_application_service = None
+
+
+async def get_git_app_service(
+    app_context: AppContextDep,
+) -> GitApplicationService:
+    """Get git application service dependency."""
+    global _git_application_service
+    if not _git_application_service:
+        _git_application_service = create_git_application_service(app_context)
+    return _git_application_service
+
+
+GitAppServiceDep = Annotated[GitApplicationService, Depends(get_git_app_service)]

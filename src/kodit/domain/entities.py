@@ -58,6 +58,56 @@ class File(BaseModel):
         return Path(self.as_path()).suffix.lstrip(".")
 
 
+class GitFile(BaseModel):
+    """File domain entity."""
+
+    blob_sha: str  # Primary key
+    path: str
+    mime_type: str
+    size: int
+
+
+class GitCommit(BaseModel):
+    """Commit domain entity."""
+
+    commit_sha: str  # Primary key
+    date: datetime
+    message: str
+    parent_commit_sha: str
+    files: list[GitFile]
+    author: str
+
+
+class GitBranch(BaseModel):
+    """Branch domain entity."""
+
+    id: int | None = None  # Is populated by repository
+    name: str
+    head_commit: GitCommit
+
+
+class GitRepo(BaseModel):
+    """Repository domain entity."""
+
+    sanitized_remote_uri: AnyUrl  # Primary key
+    branches: list[GitBranch]
+    tracking_branch: GitBranch
+    cloned_path: Path
+    remote_uri: AnyUrl  # May include credentials
+    last_scanned_at: datetime | None = None
+    total_unique_commits: int = 0
+
+
+class CommitIndex(BaseModel):
+    """Commit index domain entity."""
+
+    commit_sha: str  # Primary key
+    created_at: datetime | None = None  # Is populated by repository
+    updated_at: datetime | None = None  # Is populated by repository
+    commit: GitCommit
+    snippets: list["Snippet"]
+
+
 class WorkingCopy(BaseModel):
     """Working copy value object representing cloned source location."""
 
@@ -115,6 +165,20 @@ class WorkingCopy(BaseModel):
         # Handle file URLs
         if url.startswith("file://"):
             return AnyUrl(url)
+
+        # Handle local paths by converting to file:// URLs
+        from pathlib import Path
+
+        try:
+            path = Path(url)
+            if path.exists() or url.startswith(("/", "./", "../")) or url == ".":
+                # Convert local path to file:// URL
+                absolute_path = path.resolve()
+                file_url = f"file://{absolute_path}"
+                return AnyUrl(file_url)
+        except Exception:
+            # If path conversion fails, continue with URL parsing
+            pass
 
         try:
             # Parse the URL

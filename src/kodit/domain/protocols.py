@@ -1,10 +1,15 @@
 """Repository protocol interfaces for the domain layer."""
 
-from typing import Protocol
+from abc import ABC, abstractmethod
+from pathlib import Path
+from typing import Any, Protocol
 
 from pydantic import AnyUrl
 
 from kodit.domain.entities import (
+    GitBranch,
+    GitCommit,
+    GitRepo,
     Index,
     Snippet,
     SnippetWithContext,
@@ -74,7 +79,6 @@ class IndexRepository(Protocol):
         ...
 
 
-
 class SnippetRepository(Protocol):
     """Repository interface for Snippet entities."""
 
@@ -131,3 +135,103 @@ class TaskStatusRepository(Protocol):
     async def delete(self, status: TaskStatus) -> None:
         """Delete a progress state."""
         ...
+
+
+class GitRepoRepository(ABC):
+    """Repository pattern for GitRepo aggregate."""
+
+    @abstractmethod
+    async def save(self, repo: GitRepo) -> None:
+        """Save or update a repository."""
+
+    @abstractmethod
+    async def get_by_uri(self, sanitized_uri: AnyUrl) -> GitRepo | None:
+        """Get repository by sanitized URI."""
+
+    @abstractmethod
+    async def get_all(self) -> list[GitRepo]:
+        """Get all repositories."""
+
+    @abstractmethod
+    async def delete(self, sanitized_uri: AnyUrl) -> bool:
+        """Delete a repository."""
+
+
+class GitCommitRepository(ABC):
+    """Repository for commit operations."""
+
+    @abstractmethod
+    async def save_commits(self, repo_uri: AnyUrl, commits: list[GitCommit]) -> None:
+        """Batch save commits for a repository."""
+
+    @abstractmethod
+    async def get_commits_for_branch(
+        self, repo_uri: AnyUrl, branch_name: str
+    ) -> list[GitCommit]:
+        """Get commits for a specific branch."""
+
+
+class GitBranchRepository(ABC):
+    """Repository for branch operations."""
+
+    @abstractmethod
+    async def save_branches(self, repo_uri: AnyUrl, branches: list[GitBranch]) -> None:
+        """Save branches for a repository."""
+
+    @abstractmethod
+    async def get_branches_for_repo(self, repo_uri: AnyUrl) -> list[GitBranch]:
+        """Get all branches for a repository."""
+
+
+class GitAdapter(ABC):
+    """Abstract interface for Git operations."""
+
+    @abstractmethod
+    async def clone_repository(self, remote_uri: str, local_path: Path) -> None:
+        """Clone a repository to local path."""
+
+    @abstractmethod
+    async def pull_repository(self, local_path: Path) -> None:
+        """Pull latest changes for existing repository."""
+
+    @abstractmethod
+    async def get_all_branches(self, local_path: Path) -> list[dict[str, Any]]:
+        """Get all branches in repository."""
+
+    @abstractmethod
+    async def get_branch_commits(
+        self, local_path: Path, branch_name: str
+    ) -> list[dict[str, Any]]:
+        """Get commit history for a specific branch."""
+
+    @abstractmethod
+    async def get_commit_files(
+        self, local_path: Path, commit_sha: str
+    ) -> list[dict[str, Any]]:
+        """Get all files in a specific commit."""
+
+    @abstractmethod
+    async def repository_exists(self, local_path: Path) -> bool:
+        """Check if repository exists at local path."""
+
+    @abstractmethod
+    async def get_commit_details(
+        self, local_path: Path, commit_sha: str
+    ) -> dict[str, Any]:
+        """Get details of a specific commit."""
+
+    @abstractmethod
+    async def ensure_repository(self, remote_uri: str, local_path: Path) -> None:
+        """Ensure repository exists at local path."""
+
+    @abstractmethod
+    async def get_file_content(
+        self, local_path: Path, commit_sha: str, file_path: str
+    ) -> bytes:
+        """Get file content at specific commit."""
+
+    @abstractmethod
+    async def get_latest_commit_sha(
+        self, local_path: Path, branch_name: str = "HEAD"
+    ) -> str:
+        """Get the latest commit SHA for a branch."""

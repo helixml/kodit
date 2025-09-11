@@ -15,6 +15,7 @@ from kodit.config import AppContext
 from kodit.infrastructure.api.v1.routers import (
     indexes_router,
     queue_router,
+    repositories_router,
     search_router,
 )
 from kodit.infrastructure.api.v1.schemas.context import AppLifespanState
@@ -114,6 +115,7 @@ async def healthz() -> Response:
 # Include API routers
 app.include_router(indexes_router)
 app.include_router(queue_router)
+app.include_router(repositories_router)
 app.include_router(search_router)
 
 
