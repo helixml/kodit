@@ -10,17 +10,8 @@ class InMemorySnippetRepository(SnippetRepositoryV2):
             str, list[SnippetV2]
         ] = {}  # f"{repo_uri}:{commit_sha}" -> List[Snippet]
 
-    def _make_key(self, repo_uri: str, commit_sha: str) -> str:
-        return f"{repo_uri}:{commit_sha}"
+    async def save_snippets(self, commit_sha: str, snippets: list[SnippetV2]) -> None:
+        self._snippets[commit_sha] = snippets.copy()
 
-    async def save_snippets(
-        self, repo_uri: str, commit_sha: str, snippets: list[SnippetV2]
-    ) -> None:
-        key = self._make_key(repo_uri, commit_sha)
-        self._snippets[key] = snippets.copy()
-
-    async def get_snippets_for_commit(
-        self, repo_uri: str, commit_sha: str
-    ) -> list[SnippetV2]:
-        key = self._make_key(repo_uri, commit_sha)
-        return self._snippets.get(key, [])
+    async def get_snippets_for_commit(self, commit_sha: str) -> list[SnippetV2]:
+        return self._snippets.get(commit_sha, [])

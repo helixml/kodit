@@ -13,7 +13,7 @@ from pydantic import AnyUrl
 
 from kodit.application.factories.reporting_factory import create_noop_operation
 from kodit.application.services.reporting import ProgressTracker
-from kodit.domain.entities import File, GitBranch, GitCommit, GitRepo, WorkingCopy
+from kodit.domain.entities import File, GitBranch, GitCommit, GitFile, GitRepo, WorkingCopy
 from kodit.domain.value_objects import FileProcessingStatus
 
 if TYPE_CHECKING:
@@ -102,6 +102,9 @@ class GitService:
 
         # Get all branches with their commit histories
         branches = self._get_all_branches(repo)
+        
+        # Get all unique commits across all branches
+        all_commits = self._get_all_commits(repo)
 
         # Get current branch as tracking branch
         try:
@@ -118,11 +121,14 @@ class GitService:
             raise ValueError("No branches found in repository")
 
         return GitRepo(
+            sanitized_remote_uri=sanitized_remote_uri,
             branches=branches,
+            commits=all_commits,
             tracking_branch=tracking_branch,
             cloned_path=repo_path,
             remote_uri=remote_uri,
-            sanitized_remote_uri=sanitized_remote_uri,
+            last_scanned_at=datetime.now(UTC),
+            total_unique_commits=len(all_commits),
         )
 
     def get_commit_history(
@@ -172,6 +178,24 @@ class GitService:
 
         return branches
 
+    def _get_all_commits(self, repo: Repo) -> list[GitCommit]:
+        """Get all unique commits across all branches."""
+        commit_cache = {}  # Use SHA as key to avoid duplicates
+        
+        # Get all commits from all branches
+        for branch in repo.branches:
+            try:
+                # Traverse the entire commit history for this branch
+                for commit in repo.iter_commits(branch):
+                    if commit.hexsha not in commit_cache:
+                        domain_commit = self._convert_commit(repo, commit)
+                        commit_cache[commit.hexsha] = domain_commit
+            except Exception:  # noqa: BLE001, S112
+                # Skip branches that can't be accessed
+                continue
+        
+        return list(commit_cache.values())
+
     def _convert_commit(self, repo: Repo, commit: "Commit") -> GitCommit:
         """Convert a GitPython commit object to domain GitCommit."""
         # Convert timestamp to datetime
@@ -183,15 +207,24 @@ class GitService:
         # Get files changed in this commit
         files = self._get_commit_files(repo, commit)
 
+        # Format author string from name and email
+        author_name = str(commit.author.name) if commit.author.name else ""
+        author_email = str(commit.author.email) if commit.author.email else ""
+        if author_name and author_email:
+            author = f"{author_name} <{author_email}>"
+        else:
+            author = author_name or "Unknown"
+
         return GitCommit(
             commit_sha=commit.hexsha,
             date=commit_date,
             message=str(commit.message).strip(),
             parent_commit_sha=parent_sha,
             files=files,
+            author=author,
         )
 
-    def _get_commit_files(self, repo: Repo, commit: "Commit") -> list[File]:
+    def _get_commit_files(self, repo: Repo, commit: "Commit") -> list[GitFile]:
         """Get files changed in a specific commit."""
         try:
             files = []
@@ -207,16 +240,19 @@ class GitService:
             for diff_item in changed_files:
                 # Handle both a_path and b_path (for renames/moves)
                 file_path = diff_item.b_path or diff_item.a_path
-                if file_path:
-                    full_path = Path(repo.working_dir) / file_path
-                    file_entity = File(
-                        uri=AnyUrl(full_path.as_uri()),
-                        sha256="",  # Would need to calculate
-                        authors=[],  # Would need to extract from git blame
-                        mime_type="",  # Would need to detect
-                        file_processing_status=FileProcessingStatus.CLEAN,
-                    )
-                    files.append(file_entity)
+                if file_path and diff_item.b_blob:
+                    try:
+                        blob = diff_item.b_blob
+                        file_entity = GitFile(
+                            blob_sha=blob.hexsha,
+                            path=str(Path(repo.working_dir) / file_path),
+                            mime_type="application/octet-stream",  # Default, could be improved
+                            size=blob.size,
+                        )
+                        files.append(file_entity)
+                    except Exception:  # noqa: BLE001, S112
+                        # Skip files we can't process
+                        continue
 
         except Exception:  # noqa: BLE001
             # If we can't get files for this commit, return empty list

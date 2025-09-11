@@ -168,6 +168,7 @@ class GitRepoFactory:
             remote_uri=repo_info.remote_uri,
             last_scanned_at=scan_result.scan_timestamp,
             total_unique_commits=scan_result.total_unique_commits,
+            commits=scan_result.all_commits,
         )
 
 

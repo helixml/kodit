@@ -13,11 +13,16 @@ class InMemoryGitRepoRepository(GitRepoRepository):
         """Initialize the in-memory repository."""
         self._repos: dict[str, GitRepo] = {}
 
-    async def save(self, repo: GitRepo) -> GitRepo:
+    async def save(self, repo: GitRepo) -> None:
         """Save a GitRepo aggregate (insert or update)."""
         key = str(repo.sanitized_remote_uri)
         self._repos[key] = repo
-        return repo
+
+    async def get_by_commit(self, commit_sha: str) -> GitRepo | None:
+        """Get a GitRepo by commit SHA."""
+        return next(
+            (repo for repo in self._repos.values() if commit_sha in repo.commits), None
+        )
 
     async def get_by_uri(self, sanitized_remote_uri: AnyUrl) -> GitRepo | None:
         """Get a GitRepo by sanitized remote URI."""

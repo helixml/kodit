@@ -1,7 +1,6 @@
 from typing import Any
 
 import structlog
-from pydantic import AnyUrl
 
 from kodit.application.services.reporting import ProgressTracker
 from kodit.domain.entities import CommitIndex, IndexStatus
@@ -36,12 +35,14 @@ class CommitIndexingApplicationService:
         self.operation = operation
         self._log = structlog.get_logger(__name__)
 
-    async def index_commit(self, repo_uri: str, commit_sha: str) -> CommitIndex:
+    async def index_commit(self, commit_sha: str) -> CommitIndex:
         """Index a specific commit."""
+        repo = await self.repo_repository.get_by_commit(commit_sha)
+        if not repo:
+            raise ValueError(f"Repository for commit {commit_sha} not found")
+
         # Check if already indexed
-        existing = await self.commit_index_repository.get_by_commit(
-            repo_uri, commit_sha
-        )
+        existing = await self.commit_index_repository.get_by_commit(commit_sha)
         if existing and existing.status == IndexStatus.COMPLETED:
             self._log.info(f"Commit {commit_sha} already indexed")
             return existing
@@ -51,15 +52,9 @@ class CommitIndexingApplicationService:
             if not commit:
                 raise ValueError(f"Commit {commit_sha} not found")
 
-            # Get repository to find local path
-            repo = await self.repo_repository.get_by_uri(AnyUrl(repo_uri))
-            if not repo:
-                raise ValueError(f"Repository {repo_uri} not found")
-
             # Create pending index entry
             pending_index = CommitIndex(
                 commit_sha=commit_sha,
-                repo_uri=repo_uri,
                 snippets=[],
                 status=IndexStatus.IN_PROGRESS,
             )
@@ -73,12 +68,11 @@ class CommitIndexingApplicationService:
             # Save everything
             commit_index = CommitIndex(
                 commit_sha=commit_sha,
-                repo_uri=repo_uri,
                 snippets=result,
                 status=IndexStatus.COMPLETED,
             )
             await self.commit_index_repository.save(commit_index)
-            await self.snippet_repository.save_snippets(repo_uri, commit_sha, result)
+            await self.snippet_repository.save_snippets(commit_sha, result)
 
             return commit_index
 

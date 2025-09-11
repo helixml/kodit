@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 
 from pydantic import AnyUrl
 
-from kodit.domain.entities import Author, File, GitBranch, GitCommit, GitRepo
+from kodit.domain.entities import Author, File, GitBranch, GitCommit, GitFile, GitRepo
 from kodit.domain.value_objects import FileProcessingStatus
 
 
@@ -18,6 +18,7 @@ class GitTestDataFactory:
         parent_sha: str = "",
         date: datetime | None = None,
         file_count: int = 3,
+        author: str = "Test Author <test@example.com>",
     ) -> GitCommit:
         """Create a sample git commit."""
         if date is None:
@@ -25,18 +26,11 @@ class GitTestDataFactory:
 
         files = []
         for i in range(file_count):
-            file_entity = File(
-                uri=AnyUrl(f"file:///test/repo/file{i}.py"),
-                sha256=f"sha256_{i}",
-                authors=[
-                    Author(
-                        id=1,
-                        name="Test Author",
-                        email="test@example.com",
-                    )
-                ],
+            file_entity = GitFile(
+                blob_sha=f"blob_sha_{i}",
+                path=f"/test/repo/file{i}.py",
                 mime_type="text/x-python",
-                file_processing_status=FileProcessingStatus.CLEAN,
+                size=100 + i,  # Some fake size
             )
             files.append(file_entity)
 
@@ -46,6 +40,7 @@ class GitTestDataFactory:
             message=message,
             parent_commit_sha=parent_sha,
             files=files,
+            author=author,
         )
 
     @staticmethod
@@ -69,6 +64,7 @@ class GitTestDataFactory:
     ) -> GitRepo:
         """Create a sample git repository with branches and commits."""
         branches = []
+        all_commits = []  # Track all commits across all branches
         base_date = datetime.now(UTC)
 
         # Create main branch with commit history
@@ -85,6 +81,7 @@ class GitTestDataFactory:
                 file_count=2 + (i % 3),
             )
             main_commits.append(commit)
+            all_commits.append(commit)
 
         main_branch = GitBranch(
             name="main",
@@ -115,6 +112,7 @@ class GitTestDataFactory:
                     file_count=1 + (i % 2),
                 )
                 branch_commits.append(commit)
+                all_commits.append(commit)
 
             feature_branch = GitBranch(
                 name=f"feature-{branch_num}",
@@ -122,9 +120,18 @@ class GitTestDataFactory:
             )
             branches.append(feature_branch)
 
+        # Need to provide all required fields for GitRepo
+        from pathlib import Path
+        
         return GitRepo(
+            sanitized_remote_uri=AnyUrl("https://github.com/test/sample.git"),
             branches=branches,
+            commits=all_commits,
             tracking_branch=main_branch,
+            cloned_path=Path("/tmp/test-repo"),
+            remote_uri=AnyUrl("https://github.com/test/sample.git"),
+            last_scanned_at=datetime.now(UTC),
+            total_unique_commits=len(all_commits),
         )
 
     @staticmethod

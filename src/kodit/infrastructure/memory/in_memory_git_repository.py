@@ -22,6 +22,14 @@ class InMemoryGitRepoRepository(GitRepoRepository):
         """Get repository by sanitized URI."""
         return self._repos.get(str(sanitized_uri))
 
+    async def get_by_commit(self, commit_sha: str) -> GitRepo | None:
+        """Get repository by commit SHA."""
+        for repo in self._repos.values():
+            for commit in repo.commits:
+                if commit.commit_sha == commit_sha:
+                    return repo
+        return None
+
     async def get_all(self) -> list[GitRepo]:
         """Get all repositories."""
         return list(self._repos.values())

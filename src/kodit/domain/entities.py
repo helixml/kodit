@@ -96,6 +96,7 @@ class GitRepo(BaseModel):
 
     sanitized_remote_uri: AnyUrl  # Primary key
     branches: list[GitBranch]
+    commits: list[GitCommit]
     tracking_branch: GitBranch
     cloned_path: Path
     remote_uri: AnyUrl  # May include credentials
@@ -116,7 +117,6 @@ class CommitIndex(BaseModel):
     """Aggregate root for indexed commit data."""
 
     commit_sha: str  # Primary key
-    repo_uri: str
     snippets: list["SnippetV2"]
     status: IndexStatus
     indexed_at: datetime | None = None

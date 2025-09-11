@@ -40,21 +40,19 @@ async def index_commit(
 ) -> CommitResponse:
     """Index a specific commit in a repository."""
     try:
-        repo_uri = request.data.attributes.repo_uri
         commit_sha = request.data.attributes.commit_sha
         commit_index = (
             await server_factory.commit_indexing_application_service().index_commit(
-                repo_uri, commit_sha
+                commit_sha
             )
         )
 
         return CommitResponse(
             data=CommitData(
                 type="commit_index",
-                id=f"{repo_uri}#{commit_sha}",
+                id=f"{commit_sha}",
                 attributes=CommitAttributes(
                     commit_sha=commit_index.commit_sha,
-                    repo_uri=commit_index.repo_uri,
                     status=commit_index.status,
                     snippet_count=commit_index.get_snippet_count(),
                     indexed_at=commit_index.indexed_at or datetime.now(UTC),
@@ -92,7 +90,6 @@ async def list_indexed_commits(
                     id=f"{repo_uri}#{commit.commit_sha}",
                     attributes=CommitAttributes(
                         commit_sha=commit.commit_sha,
-                        repo_uri=commit.repo_uri,
                         status=commit.status,
                         snippet_count=commit.get_snippet_count(),
                         indexed_at=commit.indexed_at or datetime.now(UTC),
@@ -146,11 +143,10 @@ async def get_commit_index(
 ) -> CommitResponse:
     """Get the index status for a specific commit."""
     try:
-        repo_uri = request.data.attributes.repo_uri
         commit_sha = request.data.attributes.commit_sha
 
         commit_index = await server_factory.commit_index_repository().get_by_commit(
-            repo_uri, commit_sha
+            commit_sha
         )
 
         if not commit_index:
@@ -159,10 +155,9 @@ async def get_commit_index(
         return CommitResponse(
             data=CommitData(
                 type="commit_index",
-                id=f"{repo_uri}#{commit_sha}",
+                id=commit_sha,
                 attributes=CommitAttributes(
                     commit_sha=commit_index.commit_sha,
-                    repo_uri=commit_index.repo_uri,
                     status=commit_index.status,
                     snippet_count=commit_index.get_snippet_count(),
                     indexed_at=commit_index.indexed_at or datetime.now(UTC),

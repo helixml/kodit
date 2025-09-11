@@ -11,7 +11,6 @@ class CommitAttributes(BaseModel):
     """Commit attributes in API responses."""
 
     commit_sha: str
-    repo_uri: str
     status: IndexStatus
     snippet_count: int
     indexed_at: datetime
@@ -20,7 +19,6 @@ class CommitAttributes(BaseModel):
 class CommitIndexAttributes(BaseModel):
     """Attributes for indexing a commit."""
 
-    repo_uri: str = Field(..., description="The repository URI")
     commit_sha: str = Field(..., description="The commit SHA to index")
 
 
@@ -122,7 +120,6 @@ class CommitStatsRequest(BaseModel):
 class CommitGetRequestAttributes(BaseModel):
     """Attributes for getting a specific commit."""
 
-    repo_uri: str = Field(..., description="The repository URI")
     commit_sha: str = Field(..., description="The commit SHA")
 
 

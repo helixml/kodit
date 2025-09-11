@@ -151,6 +151,10 @@ class GitRepoRepository(ABC):
         """Get repository by sanitized URI."""
 
     @abstractmethod
+    async def get_by_commit(self, commit_sha: str) -> GitRepo | None:
+        """Get repository by commit SHA."""
+
+    @abstractmethod
     async def get_all(self) -> list[GitRepo]:
         """Get all repositories."""
 
@@ -251,7 +255,7 @@ class CommitIndexRepository(ABC):
         """Save or update a commit index."""
 
     @abstractmethod
-    async def get_by_commit(self, repo_uri: str, commit_sha: str) -> CommitIndex | None:
+    async def get_by_commit(self, commit_sha: str) -> CommitIndex | None:
         """Get index data for a specific commit."""
 
     @abstractmethod
@@ -259,7 +263,7 @@ class CommitIndexRepository(ABC):
         """Get all indexed commits for a repository."""
 
     @abstractmethod
-    async def delete(self, repo_uri: str, commit_sha: str) -> bool:
+    async def delete(self, commit_sha: str) -> bool:
         """Delete index data for a commit."""
 
 
@@ -267,13 +271,9 @@ class SnippetRepositoryV2(ABC):
     """Repository for snippet operations."""
 
     @abstractmethod
-    async def save_snippets(
-        self, repo_uri: str, commit_sha: str, snippets: list[SnippetV2]
-    ) -> None:
+    async def save_snippets(self, commit_sha: str, snippets: list[SnippetV2]) -> None:
         """Batch save snippets for a commit."""
 
     @abstractmethod
-    async def get_snippets_for_commit(
-        self, repo_uri: str, commit_sha: str
-    ) -> list[SnippetV2]:
+    async def get_snippets_for_commit(self, commit_sha: str) -> list[SnippetV2]:
         """Get all snippets for a specific commit."""
