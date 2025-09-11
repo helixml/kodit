@@ -13,8 +13,13 @@ from pydantic import AnyUrl
 
 from kodit.application.factories.reporting_factory import create_noop_operation
 from kodit.application.services.reporting import ProgressTracker
-from kodit.domain.entities import File, GitBranch, GitCommit, GitFile, GitRepo, WorkingCopy
-from kodit.domain.value_objects import FileProcessingStatus
+from kodit.domain.entities import (
+    GitBranch,
+    GitCommit,
+    GitFile,
+    GitRepo,
+    WorkingCopy,
+)
 
 if TYPE_CHECKING:
     from git.objects import Commit
@@ -102,7 +107,7 @@ class GitService:
 
         # Get all branches with their commit histories
         branches = self._get_all_branches(repo)
-        
+
         # Get all unique commits across all branches
         all_commits = self._get_all_commits(repo)
 
@@ -121,6 +126,7 @@ class GitService:
             raise ValueError("No branches found in repository")
 
         return GitRepo(
+            id=GitRepo.create_id(sanitized_remote_uri),
             sanitized_remote_uri=sanitized_remote_uri,
             branches=branches,
             commits=all_commits,
@@ -181,7 +187,7 @@ class GitService:
     def _get_all_commits(self, repo: Repo) -> list[GitCommit]:
         """Get all unique commits across all branches."""
         commit_cache = {}  # Use SHA as key to avoid duplicates
-        
+
         # Get all commits from all branches
         for branch in repo.branches:
             try:
@@ -193,7 +199,7 @@ class GitService:
             except Exception:  # noqa: BLE001, S112
                 # Skip branches that can't be accessed
                 continue
-        
+
         return list(commit_cache.values())
 
     def _convert_commit(self, repo: Repo, commit: "Commit") -> GitCommit:

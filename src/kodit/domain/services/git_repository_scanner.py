@@ -161,6 +161,7 @@ class GitRepoFactory:
             raise ValueError("No tracking branch found")
 
         return GitRepo(
+            id=GitRepo.create_id(repo_info.sanitized_remote_uri),
             sanitized_remote_uri=repo_info.sanitized_remote_uri,
             branches=scan_result.branches,
             tracking_branch=tracking_branch,

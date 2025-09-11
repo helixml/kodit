@@ -19,7 +19,7 @@ from kodit.domain.value_objects import (
     TaskOperation,
     TrackableType,
 )
-from kodit.utils.path_utils import path_from_uri
+from kodit.utils.path_utils import path_from_uri, repo_id_from_uri
 
 
 class IgnorePatternProvider(Protocol):
@@ -94,7 +94,8 @@ class GitBranch(BaseModel):
 class GitRepo(BaseModel):
     """Repository domain entity."""
 
-    sanitized_remote_uri: AnyUrl  # Primary key
+    id: str  # Primary key
+    sanitized_remote_uri: AnyUrl
     branches: list[GitBranch]
     commits: list[GitCommit]
     tracking_branch: GitBranch
@@ -102,6 +103,11 @@ class GitRepo(BaseModel):
     remote_uri: AnyUrl  # May include credentials
     last_scanned_at: datetime | None = None
     total_unique_commits: int = 0
+
+    @staticmethod
+    def create_id(sanitized_remote_uri: AnyUrl) -> str:
+        """Create a unique id for a repository."""
+        return repo_id_from_uri(sanitized_remote_uri)
 
 
 class IndexStatus(StrEnum):

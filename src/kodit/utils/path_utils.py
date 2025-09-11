@@ -1,9 +1,12 @@
 """Path utilities for Python compatibility."""
 
+import hashlib
 import sys
 from pathlib import Path
 from urllib.parse import urlparse
 from urllib.request import url2pathname
+
+from pydantic import AnyUrl
 
 
 def path_from_uri(uri: str) -> Path:
@@ -52,3 +55,29 @@ def path_from_uri(uri: str) -> Path:
     path_str = url2pathname(parsed.path)
 
     return Path(path_str)
+
+
+def repo_id_from_uri(sanitized_uri: AnyUrl) -> str:
+    """Create a unique id for a repository."""
+    # Get the last part of the sanitized remote URI,
+    uri_end = clean_end_of_uri(sanitized_uri)
+    dir_hash = hashlib.sha256(str(sanitized_uri).encode("utf-8")).hexdigest()[:16]
+    return f"{dir_hash}-{uri_end}"
+
+
+def clean_end_of_uri(sanitized_uri: AnyUrl) -> str:
+    """Clean the end of a URI."""
+    path = sanitized_uri.path
+    if not path:
+        path = str(sanitized_uri)
+
+    # Extract the last part of the path (it might not have any slashes)
+    part = path.split("/")[-1]
+    if not part:
+        part = path
+
+    # Now get up to the LAST 8 characters of the part, if they exist
+    if len(part) > 8:
+        part = part[-8:]
+
+    return part
