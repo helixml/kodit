@@ -110,4 +110,6 @@ the name `_test.py`.
 
 ## Coding Style
 
-- Docstrings should be very minimal. Descriptions only. No arguments or return types. No examples. No deprecation notices.
+- Docstrings should be very minimal. Descriptions only. No arguments or return types. No
+  examples. No deprecation notices.
+- Do not use **init**.py files to store imports.
