@@ -32,7 +32,7 @@ async def list_repository_commits(
     git_service: GitAppServiceDep,
 ) -> CommitListResponse:
     """List all commits for a repository."""
-    repo = await git_service.repo_repository.get_by_id(repo_id)
+    repo = await git_service.repo_repository.get_by_id(int(repo_id))
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
 
@@ -68,7 +68,7 @@ async def get_repository_commit(
     git_service: GitAppServiceDep,
 ) -> CommitResponse:
     """Get a specific commit for a repository."""
-    repo = await git_service.repo_repository.get_by_id(repo_id)
+    repo = await git_service.repo_repository.get_by_id(int(repo_id))
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
 
@@ -99,7 +99,7 @@ async def list_commit_files(
     git_service: GitAppServiceDep,
 ) -> FileListResponse:
     """List all files in a specific commit."""
-    repo = await git_service.repo_repository.get_by_id(repo_id)
+    repo = await git_service.repo_repository.get_by_id(int(repo_id))
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
 
@@ -138,7 +138,7 @@ async def get_commit_file(
     git_service: GitAppServiceDep,
 ) -> FileResponse:
     """Get a specific file from a commit."""
-    repo = await git_service.repo_repository.get_by_id(repo_id)
+    repo = await git_service.repo_repository.get_by_id(int(repo_id))
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
 

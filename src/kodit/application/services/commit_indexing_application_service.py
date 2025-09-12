@@ -1,3 +1,5 @@
+"""Application services for commit indexing operations."""
+
 from typing import Any
 
 import structlog
@@ -25,6 +27,16 @@ class CommitIndexingApplicationService:
         domain_indexer: IndexDomainService,
         operation: ProgressTracker,
     ) -> None:
+        """Initialize the commit indexing application service.
+
+        Args:
+            commit_index_repository: Repository for commit index data.
+            snippet_v2_repository: Repository for snippet data.
+            repo_repository: Repository for Git repository data.
+            domain_indexer: Domain service for indexing operations.
+            operation: Progress tracker for reporting operations.
+
+        """
         self.commit_index_repository = commit_index_repository
         self.snippet_repository = snippet_v2_repository
         self.repo_repository = repo_repository
@@ -82,6 +94,13 @@ class CommitIndexQueryService:
         commit_index_repository: CommitIndexRepository,
         snippet_repository: SnippetRepository,
     ) -> None:
+        """Initialize the commit index query service.
+
+        Args:
+            commit_index_repository: Repository for commit index data.
+            snippet_repository: Repository for snippet data.
+
+        """
         self.commit_index_repository = commit_index_repository
         self.snippet_repository = snippet_repository
 

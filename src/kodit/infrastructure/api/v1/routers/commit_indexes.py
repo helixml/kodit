@@ -42,7 +42,7 @@ async def create_commit_index(
     indexing_service: CommitIndexingAppServiceDep,
 ) -> CommitIndexResponse:
     """Create a new commit index for a repository."""
-    repo = await git_service.repo_repository.get_by_id(repo_id)
+    repo = await git_service.repo_repository.get_by_id(int(repo_id))
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
 
@@ -84,7 +84,7 @@ async def list_repository_commit_indexes(
     query_service: CommitIndexQueryServiceDep,
 ) -> CommitIndexListResponse:
     """List all commit indexes for a repository."""
-    repo = await git_service.repo_repository.get_by_id(repo_id)
+    repo = await git_service.repo_repository.get_by_id(int(repo_id))
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
 
@@ -123,7 +123,7 @@ async def get_repository_commit_index(
     indexing_service: CommitIndexingAppServiceDep,
 ) -> CommitIndexResponse:
     """Get a specific commit index for a repository."""
-    repo = await git_service.repo_repository.get_by_id(repo_id)
+    repo = await git_service.repo_repository.get_by_id(int(repo_id))
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
 
@@ -167,7 +167,7 @@ async def delete_repository_commit_index(
     indexing_service: CommitIndexingAppServiceDep,
 ) -> None:
     """Delete a commit index for a repository."""
-    repo = await git_service.repo_repository.get_by_id(repo_id)
+    repo = await git_service.repo_repository.get_by_id(int(repo_id))
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
 
@@ -200,7 +200,7 @@ async def list_commit_index_snippets(
     indexing_service: CommitIndexingAppServiceDep,
 ) -> SnippetListResponse:
     """List all snippets for a specific commit index."""
-    repo = await git_service.repo_repository.get_by_id(repo_id)
+    repo = await git_service.repo_repository.get_by_id(int(repo_id))
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
 

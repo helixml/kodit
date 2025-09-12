@@ -137,7 +137,22 @@ TaskStatusQueryServiceDep = Annotated[
     TaskStatusQueryService, Depends(get_task_status_query_service)
 ]
 
-_server_factory = None
+class _ServerFactoryHolder:
+    """Holder for server factory instance."""
+
+    def __init__(self) -> None:
+        self._instance: ServerFactory | None = None
+
+    def get_or_create(
+        self, app_context: AppContext, session_factory: Callable[[], AsyncSession]
+    ) -> ServerFactory:
+        """Get or create server factory instance."""
+        if self._instance is None:
+            self._instance = ServerFactory(app_context, session_factory)
+        return self._instance
+
+
+_server_factory_holder = _ServerFactoryHolder()
 
 
 async def get_server_factory(
@@ -145,10 +160,7 @@ async def get_server_factory(
     session_factory: DBSessionFactoryDep,
 ) -> ServerFactory:
     """Get server factory dependency."""
-    global _server_factory
-    if not _server_factory:
-        _server_factory = ServerFactory(app_context, session_factory)
-    return _server_factory
+    return _server_factory_holder.get_or_create(app_context, session_factory)
 
 
 ServerFactoryDep = Annotated[ServerFactory, Depends(get_server_factory)]

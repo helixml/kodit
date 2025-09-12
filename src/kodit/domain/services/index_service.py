@@ -90,6 +90,7 @@ class IndexDomainService:
         commit: domain_entities.GitCommit,
         step: ProgressTracker | None = None,
     ) -> list[domain_entities.SnippetV2]:
+        """Extract snippets from a git commit."""
         step = step or create_noop_operation()
         file_count = len(commit.files)
 

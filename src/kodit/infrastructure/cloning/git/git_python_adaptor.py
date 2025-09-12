@@ -1,8 +1,10 @@
+"""GitPython adapter for Git operations."""
+
 import asyncio
 import mimetypes
 import shutil
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -16,8 +18,18 @@ class GitPythonAdapter(GitAdapter):
     """GitPython implementation of Git operations."""
 
     def __init__(self, max_workers: int = 4) -> None:
+        """Initialize GitPython adapter.
+
+        Args:
+            max_workers: Maximum number of worker threads.
+
+        """
         self._log = structlog.getLogger(__name__)
         self.executor = ThreadPoolExecutor(max_workers=max_workers)
+
+    def _raise_branch_not_found_error(self, branch_name: str) -> None:
+        """Raise branch not found error."""
+        raise ValueError(f"Branch {branch_name} not found")
 
     async def clone_repository(self, remote_uri: str, local_path: Path) -> None:
         """Clone a repository to local path."""
@@ -26,7 +38,8 @@ class GitPythonAdapter(GitAdapter):
             try:
                 if local_path.exists():
                     self._log.warning(
-                        f"Local path {local_path} already exists, removing and re-cloning..."
+                        f"Local path {local_path} already exists, removing and "
+                        f"re-cloning..."
                     )
                     shutil.rmtree(local_path)
                 local_path.mkdir(parents=True, exist_ok=True)
@@ -61,21 +74,20 @@ class GitPythonAdapter(GitAdapter):
     async def get_all_branches(self, local_path: Path) -> list[dict[str, Any]]:
         """Get all branches in repository."""
 
-        def _get_branches():
+        def _get_branches() -> list[dict[str, Any]]:
             try:
                 repo = Repo(local_path)
-                branches = []
 
                 # Get local branches
-                for branch in repo.branches:
-                    branches.append(
-                        {
-                            "name": branch.name,
-                            "type": "local",
-                            "head_commit_sha": branch.commit.hexsha,
-                            "is_active": branch == repo.active_branch,
-                        }
-                    )
+                branches = [
+                    {
+                        "name": branch.name,
+                        "type": "local",
+                        "head_commit_sha": branch.commit.hexsha,
+                        "is_active": branch == repo.active_branch,
+                    }
+                    for branch in repo.branches
+                ]
 
                 # Get remote branches
                 for remote in repo.remotes:
@@ -94,10 +106,11 @@ class GitPythonAdapter(GitAdapter):
                                     }
                                 )
 
-                return branches
             except Exception as e:
                 self._log.error(f"Failed to get branches for {local_path}: {e}")
                 raise
+            else:
+                return branches
 
         return await asyncio.get_event_loop().run_in_executor(
             self.executor, _get_branches
@@ -108,7 +121,7 @@ class GitPythonAdapter(GitAdapter):
     ) -> list[dict[str, Any]]:
         """Get commit history for a specific branch."""
 
-        def _get_commits():
+        def _get_commits() -> list[dict[str, Any]]:
             try:
                 repo = Repo(local_path)
 
@@ -126,7 +139,7 @@ class GitPythonAdapter(GitAdapter):
                             continue
 
                 if not branch_ref:
-                    raise ValueError(f"Branch {branch_name} not found")
+                    self._raise_branch_not_found_error(branch_name)
 
                 commits = []
                 for commit in repo.iter_commits(branch_ref):
@@ -137,7 +150,7 @@ class GitPythonAdapter(GitAdapter):
                     commits.append(
                         {
                             "sha": commit.hexsha,
-                            "date": datetime.fromtimestamp(commit.committed_date),
+                            "date": datetime.fromtimestamp(commit.committed_date, UTC),
                             "message": commit.message.strip(),
                             "parent_sha": parent_sha,
                             "author_name": commit.author.name,
@@ -148,12 +161,14 @@ class GitPythonAdapter(GitAdapter):
                         }
                     )
 
-                return commits
             except Exception as e:
                 self._log.error(
-                    f"Failed to get commits for branch {branch_name} in {local_path}: {e}"
+                    f"Failed to get commits for branch {branch_name} in "
+                    f"{local_path}: {e}"
                 )
                 raise
+            else:
+                return commits
 
         return await asyncio.get_event_loop().run_in_executor(
             self.executor, _get_commits
@@ -164,14 +179,14 @@ class GitPythonAdapter(GitAdapter):
     ) -> list[dict[str, Any]]:
         """Get all files in a specific commit."""
 
-        def _get_files():
+        def _get_files() -> list[dict[str, Any]]:
             try:
                 repo = Repo(local_path)
                 commit = repo.commit(commit_sha)
 
                 files = []
 
-                def process_tree(tree, path_prefix="") -> None:
+                def process_tree(tree: Any, _: str = "") -> None:
                     for item in tree.traverse():
                         if item.type == "blob":  # It's a file
                             # Guess mime type from file path
@@ -190,25 +205,26 @@ class GitPythonAdapter(GitAdapter):
                             )
 
                 process_tree(commit.tree)
-                return files
-
             except Exception as e:
                 self._log.error(
                     f"Failed to get files for commit {commit_sha} in {local_path}: {e}"
                 )
                 raise
+            else:
+                return files
 
         return await asyncio.get_event_loop().run_in_executor(self.executor, _get_files)
 
     async def repository_exists(self, local_path: Path) -> bool:
         """Check if repository exists at local path."""
 
-        def _check_exists() -> bool | None:
+        def _check_exists() -> bool:
             try:
                 Repo(local_path)
-                return True
             except (InvalidGitRepositoryError, Exception):
                 return False
+            else:
+                return True
 
         return await asyncio.get_event_loop().run_in_executor(
             self.executor, _check_exists
@@ -219,7 +235,7 @@ class GitPythonAdapter(GitAdapter):
     ) -> dict[str, Any]:
         """Get detailed information about a specific commit."""
 
-        def _get_commit_details():
+        def _get_commit_details() -> dict[str, Any]:
             try:
                 repo = Repo(local_path)
                 commit = repo.commit(commit_sha)
@@ -230,7 +246,7 @@ class GitPythonAdapter(GitAdapter):
 
                 return {
                     "sha": commit.hexsha,
-                    "date": datetime.fromtimestamp(commit.committed_date),
+                    "date": datetime.fromtimestamp(commit.committed_date, UTC),
                     "message": commit.message.strip(),
                     "parent_sha": parent_sha,
                     "author_name": commit.author.name,
@@ -242,7 +258,8 @@ class GitPythonAdapter(GitAdapter):
                 }
             except Exception as e:
                 self._log.error(
-                    f"Failed to get commit details for {commit_sha} in {local_path}: {e}"
+                    f"Failed to get commit details for {commit_sha} in "
+                    f"{local_path}: {e}"
                 )
                 raise
 
@@ -262,7 +279,7 @@ class GitPythonAdapter(GitAdapter):
     ) -> bytes:
         """Get file content at specific commit."""
 
-        def _get_file_content():
+        def _get_file_content() -> bytes:
             try:
                 repo = Repo(local_path)
                 commit = repo.commit(commit_sha)
@@ -285,18 +302,22 @@ class GitPythonAdapter(GitAdapter):
     ) -> str:
         """Get the latest commit SHA for a branch."""
 
-        def _get_latest_commit():
+        def _get_latest_commit() -> str:
             try:
                 repo = Repo(local_path)
                 if branch_name == "HEAD":
-                    return repo.head.commit.hexsha
-                branch = repo.branches[branch_name]
-                return branch.commit.hexsha
+                    commit_sha = repo.head.commit.hexsha
+                else:
+                    branch = repo.branches[branch_name]
+                    commit_sha = branch.commit.hexsha
             except Exception as e:
                 self._log.error(
-                    f"Failed to get latest commit for {branch_name} in {local_path}: {e}"
+                    f"Failed to get latest commit for {branch_name} in "
+                    f"{local_path}: {e}"
                 )
                 raise
+            else:
+                return commit_sha
 
         return await asyncio.get_event_loop().run_in_executor(
             self.executor, _get_latest_commit
@@ -310,7 +331,7 @@ class GitPythonAdapter(GitAdapter):
     async def get_all_tags(self, local_path: Path) -> list[dict[str, Any]]:
         """Get all tags in repository."""
 
-        def _get_tags():
+        def _get_tags() -> list[dict[str, Any]]:
             try:
                 repo = Repo(local_path)
                 self._log.info(f"Getting all tags for {local_path}: {len(repo.tags)}")

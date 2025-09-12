@@ -36,6 +36,11 @@ router = APIRouter(
 )
 
 
+def _raise_not_found_error(detail: str) -> None:
+    """Raise repository not found error."""
+    raise HTTPException(status_code=404, detail=detail)
+
+
 @router.get("", summary="List repositories")
 async def list_repositories(
     git_service: GitAppServiceDep,
@@ -46,7 +51,7 @@ async def list_repositories(
         data=[
             RepositoryData(
                 type="repository",
-                id=repo.id,
+                id=str(repo.id) if repo.id is not None else repo.business_key,
                 attributes=RepositoryAttributes(
                     remote_uri=repo.remote_uri,
                     sanitized_remote_uri=repo.sanitized_remote_uri,
@@ -77,7 +82,7 @@ async def create_repository(
         return RepositoryResponse(
             data=RepositoryData(
                 type="repository",
-                id=repo.id,
+                id=str(repo.id) if repo.id is not None else repo.business_key,
                 attributes=RepositoryAttributes(
                     remote_uri=repo.remote_uri,
                     sanitized_remote_uri=repo.sanitized_remote_uri,
@@ -109,7 +114,7 @@ async def get_repository(
     git_service: GitAppServiceDep,
 ) -> RepositoryDetailsResponse:
     """Get repository details including branches and recent commits."""
-    repo = await git_service.repo_repository.get_by_id(repo_id)
+    repo = await git_service.repo_repository.get_by_id(int(repo_id))
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
 
@@ -152,7 +157,7 @@ async def get_repository(
     return RepositoryDetailsResponse(
         data=RepositoryData(
             type="repository",
-            id=repo.id,
+            id=str(repo.id) if repo.id is not None else repo.business_key,
             attributes=RepositoryAttributes(
                 remote_uri=repo.remote_uri,
                 sanitized_remote_uri=repo.sanitized_remote_uri,
@@ -185,11 +190,11 @@ async def update_repository(
 ) -> RepositoryResponse:
     """Update an existing repository with latest changes."""
     try:
-        existing_repo = await git_service.repo_repository.get_by_id(repo_id)
+        existing_repo = await git_service.repo_repository.get_by_id(int(repo_id))
         if not existing_repo:
-            msg = "Repository not found"
-            raise HTTPException(status_code=404, detail=msg)
+            _raise_not_found_error("Repository not found")
 
+        assert existing_repo is not None  # For mypy
         if request.data.attributes.pull_latest:
             repo = await git_service.update_repository(
                 existing_repo.sanitized_remote_uri
@@ -200,7 +205,7 @@ async def update_repository(
         return RepositoryResponse(
             data=RepositoryData(
                 type="repository",
-                id=repo.id,
+                id=str(repo.id) if repo.id is not None else repo.business_key,
                 attributes=RepositoryAttributes(
                     remote_uri=repo.remote_uri,
                     sanitized_remote_uri=repo.sanitized_remote_uri,
@@ -233,7 +238,7 @@ async def delete_repository(
     git_service: GitAppServiceDep,
 ) -> None:
     """Delete a repository."""
-    repo = await git_service.repo_repository.get_by_id(repo_id)
+    repo = await git_service.repo_repository.get_by_id(int(repo_id))
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
 
@@ -256,17 +261,21 @@ async def rescan_repository(
 ) -> RepositoryResponse:
     """Rescan a repository without pulling changes."""
     try:
-        repo = await git_service.repo_repository.get_by_id(repo_id)
+        repo = await git_service.repo_repository.get_by_id(int(repo_id))
         if not repo:
-            msg = "Repository not found"
-            raise HTTPException(status_code=404, detail=msg)
+            _raise_not_found_error("Repository not found")
 
+        assert repo is not None  # For mypy
         updated_repo = await git_service.rescan_existing_repository(repo)
 
         return RepositoryResponse(
             data=RepositoryData(
                 type="repository",
-                id=updated_repo.id,
+                id=(
+                    str(updated_repo.id)
+                    if updated_repo.id is not None
+                    else updated_repo.business_key
+                ),
                 attributes=RepositoryAttributes(
                     remote_uri=updated_repo.remote_uri,
                     sanitized_remote_uri=updated_repo.sanitized_remote_uri,
@@ -294,7 +303,7 @@ async def list_repository_tags(
     git_service: GitAppServiceDep,
 ) -> TagListResponse:
     """List all tags for a repository."""
-    repo = await git_service.repo_repository.get_by_id(repo_id)
+    repo = await git_service.repo_repository.get_by_id(int(repo_id))
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
 
@@ -328,7 +337,7 @@ async def get_repository_tag(
     git_service: GitAppServiceDep,
 ) -> TagResponse:
     """Get a specific tag for a repository."""
-    repo = await git_service.repo_repository.get_by_id(repo_id)
+    repo = await git_service.repo_repository.get_by_id(int(repo_id))
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
 

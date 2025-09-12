@@ -202,40 +202,51 @@ class WorkingCopy(BaseModel):
             "ssh://git@github.com/user/repo.git"
 
         """
-        # Handle SSH URLs (they don't have credentials in the URL format)
+        # Handle different URL types
         if url.startswith("git@"):
-            # Convert git@host:path to ssh://git@host/path format for AnyUrl
-            # This maintains the same semantic meaning while making it a valid URL
-            if ":" in url and not url.startswith("ssh://"):
-                host_path = url[4:]  # Remove "git@"
-                if ":" in host_path:
-                    host, path = host_path.split(":", 1)
-                    ssh_url = f"ssh://git@{host}/{path}"
-                    return AnyUrl(ssh_url)
-            return AnyUrl(url)
+            return cls._handle_ssh_url(url)
         if url.startswith("ssh://"):
             return AnyUrl(url)
-
-        # Handle file URLs
         if url.startswith("file://"):
             return AnyUrl(url)
 
-        # Handle local paths by converting to file:// URLs
+        # Try local path conversion
+        local_url = cls._try_local_path_conversion(url)
+        if local_url:
+            return local_url
+
+        # Handle HTTPS URLs with credentials
+        return cls._sanitize_https_url(url)
+
+    @classmethod
+    def _handle_ssh_url(cls, url: str) -> AnyUrl:
+        """Handle SSH URL conversion."""
+        if ":" in url and not url.startswith("ssh://"):
+            host_path = url[4:]  # Remove "git@"
+            if ":" in host_path:
+                host, path = host_path.split(":", 1)
+                return AnyUrl(f"ssh://git@{host}/{path}")
+        return AnyUrl(url)
+
+    @classmethod
+    def _try_local_path_conversion(cls, url: str) -> AnyUrl | None:
+        """Try to convert local paths to file:// URLs."""
         from pathlib import Path
 
         try:
             path = Path(url)
             if path.exists() or url.startswith(("/", "./", "../")) or url == ".":
-                # Convert local path to file:// URL
                 absolute_path = path.resolve()
-                file_url = f"file://{absolute_path}"
-                return AnyUrl(file_url)
-        except Exception:
-            # If path conversion fails, continue with URL parsing
+                return AnyUrl(f"file://{absolute_path}")
+        except OSError:
+            # Path operations failed, not a local path
             pass
+        return None
 
+    @classmethod
+    def _sanitize_https_url(cls, url: str) -> AnyUrl:
+        """Remove credentials from HTTPS URLs."""
         try:
-            # Parse the URL
             parsed = urlparse(url)
 
             # If there are no credentials, return the URL as-is
@@ -243,7 +254,6 @@ class WorkingCopy(BaseModel):
                 return AnyUrl(url)
 
             # Reconstruct the URL without credentials
-            # scheme, netloc (without username/password), path, params, query, fragment
             sanitized_netloc = parsed.hostname
             if parsed.port:
                 sanitized_netloc = f"{parsed.hostname}:{parsed.port}"
@@ -260,7 +270,6 @@ class WorkingCopy(BaseModel):
                     )
                 )
             )
-
         except Exception as e:
             raise ValueError(f"Invalid URL: {url}") from e
 

@@ -122,15 +122,15 @@ class GitService:
                 (b for b in branches if b.name == current_branch.name),
                 branches[0] if branches else None,
             )
-        except Exception:  # noqa: BLE001
-            # Handle detached HEAD state
+        except (AttributeError, TypeError):
+            # Handle detached HEAD state or other branch access issues
             tracking_branch = branches[0] if branches else None
 
         if tracking_branch is None:
             raise ValueError("No branches found in repository")
 
         return GitRepo(
-            id=GitRepo.create_id(sanitized_remote_uri),
+            id=None,  # Let repository assign database ID
             sanitized_remote_uri=sanitized_remote_uri,
             branches=branches,
             commits=all_commits,
@@ -280,7 +280,7 @@ class GitService:
                         file_entity = GitFile(
                             blob_sha=blob.hexsha,
                             path=str(Path(repo.working_dir) / file_path),
-                            mime_type="application/octet-stream",  # Default, could be improved
+                            mime_type="application/octet-stream",  # Default
                             size=blob.size,
                         )
                         files.append(file_entity)

@@ -62,20 +62,22 @@ class ServerFactory:
         """Initialize the ServerFactory."""
         self.app_context = app_context
         self.session_factory = session_factory
-        self._repo_repository = None
-        self._commit_index_repository = None
-        self._snippet_v2_repository = None
-        self._domain_indexer = None
-        self._git_adapter = None
-        self._scanner = None
-        self._cloner = None
-        self._git_application_service = None
-        self._commit_indexing_application_service = None
-        self._snippet_repository = None
-        self._enrichment_service = None
-        self._task_status_repository = None
-        self._operation = None
-        self._commit_index_query_service = None
+        self._repo_repository: GitRepoRepository | None = None
+        self._commit_index_repository: CommitIndexRepository | None = None
+        self._snippet_v2_repository: SnippetRepositoryV2 | None = None
+        self._domain_indexer: IndexDomainService | None = None
+        self._git_adapter: GitAdapter | None = None
+        self._scanner: GitRepositoryScanner | None = None
+        self._cloner: RepositoryCloner | None = None
+        self._git_application_service: GitApplicationService | None = None
+        self._commit_indexing_application_service: (
+            CommitIndexingApplicationService | None
+        ) = None
+        self._snippet_repository: SnippetRepository | None = None
+        self._enrichment_service: EnrichmentDomainService | None = None
+        self._task_status_repository: TaskStatusRepository | None = None
+        self._operation: ProgressTracker | None = None
+        self._commit_index_query_service: CommitIndexQueryService | None = None
 
     def task_status_repository(self) -> TaskStatusRepository:
         """Create a TaskStatusRepository instance."""

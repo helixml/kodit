@@ -107,3 +107,7 @@ Migrations managed with Alembic in `migrations/` directory. DO NOT EDIT THESE FI
 
 Test file names should mirror the source structure under `tests/` directory and end in
 the name `_test.py`.
+
+## Coding Style
+
+- Docstrings should be very minimal. Descriptions only. No arguments or return types. No examples. No deprecation notices.

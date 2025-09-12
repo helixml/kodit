@@ -329,7 +329,9 @@ class GitRepo(Base, CommonMixin):
 
     __tablename__ = "git_repos"
 
-    sanitized_remote_uri: Mapped[str] = mapped_column(String(1024), index=True, unique=True)
+    sanitized_remote_uri: Mapped[str] = mapped_column(
+        String(1024), index=True, unique=True
+    )
     remote_uri: Mapped[str] = mapped_column(String(1024))
     cloned_path: Mapped[str] = mapped_column(String(1024))
     last_scanned_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
@@ -343,6 +345,7 @@ class GitRepo(Base, CommonMixin):
         last_scanned_at: datetime | None = None,
         total_unique_commits: int = 0,
     ) -> None:
+        """Initialize Git repository."""
         super().__init__()
         self.sanitized_remote_uri = sanitized_remote_uri
         self.remote_uri = remote_uri
@@ -362,6 +365,7 @@ class GitFile(Base):
     size: Mapped[int] = mapped_column(Integer)
 
     def __init__(self, blob_sha: str, path: str, mime_type: str, size: int) -> None:
+        """Initialize Git file."""
         super().__init__()
         self.blob_sha = blob_sha
         self.path = path
@@ -381,7 +385,7 @@ class GitCommit(Base):
     parent_commit_sha: Mapped[str] = mapped_column(String(64))
     author: Mapped[str] = mapped_column(String(255), index=True)
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         commit_sha: str,
         repo_id: int,
@@ -390,6 +394,7 @@ class GitCommit(Base):
         parent_commit_sha: str,
         author: str,
     ) -> None:
+        """Initialize Git commit."""
         super().__init__()
         self.commit_sha = commit_sha
         self.repo_id = repo_id
@@ -405,14 +410,19 @@ class GitCommitFile(Base):
     __tablename__ = "git_commit_files"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    commit_sha: Mapped[str] = mapped_column(ForeignKey("git_commits.commit_sha"), index=True)
-    file_blob_sha: Mapped[str] = mapped_column(ForeignKey("git_files.blob_sha"), index=True)
+    commit_sha: Mapped[str] = mapped_column(
+        ForeignKey("git_commits.commit_sha"), index=True
+    )
+    file_blob_sha: Mapped[str] = mapped_column(
+        ForeignKey("git_files.blob_sha"), index=True
+    )
 
     __table_args__ = (
         UniqueConstraint("commit_sha", "file_blob_sha", name="uix_commit_file"),
     )
 
     def __init__(self, commit_sha: str, file_blob_sha: str) -> None:
+        """Initialize commit file association."""
         super().__init__()
         self.commit_sha = commit_sha
         self.file_blob_sha = file_blob_sha
@@ -432,6 +442,7 @@ class GitBranch(Base, CommonMixin):
     )
 
     def __init__(self, repo_id: int, name: str, head_commit_sha: str) -> None:
+        """Initialize Git branch."""
         super().__init__()
         self.repo_id = repo_id
         self.name = name
@@ -446,13 +457,16 @@ class GitTag(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     repo_id: Mapped[int] = mapped_column(ForeignKey("git_repos.id"), index=True)
     name: Mapped[str] = mapped_column(String(255), index=True)
-    target_commit_sha: Mapped[str] = mapped_column(ForeignKey("git_commits.commit_sha"), index=True)
+    target_commit_sha: Mapped[str] = mapped_column(
+        ForeignKey("git_commits.commit_sha"), index=True
+    )
 
     __table_args__ = (
         UniqueConstraint("repo_id", "name", name="uix_repo_tag"),
     )
 
     def __init__(self, repo_id: int, name: str, target_commit_sha: str) -> None:
+        """Initialize Git tag."""
         super().__init__()
         self.repo_id = repo_id
         self.name = name
@@ -466,7 +480,9 @@ class SnippetV2(Base, CommonMixin):
 
     __tablename__ = "snippets_v2"
 
-    commit_sha: Mapped[str] = mapped_column(ForeignKey("git_commits.commit_sha"), index=True)
+    commit_sha: Mapped[str] = mapped_column(
+        ForeignKey("git_commits.commit_sha"), index=True
+    )
     original_content: Mapped[str | None] = mapped_column(UnicodeText, nullable=True)
     original_content_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
     summary_content: Mapped[str | None] = mapped_column(UnicodeText, nullable=True)
@@ -480,6 +496,7 @@ class SnippetV2(Base, CommonMixin):
         summary_content: str | None = None,
         summary_content_type: str | None = None,
     ) -> None:
+        """Initialize snippet."""
         super().__init__()
         self.commit_sha = commit_sha
         self.original_content = original_content
@@ -495,13 +512,16 @@ class SnippetV2File(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     snippet_id: Mapped[int] = mapped_column(ForeignKey("snippets_v2.id"), index=True)
-    file_blob_sha: Mapped[str] = mapped_column(ForeignKey("git_files.blob_sha"), index=True)
+    file_blob_sha: Mapped[str] = mapped_column(
+        ForeignKey("git_files.blob_sha"), index=True
+    )
 
     __table_args__ = (
         UniqueConstraint("snippet_id", "file_blob_sha", name="uix_snippet_file"),
     )
 
     def __init__(self, snippet_id: int, file_blob_sha: str) -> None:
+        """Initialize snippet file association."""
         super().__init__()
         self.snippet_id = snippet_id
         self.file_blob_sha = file_blob_sha
@@ -524,13 +544,17 @@ class CommitIndex(Base, CommonMixin):
     __tablename__ = "commit_indexes"
 
     commit_sha: Mapped[str] = mapped_column(String(64), unique=True, index=True)
-    status: Mapped[IndexStatusType] = mapped_column(SQLAlchemyEnum(IndexStatusType), index=True)
+    status: Mapped[IndexStatusType] = mapped_column(
+        SQLAlchemyEnum(IndexStatusType), index=True
+    )
     indexed_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
     error_message: Mapped[str | None] = mapped_column(UnicodeText, nullable=True)
     files_processed: Mapped[int] = mapped_column(Integer, default=0)
-    processing_time_seconds: Mapped[str] = mapped_column(String(50), default="0.0")  # Store as string for precision
+    processing_time_seconds: Mapped[str] = mapped_column(
+        String(50), default="0.0"  # Store as string for precision
+    )
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         commit_sha: str,
         status: IndexStatusType = IndexStatusType.PENDING,
@@ -539,6 +563,7 @@ class CommitIndex(Base, CommonMixin):
         files_processed: int = 0,
         processing_time_seconds: float = 0.0,
     ) -> None:
+        """Initialize commit index."""
         super().__init__()
         self.commit_sha = commit_sha
         self.status = status
