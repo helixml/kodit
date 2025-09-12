@@ -320,3 +320,241 @@ class TaskStatus(Base):
         self.total = total
         self.current = current
         self.message = message or ""
+
+
+# Git-related entities for new GitRepo domain
+
+class GitRepo(Base):
+    """Git repository model."""
+
+    __tablename__ = "git_repos"
+
+    id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(
+        TZDateTime, nullable=False, default=lambda: datetime.now(UTC)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TZDateTime,
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+    sanitized_remote_uri: Mapped[str] = mapped_column(String(1024), index=True, unique=True)
+    remote_uri: Mapped[str] = mapped_column(String(1024))
+    cloned_path: Mapped[str] = mapped_column(String(1024))
+    last_scanned_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
+    total_unique_commits: Mapped[int] = mapped_column(Integer, default=0)
+
+    def __init__(
+        self,
+        id: str,
+        sanitized_remote_uri: str,
+        remote_uri: str,
+        cloned_path: str,
+        last_scanned_at: datetime | None = None,
+        total_unique_commits: int = 0,
+    ) -> None:
+        super().__init__()
+        self.id = id
+        self.sanitized_remote_uri = sanitized_remote_uri
+        self.remote_uri = remote_uri
+        self.cloned_path = cloned_path
+        self.last_scanned_at = last_scanned_at
+        self.total_unique_commits = total_unique_commits
+
+
+class GitFile(Base):
+    """Git file model."""
+
+    __tablename__ = "git_files"
+
+    blob_sha: Mapped[str] = mapped_column(String(64), primary_key=True)
+    path: Mapped[str] = mapped_column(String(1024), index=True)
+    mime_type: Mapped[str] = mapped_column(String(255), index=True)
+    size: Mapped[int] = mapped_column(Integer)
+
+    def __init__(self, blob_sha: str, path: str, mime_type: str, size: int) -> None:
+        super().__init__()
+        self.blob_sha = blob_sha
+        self.path = path
+        self.mime_type = mime_type
+        self.size = size
+
+
+class GitCommit(Base):
+    """Git commit model."""
+
+    __tablename__ = "git_commits"
+
+    commit_sha: Mapped[str] = mapped_column(String(64), primary_key=True)
+    repo_id: Mapped[str] = mapped_column(ForeignKey("git_repos.id"), index=True)
+    date: Mapped[datetime] = mapped_column(TZDateTime)
+    message: Mapped[str] = mapped_column(UnicodeText)
+    parent_commit_sha: Mapped[str] = mapped_column(String(64))
+    author: Mapped[str] = mapped_column(String(255), index=True)
+
+    def __init__(
+        self,
+        commit_sha: str,
+        repo_id: str,
+        date: datetime,
+        message: str,
+        parent_commit_sha: str,
+        author: str,
+    ) -> None:
+        super().__init__()
+        self.commit_sha = commit_sha
+        self.repo_id = repo_id
+        self.date = date
+        self.message = message
+        self.parent_commit_sha = parent_commit_sha
+        self.author = author
+
+
+class GitCommitFile(Base):
+    """Association table for git commits and files."""
+
+    __tablename__ = "git_commit_files"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    commit_sha: Mapped[str] = mapped_column(ForeignKey("git_commits.commit_sha"), index=True)
+    file_blob_sha: Mapped[str] = mapped_column(ForeignKey("git_files.blob_sha"), index=True)
+
+    __table_args__ = (
+        UniqueConstraint("commit_sha", "file_blob_sha", name="uix_commit_file"),
+    )
+
+    def __init__(self, commit_sha: str, file_blob_sha: str) -> None:
+        super().__init__()
+        self.commit_sha = commit_sha
+        self.file_blob_sha = file_blob_sha
+
+
+class GitBranch(Base, CommonMixin):
+    """Git branch model."""
+
+    __tablename__ = "git_branches"
+
+    repo_id: Mapped[str] = mapped_column(ForeignKey("git_repos.id"), index=True)
+    name: Mapped[str] = mapped_column(String(255), index=True)
+    head_commit_sha: Mapped[str] = mapped_column(ForeignKey("git_commits.commit_sha"))
+
+    __table_args__ = (
+        UniqueConstraint("repo_id", "name", name="uix_repo_branch"),
+    )
+
+    def __init__(self, repo_id: str, name: str, head_commit_sha: str) -> None:
+        super().__init__()
+        self.repo_id = repo_id
+        self.name = name
+        self.head_commit_sha = head_commit_sha
+
+
+class GitTag(Base):
+    """Git tag model."""
+
+    __tablename__ = "git_tags"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    repo_id: Mapped[str] = mapped_column(ForeignKey("git_repos.id"), index=True)
+    name: Mapped[str] = mapped_column(String(255), index=True)
+    target_commit_sha: Mapped[str] = mapped_column(ForeignKey("git_commits.commit_sha"), index=True)
+
+    __table_args__ = (
+        UniqueConstraint("repo_id", "name", name="uix_repo_tag"),
+    )
+
+    def __init__(self, repo_id: str, name: str, target_commit_sha: str) -> None:
+        super().__init__()
+        self.repo_id = repo_id
+        self.name = name
+        self.target_commit_sha = target_commit_sha
+
+
+# New snippet model for SnippetV2
+
+class SnippetV2(Base, CommonMixin):
+    """SnippetV2 model for commit-based snippets."""
+
+    __tablename__ = "snippets_v2"
+
+    commit_sha: Mapped[str] = mapped_column(ForeignKey("git_commits.commit_sha"), index=True)
+    original_content: Mapped[str | None] = mapped_column(UnicodeText, nullable=True)
+    original_content_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    summary_content: Mapped[str | None] = mapped_column(UnicodeText, nullable=True)
+    summary_content_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
+    def __init__(
+        self,
+        commit_sha: str,
+        original_content: str | None = None,
+        original_content_type: str | None = None,
+        summary_content: str | None = None,
+        summary_content_type: str | None = None,
+    ) -> None:
+        super().__init__()
+        self.commit_sha = commit_sha
+        self.original_content = original_content
+        self.original_content_type = original_content_type
+        self.summary_content = summary_content
+        self.summary_content_type = summary_content_type
+
+
+class SnippetV2File(Base):
+    """Association table for snippets v2 and git files."""
+
+    __tablename__ = "snippet_v2_files"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    snippet_id: Mapped[int] = mapped_column(ForeignKey("snippets_v2.id"), index=True)
+    file_blob_sha: Mapped[str] = mapped_column(ForeignKey("git_files.blob_sha"), index=True)
+
+    __table_args__ = (
+        UniqueConstraint("snippet_id", "file_blob_sha", name="uix_snippet_file"),
+    )
+
+    def __init__(self, snippet_id: int, file_blob_sha: str) -> None:
+        super().__init__()
+        self.snippet_id = snippet_id
+        self.file_blob_sha = file_blob_sha
+
+
+# Commit index model
+
+class IndexStatusType(Enum):
+    """Index status enum."""
+
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class CommitIndex(Base, CommonMixin):
+    """Commit index model."""
+
+    __tablename__ = "commit_indexes"
+
+    commit_sha: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    status: Mapped[IndexStatusType] = mapped_column(SQLAlchemyEnum(IndexStatusType), index=True)
+    indexed_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(UnicodeText, nullable=True)
+    files_processed: Mapped[int] = mapped_column(Integer, default=0)
+    processing_time_seconds: Mapped[str] = mapped_column(String(50), default="0.0")  # Store as string for precision
+
+    def __init__(
+        self,
+        commit_sha: str,
+        status: IndexStatusType = IndexStatusType.PENDING,
+        indexed_at: datetime | None = None,
+        error_message: str | None = None,
+        files_processed: int = 0,
+        processing_time_seconds: float = 0.0,
+    ) -> None:
+        super().__init__()
+        self.commit_sha = commit_sha
+        self.status = status
+        self.indexed_at = indexed_at
+        self.error_message = error_message
+        self.files_processed = files_processed
+        self.processing_time_seconds = str(processing_time_seconds)
