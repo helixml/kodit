@@ -8,10 +8,8 @@ from pydantic import AnyUrl
 
 from kodit.domain.entities import (
     CommitIndex,
-    GitBranch,
     GitCommit,
     GitRepo,
-    GitTag,
     Index,
     Snippet,
     SnippetV2,
@@ -141,23 +139,34 @@ class TaskStatusRepository(Protocol):
 
 
 class GitRepoRepository(ABC):
-    """Repository pattern for GitRepo aggregate."""
+    """Repository pattern for GitRepo aggregate.
+
+    GitRepo is the aggregate root that owns branches, commits, and tags.
+    This repository handles persistence of the entire aggregate.
+    """
 
     @abstractmethod
     async def save(self, repo: GitRepo) -> None:
-        """Save or update a repository."""
+        """Save or update a repository with all its branches, commits, and tags.
+
+        This method persists the entire aggregate:
+        - The GitRepo entity itself
+        - All associated branches
+        - All associated commits
+        - All associated tags
+        """
 
     @abstractmethod
     async def get_by_id(self, repo_id: str) -> GitRepo | None:
-        """Get repository by ID."""
+        """Get repository by ID with all associated data."""
 
     @abstractmethod
     async def get_by_uri(self, sanitized_uri: AnyUrl) -> GitRepo | None:
-        """Get repository by sanitized URI."""
+        """Get repository by sanitized URI with all associated data."""
 
     @abstractmethod
     async def get_by_commit(self, commit_sha: str) -> GitRepo | None:
-        """Get repository by commit SHA."""
+        """Get repository by commit SHA with all associated data."""
 
     @abstractmethod
     async def get_all(self) -> list[GitRepo]:
@@ -167,35 +176,9 @@ class GitRepoRepository(ABC):
     async def delete(self, sanitized_uri: AnyUrl) -> bool:
         """Delete a repository."""
 
-
-class GitCommitRepository(ABC):
-    """Repository for commit operations."""
-
     @abstractmethod
-    async def save_commits(self, repo_uri: AnyUrl, commits: list[GitCommit]) -> None:
-        """Batch save commits for a repository."""
-
-    @abstractmethod
-    async def get_commits_for_branch(
-        self, repo_uri: AnyUrl, branch_name: str
-    ) -> list[GitCommit]:
-        """Get commits for a specific branch."""
-
-    @abstractmethod
-    async def get_by_commit_sha(self, commit_sha: str) -> GitCommit | None:
-        """Get a commit by SHA."""
-
-
-class GitBranchRepository(ABC):
-    """Repository for branch operations."""
-
-    @abstractmethod
-    async def save_branches(self, repo_uri: AnyUrl, branches: list[GitBranch]) -> None:
-        """Save branches for a repository."""
-
-    @abstractmethod
-    async def get_branches_for_repo(self, repo_uri: AnyUrl) -> list[GitBranch]:
-        """Get all branches for a repository."""
+    async def get_commit_by_sha(self, commit_sha: str) -> GitCommit | None:
+        """Get a specific commit by its SHA across all repositories."""
 
 
 class GitAdapter(ABC):
@@ -288,17 +271,5 @@ class SnippetRepositoryV2(ABC):
         """Get all snippets for a specific commit."""
 
 
-class GitTagRepository(ABC):
-    """Repository for tag operations."""
-
-    @abstractmethod
-    async def save_tags(self, repo_uri: AnyUrl, tags: list[GitTag]) -> None:
-        """Save tags for a repository."""
-
-    @abstractmethod
-    async def get_tags_for_repo(self, repo_uri: AnyUrl) -> list[GitTag]:
-        """Get all tags for a repository."""
-
-    @abstractmethod
-    async def get_tag_by_id(self, tag_id: str) -> GitTag:
-        """Get a tag by its ID."""
+# GitTagRepository removed - now handled internally by GitRepoRepository
+# as GitRepo is the aggregate root that owns tags""

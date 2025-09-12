@@ -91,6 +91,12 @@ Uses SQLAlchemy with async support. Supports:
 
 Migrations managed with Alembic in `migrations/` directory. DO NOT EDIT THESE FILES.
 
+## Refactoring Strategy
+
+- When refactoring, follow the following strategy:
+  - Always use Martin Fowler's Refactoring Catalog to guide your changes.
+  - After each change, run linting and typing on the files to ensure your changes are correct.
+
 ## Testing Strategy
 
 - Unit tests for domain services and repositories

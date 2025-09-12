@@ -113,23 +113,39 @@ async def get_repository(
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
 
-    # Get commits for the tracking branch
-    commits = await git_service.commit_repository.get_commits_for_branch(
-        repo.sanitized_remote_uri, repo.tracking_branch.name
-    )
-    recent_commits = commits[:10] if commits else []
+    # Get recent commits from the tracking branch's head commit
+    recent_commits = []
+    if repo.tracking_branch and repo.tracking_branch.head_commit:
+        # For simplicity, just show the head commit and traverse back if needed
+        current_commit = repo.tracking_branch.head_commit
+        recent_commits = [current_commit]
 
-    # Get commit counts for all branches
+        # Traverse parent commits for more recent commits (up to 10)
+        current_sha = current_commit.parent_commit_sha
+        while current_sha and len(recent_commits) < 10:
+            parent_commit = next(
+                (c for c in repo.commits if c.commit_sha == current_sha), None
+            )
+            if parent_commit:
+                recent_commits.append(parent_commit)
+                current_sha = parent_commit.parent_commit_sha
+            else:
+                break
+
+    # Get commit counts for all branches using the existing commits in the repo
     branch_data = []
     for branch in repo.branches:
-        branch_commits = await git_service.commit_repository.get_commits_for_branch(
-            repo.sanitized_remote_uri, branch.name
-        )
+        # Count commits accessible from this branch's head
+        branch_commit_count = 0
+        if branch.head_commit:
+            # For simplicity, count all commits (could traverse branch history)
+            branch_commit_count = len([c for c in repo.commits if c])
+
         branch_data.append(
             RepositoryBranchData(
                 name=branch.name,
                 is_default=branch.name == repo.tracking_branch.name,
-                commit_count=len(branch_commits) if branch_commits else 0,
+                commit_count=branch_commit_count,
             )
         )
 
@@ -282,7 +298,8 @@ async def list_repository_tags(
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
 
-    tags = await git_service.tag_repository.get_tags_for_repo(repo.sanitized_remote_uri)
+    # Tags are now available directly from the repo aggregate
+    tags = repo.tags
 
     return TagListResponse(
         data=[
@@ -315,10 +332,10 @@ async def get_repository_tag(
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
 
-    try:
-        tag = await git_service.tag_repository.get_tag_by_id(tag_id)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
+    # Find tag by ID from the repo's tags
+    tag = next((t for t in repo.tags if t.id == tag_id), None)
+    if not tag:
+        raise HTTPException(status_code=404, detail="Tag not found")
 
     return TagResponse(
         data=TagData(

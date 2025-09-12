@@ -19,10 +19,7 @@ from kodit.domain.entities import (
 )
 from kodit.domain.protocols import (
     GitAdapter,
-    GitBranchRepository,
-    GitCommitRepository,
     GitRepoRepository,
-    GitTagRepository,
     SnippetRepository,
 )
 from kodit.domain.services.git_repository_scanner import (
@@ -41,26 +38,20 @@ from kodit.infrastructure.slicing.slicer import Slicer
 class GitApplicationService:
     """Updated application service using immutable approach."""
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         repo_repository: GitRepoRepository,
-        commit_repository: GitCommitRepository,
-        branch_repository: GitBranchRepository,
         scanner: GitRepositoryScanner,
         cloner: RepositoryCloner,
         git_adapter: GitAdapter,
-        tag_repository: GitTagRepository,
         snippet_repository: SnippetRepository,
     ) -> None:
         """Initialize the Git application service."""
         self.repo_repository = repo_repository
-        self.commit_repository = commit_repository
-        self.branch_repository = branch_repository
         self.scanner = scanner
         self.cloner = cloner
         self.git_adapter = git_adapter
         self.repo_factory = GitRepoFactory()
-        self.tag_repository = tag_repository
         self.snippet_repository = snippet_repository
         self.slicer = Slicer()  # Add snippet extraction capability
         self._log = structlog.getLogger(__name__)
@@ -84,14 +75,9 @@ class GitApplicationService:
         # Create GitRepo from scan results
         repo = self.repo_factory.create_from_scan(repo_info, scan_result)
 
-        # Persist everything
+        # Persist everything through the aggregate root
         self._log.info(f"Persisting repository data for {remote_uri}")
         await self.repo_repository.save(repo)
-        await self.commit_repository.save_commits(
-            sanitized_uri, scan_result.all_commits
-        )
-        await self.branch_repository.save_branches(sanitized_uri, repo.branches)
-        await self.tag_repository.save_tags(sanitized_uri, repo.tags)
 
         self._log.info(f"Successfully mapped repository {remote_uri}")
         return repo
@@ -118,12 +104,8 @@ class GitApplicationService:
         # Create new GitRepo instance
         updated_repo = self.repo_factory.create_from_scan(repo_info, scan_result)
 
-        # Update persistence
+        # Update persistence through the aggregate root
         await self.repo_repository.save(updated_repo)
-        await self.commit_repository.save_commits(
-            sanitized_uri, scan_result.all_commits
-        )
-        await self.branch_repository.save_branches(sanitized_uri, updated_repo.branches)
 
         return updated_repo
 
@@ -225,14 +207,9 @@ class GitApplicationService:
         self._log.info(f"Extracting snippets from {remote_uri}")
         snippets = self._extract_snippets_from_repo(repo)
 
-        # Persist repository data
+        # Persist repository data through the aggregate root
         self._log.info(f"Persisting repository data for {remote_uri}")
         await self.repo_repository.save(repo)
-        await self.commit_repository.save_commits(
-            sanitized_uri, scan_result.all_commits
-        )
-        await self.branch_repository.save_branches(sanitized_uri, repo.branches)
-        await self.tag_repository.save_tags(sanitized_uri, repo.tags)
 
         # Persist snippets to database for next pipeline stage
         if snippets:
@@ -279,13 +256,8 @@ class GitApplicationService:
         self._log.info(f"Extracting snippets from updated repository {sanitized_uri}")
         snippets = self._extract_snippets_from_repo(updated_repo)
 
-        # Update persistence
+        # Update persistence through the aggregate root
         await self.repo_repository.save(updated_repo)
-        await self.commit_repository.save_commits(
-            sanitized_uri, scan_result.all_commits
-        )
-        await self.branch_repository.save_branches(sanitized_uri, updated_repo.branches)
-        await self.tag_repository.save_tags(sanitized_uri, updated_repo.tags)
 
         # Persist snippets to database for next pipeline stage
         if snippets:

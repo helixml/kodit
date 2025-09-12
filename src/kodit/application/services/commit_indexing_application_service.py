@@ -6,7 +6,6 @@ from kodit.application.services.reporting import ProgressTracker
 from kodit.domain.entities import CommitIndex, IndexStatus
 from kodit.domain.protocols import (
     CommitIndexRepository,
-    GitCommitRepository,
     GitRepoRepository,
     SnippetRepository,
     SnippetRepositoryV2,
@@ -24,14 +23,12 @@ class CommitIndexingApplicationService:
         snippet_v2_repository: SnippetRepositoryV2,
         repo_repository: GitRepoRepository,
         domain_indexer: IndexDomainService,
-        commit_repository: GitCommitRepository,
         operation: ProgressTracker,
     ) -> None:
         self.commit_index_repository = commit_index_repository
         self.snippet_repository = snippet_v2_repository
         self.repo_repository = repo_repository
         self.domain_indexer = domain_indexer
-        self.commit_repository = commit_repository
         self.operation = operation
         self._log = structlog.get_logger(__name__)
 
@@ -48,7 +45,7 @@ class CommitIndexingApplicationService:
             return existing
 
         async with self.operation.create_child(TaskOperation.INDEX_COMMIT):
-            commit = await self.commit_repository.get_by_commit_sha(commit_sha)
+            commit = await self.repo_repository.get_commit_by_sha(commit_sha)
             if not commit:
                 raise ValueError(f"Commit {commit_sha} not found")
 
