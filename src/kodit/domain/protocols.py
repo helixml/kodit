@@ -157,7 +157,7 @@ class GitRepoRepository(ABC):
         """
 
     @abstractmethod
-    async def get_by_id(self, repo_id: str) -> GitRepo | None:
+    async def get_by_id(self, repo_id: int) -> GitRepo | None:
         """Get repository by ID with all associated data."""
 
     @abstractmethod

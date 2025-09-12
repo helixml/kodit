@@ -324,21 +324,11 @@ class TaskStatus(Base):
 
 # Git-related entities for new GitRepo domain
 
-class GitRepo(Base):
+class GitRepo(Base, CommonMixin):
     """Git repository model."""
 
     __tablename__ = "git_repos"
 
-    id: Mapped[str] = mapped_column(String(255), primary_key=True)
-    created_at: Mapped[datetime] = mapped_column(
-        TZDateTime, nullable=False, default=lambda: datetime.now(UTC)
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        TZDateTime,
-        nullable=False,
-        default=lambda: datetime.now(UTC),
-        onupdate=lambda: datetime.now(UTC),
-    )
     sanitized_remote_uri: Mapped[str] = mapped_column(String(1024), index=True, unique=True)
     remote_uri: Mapped[str] = mapped_column(String(1024))
     cloned_path: Mapped[str] = mapped_column(String(1024))
@@ -347,7 +337,6 @@ class GitRepo(Base):
 
     def __init__(
         self,
-        id: str,
         sanitized_remote_uri: str,
         remote_uri: str,
         cloned_path: str,
@@ -355,7 +344,6 @@ class GitRepo(Base):
         total_unique_commits: int = 0,
     ) -> None:
         super().__init__()
-        self.id = id
         self.sanitized_remote_uri = sanitized_remote_uri
         self.remote_uri = remote_uri
         self.cloned_path = cloned_path
@@ -387,7 +375,7 @@ class GitCommit(Base):
     __tablename__ = "git_commits"
 
     commit_sha: Mapped[str] = mapped_column(String(64), primary_key=True)
-    repo_id: Mapped[str] = mapped_column(ForeignKey("git_repos.id"), index=True)
+    repo_id: Mapped[int] = mapped_column(ForeignKey("git_repos.id"), index=True)
     date: Mapped[datetime] = mapped_column(TZDateTime)
     message: Mapped[str] = mapped_column(UnicodeText)
     parent_commit_sha: Mapped[str] = mapped_column(String(64))
@@ -396,7 +384,7 @@ class GitCommit(Base):
     def __init__(
         self,
         commit_sha: str,
-        repo_id: str,
+        repo_id: int,
         date: datetime,
         message: str,
         parent_commit_sha: str,
@@ -435,7 +423,7 @@ class GitBranch(Base, CommonMixin):
 
     __tablename__ = "git_branches"
 
-    repo_id: Mapped[str] = mapped_column(ForeignKey("git_repos.id"), index=True)
+    repo_id: Mapped[int] = mapped_column(ForeignKey("git_repos.id"), index=True)
     name: Mapped[str] = mapped_column(String(255), index=True)
     head_commit_sha: Mapped[str] = mapped_column(ForeignKey("git_commits.commit_sha"))
 
@@ -443,7 +431,7 @@ class GitBranch(Base, CommonMixin):
         UniqueConstraint("repo_id", "name", name="uix_repo_branch"),
     )
 
-    def __init__(self, repo_id: str, name: str, head_commit_sha: str) -> None:
+    def __init__(self, repo_id: int, name: str, head_commit_sha: str) -> None:
         super().__init__()
         self.repo_id = repo_id
         self.name = name
@@ -456,7 +444,7 @@ class GitTag(Base):
     __tablename__ = "git_tags"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    repo_id: Mapped[str] = mapped_column(ForeignKey("git_repos.id"), index=True)
+    repo_id: Mapped[int] = mapped_column(ForeignKey("git_repos.id"), index=True)
     name: Mapped[str] = mapped_column(String(255), index=True)
     target_commit_sha: Mapped[str] = mapped_column(ForeignKey("git_commits.commit_sha"), index=True)
 
@@ -464,7 +452,7 @@ class GitTag(Base):
         UniqueConstraint("repo_id", "name", name="uix_repo_tag"),
     )
 
-    def __init__(self, repo_id: str, name: str, target_commit_sha: str) -> None:
+    def __init__(self, repo_id: int, name: str, target_commit_sha: str) -> None:
         super().__init__()
         self.repo_id = repo_id
         self.name = name

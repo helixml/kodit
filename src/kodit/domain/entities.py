@@ -115,8 +115,8 @@ class GitBranch(BaseModel):
 class GitRepo(BaseModel):
     """Repository domain entity."""
 
-    id: str  # Primary key
-    sanitized_remote_uri: AnyUrl
+    id: int | None = None  # Database-generated surrogate key
+    sanitized_remote_uri: AnyUrl  # Business key for lookups
     branches: list[GitBranch]
     commits: list[GitCommit]
     tags: list[GitTag] = []
@@ -126,9 +126,14 @@ class GitRepo(BaseModel):
     last_scanned_at: datetime | None = None
     total_unique_commits: int = 0
 
+    @property
+    def business_key(self) -> str:
+        """Get the business identifier for this repository."""
+        return repo_id_from_uri(self.sanitized_remote_uri)
+
     @staticmethod
     def create_id(sanitized_remote_uri: AnyUrl) -> str:
-        """Create a unique id for a repository."""
+        """Create a unique business key for a repository (kept for compatibility)."""
         return repo_id_from_uri(sanitized_remote_uri)
 
 

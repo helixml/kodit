@@ -46,31 +46,53 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
             raise RuntimeError("UnitOfWork must be used within async context")
         return self.uow.session
 
-    async def save(self, repo: GitRepo) -> None:  # noqa: C901, PLR0912
+    async def save(self, repo: GitRepo) -> None:  # noqa: C901, PLR0912, PLR0915
         """Save or update a repository with all its branches, commits, and tags."""
         async with self.uow:
             # 1. Save or update the GitRepo entity
-            existing_repo = await self._session.get(db_entities.GitRepo, repo.id)
-            if existing_repo:
+            if repo.id:
                 # Update existing repo
-                existing_repo.sanitized_remote_uri = str(repo.sanitized_remote_uri)
-                existing_repo.remote_uri = str(repo.remote_uri)
-                existing_repo.cloned_path = str(repo.cloned_path)
-                existing_repo.last_scanned_at = repo.last_scanned_at
-                existing_repo.total_unique_commits = repo.total_unique_commits
+                existing_repo = await self._session.get(db_entities.GitRepo, repo.id)
+                if existing_repo:
+                    existing_repo.sanitized_remote_uri = str(repo.sanitized_remote_uri)
+                    existing_repo.remote_uri = str(repo.remote_uri)
+                    existing_repo.cloned_path = str(repo.cloned_path)
+                    existing_repo.last_scanned_at = repo.last_scanned_at
+                    existing_repo.total_unique_commits = repo.total_unique_commits
+                    db_repo = existing_repo
+                else:
+                    raise ValueError(f"Repository with ID {repo.id} not found")
             else:
-                # Create new repo
-                db_repo = db_entities.GitRepo(
-                    id=repo.id,
-                    sanitized_remote_uri=str(repo.sanitized_remote_uri),
-                    remote_uri=str(repo.remote_uri),
-                    cloned_path=str(repo.cloned_path),
-                    last_scanned_at=repo.last_scanned_at,
-                    total_unique_commits=repo.total_unique_commits,
+                # Check if repo exists by URI (for new repos from domain)
+                existing_repo_stmt = select(db_entities.GitRepo).where(
+                    db_entities.GitRepo.sanitized_remote_uri
+                    == str(repo.sanitized_remote_uri)
                 )
-                self._session.add(db_repo)
+                existing_repo = await self._session.scalar(existing_repo_stmt)
+
+                if existing_repo:
+                    # Update existing repo found by URI
+                    existing_repo.remote_uri = str(repo.remote_uri)
+                    existing_repo.cloned_path = str(repo.cloned_path)
+                    existing_repo.last_scanned_at = repo.last_scanned_at
+                    existing_repo.total_unique_commits = repo.total_unique_commits
+                    db_repo = existing_repo
+                    repo.id = existing_repo.id  # Set the domain ID
+                else:
+                    # Create new repo
+                    db_repo = db_entities.GitRepo(
+                        sanitized_remote_uri=str(repo.sanitized_remote_uri),
+                        remote_uri=str(repo.remote_uri),
+                        cloned_path=str(repo.cloned_path),
+                        last_scanned_at=repo.last_scanned_at,
+                        total_unique_commits=repo.total_unique_commits,
+                    )
+                    self._session.add(db_repo)
+                    await self._session.flush()  # Get the new ID
+                    repo.id = db_repo.id  # Set the domain ID
 
             await self._session.flush()
+            repo_id = db_repo.id
 
             # 2. Save files (they don't have foreign keys to repo, so save first)
             all_files = {}
@@ -102,7 +124,7 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
                 if not existing_commit:
                     db_commit = db_entities.GitCommit(
                         commit_sha=commit.commit_sha,
-                        repo_id=repo.id,
+                        repo_id=repo_id,
                         date=commit.date,
                         message=commit.message,
                         parent_commit_sha=commit.parent_commit_sha,
@@ -133,14 +155,14 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
             # 5. Save branches
             # Delete existing branches for this repo
             stmt = delete(db_entities.GitBranch).where(
-                db_entities.GitBranch.repo_id == repo.id
+                db_entities.GitBranch.repo_id == repo_id
             )
             await self._session.execute(stmt)
 
             # Add new branches
             for branch in repo.branches:
                 db_branch = db_entities.GitBranch(
-                    repo_id=repo.id,
+                    repo_id=repo_id,
                     name=branch.name,
                     head_commit_sha=branch.head_commit.commit_sha,
                 )
@@ -151,20 +173,20 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
             # 6. Save tags
             # Delete existing tags for this repo
             stmt = delete(db_entities.GitTag).where(
-                db_entities.GitTag.repo_id == repo.id
+                db_entities.GitTag.repo_id == repo_id
             )
             await self._session.execute(stmt)
 
             # Add new tags
             for tag in repo.tags:
                 db_tag = db_entities.GitTag(
-                    repo_id=repo.id,
+                    repo_id=repo_id,
                     name=tag.name,
                     target_commit_sha=tag.target_commit_sha,
                 )
                 self._session.add(db_tag)
 
-    async def get_by_id(self, repo_id: str) -> GitRepo | None:
+    async def get_by_id(self, repo_id: int) -> GitRepo | None:
         """Get repository by ID with all associated data."""
         async with self.uow:
             db_repo = await self._session.get(db_entities.GitRepo, repo_id)
