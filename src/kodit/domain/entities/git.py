@@ -22,7 +22,9 @@ class IndexStatus(StrEnum):
 class GitFile(BaseModel):
     """File domain entity."""
 
-    blob_sha: str  # Primary key
+    created_at: datetime | None = None  # Is populated by repository
+    updated_at: datetime | None = None  # Is populated by repository
+    blob_sha: str
     path: str
     mime_type: str
     size: int
@@ -31,21 +33,35 @@ class GitFile(BaseModel):
         """Return the file extension."""
         return Path(self.path).suffix.lstrip(".")
 
+    @property
+    def id(self) -> str:
+        """Get the unique id for a tag."""
+        return self.blob_sha
+
 
 class GitCommit(BaseModel):
     """Commit domain entity."""
 
-    commit_sha: str  # Primary key
+    created_at: datetime | None = None  # Is populated by repository
+    updated_at: datetime | None = None  # Is populated by repository
+    commit_sha: str
     date: datetime
     message: str
     parent_commit_sha: str
     files: list[GitFile]
     author: str
 
+    @property
+    def id(self) -> str:
+        """Get the unique id for a tag."""
+        return self.commit_sha
+
 
 class GitTag(BaseModel):
     """Git tag domain entity."""
 
+    created_at: datetime | None = None  # Is populated by repository
+    updated_at: datetime | None = None  # Is populated by repository
     name: str  # e.g., "v1.0.0", "release-2023"
     target_commit_sha: str  # The commit this tag points to
 
@@ -68,6 +84,8 @@ class GitBranch(BaseModel):
     """Branch domain entity."""
 
     id: int | None = None  # Is populated by repository
+    created_at: datetime | None = None  # Is populated by repository
+    updated_at: datetime | None = None  # Is populated by repository
     name: str
     head_commit: GitCommit
 
@@ -76,6 +94,8 @@ class GitRepo(BaseModel):
     """Repository domain entity."""
 
     id: int | None = None  # Database-generated surrogate key
+    created_at: datetime | None = None  # Is populated by repository
+    updated_at: datetime | None = None  # Is populated by repository
     sanitized_remote_uri: AnyUrl  # Business key for lookups
     branches: list[GitBranch]
     commits: list[GitCommit]
@@ -100,7 +120,9 @@ class GitRepo(BaseModel):
 class CommitIndex(BaseModel):
     """Aggregate root for indexed commit data."""
 
-    commit_sha: str  # Primary key
+    commit_sha: str
+    created_at: datetime | None = None  # Is populated by repository
+    updated_at: datetime | None = None  # Is populated by repository
     snippets: list["SnippetV2"]
     status: IndexStatus
     indexed_at: datetime | None = None
@@ -111,6 +133,11 @@ class CommitIndex(BaseModel):
     def get_snippet_count(self) -> int:
         """Get total number of snippets."""
         return len(self.snippets)
+
+    @property
+    def id(self) -> str:
+        """Get the unique id for a tag."""
+        return self.commit_sha
 
 
 class SnippetV2(BaseModel):
