@@ -4,7 +4,7 @@ from pathlib import Path
 
 from pydantic import AnyUrl
 
-import kodit.domain.entities as domain_entities
+import kodit.domain.entities.git as domain_git_entities
 from kodit.domain.value_objects import SnippetContent, SnippetContentType
 from kodit.infrastructure.sqlalchemy import entities as db_entities
 
@@ -21,12 +21,12 @@ class GitMapper:
         db_files: list[db_entities.GitFile],
         commit_files_map: dict[str, list[str]],  # commit_sha -> [file_blob_sha]
         tracking_branch_name: str,
-    ) -> domain_entities.GitRepo:
+    ) -> domain_git_entities.GitRepo:
         """Convert SQLAlchemy GitRepo to domain GitRepo."""
         # Convert files
         domain_files = {}
         for db_file in db_files:
-            domain_file = domain_entities.GitFile(
+            domain_file = domain_git_entities.GitFile(
                 blob_sha=db_file.blob_sha,
                 path=db_file.path,
                 mime_type=db_file.mime_type,
@@ -43,7 +43,7 @@ class GitMapper:
                 domain_files[sha] for sha in file_blob_shas if sha in domain_files
             ]
 
-            domain_commit = domain_entities.GitCommit(
+            domain_commit = domain_git_entities.GitCommit(
                 commit_sha=db_commit.commit_sha,
                 date=db_commit.date,
                 message=db_commit.message,
@@ -69,7 +69,7 @@ class GitMapper:
             if not head_commit:
                 continue
 
-            domain_branch = domain_entities.GitBranch(
+            domain_branch = domain_git_entities.GitBranch(
                 id=db_branch.id,
                 name=db_branch.name,
                 head_commit=head_commit,
@@ -82,7 +82,7 @@ class GitMapper:
         # Convert tags
         domain_tags = []
         for db_tag in db_tags:
-            domain_tag = domain_entities.GitTag(
+            domain_tag = domain_git_entities.GitTag(
                 name=db_tag.name,
                 target_commit_sha=db_tag.target_commit_sha,
             )
@@ -96,7 +96,7 @@ class GitMapper:
         if not tracking_branch:
             raise ValueError(f"No tracking branch found for repo {db_repo.id}")
 
-        return domain_entities.GitRepo(
+        return domain_git_entities.GitRepo(
             id=db_repo.id,
             sanitized_remote_uri=AnyUrl(db_repo.sanitized_remote_uri),
             branches=domain_branches,
@@ -112,8 +112,8 @@ class GitMapper:
     def to_domain_snippet_v2(
         self,
         db_snippet: db_entities.SnippetV2,
-        derives_from: list[domain_entities.GitFile],
-    ) -> domain_entities.SnippetV2:
+        derives_from: list[domain_git_entities.GitFile],
+    ) -> domain_git_entities.SnippetV2:
         """Convert SQLAlchemy SnippetV2 to domain SnippetV2."""
         # Create original content
         original_content = None
@@ -135,7 +135,7 @@ class GitMapper:
                 language="markdown",
             )
 
-        return domain_entities.SnippetV2(
+        return domain_git_entities.SnippetV2(
             id=db_snippet.id,
             created_at=db_snippet.created_at,
             updated_at=db_snippet.updated_at,
@@ -145,7 +145,7 @@ class GitMapper:
         )
 
     def from_domain_snippet_v2(
-        self, domain_snippet: domain_entities.SnippetV2, commit_sha: str
+        self, domain_snippet: domain_git_entities.SnippetV2, commit_sha: str
     ) -> db_entities.SnippetV2:
         """Convert domain SnippetV2 to SQLAlchemy SnippetV2."""
         original_content = None
@@ -171,10 +171,10 @@ class GitMapper:
     def to_domain_commit_index(
         self,
         db_commit_index: db_entities.CommitIndex,
-        snippets: list[domain_entities.SnippetV2],
-    ) -> domain_entities.CommitIndex:
+        snippets: list[domain_git_entities.SnippetV2],
+    ) -> domain_git_entities.CommitIndex:
         """Convert SQLAlchemy CommitIndex to domain CommitIndex."""
-        from kodit.domain.entities import IndexStatus
+        from kodit.domain.entities.git import IndexStatus
 
         # Map status
         status_map = {
@@ -184,7 +184,7 @@ class GitMapper:
             db_entities.IndexStatusType.FAILED: IndexStatus.FAILED,
         }
 
-        return domain_entities.CommitIndex(
+        return domain_git_entities.CommitIndex(
             commit_sha=db_commit_index.commit_sha,
             snippets=snippets,
             status=status_map[db_commit_index.status],
@@ -195,10 +195,10 @@ class GitMapper:
         )
 
     def from_domain_commit_index(
-        self, domain_commit_index: domain_entities.CommitIndex
+        self, domain_commit_index: domain_git_entities.CommitIndex
     ) -> db_entities.CommitIndex:
         """Convert domain CommitIndex to SQLAlchemy CommitIndex."""
-        from kodit.domain.entities import IndexStatus
+        from kodit.domain.entities.git import IndexStatus
 
         # Map status
         status_map = {

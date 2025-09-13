@@ -14,7 +14,8 @@ import structlog
 from tree_sitter import Node, Parser, Tree
 from tree_sitter_language_pack import get_language
 
-from kodit.domain.entities import File, GitFile, Snippet, SnippetV2
+from kodit.domain.entities import File, Snippet
+from kodit.domain.entities.git import GitFile, SnippetV2
 from kodit.domain.value_objects import LanguageMapping
 
 

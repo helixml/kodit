@@ -7,16 +7,18 @@ from typing import Any, Protocol
 from pydantic import AnyUrl
 
 from kodit.domain.entities import (
-    CommitIndex,
-    GitCommit,
-    GitRepo,
     Index,
     Snippet,
-    SnippetV2,
     SnippetWithContext,
     Task,
     TaskStatus,
     WorkingCopy,
+)
+from kodit.domain.entities.git import (
+    CommitIndex,
+    GitCommit,
+    GitRepo,
+    SnippetV2,
 )
 from kodit.domain.value_objects import MultiSearchRequest, TaskOperation
 

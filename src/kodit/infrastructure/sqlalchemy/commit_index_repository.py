@@ -5,7 +5,7 @@ from collections.abc import Callable
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.entities import CommitIndex
+from kodit.domain.entities.git import CommitIndex
 from kodit.domain.protocols import CommitIndexRepository
 from kodit.infrastructure.mappers.git_mapper import GitMapper
 from kodit.infrastructure.sqlalchemy import entities as db_entities

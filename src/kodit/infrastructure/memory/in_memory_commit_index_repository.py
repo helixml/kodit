@@ -1,6 +1,6 @@
 """In-memory implementation of CommitIndexRepository."""
 
-from kodit.domain.entities import CommitIndex
+from kodit.domain.entities.git import CommitIndex
 from kodit.domain.protocols import CommitIndexRepository
 
 

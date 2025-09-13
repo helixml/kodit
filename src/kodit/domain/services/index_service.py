@@ -8,6 +8,7 @@ import structlog
 from pydantic import AnyUrl
 
 import kodit.domain.entities as domain_entities
+import kodit.domain.entities.git as domain_git_entities
 from kodit.application.factories.reporting_factory import create_noop_operation
 from kodit.application.services.reporting import ProgressTracker
 from kodit.domain.protocols import SnippetRepository
@@ -17,6 +18,7 @@ from kodit.domain.value_objects import (
     EnrichmentRequest,
     FileProcessingStatus,
     LanguageMapping,
+    SourceType,
 )
 from kodit.infrastructure.cloning.git.working_copy import GitWorkingCopyProvider
 from kodit.infrastructure.cloning.metadata import FileMetadataExtractor
@@ -69,10 +71,10 @@ class IndexDomainService:
         sanitized_uri, source_type = self.sanitize_uri(uri_or_path_like)
         self.log.info("Preparing source", uri=str(sanitized_uri))
 
-        if source_type == domain_entities.SourceType.FOLDER:
+        if source_type == SourceType.FOLDER:
             local_path = path_from_uri(str(sanitized_uri))
-        elif source_type == domain_entities.SourceType.GIT:
-            source_type = domain_entities.SourceType.GIT
+        elif source_type == SourceType.GIT:
+            source_type = SourceType.GIT
             git_working_copy_provider = GitWorkingCopyProvider(self._clone_dir)
             local_path = await git_working_copy_provider.prepare(uri_or_path_like, step)
         else:
@@ -87,9 +89,9 @@ class IndexDomainService:
 
     async def extract_snippets_from_git_commit(
         self,
-        commit: domain_entities.GitCommit,
+        commit: domain_git_entities.GitCommit,
         step: ProgressTracker | None = None,
-    ) -> list[domain_entities.SnippetV2]:
+    ) -> list[domain_git_entities.SnippetV2]:
         """Extract snippets from a git commit."""
         step = step or create_noop_operation()
         file_count = len(commit.files)
@@ -104,7 +106,7 @@ class IndexDomainService:
 
         # Create a set of languages to extract snippets for
         extensions = {file.extension() for file in files}
-        lang_files_map: dict[str, list[domain_entities.GitFile]] = defaultdict(list)
+        lang_files_map: dict[str, list[domain_git_entities.GitFile]] = defaultdict(list)
         for ext in extensions:
             try:
                 lang = LanguageMapping.get_language_for_extension(ext)
@@ -121,7 +123,7 @@ class IndexDomainService:
         )
 
         # Calculate snippets for each language
-        all_snippets: list[domain_entities.SnippetV2] = []
+        all_snippets: list[domain_git_entities.SnippetV2] = []
         slicer = Slicer()
         await step.set_total(len(lang_files_map.keys()))
         for i, (lang, lang_files) in enumerate(lang_files_map.items()):
@@ -227,20 +229,20 @@ class IndexDomainService:
 
     def sanitize_uri(
         self, uri_or_path_like: str
-    ) -> tuple[AnyUrl, domain_entities.SourceType]:
+    ) -> tuple[AnyUrl, SourceType]:
         """Convert a URI or path-like string to a URI."""
         # First, check if it's a local directory (more reliable than git check)
         if Path(uri_or_path_like).is_dir():
             return (
                 domain_entities.WorkingCopy.sanitize_local_path(uri_or_path_like),
-                domain_entities.SourceType.FOLDER,
+                SourceType.FOLDER,
             )
 
         # Then check if it's git-clonable
         if is_valid_clone_target(uri_or_path_like):
             return (
                 domain_entities.WorkingCopy.sanitize_git_url(uri_or_path_like),
-                domain_entities.SourceType.GIT,
+                SourceType.GIT,
             )
 
         raise ValueError(f"Unsupported source: {uri_or_path_like}")
@@ -253,7 +255,7 @@ class IndexDomainService:
         """Refresh the working copy."""
         step = step or create_noop_operation()
         metadata_extractor = FileMetadataExtractor(working_copy.source_type)
-        if working_copy.source_type == domain_entities.SourceType.GIT:
+        if working_copy.source_type == SourceType.GIT:
             git_working_copy_provider = GitWorkingCopyProvider(self._clone_dir)
             await git_working_copy_provider.sync(str(working_copy.remote_uri), step)
 
@@ -289,7 +291,7 @@ class IndexDomainService:
             await step.set_current(processed, f"Deleting file {file_path}")
             previous_files_map[
                 file_path
-            ].file_processing_status = domain_entities.FileProcessingStatus.DELETED
+            ].file_processing_status = FileProcessingStatus.DELETED
 
         # Then check to see if there are any new files
         for file_path in new_file_paths:
@@ -312,7 +314,7 @@ class IndexDomainService:
                 new_file = await metadata_extractor.extract(file_path=file_path)
                 if previous_file.sha256 != new_file.sha256:
                     previous_file.file_processing_status = (
-                        domain_entities.FileProcessingStatus.MODIFIED
+                        FileProcessingStatus.MODIFIED
                     )
             except (OSError, ValueError) as e:
                 self.log.info("Skipping file", file=str(file_path), error=str(e))

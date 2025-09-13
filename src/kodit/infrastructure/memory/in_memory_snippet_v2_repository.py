@@ -1,6 +1,6 @@
 """In-memory implementation of SnippetRepositoryV2."""
 
-from kodit.domain.entities import SnippetV2
+from kodit.domain.entities.git import SnippetV2
 from kodit.domain.protocols import SnippetRepositoryV2
 
 

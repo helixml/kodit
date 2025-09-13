@@ -5,7 +5,7 @@ from collections.abc import Callable
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.entities import SnippetV2
+from kodit.domain.entities.git import SnippetV2
 from kodit.domain.protocols import SnippetRepositoryV2
 from kodit.infrastructure.mappers.git_mapper import GitMapper
 from kodit.infrastructure.sqlalchemy import entities as db_entities
@@ -102,7 +102,7 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
                 db_files = (await self._session.scalars(files_stmt)).all()
 
                 # Convert files to domain entities
-                from kodit.domain.entities import GitFile
+                from kodit.domain.entities.git import GitFile
                 domain_files = []
                 for db_file in db_files:
                     domain_file = GitFile(

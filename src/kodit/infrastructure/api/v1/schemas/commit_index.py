@@ -4,7 +4,7 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from kodit.domain.entities import IndexStatus
+from kodit.domain.entities.git import IndexStatus
 
 
 class CommitIndexAttributes(BaseModel):

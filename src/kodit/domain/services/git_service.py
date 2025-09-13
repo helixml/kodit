@@ -13,13 +13,13 @@ from pydantic import AnyUrl
 
 from kodit.application.factories.reporting_factory import create_noop_operation
 from kodit.application.services.reporting import ProgressTracker
-from kodit.domain.entities import (
+from kodit.domain.entities import WorkingCopy
+from kodit.domain.entities.git import (
     GitBranch,
     GitCommit,
     GitFile,
     GitRepo,
     GitTag,
-    WorkingCopy,
 )
 
 if TYPE_CHECKING:

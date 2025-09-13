@@ -6,7 +6,7 @@ GitRepo as the aggregate root owning branches, commits, and tags.
 
 from pydantic import AnyUrl
 
-from kodit.domain.entities import GitBranch, GitCommit, GitRepo, GitTag
+from kodit.domain.entities.git import GitBranch, GitCommit, GitRepo, GitTag
 from kodit.domain.protocols import GitRepoRepository
 
 

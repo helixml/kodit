@@ -6,7 +6,7 @@ from pydantic import AnyUrl
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.entities import GitCommit, GitRepo
+from kodit.domain.entities.git import GitCommit, GitRepo
 from kodit.domain.protocols import GitRepoRepository
 from kodit.infrastructure.mappers.git_mapper import GitMapper
 from kodit.infrastructure.sqlalchemy import entities as db_entities
@@ -315,7 +315,7 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
             db_files = (await self._session.scalars(files_stmt)).all()
 
             # Convert to domain entities
-            from kodit.domain.entities import GitFile
+            from kodit.domain.entities.git import GitFile
 
             domain_files = []
             for db_file in db_files:

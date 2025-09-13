@@ -9,13 +9,13 @@ from pathlib import Path
 import structlog
 from pydantic import AnyUrl
 
-from kodit.domain.entities import (
+from kodit.domain.entities import WorkingCopy
+from kodit.domain.entities.git import (
     GitBranch,
     GitCommit,
     GitFile,
     GitRepo,
     GitTag,
-    WorkingCopy,
 )
 from kodit.domain.protocols import GitAdapter
 

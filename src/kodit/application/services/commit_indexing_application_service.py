@@ -5,7 +5,7 @@ from typing import Any
 import structlog
 
 from kodit.application.services.reporting import ProgressTracker
-from kodit.domain.entities import CommitIndex, IndexStatus
+from kodit.domain.entities.git import CommitIndex, IndexStatus
 from kodit.domain.protocols import (
     CommitIndexRepository,
     GitRepoRepository,

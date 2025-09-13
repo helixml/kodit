@@ -12,11 +12,10 @@ from pydantic import AnyUrl
 
 from kodit.domain.entities import (
     File,
-    FileProcessingStatus,
-    GitRepo,
     Snippet,
     WorkingCopy,
 )
+from kodit.domain.entities.git import GitRepo
 from kodit.domain.protocols import (
     GitAdapter,
     GitRepoRepository,
@@ -28,7 +27,7 @@ from kodit.domain.services.git_repository_scanner import (
     RepositoryCloner,
     RepositoryInfo,
 )
-from kodit.domain.value_objects import LanguageMapping
+from kodit.domain.value_objects import FileProcessingStatus, LanguageMapping
 from kodit.infrastructure.slicing.slicer import Slicer
 
 # GitScanResult removed - snippets are persisted to database
