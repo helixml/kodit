@@ -27,6 +27,8 @@ class GitMapper:
         domain_files = {}
         for db_file in db_files:
             domain_file = domain_git_entities.GitFile(
+                created_at=db_file.created_at,
+                updated_at=db_file.updated_at,
                 blob_sha=db_file.blob_sha,
                 path=db_file.path,
                 mime_type=db_file.mime_type,
@@ -44,6 +46,8 @@ class GitMapper:
             ]
 
             domain_commit = domain_git_entities.GitCommit(
+                created_at=db_commit.created_at,
+                updated_at=db_commit.updated_at,
                 commit_sha=db_commit.commit_sha,
                 date=db_commit.date,
                 message=db_commit.message,
@@ -71,6 +75,8 @@ class GitMapper:
 
             domain_branch = domain_git_entities.GitBranch(
                 id=db_branch.id,
+                created_at=db_branch.created_at,
+                updated_at=db_branch.updated_at,
                 name=db_branch.name,
                 head_commit=head_commit,
             )
@@ -83,6 +89,8 @@ class GitMapper:
         domain_tags = []
         for db_tag in db_tags:
             domain_tag = domain_git_entities.GitTag(
+                created_at=db_tag.created_at,
+                updated_at=db_tag.updated_at,
                 name=db_tag.name,
                 target_commit_sha=db_tag.target_commit_sha,
             )
@@ -98,6 +106,8 @@ class GitMapper:
 
         return domain_git_entities.GitRepo(
             id=db_repo.id,
+            created_at=db_repo.created_at,
+            updated_at=db_repo.updated_at,
             sanitized_remote_uri=AnyUrl(db_repo.sanitized_remote_uri),
             branches=domain_branches,
             commits=domain_commits,
@@ -186,6 +196,8 @@ class GitMapper:
 
         return domain_git_entities.CommitIndex(
             commit_sha=db_commit_index.commit_sha,
+            created_at=db_commit_index.created_at,
+            updated_at=db_commit_index.updated_at,
             snippets=snippets,
             status=status_map[db_commit_index.status],
             indexed_at=db_commit_index.indexed_at,

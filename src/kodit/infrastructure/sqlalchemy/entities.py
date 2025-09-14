@@ -324,6 +324,7 @@ class TaskStatus(Base):
 
 # Git-related entities for new GitRepo domain
 
+
 class GitRepo(Base, CommonMixin):
     """Git repository model."""
 
@@ -360,6 +361,15 @@ class GitFile(Base):
     __tablename__ = "git_files"
 
     blob_sha: Mapped[str] = mapped_column(String(64), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(
+        TZDateTime, nullable=False, default=lambda: datetime.now(UTC)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TZDateTime,
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
     path: Mapped[str] = mapped_column(String(1024), index=True)
     mime_type: Mapped[str] = mapped_column(String(255), index=True)
     size: Mapped[int] = mapped_column(Integer)
@@ -379,6 +389,15 @@ class GitCommit(Base):
     __tablename__ = "git_commits"
 
     commit_sha: Mapped[str] = mapped_column(String(64), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(
+        TZDateTime, nullable=False, default=lambda: datetime.now(UTC)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TZDateTime,
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
     repo_id: Mapped[int] = mapped_column(ForeignKey("git_repos.id"), index=True)
     date: Mapped[datetime] = mapped_column(TZDateTime)
     message: Mapped[str] = mapped_column(UnicodeText)
@@ -404,12 +423,11 @@ class GitCommit(Base):
         self.author = author
 
 
-class GitCommitFile(Base):
+class GitCommitFile(Base, CommonMixin):
     """Association table for git commits and files."""
 
     __tablename__ = "git_commit_files"
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     commit_sha: Mapped[str] = mapped_column(
         ForeignKey("git_commits.commit_sha"), index=True
     )
@@ -437,9 +455,7 @@ class GitBranch(Base, CommonMixin):
     name: Mapped[str] = mapped_column(String(255), index=True)
     head_commit_sha: Mapped[str] = mapped_column(ForeignKey("git_commits.commit_sha"))
 
-    __table_args__ = (
-        UniqueConstraint("repo_id", "name", name="uix_repo_branch"),
-    )
+    __table_args__ = (UniqueConstraint("repo_id", "name", name="uix_repo_branch"),)
 
     def __init__(self, repo_id: int, name: str, head_commit_sha: str) -> None:
         """Initialize Git branch."""
@@ -449,21 +465,18 @@ class GitBranch(Base, CommonMixin):
         self.head_commit_sha = head_commit_sha
 
 
-class GitTag(Base):
+class GitTag(Base, CommonMixin):
     """Git tag model."""
 
     __tablename__ = "git_tags"
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     repo_id: Mapped[int] = mapped_column(ForeignKey("git_repos.id"), index=True)
     name: Mapped[str] = mapped_column(String(255), index=True)
     target_commit_sha: Mapped[str] = mapped_column(
         ForeignKey("git_commits.commit_sha"), index=True
     )
 
-    __table_args__ = (
-        UniqueConstraint("repo_id", "name", name="uix_repo_tag"),
-    )
+    __table_args__ = (UniqueConstraint("repo_id", "name", name="uix_repo_tag"),)
 
     def __init__(self, repo_id: int, name: str, target_commit_sha: str) -> None:
         """Initialize Git tag."""
@@ -472,8 +485,6 @@ class GitTag(Base):
         self.name = name
         self.target_commit_sha = target_commit_sha
 
-
-# New snippet model for SnippetV2
 
 class SnippetV2(Base, CommonMixin):
     """SnippetV2 model for commit-based snippets."""
@@ -529,6 +540,7 @@ class SnippetV2File(Base):
 
 # Commit index model
 
+
 class IndexStatusType(Enum):
     """Index status enum."""
 
@@ -551,7 +563,8 @@ class CommitIndex(Base, CommonMixin):
     error_message: Mapped[str | None] = mapped_column(UnicodeText, nullable=True)
     files_processed: Mapped[int] = mapped_column(Integer, default=0)
     processing_time_seconds: Mapped[str] = mapped_column(
-        String(50), default="0.0"  # Store as string for precision
+        String(50),
+        default="0.0",  # Store as string for precision
     )
 
     def __init__(  # noqa: PLR0913
