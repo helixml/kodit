@@ -357,6 +357,121 @@ Search code snippets with filters matching MCP tool.
 
 [HTTPValidationError](#httpvalidationerror)
 
+### GET /api/v1/indexes
+
+List all indexes.
+
+
+#### Responses
+
+- 200: Successful Response
+
+[IndexListResponse](#indexlistresponse)
+
+- 500: Internal server error
+
+- 401: Unauthorized
+
+- 422: Invalid request
+
+### POST /api/v1/indexes
+
+Create a new index and start async indexing.
+
+
+#### Request Body
+
+[IndexCreateRequest](#indexcreaterequest)
+
+
+#### Responses
+
+- 202: Successful Response
+
+[IndexResponse](#indexresponse)
+
+- 500: Internal server error
+
+- 401: Unauthorized
+
+- 422: Invalid request
+
+### GET /api/v1/indexes/{index_id}
+
+Get index details.
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| index_id | integer | True |  |
+
+
+#### Responses
+
+- 200: Successful Response
+
+[IndexDetailResponse](#indexdetailresponse)
+
+- 500: Internal server error
+
+- 401: Unauthorized
+
+- 422: Invalid request
+
+- 404: Index not found
+
+### DELETE /api/v1/indexes/{index_id}
+
+Delete an index.
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| index_id | integer | True |  |
+
+
+#### Responses
+
+- 204: Successful Response
+
+- 500: Internal server error
+
+- 401: Unauthorized
+
+- 422: Invalid request
+
+- 404: Index not found
+
+### GET /api/v1/indexes/{index_id}/status
+
+Get the status of tasks for an index.
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| index_id | integer | True |  |
+
+
+#### Responses
+
+- 200: Successful Response
+
+[TaskStatusListResponse](#taskstatuslistresponse)
+
+- 500: Internal server error
+
+- 401: Unauthorized
+
+- 422: Invalid request
+
+- 404: Index not found
+
 ## Components
 
 
@@ -468,6 +583,99 @@ Single file response following JSON-API spec.
 | Field | Type | Description |
 |-------|------|-------------|
 | detail | array |  |
+
+
+### IndexAttributes
+
+
+Index attributes for JSON:API responses.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| created_at | string |  |
+| updated_at | string |  |
+| uri | string |  |
+
+
+### IndexCreateAttributes
+
+
+Attributes for creating an index.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| uri | string | URI of the source to index |
+
+
+### IndexCreateData
+
+
+Data for creating an index.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| type | string |  |
+| attributes |  |  |
+
+
+### IndexCreateRequest
+
+
+JSON:API request for creating an index.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data |  |  |
+
+
+### IndexData
+
+
+Index data for JSON:API responses.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| type | string |  |
+| id | string |  |
+| attributes |  |  |
+
+
+### IndexDetailResponse
+
+
+JSON:API response for index details with included resources.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data |  |  |
+
+
+### IndexListResponse
+
+
+JSON:API response for index list.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data | array |  |
+
+
+### IndexResponse
+
+
+JSON:API response for single index.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data |  |  |
 
 
 ### RepositoryAttributes
@@ -798,6 +1006,49 @@ JSON:API response for single task.
 | Field | Type | Description |
 |-------|------|-------------|
 | data |  |  |
+
+
+### TaskStatusAttributes
+
+
+Task status attributes for JSON:API responses.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| step | string | Name of the task/operation |
+| state | string | Current state of the task |
+| progress | number | Progress percentage (0-100) |
+| total | integer | Total number of items to process |
+| current | integer | Current number of items processed |
+| created_at |  | Task start time |
+| updated_at |  | Last update time |
+| error | string | Error message |
+| message | string | Message |
+
+
+### TaskStatusData
+
+
+Task status data for JSON:API responses.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| type | string |  |
+| id | string |  |
+| attributes |  |  |
+
+
+### TaskStatusListResponse
+
+
+JSON:API response for task status list.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data | array |  |
 
 
 ### ValidationError
