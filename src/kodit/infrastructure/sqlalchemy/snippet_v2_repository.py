@@ -43,47 +43,72 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
             return
 
         async with self.uow:
-            # First, delete any existing snippets for this commit
-            await self.delete_snippets_for_commit(commit_sha)
+            # First, delete any existing snippet associations for this commit
+            # Note: We inline the delete here to avoid nested UoW contexts
+            stmt = delete(db_entities.CommitSnippetV2).where(
+                db_entities.CommitSnippetV2.commit_sha == commit_sha
+            )
+            await self._session.execute(stmt)
 
             # Save each snippet
             for domain_snippet in snippets:
-                # Convert to database entity
-                db_snippet = self._mapper.from_domain_snippet_v2(
-                    domain_snippet, commit_sha
+                # Check if snippet already exists
+                existing_snippet = await self._session.get(
+                    db_entities.SnippetV2, domain_snippet.sha
                 )
-                self._session.add(db_snippet)
-                await self._session.flush()  # Get the ID
 
-                # Save snippet-file associations
-                for git_file in domain_snippet.derives_from:
-                    # Ensure GitFile exists in database
-                    existing_file = await self._session.get(
-                        db_entities.GitFile, git_file.blob_sha
-                    )
-                    if not existing_file:
-                        db_file = db_entities.GitFile(
-                            blob_sha=git_file.blob_sha,
-                            path=git_file.path,
-                            mime_type=git_file.mime_type,
-                            size=git_file.size,
+                if not existing_snippet:
+                    # Convert to database entity
+                    db_snippet = self._mapper.from_domain_snippet_v2(domain_snippet)
+                    self._session.add(db_snippet)
+                    await self._session.flush()  # Ensure snippet is persisted
+                else:
+                    db_snippet = existing_snippet
+
+                # Create commit-snippet association
+                commit_snippet = db_entities.CommitSnippetV2(
+                    commit_sha=commit_sha,
+                    snippet_sha=db_snippet.sha,
+                )
+                self._session.add(commit_snippet)
+
+                # Save snippet-file associations (only if snippet is new)
+                if not existing_snippet:
+                    for git_file in domain_snippet.derives_from:
+                        # Ensure GitFile exists in database
+                        existing_file = await self._session.get(
+                            db_entities.GitFile, git_file.blob_sha
                         )
-                        self._session.add(db_file)
-                        await self._session.flush()
+                        if not existing_file:
+                            db_file = db_entities.GitFile(
+                                blob_sha=git_file.blob_sha,
+                                path=git_file.path,
+                                mime_type=git_file.mime_type,
+                                size=git_file.size,
+                                extension=git_file.extension,
+                            )
+                            self._session.add(db_file)
+                            await self._session.flush()
 
-                    # Create association
-                    association = db_entities.SnippetV2File(
-                        snippet_id=db_snippet.id,
-                        file_blob_sha=git_file.blob_sha,
-                    )
-                    self._session.add(association)
+                        # Create file association
+                        association = db_entities.SnippetV2File(
+                            snippet_sha=db_snippet.sha,
+                            file_blob_sha=git_file.blob_sha,
+                        )
+                        self._session.add(association)
 
     async def get_snippets_for_commit(self, commit_sha: str) -> list[SnippetV2]:
         """Get all snippets for a specific commit."""
         async with self.uow:
-            # Get snippets for the commit
-            snippets_stmt = select(db_entities.SnippetV2).where(
-                db_entities.SnippetV2.commit_sha == commit_sha
+            # Get snippets for the commit through the association table
+            snippets_stmt = (
+                select(db_entities.SnippetV2)
+                .join(
+                    db_entities.CommitSnippetV2,
+                    db_entities.SnippetV2.sha
+                    == db_entities.CommitSnippetV2.snippet_sha,
+                )
+                .where(db_entities.CommitSnippetV2.commit_sha == commit_sha)
             )
             db_snippets = (await self._session.scalars(snippets_stmt)).all()
 
@@ -97,12 +122,19 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
                         db_entities.GitFile.blob_sha
                         == db_entities.SnippetV2File.file_blob_sha,
                     )
-                    .where(db_entities.SnippetV2File.snippet_id == db_snippet.id)
+                    .where(db_entities.SnippetV2File.snippet_sha == db_snippet.sha)
                 )
                 db_files = (await self._session.scalars(files_stmt)).all()
 
+                # Get enrichments for this snippet
+                enrichments_stmt = select(db_entities.Enrichment).where(
+                    db_entities.Enrichment.snippet_sha == db_snippet.sha
+                )
+                db_enrichments = (await self._session.scalars(enrichments_stmt)).all()
+
                 # Convert files to domain entities
                 from kodit.domain.entities.git import GitFile
+
                 domain_files = []
                 for db_file in db_files:
                     domain_file = GitFile(
@@ -110,34 +142,24 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
                         path=db_file.path,
                         mime_type=db_file.mime_type,
                         size=db_file.size,
+                        extension=db_file.extension,
                     )
                     domain_files.append(domain_file)
 
                 # Convert snippet to domain entity
                 domain_snippet = self._mapper.to_domain_snippet_v2(
-                    db_snippet, domain_files
+                    db_snippet, domain_files, list(db_enrichments)
                 )
                 domain_snippets.append(domain_snippet)
 
             return domain_snippets
 
     async def delete_snippets_for_commit(self, commit_sha: str) -> None:
-        """Delete all snippets and their associations for a commit."""
-        # Get snippet IDs for this commit
-        snippets_stmt = select(db_entities.SnippetV2.id).where(
-            db_entities.SnippetV2.commit_sha == commit_sha
-        )
-        snippet_ids = (await self._session.scalars(snippets_stmt)).all()
-
-        if snippet_ids:
-            # Delete snippet-file associations
-            assoc_stmt = delete(db_entities.SnippetV2File).where(
-                db_entities.SnippetV2File.snippet_id.in_(snippet_ids)
+        """Delete all snippet associations for a commit."""
+        async with self.uow:
+            # Note: We only delete the commit-snippet associations,
+            # not the snippets themselves as they might be used by other commits
+            stmt = delete(db_entities.CommitSnippetV2).where(
+                db_entities.CommitSnippetV2.commit_sha == commit_sha
             )
-            await self._session.execute(assoc_stmt)
-
-            # Delete snippets
-            snippets_del_stmt = delete(db_entities.SnippetV2).where(
-                db_entities.SnippetV2.commit_sha == commit_sha
-            )
-            await self._session.execute(snippets_del_stmt)
+            await self._session.execute(stmt)

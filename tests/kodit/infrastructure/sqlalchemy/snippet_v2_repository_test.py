@@ -3,13 +3,111 @@
 from datetime import UTC, datetime
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.domain.entities.git import GitFile, SnippetV2
 from kodit.domain.value_objects import Enrichment, EnrichmentType
+from kodit.infrastructure.sqlalchemy import entities as db_entities
 from kodit.infrastructure.sqlalchemy.snippet_v2_repository import (
     SqlAlchemySnippetRepositoryV2,
 )
 from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
+
+
+@pytest.fixture
+async def test_git_repo(session: AsyncSession) -> db_entities.GitRepo:
+    """Create a test git repository."""
+    repo = db_entities.GitRepo(
+        sanitized_remote_uri="https://github.com/test/repo.git",
+        remote_uri="https://github.com/test/repo.git",
+        cloned_path="/tmp/test/repo",
+    )
+    session.add(repo)
+    await session.flush()
+    return repo
+
+
+@pytest.fixture
+async def test_git_commit(
+    session: AsyncSession, test_git_repo: db_entities.GitRepo
+) -> db_entities.GitCommit:
+    """Create test git commits that will be used in tests."""
+    # Create multiple commits for different tests
+    commits = [
+        db_entities.GitCommit(
+            commit_sha="commit_sha_789",
+            repo_id=test_git_repo.id,
+            date=datetime.now(UTC),
+            message="Test commit 1",
+            parent_commit_sha=None,
+            author="Test Author",
+        ),
+        db_entities.GitCommit(
+            commit_sha="commit_sha_empty",
+            repo_id=test_git_repo.id,
+            date=datetime.now(UTC),
+            message="Test commit 2",
+            parent_commit_sha=None,
+            author="Test Author",
+        ),
+        db_entities.GitCommit(
+            commit_sha="commit_sha_replace",
+            repo_id=test_git_repo.id,
+            date=datetime.now(UTC),
+            message="Test commit 3",
+            parent_commit_sha=None,
+            author="Test Author",
+        ),
+        db_entities.GitCommit(
+            commit_sha="commit_with_new_file",
+            repo_id=test_git_repo.id,
+            date=datetime.now(UTC),
+            message="Test commit 4",
+            parent_commit_sha=None,
+            author="Test Author",
+        ),
+        db_entities.GitCommit(
+            commit_sha="test_commit_sha",
+            repo_id=test_git_repo.id,
+            date=datetime.now(UTC),
+            message="Test commit 5",
+            parent_commit_sha=None,
+            author="Test Author",
+        ),
+        db_entities.GitCommit(
+            commit_sha="commit_to_delete",
+            repo_id=test_git_repo.id,
+            date=datetime.now(UTC),
+            message="Test commit 6",
+            parent_commit_sha=None,
+            author="Test Author",
+        ),
+        db_entities.GitCommit(
+            commit_sha="commit_with_multiple",
+            repo_id=test_git_repo.id,
+            date=datetime.now(UTC),
+            message="Test commit 7",
+            parent_commit_sha=None,
+            author="Test Author",
+        ),
+        db_entities.GitCommit(
+            commit_sha="commit_with_multiple_snippets",
+            repo_id=test_git_repo.id,
+            date=datetime.now(UTC),
+            message="Test commit 8",
+            parent_commit_sha=None,
+            author="Test Author",
+        ),
+    ]
+
+    for commit in commits:
+        session.add(commit)
+
+    await session.flush()
+    await session.commit()
+
+    # Return the first one as the main fixture
+    return commits[0]
 
 
 @pytest.fixture
@@ -58,6 +156,7 @@ class TestSaveSnippets:
         self,
         repository: SqlAlchemySnippetRepositoryV2,
         sample_snippet: SnippetV2,
+        test_git_commit: db_entities.GitCommit,
     ) -> None:
         """Test that save_snippets() saves snippets with file associations."""
         commit_sha = "commit_sha_789"
@@ -79,7 +178,7 @@ class TestSaveSnippets:
     ) -> None:
         """Test that save_snippets() handles empty snippets list."""
         commit_sha = "commit_sha_empty"
-        snippets = []
+        snippets: list[SnippetV2] = []
 
         # Should not raise an error
         await repository.save_snippets(commit_sha, snippets)
@@ -93,6 +192,7 @@ class TestSaveSnippets:
         repository: SqlAlchemySnippetRepositoryV2,
         sample_snippet: SnippetV2,
         sample_git_file: GitFile,
+        test_git_commit: db_entities.GitCommit,
     ) -> None:
         """Test that save_snippets() replaces existing snippets for a commit."""
         commit_sha = "commit_sha_replace"
@@ -128,6 +228,7 @@ class TestSaveSnippets:
     async def test_creates_git_files_if_not_exist(
         self,
         repository: SqlAlchemySnippetRepositoryV2,
+        test_git_commit: db_entities.GitCommit,
     ) -> None:
         """Test that save_snippets() creates GitFile entities if they don't exist."""
         # Create a snippet with a new file that doesn't exist in DB
@@ -170,6 +271,7 @@ class TestGetSnippetsForCommit:
     async def test_returns_empty_list_for_nonexistent_commit(
         self,
         repository: SqlAlchemySnippetRepositoryV2,
+        test_git_commit: db_entities.GitCommit,
     ) -> None:
         """Test that get_snippets_for_commit() returns empty list for non-existent commit."""
         result = await repository.get_snippets_for_commit("nonexistent_commit")
@@ -179,6 +281,7 @@ class TestGetSnippetsForCommit:
         self,
         repository: SqlAlchemySnippetRepositoryV2,
         sample_snippet: SnippetV2,
+        test_git_commit: db_entities.GitCommit,
     ) -> None:
         """Test that get_snippets_for_commit() returns snippets with file associations."""
         commit_sha = "test_commit_sha"
@@ -205,6 +308,7 @@ class TestDeleteSnippetsForCommit:
         self,
         repository: SqlAlchemySnippetRepositoryV2,
         sample_snippet: SnippetV2,
+        test_git_commit: db_entities.GitCommit,
     ) -> None:
         """Test that delete_snippets_for_commit() removes snippets and associations."""
         commit_sha = "commit_to_delete"
@@ -226,6 +330,7 @@ class TestDeleteSnippetsForCommit:
     async def test_handles_nonexistent_commit_gracefully(
         self,
         repository: SqlAlchemySnippetRepositoryV2,
+        test_git_commit: db_entities.GitCommit,
     ) -> None:
         """Test that delete_snippets_for_commit() handles non-existent commit gracefully."""
         # Should not raise an error
@@ -235,6 +340,7 @@ class TestDeleteSnippetsForCommit:
         self,
         repository: SqlAlchemySnippetRepositoryV2,
         sample_git_file: GitFile,
+        test_git_commit: db_entities.GitCommit,
     ) -> None:
         """Test that delete_snippets_for_commit() handles multiple snippets."""
         commit_sha = "commit_with_multiple_snippets"

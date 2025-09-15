@@ -21,7 +21,7 @@ from kodit.domain.protocols import (
     TaskStatusRepository,
 )
 from kodit.domain.services.enrichment_service import EnrichmentDomainService
-from kodit.domain.services.git_repository_scanner import (
+from kodit.domain.services.git_repository_service import (
     GitRepositoryScanner,
     RepositoryCloner,
 )
@@ -102,7 +102,6 @@ class ServerFactory:
                 repo_repository=self.repo_repository(),
                 scanner=self.scanner(),
                 cloner=self.cloner(),
-                git_adapter=self.git_adapter(),
                 snippet_repository=self.snippet_repository(),
             )
         return self._git_application_service

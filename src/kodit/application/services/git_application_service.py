@@ -11,11 +11,10 @@ from pydantic import AnyUrl
 from kodit.domain.entities import WorkingCopy
 from kodit.domain.entities.git import GitRepo
 from kodit.domain.protocols import (
-    GitAdapter,
     GitRepoRepository,
     SnippetRepositoryV2,
 )
-from kodit.domain.services.git_repository_scanner import (
+from kodit.domain.services.git_repository_service import (
     GitRepoFactory,
     GitRepositoryScanner,
     RepositoryCloner,
@@ -32,14 +31,12 @@ class GitApplicationService:
         repo_repository: GitRepoRepository,
         scanner: GitRepositoryScanner,
         cloner: RepositoryCloner,
-        git_adapter: GitAdapter,
         snippet_repository: SnippetRepositoryV2,
     ) -> None:
         """Initialize the Git application service."""
         self.repo_repository = repo_repository
         self.scanner = scanner
         self.cloner = cloner
-        self.git_adapter = git_adapter
         self.repo_factory = GitRepoFactory()
         self.snippet_repository = snippet_repository
         self.slicer = Slicer()  # Add snippet extraction capability
@@ -78,7 +75,7 @@ class GitApplicationService:
             raise ValueError(f"Repository {sanitized_uri} not found")
 
         # Pull latest changes
-        await self.git_adapter.pull_repository(existing_repo.cloned_path)
+        await self.cloner.pull_repository(existing_repo)
 
         # Create repository info from existing repo
         repo_info = RepositoryInfo(
@@ -171,7 +168,7 @@ class GitApplicationService:
             raise ValueError(f"Repository {sanitized_uri} not found")
 
         # Pull latest changes
-        await self.git_adapter.pull_repository(existing_repo.cloned_path)
+        await self.cloner.pull_repository(existing_repo)
 
         # Create repository info from existing repo
         repo_info = RepositoryInfo(

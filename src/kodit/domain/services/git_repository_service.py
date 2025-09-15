@@ -295,3 +295,11 @@ class RepositoryCloner:
             sanitized_remote_uri=sanitized_uri,
             cloned_path=clone_path,
         )
+
+    async def pull_repository(self, repository: GitRepo) -> None:
+        """Pull latest changes for existing repository."""
+        if not repository.cloned_path.exists():
+            await self.clone_repository(repository.remote_uri)
+            return
+
+        await self.git_adapter.pull_repository(repository.cloned_path)

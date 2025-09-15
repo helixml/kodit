@@ -543,6 +543,28 @@ class SnippetV2File(Base):
         self.file_blob_sha = file_blob_sha
 
 
+class CommitSnippetV2(Base):
+    """Association table for commits and snippets v2."""
+
+    __tablename__ = "commit_snippets_v2"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    commit_sha: Mapped[str] = mapped_column(
+        ForeignKey("git_commits.commit_sha"), index=True
+    )
+    snippet_sha: Mapped[str] = mapped_column(ForeignKey("snippets_v2.sha"), index=True)
+
+    __table_args__ = (
+        UniqueConstraint("commit_sha", "snippet_sha", name="uix_commit_snippet"),
+    )
+
+    def __init__(self, commit_sha: str, snippet_sha: str) -> None:
+        """Initialize commit snippet association."""
+        super().__init__()
+        self.commit_sha = commit_sha
+        self.snippet_sha = snippet_sha
+
+
 # Enrichment model for SnippetV2
 
 

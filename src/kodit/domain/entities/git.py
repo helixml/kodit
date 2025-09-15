@@ -147,6 +147,11 @@ class SnippetV2(BaseModel):
     enrichments: list[Enrichment] = []
     extension: str
 
+    @property
+    def id(self) -> str:
+        """Get the unique id for a snippet."""
+        return self.sha
+
     @staticmethod
     def from_snippet_v1(snippet: Snippet, derives_from: list[GitFile]) -> "SnippetV2":
         """Create a SnippetV2 from a SnippetV1."""
