@@ -1,5 +1,6 @@
 """FastAPI application for kodit API."""
 
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -114,12 +115,12 @@ async def healthz() -> Response:
 
 
 # Include API routers
-app.include_router(commits_router)
 app.include_router(queue_router)
-app.include_router(repositories_router)
 app.include_router(search_router)
 app.include_router(indexes_router)
-
+if os.getenv("FEATURE_REPO_ENABLE"):
+    app.include_router(commits_router)
+    app.include_router(repositories_router)
 
 # Add mcp routes last, otherwise previous routes aren't added
 # Mount both apps at root - they have different internal paths
