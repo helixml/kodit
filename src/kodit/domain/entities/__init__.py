@@ -1,42 +1,460 @@
-"""Re-export all entities from the main entities module."""
+"""Pure domain entities using Pydantic."""
 
-# We need to import from the sibling entities.py module
-# Use importlib to directly load the entities.py module to avoid circular imports
-import importlib.util
+import shutil
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any, Protocol
+from urllib.parse import urlparse, urlunparse
 
-# Construct path to the sibling entities.py file
-_current_dir = Path(__file__).parent
-_entities_py_path = _current_dir.parent / "entities.py"
+from pydantic import AnyUrl, BaseModel
 
-# Load the entities.py module directly
-_spec = importlib.util.spec_from_file_location("_entities", _entities_py_path)
-if _spec is None or _spec.loader is None:
-    raise ImportError(f"Could not load entities module from {_entities_py_path}")
-_entities = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_entities)
+from kodit.domain.value_objects import (
+    FileProcessingStatus,
+    ReportingState,
+    SnippetContent,
+    SnippetContentType,
+    SourceType,
+    TaskOperation,
+    TrackableType,
+)
+from kodit.utils.path_utils import path_from_uri
 
-# Re-export all the classes from entities.py
-Author = _entities.Author
-File = _entities.File
-IgnorePatternProvider = _entities.IgnorePatternProvider
-Index = _entities.Index
-Snippet = _entities.Snippet
-SnippetWithContext = _entities.SnippetWithContext
-Source = _entities.Source
-Task = _entities.Task
-TaskStatus = _entities.TaskStatus
-WorkingCopy = _entities.WorkingCopy
 
-__all__ = [
-    "Author",
-    "File",
-    "IgnorePatternProvider",
-    "Index",
-    "Snippet",
-    "SnippetWithContext",
-    "Source",
-    "Task",
-    "TaskStatus",
-    "WorkingCopy",
-]
+class IgnorePatternProvider(Protocol):
+    """Protocol for ignore pattern providers."""
+
+    def should_ignore(self, path: Path) -> bool:
+        """Check if a path should be ignored."""
+        ...
+
+
+class Author(BaseModel):
+    """Author domain entity."""
+
+    id: int | None = None
+    name: str
+    email: str
+
+
+class File(BaseModel):
+    """File domain entity."""
+
+    id: int | None = None  # Is populated by repository
+    created_at: datetime | None = None  # Is populated by repository
+    updated_at: datetime | None = None  # Is populated by repository
+    uri: AnyUrl
+    sha256: str
+    authors: list[Author]
+    mime_type: str
+    file_processing_status: FileProcessingStatus
+
+    def as_path(self) -> Path:
+        """Return the file as a path."""
+        return path_from_uri(str(self.uri))
+
+    def extension(self) -> str:
+        """Return the file extension."""
+        return Path(self.as_path()).suffix.lstrip(".")
+
+
+class WorkingCopy(BaseModel):
+    """Working copy value object representing cloned source location."""
+
+    created_at: datetime | None = None  # Is populated by repository
+    updated_at: datetime | None = None  # Is populated by repository
+    remote_uri: AnyUrl
+    cloned_path: Path
+    source_type: SourceType
+    files: list[File]
+
+    @classmethod
+    def sanitize_local_path(cls, path: str) -> AnyUrl:
+        """Sanitize a local path."""
+        return AnyUrl(Path(path).resolve().absolute().as_uri())
+
+    @classmethod
+    def sanitize_git_url(cls, url: str) -> AnyUrl:
+        """Remove credentials from a git URL while preserving the rest of the URL.
+
+        This function handles various git URL formats:
+        - HTTPS URLs with username:password@host
+        - HTTPS URLs with username@host (no password)
+        - SSH URLs (left unchanged)
+        - File URLs (left unchanged)
+
+        Args:
+            url: The git URL that may contain credentials.
+
+        Returns:
+            The sanitized URL with credentials removed.
+
+        Examples:
+            >>> sanitize_git_url("https://phil:token@dev.azure.com/org/project/_git/repo")
+            "https://dev.azure.com/org/project/_git/repo"
+            >>> sanitize_git_url("https://username@github.com/user/repo.git")
+            "https://github.com/user/repo.git"
+            >>> sanitize_git_url("git@github.com:user/repo.git")
+            "ssh://git@github.com/user/repo.git"
+
+        """
+        # Handle different URL types
+        if url.startswith("git@"):
+            return cls._handle_ssh_url(url)
+        if url.startswith("ssh://"):
+            return AnyUrl(url)
+        if url.startswith("file://"):
+            return AnyUrl(url)
+
+        # Try local path conversion
+        local_url = cls._try_local_path_conversion(url)
+        if local_url:
+            return local_url
+
+        # Handle HTTPS URLs with credentials
+        return cls._sanitize_https_url(url)
+
+    @classmethod
+    def _handle_ssh_url(cls, url: str) -> AnyUrl:
+        """Handle SSH URL conversion."""
+        if ":" in url and not url.startswith("ssh://"):
+            host_path = url[4:]  # Remove "git@"
+            if ":" in host_path:
+                host, path = host_path.split(":", 1)
+                return AnyUrl(f"ssh://git@{host}/{path}")
+        return AnyUrl(url)
+
+    @classmethod
+    def _try_local_path_conversion(cls, url: str) -> AnyUrl | None:
+        """Try to convert local paths to file:// URLs."""
+        from pathlib import Path
+
+        try:
+            path = Path(url)
+            if path.exists() or url.startswith(("/", "./", "../")) or url == ".":
+                absolute_path = path.resolve()
+                return AnyUrl(f"file://{absolute_path}")
+        except OSError:
+            # Path operations failed, not a local path
+            pass
+        return None
+
+    @classmethod
+    def _sanitize_https_url(cls, url: str) -> AnyUrl:
+        """Remove credentials from HTTPS URLs."""
+        try:
+            parsed = urlparse(url)
+
+            # If there are no credentials, return the URL as-is
+            if not parsed.username:
+                return AnyUrl(url)
+
+            # Reconstruct the URL without credentials
+            sanitized_netloc = parsed.hostname
+            if parsed.port:
+                sanitized_netloc = f"{parsed.hostname}:{parsed.port}"
+
+            return AnyUrl(
+                urlunparse(
+                    (
+                        parsed.scheme,
+                        sanitized_netloc,
+                        parsed.path,
+                        parsed.params,
+                        parsed.query,
+                        parsed.fragment,
+                    )
+                )
+            )
+        except Exception as e:
+            raise ValueError(f"Invalid URL: {url}") from e
+
+    def modified_or_deleted_files(self) -> list[File]:
+        """Return the modified or deleted files."""
+        return [
+            file
+            for file in self.files
+            if file.file_processing_status
+            in (FileProcessingStatus.MODIFIED, FileProcessingStatus.DELETED)
+        ]
+
+    def list_filesystem_paths(
+        self, ignore_provider: IgnorePatternProvider
+    ) -> list[Path]:
+        """List the filesystem paths of the files in the working copy."""
+        if not self.cloned_path.exists():
+            raise ValueError(f"Cloned path does not exist: {self.cloned_path}")
+
+        return [
+            f
+            for f in self.cloned_path.rglob("*")
+            if f.is_file() and not ignore_provider.should_ignore(f)
+        ]
+
+    def dirty_files(self) -> list[File]:
+        """Return the dirty files."""
+        return [
+            file
+            for file in self.files
+            if file.file_processing_status
+            in (FileProcessingStatus.MODIFIED, FileProcessingStatus.ADDED)
+        ]
+
+    def changed_files(self) -> list[File]:
+        """Return the changed files."""
+        return [
+            file
+            for file in self.files
+            if file.file_processing_status != FileProcessingStatus.CLEAN
+        ]
+
+    def clear_file_processing_statuses(self) -> None:
+        """Clear the file processing statuses."""
+        # First remove any files that are marked for deletion
+        self.files = [
+            file
+            for file in self.files
+            if file.file_processing_status != FileProcessingStatus.DELETED
+        ]
+        # Then clear the statuses for the remaining files
+        for file in self.files:
+            file.file_processing_status = FileProcessingStatus.CLEAN
+
+    def delete(self) -> None:
+        """Delete the working copy."""
+        shutil.rmtree(self.cloned_path)
+
+
+class Source(BaseModel):
+    """Source domain entity."""
+
+    id: int | None = None  # Is populated by repository
+    created_at: datetime | None = None  # Is populated by repository
+    updated_at: datetime | None = None  # Is populated by repository
+    working_copy: WorkingCopy
+
+
+class Snippet(BaseModel):
+    """Snippet domain entity."""
+
+    id: int | None = None  # Is populated by repository
+    created_at: datetime | None = None  # Is populated by repository
+    updated_at: datetime | None = None  # Is populated by repository
+    derives_from: list[File]
+    original_content: SnippetContent | None = None
+    summary_content: SnippetContent | None = None
+
+    def original_text(self) -> str:
+        """Return the original content of the snippet."""
+        if self.original_content is None:
+            return ""
+        return self.original_content.value
+
+    def summary_text(self) -> str:
+        """Return the summary content of the snippet."""
+        if self.summary_content is None:
+            return ""
+        return self.summary_content.value
+
+    def add_original_content(self, content: str, language: str) -> None:
+        """Add an original content to the snippet."""
+        self.original_content = SnippetContent(
+            type=SnippetContentType.ORIGINAL,
+            value=content,
+            language=language,
+        )
+
+    def add_summary(self, summary: str) -> None:
+        """Add a summary to the snippet."""
+        self.summary_content = SnippetContent(
+            type=SnippetContentType.SUMMARY,
+            value=summary,
+            language="markdown",
+        )
+
+
+class Index(BaseModel):
+    """Index domain entity.
+
+    The snippets field is optional and only loaded when explicitly needed.
+    Most operations should use the SnippetRepository directly instead of
+    accessing this field.
+    """
+
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    source: Source
+    snippets: list[Snippet] = []
+
+    def delete_snippets_for_files(self, files: list[File]) -> None:
+        """Delete the snippets that derive from a list of files.
+
+        Note: This method only operates on loaded snippets. For persistence,
+        use SnippetRepository.delete_by_file_ids() directly.
+        """
+        self.snippets = [
+            snippet
+            for snippet in self.snippets
+            if not any(file in snippet.derives_from for file in files)
+        ]
+
+    def has_snippets_loaded(self) -> bool:
+        """Check if snippets have been loaded into this entity."""
+        return len(self.snippets) > 0
+
+
+# FUTURE: Remove this type, use the domain to get the required information.
+@dataclass(frozen=True)
+class SnippetWithContext:
+    """Domain model for snippet with associated context information."""
+
+    source: Source
+    file: File
+    authors: list[Author]
+    snippet: Snippet
+
+
+class Task(BaseModel):
+    """Represents an item in the queue waiting to be processed.
+
+    If the item exists, that means it is in the queue and waiting to be processed. There
+    is no status associated.
+    """
+
+    id: str  # Is a unique key to deduplicate items in the queue
+    type: TaskOperation  # Task operation
+    priority: int  # Priority (higher number = higher priority)
+    payload: dict[str, Any]  # Task-specific data
+
+    created_at: datetime | None = None  # Is populated by repository
+    updated_at: datetime | None = None  # Is populated by repository
+
+    @staticmethod
+    def create(
+        operation: TaskOperation, priority: int, payload: dict[str, Any]
+    ) -> "Task":
+        """Create a task."""
+        return Task(
+            id=Task.create_id(operation, payload),
+            type=operation,
+            priority=priority,
+            payload=payload,
+        )
+
+    @staticmethod
+    def create_id(operation: TaskOperation, payload: dict[str, Any]) -> str:
+        """Create a unique id for a task."""
+        if operation in (
+            TaskOperation.REFRESH_WORKING_COPY,
+            TaskOperation.EXTRACT_SNIPPETS,
+            TaskOperation.CREATE_BM25_INDEX,
+            TaskOperation.CREATE_CODE_EMBEDDINGS,
+            TaskOperation.ENRICH_SNIPPETS,
+        ):
+            # Use a shortened name for the ID to keep it concise
+            operation_short_names = {
+                TaskOperation.REFRESH_WORKING_COPY: "SYNC",
+                TaskOperation.EXTRACT_SNIPPETS: "EXTRACT",
+                TaskOperation.CREATE_BM25_INDEX: "BM25_INDEX",
+                TaskOperation.CREATE_CODE_EMBEDDINGS: "CODE_EMBEDDINGS",
+                TaskOperation.ENRICH_SNIPPETS: "ENRICH",
+            }
+            return f"{operation_short_names[operation]}:{payload['index_id']}"
+
+        raise ValueError(f"Unknown operation: {operation}")
+
+
+class TaskStatus(BaseModel):
+    """Task status domain entity."""
+
+    id: str
+    state: ReportingState
+    operation: TaskOperation
+    message: str = ""
+
+    created_at: datetime = datetime.now(UTC)
+    updated_at: datetime = datetime.now(UTC)
+    total: int = 0
+    current: int = 0
+
+    error: str | None = None
+    parent: "TaskStatus | None" = None
+    trackable_id: int | None = None
+    trackable_type: TrackableType | None = None
+
+    @staticmethod
+    def create(
+        operation: TaskOperation,
+        parent: "TaskStatus | None" = None,
+        trackable_type: TrackableType | None = None,
+        trackable_id: int | None = None,
+    ) -> "TaskStatus":
+        """Create a task status."""
+        return TaskStatus(
+            id=TaskStatus._create_id(operation, trackable_type, trackable_id),
+            operation=operation,
+            parent=parent,
+            trackable_type=trackable_type,
+            trackable_id=trackable_id,
+            state=ReportingState.STARTED,
+        )
+
+    @staticmethod
+    def _create_id(
+        step: TaskOperation,
+        trackable_type: TrackableType | None = None,
+        trackable_id: int | None = None,
+    ) -> str:
+        """Create a unique id for a task."""
+        result = []
+        # Nice to be prefixed by tracking information if it exists
+        if trackable_type:
+            result.append(str(trackable_type))
+        if trackable_id:
+            result.append(str(trackable_id))
+        result.append(str(step))
+        return "-".join(result)
+
+    @property
+    def completion_percent(self) -> float:
+        """Calculate the percentage of completion."""
+        if self.total == 0:
+            return 0.0
+        return min(100.0, max(0.0, (self.current / self.total) * 100.0))
+
+    def skip(self, message: str) -> None:
+        """Skip the task."""
+        self.state = ReportingState.SKIPPED
+        self.message = message
+
+    def fail(self, error: str) -> None:
+        """Fail the task."""
+        self.state = ReportingState.FAILED
+        self.error = error
+
+    def set_total(self, total: int) -> None:
+        """Set the total for the step."""
+        self.total = total
+
+    def set_current(self, current: int, message: str | None = None) -> None:
+        """Progress the step."""
+        self.state = ReportingState.IN_PROGRESS
+        self.current = current
+        if message:
+            self.message = message
+
+    def set_tracking_info(
+        self, trackable_id: int, trackable_type: TrackableType
+    ) -> None:
+        """Set the tracking info."""
+        self.trackable_id = trackable_id
+        self.trackable_type = trackable_type
+
+    def complete(self) -> None:
+        """Complete the task."""
+        if ReportingState.is_terminal(self.state):
+            return  # Already in terminal state
+
+        self.state = ReportingState.COMPLETED
+        self.current = self.total  # Ensure progress shows 100%

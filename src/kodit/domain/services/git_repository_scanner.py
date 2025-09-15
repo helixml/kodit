@@ -140,24 +140,18 @@ class GitRepositoryScanner:
         """Create GitCommit from commit data."""
         commit_sha = commit_data["sha"]
 
-        try:
-            files_data = await self.git_adapter.get_commit_files(
-                cloned_path, commit_sha
-            )
-            files = self._create_git_files(cloned_path, files_data)
-            author = self._format_author(commit_data)
+        files_data = await self.git_adapter.get_commit_files(cloned_path, commit_sha)
+        files = self._create_git_files(cloned_path, files_data)
+        author = self._format_author(commit_data)
 
-            return GitCommit(
-                commit_sha=commit_sha,
-                date=commit_data["date"],
-                message=commit_data["message"],
-                parent_commit_sha=commit_data["parent_sha"],
-                files=files,
-                author=author,
-            )
-        except (KeyError, ValueError, AttributeError) as e:
-            self._log.error(f"Failed to process commit {commit_sha}: {e}")
-            return None
+        return GitCommit(
+            commit_sha=commit_sha,
+            date=commit_data["date"],
+            message=commit_data["message"],
+            parent_commit_sha=commit_data["parent_sha"],
+            files=files,
+            author=author,
+        )
 
     def _create_git_files(
         self, cloned_path: Path, files_data: list[dict]
@@ -169,6 +163,7 @@ class GitRepositoryScanner:
                 path=str(cloned_path / f["path"]),
                 mime_type=f.get("mime_type", "application/octet-stream"),
                 size=f["size"],
+                extension=GitFile.extension_from_path(f["path"]),
             )
             for f in files_data
         ]

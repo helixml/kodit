@@ -26,6 +26,7 @@ from kodit.application.services.commit_indexing_application_service import (
 from kodit.application.services.git_application_service import GitApplicationService
 from kodit.application.services.queue_service import QueueService
 from kodit.config import AppContext
+from kodit.domain.protocols import GitRepoRepository
 from kodit.domain.services.index_query_service import IndexQueryService
 from kodit.domain.services.task_status_query_service import TaskStatusQueryService
 from kodit.infrastructure.indexing.fusion_service import ReciprocalRankFusionService
@@ -137,6 +138,7 @@ TaskStatusQueryServiceDep = Annotated[
     TaskStatusQueryService, Depends(get_task_status_query_service)
 ]
 
+
 class _ServerFactoryHolder:
     """Holder for server factory instance."""
 
@@ -174,6 +176,16 @@ async def get_git_app_service(
 
 
 GitAppServiceDep = Annotated[GitApplicationService, Depends(get_git_app_service)]
+
+
+async def get_git_repository(
+    server_factory: ServerFactoryDep,
+) -> GitRepoRepository:
+    """Get git repository dependency."""
+    return server_factory.repo_repository()
+
+
+GitRepositoryDep = Annotated[GitRepoRepository, Depends(get_git_repository)]
 
 
 async def get_commit_indexing_app_service(

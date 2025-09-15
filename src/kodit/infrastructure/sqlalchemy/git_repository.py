@@ -111,6 +111,7 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
                         path=file.path,
                         mime_type=file.mime_type,
                         size=file.size,
+                        extension=file.extension,
                     )
                     self._session.add(db_file)
 
@@ -186,16 +187,16 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
                 )
                 self._session.add(db_tag)
 
-    async def get_by_id(self, repo_id: int) -> GitRepo | None:
+    async def get_by_id(self, repo_id: int) -> GitRepo:
         """Get repository by ID with all associated data."""
         async with self.uow:
             db_repo = await self._session.get(db_entities.GitRepo, repo_id)
             if not db_repo:
-                return None
+                raise ValueError(f"Repository with ID {repo_id} not found")
 
             return await self._load_complete_repo(db_repo)
 
-    async def get_by_uri(self, sanitized_uri: AnyUrl) -> GitRepo | None:
+    async def get_by_uri(self, sanitized_uri: AnyUrl) -> GitRepo:
         """Get repository by sanitized URI with all associated data."""
         async with self.uow:
             stmt = select(db_entities.GitRepo).where(
@@ -203,11 +204,11 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
             )
             db_repo = await self._session.scalar(stmt)
             if not db_repo:
-                return None
+                raise ValueError(f"Repository with URI {sanitized_uri} not found")
 
             return await self._load_complete_repo(db_repo)
 
-    async def get_by_commit(self, commit_sha: str) -> GitRepo | None:
+    async def get_by_commit(self, commit_sha: str) -> GitRepo:
         """Get repository by commit SHA with all associated data."""
         async with self.uow:
             # Find the commit first
@@ -216,12 +217,12 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
             )
             db_commit = await self._session.scalar(stmt)
             if not db_commit:
-                return None
+                raise ValueError(f"Commit with SHA {commit_sha} not found")
 
             # Get the repo
             db_repo = await self._session.get(db_entities.GitRepo, db_commit.repo_id)
             if not db_repo:
-                return None
+                raise ValueError(f"Repository with commit SHA {commit_sha} not found")
 
             return await self._load_complete_repo(db_repo)
 
@@ -291,7 +292,7 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
             # Note: We don't delete GitFiles as they might be referenced by other repos
             return True
 
-    async def get_commit_by_sha(self, commit_sha: str) -> GitCommit | None:
+    async def get_commit_by_sha(self, commit_sha: str) -> GitCommit:
         """Get a specific commit by its SHA across all repositories."""
         async with self.uow:
             # Get the commit
@@ -300,7 +301,7 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
             )
             db_commit = await self._session.scalar(stmt)
             if not db_commit:
-                return None
+                raise ValueError(f"Commit with SHA {commit_sha} not found")
 
             # Get associated files
             files_stmt = (
@@ -324,6 +325,7 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
                     path=db_file.path,
                     mime_type=db_file.mime_type,
                     size=db_file.size,
+                    extension=db_file.extension,
                 )
                 domain_files.append(domain_file)
 

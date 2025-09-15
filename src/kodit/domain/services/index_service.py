@@ -105,13 +105,13 @@ class IndexDomainService:
         files = commit.files
 
         # Create a set of languages to extract snippets for
-        extensions = {file.extension() for file in files}
+        extensions = {file.extension for file in files}
         lang_files_map: dict[str, list[domain_git_entities.GitFile]] = defaultdict(list)
         for ext in extensions:
             try:
                 lang = LanguageMapping.get_language_for_extension(ext)
                 lang_files_map[lang].extend(
-                    file for file in files if file.extension() == ext
+                    file for file in files if file.extension == ext
                 )
             except ValueError as e:
                 self.log.debug("Skipping", error=str(e))
@@ -227,9 +227,7 @@ class IndexDomainService:
 
         return list(snippet_map.values())
 
-    def sanitize_uri(
-        self, uri_or_path_like: str
-    ) -> tuple[AnyUrl, SourceType]:
+    def sanitize_uri(self, uri_or_path_like: str) -> tuple[AnyUrl, SourceType]:
         """Convert a URI or path-like string to a URI."""
         # First, check if it's a local directory (more reliable than git check)
         if Path(uri_or_path_like).is_dir():
@@ -313,9 +311,7 @@ class IndexDomainService:
                 previous_file = previous_files_map[file_path]
                 new_file = await metadata_extractor.extract(file_path=file_path)
                 if previous_file.sha256 != new_file.sha256:
-                    previous_file.file_processing_status = (
-                        FileProcessingStatus.MODIFIED
-                    )
+                    previous_file.file_processing_status = FileProcessingStatus.MODIFIED
             except (OSError, ValueError) as e:
                 self.log.info("Skipping file", file=str(file_path), error=str(e))
                 continue

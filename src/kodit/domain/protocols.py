@@ -159,15 +159,15 @@ class GitRepoRepository(ABC):
         """
 
     @abstractmethod
-    async def get_by_id(self, repo_id: int) -> GitRepo | None:
+    async def get_by_id(self, repo_id: int) -> GitRepo:
         """Get repository by ID with all associated data."""
 
     @abstractmethod
-    async def get_by_uri(self, sanitized_uri: AnyUrl) -> GitRepo | None:
+    async def get_by_uri(self, sanitized_uri: AnyUrl) -> GitRepo:
         """Get repository by sanitized URI with all associated data."""
 
     @abstractmethod
-    async def get_by_commit(self, commit_sha: str) -> GitRepo | None:
+    async def get_by_commit(self, commit_sha: str) -> GitRepo:
         """Get repository by commit SHA with all associated data."""
 
     @abstractmethod
@@ -179,7 +179,7 @@ class GitRepoRepository(ABC):
         """Delete a repository."""
 
     @abstractmethod
-    async def get_commit_by_sha(self, commit_sha: str) -> GitCommit | None:
+    async def get_commit_by_sha(self, commit_sha: str) -> GitCommit:
         """Get a specific commit by its SHA across all repositories."""
 
 

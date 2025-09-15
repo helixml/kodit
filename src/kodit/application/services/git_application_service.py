@@ -5,21 +5,15 @@ code snippets from Git repositories, designed to integrate with the
 indexing pipeline.
 """
 
-from collections import defaultdict
-
 import structlog
 from pydantic import AnyUrl
 
-from kodit.domain.entities import (
-    File,
-    Snippet,
-    WorkingCopy,
-)
+from kodit.domain.entities import WorkingCopy
 from kodit.domain.entities.git import GitRepo
 from kodit.domain.protocols import (
     GitAdapter,
     GitRepoRepository,
-    SnippetRepository,
+    SnippetRepositoryV2,
 )
 from kodit.domain.services.git_repository_scanner import (
     GitRepoFactory,
@@ -27,15 +21,11 @@ from kodit.domain.services.git_repository_scanner import (
     RepositoryCloner,
     RepositoryInfo,
 )
-from kodit.domain.value_objects import FileProcessingStatus, LanguageMapping
 from kodit.infrastructure.slicing.slicer import Slicer
-
-# GitScanResult removed - snippets are persisted to database
-# for next pipeline stage to retrieve
 
 
 class GitApplicationService:
-    """Updated application service using immutable approach."""
+    """Git application service."""
 
     def __init__(
         self,
@@ -43,7 +33,7 @@ class GitApplicationService:
         scanner: GitRepositoryScanner,
         cloner: RepositoryCloner,
         git_adapter: GitAdapter,
-        snippet_repository: SnippetRepository,
+        snippet_repository: SnippetRepositoryV2,
     ) -> None:
         """Initialize the Git application service."""
         self.repo_repository = repo_repository
@@ -119,64 +109,6 @@ class GitApplicationService:
         scan_result = await self.scanner.scan_repository(repo_info.cloned_path)
         return self.repo_factory.create_from_scan(repo_info, scan_result)
 
-    def _extract_snippets_from_repo(self, repo: GitRepo) -> list[Snippet]:
-        """Extract snippets from all files in the repository.
-
-        Returns a list of extracted snippets.
-        """
-        # Get unique files from the tracking branch's head commit
-        if not repo.tracking_branch or not repo.tracking_branch.head_commit:
-            self._log.warning("No tracking branch or head commit found")
-            return []
-
-        # Convert GitFile to File objects (simplified for snippet extraction)
-        files: list[File] = []
-        for git_file in repo.tracking_branch.head_commit.files:
-            from pathlib import Path
-            file_uri = AnyUrl(Path(git_file.path).as_uri())
-            file = File(
-                id=None,  # Will be assigned when persisted
-                uri=file_uri,
-                sha256=git_file.blob_sha,  # Using blob_sha as sha256 approximation
-                authors=[],  # Would be populated from git history
-                mime_type=git_file.mime_type,
-                file_processing_status=FileProcessingStatus.ADDED,
-            )
-            files.append(file)
-
-        # Group files by language
-        lang_files_map: dict[str, list[File]] = defaultdict(list)
-        for file in files:
-            try:
-                ext = file.extension()
-                lang = LanguageMapping.get_language_for_extension(ext)
-                lang_files_map[lang].append(file)
-            except ValueError as e:
-                self._log.debug(f"Skipping file {file.uri}: {e}")
-                continue
-
-        self._log.info(
-            f"Extracting snippets for {len(files)} files "
-            f"in {len(lang_files_map)} languages",
-            languages=list(lang_files_map.keys()),
-        )
-
-        # Extract snippets for each language
-        all_snippets = []
-        for lang, lang_files in lang_files_map.items():
-            if not lang_files:
-                continue
-            try:
-                snippets = self.slicer.extract_snippets(lang_files, language=lang)
-                all_snippets.extend(snippets)
-                self._log.info(f"Extracted {len(snippets)} snippets for {lang}")
-            except (ValueError, RuntimeError) as e:
-                self._log.error(f"Failed to extract snippets for {lang}: {e}")
-                continue
-
-        self._log.info(f"Total snippets extracted: {len(all_snippets)}")
-        return all_snippets
-
     async def clone_and_scan_with_snippets(
         self, remote_uri: AnyUrl, index_id: int
     ) -> None:
@@ -204,7 +136,9 @@ class GitApplicationService:
 
         # Extract snippets
         self._log.info(f"Extracting snippets from {remote_uri}")
-        snippets = self._extract_snippets_from_repo(repo)
+        snippets = self.slicer.extract_snippets_from_git_files(
+            repo.tracking_branch.head_commit.files
+        )
 
         # Persist repository data through the aggregate root
         self._log.info(f"Persisting repository data for {remote_uri}")
@@ -212,15 +146,16 @@ class GitApplicationService:
 
         # Persist snippets to database for next pipeline stage
         if snippets:
-            await self.snippet_repository.add(snippets, index_id)
+            await self.snippet_repository.save_snippets(
+                repo.tracking_branch.head_commit.commit_sha, snippets
+            )
             self._log.info(
                 f"Successfully scanned repository {remote_uri}: "
                 f"{len(snippets)} snippets extracted and persisted"
             )
         else:
             self._log.info(
-                f"Successfully scanned repository {remote_uri}: "
-                "No snippets extracted"
+                f"Successfully scanned repository {remote_uri}: No snippets extracted"
             )
 
     async def update_and_scan_with_snippets(
@@ -253,14 +188,18 @@ class GitApplicationService:
 
         # Extract snippets
         self._log.info(f"Extracting snippets from updated repository {sanitized_uri}")
-        snippets = self._extract_snippets_from_repo(updated_repo)
+        snippets = self.slicer.extract_snippets_from_git_files(
+            updated_repo.tracking_branch.head_commit.files
+        )
 
         # Update persistence through the aggregate root
         await self.repo_repository.save(updated_repo)
 
         # Persist snippets to database for next pipeline stage
         if snippets:
-            await self.snippet_repository.add(snippets, index_id)
+            await self.snippet_repository.save_snippets(
+                updated_repo.tracking_branch.head_commit.commit_sha, snippets
+            )
             self._log.info(
                 f"Successfully updated repository {sanitized_uri}: "
                 f"{len(snippets)} snippets extracted and persisted"
@@ -289,11 +228,15 @@ class GitApplicationService:
 
         # Extract snippets
         self._log.info("Extracting snippets from rescanned repository")
-        snippets = self._extract_snippets_from_repo(rescanned_repo)
+        snippets = self.slicer.extract_snippets_from_git_files(
+            rescanned_repo.tracking_branch.head_commit.files
+        )
 
         # Persist snippets to database for next pipeline stage
         if snippets:
-            await self.snippet_repository.add(snippets, index_id)
+            await self.snippet_repository.save_snippets(
+                rescanned_repo.tracking_branch.head_commit.commit_sha, snippets
+            )
             self._log.info(
                 f"Successfully rescanned repository: "
                 f"{len(snippets)} snippets extracted and persisted"

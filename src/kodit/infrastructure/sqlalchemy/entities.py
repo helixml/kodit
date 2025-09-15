@@ -405,7 +405,7 @@ class GitCommit(Base):
     repo_id: Mapped[int] = mapped_column(ForeignKey("git_repos.id"), index=True)
     date: Mapped[datetime] = mapped_column(TZDateTime)
     message: Mapped[str] = mapped_column(UnicodeText)
-    parent_commit_sha: Mapped[str] = mapped_column(String(64))
+    parent_commit_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
     author: Mapped[str] = mapped_column(String(255), index=True)
 
     def __init__(  # noqa: PLR0913
@@ -414,7 +414,7 @@ class GitCommit(Base):
         repo_id: int,
         date: datetime,
         message: str,
-        parent_commit_sha: str,
+        parent_commit_sha: str | None,
         author: str,
     ) -> None:
         """Initialize Git commit."""
