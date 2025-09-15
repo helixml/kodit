@@ -18,6 +18,7 @@ from kodit.infrastructure.api.v1.routers import (
     repositories_router,
     search_router,
 )
+from kodit.infrastructure.api.v1.routers.indexes import indexes_router
 from kodit.infrastructure.api.v1.schemas.context import AppLifespanState
 from kodit.infrastructure.sqlalchemy.task_status_repository import (
     create_task_status_repository,
@@ -117,6 +118,7 @@ app.include_router(commits_router)
 app.include_router(queue_router)
 app.include_router(repositories_router)
 app.include_router(search_router)
+app.include_router(indexes_router)
 
 
 # Add mcp routes last, otherwise previous routes aren't added

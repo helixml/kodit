@@ -1,0 +1,160 @@
+"""Index management router for the REST API."""
+
+from fastapi import APIRouter, Depends, HTTPException
+
+from kodit.infrastructure.api.middleware.auth import api_key_auth
+from kodit.infrastructure.api.v1.dependencies import (
+    IndexingAppServiceDep,
+    IndexQueryServiceDep,
+    TaskStatusQueryServiceDep,
+)
+from kodit.infrastructure.api.v1.schemas.index import (
+    IndexAttributes,
+    IndexCreateRequest,
+    IndexData,
+    IndexDetailResponse,
+    IndexListResponse,
+    IndexResponse,
+)
+from kodit.infrastructure.api.v1.schemas.task_status import (
+    TaskStatusAttributes,
+    TaskStatusData,
+    TaskStatusListResponse,
+)
+
+indexes_router = APIRouter(
+    prefix="/api/v1/indexes",
+    tags=["indexes"],
+    dependencies=[Depends(api_key_auth)],
+    responses={
+        401: {"description": "Unauthorized"},
+        422: {"description": "Invalid request"},
+    },
+)
+
+
+@indexes_router.get("")
+async def list_indexes(
+    query_service: IndexQueryServiceDep,
+) -> IndexListResponse:
+    """List all indexes."""
+    indexes = await query_service.list_indexes()
+    return IndexListResponse(
+        data=[
+            IndexData(
+                type="index",
+                id=str(idx.id),
+                attributes=IndexAttributes(
+                    created_at=idx.created_at,
+                    updated_at=idx.updated_at,
+                    uri=str(idx.source.working_copy.remote_uri),
+                ),
+            )
+            for idx in indexes
+        ]
+    )
+
+
+@indexes_router.post("", status_code=202)
+async def create_index(
+    request: IndexCreateRequest,
+    app_service: IndexingAppServiceDep,
+) -> IndexResponse:
+    """Create a new index and start async indexing."""
+    # Create index using the application service
+    index = await app_service.create_index_from_uri(request.data.attributes.uri)
+
+    # Queue the indexing tasks
+    await app_service.queue_index_tasks(index.id, is_user_initiated=True)
+
+    return IndexResponse(
+        data=IndexData(
+            type="index",
+            id=str(index.id),
+            attributes=IndexAttributes(
+                created_at=index.created_at,
+                updated_at=index.updated_at,
+                uri=str(index.source.working_copy.remote_uri),
+            ),
+        )
+    )
+
+
+@indexes_router.get("/{index_id}", responses={404: {"description": "Index not found"}})
+async def get_index(
+    index_id: int,
+    query_service: IndexQueryServiceDep,
+) -> IndexDetailResponse:
+    """Get index details."""
+    index = await query_service.get_index_by_id(index_id)
+    if not index:
+        raise HTTPException(status_code=404, detail="Index not found")
+
+    return IndexDetailResponse(
+        data=IndexData(
+            type="index",
+            id=str(index.id),
+            attributes=IndexAttributes(
+                created_at=index.created_at,
+                updated_at=index.updated_at,
+                uri=str(index.source.working_copy.remote_uri),
+            ),
+        ),
+    )
+
+
+@indexes_router.get(
+    "/{index_id}/status",
+    responses={404: {"description": "Index not found"}},
+)
+async def get_index_status(
+    index_id: int,
+    query_service: IndexQueryServiceDep,
+    status_service: TaskStatusQueryServiceDep,
+) -> TaskStatusListResponse:
+    """Get the status of tasks for an index."""
+    # Verify the index exists
+    index = await query_service.get_index_by_id(index_id)
+    if not index:
+        raise HTTPException(status_code=404, detail="Index not found")
+
+    # Get all task statuses for this index
+    progress_trackers = await status_service.get_index_status(index_id)
+
+    # Convert progress trackers to API response format
+    task_statuses = []
+    for _i, status in enumerate(progress_trackers):
+        task_statuses.append(
+            TaskStatusData(
+                id=status.id,
+                attributes=TaskStatusAttributes(
+                    step=status.operation,
+                    state=status.state,
+                    progress=status.completion_percent,
+                    total=status.total,
+                    current=status.current,
+                    created_at=status.created_at,
+                    updated_at=status.updated_at,
+                    error=status.error or "",
+                    message=status.message,
+                ),
+            )
+        )
+
+    return TaskStatusListResponse(data=task_statuses)
+
+
+@indexes_router.delete(
+    "/{index_id}", status_code=204, responses={404: {"description": "Index not found"}}
+)
+async def delete_index(
+    index_id: int,
+    query_service: IndexQueryServiceDep,
+    app_service: IndexingAppServiceDep,
+) -> None:
+    """Delete an index."""
+    index = await query_service.get_index_by_id(index_id)
+    if not index:
+        raise HTTPException(status_code=404, detail="Index not found")
+
+    await app_service.delete_index(index)
