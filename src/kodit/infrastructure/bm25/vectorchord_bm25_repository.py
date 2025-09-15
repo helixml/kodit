@@ -29,13 +29,17 @@ SET search_path TO
 CREATE_BM25_TABLE = f"""
 CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
     id SERIAL PRIMARY KEY,
-    snippet_id BIGINT NOT NULL,
+    snippet_id VARCHAR(255) NOT NULL,
     passage TEXT NOT NULL,
     embedding bm25vector,
     UNIQUE(snippet_id)
 )
 """
-
+CHECK_EXISTING_IDS = f"""
+    SELECT snippet_id
+    FROM {TABLE_NAME}
+    WHERE snippet_id = ANY(:snippet_ids)
+"""  # noqa: S608
 CREATE_BM25_INDEX = f"""
 CREATE INDEX IF NOT EXISTS {INDEX_NAME}
 ON {TABLE_NAME}
@@ -160,6 +164,12 @@ class VectorChordBM25Repository(BM25Repository):
         """Commit the session."""
         await self.__session.commit()
 
+    async def _get_existing_ids(self, snippet_ids: list[str]) -> set[str]:
+        result = await self._execute(
+            text(CHECK_EXISTING_IDS), {"snippet_ids": snippet_ids}
+        )
+        return {row[0] for row in result.fetchall()}
+
     async def index_documents(self, request: IndexRequest) -> None:
         """Index documents for BM25 search."""
         # Filter out any documents that don't have a snippet_id or text
@@ -171,6 +181,18 @@ class VectorChordBM25Repository(BM25Repository):
 
         if not valid_documents:
             self.log.warning("Corpus is empty, skipping bm25 index")
+            return
+
+        # Filter out documents that have already been indexed
+        existing_ids = await self._get_existing_ids(
+            [doc.snippet_id for doc in valid_documents]
+        )
+        valid_documents = [
+            doc for doc in valid_documents if doc.snippet_id not in existing_ids
+        ]
+
+        if not valid_documents:
+            self.log.info("No new documents to index")
             return
 
         # Execute inserts

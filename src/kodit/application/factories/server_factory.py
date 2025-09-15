@@ -25,6 +25,7 @@ from kodit.domain.protocols import (
     SnippetRepositoryV2,
     TaskStatusRepository,
 )
+from kodit.domain.services.bm25_service import BM25DomainService, BM25Repository
 from kodit.domain.services.enrichment_service import EnrichmentDomainService
 from kodit.domain.services.git_repository_service import (
     GitRepositoryScanner,
@@ -32,6 +33,10 @@ from kodit.domain.services.git_repository_service import (
 )
 from kodit.domain.services.index_service import IndexDomainService
 from kodit.domain.value_objects import LanguageMapping
+from kodit.infrastructure.bm25.local_bm25_repository import LocalBM25Repository
+from kodit.infrastructure.bm25.vectorchord_bm25_repository import (
+    VectorChordBM25Repository,
+)
 from kodit.infrastructure.cloning.git.git_python_adaptor import GitPythonAdapter
 from kodit.infrastructure.enrichment.enrichment_factory import (
     enrichment_domain_service_factory,
@@ -77,12 +82,17 @@ class ServerFactory:
         self._commit_indexing_application_service: (
             CommitIndexingApplicationService | None
         ) = None
+        self._code_indexing_application_service: (
+            CodeIndexingApplicationService | None
+        ) = None
         self._snippet_repository: SnippetRepository | None = None
         self._enrichment_service: EnrichmentDomainService | None = None
         self._task_status_repository: TaskStatusRepository | None = None
         self._operation: ProgressTracker | None = None
         self._queue_service: QueueService | None = None
         self._slicer: Slicer | None = None
+        self._bm25_service: BM25DomainService | None = None
+        self._bm25_repository: BM25Repository | None = None
 
     def queue_service(self) -> QueueService:
         """Create a QueueService instance."""
@@ -112,6 +122,25 @@ class ServerFactory:
             self._slicer = Slicer()
         return self._slicer
 
+    def bm25_repository(self) -> BM25Repository:
+        """Create a BM25Repository instance."""
+        if not self._bm25_repository:
+            if self.app_context.default_search.provider == "vectorchord":
+                self._bm25_repository = VectorChordBM25Repository(
+                    session=self.session_factory()
+                )
+            else:
+                self._bm25_repository = LocalBM25Repository(
+                    data_dir=self.app_context.get_data_dir()
+                )
+        return self._bm25_repository
+
+    def bm25_service(self) -> BM25DomainService:
+        """Create a BM25DomainService instance."""
+        if not self._bm25_service:
+            self._bm25_service = BM25DomainService(repository=self.bm25_repository())
+        return self._bm25_service
+
     def commit_indexing_application_service(self) -> CommitIndexingApplicationService:
         """Create a CommitIndexingApplicationService instance."""
         if not self._commit_indexing_application_service:
@@ -127,6 +156,7 @@ class ServerFactory:
                     snippet_repository=self.snippet_v2_repository(),
                     slicer=self.slicer(),
                     queue=self.queue_service(),
+                    bm25_service=self.bm25_service(),
                 )
             )
 

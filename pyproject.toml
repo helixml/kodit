@@ -129,6 +129,8 @@ ignore = [
   "EM101", # Annoying because an extra msg just for a raise adds unnecessary lines
   "EM102", # As above
   "S108", # Just annoying. It's never insecure use of /tmp
+  "FIX002", # I like todos
+  "TD003", # I like todos
 ]
 select = ["ALL"]
 

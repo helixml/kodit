@@ -1,6 +1,7 @@
 """Tests for SqlAlchemySnippetRepositoryV2."""
 
 from datetime import UTC, datetime
+from pathlib import Path
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,7 +21,7 @@ async def test_git_repo(session: AsyncSession) -> db_entities.GitRepo:
     repo = db_entities.GitRepo(
         sanitized_remote_uri="https://github.com/test/repo.git",
         remote_uri="https://github.com/test/repo.git",
-        cloned_path="/tmp/test/repo",
+        cloned_path=Path("/tmp/test/repo"),
     )
     session.add(repo)
     await session.flush()

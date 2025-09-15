@@ -23,7 +23,7 @@ class TestGitMapper:
         db_repo = db_entities.GitRepo(
             sanitized_remote_uri="https://github.com/test/repo",
             remote_uri="https://github.com/test/repo.git",
-            cloned_path="/tmp/test_repo",
+            cloned_path=Path("/tmp/test_repo"),
             last_scanned_at=now,
         )
         db_repo.id = 1
@@ -86,7 +86,7 @@ class TestGitMapper:
         assert domain_repo.id == db_repo.id
         assert str(domain_repo.sanitized_remote_uri) == db_repo.sanitized_remote_uri
         assert str(domain_repo.remote_uri) == db_repo.remote_uri
-        assert domain_repo.cloned_path == Path(db_repo.cloned_path)
+        assert domain_repo.cloned_path == db_repo.cloned_path
         assert domain_repo.last_scanned_at == db_repo.last_scanned_at
 
         # Verify branch
@@ -289,7 +289,7 @@ class TestGitMapper:
         db_repo = db_entities.GitRepo(
             sanitized_remote_uri="https://github.com/test/repo",
             remote_uri="https://github.com/test/repo.git",
-            cloned_path="/tmp/test_repo2",
+            cloned_path=Path("/tmp/test_repo2"),
             last_scanned_at=now,
         )
         db_repo.id = 1
@@ -339,7 +339,7 @@ class TestGitMapper:
         db_repo = db_entities.GitRepo(
             sanitized_remote_uri="https://github.com/test/repo",
             remote_uri="https://github.com/test/repo.git",
-            cloned_path="/tmp/test_repo3",
+            cloned_path=Path("/tmp/test_repo3"),
             last_scanned_at=now,
         )
         db_repo.id = 1

@@ -37,7 +37,7 @@ class LocalBM25Repository(BM25Repository):
         """
         self.log = structlog.get_logger(__name__)
         self.index_path = data_dir / "bm25s_index"
-        self.snippet_ids: list[int] = []
+        self.snippet_ids: list[str] = []
         self.stemmer = Stemmer.Stemmer("english")
         self.__retriever: bm25s.BM25 | None = None
 
@@ -76,11 +76,23 @@ class LocalBM25Repository(BM25Repository):
             self.log.warning("Corpus is empty, skipping bm25 index")
             return
 
-        vocab = self._tokenize([doc.text for doc in request.documents])
+        if not self.snippet_ids and (self.index_path / SNIPPET_IDS_FILE).exists():
+            async with aiofiles.open(self.index_path / SNIPPET_IDS_FILE) as f:
+                self.snippet_ids = json.loads(await f.read())
+
+        # Filter out documents that have already been indexed
+        new_documents = [
+            doc for doc in request.documents if doc.snippet_id not in self.snippet_ids
+        ]
+        if not new_documents:
+            self.log.info("No new documents to index")
+            return
+
+        vocab = self._tokenize([doc.text for doc in new_documents])
         self._retriever().index(vocab, show_progress=False)
         self._retriever().save(self.index_path)
         # Replace snippet_ids instead of appending, since the BM25 index is rebuilt
-        self.snippet_ids = [doc.snippet_id for doc in request.documents]
+        self.snippet_ids = [doc.snippet_id for doc in new_documents]
         async with aiofiles.open(self.index_path / SNIPPET_IDS_FILE, "w") as f:
             await f.write(json.dumps(self.snippet_ids))
 

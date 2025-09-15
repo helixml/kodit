@@ -4,12 +4,13 @@ import asyncio
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic import AnyUrl
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from kodit.application.factories.server_factory import ServerFactory
 from kodit.application.services.indexing_worker_service import IndexingWorkerService
 from kodit.application.services.queue_service import QueueService
 from kodit.config import AppContext
@@ -91,7 +92,13 @@ async def test_worker_processes_task(
     await queue_service.enqueue_task(task)
 
     # Create worker service
-    worker = IndexingWorkerService(app_context, session_factory)
+    # Create worker service with mocked server factory
+    server_factory = MagicMock(spec=ServerFactory)
+    mock_service = AsyncMock()
+    mock_service.run_task = AsyncMock()
+    server_factory.code_indexing_application_service.return_value = mock_service
+    server_factory.commit_indexing_application_service.return_value = mock_service
+    worker = IndexingWorkerService(app_context, session_factory, server_factory)
 
     # Mock the indexing service
     with patch(
@@ -130,7 +137,13 @@ async def test_worker_handles_missing_index(
     await queue_service.enqueue_task(task)
 
     # Create worker service
-    worker = IndexingWorkerService(app_context, session_factory)
+    # Create worker service with mocked server factory
+    server_factory = MagicMock(spec=ServerFactory)
+    mock_service = AsyncMock()
+    mock_service.run_task = AsyncMock()
+    server_factory.code_indexing_application_service.return_value = mock_service
+    server_factory.commit_indexing_application_service.return_value = mock_service
+    worker = IndexingWorkerService(app_context, session_factory, server_factory)
 
     # Mock the indexing service
     with patch(
@@ -170,7 +183,13 @@ async def test_worker_handles_invalid_task_payload(
     await repo.add(task)
 
     # Create worker service
-    worker = IndexingWorkerService(app_context, session_factory)
+    # Create worker service with mocked server factory
+    server_factory = MagicMock(spec=ServerFactory)
+    mock_service = AsyncMock()
+    mock_service.run_task = AsyncMock()
+    server_factory.code_indexing_application_service.return_value = mock_service
+    server_factory.commit_indexing_application_service.return_value = mock_service
+    worker = IndexingWorkerService(app_context, session_factory, server_factory)
 
     # Start the worker
     await worker.start()
@@ -203,7 +222,13 @@ async def test_worker_processes_multiple_tasks_sequentially(
         await queue_service.enqueue_task(task)
 
     # Create worker service
-    worker = IndexingWorkerService(app_context, session_factory)
+    # Create worker service with mocked server factory
+    server_factory = MagicMock(spec=ServerFactory)
+    mock_service = AsyncMock()
+    mock_service.run_task = AsyncMock()
+    server_factory.code_indexing_application_service.return_value = mock_service
+    server_factory.commit_indexing_application_service.return_value = mock_service
+    worker = IndexingWorkerService(app_context, session_factory, server_factory)
 
     # Track processing order
     processed_tasks = []
@@ -246,7 +271,13 @@ async def test_worker_stops_gracefully(
 ) -> None:
     """Test that the worker stops gracefully when requested."""
     # Create worker service
-    worker = IndexingWorkerService(app_context, session_factory)
+    # Create worker service with mocked server factory
+    server_factory = MagicMock(spec=ServerFactory)
+    mock_service = AsyncMock()
+    mock_service.run_task = AsyncMock()
+    server_factory.code_indexing_application_service.return_value = mock_service
+    server_factory.commit_indexing_application_service.return_value = mock_service
+    worker = IndexingWorkerService(app_context, session_factory, server_factory)
 
     # Start the worker
     await worker.start()
@@ -292,7 +323,13 @@ async def test_worker_continues_after_error(
     await queue_service.enqueue_task(task3)
 
     # Create worker service
-    worker = IndexingWorkerService(app_context, session_factory)
+    # Create worker service with mocked server factory
+    server_factory = MagicMock(spec=ServerFactory)
+    mock_service = AsyncMock()
+    mock_service.run_task = AsyncMock()
+    server_factory.code_indexing_application_service.return_value = mock_service
+    server_factory.commit_indexing_application_service.return_value = mock_service
+    worker = IndexingWorkerService(app_context, session_factory, server_factory)
 
     # Track processed tasks
     processed_ids = []
@@ -359,7 +396,13 @@ async def test_worker_respects_task_priority(
     await queue_service.enqueue_task(user_task)
 
     # Create worker service
-    worker = IndexingWorkerService(app_context, session_factory)
+    # Create worker service with mocked server factory
+    server_factory = MagicMock(spec=ServerFactory)
+    mock_service = AsyncMock()
+    mock_service.run_task = AsyncMock()
+    server_factory.code_indexing_application_service.return_value = mock_service
+    server_factory.commit_indexing_application_service.return_value = mock_service
+    worker = IndexingWorkerService(app_context, session_factory, server_factory)
 
     # Track processing order
     processed_order = []

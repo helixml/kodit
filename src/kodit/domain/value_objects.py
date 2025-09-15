@@ -152,7 +152,7 @@ class SearchType(Enum):
 class Document:
     """Generic document model for indexing."""
 
-    snippet_id: int
+    snippet_id: str
     text: str
 
 
@@ -696,6 +696,7 @@ class TrackableType(StrEnum):
     """Trackable type."""
 
     INDEX = "indexes"
+    COMMIT = "commits"
 
 
 class TaskOperation(StrEnum):
@@ -718,11 +719,16 @@ class TaskOperation(StrEnum):
     CREATE_REPOSITORY = "kodit.repository.create"
     CLONE_REPOSITORY = "kodit.repository.clone"
     SCAN_REPOSITORY = "kodit.repository.scan"
-    SNIPPETS_FOR_HEAD_COMMIT = "kodit.repository.snippets_for_head_commit"
+    EXTRACT_SNIPPETS_FOR_COMMIT = "kodit.commit.extract_snippets"
+    CREATE_BM25_INDEX_FOR_COMMIT = "kodit.commit.create_bm25_index"
 
     def is_repository_operation(self) -> bool:
         """Check if the task operation is a repository operation."""
         return self.startswith("kodit.repository.")
+
+    def is_commit_operation(self) -> bool:
+        """Check if the task operation is a commit operation."""
+        return self.startswith("kodit.commit.")
 
 
 class PrescribedOperations:
@@ -731,7 +737,10 @@ class PrescribedOperations:
     CREATE_NEW_REPOSITORY: ClassVar[list[TaskOperation]] = [
         TaskOperation.CLONE_REPOSITORY,
         TaskOperation.SCAN_REPOSITORY,
-        TaskOperation.SNIPPETS_FOR_HEAD_COMMIT,
+    ]
+    INDEX_COMMIT: ClassVar[list[TaskOperation]] = [
+        TaskOperation.EXTRACT_SNIPPETS_FOR_COMMIT,
+        TaskOperation.CREATE_BM25_INDEX_FOR_COMMIT,
     ]
 
 

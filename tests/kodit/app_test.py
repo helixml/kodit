@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from kodit.app import app
+from kodit.application.factories.server_factory import ServerFactory
 from kodit.config import AppContext
 from kodit.domain.services.bm25_service import BM25DomainService
 from kodit.domain.value_objects import FileProcessingStatus, SearchResult
@@ -37,7 +38,9 @@ def test_lifespan(
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[AppLifespanState]:
         """Create a test lifespan function."""
-        yield AppLifespanState(app_context=app_context)
+        from unittest.mock import MagicMock
+        server_factory = MagicMock(spec=ServerFactory)
+        yield AppLifespanState(app_context=app_context, server_factory=server_factory)
 
     return lifespan
 
@@ -51,8 +54,10 @@ def test_lifespan_with_api_keys(
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[AppLifespanState]:
         """Create a test lifespan function."""
+        from unittest.mock import MagicMock
         app_context.api_keys = ["test"]
-        yield AppLifespanState(app_context=app_context)
+        server_factory = MagicMock(spec=ServerFactory)
+        yield AppLifespanState(app_context=app_context, server_factory=server_factory)
 
     return lifespan
 
