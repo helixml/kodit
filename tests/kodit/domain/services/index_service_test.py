@@ -6,13 +6,14 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from pydantic import AnyUrl
 
-from kodit.domain.entities import Index, Snippet, Source, SourceType, WorkingCopy
+from kodit.domain.entities import Index, Snippet, Source, WorkingCopy
 from kodit.domain.protocols import SnippetRepository
 from kodit.domain.services.enrichment_service import EnrichmentDomainService
 from kodit.domain.services.index_service import (
     IndexDomainService,
     LanguageDetectionService,
 )
+from kodit.domain.value_objects import SourceType
 
 
 class MockLanguageDetectionService(LanguageDetectionService):

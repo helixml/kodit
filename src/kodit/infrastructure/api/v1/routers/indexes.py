@@ -22,7 +22,7 @@ from kodit.infrastructure.api.v1.schemas.task_status import (
     TaskStatusListResponse,
 )
 
-router = APIRouter(
+indexes_router = APIRouter(
     prefix="/api/v1/indexes",
     tags=["indexes"],
     dependencies=[Depends(api_key_auth)],
@@ -33,7 +33,7 @@ router = APIRouter(
 )
 
 
-@router.get("")
+@indexes_router.get("")
 async def list_indexes(
     query_service: IndexQueryServiceDep,
 ) -> IndexListResponse:
@@ -55,7 +55,7 @@ async def list_indexes(
     )
 
 
-@router.post("", status_code=202)
+@indexes_router.post("", status_code=202)
 async def create_index(
     request: IndexCreateRequest,
     app_service: IndexingAppServiceDep,
@@ -80,7 +80,7 @@ async def create_index(
     )
 
 
-@router.get("/{index_id}", responses={404: {"description": "Index not found"}})
+@indexes_router.get("/{index_id}", responses={404: {"description": "Index not found"}})
 async def get_index(
     index_id: int,
     query_service: IndexQueryServiceDep,
@@ -103,7 +103,7 @@ async def get_index(
     )
 
 
-@router.get(
+@indexes_router.get(
     "/{index_id}/status",
     responses={404: {"description": "Index not found"}},
 )
@@ -144,7 +144,7 @@ async def get_index_status(
     return TaskStatusListResponse(data=task_statuses)
 
 
-@router.delete(
+@indexes_router.delete(
     "/{index_id}", status_code=204, responses={404: {"description": "Index not found"}}
 )
 async def delete_index(

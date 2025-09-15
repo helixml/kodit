@@ -12,14 +12,21 @@ from kodit.application.factories.code_indexing_factory import (
 from kodit.application.factories.code_search_factory import (
     create_server_code_search_application_service,
 )
+from kodit.application.factories.server_factory import ServerFactory
 from kodit.application.services.code_indexing_application_service import (
     CodeIndexingApplicationService,
 )
 from kodit.application.services.code_search_application_service import (
     CodeSearchApplicationService,
 )
+from kodit.application.services.commit_indexing_application_service import (
+    CommitIndexingApplicationService,
+    CommitIndexQueryService,
+)
+from kodit.application.services.git_application_service import GitApplicationService
 from kodit.application.services.queue_service import QueueService
 from kodit.config import AppContext
+from kodit.domain.protocols import GitRepoRepository
 from kodit.domain.services.index_query_service import IndexQueryService
 from kodit.domain.services.task_status_query_service import TaskStatusQueryService
 from kodit.infrastructure.indexing.fusion_service import ReciprocalRankFusionService
@@ -129,4 +136,77 @@ async def get_task_status_query_service(
 
 TaskStatusQueryServiceDep = Annotated[
     TaskStatusQueryService, Depends(get_task_status_query_service)
+]
+
+
+class _ServerFactoryHolder:
+    """Holder for server factory instance."""
+
+    def __init__(self) -> None:
+        self._instance: ServerFactory | None = None
+
+    def get_or_create(
+        self, app_context: AppContext, session_factory: Callable[[], AsyncSession]
+    ) -> ServerFactory:
+        """Get or create server factory instance."""
+        if self._instance is None:
+            self._instance = ServerFactory(app_context, session_factory)
+        return self._instance
+
+
+_server_factory_holder = _ServerFactoryHolder()
+
+
+async def get_server_factory(
+    app_context: AppContextDep,
+    session_factory: DBSessionFactoryDep,
+) -> ServerFactory:
+    """Get server factory dependency."""
+    return _server_factory_holder.get_or_create(app_context, session_factory)
+
+
+ServerFactoryDep = Annotated[ServerFactory, Depends(get_server_factory)]
+
+
+async def get_git_app_service(
+    server_factory: ServerFactoryDep,
+) -> GitApplicationService:
+    """Get git application service dependency."""
+    return server_factory.git_application_service()
+
+
+GitAppServiceDep = Annotated[GitApplicationService, Depends(get_git_app_service)]
+
+
+async def get_git_repository(
+    server_factory: ServerFactoryDep,
+) -> GitRepoRepository:
+    """Get git repository dependency."""
+    return server_factory.repo_repository()
+
+
+GitRepositoryDep = Annotated[GitRepoRepository, Depends(get_git_repository)]
+
+
+async def get_commit_indexing_app_service(
+    server_factory: ServerFactoryDep,
+) -> CommitIndexingApplicationService:
+    """Get commit indexing application service dependency."""
+    return server_factory.commit_indexing_application_service()
+
+
+CommitIndexingAppServiceDep = Annotated[
+    CommitIndexingApplicationService, Depends(get_commit_indexing_app_service)
+]
+
+
+async def get_commit_index_query_service(
+    server_factory: ServerFactoryDep,
+) -> CommitIndexQueryService:
+    """Get commit index query service dependency."""
+    return server_factory.commit_index_query_service()
+
+
+CommitIndexQueryServiceDep = Annotated[
+    CommitIndexQueryService, Depends(get_commit_index_query_service)
 ]

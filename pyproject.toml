@@ -128,6 +128,7 @@ ignore = [
   "PGH004", # If I've disabled all, I mean disable all
   "EM101", # Annoying because an extra msg just for a raise adds unnecessary lines
   "EM102", # As above
+  "S108", # Just annoying. It's never insecure use of /tmp
 ]
 select = ["ALL"]
 

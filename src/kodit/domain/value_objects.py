@@ -18,12 +18,27 @@ class SourceType(IntEnum):
     GIT = 2
 
 
-class SnippetContentType(IntEnum):
+class SnippetContentType(StrEnum):
     """Type of snippet content."""
 
-    UNKNOWN = 0
-    ORIGINAL = 1
-    SUMMARY = 2
+    UNKNOWN = "unknown"
+    ORIGINAL = "original"
+    SUMMARY = "summary"
+
+
+class EnrichmentType(StrEnum):
+    """Type of enrichment."""
+
+    UNKNOWN = "unknown"
+    SUMMARIZATION = "summarization"
+
+
+@dataclass(frozen=True)
+class Enrichment:
+    """Enrichment domain value object."""
+
+    type: EnrichmentType
+    content: str
 
 
 class SnippetContent(BaseModel):
@@ -31,7 +46,6 @@ class SnippetContent(BaseModel):
 
     type: SnippetContentType
     value: str
-    language: str
 
 
 class SnippetSearchResult(BaseModel):
@@ -699,3 +713,13 @@ class TaskOperation(StrEnum):
     CREATE_TEXT_EMBEDDINGS = "kodit.index.run.create_text_embeddings"
     UPDATE_INDEX_TIMESTAMP = "kodit.index.run.update_index_timestamp"
     CLEAR_FILE_PROCESSING_STATUSES = "kodit.index.run.clear_file_processing_statuses"
+    INDEX_COMMIT = "kodit.index.run.index_commit"
+
+
+class IndexStatus(StrEnum):
+    """Status of commit indexing."""
+
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    FAILED = "failed"

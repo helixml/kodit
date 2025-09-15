@@ -26,6 +26,155 @@
         }
       }
     },
+    "/api/v1/queue": {
+      "get": {
+        "tags": [
+          "queue"
+        ],
+        "summary": "List Queue Tasks",
+        "description": "List all tasks in the queue.\n\nOptionally filter by task type.",
+        "operationId": "list_queue_tasks_api_v1_queue_get",
+        "security": [
+          {
+            "Header (X-API-KEY)": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/TaskOperation"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Task Type"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskListResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Invalid request"
+          }
+        }
+      }
+    },
+    "/api/v1/queue/{task_id}": {
+      "get": {
+        "tags": [
+          "queue"
+        ],
+        "summary": "Get Queue Task",
+        "description": "Get details of a specific task in the queue.",
+        "operationId": "get_queue_task_api_v1_queue__task_id__get",
+        "security": [
+          {
+            "Header (X-API-KEY)": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Invalid request"
+          },
+          "404": {
+            "description": "Task not found"
+          }
+        }
+      }
+    },
+    "/api/v1/search": {
+      "post": {
+        "tags": [
+          "search"
+        ],
+        "summary": "Search Snippets",
+        "description": "Search code snippets with filters matching MCP tool.",
+        "operationId": "search_snippets_api_v1_search_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/indexes": {
       "get": {
         "tags": [
@@ -243,155 +392,6 @@
           },
           "404": {
             "description": "Index not found"
-          }
-        }
-      }
-    },
-    "/api/v1/queue": {
-      "get": {
-        "tags": [
-          "queue"
-        ],
-        "summary": "List Queue Tasks",
-        "description": "List all tasks in the queue.\n\nOptionally filter by task type.",
-        "operationId": "list_queue_tasks_api_v1_queue_get",
-        "security": [
-          {
-            "Header (X-API-KEY)": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "task_type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "$ref": "#/components/schemas/TaskOperation"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Task Type"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TaskListResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "422": {
-            "description": "Invalid request"
-          }
-        }
-      }
-    },
-    "/api/v1/queue/{task_id}": {
-      "get": {
-        "tags": [
-          "queue"
-        ],
-        "summary": "Get Queue Task",
-        "description": "Get details of a specific task in the queue.",
-        "operationId": "get_queue_task_api_v1_queue__task_id__get",
-        "security": [
-          {
-            "Header (X-API-KEY)": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "task_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Task Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TaskResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "422": {
-            "description": "Invalid request"
-          },
-          "404": {
-            "description": "Task not found"
-          }
-        }
-      }
-    },
-    "/api/v1/search": {
-      "post": {
-        "tags": [
-          "search"
-        ],
-        "summary": "Search Snippets",
-        "description": "Search code snippets with filters matching MCP tool.",
-        "operationId": "search_snippets_api_v1_search_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SearchRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SearchResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
           }
         }
       }
@@ -951,7 +951,8 @@
           "kodit.index.run.enrich_snippets",
           "kodit.index.run.create_text_embeddings",
           "kodit.index.run.update_index_timestamp",
-          "kodit.index.run.clear_file_processing_statuses"
+          "kodit.index.run.clear_file_processing_statuses",
+          "kodit.index.run.index_commit"
         ],
         "title": "TaskOperation",
         "description": "Task operation."

@@ -37,6 +37,80 @@ Return a health check for the kodit API.
 
 - 500: Internal server error
 
+### GET /api/v1/queue
+
+List all tasks in the queue.
+
+Optionally filter by task type.
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| task_type |  | False |  |
+
+
+#### Responses
+
+- 200: Successful Response
+
+[TaskListResponse](#tasklistresponse)
+
+- 500: Internal server error
+
+- 401: Unauthorized
+
+- 422: Invalid request
+
+### GET /api/v1/queue/{task_id}
+
+Get details of a specific task in the queue.
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| task_id | string | True |  |
+
+
+#### Responses
+
+- 200: Successful Response
+
+[TaskResponse](#taskresponse)
+
+- 500: Internal server error
+
+- 401: Unauthorized
+
+- 422: Invalid request
+
+- 404: Task not found
+
+### POST /api/v1/search
+
+Search code snippets with filters matching MCP tool.
+
+
+#### Request Body
+
+[SearchRequest](#searchrequest)
+
+
+#### Responses
+
+- 200: Successful Response
+
+[SearchResponse](#searchresponse)
+
+- 500: Internal server error
+
+- 422: Validation Error
+
+[HTTPValidationError](#httpvalidationerror)
+
 ### GET /api/v1/indexes
 
 List all indexes.
@@ -151,80 +225,6 @@ Get the status of tasks for an index.
 - 422: Invalid request
 
 - 404: Index not found
-
-### GET /api/v1/queue
-
-List all tasks in the queue.
-
-Optionally filter by task type.
-
-
-#### Parameters
-
-| Name | Type | Required | Description |
-|------|------|----------|-------------|
-| task_type |  | False |  |
-
-
-#### Responses
-
-- 200: Successful Response
-
-[TaskListResponse](#tasklistresponse)
-
-- 500: Internal server error
-
-- 401: Unauthorized
-
-- 422: Invalid request
-
-### GET /api/v1/queue/{task_id}
-
-Get details of a specific task in the queue.
-
-
-#### Parameters
-
-| Name | Type | Required | Description |
-|------|------|----------|-------------|
-| task_id | string | True |  |
-
-
-#### Responses
-
-- 200: Successful Response
-
-[TaskResponse](#taskresponse)
-
-- 500: Internal server error
-
-- 401: Unauthorized
-
-- 422: Invalid request
-
-- 404: Task not found
-
-### POST /api/v1/search
-
-Search code snippets with filters matching MCP tool.
-
-
-#### Request Body
-
-[SearchRequest](#searchrequest)
-
-
-#### Responses
-
-- 200: Successful Response
-
-[SearchResponse](#searchresponse)
-
-- 500: Internal server error
-
-- 422: Validation Error
-
-[HTTPValidationError](#httpvalidationerror)
 
 ## Components
 

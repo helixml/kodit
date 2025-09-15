@@ -1,5 +1,6 @@
 """FastAPI application for kodit API."""
 
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -13,10 +14,12 @@ from kodit.application.services.indexing_worker_service import IndexingWorkerSer
 from kodit.application.services.sync_scheduler import SyncSchedulerService
 from kodit.config import AppContext
 from kodit.infrastructure.api.v1.routers import (
-    indexes_router,
+    commits_router,
     queue_router,
+    repositories_router,
     search_router,
 )
+from kodit.infrastructure.api.v1.routers.indexes import indexes_router
 from kodit.infrastructure.api.v1.schemas.context import AppLifespanState
 from kodit.infrastructure.sqlalchemy.task_status_repository import (
     create_task_status_repository,
@@ -112,10 +115,12 @@ async def healthz() -> Response:
 
 
 # Include API routers
-app.include_router(indexes_router)
 app.include_router(queue_router)
 app.include_router(search_router)
-
+app.include_router(indexes_router)
+if os.getenv("FEATURE_REPO_ENABLE"):
+    app.include_router(commits_router)
+    app.include_router(repositories_router)
 
 # Add mcp routes last, otherwise previous routes aren't added
 # Mount both apps at root - they have different internal paths
