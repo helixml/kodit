@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime
 from enum import Enum
+from pathlib import Path
 from typing import Any
 
 from git import Actor
@@ -40,6 +41,25 @@ class TZDateTime(TypeDecorator):
         """Process result value."""
         if value is not None:
             value = value.replace(tzinfo=UTC)
+        return value
+
+
+class PathType(TypeDecorator):
+    """Path type that stores Path objects as strings."""
+
+    impl = String
+    cache_ok = True
+
+    def process_bind_param(self, value: Any, dialect: Any) -> Any:  # noqa: ARG002
+        """Process bind param - convert Path to string."""
+        if value is not None:
+            return str(value)
+        return value
+
+    def process_result_value(self, value: Any, dialect: Any) -> Any:  # noqa: ARG002
+        """Process result value - convert string to Path."""
+        if value is not None:
+            return Path(value)
         return value
 
 
@@ -334,17 +354,15 @@ class GitRepo(Base, CommonMixin):
         String(1024), index=True, unique=True
     )
     remote_uri: Mapped[str] = mapped_column(String(1024))
-    cloned_path: Mapped[str] = mapped_column(String(1024))
+    cloned_path: Mapped[Path | None] = mapped_column(PathType(1024), nullable=True)
     last_scanned_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
-    total_unique_commits: Mapped[int] = mapped_column(Integer, default=0)
 
     def __init__(
         self,
         sanitized_remote_uri: str,
         remote_uri: str,
-        cloned_path: str,
+        cloned_path: Path | None,
         last_scanned_at: datetime | None = None,
-        total_unique_commits: int = 0,
     ) -> None:
         """Initialize Git repository."""
         super().__init__()
@@ -352,7 +370,6 @@ class GitRepo(Base, CommonMixin):
         self.remote_uri = remote_uri
         self.cloned_path = cloned_path
         self.last_scanned_at = last_scanned_at
-        self.total_unique_commits = total_unique_commits
 
 
 class GitFile(Base):

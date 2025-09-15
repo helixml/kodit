@@ -10,6 +10,7 @@ from fastapi.responses import RedirectResponse
 
 from kodit._version import version
 from kodit.application.factories.reporting_factory import create_server_operation
+from kodit.application.factories.server_factory import ServerFactory
 from kodit.application.services.indexing_worker_service import IndexingWorkerService
 from kodit.application.services.sync_scheduler import SyncSchedulerService
 from kodit.config import AppContext
@@ -29,12 +30,14 @@ from kodit.middleware import ASGICancelledErrorMiddleware, logging_middleware
 
 # Global services
 _sync_scheduler_service: SyncSchedulerService | None = None
+_server_factory: ServerFactory | None = None
 
 
 @asynccontextmanager
 async def app_lifespan(_: FastAPI) -> AsyncIterator[AppLifespanState]:
     """Manage application lifespan for auto-indexing and sync."""
     global _sync_scheduler_service  # noqa: PLW0603
+    global _server_factory  # noqa: PLW0603
 
     # App context has already been configured by the CLI.
     app_context = AppContext()
@@ -43,10 +46,13 @@ async def app_lifespan(_: FastAPI) -> AsyncIterator[AppLifespanState]:
         create_task_status_repository(db.session_factory)
     )
 
+    _server_factory = ServerFactory(app_context, db.session_factory)
+
     # Start the queue worker service
     _indexing_worker_service = IndexingWorkerService(
         app_context=app_context,
         session_factory=db.session_factory,
+        server_factory=_server_factory,
     )
     await _indexing_worker_service.start(operation)
 
@@ -59,7 +65,7 @@ async def app_lifespan(_: FastAPI) -> AsyncIterator[AppLifespanState]:
             interval_seconds=app_context.periodic_sync.interval_seconds
         )
 
-    yield AppLifespanState(app_context=app_context)
+    yield AppLifespanState(app_context=app_context, server_factory=_server_factory)
 
     # Stop services
     if _sync_scheduler_service:

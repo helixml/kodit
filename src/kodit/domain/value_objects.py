@@ -713,7 +713,26 @@ class TaskOperation(StrEnum):
     CREATE_TEXT_EMBEDDINGS = "kodit.index.run.create_text_embeddings"
     UPDATE_INDEX_TIMESTAMP = "kodit.index.run.update_index_timestamp"
     CLEAR_FILE_PROCESSING_STATUSES = "kodit.index.run.clear_file_processing_statuses"
-    INDEX_COMMIT = "kodit.index.run.index_commit"
+
+    # New commit-based workflow
+    CREATE_REPOSITORY = "kodit.repository.create"
+    CLONE_REPOSITORY = "kodit.repository.clone"
+    SCAN_REPOSITORY = "kodit.repository.scan"
+    SNIPPETS_FOR_HEAD_COMMIT = "kodit.repository.snippets_for_head_commit"
+
+    def is_repository_operation(self) -> bool:
+        """Check if the task operation is a repository operation."""
+        return self.startswith("kodit.repository.")
+
+
+class PrescribedOperations:
+    """Prescribed common operations."""
+
+    CREATE_NEW_REPOSITORY: ClassVar[list[TaskOperation]] = [
+        TaskOperation.CLONE_REPOSITORY,
+        TaskOperation.SCAN_REPOSITORY,
+        TaskOperation.SNIPPETS_FOR_HEAD_COMMIT,
+    ]
 
 
 class IndexStatus(StrEnum):

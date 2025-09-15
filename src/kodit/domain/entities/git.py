@@ -1,12 +1,13 @@
 """Git domain entities."""
 
-from datetime import datetime
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from hashlib import sha256
 from pathlib import Path
 
 from pydantic import AnyUrl, BaseModel
 
-from kodit.domain.entities import Snippet
+from kodit.domain.entities import Snippet, WorkingCopy
 from kodit.domain.value_objects import Enrichment, IndexStatus
 from kodit.utils.path_utils import repo_id_from_uri
 
@@ -86,6 +87,17 @@ class GitBranch(BaseModel):
     head_commit: GitCommit
 
 
+@dataclass(frozen=True)
+class RepositoryScanResult:
+    """Immutable scan result containing all repository metadata."""
+
+    branches: list[GitBranch]
+    all_commits: list[GitCommit]
+    all_tags: list[GitTag]
+    scan_timestamp: datetime
+    total_files_across_commits: int
+
+
 class GitRepo(BaseModel):
     """Repository domain entity."""
 
@@ -93,24 +105,53 @@ class GitRepo(BaseModel):
     created_at: datetime | None = None  # Is populated by repository
     updated_at: datetime | None = None  # Is populated by repository
     sanitized_remote_uri: AnyUrl  # Business key for lookups
-    branches: list[GitBranch]
-    commits: list[GitCommit]
-    tags: list[GitTag] = []
-    tracking_branch: GitBranch
-    cloned_path: Path
     remote_uri: AnyUrl  # May include credentials
-    last_scanned_at: datetime | None = None
-    total_unique_commits: int = 0
 
-    @property
-    def business_key(self) -> str:
-        """Get the business identifier for this repository."""
-        return repo_id_from_uri(self.sanitized_remote_uri)
+    # The following may be empty when initially created
+    branches: list[GitBranch] = []
+    commits: list[GitCommit] = []
+    tags: list[GitTag] = []
+    cloned_path: Path | None = None
+    tracking_branch: GitBranch | None = None
+    last_scanned_at: datetime | None = None
 
     @staticmethod
     def create_id(sanitized_remote_uri: AnyUrl) -> str:
         """Create a unique business key for a repository (kept for compatibility)."""
         return repo_id_from_uri(sanitized_remote_uri)
+
+    @staticmethod
+    def from_remote_uri(remote_uri: AnyUrl) -> "GitRepo":
+        """Create a new Git repository from a remote URI."""
+        return GitRepo(
+            remote_uri=remote_uri,
+            sanitized_remote_uri=WorkingCopy.sanitize_git_url(str(remote_uri)),
+        )
+
+    def update_with_scan_result(self, scan_result: RepositoryScanResult) -> None:
+        """Update the GitRepo with a scan result."""
+        # Determine tracking branch (prefer main, then master, then first available)
+        if not self.tracking_branch:
+            tracking_branch = None
+            for preferred_name in ["main", "master"]:
+                tracking_branch = next(
+                    (b for b in scan_result.branches if b.name == preferred_name), None
+                )
+                if tracking_branch:
+                    break
+
+            if not tracking_branch and scan_result.branches:
+                tracking_branch = scan_result.branches[0]
+
+            if not tracking_branch:
+                raise ValueError("No tracking branch found")
+
+            self.tracking_branch = tracking_branch
+
+        self.branches = scan_result.branches
+        self.last_scanned_at = datetime.now(UTC)
+        self.commits = scan_result.all_commits
+        self.tags = scan_result.all_tags
 
 
 class CommitIndex(BaseModel):

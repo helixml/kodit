@@ -88,7 +88,6 @@ def sample_git_repo(
         cloned_path=Path("/tmp/test_repo"),
         remote_uri=AnyUrl("https://github.com/test/repo.git"),
         last_scanned_at=datetime.now(UTC),
-        total_unique_commits=1,
     )
 
 
@@ -160,7 +159,6 @@ class TestSave:
             cloned_path=Path("/tmp/updated_repo"),  # Different path
             remote_uri=sample_git_repo.remote_uri,
             last_scanned_at=datetime.now(UTC),
-            total_unique_commits=5,  # Different count
         )
 
         await repository.save(updated_repo)
@@ -172,7 +170,6 @@ class TestSave:
         assert original_id is not None
         result = await repository.get_by_id(original_id)
         assert result is not None
-        assert result.total_unique_commits == 5
         assert str(result.cloned_path) == "/tmp/updated_repo"
 
     async def test_updates_existing_repo_by_id(
@@ -186,7 +183,6 @@ class TestSave:
         repo_id = sample_git_repo.id
 
         # Update the repo
-        sample_git_repo.total_unique_commits = 10
         sample_git_repo.cloned_path = Path("/tmp/new_path")
 
         await repository.save(sample_git_repo)
@@ -195,7 +191,6 @@ class TestSave:
         assert repo_id is not None
         result = await repository.get_by_id(repo_id)
         assert result is not None
-        assert result.total_unique_commits == 10
         assert str(result.cloned_path) == "/tmp/new_path"
 
 
@@ -338,7 +333,6 @@ class TestListAll:
             cloned_path=Path("/tmp/another_repo"),
             remote_uri=AnyUrl("https://github.com/test/another-repo.git"),
             last_scanned_at=datetime.now(UTC),
-            total_unique_commits=0,
         )
         await repository.save(another_repo)
 

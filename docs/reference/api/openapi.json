@@ -952,7 +952,10 @@
           "kodit.index.run.create_text_embeddings",
           "kodit.index.run.update_index_timestamp",
           "kodit.index.run.clear_file_processing_statuses",
-          "kodit.index.run.index_commit"
+          "kodit.repository.create",
+          "kodit.repository.clone",
+          "kodit.repository.scan",
+          "kodit.repository.snippets_for_head_commit"
         ],
         "title": "TaskOperation",
         "description": "Task operation."

@@ -148,7 +148,7 @@ class GitRepoRepository(ABC):
     """
 
     @abstractmethod
-    async def save(self, repo: GitRepo) -> None:
+    async def save(self, repo: GitRepo) -> GitRepo:
         """Save or update a repository with all its branches, commits, and tags.
 
         This method persists the entire aggregate:

@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from kodit.infrastructure.api.middleware.auth import api_key_auth
-from kodit.infrastructure.api.v1.dependencies import GitAppServiceDep
+from kodit.infrastructure.api.v1.dependencies import GitRepositoryDep
 from kodit.infrastructure.api.v1.schemas.commit import (
     CommitAttributes,
     CommitData,
@@ -28,11 +28,10 @@ router = APIRouter(
 
 @router.get("/{repo_id}/commits", summary="List repository commits")
 async def list_repository_commits(
-    repo_id: str,
-    git_service: GitAppServiceDep,
+    repo_id: str, git_repository: GitRepositoryDep
 ) -> CommitListResponse:
     """List all commits for a repository."""
-    repo = await git_service.repo_repository.get_by_id(int(repo_id))
+    repo = await git_repository.get_by_id(int(repo_id))
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
 
@@ -65,10 +64,10 @@ async def list_repository_commits(
 async def get_repository_commit(
     repo_id: str,
     commit_sha: str,
-    git_service: GitAppServiceDep,
+    git_repository: GitRepositoryDep,
 ) -> CommitResponse:
     """Get a specific commit for a repository."""
-    repo = await git_service.repo_repository.get_by_id(int(repo_id))
+    repo = await git_repository.get_by_id(int(repo_id))
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
 
@@ -96,10 +95,10 @@ async def get_repository_commit(
 async def list_commit_files(
     repo_id: str,
     commit_sha: str,
-    git_service: GitAppServiceDep,
+    git_repository: GitRepositoryDep,
 ) -> FileListResponse:
     """List all files in a specific commit."""
-    repo = await git_service.repo_repository.get_by_id(int(repo_id))
+    repo = await git_repository.get_by_id(int(repo_id))
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
 
@@ -135,10 +134,10 @@ async def get_commit_file(
     repo_id: str,
     commit_sha: str,
     blob_sha: str,
-    git_service: GitAppServiceDep,
+    git_repository: GitRepositoryDep,
 ) -> FileResponse:
     """Get a specific file from a commit."""
-    repo = await git_service.repo_repository.get_by_id(int(repo_id))
+    repo = await git_repository.get_by_id(int(repo_id))
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
 

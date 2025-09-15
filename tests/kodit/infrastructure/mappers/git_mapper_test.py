@@ -25,7 +25,6 @@ class TestGitMapper:
             remote_uri="https://github.com/test/repo.git",
             cloned_path="/tmp/test_repo",
             last_scanned_at=now,
-            total_unique_commits=10,
         )
         db_repo.id = 1
         db_repo.created_at = now
@@ -89,11 +88,11 @@ class TestGitMapper:
         assert str(domain_repo.remote_uri) == db_repo.remote_uri
         assert domain_repo.cloned_path == Path(db_repo.cloned_path)
         assert domain_repo.last_scanned_at == db_repo.last_scanned_at
-        assert domain_repo.total_unique_commits == db_repo.total_unique_commits
 
         # Verify branch
         assert len(domain_repo.branches) == 1
         assert domain_repo.branches[0].name == "main"
+        assert domain_repo.tracking_branch is not None
         assert domain_repo.tracking_branch.name == "main"
 
         # Verify commit
@@ -292,7 +291,6 @@ class TestGitMapper:
             remote_uri="https://github.com/test/repo.git",
             cloned_path="/tmp/test_repo2",
             last_scanned_at=now,
-            total_unique_commits=1,
         )
         db_repo.id = 1
         db_repo.created_at = now
@@ -331,6 +329,7 @@ class TestGitMapper:
         )
 
         # Should fallback to first branch
+        assert domain_repo.tracking_branch is not None
         assert domain_repo.tracking_branch.name == "develop"
 
     def test_to_domain_git_repo_no_branches_raises(self) -> None:
@@ -342,7 +341,6 @@ class TestGitMapper:
             remote_uri="https://github.com/test/repo.git",
             cloned_path="/tmp/test_repo3",
             last_scanned_at=now,
-            total_unique_commits=0,
         )
         db_repo.id = 1
         db_repo.created_at = now

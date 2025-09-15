@@ -1,31 +1,43 @@
 """Application services for commit indexing operations."""
 
-from typing import Any
+from collections import defaultdict
 
 import structlog
+from pydantic import AnyUrl
 
+from kodit.application.services.queue_service import QueueService
 from kodit.application.services.reporting import ProgressTracker
-from kodit.domain.entities.git import CommitIndex, IndexStatus
+from kodit.domain.entities import Task
+from kodit.domain.entities.git import GitFile, GitRepo, SnippetV2
 from kodit.domain.protocols import (
     CommitIndexRepository,
     GitRepoRepository,
-    SnippetRepository,
     SnippetRepositoryV2,
 )
+from kodit.domain.services.git_repository_service import (
+    GitRepositoryScanner,
+    RepositoryCloner,
+)
 from kodit.domain.services.index_service import IndexDomainService
-from kodit.domain.value_objects import TaskOperation
+from kodit.domain.value_objects import LanguageMapping, QueuePriority, TaskOperation
+from kodit.infrastructure.slicing.slicer import Slicer
 
 
 class CommitIndexingApplicationService:
     """Application service for commit indexing operations."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         commit_index_repository: CommitIndexRepository,
         snippet_v2_repository: SnippetRepositoryV2,
         repo_repository: GitRepoRepository,
         domain_indexer: IndexDomainService,
         operation: ProgressTracker,
+        scanner: GitRepositoryScanner,
+        cloner: RepositoryCloner,
+        snippet_repository: SnippetRepositoryV2,
+        slicer: Slicer,
+        queue: QueueService,
     ) -> None:
         """Initialize the commit indexing application service.
 
@@ -42,88 +54,117 @@ class CommitIndexingApplicationService:
         self.repo_repository = repo_repository
         self.domain_indexer = domain_indexer
         self.operation = operation
+        self.scanner = scanner
+        self.cloner = cloner
+        self.snippet_repository = snippet_repository
+        self.slicer = slicer
+        self.queue = queue
         self._log = structlog.get_logger(__name__)
 
-    async def index_commit(self, commit_sha: str) -> CommitIndex:
-        """Index a specific commit."""
-        repo = await self.repo_repository.get_by_commit(commit_sha)
-        if not repo:
-            raise ValueError(f"Repository for commit {commit_sha} not found")
+    async def create_git_repository(self, remote_uri: AnyUrl) -> GitRepo:
+        """Create a new Git repository."""
+        async with self.operation.create_child(TaskOperation.CREATE_REPOSITORY):
+            repo = GitRepo.from_remote_uri(remote_uri)
+            return await self.repo_repository.save(repo)
 
-        # Check if already indexed
-        existing = await self.commit_index_repository.get_by_commit(commit_sha)
-        if existing and existing.status == IndexStatus.COMPLETED:
-            self._log.info(f"Commit {commit_sha} already indexed")
-            return existing
-
-        async with self.operation.create_child(TaskOperation.INDEX_COMMIT):
-            commit = await self.repo_repository.get_commit_by_sha(commit_sha)
-            if not commit:
-                raise ValueError(f"Commit {commit_sha} not found")
-
-            # Create pending index entry
-            pending_index = CommitIndex(
-                commit_sha=commit_sha,
-                snippets=[],
-                status=IndexStatus.IN_PROGRESS,
-            )
-            await self.commit_index_repository.save(pending_index)
-
-            # Perform indexing
-            result = await self.domain_indexer.extract_snippets_from_git_commit(
-                commit,
-            )
-
-            # Save everything
-            commit_index = CommitIndex(
-                commit_sha=commit_sha,
-                snippets=result,
-                status=IndexStatus.COMPLETED,
-            )
-            await self.commit_index_repository.save(commit_index)
-            await self.snippet_repository.save_snippets(commit_sha, result)
-
-            return commit_index
-
-
-class CommitIndexQueryService:
-    """Query service for indexed commit data."""
-
-    def __init__(
+    async def queue_repository_tasks(
         self,
-        commit_index_repository: CommitIndexRepository,
-        snippet_repository: SnippetRepository,
+        repository_id: int | None,
+        tasks: list[TaskOperation],
+        base_priority: QueuePriority,
     ) -> None:
-        """Initialize the commit index query service.
+        """Queue repository tasks."""
+        if repository_id is None:
+            raise ValueError("Repository ID is required")
+        priority_offset = len(tasks) * 10
+        for task in tasks:
+            await self.queue.enqueue_task(
+                Task.create(
+                    task,
+                    base_priority + priority_offset,
+                    {"repository_id": repository_id},
+                )
+            )
+            priority_offset -= 10
 
-        Args:
-            commit_index_repository: Repository for commit index data.
-            snippet_repository: Repository for snippet data.
+    async def run_task(self, task: Task) -> None:
+        """Run a task."""
+        if task.type.is_repository_operation():
+            repo_id = task.payload["repository_id"]
+            if not repo_id:
+                raise ValueError("Repository ID is required")
+            if task.type == TaskOperation.CLONE_REPOSITORY:
+                await self.process_clone_repo(repo_id)
+            elif task.type == TaskOperation.SCAN_REPOSITORY:
+                await self.process_scan_repo(repo_id)
+            elif task.type == TaskOperation.SNIPPETS_FOR_HEAD_COMMIT:
+                await self.process_generate_repo_snippets(repo_id)
+            else:
+                raise ValueError(f"Unknown task type: {task.type}")
+        else:
+            raise ValueError(f"Unknown task type: {task.type}")
 
-        """
-        self.commit_index_repository = commit_index_repository
-        self.snippet_repository = snippet_repository
+    async def process_clone_repo(self, repository_id: int) -> None:
+        """Clone a repository."""
+        async with self.operation.create_child(TaskOperation.CLONE_REPOSITORY):
+            repo = await self.repo_repository.get_by_id(repository_id)
+            repo.cloned_path = await self.cloner.clone_repository(repo.remote_uri)
+            await self.repo_repository.save(repo)
 
-    async def get_indexed_commits(self, repo_uri: str) -> list[CommitIndex]:
-        """Get all indexed commits for a repository."""
-        return await self.commit_index_repository.get_indexed_commits_for_repo(repo_uri)
+    async def process_scan_repo(self, repository_id: int) -> None:
+        """Scan a repository."""
+        async with self.operation.create_child(TaskOperation.SCAN_REPOSITORY):
+            repo = await self.repo_repository.get_by_id(repository_id)
+            if not repo.cloned_path:
+                raise ValueError(f"Repository {repository_id} has never been cloned")
+            repo.update_with_scan_result(
+                await self.scanner.scan_repository(repo.cloned_path)
+            )
+            await self.repo_repository.save(repo)
 
-    async def get_commit_index_stats(self, repo_uri: str) -> dict[str, Any]:
-        """Get statistics about indexed commits."""
-        indexed_commits = await self.get_indexed_commits(repo_uri)
+    async def process_generate_repo_snippets(self, repository_id: int) -> None:
+        """Generate snippets for a repository."""
+        async with self.operation.create_child(
+            TaskOperation.SNIPPETS_FOR_HEAD_COMMIT
+        ) as step:
+            repo = await self.repo_repository.get_by_id(repository_id)
+            if not repo.cloned_path:
+                raise ValueError(f"Repository {repository_id} has never been cloned")
+            if not repo.tracking_branch:
+                raise ValueError(f"Repository {repository_id} has no tracking branch")
 
-        total_snippets = sum(c.get_snippet_count() for c in indexed_commits)
-        completed_count = len(
-            [c for c in indexed_commits if c.status == IndexStatus.COMPLETED]
-        )
-        failed_count = len(
-            [c for c in indexed_commits if c.status == IndexStatus.FAILED]
-        )
+            files = repo.tracking_branch.head_commit.files
+            if not files:
+                raise ValueError(f"Repository {repository_id} has no files")
 
-        return {
-            "total_indexed_commits": len(indexed_commits),
-            "completed_commits": completed_count,
-            "failed_commits": failed_count,
-            "total_snippets": total_snippets,
-            "average_snippets_per_commit": total_snippets / max(completed_count, 1),
-        }
+            # Detect languages
+            # Create a set of languages to extract snippets for
+            extensions = {file.extension for file in files}
+            lang_files_map: dict[str, list[GitFile]] = defaultdict(list)
+            for ext in extensions:
+                try:
+                    lang = LanguageMapping.get_language_for_extension(ext)
+                    lang_files_map[lang].extend(
+                        file
+                        for file in repo.tracking_branch.head_commit.files
+                        if file.extension == ext
+                    )
+                except ValueError as e:
+                    self._log.debug("Skipping", error=str(e))
+                    continue
+
+            # Extract snippets
+            all_snippets: list[SnippetV2] = []
+            slicer = Slicer()
+            await step.set_total(len(lang_files_map.keys()))
+            for i, (lang, lang_files) in enumerate(lang_files_map.items()):
+                await step.set_current(i, f"Extracting snippets for {lang}")
+                snippets = slicer.extract_snippets_from_git_files(
+                    lang_files, language=lang
+                )
+                all_snippets.extend(snippets)
+
+            # Persist snippets to database for next pipeline stage
+            await self.snippet_repository.save_snippets(
+                repo.tracking_branch.head_commit.commit_sha, all_snippets
+            )

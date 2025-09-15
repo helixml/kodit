@@ -27,7 +27,7 @@ class InMemoryGitRepoRepository(GitRepoRepository):
         self._branches: dict[str, list[GitBranch]] = {}
         self._tags: dict[str, list[GitTag]] = {}
 
-    async def save(self, repo: GitRepo) -> None:
+    async def save(self, repo: GitRepo) -> GitRepo:
         """Save or update a repository with all its branches, commits, and tags."""
         # Assign ID if new repo
         if repo.id is None:
@@ -46,6 +46,8 @@ class InMemoryGitRepoRepository(GitRepoRepository):
 
         # Store tags
         self._tags[repo_key] = repo.tags
+
+        return repo
 
     async def get_by_id(self, repo_id: int) -> GitRepo:
         """Get repository by ID."""

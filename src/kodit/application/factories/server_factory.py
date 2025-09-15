@@ -4,12 +4,17 @@ from collections.abc import Callable
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from kodit.application.factories.code_indexing_factory import (
+    create_server_code_indexing_application_service,
+)
 from kodit.application.factories.reporting_factory import create_server_operation
+from kodit.application.services.code_indexing_application_service import (
+    CodeIndexingApplicationService,
+)
 from kodit.application.services.commit_indexing_application_service import (
     CommitIndexingApplicationService,
-    CommitIndexQueryService,
 )
-from kodit.application.services.git_application_service import GitApplicationService
+from kodit.application.services.queue_service import QueueService
 from kodit.application.services.reporting import ProgressTracker
 from kodit.config import AppContext
 from kodit.domain.protocols import (
@@ -31,24 +36,24 @@ from kodit.infrastructure.cloning.git.git_python_adaptor import GitPythonAdapter
 from kodit.infrastructure.enrichment.enrichment_factory import (
     enrichment_domain_service_factory,
 )
-from kodit.infrastructure.memory.in_memory_commit_index_repository import (
-    InMemoryCommitIndexRepository,
-)
-from kodit.infrastructure.memory.in_memory_git_repository import (
-    InMemoryGitRepoRepository,
-)
-from kodit.infrastructure.memory.in_memory_snippet_v2_repository import (
-    InMemorySnippetRepository,
-)
 
 # InMemoryGitTagRepository removed - now handled by InMemoryGitRepoRepository
 from kodit.infrastructure.slicing.language_detection_service import (
     FileSystemLanguageDetectionService,
 )
+from kodit.infrastructure.slicing.slicer import Slicer
+from kodit.infrastructure.sqlalchemy.commit_index_repository import (
+    create_commit_index_repository,
+)
+from kodit.infrastructure.sqlalchemy.git_repository import create_git_repo_repository
 from kodit.infrastructure.sqlalchemy.snippet_repository import create_snippet_repository
+from kodit.infrastructure.sqlalchemy.snippet_v2_repository import (
+    create_snippet_v2_repository,
+)
 from kodit.infrastructure.sqlalchemy.task_status_repository import (
     create_task_status_repository,
 )
+from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 
 
 class ServerFactory:
@@ -69,7 +74,6 @@ class ServerFactory:
         self._git_adapter: GitAdapter | None = None
         self._scanner: GitRepositoryScanner | None = None
         self._cloner: RepositoryCloner | None = None
-        self._git_application_service: GitApplicationService | None = None
         self._commit_indexing_application_service: (
             CommitIndexingApplicationService | None
         ) = None
@@ -77,7 +81,14 @@ class ServerFactory:
         self._enrichment_service: EnrichmentDomainService | None = None
         self._task_status_repository: TaskStatusRepository | None = None
         self._operation: ProgressTracker | None = None
-        self._commit_index_query_service: CommitIndexQueryService | None = None
+        self._queue_service: QueueService | None = None
+        self._slicer: Slicer | None = None
+
+    def queue_service(self) -> QueueService:
+        """Create a QueueService instance."""
+        if not self._queue_service:
+            self._queue_service = QueueService(session_factory=self.session_factory)
+        return self._queue_service
 
     def task_status_repository(self) -> TaskStatusRepository:
         """Create a TaskStatusRepository instance."""
@@ -95,16 +106,11 @@ class ServerFactory:
             )
         return self._operation
 
-    def git_application_service(self) -> GitApplicationService:
-        """Create a GitApplicationService instance."""
-        if not self._git_application_service:
-            self._git_application_service = GitApplicationService(
-                repo_repository=self.repo_repository(),
-                scanner=self.scanner(),
-                cloner=self.cloner(),
-                snippet_repository=self.snippet_v2_repository(),
-            )
-        return self._git_application_service
+    def slicer(self) -> Slicer:
+        """Create a Slicer instance."""
+        if not self._slicer:
+            self._slicer = Slicer()
+        return self._slicer
 
     def commit_indexing_application_service(self) -> CommitIndexingApplicationService:
         """Create a CommitIndexingApplicationService instance."""
@@ -116,24 +122,26 @@ class ServerFactory:
                     repo_repository=self.repo_repository(),
                     domain_indexer=self.domain_indexer(),
                     operation=self.operation(),
+                    scanner=self.scanner(),
+                    cloner=self.cloner(),
+                    snippet_repository=self.snippet_v2_repository(),
+                    slicer=self.slicer(),
+                    queue=self.queue_service(),
                 )
             )
 
         return self._commit_indexing_application_service
 
-    def commit_index_query_service(self) -> CommitIndexQueryService:
-        """Create a CommitIndexQueryService instance."""
-        if not self._commit_index_query_service:
-            self._commit_index_query_service = CommitIndexQueryService(
-                commit_index_repository=self.commit_index_repository(),
-                snippet_repository=self.snippet_repository(),
-            )
-        return self._commit_index_query_service
+    def unit_of_work(self) -> SqlAlchemyUnitOfWork:
+        """Create a SqlAlchemyUnitOfWork instance."""
+        return SqlAlchemyUnitOfWork(session_factory=self.session_factory)
 
     def repo_repository(self) -> GitRepoRepository:
         """Create a GitRepoRepository instance."""
         if not self._repo_repository:
-            self._repo_repository = InMemoryGitRepoRepository()
+            self._repo_repository = create_git_repo_repository(
+                session_factory=self.session_factory
+            )
         return self._repo_repository
 
     # branch_repository and commit_repository removed - now handled by repo_repository
@@ -164,7 +172,9 @@ class ServerFactory:
     def commit_index_repository(self) -> CommitIndexRepository:
         """Create a CommitIndexRepository instance."""
         if not self._commit_index_repository:
-            self._commit_index_repository = InMemoryCommitIndexRepository()
+            self._commit_index_repository = create_commit_index_repository(
+                session_factory=self.session_factory
+            )
         return self._commit_index_repository
 
     def domain_indexer(self) -> IndexDomainService:
@@ -192,7 +202,9 @@ class ServerFactory:
     def snippet_v2_repository(self) -> SnippetRepositoryV2:
         """Create a SnippetRepositoryV2 instance."""
         if not self._snippet_v2_repository:
-            self._snippet_v2_repository = InMemorySnippetRepository()
+            self._snippet_v2_repository = create_snippet_v2_repository(
+                session_factory=self.session_factory
+            )
         return self._snippet_v2_repository
 
     def enrichment_service(self) -> EnrichmentDomainService:
@@ -202,3 +214,14 @@ class ServerFactory:
                 self.app_context
             )
         return self._enrichment_service
+
+    def code_indexing_application_service(self) -> CodeIndexingApplicationService:
+        """Create a CodeIndexingApplicationService instance."""
+        if not self._code_indexing_application_service:
+            self._code_indexing_application_service = (
+                create_server_code_indexing_application_service(
+                    app_context=self.app_context,
+                    session_factory=self.session_factory,
+                )
+            )
+        return self._code_indexing_application_service

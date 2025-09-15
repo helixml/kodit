@@ -139,7 +139,6 @@ class GitService:
             cloned_path=repo_path,
             remote_uri=remote_uri,
             last_scanned_at=datetime.now(UTC),
-            total_unique_commits=len(all_commits),
         )
 
     def get_commit_history(

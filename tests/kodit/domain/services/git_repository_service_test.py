@@ -10,7 +10,6 @@ from pydantic import AnyUrl
 from kodit.domain.entities.git import GitBranch, GitCommit, GitRepo
 from kodit.domain.protocols import GitAdapter
 from kodit.domain.services.git_repository_service import (
-    GitRepoFactory,
     GitRepositoryScanner,
     RepositoryCloner,
     RepositoryInfo,
@@ -95,7 +94,6 @@ async def test_git_repository_scanner_scan_repository(
     assert len(result.branches) == 2
     assert len(result.all_commits) == 1
     assert len(result.all_tags) == 2
-    assert result.total_unique_commits == 1
     assert result.total_files_across_commits == 1
 
     # Verify branches
@@ -178,17 +176,16 @@ def test_git_repo_factory_create_from_scan() -> None:
         all_commits=[main_branch.head_commit],
         all_tags=[],
         scan_timestamp=datetime.now(UTC),
-        total_unique_commits=1,
         total_files_across_commits=0,
     )
 
     # Create GitRepo
-    git_repo = GitRepoFactory.create_from_scan(repo_info, scan_result)
+    git_repo = GitRepo.from_remote_uri(repo_info.remote_uri)
+    git_repo.update_with_scan_result(scan_result)
 
     assert isinstance(git_repo, GitRepo)
     assert git_repo.remote_uri == repo_info.remote_uri
     assert git_repo.sanitized_remote_uri == repo_info.sanitized_remote_uri
-    assert git_repo.cloned_path == repo_info.cloned_path
     assert git_repo.tracking_branch == main_branch
     assert len(git_repo.branches) == 1
     assert len(git_repo.commits) == 1
@@ -218,17 +215,18 @@ def test_git_repo_factory_prefers_main_branch() -> None:
         GitBranch(name="main", head_commit=commit),
     ]
 
+    git_repo = GitRepo.from_remote_uri(repo_info.remote_uri)
+
     scan_result = RepositoryScanResult(
         branches=branches,
         all_commits=[commit],
         all_tags=[],
         scan_timestamp=datetime.now(UTC),
-        total_unique_commits=1,
         total_files_across_commits=0,
     )
+    git_repo.update_with_scan_result(scan_result)
 
-    git_repo = GitRepoFactory.create_from_scan(repo_info, scan_result)
-
+    assert git_repo.tracking_branch is not None
     assert git_repo.tracking_branch.name == "main"
 
 
@@ -245,12 +243,13 @@ def test_git_repo_factory_no_branches_raises_error() -> None:
         all_commits=[],
         all_tags=[],
         scan_timestamp=datetime.now(UTC),
-        total_unique_commits=0,
         total_files_across_commits=0,
     )
 
+    git_repo = GitRepo.from_remote_uri(repo_info.remote_uri)
+
     with pytest.raises(ValueError, match="No tracking branch found"):
-        GitRepoFactory.create_from_scan(repo_info, scan_result)
+        git_repo.update_with_scan_result(scan_result)
 
 
 @pytest.mark.asyncio
@@ -260,15 +259,14 @@ async def test_repository_cloner_clone_repository(
     """Test RepositoryCloner.clone_repository."""
     mock_git_adapter.clone_repository.return_value = None
 
-    cloner = RepositoryCloner(mock_git_adapter, Path("/tmp/clones"))
+    clone_dir = Path("/tmp/clones")
+    cloner = RepositoryCloner(mock_git_adapter, clone_dir)
     remote_uri = AnyUrl("https://github.com/test/repo.git")
 
     result = await cloner.clone_repository(remote_uri)
 
-    assert isinstance(result, RepositoryInfo)
-    assert result.remote_uri == remote_uri
-    assert result.cloned_path.parent == Path("/tmp/clones")
-    assert result.cloned_path.name.startswith("repo-")
+    assert isinstance(result, Path)
+    assert result == clone_dir / GitRepo.create_id(remote_uri)
 
     mock_git_adapter.clone_repository.assert_called_once()
 

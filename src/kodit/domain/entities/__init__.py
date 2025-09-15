@@ -346,24 +346,8 @@ class Task(BaseModel):
     @staticmethod
     def create_id(operation: TaskOperation, payload: dict[str, Any]) -> str:
         """Create a unique id for a task."""
-        if operation in (
-            TaskOperation.REFRESH_WORKING_COPY,
-            TaskOperation.EXTRACT_SNIPPETS,
-            TaskOperation.CREATE_BM25_INDEX,
-            TaskOperation.CREATE_CODE_EMBEDDINGS,
-            TaskOperation.ENRICH_SNIPPETS,
-        ):
-            # Use a shortened name for the ID to keep it concise
-            operation_short_names = {
-                TaskOperation.REFRESH_WORKING_COPY: "SYNC",
-                TaskOperation.EXTRACT_SNIPPETS: "EXTRACT",
-                TaskOperation.CREATE_BM25_INDEX: "BM25_INDEX",
-                TaskOperation.CREATE_CODE_EMBEDDINGS: "CODE_EMBEDDINGS",
-                TaskOperation.ENRICH_SNIPPETS: "ENRICH",
-            }
-            return f"{operation_short_names[operation]}:{payload['index_id']}"
-
-        raise ValueError(f"Unknown operation: {operation}")
+        first_id = next(iter(payload.values()), None)
+        return f"{operation}:{first_id}"
 
 
 class TaskStatus(BaseModel):

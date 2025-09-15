@@ -1,6 +1,5 @@
 """Domain services for Git repository scanning and cloning operations."""
 
-import hashlib
 import shutil
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -16,20 +15,9 @@ from kodit.domain.entities.git import (
     GitFile,
     GitRepo,
     GitTag,
+    RepositoryScanResult,
 )
 from kodit.domain.protocols import GitAdapter
-
-
-@dataclass(frozen=True)
-class RepositoryScanResult:
-    """Immutable scan result containing all repository metadata."""
-
-    branches: list[GitBranch]
-    all_commits: list[GitCommit]
-    all_tags: list[GitTag]
-    scan_timestamp: datetime
-    total_unique_commits: int
-    total_files_across_commits: int
 
 
 @dataclass(frozen=True)
@@ -210,7 +198,6 @@ class GitRepositoryScanner:
             branches=branches,
             all_commits=list(commit_cache.values()),
             scan_timestamp=datetime.now(UTC),
-            total_unique_commits=len(commit_cache),
             total_files_across_commits=total_files,
             all_tags=tags,
         )
@@ -220,43 +207,6 @@ class GitRepositoryScanner:
             f"{len(commit_cache)} unique commits"
         )
         return scan_result
-
-
-class GitRepoFactory:
-    """Factory for creating GitRepo instances from scan results."""
-
-    @staticmethod
-    def create_from_scan(
-        repo_info: RepositoryInfo, scan_result: RepositoryScanResult
-    ) -> GitRepo:
-        """Create GitRepo from repository info and scan results."""
-        # Determine tracking branch (prefer main, then master, then first available)
-        tracking_branch = None
-        for preferred_name in ["main", "master"]:
-            tracking_branch = next(
-                (b for b in scan_result.branches if b.name == preferred_name), None
-            )
-            if tracking_branch:
-                break
-
-        if not tracking_branch and scan_result.branches:
-            tracking_branch = scan_result.branches[0]
-
-        if not tracking_branch:
-            raise ValueError("No tracking branch found")
-
-        return GitRepo(
-            id=None,  # Let repository assign database ID
-            sanitized_remote_uri=repo_info.sanitized_remote_uri,
-            branches=scan_result.branches,
-            tracking_branch=tracking_branch,
-            cloned_path=repo_info.cloned_path,
-            remote_uri=repo_info.remote_uri,
-            last_scanned_at=scan_result.scan_timestamp,
-            total_unique_commits=scan_result.total_unique_commits,
-            commits=scan_result.all_commits,
-            tags=scan_result.all_tags,
-        )
 
 
 class RepositoryCloner:
@@ -275,11 +225,10 @@ class RepositoryCloner:
 
     def _get_clone_path(self, sanitized_uri: AnyUrl) -> Path:
         """Get the clone path for a Git working copy."""
-        dir_hash = hashlib.sha256(str(sanitized_uri).encode("utf-8")).hexdigest()[:16]
-        dir_name = f"repo-{dir_hash}"
+        dir_name = GitRepo.create_id(sanitized_uri)
         return self.clone_dir / dir_name
 
-    async def clone_repository(self, remote_uri: AnyUrl) -> RepositoryInfo:
+    async def clone_repository(self, remote_uri: AnyUrl) -> Path:
         """Clone repository and return repository info."""
         sanitized_uri = WorkingCopy.sanitize_git_url(str(remote_uri))
         clone_path = self._get_clone_path(sanitized_uri)
@@ -290,14 +239,12 @@ class RepositoryCloner:
             shutil.rmtree(clone_path)
             raise
 
-        return RepositoryInfo(
-            remote_uri=remote_uri,
-            sanitized_remote_uri=sanitized_uri,
-            cloned_path=clone_path,
-        )
+        return clone_path
 
     async def pull_repository(self, repository: GitRepo) -> None:
         """Pull latest changes for existing repository."""
+        if not repository.cloned_path:
+            raise ValueError("Repository has never been cloned, please clone it first")
         if not repository.cloned_path.exists():
             await self.clone_repository(repository.remote_uri)
             return

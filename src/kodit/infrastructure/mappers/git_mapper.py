@@ -102,9 +102,6 @@ class GitMapper:
             # Use first branch as fallback
             tracking_branch = domain_branches[0] if domain_branches else None
 
-        if not tracking_branch:
-            raise ValueError(f"No tracking branch found for repo {db_repo.id}")
-
         return domain_git_entities.GitRepo(
             id=db_repo.id,
             created_at=db_repo.created_at,
@@ -114,10 +111,9 @@ class GitMapper:
             commits=domain_commits,
             tags=domain_tags,
             tracking_branch=tracking_branch,
-            cloned_path=Path(db_repo.cloned_path),
+            cloned_path=Path(db_repo.cloned_path) if db_repo.cloned_path else None,
             remote_uri=AnyUrl(db_repo.remote_uri),
             last_scanned_at=db_repo.last_scanned_at,
-            total_unique_commits=db_repo.total_unique_commits,
         )
 
     def to_domain_snippet_v2(
