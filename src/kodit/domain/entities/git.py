@@ -1,22 +1,12 @@
 """Git domain entities."""
 
 from datetime import datetime
-from enum import StrEnum
 from pathlib import Path
 
 from pydantic import AnyUrl, BaseModel
 
-from kodit.domain.value_objects import SnippetContent, SnippetContentType
+from kodit.domain.value_objects import Enrichment, IndexStatus
 from kodit.utils.path_utils import repo_id_from_uri
-
-
-class IndexStatus(StrEnum):
-    """Status of commit indexing."""
-
-    PENDING = "pending"
-    IN_PROGRESS = "in_progress"
-    COMPLETED = "completed"
-    FAILED = "failed"
 
 
 class GitFile(BaseModel):
@@ -28,10 +18,7 @@ class GitFile(BaseModel):
     path: str
     mime_type: str
     size: int
-
-    def extension(self) -> str:
-        """Return the file extension."""
-        return Path(self.path).suffix.lstrip(".")
+    extension: str
 
     @property
     def id(self) -> str:
@@ -143,37 +130,10 @@ class CommitIndex(BaseModel):
 class SnippetV2(BaseModel):
     """Snippet domain entity."""
 
-    id: int | None = None  # Is populated by repository
+    sha: str  # Content addressed ID to prevent duplicates and unnecessary updates
     created_at: datetime | None = None  # Is populated by repository
     updated_at: datetime | None = None  # Is populated by repository
     derives_from: list[GitFile]
-    original_content: SnippetContent | None = None
-    summary_content: SnippetContent | None = None
-
-    def original_text(self) -> str:
-        """Return the original content of the snippet."""
-        if self.original_content is None:
-            return ""
-        return self.original_content.value
-
-    def summary_text(self) -> str:
-        """Return the summary content of the snippet."""
-        if self.summary_content is None:
-            return ""
-        return self.summary_content.value
-
-    def add_original_content(self, content: str, language: str) -> None:
-        """Add an original content to the snippet."""
-        self.original_content = SnippetContent(
-            type=SnippetContentType.ORIGINAL,
-            value=content,
-            language=language,
-        )
-
-    def add_summary(self, summary: str) -> None:
-        """Add a summary to the snippet."""
-        self.summary_content = SnippetContent(
-            type=SnippetContentType.SUMMARY,
-            value=summary,
-            language="markdown",
-        )
+    content: str
+    enrichments: list[Enrichment] = []
+    extension: str

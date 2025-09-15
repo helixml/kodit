@@ -373,14 +373,18 @@ class GitFile(Base):
     path: Mapped[str] = mapped_column(String(1024), index=True)
     mime_type: Mapped[str] = mapped_column(String(255), index=True)
     size: Mapped[int] = mapped_column(Integer)
+    extension: Mapped[str] = mapped_column(String(255), index=True)
 
-    def __init__(self, blob_sha: str, path: str, mime_type: str, size: int) -> None:
+    def __init__(
+        self, blob_sha: str, path: str, mime_type: str, size: int, extension: str
+    ) -> None:
         """Initialize Git file."""
         super().__init__()
         self.blob_sha = blob_sha
         self.path = path
         self.mime_type = mime_type
         self.size = size
+        self.extension = extension
 
 
 class GitCommit(Base):
@@ -486,34 +490,35 @@ class GitTag(Base, CommonMixin):
         self.target_commit_sha = target_commit_sha
 
 
-class SnippetV2(Base, CommonMixin):
+class SnippetV2(Base):
     """SnippetV2 model for commit-based snippets."""
 
     __tablename__ = "snippets_v2"
 
-    commit_sha: Mapped[str] = mapped_column(
-        ForeignKey("git_commits.commit_sha"), index=True
+    sha: Mapped[str] = mapped_column(String(64), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(
+        TZDateTime, nullable=False, default=lambda: datetime.now(UTC)
     )
-    original_content: Mapped[str | None] = mapped_column(UnicodeText, nullable=True)
-    original_content_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    summary_content: Mapped[str | None] = mapped_column(UnicodeText, nullable=True)
-    summary_content_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        TZDateTime,
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+    content: Mapped[str] = mapped_column(UnicodeText)
+    extension: Mapped[str] = mapped_column(String(255), index=True)
 
     def __init__(
         self,
-        commit_sha: str,
-        original_content: str | None = None,
-        original_content_type: str | None = None,
-        summary_content: str | None = None,
-        summary_content_type: str | None = None,
+        sha: str,
+        content: str,
+        extension: str,
     ) -> None:
         """Initialize snippet."""
         super().__init__()
-        self.commit_sha = commit_sha
-        self.original_content = original_content
-        self.original_content_type = original_content_type
-        self.summary_content = summary_content
-        self.summary_content_type = summary_content_type
+        self.sha = sha
+        self.content = content
+        self.extension = extension
 
 
 class SnippetV2File(Base):
@@ -522,23 +527,58 @@ class SnippetV2File(Base):
     __tablename__ = "snippet_v2_files"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    snippet_id: Mapped[int] = mapped_column(ForeignKey("snippets_v2.id"), index=True)
+    snippet_sha: Mapped[str] = mapped_column(ForeignKey("snippets_v2.sha"), index=True)
     file_blob_sha: Mapped[str] = mapped_column(
         ForeignKey("git_files.blob_sha"), index=True
     )
 
     __table_args__ = (
-        UniqueConstraint("snippet_id", "file_blob_sha", name="uix_snippet_file"),
+        UniqueConstraint("snippet_sha", "file_blob_sha", name="uix_snippet_file"),
     )
 
-    def __init__(self, snippet_id: int, file_blob_sha: str) -> None:
+    def __init__(self, snippet_sha: str, file_blob_sha: str) -> None:
         """Initialize snippet file association."""
         super().__init__()
-        self.snippet_id = snippet_id
+        self.snippet_sha = snippet_sha
         self.file_blob_sha = file_blob_sha
 
 
-# Commit index model
+# Enrichment model for SnippetV2
+
+
+class EnrichmentType(Enum):
+    """Enrichment type enum."""
+
+    UNKNOWN = "unknown"
+    SUMMARIZATION = "summarization"
+
+
+class Enrichment(Base, CommonMixin):
+    """Enrichment model for snippet enrichments."""
+
+    __tablename__ = "enrichments"
+
+    snippet_sha: Mapped[str] = mapped_column(ForeignKey("snippets_v2.sha"), index=True)
+    type: Mapped[EnrichmentType] = mapped_column(
+        SQLAlchemyEnum(EnrichmentType), index=True
+    )
+    content: Mapped[str] = mapped_column(UnicodeText)
+
+    __table_args__ = (
+        UniqueConstraint("snippet_sha", "type", name="uix_snippet_enrichment"),
+    )
+
+    def __init__(
+        self,
+        snippet_sha: str,
+        type: EnrichmentType,  # noqa: A002
+        content: str,
+    ) -> None:
+        """Initialize enrichment."""
+        super().__init__()
+        self.snippet_sha = snippet_sha
+        self.type = type
+        self.content = content
 
 
 class IndexStatusType(Enum):
