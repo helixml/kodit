@@ -282,6 +282,7 @@ class GitService:
                             path=str(Path(repo.working_dir) / file_path),
                             mime_type="application/octet-stream",  # Default
                             size=blob.size,
+                            extension=GitFile.extension_from_path(file_path),
                         )
                         files.append(file_entity)
                     except Exception:  # noqa: BLE001, S112

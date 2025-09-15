@@ -47,16 +47,19 @@ class InMemoryGitRepoRepository(GitRepoRepository):
         # Store tags
         self._tags[repo_key] = repo.tags
 
-    async def get_by_id(self, repo_id: int) -> GitRepo | None:
+    async def get_by_id(self, repo_id: int) -> GitRepo:
         """Get repository by ID."""
-        return self._repos.get(repo_id)
+        repo = self._repos.get(repo_id)
+        if not repo:
+            raise ValueError(f"Repository with ID {repo_id} not found")
+        return repo
 
-    async def get_by_uri(self, sanitized_uri: AnyUrl) -> GitRepo | None:
+    async def get_by_uri(self, sanitized_uri: AnyUrl) -> GitRepo:
         """Get repository by sanitized URI with all associated data."""
         uri_str = str(sanitized_uri)
         repo_id = self._repos_by_uri.get(uri_str)
         if not repo_id:
-            return None
+            raise ValueError(f"Repository with URI {sanitized_uri} not found")
 
         repo = self._repos.get(repo_id)
         if repo:
@@ -69,15 +72,16 @@ class InMemoryGitRepoRepository(GitRepoRepository):
             if repo_key in self._tags:
                 repo.tags = self._tags[repo_key]
 
-        return repo
+            return repo
+        raise ValueError(f"Repository with URI {sanitized_uri} not found")
 
-    async def get_by_commit(self, commit_sha: str) -> GitRepo | None:
+    async def get_by_commit(self, commit_sha: str) -> GitRepo:
         """Get repository by commit SHA."""
         for repo in self._repos.values():
             for commit in repo.commits:
                 if commit.commit_sha == commit_sha:
                     return repo
-        return None
+        raise ValueError(f"Repository with commit SHA {commit_sha} not found")
 
     async def get_all(self) -> list[GitRepo]:
         """Get all repositories."""
@@ -104,7 +108,7 @@ class InMemoryGitRepoRepository(GitRepoRepository):
 
         return True
 
-    async def get_commit_by_sha(self, commit_sha: str) -> GitCommit | None:
+    async def get_commit_by_sha(self, commit_sha: str) -> GitCommit:
         """Get a specific commit by its SHA across all repositories."""
         # Search through all repositories' commits
         for repo in self._repos.values():
@@ -118,4 +122,4 @@ class InMemoryGitRepoRepository(GitRepoRepository):
                 if commit.commit_sha == commit_sha:
                     return commit
 
-        return None
+        raise ValueError(f"Commit with SHA {commit_sha} not found")

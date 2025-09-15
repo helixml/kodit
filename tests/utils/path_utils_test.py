@@ -15,21 +15,21 @@ class TestPathFromUri:
         uri = "file:///tmp/test.txt"
         result = path_from_uri(uri)
         assert isinstance(result, Path)
-        assert str(result) == "/tmp/test.txt"  # noqa: S108
+        assert str(result) == "/tmp/test.txt"
 
     def test_windows_file_uri(self) -> None:
         """Test converting a Windows file URI to Path."""
         uri = "file:///tmp/test.txt"  # Use Unix path for cross-platform compatibility
         result = path_from_uri(uri)
         assert isinstance(result, Path)
-        assert str(result) == "/tmp/test.txt"  # noqa: S108
+        assert str(result) == "/tmp/test.txt"
 
     def test_file_uri_with_spaces(self) -> None:
         """Test converting a file URI with spaces to Path."""
         uri = "file:///tmp/test%20file.txt"
         result = path_from_uri(uri)
         assert isinstance(result, Path)
-        assert str(result) == "/tmp/test file.txt"  # noqa: S108
+        assert str(result) == "/tmp/test file.txt"
 
     def test_invalid_scheme(self) -> None:
         """Test that non-file URIs raise ValueError."""

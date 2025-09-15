@@ -107,7 +107,8 @@ class GitApplicationService:
         return self.repo_factory.create_from_scan(repo_info, scan_result)
 
     async def clone_and_scan_with_snippets(
-        self, remote_uri: AnyUrl, index_id: int
+        self,
+        remote_uri: AnyUrl,
     ) -> None:
         """Clone a repository, scan it, extract snippets and persist them.
 
@@ -156,7 +157,8 @@ class GitApplicationService:
             )
 
     async def update_and_scan_with_snippets(
-        self, sanitized_uri: AnyUrl, index_id: int
+        self,
+        sanitized_uri: AnyUrl,
     ) -> None:
         """Update existing repository, extract and persist snippets.
 
@@ -207,7 +209,7 @@ class GitApplicationService:
                 "No snippets extracted"
             )
 
-    async def rescan_with_snippets(self, repo: GitRepo, index_id: int) -> None:
+    async def rescan_with_snippets(self, repo: GitRepo) -> None:
         """Rescan an existing repository, extract and persist snippets without pulling.
 
         This is useful for re-extracting snippets with updated extraction logic

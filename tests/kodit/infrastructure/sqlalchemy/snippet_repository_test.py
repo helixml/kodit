@@ -69,7 +69,7 @@ def sample_working_copy(
 
     return domain_entities.WorkingCopy(
         remote_uri=AnyUrl("https://github.com/test/repo.git"),
-        cloned_path=Path("/tmp/test-repo"),  # noqa: S108
+        cloned_path=Path("/tmp/test-repo"),
         source_type=SourceType.GIT,
         files=[sample_file],
     )

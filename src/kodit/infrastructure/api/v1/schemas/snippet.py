@@ -8,7 +8,6 @@ from pydantic import BaseModel
 class SnippetContentSchema(BaseModel):
     """Snippet content schema following JSON-API spec."""
 
-    type: str
     value: str
     language: str
 

@@ -65,7 +65,7 @@ class TestEmbeddingIntegration:
             # Create source
             source = Source(
                 uri="test_repo",
-                cloned_path="/tmp/test_repo",  # noqa: S108
+                cloned_path="/tmp/test_repo",
                 source_type=SourceType.GIT,
             )
             uow.session.add(source)
@@ -78,7 +78,7 @@ class TestEmbeddingIntegration:
                 source_id=source.id,
                 mime_type="text/plain",
                 uri="test.py",
-                cloned_path="/tmp/test_repo/test.py",  # noqa: S108
+                cloned_path="/tmp/test_repo/test.py",
                 sha256="abc123",
                 size_bytes=100,
                 extension="py",
@@ -178,7 +178,7 @@ class TestEmbeddingIntegration:
             # Create source
             source = Source(
                 uri="test_repo",
-                cloned_path="/tmp/test_repo",  # noqa: S108
+                cloned_path="/tmp/test_repo",
                 source_type=SourceType.GIT,
             )
             uow.session.add(source)
@@ -191,7 +191,7 @@ class TestEmbeddingIntegration:
                 source_id=source.id,
                 mime_type="text/plain",
                 uri="test.py",
-                cloned_path="/tmp/test_repo/test.py",  # noqa: S108
+                cloned_path="/tmp/test_repo/test.py",
                 sha256="abc123",
                 size_bytes=100,
                 extension="py",
@@ -290,7 +290,7 @@ class TestEmbeddingIntegration:
             # Create source
             source = Source(
                 uri="test_repo",
-                cloned_path="/tmp/test_repo",  # noqa: S108
+                cloned_path="/tmp/test_repo",
                 source_type=SourceType.GIT,
             )
             uow.session.add(source)
@@ -303,7 +303,7 @@ class TestEmbeddingIntegration:
                 source_id=source.id,
                 mime_type="text/plain",
                 uri="test.py",
-                cloned_path="/tmp/test_repo/test.py",  # noqa: S108
+                cloned_path="/tmp/test_repo/test.py",
                 sha256="abc123",
                 size_bytes=100,
                 extension="py",
@@ -407,7 +407,7 @@ class TestEmbeddingIntegration:
             # Create source
             source = Source(
                 uri="test_repo",
-                cloned_path="/tmp/test_repo",  # noqa: S108
+                cloned_path="/tmp/test_repo",
                 source_type=SourceType.GIT,
             )
             uow.session.add(source)
@@ -420,7 +420,7 @@ class TestEmbeddingIntegration:
                 source_id=source.id,
                 mime_type="text/plain",
                 uri="test.py",
-                cloned_path="/tmp/test_repo/test.py",  # noqa: S108
+                cloned_path="/tmp/test_repo/test.py",
                 sha256="abc123",
                 size_bytes=100,
                 extension="py",
@@ -511,7 +511,7 @@ class TestEmbeddingIntegration:
             # Create source
             source = Source(
                 uri="test_repo",
-                cloned_path="/tmp/test_repo",  # noqa: S108
+                cloned_path="/tmp/test_repo",
                 source_type=SourceType.GIT,
             )
             uow.session.add(source)
@@ -524,7 +524,7 @@ class TestEmbeddingIntegration:
                 source_id=source.id,
                 mime_type="text/plain",
                 uri="test.py",
-                cloned_path="/tmp/test_repo/test.py",  # noqa: S108
+                cloned_path="/tmp/test_repo/test.py",
                 sha256="abc123",
                 size_bytes=100,
                 extension="py",
@@ -603,7 +603,7 @@ class TestEmbeddingIntegration:
             # Create source
             source = Source(
                 uri="test_repo",
-                cloned_path="/tmp/test_repo",  # noqa: S108
+                cloned_path="/tmp/test_repo",
                 source_type=SourceType.GIT,
             )
             uow.session.add(source)
@@ -616,7 +616,7 @@ class TestEmbeddingIntegration:
                 source_id=source.id,
                 mime_type="text/plain",
                 uri="test.py",
-                cloned_path="/tmp/test_repo/test.py",  # noqa: S108
+                cloned_path="/tmp/test_repo/test.py",
                 sha256="abc123",
                 size_bytes=100,
                 extension="py",

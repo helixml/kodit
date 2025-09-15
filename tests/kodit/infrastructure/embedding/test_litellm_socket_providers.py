@@ -154,14 +154,14 @@ async def test_litellm_providers_initialization() -> None:
     # Test embedding provider initialization with socket path
     embedding_endpoint = Endpoint(
         api_key="test-key",
-        socket_path="/tmp/test.sock",  # noqa: S108
+        socket_path="/tmp/test.sock",
         base_url="http://localhost/v1",
         model="text-embedding-3-small",
     )
     embedding_provider = LiteLLMEmbeddingProvider(endpoint=embedding_endpoint)
 
     # Verify initialization
-    assert embedding_provider.endpoint.socket_path == "/tmp/test.sock"  # noqa: S108
+    assert embedding_provider.endpoint.socket_path == "/tmp/test.sock"
     assert embedding_provider.endpoint.base_url == "http://localhost/v1"
     assert embedding_provider.endpoint.model == "text-embedding-3-small"
     assert embedding_provider.endpoint.api_key == "test-key"
@@ -169,14 +169,14 @@ async def test_litellm_providers_initialization() -> None:
     # Test enrichment provider initialization with socket path
     enrichment_endpoint = Endpoint(
         api_key="test-key",
-        socket_path="/tmp/test.sock",  # noqa: S108
+        socket_path="/tmp/test.sock",
         base_url="http://localhost/v1",
         model="gpt-4o-mini",
     )
     enrichment_provider = LiteLLMEnrichmentProvider(endpoint=enrichment_endpoint)
 
     # Verify initialization
-    assert enrichment_provider.socket_path == "/tmp/test.sock"  # noqa: S108
+    assert enrichment_provider.socket_path == "/tmp/test.sock"
     assert enrichment_provider.base_url == "http://localhost/v1"
     assert enrichment_provider.model_name == "gpt-4o-mini"
     assert enrichment_provider.api_key == "test-key"

@@ -37,62 +37,23 @@ Return a health check for the kodit API.
 
 - 500: Internal server error
 
-### GET /api/v1/indexes
+### GET /api/v1/repositories/{repo_id}/commits
 
-List all indexes.
-
-
-#### Responses
-
-- 200: Successful Response
-
-[IndexListResponse](#indexlistresponse)
-
-- 500: Internal server error
-
-- 401: Unauthorized
-
-- 422: Invalid request
-
-### POST /api/v1/indexes
-
-Create a new index and start async indexing.
-
-
-#### Request Body
-
-[IndexCreateRequest](#indexcreaterequest)
-
-
-#### Responses
-
-- 202: Successful Response
-
-[IndexResponse](#indexresponse)
-
-- 500: Internal server error
-
-- 401: Unauthorized
-
-- 422: Invalid request
-
-### GET /api/v1/indexes/{index_id}
-
-Get index details.
+List all commits for a repository.
 
 
 #### Parameters
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| index_id | integer | True |  |
+| repo_id | string | True |  |
 
 
 #### Responses
 
 - 200: Successful Response
 
-[IndexDetailResponse](#indexdetailresponse)
+[CommitListResponse](#commitlistresponse)
 
 - 500: Internal server error
 
@@ -100,49 +61,24 @@ Get index details.
 
 - 422: Invalid request
 
-- 404: Index not found
+### GET /api/v1/repositories/{repo_id}/commits/{commit_sha}
 
-### DELETE /api/v1/indexes/{index_id}
-
-Delete an index.
+Get a specific commit for a repository.
 
 
 #### Parameters
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| index_id | integer | True |  |
-
-
-#### Responses
-
-- 204: Successful Response
-
-- 500: Internal server error
-
-- 401: Unauthorized
-
-- 422: Invalid request
-
-- 404: Index not found
-
-### GET /api/v1/indexes/{index_id}/status
-
-Get the status of tasks for an index.
-
-
-#### Parameters
-
-| Name | Type | Required | Description |
-|------|------|----------|-------------|
-| index_id | integer | True |  |
+| repo_id | string | True |  |
+| commit_sha | string | True |  |
 
 
 #### Responses
 
 - 200: Successful Response
 
-[TaskStatusListResponse](#taskstatuslistresponse)
+[CommitResponse](#commitresponse)
 
 - 500: Internal server error
 
@@ -150,7 +86,60 @@ Get the status of tasks for an index.
 
 - 422: Invalid request
 
-- 404: Index not found
+- 404: Repository or commit not found
+
+### GET /api/v1/repositories/{repo_id}/commits/{commit_sha}/files
+
+List all files in a specific commit.
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| repo_id | string | True |  |
+| commit_sha | string | True |  |
+
+
+#### Responses
+
+- 200: Successful Response
+
+[FileListResponse](#filelistresponse)
+
+- 500: Internal server error
+
+- 401: Unauthorized
+
+- 422: Invalid request
+
+### GET /api/v1/repositories/{repo_id}/commits/{commit_sha}/files/{blob_sha}
+
+Get a specific file from a commit.
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| repo_id | string | True |  |
+| commit_sha | string | True |  |
+| blob_sha | string | True |  |
+
+
+#### Responses
+
+- 200: Successful Response
+
+[FileResponse](#fileresponse)
+
+- 500: Internal server error
+
+- 401: Unauthorized
+
+- 422: Invalid request
+
+- 404: Repository, commit or file not found
 
 ### GET /api/v1/queue
 
@@ -204,6 +193,148 @@ Get details of a specific task in the queue.
 
 - 404: Task not found
 
+### GET /api/v1/repositories
+
+List all cloned repositories.
+
+
+#### Responses
+
+- 200: Successful Response
+
+[RepositoryListResponse](#repositorylistresponse)
+
+- 500: Internal server error
+
+- 401: Unauthorized
+
+- 422: Invalid request
+
+### POST /api/v1/repositories
+
+Clone a new repository and perform initial mapping.
+
+
+#### Request Body
+
+[RepositoryCreateRequest](#repositorycreaterequest)
+
+
+#### Responses
+
+- 201: Successful Response
+
+[RepositoryResponse](#repositoryresponse)
+
+- 500: Internal server error
+
+- 401: Unauthorized
+
+- 422: Invalid request
+
+### GET /api/v1/repositories/{repo_id}
+
+Get repository details including branches and recent commits.
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| repo_id | string | True |  |
+
+
+#### Responses
+
+- 200: Successful Response
+
+[RepositoryDetailsResponse](#repositorydetailsresponse)
+
+- 500: Internal server error
+
+- 401: Unauthorized
+
+- 422: Invalid request
+
+- 404: Repository not found
+
+### DELETE /api/v1/repositories/{repo_id}
+
+Delete a repository.
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| repo_id | string | True |  |
+
+
+#### Responses
+
+- 204: Successful Response
+
+- 500: Internal server error
+
+- 401: Unauthorized
+
+- 422: Invalid request
+
+- 404: Repository not found
+
+### GET /api/v1/repositories/{repo_id}/tags
+
+List all tags for a repository.
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| repo_id | string | True |  |
+
+
+#### Responses
+
+- 200: Successful Response
+
+[TagListResponse](#taglistresponse)
+
+- 500: Internal server error
+
+- 401: Unauthorized
+
+- 422: Invalid request
+
+- 404: Repository not found
+
+### GET /api/v1/repositories/{repo_id}/tags/{tag_id}
+
+Get a specific tag for a repository.
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| repo_id | string | True |  |
+| tag_id | string | True |  |
+
+
+#### Responses
+
+- 200: Successful Response
+
+[TagResponse](#tagresponse)
+
+- 500: Internal server error
+
+- 401: Unauthorized
+
+- 422: Invalid request
+
+- 404: Repository or tag not found
+
 ### POST /api/v1/search
 
 Search code snippets with filters matching MCP tool.
@@ -230,66 +361,25 @@ Search code snippets with filters matching MCP tool.
 
 
 
-### HTTPValidationError
+### CommitAttributes
 
 
-
-| Field | Type | Description |
-|-------|------|-------------|
-| detail | array |  |
-
-
-### IndexAttributes
-
-
-Index attributes for JSON:API responses.
+Commit attributes following JSON-API spec.
 
 
 | Field | Type | Description |
 |-------|------|-------------|
-| created_at | string |  |
-| updated_at | string |  |
-| uri | string |  |
+| commit_sha | string |  |
+| date | string |  |
+| message | string |  |
+| parent_commit_sha | string |  |
+| author | string |  |
 
 
-### IndexCreateAttributes
+### CommitData
 
 
-Attributes for creating an index.
-
-
-| Field | Type | Description |
-|-------|------|-------------|
-| uri | string | URI of the source to index |
-
-
-### IndexCreateData
-
-
-Data for creating an index.
-
-
-| Field | Type | Description |
-|-------|------|-------------|
-| type | string |  |
-| attributes |  |  |
-
-
-### IndexCreateRequest
-
-
-JSON:API request for creating an index.
-
-
-| Field | Type | Description |
-|-------|------|-------------|
-| data |  |  |
-
-
-### IndexData
-
-
-Index data for JSON:API responses.
+Commit data following JSON-API spec.
 
 
 | Field | Type | Description |
@@ -299,21 +389,10 @@ Index data for JSON:API responses.
 | attributes |  |  |
 
 
-### IndexDetailResponse
+### CommitListResponse
 
 
-JSON:API response for index details with included resources.
-
-
-| Field | Type | Description |
-|-------|------|-------------|
-| data |  |  |
-
-
-### IndexListResponse
-
-
-JSON:API response for index list.
+Commit list response following JSON-API spec.
 
 
 | Field | Type | Description |
@@ -321,10 +400,196 @@ JSON:API response for index list.
 | data | array |  |
 
 
-### IndexResponse
+### CommitResponse
 
 
-JSON:API response for single index.
+Single commit response following JSON-API spec.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data |  |  |
+
+
+### FileAttributes
+
+
+File attributes following JSON-API spec.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| blob_sha | string |  |
+| path | string |  |
+| mime_type | string |  |
+| size | integer |  |
+| extension | string |  |
+
+
+### FileData
+
+
+File data following JSON-API spec.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| type | string |  |
+| id | string |  |
+| attributes |  |  |
+
+
+### FileListResponse
+
+
+File list response following JSON-API spec.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data | array |  |
+
+
+### FileResponse
+
+
+Single file response following JSON-API spec.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data |  |  |
+
+
+### HTTPValidationError
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| detail | array |  |
+
+
+### RepositoryAttributes
+
+
+Repository attributes following JSON-API spec.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| remote_uri | string |  |
+| sanitized_remote_uri | string |  |
+| cloned_path | string |  |
+| created_at | string |  |
+| updated_at |  |  |
+| default_branch | string |  |
+| total_commits | integer |  |
+| total_branches | integer |  |
+
+
+### RepositoryBranchData
+
+
+Repository branch data.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| name | string |  |
+| is_default | boolean |  |
+| commit_count | integer |  |
+
+
+### RepositoryCommitData
+
+
+Repository commit data for repository details.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| sha | string |  |
+| message | string |  |
+| author | string |  |
+| timestamp | string |  |
+
+
+### RepositoryCreateAttributes
+
+
+Repository creation attributes.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| remote_uri | string |  |
+
+
+### RepositoryCreateData
+
+
+Repository creation data.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| type | string |  |
+| attributes |  |  |
+
+
+### RepositoryCreateRequest
+
+
+Repository creation request.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data |  |  |
+
+
+### RepositoryData
+
+
+Repository data following JSON-API spec.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| type | string |  |
+| id | string |  |
+| attributes |  |  |
+
+
+### RepositoryDetailsResponse
+
+
+Repository details response with branches and commits.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data |  |  |
+| branches | array |  |
+| recent_commits | array |  |
+
+
+### RepositoryListResponse
+
+
+Repository list response following JSON-API spec.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data | array |  |
+
+
+### RepositoryResponse
+
+
+Single repository response following JSON-API spec.
 
 
 | Field | Type | Description |
@@ -429,6 +694,54 @@ Snippet data for JSON:API responses.
 | attributes |  |  |
 
 
+### TagAttributes
+
+
+Tag attributes following JSON-API spec.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| name | string |  |
+| target_commit_sha | string |  |
+| is_version_tag | boolean |  |
+
+
+### TagData
+
+
+Tag data following JSON-API spec.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| type | string |  |
+| id | string |  |
+| attributes |  |  |
+
+
+### TagListResponse
+
+
+Tag list response following JSON-API spec.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data | array |  |
+
+
+### TagResponse
+
+
+Single tag response following JSON-API spec.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data |  |  |
+
+
 ### TaskAttributes
 
 
@@ -485,49 +798,6 @@ JSON:API response for single task.
 | Field | Type | Description |
 |-------|------|-------------|
 | data |  |  |
-
-
-### TaskStatusAttributes
-
-
-Task status attributes for JSON:API responses.
-
-
-| Field | Type | Description |
-|-------|------|-------------|
-| step | string | Name of the task/operation |
-| state | string | Current state of the task |
-| progress | number | Progress percentage (0-100) |
-| total | integer | Total number of items to process |
-| current | integer | Current number of items processed |
-| created_at |  | Task start time |
-| updated_at |  | Last update time |
-| error | string | Error message |
-| message | string | Message |
-
-
-### TaskStatusData
-
-
-Task status data for JSON:API responses.
-
-
-| Field | Type | Description |
-|-------|------|-------------|
-| type | string |  |
-| id | string |  |
-| attributes |  |  |
-
-
-### TaskStatusListResponse
-
-
-JSON:API response for task status list.
-
-
-| Field | Type | Description |
-|-------|------|-------------|
-| data | array |  |
 
 
 ### ValidationError

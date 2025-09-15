@@ -102,7 +102,7 @@ class ServerFactory:
                 repo_repository=self.repo_repository(),
                 scanner=self.scanner(),
                 cloner=self.cloner(),
-                snippet_repository=self.snippet_repository(),
+                snippet_repository=self.snippet_v2_repository(),
             )
         return self._git_application_service
 
@@ -167,12 +167,6 @@ class ServerFactory:
             self._commit_index_repository = InMemoryCommitIndexRepository()
         return self._commit_index_repository
 
-    def snippet_v2_repository(self) -> SnippetRepositoryV2:
-        """Create a SnippetRepositoryV2 instance."""
-        if not self._snippet_v2_repository:
-            self._snippet_v2_repository = InMemorySnippetRepository()
-        return self._snippet_v2_repository
-
     def domain_indexer(self) -> IndexDomainService:
         """Create a IndexDomainService instance."""
         if not self._domain_indexer:
@@ -194,6 +188,12 @@ class ServerFactory:
                 session_factory=self.session_factory
             )
         return self._snippet_repository
+
+    def snippet_v2_repository(self) -> SnippetRepositoryV2:
+        """Create a SnippetRepositoryV2 instance."""
+        if not self._snippet_v2_repository:
+            self._snippet_v2_repository = InMemorySnippetRepository()
+        return self._snippet_v2_repository
 
     def enrichment_service(self) -> EnrichmentDomainService:
         """Create a EnrichmentDomainService instance."""

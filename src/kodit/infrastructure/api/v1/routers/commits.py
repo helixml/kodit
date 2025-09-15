@@ -48,7 +48,7 @@ async def list_repository_commits(
                     commit_sha=commit.commit_sha,
                     date=commit.date,
                     message=commit.message,
-                    parent_commit_sha=commit.parent_commit_sha,
+                    parent_commit_sha=commit.parent_commit_sha or "",
                     author=commit.author,
                 ),
             )
@@ -85,7 +85,7 @@ async def get_repository_commit(
                 commit_sha=commit.commit_sha,
                 date=commit.date,
                 message=commit.message,
-                parent_commit_sha=commit.parent_commit_sha,
+                parent_commit_sha=commit.parent_commit_sha or "",
                 author=commit.author,
             ),
         )
@@ -118,7 +118,7 @@ async def list_commit_files(
                     path=file.path,
                     mime_type=file.mime_type,
                     size=file.size,
-                    extension=file.extension(),
+                    extension=file.extension,
                 ),
             )
             for file in commit.files
@@ -161,7 +161,7 @@ async def get_commit_file(
                 path=file.path,
                 mime_type=file.mime_type,
                 size=file.size,
-                extension=file.extension(),
+                extension=file.extension,
             ),
         )
     )

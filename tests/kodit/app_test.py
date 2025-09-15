@@ -79,7 +79,7 @@ async def create_test_data(app_context: AppContext) -> dict:
         # Create source
         source = Source(
             uri="https://github.com/test/repo",
-            cloned_path="/tmp/test/repo",  # noqa: S108
+            cloned_path="/tmp/test/repo",
             source_type=SourceType.GIT,
         )
         session.add(source)
@@ -103,7 +103,7 @@ async def create_test_data(app_context: AppContext) -> dict:
             source_id=source.id,
             mime_type="text/x-python",
             uri="file:///tmp/test/repo/app.js",
-            cloned_path="/tmp/test/repo/main.py",  # noqa: S108
+            cloned_path="/tmp/test/repo/main.py",
             sha256="abc123",
             size_bytes=1000,
             extension="py",
@@ -116,7 +116,7 @@ async def create_test_data(app_context: AppContext) -> dict:
             source_id=source.id,
             mime_type="text/javascript",
             uri="file:///tmp/test/repo/app.js",
-            cloned_path="/tmp/test/repo/app.js",  # noqa: S108
+            cloned_path="/tmp/test/repo/app.js",
             sha256="def456",
             size_bytes=2000,
             extension="js",

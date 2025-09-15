@@ -755,12 +755,12 @@ class Slicer:
         )
 
         # Create the snippet entity
-        snippet = SnippetV2(derives_from=derives_from_files)
-
-        # Add the original content
-        snippet.add_original_content(snippet_content, language)
-
-        return snippet
+        return SnippetV2(
+            derives_from=derives_from_files,
+            content=snippet_content,
+            extension=language,
+            sha=SnippetV2.compute_sha(snippet_content),
+        )
 
     def _find_source_files_for_snippet_from_git_files(
         self,

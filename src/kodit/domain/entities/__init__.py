@@ -99,6 +99,9 @@ class WorkingCopy(BaseModel):
 
         """
         # Handle different URL types
+        if not url:
+            raise ValueError("URL is required")
+
         if url.startswith("git@"):
             return cls._handle_ssh_url(url)
         if url.startswith("ssh://"):
@@ -256,12 +259,11 @@ class Snippet(BaseModel):
             return ""
         return self.summary_content.value
 
-    def add_original_content(self, content: str, language: str) -> None:
+    def add_original_content(self, content: str, _language: str) -> None:
         """Add an original content to the snippet."""
         self.original_content = SnippetContent(
             type=SnippetContentType.ORIGINAL,
             value=content,
-            language=language,
         )
 
     def add_summary(self, summary: str) -> None:
@@ -269,7 +271,6 @@ class Snippet(BaseModel):
         self.summary_content = SnippetContent(
             type=SnippetContentType.SUMMARY,
             value=summary,
-            language="markdown",
         )
 
 
