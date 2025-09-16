@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from kodit.infrastructure.api.middleware.auth import api_key_auth
-from kodit.infrastructure.api.v1.dependencies import GitRepositoryDep
+from kodit.infrastructure.api.v1.dependencies import GitRepositoryDep, ServerFactoryDep
 from kodit.infrastructure.api.v1.schemas.commit import (
     CommitAttributes,
     CommitData,
@@ -13,6 +13,14 @@ from kodit.infrastructure.api.v1.schemas.commit import (
     FileData,
     FileListResponse,
     FileResponse,
+)
+from kodit.infrastructure.api.v1.schemas.snippet import (
+    EnrichmentSchema,
+    GitFileSchema,
+    SnippetAttributes,
+    SnippetContentSchema,
+    SnippetData,
+    SnippetListResponse,
 )
 
 router = APIRouter(
@@ -163,4 +171,53 @@ async def get_commit_file(
                 extension=file.extension,
             ),
         )
+    )
+
+
+@router.get(
+    "/{repo_id}/commits/{commit_sha}/snippets",
+    summary="List commit snippets",
+    responses={404: {"description": "Repository or commit not found"}},
+)
+async def list_commit_snippets(
+    repo_id: str,
+    commit_sha: str,
+    server_factory: ServerFactoryDep,
+) -> SnippetListResponse:
+    """List all snippets in a specific commit."""
+    snippet_repository = server_factory.snippet_v2_repository()
+    snippets = await snippet_repository.get_snippets_for_commit(commit_sha)
+
+    return SnippetListResponse(
+        data=[
+            SnippetData(
+                type="snippet",
+                id=snippet.sha,
+                attributes=SnippetAttributes(
+                    created_at=snippet.created_at,
+                    updated_at=snippet.updated_at,
+                    derives_from=[
+                        GitFileSchema(
+                            blob_sha=file.blob_sha,
+                            path=file.path,
+                            mime_type=file.mime_type,
+                            size=file.size,
+                        )
+                        for file in snippet.derives_from
+                    ],
+                    content=SnippetContentSchema(
+                        value=snippet.content,
+                        language=snippet.extension,
+                    ),
+                    enrichments=[
+                        EnrichmentSchema(
+                            type=enrichment.type.value,
+                            content=enrichment.content,
+                        )
+                        for enrichment in snippet.enrichments
+                    ],
+                ),
+            )
+            for snippet in snippets
+        ]
     )

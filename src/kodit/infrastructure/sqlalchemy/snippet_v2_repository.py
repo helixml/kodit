@@ -43,14 +43,6 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
             return
 
         async with self.uow:
-            # First, delete any existing snippet associations for this commit
-            # Note: We inline the delete here to avoid nested UoW contexts
-            stmt = delete(db_entities.CommitSnippetV2).where(
-                db_entities.CommitSnippetV2.commit_sha == commit_sha
-            )
-            await self._session.execute(stmt)
-
-            # Save each snippet
             for domain_snippet in snippets:
                 # Check if snippet already exists
                 db_snippet = await self._session.get(
@@ -87,12 +79,42 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
                         )
                         self._session.add(association)
 
-                # Create commit-snippet association
-                commit_snippet = db_entities.CommitSnippetV2(
-                    commit_sha=commit_sha,
-                    snippet_sha=db_snippet.sha,
-                )
-                self._session.add(commit_snippet)
+                    # Create commit-snippet association
+                    commit_snippet = db_entities.CommitSnippetV2(
+                        commit_sha=commit_sha,
+                        snippet_sha=db_snippet.sha,
+                    )
+                    self._session.add(commit_snippet)
+                else:
+                    # Update enrichments if they have changed
+                    current_enrichments = await self._session.scalars(
+                        select(db_entities.Enrichment).where(
+                            db_entities.Enrichment.snippet_sha == db_snippet.sha
+                        )
+                    )
+                    current_enrichments = list(current_enrichments)
+                    current_enrichment_types = {
+                        enrichment.type for enrichment in current_enrichments
+                    }
+                    new_enrichment_types = {
+                        enrichment.type for enrichment in domain_snippet.enrichments
+                    }
+                    if current_enrichment_types != new_enrichment_types:
+                        # Delete existing enrichments
+                        stmt = delete(db_entities.Enrichment).where(
+                            db_entities.Enrichment.snippet_sha == db_snippet.sha
+                        )
+                        await self._session.execute(stmt)
+
+                        # Re-add enrichments
+                        for enrichment in domain_snippet.enrichments:
+                            db_enrichment = db_entities.Enrichment(
+                                snippet_sha=db_snippet.sha,
+                                type=db_entities.EnrichmentType(enrichment.type.value),
+                                content=enrichment.content,
+                            )
+                            self._session.add(db_enrichment)
+                        await self._session.flush()
 
     async def get_snippets_for_commit(self, commit_sha: str) -> list[SnippetV2]:
         """Get all snippets for a specific commit."""

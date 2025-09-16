@@ -21,14 +21,21 @@ class GitFileSchema(BaseModel):
     size: int
 
 
+class EnrichmentSchema(BaseModel):
+    """Enrichment schema following JSON-API spec."""
+
+    type: str
+    content: str
+
+
 class SnippetAttributes(BaseModel):
     """Snippet attributes following JSON-API spec."""
 
     created_at: datetime | None = None
     updated_at: datetime | None = None
     derives_from: list[GitFileSchema]
-    original_content: SnippetContentSchema | None = None
-    summary_content: SnippetContentSchema | None = None
+    content: SnippetContentSchema
+    enrichments: list[EnrichmentSchema]
 
 
 class SnippetData(BaseModel):
