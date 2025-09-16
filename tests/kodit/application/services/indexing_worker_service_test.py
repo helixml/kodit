@@ -102,7 +102,7 @@ async def test_worker_processes_task(
 
     # Mock the indexing service
     with patch(
-        "kodit.application.services.indexing_worker_service.create_code_indexing_application_service"
+        "kodit.application.factories.code_indexing_factory.create_code_indexing_application_service"
     ) as mock_create_service:
         mock_service = AsyncMock()
         mock_service.run_task = AsyncMock()

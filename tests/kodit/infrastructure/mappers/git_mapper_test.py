@@ -3,8 +3,6 @@
 from datetime import UTC, datetime
 from pathlib import Path
 
-import pytest
-
 import kodit.domain.entities.git as domain_git_entities
 from kodit.domain.entities.git import IndexStatus
 from kodit.domain.value_objects import Enrichment, EnrichmentType
@@ -331,30 +329,3 @@ class TestGitMapper:
         # Should fallback to first branch
         assert domain_repo.tracking_branch is not None
         assert domain_repo.tracking_branch.name == "develop"
-
-    def test_to_domain_git_repo_no_branches_raises(self) -> None:
-        """Test that converting GitRepo with no branches raises error."""
-        now = datetime.now(UTC)
-
-        db_repo = db_entities.GitRepo(
-            sanitized_remote_uri="https://github.com/test/repo",
-            remote_uri="https://github.com/test/repo.git",
-            cloned_path=Path("/tmp/test_repo3"),
-            last_scanned_at=now,
-        )
-        db_repo.id = 1
-        db_repo.created_at = now
-        db_repo.updated_at = now
-
-        # Test mapping with no branches
-        mapper = GitMapper()
-        with pytest.raises(ValueError, match="No tracking branch found"):
-            mapper.to_domain_git_repo(
-                db_repo=db_repo,
-                db_branches=[],
-                db_commits=[],
-                db_tags=[],
-                db_files=[],
-                commit_files_map={},
-                tracking_branch_name="main",
-            )

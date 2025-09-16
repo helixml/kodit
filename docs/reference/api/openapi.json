@@ -955,7 +955,8 @@
           "kodit.repository.create",
           "kodit.repository.clone",
           "kodit.repository.scan",
-          "kodit.repository.snippets_for_head_commit"
+          "kodit.commit.extract_snippets",
+          "kodit.commit.create_bm25_index"
         ],
         "title": "TaskOperation",
         "description": "Task operation."

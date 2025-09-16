@@ -29,7 +29,7 @@ SET search_path TO
 CREATE_BM25_TABLE = f"""
 CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
     id SERIAL PRIMARY KEY,
-    snippet_id VARCHAR(255) NOT NULL,
+    snippet_id BIGINT NOT NULL,
     passage TEXT NOT NULL,
     embedding bm25vector,
     UNIQUE(snippet_id)
@@ -164,7 +164,7 @@ class VectorChordBM25Repository(BM25Repository):
         """Commit the session."""
         await self.__session.commit()
 
-    async def _get_existing_ids(self, snippet_ids: list[str]) -> set[str]:
+    async def _get_existing_ids(self, snippet_ids: list[int]) -> set[int]:
         result = await self._execute(
             text(CHECK_EXISTING_IDS), {"snippet_ids": snippet_ids}
         )

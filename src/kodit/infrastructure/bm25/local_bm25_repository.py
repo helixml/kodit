@@ -37,7 +37,7 @@ class LocalBM25Repository(BM25Repository):
         """
         self.log = structlog.get_logger(__name__)
         self.index_path = data_dir / "bm25s_index"
-        self.snippet_ids: list[str] = []
+        self.snippet_ids: list[int] = []
         self.stemmer = Stemmer.Stemmer("english")
         self.__retriever: bm25s.BM25 | None = None
 

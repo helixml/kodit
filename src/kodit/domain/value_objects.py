@@ -152,7 +152,7 @@ class SearchType(Enum):
 class Document:
     """Generic document model for indexing."""
 
-    snippet_id: str
+    snippet_id: int
     text: str
 
 

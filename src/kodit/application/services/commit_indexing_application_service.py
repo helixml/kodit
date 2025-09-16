@@ -224,7 +224,7 @@ class CommitIndexingApplicationService:
             await self.bm25_service.index_documents(
                 IndexRequest(
                     documents=[
-                        Document(snippet_id=snippet.id, text=snippet.content)
+                        Document(snippet_id=int(snippet.id, 16), text=snippet.content)
                         for snippet in snippets
                         if snippet.id
                     ]
