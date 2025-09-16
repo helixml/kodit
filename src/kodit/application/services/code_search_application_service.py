@@ -8,7 +8,6 @@ import structlog
 from kodit.application.services.reporting import ProgressTracker
 from kodit.domain.services.bm25_service import BM25DomainService
 from kodit.domain.services.embedding_service import EmbeddingDomainService
-from kodit.domain.services.index_query_service import IndexQueryService
 from kodit.domain.value_objects import (
     FusionRequest,
     MultiSearchRequest,
@@ -24,14 +23,12 @@ class CodeSearchApplicationService:
 
     def __init__(
         self,
-        index_query_service: IndexQueryService,
         bm25_service: BM25DomainService,
         code_search_service: EmbeddingDomainService,
         text_search_service: EmbeddingDomainService,
         progress_tracker: ProgressTracker,
     ) -> None:
         """Initialize the code search application service."""
-        self.index_query_service = index_query_service
         self.bm25_service = bm25_service
         self.code_search_service = code_search_service
         self.text_search_service = text_search_service
@@ -41,6 +38,8 @@ class CodeSearchApplicationService:
     async def search(self, request: MultiSearchRequest) -> list[MultiSearchResult]:
         """Search for relevant snippets across all indexes."""
         log_event("kodit.index.search")
+
+        raise NotImplementedError("Not implemented")
 
         # Apply filters if provided
         filtered_snippet_ids: list[int] | None = None

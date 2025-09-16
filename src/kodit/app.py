@@ -1,6 +1,5 @@
 """FastAPI application for kodit API."""
 
-import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -14,13 +13,12 @@ from kodit.application.factories.server_factory import ServerFactory
 from kodit.application.services.indexing_worker_service import IndexingWorkerService
 from kodit.application.services.sync_scheduler import SyncSchedulerService
 from kodit.config import AppContext
-from kodit.infrastructure.api.v1.routers import (
-    commits_router,
-    queue_router,
-    repositories_router,
-    search_router,
+from kodit.infrastructure.api.v1.routers.commits import router as commits_router
+from kodit.infrastructure.api.v1.routers.queue import router as queue_router
+from kodit.infrastructure.api.v1.routers.repositories import (
+    router as repositories_router,
 )
-from kodit.infrastructure.api.v1.routers.indexes import indexes_router
+from kodit.infrastructure.api.v1.routers.search import router as search_router
 from kodit.infrastructure.api.v1.schemas.context import AppLifespanState
 from kodit.infrastructure.sqlalchemy.task_status_repository import (
     create_task_status_repository,
@@ -58,9 +56,7 @@ async def app_lifespan(_: FastAPI) -> AsyncIterator[AppLifespanState]:
 
     # Start sync scheduler service
     if app_context.periodic_sync.enabled:
-        _sync_scheduler_service = SyncSchedulerService(
-            session_factory=db.session_factory,
-        )
+        _sync_scheduler_service = _server_factory.sync_scheduler_service()
         _sync_scheduler_service.start_periodic_sync(
             interval_seconds=app_context.periodic_sync.interval_seconds
         )
@@ -123,10 +119,8 @@ async def healthz() -> Response:
 # Include API routers
 app.include_router(queue_router)
 app.include_router(search_router)
-app.include_router(indexes_router)
-if os.getenv("FEATURE_REPO_ENABLE"):
-    app.include_router(commits_router)
-    app.include_router(repositories_router)
+app.include_router(commits_router)
+app.include_router(repositories_router)
 
 # Add mcp routes last, otherwise previous routes aren't added
 # Mount both apps at root - they have different internal paths

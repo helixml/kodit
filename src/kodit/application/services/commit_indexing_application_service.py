@@ -15,13 +15,18 @@ from kodit.domain.protocols import (
     SnippetRepositoryV2,
 )
 from kodit.domain.services.bm25_service import BM25DomainService
+from kodit.domain.services.embedding_service import EmbeddingDomainService
+from kodit.domain.services.enrichment_service import EnrichmentDomainService
 from kodit.domain.services.git_repository_service import (
     GitRepositoryScanner,
     RepositoryCloner,
 )
-from kodit.domain.services.index_service import IndexDomainService
 from kodit.domain.value_objects import (
     Document,
+    Enrichment,
+    EnrichmentIndexRequest,
+    EnrichmentRequest,
+    EnrichmentType,
     IndexRequest,
     LanguageMapping,
     PrescribedOperations,
@@ -40,7 +45,6 @@ class CommitIndexingApplicationService:
         commit_index_repository: CommitIndexRepository,
         snippet_v2_repository: SnippetRepositoryV2,
         repo_repository: GitRepoRepository,
-        domain_indexer: IndexDomainService,
         operation: ProgressTracker,
         scanner: GitRepositoryScanner,
         cloner: RepositoryCloner,
@@ -48,6 +52,9 @@ class CommitIndexingApplicationService:
         slicer: Slicer,
         queue: QueueService,
         bm25_service: BM25DomainService,
+        code_search_service: EmbeddingDomainService,
+        text_search_service: EmbeddingDomainService,
+        enrichment_service: EnrichmentDomainService,
     ) -> None:
         """Initialize the commit indexing application service.
 
@@ -62,7 +69,6 @@ class CommitIndexingApplicationService:
         self.commit_index_repository = commit_index_repository
         self.snippet_repository = snippet_v2_repository
         self.repo_repository = repo_repository
-        self.domain_indexer = domain_indexer
         self.operation = operation
         self.scanner = scanner
         self.cloner = cloner
@@ -70,52 +76,22 @@ class CommitIndexingApplicationService:
         self.slicer = slicer
         self.queue = queue
         self.bm25_service = bm25_service
+        self.code_search_service = code_search_service
+        self.text_search_service = text_search_service
+        self.enrichment_service = enrichment_service
         self._log = structlog.get_logger(__name__)
 
     async def create_git_repository(self, remote_uri: AnyUrl) -> GitRepo:
         """Create a new Git repository."""
         async with self.operation.create_child(TaskOperation.CREATE_REPOSITORY):
             repo = GitRepo.from_remote_uri(remote_uri)
-            return await self.repo_repository.save(repo)
-
-    async def queue_repository_tasks(
-        self,
-        repository_id: int | None,
-        tasks: list[TaskOperation],
-        base_priority: QueuePriority,
-    ) -> None:
-        """Queue repository tasks."""
-        if repository_id is None:
-            raise ValueError("Repository ID is required")
-        priority_offset = len(tasks) * 10
-        for task in tasks:
-            await self.queue.enqueue_task(
-                Task.create(
-                    task,
-                    base_priority + priority_offset,
-                    {"repository_id": repository_id},
-                )
+            repo = await self.repo_repository.save(repo)
+            await self.queue.enqueue_tasks(
+                tasks=PrescribedOperations.CREATE_NEW_REPOSITORY,
+                base_priority=QueuePriority.USER_INITIATED,
+                payload={"repository_id": repo.id},
             )
-            priority_offset -= 10
-
-    # TODO(Phil): reduce this duplication
-    async def queue_commit_tasks(
-        self,
-        commit_sha: str,
-        tasks: list[TaskOperation],
-        base_priority: QueuePriority,
-    ) -> None:
-        """Queue repository tasks."""
-        priority_offset = len(tasks) * 10
-        for task in tasks:
-            await self.queue.enqueue_task(
-                Task.create(
-                    task,
-                    base_priority + priority_offset,
-                    {"commit_sha": commit_sha},
-                )
-            )
-            priority_offset -= 10
+            return repo
 
     # TODO(Phil): Make this polymorphic
     async def run_task(self, task: Task) -> None:
@@ -138,6 +114,12 @@ class CommitIndexingApplicationService:
                 await self.process_snippets_for_commit(commit_sha)
             elif task.type == TaskOperation.CREATE_BM25_INDEX_FOR_COMMIT:
                 await self.process_bm25_index(commit_sha)
+            elif task.type == TaskOperation.CREATE_CODE_EMBEDDINGS_FOR_COMMIT:
+                await self.process_code_embeddings(commit_sha)
+            elif task.type == TaskOperation.CREATE_SUMMARY_ENRICHMENT_FOR_COMMIT:
+                await self.process_enrich(commit_sha)
+            elif task.type == TaskOperation.CREATE_SUMMARY_EMBEDDINGS_FOR_COMMIT:
+                await self.process_summary_embeddings(commit_sha)
             else:
                 raise ValueError(f"Unknown task type: {task.type}")
         else:
@@ -167,10 +149,10 @@ class CommitIndexingApplicationService:
         if not commit_sha:
             raise ValueError(f"Repository {repository_id} has no head commit")
 
-        await self.queue_commit_tasks(
-            commit_sha,
-            PrescribedOperations.INDEX_COMMIT,
-            QueuePriority.USER_INITIATED,
+        await self.queue.enqueue_tasks(
+            tasks=PrescribedOperations.INDEX_COMMIT,
+            base_priority=QueuePriority.USER_INITIATED,
+            payload={"commit_sha": commit_sha},
         )
 
     async def process_snippets_for_commit(self, commit_sha: str) -> None:
@@ -216,17 +198,108 @@ class CommitIndexingApplicationService:
     async def process_bm25_index(self, commit_sha: str) -> None:
         """Handle BM25_INDEX task - create keyword index."""
         async with self.operation.create_child(
-            TaskOperation.CREATE_BM25_INDEX,
-            trackable_type=TrackableType.INDEX,
+            TaskOperation.CREATE_BM25_INDEX_FOR_COMMIT,
+            trackable_type=TrackableType.COMMIT,
         ):
             snippets = await self.snippet_repository.get_snippets_for_commit(commit_sha)
 
             await self.bm25_service.index_documents(
                 IndexRequest(
                     documents=[
-                        Document(snippet_id=int(snippet.id, 16), text=snippet.content)
+                        Document(snippet_id=snippet.id, text=snippet.content)
                         for snippet in snippets
                         if snippet.id
                     ]
                 )
             )
+
+    async def process_code_embeddings(self, commit_sha: str) -> None:
+        """Handle CODE_EMBEDDINGS task - create code embeddings."""
+        async with self.operation.create_child(
+            TaskOperation.CREATE_CODE_EMBEDDINGS_FOR_COMMIT,
+            trackable_type=TrackableType.COMMIT,
+        ) as step:
+            snippets = await self.snippet_repository.get_snippets_for_commit(commit_sha)
+            await step.set_total(len(snippets))
+            processed = 0
+            documents = [
+                Document(snippet_id=snippet.id, text=snippet.content)
+                for snippet in snippets
+                if snippet.id
+            ]
+            async for result in self.code_search_service.index_documents(
+                IndexRequest(documents=documents)
+            ):
+                processed += len(result)
+                await step.set_current(processed, "Creating code embeddings for commit")
+
+    async def process_enrich(self, commit_sha: str) -> None:
+        """Handle ENRICH task - enrich snippets and create text embeddings."""
+        async with self.operation.create_child(
+            TaskOperation.CREATE_SUMMARY_ENRICHMENT_FOR_COMMIT,
+            trackable_type=TrackableType.COMMIT,
+        ) as step:
+            snippets = await self.snippet_repository.get_snippets_for_commit(commit_sha)
+
+            # Enrich snippets
+            await step.set_total(len(snippets))
+            snippet_map = {snippet.id: snippet for snippet in snippets if snippet.id}
+
+            enrichment_request = EnrichmentIndexRequest(
+                requests=[
+                    EnrichmentRequest(snippet_id=snippet_id, text=snippet.content)
+                    for snippet_id, snippet in snippet_map.items()
+                ]
+            )
+
+            processed = 0
+            async for result in self.enrichment_service.enrich_documents(
+                enrichment_request
+            ):
+                snippet = snippet_map[result.snippet_id]
+                snippet.enrichments.append(
+                    Enrichment(type=EnrichmentType.SUMMARIZATION, content=result.text)
+                )
+
+                await self.snippet_repository.save_snippets(commit_sha, [snippet])
+
+                processed += 1
+                await step.set_current(processed, "Enriching snippets for commit")
+
+    async def process_summary_embeddings(self, commit_sha: str) -> None:
+        """Handle SUMMARY_EMBEDDINGS task - create summary embeddings."""
+        async with self.operation.create_child(
+            TaskOperation.CREATE_SUMMARY_EMBEDDINGS_FOR_COMMIT,
+            trackable_type=TrackableType.COMMIT,
+        ) as step:
+            snippets = await self.snippet_repository.get_snippets_for_commit(commit_sha)
+            await step.set_total(len(snippets))
+            processed = 0
+
+            def _summary_from_enrichments(enrichments: list[Enrichment]) -> str:
+                if not enrichments:
+                    return ""
+                return next(
+                    enrichment.content
+                    for enrichment in enrichments
+                    if enrichment.type == EnrichmentType.SUMMARIZATION
+                )
+
+            snippet_summary_map = {
+                snippet.id: _summary_from_enrichments(snippet.enrichments)
+                for snippet in snippets
+                if snippet.id
+            }
+            if len(snippet_summary_map) == 0:
+                await step.skip("No snippets with summaries to create text embeddings")
+                return
+
+            documents_with_summaries = [
+                Document(snippet_id=snippet_id, text=snippet_summary)
+                for snippet_id, snippet_summary in snippet_summary_map.items()
+            ]
+            async for result in self.text_search_service.index_documents(
+                IndexRequest(documents=documents_with_summaries)
+            ):
+                processed += len(result)
+                await step.set_current(processed, "Creating text embeddings for commit")

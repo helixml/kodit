@@ -65,8 +65,8 @@ class SqlAlchemyEmbeddingRepository:
         embedding_type: EmbeddingType,
         embedding: list[float],
         top_k: int = 10,
-        snippet_ids: list[int] | None = None,
-    ) -> list[tuple[int, float]]:
+        snippet_ids: list[str] | None = None,
+    ) -> list[tuple[str, float]]:
         """List semantic results using cosine similarity.
 
         This implementation fetches all embeddings of the given type and computes
@@ -97,8 +97,8 @@ class SqlAlchemyEmbeddingRepository:
         return self._get_top_k_results(similarities, embeddings, top_k)
 
     async def _list_embedding_values(
-        self, embedding_type: EmbeddingType, snippet_ids: list[int] | None = None
-    ) -> list[tuple[int, list[float]]]:
+        self, embedding_type: EmbeddingType, snippet_ids: list[str] | None = None
+    ) -> list[tuple[str, list[float]]]:
         """List all embeddings of a given type from the database.
 
         Args:
@@ -122,7 +122,7 @@ class SqlAlchemyEmbeddingRepository:
             return [tuple(row) for row in rows.all()]  # Convert Row objects to tuples
 
     def _prepare_vectors(
-        self, embeddings: list[tuple[int, list[float]]], query_embedding: list[float]
+        self, embeddings: list[tuple[str, list[float]]], query_embedding: list[float]
     ) -> tuple[np.ndarray, np.ndarray]:
         """Convert embeddings to numpy arrays.
 
@@ -191,9 +191,9 @@ class SqlAlchemyEmbeddingRepository:
     def _get_top_k_results(
         self,
         similarities: np.ndarray,
-        embeddings: list[tuple[int, list[float]]],
+        embeddings: list[tuple[str, list[float]]],
         top_k: int,
-    ) -> list[tuple[int, float]]:
+    ) -> list[tuple[str, float]]:
         """Get top-k results by similarity score.
 
         Args:

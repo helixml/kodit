@@ -1,19 +1,16 @@
 """Service for scheduling periodic sync operations."""
 
 import asyncio
-from collections.abc import Callable
 from contextlib import suppress
 
 import structlog
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.application.services.queue_service import QueueService
-from kodit.domain.entities import Task
-from kodit.domain.services.index_query_service import IndexQueryService
-from kodit.domain.value_objects import QueuePriority, TaskOperation
-from kodit.infrastructure.indexing.fusion_service import ReciprocalRankFusionService
-from kodit.infrastructure.sqlalchemy.index_repository import create_index_repository
-from kodit.infrastructure.sqlalchemy.snippet_repository import create_snippet_repository
+from kodit.domain.protocols import GitRepoRepository
+from kodit.domain.value_objects import (
+    PrescribedOperations,
+    QueuePriority,
+)
 
 
 class SyncSchedulerService:
@@ -21,10 +18,12 @@ class SyncSchedulerService:
 
     def __init__(
         self,
-        session_factory: Callable[[], AsyncSession],
+        queue_service: QueueService,
+        repo_repository: GitRepoRepository,
     ) -> None:
         """Initialize the sync scheduler service."""
-        self.session_factory = session_factory
+        self.queue_service = queue_service
+        self.repo_repository = repo_repository
         self.log = structlog.get_logger(__name__)
         self._sync_task: asyncio.Task | None = None
         self._shutdown_event = asyncio.Event()
@@ -68,57 +67,12 @@ class SyncSchedulerService:
         """Perform a sync operation on all indexes."""
         self.log.info("Starting sync operation")
 
-        # Create services
-        queue_service = QueueService(session_factory=self.session_factory)
-        index_query_service = IndexQueryService(
-            index_repository=create_index_repository(
-                session_factory=self.session_factory
-            ),
-            snippet_repository=create_snippet_repository(
-                session_factory=self.session_factory
-            ),
-            fusion_service=ReciprocalRankFusionService(),
-        )
-
-        # Get all existing indexes
-        all_indexes = await index_query_service.list_indexes()
-
-        if not all_indexes:
-            self.log.info("No indexes found to sync")
-            return
-
-        self.log.info("Adding sync tasks to queue", count=len(all_indexes))
-
         # Sync each index - queue all 5 tasks with priority ordering
-        for index in all_indexes:
-            base = QueuePriority.BACKGROUND
-            # Queue tasks with descending priority to ensure execution order
-            await queue_service.enqueue_task(
-                Task.create(
-                    TaskOperation.REFRESH_WORKING_COPY,
-                    base + 40,
-                    {"index_id": index.id},
-                )
-            )
-            await queue_service.enqueue_task(
-                Task.create(
-                    TaskOperation.EXTRACT_SNIPPETS, base + 30, {"index_id": index.id}
-                )
-            )
-            await queue_service.enqueue_task(
-                Task.create(
-                    TaskOperation.CREATE_BM25_INDEX, base + 20, {"index_id": index.id}
-                )
-            )
-            await queue_service.enqueue_task(
-                Task.create(
-                    TaskOperation.CREATE_CODE_EMBEDDINGS,
-                    base + 10,
-                    {"index_id": index.id},
-                )
-            )
-            await queue_service.enqueue_task(
-                Task.create(TaskOperation.ENRICH_SNIPPETS, base, {"index_id": index.id})
+        for repo in await self.repo_repository.get_all():
+            await self.queue_service.enqueue_tasks(
+                tasks=PrescribedOperations.SYNC_REPOSITORY,
+                base_priority=QueuePriority.BACKGROUND,
+                payload={"repository_id": repo.id},
             )
 
         self.log.info("Sync operation completed")

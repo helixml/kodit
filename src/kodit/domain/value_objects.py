@@ -152,7 +152,7 @@ class SearchType(Enum):
 class Document:
     """Generic document model for indexing."""
 
-    snippet_id: int
+    snippet_id: str
     text: str
 
 
@@ -160,7 +160,7 @@ class Document:
 class DocumentSearchResult:
     """Generic document search result model."""
 
-    snippet_id: int
+    snippet_id: str
     score: float
 
 
@@ -430,7 +430,7 @@ class EmbeddingRequest:
 class EmbeddingResponse:
     """Domain model for embedding response."""
 
-    snippet_id: int
+    snippet_id: str
     embedding: list[float]
 
 
@@ -438,7 +438,7 @@ class EmbeddingResponse:
 class EnrichmentRequest:
     """Domain model for enrichment request."""
 
-    snippet_id: int
+    snippet_id: str
     text: str
 
 
@@ -446,7 +446,7 @@ class EnrichmentRequest:
 class EnrichmentResponse:
     """Domain model for enrichment response."""
 
-    snippet_id: int
+    snippet_id: str
     text: str
 
 
@@ -721,6 +721,9 @@ class TaskOperation(StrEnum):
     SCAN_REPOSITORY = "kodit.repository.scan"
     EXTRACT_SNIPPETS_FOR_COMMIT = "kodit.commit.extract_snippets"
     CREATE_BM25_INDEX_FOR_COMMIT = "kodit.commit.create_bm25_index"
+    CREATE_CODE_EMBEDDINGS_FOR_COMMIT = "kodit.commit.create_code_embeddings"
+    CREATE_SUMMARY_ENRICHMENT_FOR_COMMIT = "kodit.commit.create_summary_enrichment"
+    CREATE_SUMMARY_EMBEDDINGS_FOR_COMMIT = "kodit.commit.create_summary_embeddings"
 
     def is_repository_operation(self) -> bool:
         """Check if the task operation is a repository operation."""
@@ -741,6 +744,12 @@ class PrescribedOperations:
     INDEX_COMMIT: ClassVar[list[TaskOperation]] = [
         TaskOperation.EXTRACT_SNIPPETS_FOR_COMMIT,
         TaskOperation.CREATE_BM25_INDEX_FOR_COMMIT,
+        TaskOperation.CREATE_CODE_EMBEDDINGS_FOR_COMMIT,
+        TaskOperation.CREATE_SUMMARY_ENRICHMENT_FOR_COMMIT,
+        TaskOperation.CREATE_SUMMARY_EMBEDDINGS_FOR_COMMIT,
+    ]
+    SYNC_REPOSITORY: ClassVar[list[TaskOperation]] = [
+        TaskOperation.SCAN_REPOSITORY,
     ]
 
 

@@ -3,7 +3,6 @@
 from fastapi import APIRouter
 
 from kodit.domain.value_objects import MultiSearchRequest, SnippetSearchFilters
-from kodit.infrastructure.api.v1.dependencies import SearchAppServiceDep
 from kodit.infrastructure.api.v1.schemas.search import (
     SearchRequest,
     SearchResponse,
@@ -17,7 +16,6 @@ router = APIRouter(tags=["search"])
 @router.post("/api/v1/search")
 async def search_snippets(
     request: SearchRequest,
-    app_service: SearchAppServiceDep,
 ) -> SearchResponse:
     """Search code snippets with filters matching MCP tool."""
     # Convert API request to domain request
@@ -47,6 +45,7 @@ async def search_snippets(
         else None,
     )
 
+    raise NotImplementedError("Not implemented")
     # Execute search using application service
     results = await app_service.search(domain_request)
 

@@ -8,30 +8,12 @@ from typing import Any
 import click
 import structlog
 import uvicorn
-from pytable_formatter import Cell, Table  # type: ignore[import-untyped]
 
-from kodit.application.factories.code_indexing_factory import (
-    create_cli_code_indexing_application_service,
-)
-from kodit.application.factories.code_search_factory import (
-    create_cli_code_search_application_service,
-)
 from kodit.config import (
     AppContext,
     with_app_context,
     wrap_async,
 )
-from kodit.domain.errors import EmptySourceError
-from kodit.domain.services.index_query_service import IndexQueryService
-from kodit.domain.value_objects import (
-    MultiSearchRequest,
-    MultiSearchResult,
-    SnippetSearchFilters,
-)
-from kodit.infrastructure.api.client import IndexClient, SearchClient
-from kodit.infrastructure.indexing.fusion_service import ReciprocalRankFusionService
-from kodit.infrastructure.sqlalchemy.index_repository import create_index_repository
-from kodit.infrastructure.sqlalchemy.snippet_repository import create_snippet_repository
 from kodit.log import configure_logging, configure_telemetry, log_event
 from kodit.mcp import create_stdio_mcp_server
 
@@ -65,78 +47,6 @@ def cli(
     ctx.obj = config
 
 
-async def _handle_sync(
-    service: Any,
-    index_query_service: IndexQueryService,
-    sources: list[str],
-) -> None:
-    """Handle sync operation."""
-    log = structlog.get_logger(__name__)
-    log_event("kodit.cli.index.sync")
-
-    # Get all existing indexes
-    all_indexes = await index_query_service.list_indexes()
-
-    if not all_indexes:
-        click.echo("No existing indexes found to sync.")
-        return
-
-    # Filter indexes if specific sources are provided
-    indexes_to_sync = all_indexes
-    if sources:
-        # Filter indexes that match the provided sources
-        source_uris = set(sources)
-        indexes_to_sync = [
-            index
-            for index in all_indexes
-            if str(index.source.working_copy.remote_uri) in source_uris
-        ]
-
-        if not indexes_to_sync:
-            click.echo(
-                f"No indexes found for the specified sources: {', '.join(sources)}"
-            )
-            return
-
-    click.echo(f"Syncing {len(indexes_to_sync)} indexes...")
-
-    # Sync each index
-    for index in indexes_to_sync:
-        click.echo(f"Syncing: {index.source.working_copy.remote_uri}")
-
-        try:
-            await service.queue_index_tasks(index.id, is_user_initiated=True)
-            click.echo(f"✓ Sync tasks queued: {index.source.working_copy.remote_uri}")
-        except Exception as e:
-            log.exception("Sync failed", index_id=index.id, error=e)
-            click.echo(f"✗ Sync failed: {index.source.working_copy.remote_uri} - {e}")
-
-
-async def _handle_list_indexes(index_query_service: IndexQueryService) -> None:
-    """Handle listing all indexes."""
-    log_event("kodit.cli.index.list")
-    # No source specified, list all indexes
-    indexes = await index_query_service.list_indexes()
-    headers: list[str | Cell] = [
-        "ID",
-        "Created At",
-        "Updated At",
-        "Source",
-        "Num Snippets",
-    ]
-    data = [
-        [
-            index.id,
-            index.created_at,
-            index.updated_at,
-            index.source.working_copy.remote_uri,
-            len(index.source.working_copy.files),
-        ]
-        for index in indexes
-    ]
-    click.echo(Table(headers=headers, data=data))
-
-
 @cli.command()
 @click.argument("sources", nargs=-1)
 @click.option("--sync", is_flag=True, help="Sync existing indexes with their remotes")
@@ -149,329 +59,12 @@ async def index(
     sync: bool,
 ) -> None:
     """List indexes, index data sources, or sync existing indexes."""
-    if not app_context.is_remote:
-        # Local mode - use existing implementation
-        await _index_local(app_context, sources, sync)
-    else:
-        # Remote mode - use API clients
-        await _index_remote(app_context, sources, sync)
-
-
-async def _index_local(
-    app_context: AppContext,
-    sources: list[str],
-    sync: bool,  # noqa: FBT001
-) -> None:
-    """Handle index operations in local mode."""
-    log = structlog.get_logger(__name__)
-
-    # Get database session
-    db = await app_context.get_db()
-    service = create_cli_code_indexing_application_service(
-        app_context=app_context,
-        session_factory=db.session_factory,
-    )
-    index_query_service = IndexQueryService(
-        index_repository=create_index_repository(session_factory=db.session_factory),
-        snippet_repository=create_snippet_repository(
-            session_factory=db.session_factory
-        ),
-        fusion_service=ReciprocalRankFusionService(),
-    )
-
-    if sync:
-        await _handle_sync(service, index_query_service, sources)
-        return
-
-    if not sources:
-        await _handle_list_indexes(index_query_service)
-        return
-
-    # Handle source indexing
-    for source in sources:
-        try:
-            index = await service.create_index_from_uri(source)
-            await service.run_index_tasks_sync(index)
-
-        except EmptySourceError as e:
-            log.exception("Empty source error", error=e)
-            msg = f"""{e}. This could mean:
-• The repository contains no supported file types
-• All files are excluded by ignore patterns
-• The files contain no extractable code snippets
-Please check the repository contents and try again.
-"""
-            click.echo(msg)
-
-
-async def _index_remote(
-    app_context: AppContext,
-    sources: list[str],
-    sync: bool,  # noqa: FBT001
-) -> None:
-    """Handle index operations in remote mode."""
-    if sync:
-        # Sync operation not available in remote mode
-        click.echo("⚠️  Warning: Index sync is not implemented in remote mode")
-        click.echo("Please use the server's auto-sync functionality or sync locally")
-        return
-
-    # Create API client
-    index_client = IndexClient(
-        base_url=app_context.remote.server_url or "",
-        api_key=app_context.remote.api_key,
-        timeout=app_context.remote.timeout,
-        max_retries=app_context.remote.max_retries,
-        verify_ssl=app_context.remote.verify_ssl,
-    )
-
-    try:
-        if not sources:
-            # List indexes
-            indexes = await index_client.list_indexes()
-            _display_indexes_remote(indexes)
-            return
-
-        # Create new indexes
-        for source in sources:
-            click.echo(f"Creating index for: {source}")
-            index = await index_client.create_index(source)
-            click.echo(f"✓ Index created with ID: {index.id}")
-
-    finally:
-        await index_client.close()
-
-
-def _display_indexes_remote(indexes: list[Any]) -> None:
-    """Display indexes for remote mode."""
-    headers = [
-        "ID",
-        "Created At",
-        "Updated At",
-        "Source",
-    ]
-    data = [
-        [
-            index.id,
-            index.attributes.created_at,
-            index.attributes.updated_at,
-            index.attributes.uri,
-        ]
-        for index in indexes
-    ]
-
-    click.echo(Table(headers=headers, data=data))
-
-
-async def _search_local(  # noqa: PLR0913
-    app_context: AppContext,
-    keywords: list[str] | None = None,
-    code_query: str | None = None,
-    text_query: str | None = None,
-    top_k: int = 10,
-    language: str | None = None,
-    author: str | None = None,
-    created_after: str | None = None,
-    created_before: str | None = None,
-    source_repo: str | None = None,
-    output_format: str = "text",
-    event_name: str = "kodit.cli.search",
-) -> None:
-    """Handle search operations in local mode."""
-    log_event(event_name)
-
-    # Get database session
-    db = await app_context.get_db()
-    service = create_cli_code_search_application_service(
-        app_context=app_context,
-        session_factory=db.session_factory,
-    )
-
-    filters = _parse_filters(
-        language, author, created_after, created_before, source_repo
-    )
-
-    snippets = await service.search(
-        MultiSearchRequest(
-            keywords=keywords,
-            code_query=code_query,
-            text_query=text_query,
-            top_k=top_k,
-            filters=filters,
-        )
-    )
-
-    if len(snippets) == 0:
-        click.echo("No snippets found")
-        return
-
-    if output_format == "text":
-        click.echo(MultiSearchResult.to_string(snippets))
-    elif output_format == "json":
-        click.echo(MultiSearchResult.to_jsonlines(snippets))
-
-
-async def _search_remote(  # noqa: PLR0913
-    app_context: AppContext,
-    keywords: list[str] | None = None,
-    code_query: str | None = None,
-    text_query: str | None = None,
-    top_k: int = 10,
-    language: str | None = None,
-    author: str | None = None,
-    created_after: str | None = None,
-    created_before: str | None = None,
-    source_repo: str | None = None,
-    output_format: str = "text",
-) -> None:
-    """Handle search operations in remote mode."""
-    from datetime import datetime
-
-    # Parse date filters for API
-    parsed_start_date = None
-    if created_after:
-        try:
-            parsed_start_date = datetime.fromisoformat(created_after)
-        except ValueError as err:
-            raise ValueError(
-                f"Invalid date format for --created-after: {created_after}. "
-                "Expected ISO 8601 format (YYYY-MM-DD)"
-            ) from err
-
-    parsed_end_date = None
-    if created_before:
-        try:
-            parsed_end_date = datetime.fromisoformat(created_before)
-        except ValueError as err:
-            raise ValueError(
-                f"Invalid date format for --created-before: {created_before}. "
-                "Expected ISO 8601 format (YYYY-MM-DD)"
-            ) from err
-
-    # Create API client
-    search_client = SearchClient(
-        base_url=app_context.remote.server_url or "",
-        api_key=app_context.remote.api_key,
-        timeout=app_context.remote.timeout,
-        max_retries=app_context.remote.max_retries,
-        verify_ssl=app_context.remote.verify_ssl,
-    )
-
-    try:
-        # Perform search
-        snippets = await search_client.search(
-            keywords=keywords,
-            code_query=code_query,
-            text_query=text_query,
-            limit=top_k,
-            languages=[language] if language else None,
-            authors=[author] if author else None,
-            start_date=parsed_start_date,
-            end_date=parsed_end_date,
-            sources=[source_repo] if source_repo else None,
-        )
-
-        if len(snippets) == 0:
-            click.echo("No snippets found")
-            return
-
-        if output_format == "text":
-            _display_snippets_remote_text(snippets)
-        elif output_format == "json":
-            _display_snippets_remote_json(snippets)
-
-    finally:
-        await search_client.close()
-
-
-def _display_snippets_remote_text(snippets: list[Any]) -> None:
-    """Display snippets in text format for remote mode."""
-    for i, snippet in enumerate(snippets):
-        click.echo(f"\n--- Snippet {i + 1} ---")
-        click.echo(f"ID: {snippet.id}")
-        click.echo(f"Language: {snippet.attributes.language}")
-        click.echo(f"Source: {snippet.attributes.source_uri}")
-        click.echo(f"Path: {snippet.attributes.relative_path}")
-        click.echo(f"Authors: {', '.join(snippet.attributes.authors)}")
-        click.echo(f"Summary: {snippet.attributes.summary}")
-        click.echo("\nContent:")
-        click.echo(snippet.attributes.content)
-
-
-def _display_snippets_remote_json(snippets: list[Any]) -> None:
-    """Display snippets in JSON format for remote mode."""
-    import json
-
-    for snippet in snippets:
-        snippet_data = {
-            "id": snippet.id,
-            "language": snippet.attributes.language,
-            "source_uri": snippet.attributes.source_uri,
-            "relative_path": snippet.attributes.relative_path,
-            "authors": snippet.attributes.authors,
-            "summary": snippet.attributes.summary,
-            "content": snippet.attributes.content,
-            "created_at": snippet.attributes.created_at.isoformat(),
-            "updated_at": snippet.attributes.updated_at.isoformat(),
-        }
-        click.echo(json.dumps(snippet_data))
+    click.echo("Not implemented")
 
 
 @cli.group()
 def search() -> None:
     """Search for snippets in the database."""
-
-
-# Utility for robust filter parsing
-def _parse_filters(
-    language: str | None,
-    author: str | None,
-    created_after: str | None,
-    created_before: str | None,
-    source_repo: str | None,
-) -> SnippetSearchFilters | None:
-    from datetime import datetime
-
-    # Normalize language to lowercase if provided
-    norm_language = language.lower() if language else None
-    # Try to parse dates, raise error if invalid
-    parsed_created_after = None
-    if created_after:
-        try:
-            parsed_created_after = datetime.fromisoformat(created_after)
-        except ValueError as err:
-            raise ValueError(
-                f"Invalid date format for --created-after: {created_after}. "
-                "Expected ISO 8601 format (YYYY-MM-DD)"
-            ) from err
-    parsed_created_before = None
-    if created_before:
-        try:
-            parsed_created_before = datetime.fromisoformat(created_before)
-        except ValueError as err:
-            raise ValueError(
-                f"Invalid date format for --created-before: {created_before}. "
-                "Expected ISO 8601 format (YYYY-MM-DD)"
-            ) from err
-    # Return None if no filters provided, otherwise return SnippetSearchFilters
-    # Check if any original parameters were provided (not just the parsed values)
-    if any(
-        [
-            language,
-            author,
-            created_after,
-            created_before,
-            source_repo,
-        ]
-    ):
-        return SnippetSearchFilters(
-            language=norm_language,
-            author=author,
-            created_after=parsed_created_after,
-            created_before=parsed_created_before,
-            source_repo=source_repo,
-        )
-    return None
 
 
 @search.command()
@@ -508,31 +101,7 @@ async def code(  # noqa: PLR0913
 
     This works best if your query is code.
     """
-    if not app_context.is_remote:
-        await _search_local(
-            app_context,
-            code_query=query,
-            top_k=top_k,
-            language=language,
-            author=author,
-            created_after=created_after,
-            created_before=created_before,
-            source_repo=source_repo,
-            output_format=output_format,
-            event_name="kodit.cli.search.code",
-        )
-    else:
-        await _search_remote(
-            app_context,
-            code_query=query,
-            top_k=top_k,
-            language=language,
-            author=author,
-            created_after=created_after,
-            created_before=created_before,
-            source_repo=source_repo,
-            output_format=output_format,
-        )
+    click.echo("Not implemented")
 
 
 @search.command()
@@ -566,32 +135,7 @@ async def keyword(  # noqa: PLR0913
     output_format: str,
 ) -> None:
     """Search for snippets using keyword search."""
-    # Override remote configuration if provided via CLI
-    if not app_context.is_remote:
-        await _search_local(
-            app_context,
-            keywords=keywords,
-            top_k=top_k,
-            language=language,
-            author=author,
-            created_after=created_after,
-            created_before=created_before,
-            source_repo=source_repo,
-            output_format=output_format,
-            event_name="kodit.cli.search.keyword",
-        )
-    else:
-        await _search_remote(
-            app_context,
-            keywords=keywords,
-            top_k=top_k,
-            language=language,
-            author=author,
-            created_after=created_after,
-            created_before=created_before,
-            source_repo=source_repo,
-            output_format=output_format,
-        )
+    click.echo("Not implemented")
 
 
 @search.command()
@@ -628,31 +172,7 @@ async def text(  # noqa: PLR0913
 
     This works best if your query is text.
     """
-    if not app_context.is_remote:
-        await _search_local(
-            app_context,
-            text_query=query,
-            top_k=top_k,
-            language=language,
-            author=author,
-            created_after=created_after,
-            created_before=created_before,
-            source_repo=source_repo,
-            output_format=output_format,
-            event_name="kodit.cli.search.text",
-        )
-    else:
-        await _search_remote(
-            app_context,
-            text_query=query,
-            top_k=top_k,
-            language=language,
-            author=author,
-            created_after=created_after,
-            created_before=created_before,
-            source_repo=source_repo,
-            output_format=output_format,
-        )
+    click.echo("Not implemented")
 
 
 @search.command()
@@ -690,38 +210,7 @@ async def hybrid(  # noqa: PLR0913
     output_format: str,
 ) -> None:
     """Search for snippets using hybrid search."""
-    # Parse keywords into a list of strings
-    keywords_list = [k.strip().lower() for k in keywords.split(",")]
-
-    if not app_context.is_remote:
-        await _search_local(
-            app_context,
-            keywords=keywords_list,
-            code_query=code,
-            text_query=text,
-            top_k=top_k,
-            language=language,
-            author=author,
-            created_after=created_after,
-            created_before=created_before,
-            source_repo=source_repo,
-            output_format=output_format,
-            event_name="kodit.cli.search.hybrid",
-        )
-    else:
-        await _search_remote(
-            app_context,
-            keywords=keywords_list,
-            code_query=code,
-            text_query=text,
-            top_k=top_k,
-            language=language,
-            author=author,
-            created_after=created_after,
-            created_before=created_before,
-            source_repo=source_repo,
-            output_format=output_format,
-        )
+    click.echo("Not implemented")
 
 
 @cli.group()
@@ -742,27 +231,7 @@ async def snippets(
     output_format: str,
 ) -> None:
     """Show snippets with optional filtering by path or source."""
-    if not app_context.is_remote:
-        # Local mode
-        log_event("kodit.cli.show.snippets")
-        db = await app_context.get_db()
-        service = create_cli_code_indexing_application_service(
-            app_context=app_context,
-            session_factory=db.session_factory,
-        )
-        snippets = await service.list_snippets(file_path=by_path, source_uri=by_source)
-        if output_format == "text":
-            click.echo(MultiSearchResult.to_string(snippets))
-        elif output_format == "json":
-            click.echo(MultiSearchResult.to_jsonlines(snippets))
-    else:
-        # Remote mode - not supported
-        click.echo("⚠️  Warning: 'show snippets' is not implemented in remote mode")
-        click.echo(
-            "This functionality is only available when connected directly "
-            "to the database"
-        )
-        click.echo("Use 'kodit search' commands instead for remote snippet retrieval")
+    click.echo("Not implemented")
 
 
 @cli.command()

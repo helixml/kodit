@@ -12,9 +12,6 @@ from pydantic import Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit._version import version
-from kodit.application.factories.code_search_factory import (
-    create_server_code_search_application_service,
-)
 from kodit.config import AppContext
 from kodit.database import Database
 from kodit.domain.value_objects import (
@@ -174,6 +171,8 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:
         )
 
         mcp_context: MCPContext = ctx.request_context.lifespan_context
+
+        raise NotImplementedError("Not implemented")
 
         # Use the unified application service
         service = create_server_code_search_application_service(

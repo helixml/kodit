@@ -2,7 +2,6 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from kodit.domain.value_objects import PrescribedOperations, QueuePriority
 from kodit.infrastructure.api.middleware.auth import api_key_auth
 from kodit.infrastructure.api.v1.dependencies import (
     CommitIndexingAppServiceDep,
@@ -61,11 +60,6 @@ async def create_repository(
         remote_uri = request.data.attributes.remote_uri
 
         repo = await service.create_git_repository(remote_uri)
-        await service.queue_repository_tasks(
-            repo.id,
-            PrescribedOperations.CREATE_NEW_REPOSITORY,
-            QueuePriority.USER_INITIATED,
-        )
 
         return RepositoryResponse(data=RepositoryData.from_git_repo(repo))
     except ValueError as e:

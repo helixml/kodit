@@ -7,7 +7,7 @@ from pathlib import Path
 
 from pydantic import AnyUrl, BaseModel
 
-from kodit.domain.entities import Snippet, WorkingCopy
+from kodit.domain.entities import WorkingCopy
 from kodit.domain.value_objects import Enrichment, IndexStatus
 from kodit.utils.path_utils import repo_id_from_uri
 
@@ -192,21 +192,6 @@ class SnippetV2(BaseModel):
     def id(self) -> str:
         """Get the unique id for a snippet."""
         return self.sha
-
-    @staticmethod
-    def from_snippet_v1(snippet: Snippet, derives_from: list[GitFile]) -> "SnippetV2":
-        """Create a SnippetV2 from a SnippetV1."""
-        extension = next(
-            (file.extension for file in derives_from if file.extension), "unknown"
-        )
-        return SnippetV2(
-            sha=SnippetV2.compute_sha(
-                snippet.original_content.value if snippet.original_content else ""
-            ),
-            derives_from=derives_from,
-            content=snippet.original_content.value if snippet.original_content else "",
-            extension=extension,
-        )
 
     @staticmethod
     def compute_sha(content: str) -> str:

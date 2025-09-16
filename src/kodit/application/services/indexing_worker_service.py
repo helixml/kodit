@@ -104,16 +104,8 @@ class IndexingWorkerService:
         asyncio.set_event_loop(loop)
 
         try:
-            if "index_id" in task.payload:
-                code_service = self.server_factory.code_indexing_application_service()
-                await code_service.run_task(task)
-            elif task.type.is_repository_operation() or task.type.is_commit_operation():
-                commit_service = (
-                    self.server_factory.commit_indexing_application_service()
-                )
-                await commit_service.run_task(task)
-            else:
-                raise ValueError(f"Unknown task type: {task.type}")
+            commit_service = self.server_factory.commit_indexing_application_service()
+            await commit_service.run_task(task)
         finally:
             loop.close()
 
