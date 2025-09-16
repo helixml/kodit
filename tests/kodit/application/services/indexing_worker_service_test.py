@@ -4,7 +4,7 @@ import asyncio
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from pydantic import AnyUrl
@@ -100,25 +100,17 @@ async def test_worker_processes_task(
     server_factory.commit_indexing_application_service.return_value = mock_service
     worker = IndexingWorkerService(app_context, session_factory, server_factory)
 
-    # Mock the indexing service
-    with patch(
-        "kodit.application.factories.code_indexing_factory.create_code_indexing_application_service"
-    ) as mock_create_service:
-        mock_service = AsyncMock()
-        mock_service.run_task = AsyncMock()
-        mock_create_service.return_value = mock_service
+    # Start the worker
+    await worker.start()
 
-        # Start the worker
-        await worker.start()
+    # Give the worker time to process the task
+    await asyncio.sleep(0.1)
 
-        # Give the worker time to process the task
-        await asyncio.sleep(0.1)
+    # Stop the worker
+    await worker.stop()
 
-        # Stop the worker
-        await worker.stop()
-
-        # Verify the task was processed
-        mock_service.run_task.assert_called()
+    # Verify the task was processed
+    mock_service.run_task.assert_called()
 
 
 @pytest.mark.asyncio
@@ -145,24 +137,16 @@ async def test_worker_handles_missing_index(
     server_factory.commit_indexing_application_service.return_value = mock_service
     worker = IndexingWorkerService(app_context, session_factory, server_factory)
 
-    # Mock the indexing service
-    with patch(
-        "kodit.application.services.indexing_worker_service.create_code_indexing_application_service"
-    ) as mock_create_service:
-        mock_service = AsyncMock()
-        mock_service.index_repository.get.return_value = None  # Index not found
-        mock_create_service.return_value = mock_service
+    # Start the worker
+    await worker.start()
 
-        # Start the worker
-        await worker.start()
+    # Give the worker time to process the task
+    await asyncio.sleep(0.1)
 
-        # Give the worker time to process the task
-        await asyncio.sleep(0.1)
+    # Stop the worker
+    await worker.stop()
 
-        # Stop the worker
-        await worker.stop()
-
-        # Worker should have handled the error and continued
+    # Worker should have handled the error and continued
 
 
 @pytest.mark.asyncio
@@ -221,11 +205,15 @@ async def test_worker_processes_multiple_tasks_sequentially(
         tasks.append(task)
         await queue_service.enqueue_task(task)
 
-    # Create worker service
+    async def mock_run_task(task: Task) -> None:
+        index_id = task.payload["index_id"]
+        processed_tasks.append(index_id)
+        # No sleep needed for testing
+
     # Create worker service with mocked server factory
     server_factory = MagicMock(spec=ServerFactory)
     mock_service = AsyncMock()
-    mock_service.run_task = AsyncMock()
+    mock_service.run_task = AsyncMock(side_effect=mock_run_task)
     server_factory.code_indexing_application_service.return_value = mock_service
     server_factory.commit_indexing_application_service.return_value = mock_service
     worker = IndexingWorkerService(app_context, session_factory, server_factory)
@@ -233,35 +221,20 @@ async def test_worker_processes_multiple_tasks_sequentially(
     # Track processing order
     processed_tasks = []
 
-    async def mock_run_task(task: Task) -> None:
-        index_id = task.payload["index_id"]
-        processed_tasks.append(index_id)
-        # No sleep needed for testing
+    # Start the worker
+    await worker.start()
 
-    # Mock the indexing service
-    with patch(
-        "kodit.application.services.indexing_worker_service.create_code_indexing_application_service"
-    ) as mock_create_service:
-        mock_service = AsyncMock()
+    # Wait for all tasks to be processed
+    for _ in range(30):  # Wait up to 3 seconds
+        if len(processed_tasks) >= 3:
+            break
+        await asyncio.sleep(0.1)
 
-        # Mock doesn't need index repository since run_task takes task directly
-        mock_service.run_task = AsyncMock(side_effect=mock_run_task)
-        mock_create_service.return_value = mock_service
+    # Stop the worker
+    await worker.stop()
 
-        # Start the worker
-        await worker.start()
-
-        # Wait for all tasks to be processed
-        for _ in range(30):  # Wait up to 3 seconds
-            if len(processed_tasks) >= 3:
-                break
-            await asyncio.sleep(0.1)
-
-        # Stop the worker
-        await worker.stop()
-
-        # Verify all tasks were processed
-        assert len(processed_tasks) == 3
+    # Verify all tasks were processed
+    assert len(processed_tasks) == 3
 
 
 @pytest.mark.asyncio
@@ -322,18 +295,6 @@ async def test_worker_continues_after_error(
     )
     await queue_service.enqueue_task(task3)
 
-    # Create worker service
-    # Create worker service with mocked server factory
-    server_factory = MagicMock(spec=ServerFactory)
-    mock_service = AsyncMock()
-    mock_service.run_task = AsyncMock()
-    server_factory.code_indexing_application_service.return_value = mock_service
-    server_factory.commit_indexing_application_service.return_value = mock_service
-    worker = IndexingWorkerService(app_context, session_factory, server_factory)
-
-    # Track processed tasks
-    processed_ids = []
-
     async def mock_run_task(task: Task) -> None:
         index_id = task.payload["index_id"]
         if index_id == 2:
@@ -344,33 +305,34 @@ async def test_worker_continues_after_error(
             raise TestError("Test error")
         processed_ids.append(index_id)
 
-    # Mock the indexing service
-    with patch(
-        "kodit.application.services.indexing_worker_service.create_code_indexing_application_service"
-    ) as mock_create_service:
-        mock_service = AsyncMock()
+    # Create worker service with mocked server factory
+    server_factory = MagicMock(spec=ServerFactory)
+    mock_service = AsyncMock()
+    mock_service.run_task = AsyncMock(side_effect=mock_run_task)
+    server_factory.code_indexing_application_service.return_value = mock_service
+    server_factory.commit_indexing_application_service.return_value = mock_service
+    worker = IndexingWorkerService(app_context, session_factory, server_factory)
 
-        # Mock doesn't need index repository since run_task takes task directly
-        mock_service.run_task = AsyncMock(side_effect=mock_run_task)
-        mock_create_service.return_value = mock_service
+    # Track processed tasks
+    processed_ids = []
 
-        # Start the worker
-        await worker.start()
+    # Start the worker
+    await worker.start()
 
-        # Wait for tasks to be processed (may include failures)
-        for _ in range(50):  # Wait up to 5 seconds
-            # We expect tasks 1 and 3 to be processed, but not 2
-            if len(processed_ids) >= 2:
-                break
-            await asyncio.sleep(0.1)
+    # Wait for tasks to be processed (may include failures)
+    for _ in range(50):  # Wait up to 5 seconds
+        # We expect tasks 1 and 3 to be processed, but not 2
+        if len(processed_ids) >= 2:
+            break
+        await asyncio.sleep(0.1)
 
-        # Stop the worker
-        await worker.stop()
+    # Stop the worker
+    await worker.stop()
 
-        # Verify tasks 1 and 3 were processed despite task 2 failing
-        assert 1 in processed_ids
-        assert 3 in processed_ids
-        assert 2 not in processed_ids  # This one failed
+    # Verify tasks 1 and 3 were processed despite task 2 failing
+    assert 1 in processed_ids
+    assert 3 in processed_ids
+    assert 2 not in processed_ids  # This one failed
 
 
 @pytest.mark.asyncio
@@ -395,11 +357,14 @@ async def test_worker_respects_task_priority(
     await queue_service.enqueue_task(background_task)
     await queue_service.enqueue_task(user_task)
 
-    # Create worker service
+    async def mock_run_task(task: Task) -> None:
+        index_id = task.payload["index_id"]
+        processed_order.append(index_id)
+
     # Create worker service with mocked server factory
     server_factory = MagicMock(spec=ServerFactory)
     mock_service = AsyncMock()
-    mock_service.run_task = AsyncMock()
+    mock_service.run_task = AsyncMock(side_effect=mock_run_task)
     server_factory.code_indexing_application_service.return_value = mock_service
     server_factory.commit_indexing_application_service.return_value = mock_service
     worker = IndexingWorkerService(app_context, session_factory, server_factory)
@@ -407,35 +372,21 @@ async def test_worker_respects_task_priority(
     # Track processing order
     processed_order = []
 
-    async def mock_run_task(task: Task) -> None:
-        index_id = task.payload["index_id"]
-        processed_order.append(index_id)
+    # Start the worker
+    await worker.start()
 
-    # Mock the indexing service
-    with patch(
-        "kodit.application.services.indexing_worker_service.create_code_indexing_application_service"
-    ) as mock_create_service:
-        mock_service = AsyncMock()
+    # Wait for tasks to be processed
+    for _ in range(50):  # Wait up to 5 seconds
+        if len(processed_order) == 2:
+            break
+        await asyncio.sleep(0.1)
 
-        # Mock doesn't need index repository since run_task takes task directly
-        mock_service.run_task = AsyncMock(side_effect=mock_run_task)
-        mock_create_service.return_value = mock_service
+    # Stop the worker
+    await worker.stop()
 
-        # Start the worker
-        await worker.start()
+    # Verify both tasks were processed
+    assert len(processed_order) == 2
 
-        # Wait for tasks to be processed
-        for _ in range(50):  # Wait up to 5 seconds
-            if len(processed_order) == 2:
-                break
-            await asyncio.sleep(0.1)
-
-        # Stop the worker
-        await worker.stop()
-
-        # Verify both tasks were processed
-        assert len(processed_order) == 2
-
-        # Verify the task with the highest priority was processed first
-        assert processed_order[0] == 2
-        assert processed_order[1] == 1
+    # Verify the task with the highest priority was processed first
+    assert processed_order[0] == 2
+    assert processed_order[1] == 1
