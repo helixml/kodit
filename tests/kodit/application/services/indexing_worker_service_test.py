@@ -205,6 +205,9 @@ async def test_worker_processes_multiple_tasks_sequentially(
         tasks.append(task)
         await queue_service.enqueue_task(task)
 
+    # Track processing order
+    processed_tasks = []
+
     async def mock_run_task(task: Task) -> None:
         index_id = task.payload["index_id"]
         processed_tasks.append(index_id)
@@ -217,9 +220,6 @@ async def test_worker_processes_multiple_tasks_sequentially(
     server_factory.code_indexing_application_service.return_value = mock_service
     server_factory.commit_indexing_application_service.return_value = mock_service
     worker = IndexingWorkerService(app_context, session_factory, server_factory)
-
-    # Track processing order
-    processed_tasks = []
 
     # Start the worker
     await worker.start()
@@ -295,6 +295,9 @@ async def test_worker_continues_after_error(
     )
     await queue_service.enqueue_task(task3)
 
+    # Track processed tasks
+    processed_ids = []
+
     async def mock_run_task(task: Task) -> None:
         index_id = task.payload["index_id"]
         if index_id == 2:
@@ -312,9 +315,6 @@ async def test_worker_continues_after_error(
     server_factory.code_indexing_application_service.return_value = mock_service
     server_factory.commit_indexing_application_service.return_value = mock_service
     worker = IndexingWorkerService(app_context, session_factory, server_factory)
-
-    # Track processed tasks
-    processed_ids = []
 
     # Start the worker
     await worker.start()
@@ -357,6 +357,9 @@ async def test_worker_respects_task_priority(
     await queue_service.enqueue_task(background_task)
     await queue_service.enqueue_task(user_task)
 
+    # Track processing order
+    processed_order = []
+
     async def mock_run_task(task: Task) -> None:
         index_id = task.payload["index_id"]
         processed_order.append(index_id)
@@ -368,9 +371,6 @@ async def test_worker_respects_task_priority(
     server_factory.code_indexing_application_service.return_value = mock_service
     server_factory.commit_indexing_application_service.return_value = mock_service
     worker = IndexingWorkerService(app_context, session_factory, server_factory)
-
-    # Track processing order
-    processed_order = []
 
     # Start the worker
     await worker.start()
