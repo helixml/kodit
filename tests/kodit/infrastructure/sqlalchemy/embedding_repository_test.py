@@ -414,3 +414,52 @@ class TestSqlAlchemyEmbeddingRepository:
 
         # Verify the query was called without snippet_ids filter
         mock_uow.session.execute.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_embeddings_by_snippet_ids(self) -> None:
+        """Test getting embeddings by multiple snippet IDs."""
+        mock_uow = MagicMock()
+
+        # Mock embeddings
+        embedding1 = MagicMock()
+        embedding1.snippet_id = "snippet1"
+        embedding1.type = EmbeddingType.CODE
+        embedding1.embedding = [0.1, 0.2, 0.3]
+
+        embedding2 = MagicMock()
+        embedding2.snippet_id = "snippet2"
+        embedding2.type = EmbeddingType.TEXT
+        embedding2.embedding = [0.4, 0.5, 0.6]
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value = [embedding1, embedding2]
+        mock_uow.session.execute = AsyncMock(return_value=mock_result)
+
+        repository = SqlAlchemyEmbeddingRepository(uow=mock_uow)
+
+        results = await repository.get_embeddings_by_snippet_ids(["snippet1", "snippet2"])
+
+        assert len(results) == 2
+        assert results[0] == embedding1
+        assert results[1] == embedding2
+
+        # Verify the query was called with the correct snippet IDs
+        mock_uow.session.execute.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_embeddings_by_snippet_ids_empty_list(self) -> None:
+        """Test getting embeddings with empty snippet ID list."""
+        mock_uow = MagicMock()
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value = []
+        mock_uow.session.execute = AsyncMock(return_value=mock_result)
+
+        repository = SqlAlchemyEmbeddingRepository(uow=mock_uow)
+
+        results = await repository.get_embeddings_by_snippet_ids([])
+
+        assert len(results) == 0
+
+        # Verify the query was called with empty snippet IDs list
+        mock_uow.session.execute.assert_called_once()

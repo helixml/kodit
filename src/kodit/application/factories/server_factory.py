@@ -43,6 +43,10 @@ from kodit.infrastructure.slicing.slicer import Slicer
 from kodit.infrastructure.sqlalchemy.commit_index_repository import (
     create_commit_index_repository,
 )
+from kodit.infrastructure.sqlalchemy.embedding_repository import (
+    SqlAlchemyEmbeddingRepository,
+    create_embedding_repository,
+)
 from kodit.infrastructure.sqlalchemy.git_repository import create_git_repo_repository
 from kodit.infrastructure.sqlalchemy.snippet_v2_repository import (
     create_snippet_v2_repository,
@@ -83,6 +87,7 @@ class ServerFactory:
         self._code_search_service: EmbeddingDomainService | None = None
         self._text_search_service: EmbeddingDomainService | None = None
         self._sync_scheduler_service: SyncSchedulerService | None = None
+        self._embedding_repository: SqlAlchemyEmbeddingRepository | None = None
 
     def queue_service(self) -> QueueService:
         """Create a QueueService instance."""
@@ -239,3 +244,11 @@ class ServerFactory:
                 repo_repository=self.repo_repository(),
             )
         return self._sync_scheduler_service
+
+    def embedding_repository(self) -> SqlAlchemyEmbeddingRepository:
+        """Create a SqlAlchemyEmbeddingRepository instance."""
+        if not self._embedding_repository:
+            self._embedding_repository = create_embedding_repository(
+                session_factory=self.session_factory
+            )
+        return self._embedding_repository

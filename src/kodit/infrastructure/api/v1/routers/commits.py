@@ -1,6 +1,8 @@
 """Commit management router for the REST API."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from kodit.infrastructure.api.middleware.auth import api_key_auth
 from kodit.infrastructure.api.v1.dependencies import GitRepositoryDep, ServerFactoryDep
@@ -9,6 +11,9 @@ from kodit.infrastructure.api.v1.schemas.commit import (
     CommitData,
     CommitListResponse,
     CommitResponse,
+    EmbeddingAttributes,
+    EmbeddingData,
+    EmbeddingListResponse,
     FileAttributes,
     FileData,
     FileListResponse,
@@ -185,6 +190,7 @@ async def list_commit_snippets(
     server_factory: ServerFactoryDep,
 ) -> SnippetListResponse:
     """List all snippets in a specific commit."""
+    _ = repo_id  # Required by FastAPI route path but not used in function
     snippet_repository = server_factory.snippet_v2_repository()
     snippets = await snippet_repository.get_snippets_for_commit(commit_sha)
 
@@ -219,5 +225,52 @@ async def list_commit_snippets(
                 ),
             )
             for snippet in snippets
+        ]
+    )
+
+
+@router.get(
+    "/{repo_id}/commits/{commit_sha}/embeddings",
+    summary="List commit embeddings",
+    responses={404: {"description": "Repository or commit not found"}},
+)
+async def list_commit_embeddings(
+    repo_id: str,
+    commit_sha: str,
+    server_factory: ServerFactoryDep,
+    full: Annotated[  # noqa: FBT002
+        bool,
+        Query(
+            description="If true, return full vectors. If false, return first 5 values."
+        ),
+    ] = False,
+) -> EmbeddingListResponse:
+    """List all embeddings for snippets in a specific commit."""
+    _ = repo_id  # Required by FastAPI route path but not used in function
+    snippet_repository = server_factory.snippet_v2_repository()
+    snippets = await snippet_repository.get_snippets_for_commit(commit_sha)
+
+    if not snippets:
+        return EmbeddingListResponse(data=[])
+
+    # Get snippet SHAs
+    snippet_shas = [snippet.sha for snippet in snippets]
+
+    # Get embeddings for all snippets in the commit
+    embedding_repository = server_factory.embedding_repository()
+    embeddings = await embedding_repository.get_embeddings_by_snippet_ids(snippet_shas)
+
+    return EmbeddingListResponse(
+        data=[
+            EmbeddingData(
+                type="embedding",
+                id=f"{embedding.snippet_id}_{embedding.type.value}",
+                attributes=EmbeddingAttributes(
+                    snippet_sha=embedding.snippet_id,
+                    embedding_type=embedding.type.name.lower(),
+                    embedding=embedding.embedding if full else embedding.embedding[:5],
+                ),
+            )
+            for embedding in embeddings
         ]
     )
