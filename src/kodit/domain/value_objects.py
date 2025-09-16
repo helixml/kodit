@@ -199,7 +199,7 @@ class DeleteRequest:
 class IndexResult:
     """Generic indexing result."""
 
-    snippet_id: int
+    snippet_id: str
 
 
 @dataclass(frozen=True)
@@ -422,7 +422,7 @@ class ProgressState:
 class EmbeddingRequest:
     """Domain model for embedding request."""
 
-    snippet_id: int
+    snippet_id: str
     text: str
 
 

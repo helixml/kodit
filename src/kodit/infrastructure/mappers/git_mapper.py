@@ -154,6 +154,18 @@ class GitMapper:
             extension=domain_snippet.extension,
         )
 
+    def from_domain_file(
+        self, domain_file: domain_git_entities.GitFile
+    ) -> db_entities.GitFile:
+        """Convert domain GitFile to SQLAlchemy GitFile."""
+        return db_entities.GitFile(
+            blob_sha=domain_file.blob_sha,
+            path=domain_file.path,
+            mime_type=domain_file.mime_type,
+            size=domain_file.size,
+            extension=domain_file.extension,
+        )
+
     def from_domain_enrichments(
         self, snippet_sha: str, enrichments: list[Enrichment]
     ) -> list[db_entities.Enrichment]:

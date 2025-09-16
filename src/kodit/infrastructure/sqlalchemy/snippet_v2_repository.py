@@ -1,11 +1,12 @@
 """SQLAlchemy implementation of SnippetRepositoryV2."""
 
+import zlib
 from collections.abc import Callable
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.entities.git import SnippetV2
+from kodit.domain.entities.git import GitFile, SnippetV2
 from kodit.domain.protocols import SnippetRepositoryV2
 from kodit.infrastructure.mappers.git_mapper import GitMapper
 from kodit.infrastructure.sqlalchemy import entities as db_entities
@@ -44,77 +45,79 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
 
         async with self.uow:
             for domain_snippet in snippets:
-                # Check if snippet already exists
-                db_snippet = await self._session.get(
-                    db_entities.SnippetV2, domain_snippet.sha
+                db_snippet = await self._get_or_create_raw_snippet(
+                    commit_sha, domain_snippet
                 )
+                await self._update_enrichments_if_changed(db_snippet, domain_snippet)
+                await self._session.flush()
 
-                if not db_snippet:
-                    # Convert to database entity
-                    db_snippet = self._mapper.from_domain_snippet_v2(domain_snippet)
-                    self._session.add(db_snippet)
-                    await self._session.flush()  # Ensure snippet is persisted
+    async def _get_or_create_raw_snippet(
+        self, commit_sha: str, domain_snippet: SnippetV2
+    ) -> db_entities.SnippetV2:
+        """Get or create a SnippetV2 in the database."""
+        db_snippet = await self._session.get(db_entities.SnippetV2, domain_snippet.sha)
+        if not db_snippet:
+            db_snippet = self._mapper.from_domain_snippet_v2(domain_snippet)
+            self._session.add(db_snippet)
+            await self._session.flush()
 
-                    # Save snippet-file associations (only if snippet is new)
-                    for git_file in domain_snippet.derives_from:
-                        # Ensure GitFile exists in database
-                        db_file = await self._session.get(
-                            db_entities.GitFile, git_file.blob_sha
-                        )
-                        if not db_file:
-                            db_file = db_entities.GitFile(
-                                blob_sha=git_file.blob_sha,
-                                path=git_file.path,
-                                mime_type=git_file.mime_type,
-                                size=git_file.size,
-                                extension=git_file.extension,
-                            )
-                            self._session.add(db_file)
-                            await self._session.flush()
+            # Associate snippet with commit
+            db_association = db_entities.CommitSnippetV2(commit_sha, domain_snippet.sha)
+            self._session.add(db_association)
 
-                        # Create file association
-                        association = db_entities.SnippetV2File(
-                            snippet_sha=db_snippet.sha,
-                            file_blob_sha=db_file.blob_sha,
-                        )
-                        self._session.add(association)
+            # Associate snippet with files
+            for file in domain_snippet.derives_from:
+                db_file = await self._get_or_create_file(file)
+                self._session.add(db_file)
+                association = db_entities.SnippetV2File(
+                    snippet_sha=db_snippet.sha,
+                    file_blob_sha=db_file.blob_sha,
+                )
+                self._session.add(association)
 
-                    # Create commit-snippet association
-                    commit_snippet = db_entities.CommitSnippetV2(
-                        commit_sha=commit_sha,
-                        snippet_sha=db_snippet.sha,
-                    )
-                    self._session.add(commit_snippet)
-                else:
-                    # Update enrichments if they have changed
-                    current_enrichments = await self._session.scalars(
-                        select(db_entities.Enrichment).where(
-                            db_entities.Enrichment.snippet_sha == db_snippet.sha
-                        )
-                    )
-                    current_enrichments = list(current_enrichments)
-                    current_enrichment_types = {
-                        enrichment.type for enrichment in current_enrichments
-                    }
-                    new_enrichment_types = {
-                        enrichment.type for enrichment in domain_snippet.enrichments
-                    }
-                    if current_enrichment_types != new_enrichment_types:
-                        # Delete existing enrichments
-                        stmt = delete(db_entities.Enrichment).where(
-                            db_entities.Enrichment.snippet_sha == db_snippet.sha
-                        )
-                        await self._session.execute(stmt)
+            await self._session.flush()
+        return db_snippet
 
-                        # Re-add enrichments
-                        for enrichment in domain_snippet.enrichments:
-                            db_enrichment = db_entities.Enrichment(
-                                snippet_sha=db_snippet.sha,
-                                type=db_entities.EnrichmentType(enrichment.type.value),
-                                content=enrichment.content,
-                            )
-                            self._session.add(db_enrichment)
-                        await self._session.flush()
+    async def _get_or_create_file(self, domain_file: GitFile) -> db_entities.GitFile:
+        """Get or create a GitFile in the database."""
+        db_file = await self._session.get(db_entities.GitFile, domain_file.blob_sha)
+        if not db_file:
+            db_file = self._mapper.from_domain_file(domain_file)
+            self._session.add(db_file)
+            await self._session.flush()
+        return db_file
+
+    async def _update_enrichments_if_changed(
+        self, db_snippet: db_entities.SnippetV2, domain_snippet: SnippetV2
+    ) -> None:
+        """Update enrichments if they have changed."""
+        current_enrichments = await self._session.scalars(
+            select(db_entities.Enrichment).where(
+                db_entities.Enrichment.snippet_sha == db_snippet.sha
+            )
+        )
+        current_enrichments = list(current_enrichments)
+        current_enrichment_shas = {
+            self._hash_string(enrichment.content) for enrichment in current_enrichments
+        }
+        for enrichment in domain_snippet.enrichments:
+            if self._hash_string(enrichment.content) in current_enrichment_shas:
+                continue
+
+            # If not present, delete the existing enrichment for this type if it exists
+            stmt = delete(db_entities.Enrichment).where(
+                db_entities.Enrichment.snippet_sha == db_snippet.sha,
+                db_entities.Enrichment.type
+                == db_entities.EnrichmentType(enrichment.type.value),
+            )
+            await self._session.execute(stmt)
+
+            db_enrichment = db_entities.Enrichment(
+                snippet_sha=db_snippet.sha,
+                type=db_entities.EnrichmentType(enrichment.type.value),
+                content=enrichment.content,
+            )
+            self._session.add(db_enrichment)
 
     async def get_snippets_for_commit(self, commit_sha: str) -> list[SnippetV2]:
         """Get all snippets for a specific commit."""
@@ -182,3 +185,7 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
                 db_entities.CommitSnippetV2.commit_sha == commit_sha
             )
             await self._session.execute(stmt)
+
+    def _hash_string(self, string: str) -> int:
+        """Hash a string."""
+        return zlib.crc32(string.encode())

@@ -60,6 +60,18 @@ class SqlAlchemyEmbeddingRepository:
             for embedding in embeddings:
                 await self.uow.session.delete(embedding)
 
+    async def list_embeddings_by_snippet_ids_and_type(
+        self, snippet_ids: list[str], embedding_type: EmbeddingType
+    ) -> list[Embedding]:
+        """Get all embeddings for the given snippet IDs."""
+        async with self.uow:
+            query = select(Embedding).where(
+                Embedding.snippet_id.in_(snippet_ids),
+                Embedding.type == embedding_type,
+            )
+            result = await self.uow.session.execute(query)
+            return list(result.scalars())
+
     async def get_embeddings_by_snippet_ids(
         self, snippet_ids: list[str]
     ) -> list[Embedding]:

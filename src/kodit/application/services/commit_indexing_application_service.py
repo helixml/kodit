@@ -35,6 +35,10 @@ from kodit.domain.value_objects import (
     TrackableType,
 )
 from kodit.infrastructure.slicing.slicer import Slicer
+from kodit.infrastructure.sqlalchemy.embedding_repository import (
+    SqlAlchemyEmbeddingRepository,
+)
+from kodit.infrastructure.sqlalchemy.entities import EmbeddingType
 
 
 class CommitIndexingApplicationService:
@@ -55,6 +59,7 @@ class CommitIndexingApplicationService:
         code_search_service: EmbeddingDomainService,
         text_search_service: EmbeddingDomainService,
         enrichment_service: EnrichmentDomainService,
+        embedding_repository: SqlAlchemyEmbeddingRepository,
     ) -> None:
         """Initialize the commit indexing application service.
 
@@ -79,6 +84,7 @@ class CommitIndexingApplicationService:
         self.code_search_service = code_search_service
         self.text_search_service = text_search_service
         self.enrichment_service = enrichment_service
+        self.embedding_repository = embedding_repository
         self._log = structlog.get_logger(__name__)
 
     async def create_git_repository(self, remote_uri: AnyUrl) -> GitRepo:
@@ -161,13 +167,8 @@ class CommitIndexingApplicationService:
             operation=TaskOperation.EXTRACT_SNIPPETS_FOR_COMMIT,
             trackable_type=TrackableType.COMMIT,
         ) as step:
-            repo = await self.repo_repository.get_by_commit(commit_sha)
-            if not repo.cloned_path:
-                raise ValueError(f"Repository {repo.id} has never been cloned")
-
             commit = await self.repo_repository.get_commit_by_sha(commit_sha)
 
-            # Detect languages
             # Create a set of languages to extract snippets for
             extensions = {file.extension for file in commit.files}
             lang_files_map: dict[str, list[GitFile]] = defaultdict(list)
@@ -192,7 +193,6 @@ class CommitIndexingApplicationService:
                 )
                 all_snippets.extend(snippets)
 
-            # Persist snippets to database for next pipeline stage
             await self.snippet_repository.save_snippets(commit.commit_sha, all_snippets)
 
     async def process_bm25_index(self, commit_sha: str) -> None:
@@ -219,12 +219,22 @@ class CommitIndexingApplicationService:
             TaskOperation.CREATE_CODE_EMBEDDINGS_FOR_COMMIT,
             trackable_type=TrackableType.COMMIT,
         ) as step:
-            snippets = await self.snippet_repository.get_snippets_for_commit(commit_sha)
-            await step.set_total(len(snippets))
+            all_snippets = await self.snippet_repository.get_snippets_for_commit(
+                commit_sha
+            )
+
+            new_snippets = await self._new_snippets_for_type(
+                all_snippets, EmbeddingType.CODE
+            )
+            if not new_snippets:
+                await step.skip("All snippets already have code embeddings")
+                return
+
+            await step.set_total(len(new_snippets))
             processed = 0
             documents = [
                 Document(snippet_id=snippet.id, text=snippet.content)
-                for snippet in snippets
+                for snippet in new_snippets
                 if snippet.id
             ]
             async for result in self.code_search_service.index_documents(
@@ -239,11 +249,32 @@ class CommitIndexingApplicationService:
             TaskOperation.CREATE_SUMMARY_ENRICHMENT_FOR_COMMIT,
             trackable_type=TrackableType.COMMIT,
         ) as step:
-            snippets = await self.snippet_repository.get_snippets_for_commit(commit_sha)
+            all_snippets = await self.snippet_repository.get_snippets_for_commit(
+                commit_sha
+            )
+
+            # Find snippets without a summary enrichment
+            snippets_without_summary = [
+                snippet
+                for snippet in all_snippets
+                if not snippet.enrichments
+                or not next(
+                    enrichment
+                    for enrichment in snippet.enrichments
+                    if enrichment.type == EnrichmentType.SUMMARIZATION
+                )
+            ]
+            if not snippets_without_summary:
+                await step.skip("All snippets already have a summary enrichment")
+                return
 
             # Enrich snippets
-            await step.set_total(len(snippets))
-            snippet_map = {snippet.id: snippet for snippet in snippets if snippet.id}
+            await step.set_total(len(snippets_without_summary))
+            snippet_map = {
+                snippet.id: snippet
+                for snippet in snippets_without_summary
+                if snippet.id
+            }
 
             enrichment_request = EnrichmentIndexRequest(
                 requests=[
@@ -273,7 +304,15 @@ class CommitIndexingApplicationService:
             trackable_type=TrackableType.COMMIT,
         ) as step:
             snippets = await self.snippet_repository.get_snippets_for_commit(commit_sha)
-            await step.set_total(len(snippets))
+
+            new_snippets = await self._new_snippets_for_type(
+                snippets, EmbeddingType.TEXT
+            )
+            if not new_snippets:
+                await step.skip("All snippets already have text embeddings")
+                return
+
+            await step.set_total(len(new_snippets))
             processed = 0
 
             def _summary_from_enrichments(enrichments: list[Enrichment]) -> str:
@@ -303,3 +342,19 @@ class CommitIndexingApplicationService:
             ):
                 processed += len(result)
                 await step.set_current(processed, "Creating text embeddings for commit")
+
+    async def _new_snippets_for_type(
+        self, all_snippets: list[SnippetV2], embedding_type: EmbeddingType
+    ) -> list[SnippetV2]:
+        """Get new snippets for a given type."""
+        existing_embeddings = (
+            await self.embedding_repository.list_embeddings_by_snippet_ids_and_type(
+                [s.id for s in all_snippets], embedding_type
+            )
+        )
+        existing_embeddings_by_snippet_id = {
+            embedding.snippet_id: embedding for embedding in existing_embeddings
+        }
+        return [
+            s for s in all_snippets if s.id not in existing_embeddings_by_snippet_id
+        ]

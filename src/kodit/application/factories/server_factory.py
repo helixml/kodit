@@ -170,6 +170,7 @@ class ServerFactory:
                     code_search_service=self.code_search_service(),
                     text_search_service=self.text_search_service(),
                     enrichment_service=self.enrichment_service(),
+                    embedding_repository=self.embedding_repository(),
                 )
             )
 
