@@ -22,34 +22,45 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
+    # Drop dependent tables first to respect foreign key constraints in PostgreSQL
+    op.drop_index(
+        "ix_author_file_mappings_author_id", table_name="author_file_mappings"
+    )
+    op.drop_index("ix_author_file_mappings_file_id", table_name="author_file_mappings")
+    op.drop_table("author_file_mappings")
+
+    # Now safe to drop referenced tables
     op.drop_index("ix_authors_email", table_name="authors")
     op.drop_index("ix_authors_name", table_name="authors")
     op.drop_table("authors")
-    op.drop_index("ix_sources_cloned_path", table_name="sources")
-    op.drop_index("ix_sources_type", table_name="sources")
-    op.drop_index("ix_sources_uri", table_name="sources")
-    op.drop_table("sources")
+
+    # Drop embeddings before snippets (embeddings references snippets)
+    op.drop_index(op.f("ix_embeddings_type"), table_name="embeddings")
+    op.drop_index(op.f("ix_embeddings_snippet_id"), table_name="embeddings")
+    op.drop_table("embeddings")
+
+    # Drop snippets before files (snippets references files)
     op.drop_index("ix_snippets_file_id", table_name="snippets")
     op.drop_index("ix_snippets_index_id", table_name="snippets")
     op.drop_table("snippets")
+
+    # Drop indexes before sources (indexes references sources)
+    op.drop_index("ix_indexes_source_id", table_name="indexes")
+    op.drop_table("indexes")
+
+    # Drop files before sources (files references sources)
     op.drop_index("ix_files_cloned_path", table_name="files")
     op.drop_index("ix_files_extension", table_name="files")
     op.drop_index("ix_files_mime_type", table_name="files")
     op.drop_index("ix_files_sha256", table_name="files")
     op.drop_index("ix_files_uri", table_name="files")
     op.drop_table("files")
-    op.drop_index(
-        "ix_author_file_mappings_author_id", table_name="author_file_mappings"
-    )
-    op.drop_index("ix_author_file_mappings_file_id", table_name="author_file_mappings")
-    op.drop_table("author_file_mappings")
-    op.drop_index("ix_indexes_source_id", table_name="indexes")
-    op.drop_table("indexes")
 
-    # Drop and recreate embeddings table with updated snippet_id type
-    op.drop_index(op.f("ix_embeddings_type"), table_name="embeddings")
-    op.drop_index(op.f("ix_embeddings_snippet_id"), table_name="embeddings")
-    op.drop_table("embeddings")
+    # Finally drop sources
+    op.drop_index("ix_sources_cloned_path", table_name="sources")
+    op.drop_index("ix_sources_type", table_name="sources")
+    op.drop_index("ix_sources_uri", table_name="sources")
+    op.drop_table("sources")
 
     # Recreate embeddings table with String snippet_id for snippets_v2 compatibility
     op.create_table(

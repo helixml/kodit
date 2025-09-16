@@ -129,7 +129,7 @@ class VectorChordVectorSearchRepository(VectorSearchRepository):
             text(
                 f"""CREATE TABLE IF NOT EXISTS {self.table_name} (
                     id SERIAL PRIMARY KEY,
-                    snippet_id INT NOT NULL UNIQUE,
+                    snippet_id VARCHAR(255) NOT NULL UNIQUE,
                     embedding VECTOR({len(vector_dim)}) NOT NULL
                 );"""
             )
