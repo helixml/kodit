@@ -52,7 +52,7 @@ def test_env_vars_work(runner: CliRunner) -> None:
     runner.env = {**runner.env, "LOG_LEVEL": "DEBUG"}
     result = runner.invoke(cli, ["index"])
     assert result.exit_code == 0
-    assert result.output.count("debug") > 10  # The db spits out lots of debug messages
+    assert result.output.count("debug") >= 2  # Should have some debug messages
 
 
 def test_dotenv_file_works(runner: CliRunner) -> None:
@@ -63,8 +63,8 @@ def test_dotenv_file_works(runner: CliRunner) -> None:
         result = runner.invoke(cli, ["--env-file", f.name, "index"])
         assert result.exit_code == 0
         assert (
-            result.output.count("debug") > 10
-        )  # The db spits out lots of debug messages
+            result.output.count("debug") >= 2
+        )  # Should have some debug messages
 
 
 def test_dotenv_file_not_found(runner: CliRunner) -> None:

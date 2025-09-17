@@ -69,9 +69,9 @@ async def test_enrich_documents_success(
 
     # Verify
     assert len(results) == 2
-    assert results[0].snippet_id == 1
+    assert results[0].snippet_id == "1"
     assert results[0].text == "enriched: def hello(): pass"
-    assert results[1].snippet_id == 2
+    assert results[1].snippet_id == "2"
     assert results[1].text == "enriched: def world(): pass"
 
 
@@ -127,5 +127,5 @@ async def test_enrich_documents_single_request(
 
     # Verify
     assert len(results) == 1
-    assert results[0].snippet_id == 1
+    assert results[0].snippet_id == "1"
     assert results[0].text == "enriched: def test(): pass"

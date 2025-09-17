@@ -139,8 +139,8 @@ class TestEmbeddingDomainService:
             results.extend(result)
 
         assert len(results) == 2
-        assert results[0].snippet_id == 1
-        assert results[1].snippet_id == 2
+        assert results[0].snippet_id == "1"
+        assert results[1].snippet_id == "2"
 
         # Verify repository was called with validated request
         mock_repository.index_documents.assert_called_once()
@@ -180,12 +180,12 @@ class TestEmbeddingDomainService:
 
         # Should only process the valid document
         assert len(results) == 1
-        assert results[0].snippet_id == 1
+        assert results[0].snippet_id == "1"
 
         # Verify repository was called with only valid documents
         call_args = mock_repository.index_documents.call_args[0][0]
         assert len(call_args.documents) == 1
-        assert call_args.documents[0].snippet_id == 1
+        assert call_args.documents[0].snippet_id == "1"
         assert call_args.documents[0].text == "valid text"
 
     @pytest.mark.asyncio
@@ -210,9 +210,9 @@ class TestEmbeddingDomainService:
         results = await service.search(request)
 
         assert len(results) == 2
-        assert results[0].snippet_id == 1
+        assert results[0].snippet_id == "1"
         assert results[0].score == 0.95
-        assert results[1].snippet_id == 2
+        assert results[1].snippet_id == "2"
         assert results[1].score == 0.85
 
         # Verify repository was called with normalized request

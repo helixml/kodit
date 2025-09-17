@@ -56,7 +56,7 @@ async def test_index_documents_success(
     mock_repository.index_documents.assert_called_once()
     call_args = mock_repository.index_documents.call_args[0][0]
     assert len(call_args.documents) == 2
-    assert call_args.documents[0].snippet_id == 1
+    assert call_args.documents[0].snippet_id == "1"
     assert call_args.documents[0].text == "test content 1"
 
 
@@ -91,7 +91,7 @@ async def test_index_documents_invalid_documents(
     # Verify - only valid documents should be passed to repository
     call_args = mock_repository.index_documents.call_args[0][0]
     assert len(call_args.documents) == 1
-    assert call_args.documents[0].snippet_id == 1
+    assert call_args.documents[0].snippet_id == "1"
     assert call_args.documents[0].text == "valid content"
 
 
@@ -156,7 +156,7 @@ async def test_delete_documents_success(
     # Verify
     mock_repository.delete_documents.assert_called_once()
     call_args = mock_repository.delete_documents.call_args[0][0]
-    assert call_args.snippet_ids == [1, 2, 3]
+    assert call_args.snippet_ids == ["1", "2", "3"]
 
 
 @pytest.mark.asyncio
@@ -185,4 +185,4 @@ async def test_delete_documents_invalid_ids(
 
     # Verify - only valid IDs should be passed to repository
     call_args = mock_repository.delete_documents.call_args[0][0]
-    assert call_args.snippet_ids == [1, 3]
+    assert call_args.snippet_ids == ["1", "3"]
