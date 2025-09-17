@@ -1,3 +1,4 @@
+# ruff: noqa: ARG001
 """Command line interface for kodit."""
 
 import signal

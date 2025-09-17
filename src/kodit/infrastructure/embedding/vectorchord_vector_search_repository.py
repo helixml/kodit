@@ -151,8 +151,8 @@ class VectorChordVectorSearchRepository(VectorSearchRepository):
             vector_dim_from_db = result.scalar_one()
             if vector_dim_from_db != len(vector_dim):
                 msg = (
-                    f"Embedding vector dimension does not match database, "
-                    f"please delete your index: {vector_dim_from_db} != {len(vector_dim)}"
+                    f"Embedding vector dimension does not match database, please "
+                    f"delete your index: {vector_dim_from_db} != {len(vector_dim)}"
                 )
                 raise ValueError(msg)
 

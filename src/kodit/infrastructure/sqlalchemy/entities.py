@@ -5,6 +5,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from git import Actor
 from sqlalchemy import (
     DateTime,
     ForeignKey,
@@ -81,33 +82,33 @@ class CommonMixin:
     )
 
 
-# class Author(Base, CommonMixin):
-#     """Author model."""
+class Author(Base, CommonMixin):
+    """Author model."""
 
-#     __tablename__ = "authors"
+    __tablename__ = "authors"
 
-#     __table_args__ = (UniqueConstraint("name", "email", name="uix_author"),)
+    __table_args__ = (UniqueConstraint("name", "email", name="uix_author"),)
 
-#     name: Mapped[str] = mapped_column(String(255), index=True)
-#     email: Mapped[str] = mapped_column(String(255), index=True)
+    name: Mapped[str] = mapped_column(String(255), index=True)
+    email: Mapped[str] = mapped_column(String(255), index=True)
 
-#     @staticmethod
-#     def from_actor(actor: Actor) -> "Author":
-#         """Create an Author from an Actor."""
-#         return Author(name=actor.name, email=actor.email)
+    @staticmethod
+    def from_actor(actor: Actor) -> "Author":
+        """Create an Author from an Actor."""
+        return Author(name=actor.name, email=actor.email)
 
 
-# class AuthorFileMapping(Base, CommonMixin):
-#     """Author file mapping model."""
+class AuthorFileMapping(Base, CommonMixin):
+    """Author file mapping model."""
 
-#     __tablename__ = "author_file_mappings"
+    __tablename__ = "author_file_mappings"
 
-#     __table_args__ = (
-#         UniqueConstraint("author_id", "file_id", name="uix_author_file_mapping"),
-#     )
+    __table_args__ = (
+        UniqueConstraint("author_id", "file_id", name="uix_author_file_mapping"),
+    )
 
-#     author_id: Mapped[int] = mapped_column(ForeignKey("authors.id"), index=True)
-#     file_id: Mapped[int] = mapped_column(ForeignKey("git_files.blob_sha"), index=True)
+    author_id: Mapped[int] = mapped_column(ForeignKey("authors.id"), index=True)
+    file_id: Mapped[int] = mapped_column(ForeignKey("git_files.blob_sha"), index=True)
 
 
 class EmbeddingType(Enum):

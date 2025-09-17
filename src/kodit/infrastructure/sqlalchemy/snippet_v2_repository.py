@@ -257,7 +257,7 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
         query = query.limit(request.top_k)
 
         # Execute query
-        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
+        async with SqlAlchemyUnitOfWork(self.session_factory):
             result = await self._session.scalars(query)
             db_snippets = result.all()
 

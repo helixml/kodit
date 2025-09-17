@@ -47,7 +47,7 @@ class MultiSearchResult:
 class CodeSearchApplicationService:
     """Service for searching the indexes."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         bm25_service: BM25DomainService,
         code_search_service: EmbeddingDomainService,
@@ -71,13 +71,7 @@ class CodeSearchApplicationService:
 
         # Apply filters if provided
         filtered_snippet_ids: list[int] | None = None
-        # if request.filters:
-        #     # Use domain service for filtering (use large top_k for pre-filtering)
-        #     prefilter_request = replace(request, top_k=10000)
-        #     snippet_results = await self.snippet_repository.search(prefilter_request)
-        #     filtered_snippet_ids = [
-        #         snippet.snippet.id for snippet in snippet_results if snippet.snippet.id
-        #     ]
+        # TODO(Phil): Re-implement filtering on search results
 
         # Gather results from different search modes
         fusion_list: list[list[FusionRequest]] = []

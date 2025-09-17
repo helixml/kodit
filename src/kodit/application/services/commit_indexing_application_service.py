@@ -97,7 +97,7 @@ class CommitIndexingApplicationService:
             return repo
 
     # TODO(Phil): Make this polymorphic
-    async def run_task(self, task: Task) -> None:
+    async def run_task(self, task: Task) -> None:  # noqa: PLR0912, C901
         """Run a task."""
         if task.type.is_repository_operation():
             repo_id = task.payload["repository_id"]

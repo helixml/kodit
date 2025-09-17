@@ -47,7 +47,7 @@ async def mcp_lifespan(_: FastMCP) -> AsyncIterator[MCPContext]:
     Since they don't provide a good way to handle global state, we must use a
     global variable to store the database connection.
     """
-    global _mcp_server_factory
+    global _mcp_server_factory  # noqa: PLW0603
     if _mcp_server_factory is None:
         app_context = AppContext()
         db = await app_context.get_db()
