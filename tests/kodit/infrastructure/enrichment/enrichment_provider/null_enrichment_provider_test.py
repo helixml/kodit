@@ -35,7 +35,7 @@ class TestNullEnrichmentProvider:
         results = [result async for result in provider.enrich(requests)]
 
         assert len(results) == 1
-        assert results[0].snippet_id == 1
+        assert results[0].snippet_id == "1"
         assert results[0].text == "def test    pass"
 
     @pytest.mark.asyncio
@@ -51,11 +51,11 @@ class TestNullEnrichmentProvider:
         results = [result async for result in provider.enrich(requests)]
 
         assert len(results) == 3
-        assert results[0].snippet_id == 1
+        assert results[0].snippet_id == "1"
         assert results[0].text == "def hello    pass"
-        assert results[1].snippet_id == 2
+        assert results[1].snippet_id == "2"
         assert results[1].text == "def world    pass"
-        assert results[2].snippet_id == 3
+        assert results[2].snippet_id == "3"
         assert results[2].text == ""
 
     @pytest.mark.asyncio
@@ -70,9 +70,9 @@ class TestNullEnrichmentProvider:
         results = [result async for result in provider.enrich(requests)]
 
         assert len(results) == 2
-        assert results[0].snippet_id == 42
+        assert results[0].snippet_id == "42"
         assert results[0].text == "def test    pass"
-        assert results[1].snippet_id == 123
+        assert results[1].snippet_id == "123"
         assert results[1].text == "def another    pass"
 
     @pytest.mark.asyncio

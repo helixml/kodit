@@ -18,7 +18,7 @@ class TestSqlAlchemyEmbeddingRepository:
     async def test_create_embedding(self) -> None:
         """Test creating an embedding."""
         mock_session_factory = MagicMock()
-        mock_session = MagicMock()
+        mock_session = AsyncMock()
         mock_session_factory.return_value = mock_session
 
         repository = SqlAlchemyEmbeddingRepository(session_factory=mock_session_factory)
@@ -34,7 +34,7 @@ class TestSqlAlchemyEmbeddingRepository:
     async def test_get_embedding_by_snippet_id_and_type_found(self) -> None:
         """Test getting an embedding that exists."""
         mock_session_factory = MagicMock()
-        mock_session = MagicMock()
+        mock_session = AsyncMock()
         mock_session_factory.return_value = mock_session
 
         mock_result = MagicMock()
@@ -53,7 +53,7 @@ class TestSqlAlchemyEmbeddingRepository:
     async def test_get_embedding_by_snippet_id_and_type_not_found(self) -> None:
         """Test getting an embedding that doesn't exist."""
         mock_session_factory = MagicMock()
-        mock_session = MagicMock()
+        mock_session = AsyncMock()
         mock_session_factory.return_value = mock_session
 
         mock_result = MagicMock()
@@ -72,7 +72,7 @@ class TestSqlAlchemyEmbeddingRepository:
     async def test_list_semantic_results_empty_database(self) -> None:
         """Test semantic search with empty database."""
         mock_session_factory = MagicMock()
-        mock_session = MagicMock()
+        mock_session = AsyncMock()
         mock_session_factory.return_value = mock_session
 
         mock_result = MagicMock()
@@ -92,7 +92,7 @@ class TestSqlAlchemyEmbeddingRepository:
     async def test_list_semantic_results_single_embedding(self) -> None:
         """Test semantic search with a single embedding."""
         mock_session_factory = MagicMock()
-        mock_session = MagicMock()
+        mock_session = AsyncMock()
         mock_session_factory.return_value = mock_session
 
         mock_result = MagicMock()
@@ -115,7 +115,7 @@ class TestSqlAlchemyEmbeddingRepository:
     async def test_list_semantic_results_multiple_embeddings(self) -> None:
         """Test semantic search with multiple embeddings."""
         mock_session_factory = MagicMock()
-        mock_session = MagicMock()
+        mock_session = AsyncMock()
         mock_session_factory.return_value = mock_session
 
         mock_result = MagicMock()
@@ -143,7 +143,7 @@ class TestSqlAlchemyEmbeddingRepository:
     async def test_list_semantic_results_top_k_limit(self) -> None:
         """Test that top_k limits the number of results."""
         mock_session_factory = MagicMock()
-        mock_session = MagicMock()
+        mock_session = AsyncMock()
         mock_session_factory.return_value = mock_session
 
         mock_result = MagicMock()
@@ -163,7 +163,7 @@ class TestSqlAlchemyEmbeddingRepository:
     async def test_list_semantic_results_inhomogeneous_embeddings(self) -> None:
         """Test handling of embeddings with different dimensions."""
         mock_session_factory = MagicMock()
-        mock_session = MagicMock()
+        mock_session = AsyncMock()
         mock_session_factory.return_value = mock_session
 
         mock_result = MagicMock()
@@ -187,7 +187,7 @@ class TestSqlAlchemyEmbeddingRepository:
     async def test_list_semantic_results_zero_vectors(self) -> None:
         """Test handling of zero vectors."""
         mock_session_factory = MagicMock()
-        mock_session = MagicMock()
+        mock_session = AsyncMock()
         mock_session_factory.return_value = mock_session
 
         mock_result = MagicMock()
@@ -280,7 +280,7 @@ class TestSqlAlchemyEmbeddingRepository:
     async def test_list_embedding_values(self) -> None:
         """Test listing embedding values from database."""
         mock_session_factory = MagicMock()
-        mock_session = MagicMock()
+        mock_session = AsyncMock()
         mock_session_factory.return_value = mock_session
 
         mock_result = MagicMock()
@@ -302,7 +302,7 @@ class TestSqlAlchemyEmbeddingRepository:
     async def test_list_semantic_results_with_snippet_ids_filtering(self) -> None:
         """Test semantic search with snippet_ids filtering."""
         mock_session_factory = MagicMock()
-        mock_session = MagicMock()
+        mock_session = AsyncMock()
         mock_session_factory.return_value = mock_session
 
         mock_result = MagicMock()
@@ -327,7 +327,7 @@ class TestSqlAlchemyEmbeddingRepository:
     ) -> None:
         """Test semantic search with None snippet_ids (no filtering)."""
         mock_session_factory = MagicMock()
-        mock_session = MagicMock()
+        mock_session = AsyncMock()
         mock_session_factory.return_value = mock_session
 
         mock_result = MagicMock()
@@ -354,7 +354,7 @@ class TestSqlAlchemyEmbeddingRepository:
     ) -> None:
         """Test semantic search with empty snippet_ids list returns no results."""
         mock_session_factory = MagicMock()
-        mock_session = MagicMock()
+        mock_session = AsyncMock()
         mock_session_factory.return_value = mock_session
 
         mock_result = MagicMock()
@@ -374,7 +374,7 @@ class TestSqlAlchemyEmbeddingRepository:
     async def test_list_embedding_values_with_snippet_ids_filtering(self) -> None:
         """Test listing embedding values with snippet_ids filtering."""
         mock_session_factory = MagicMock()
-        mock_session = MagicMock()
+        mock_session = AsyncMock()
         mock_session_factory.return_value = mock_session
 
         mock_result = MagicMock()
@@ -396,7 +396,7 @@ class TestSqlAlchemyEmbeddingRepository:
     ) -> None:
         """Test listing embedding values with None snippet_ids (no filtering)."""
         mock_session_factory = MagicMock()
-        mock_session = MagicMock()
+        mock_session = AsyncMock()
         mock_session_factory.return_value = mock_session
 
         mock_result = MagicMock()
@@ -420,7 +420,7 @@ class TestSqlAlchemyEmbeddingRepository:
     async def test_get_embeddings_by_snippet_ids(self) -> None:
         """Test getting embeddings by multiple snippet IDs."""
         mock_session_factory = MagicMock()
-        mock_session = MagicMock()
+        mock_session = AsyncMock()
         mock_session_factory.return_value = mock_session
 
         # Mock embeddings
@@ -452,7 +452,7 @@ class TestSqlAlchemyEmbeddingRepository:
     async def test_get_embeddings_by_snippet_ids_empty_list(self) -> None:
         """Test getting embeddings with empty snippet ID list."""
         mock_session_factory = MagicMock()
-        mock_session = MagicMock()
+        mock_session = AsyncMock()
         mock_session_factory.return_value = mock_session
 
         mock_result = MagicMock()

@@ -72,7 +72,7 @@ class TestLiteLLMEnrichmentProvider:
         results = [result async for result in provider.enrich(requests)]
 
         assert len(results) == 1
-        assert results[0].snippet_id == 1
+        assert results[0].snippet_id == "1"
         assert results[0].text == "This is a Python function that calculates the sum."
 
         # Verify LiteLLM was called correctly
@@ -132,11 +132,11 @@ class TestLiteLLMEnrichmentProvider:
         # Sort results by snippet_id since async processing may return them out of order
         sorted_results = sorted(results, key=lambda r: r.snippet_id)
 
-        assert sorted_results[0].snippet_id == 1
+        assert sorted_results[0].snippet_id == "1"
         assert "adds two numbers" in sorted_results[0].text
-        assert sorted_results[1].snippet_id == 2
+        assert sorted_results[1].snippet_id == "2"
         assert "multiplies two numbers" in sorted_results[1].text
-        assert sorted_results[2].snippet_id == 3
+        assert sorted_results[2].snippet_id == "3"
         assert "divides two numbers" in sorted_results[2].text
 
         # Verify LiteLLM was called 3 times
@@ -219,7 +219,7 @@ class TestLiteLLMEnrichmentProvider:
         results = [result async for result in provider.enrich(requests)]
 
         assert len(results) == 1
-        assert results[0].snippet_id == 1
+        assert results[0].snippet_id == "1"
         assert results[0].text == ""
 
         # Should not call LiteLLM for empty text
@@ -239,7 +239,7 @@ class TestLiteLLMEnrichmentProvider:
 
         # Should return empty text on error
         assert len(results) == 1
-        assert results[0].snippet_id == 1
+        assert results[0].snippet_id == "1"
         assert results[0].text == ""
 
     @pytest.mark.asyncio
@@ -262,7 +262,7 @@ class TestLiteLLMEnrichmentProvider:
         results = [result async for result in provider.enrich(requests)]
 
         assert len(results) == 1
-        assert results[0].snippet_id == 1
+        assert results[0].snippet_id == "1"
         assert results[0].text == "Response without model_dump"
 
     @pytest.mark.asyncio
@@ -285,7 +285,7 @@ class TestLiteLLMEnrichmentProvider:
 
         # Should handle gracefully and return empty text
         assert len(results) == 1
-        assert results[0].snippet_id == 1
+        assert results[0].snippet_id == "1"
         assert results[0].text == ""
 
     @pytest.mark.asyncio

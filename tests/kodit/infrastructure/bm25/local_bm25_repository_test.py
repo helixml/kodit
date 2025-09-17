@@ -61,7 +61,7 @@ class TestLocalBM25Repository:
 
         with snippet_ids_file.open() as f:
             saved_snippet_ids = json.load(f)
-        assert saved_snippet_ids == [1, 2]
+        assert saved_snippet_ids == ["1", "2"]
 
         # Now add new documents - this should EXTEND the existing snippet_ids
         new_documents = [
@@ -83,8 +83,8 @@ class TestLocalBM25Repository:
 
         # Since BM25 index is rebuilt from scratch with only new documents,
         # snippet_ids should be replaced to match the index
-        assert final_snippet_ids == [3, 4], (
-            f"Expected snippet_ids to be replaced with [3, 4], "
+        assert final_snippet_ids == ["3", "4"], (
+            f'Expected snippet_ids to be replaced with ["3", "4"], '
             f"but got {final_snippet_ids}. The snippet_ids should match "
             f"the documents in the rebuilt BM25 index."
         )
@@ -121,7 +121,7 @@ class TestLocalBM25Repository:
         assert snippet_ids_file.exists()
         with snippet_ids_file.open() as f:
             saved_snippet_ids = json.load(f)
-        assert saved_snippet_ids == [1, 2]
+        assert saved_snippet_ids == ["1", "2"]
 
         # Now add new documents - this should EXTEND the existing snippet_ids
         new_documents = [
@@ -141,7 +141,7 @@ class TestLocalBM25Repository:
         with snippet_ids_file.open() as f:
             final_snippet_ids = json.load(f)
 
-        assert final_snippet_ids == [3, 4]
+        assert final_snippet_ids == ["3", "4"]
 
     @pytest.mark.asyncio
     async def test_search_handles_actual_snippet_ids_not_indices(

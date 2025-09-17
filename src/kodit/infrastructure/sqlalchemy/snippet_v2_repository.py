@@ -38,6 +38,14 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
             return
 
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
+            # First, delete existing commit-snippet associations for this commit
+            # This ensures that save_snippets replaces existing snippets
+            delete_stmt = delete(db_entities.CommitSnippetV2).where(
+                db_entities.CommitSnippetV2.commit_sha == commit_sha
+            )
+            await session.execute(delete_stmt)
+            await session.flush()
+
             for domain_snippet in snippets:
                 db_snippet = await self._get_or_create_raw_snippet(
                     session, commit_sha, domain_snippet

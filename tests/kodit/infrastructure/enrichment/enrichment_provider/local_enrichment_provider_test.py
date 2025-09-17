@@ -51,7 +51,7 @@ class TestLocalEnrichmentProvider:
         # The local provider actually processes whitespace-only text
         # So we expect 1 result for the whitespace-only request
         assert len(results) == 1
-        assert results[0].snippet_id == 2
+        assert results[0].snippet_id == "2"
 
     @pytest.mark.asyncio
     @patch("transformers.models.auto.tokenization_auto.AutoTokenizer")
@@ -84,7 +84,7 @@ class TestLocalEnrichmentProvider:
         results = [result async for result in provider.enrich(requests)]
 
         assert len(results) == 1
-        assert results[0].snippet_id == 1
+        assert results[0].snippet_id == "1"
         assert results[0].text == "This is a test function"
 
         # Verify the tokenizer was called correctly
@@ -132,9 +132,9 @@ class TestLocalEnrichmentProvider:
         results = [result async for result in provider.enrich(requests)]
 
         assert len(results) == 2
-        assert results[0].snippet_id == 1
+        assert results[0].snippet_id == "1"
         assert results[0].text == "Enriched content"
-        assert results[1].snippet_id == 2
+        assert results[1].snippet_id == "2"
         assert results[1].text == "Enriched content"
 
     @pytest.mark.asyncio
@@ -173,9 +173,9 @@ class TestLocalEnrichmentProvider:
 
         # Should process the valid and whitespace requests (2 total)
         assert len(results) == 2
-        assert results[0].snippet_id == 2
+        assert results[0].snippet_id == "2"
         assert results[0].text == "Enriched content"
-        assert results[1].snippet_id == 3
+        assert results[1].snippet_id == "3"
         assert results[1].text == "Enriched content"
 
     @pytest.mark.asyncio

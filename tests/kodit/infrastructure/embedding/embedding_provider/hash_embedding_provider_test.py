@@ -49,7 +49,7 @@ class TestHashEmbeddingProvider:
             results.extend(batch)
 
         assert len(results) == 1
-        assert results[0].snippet_id == 1
+        assert results[0].snippet_id == "1"
         assert len(results[0].embedding) == CODE
         assert all(isinstance(v, float) for v in results[0].embedding)
         assert all(-1 <= v <= 1 for v in results[0].embedding)
@@ -70,7 +70,7 @@ class TestHashEmbeddingProvider:
 
         assert len(results) == 3
         for i, result in enumerate(results):
-            assert result.snippet_id == i + 1
+            assert result.snippet_id == str(i + 1)
             assert len(result.embedding) == CODE
             assert all(isinstance(v, float) for v in result.embedding)
             assert all(-1 <= v <= 1 for v in result.embedding)
