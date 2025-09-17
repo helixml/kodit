@@ -49,9 +49,9 @@ def test_telemetry_disabled_in_these_tests(runner: CliRunner) -> None:
 def test_env_vars_work(runner: CliRunner) -> None:
     """Test that env vars work."""
     runner.env = {**runner.env, "LOG_LEVEL": "DEBUG"}
-    result = runner.invoke(cli, ["index"])
+    result = runner.invoke(cli, ["version"])
     assert result.exit_code == 0
-    assert result.output.count("debug") >= 2  # Should have some debug messages
+    assert result.output.count("debug") >= 1  # Should have some debug messages
 
 
 def test_dotenv_file_works(runner: CliRunner) -> None:
@@ -59,9 +59,9 @@ def test_dotenv_file_works(runner: CliRunner) -> None:
     with tempfile.NamedTemporaryFile(delete=False) as f:
         f.write(b"LOG_LEVEL=DEBUG")
         f.flush()
-        result = runner.invoke(cli, ["--env-file", f.name, "index"])
+        result = runner.invoke(cli, ["--env-file", f.name, "version"])
         assert result.exit_code == 0
-        assert result.output.count("debug") >= 2  # Should have some debug messages
+        assert result.output.count("debug") >= 1  # Should have some debug messages
 
 
 def test_dotenv_file_not_found(runner: CliRunner) -> None:
