@@ -1,10 +1,10 @@
 """VectorChord vector search repository implementation."""
 
-from collections.abc import AsyncGenerator
-from typing import Any, Literal
+from collections.abc import AsyncGenerator, Callable
+from typing import Literal
 
 import structlog
-from sqlalchemy import Result, TextClause, text
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.domain.services.embedding_service import (
@@ -19,6 +19,7 @@ from kodit.domain.value_objects import (
     SearchResult,
 )
 from kodit.infrastructure.sqlalchemy.entities import EmbeddingType
+from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 
 # SQL Queries
 CREATE_VCHORD_EXTENSION = """
@@ -80,8 +81,8 @@ class VectorChordVectorSearchRepository(VectorSearchRepository):
 
     def __init__(
         self,
+        session_factory: Callable[[], AsyncSession],
         task_name: TaskName,
-        session: AsyncSession,
         embedding_provider: EmbeddingProvider,
     ) -> None:
         """Initialize the VectorChord vector search repository.
@@ -93,7 +94,7 @@ class VectorChordVectorSearchRepository(VectorSearchRepository):
 
         """
         self.embedding_provider = embedding_provider
-        self._session = session
+        self.session_factory = session_factory
         self._initialized = False
         self.table_name = f"vectorchord_{task_name}_embeddings"
         self.index_name = f"{self.table_name}_idx"
@@ -111,12 +112,12 @@ class VectorChordVectorSearchRepository(VectorSearchRepository):
 
     async def _create_extensions(self) -> None:
         """Create the necessary extensions."""
-        await self._session.execute(text(CREATE_VCHORD_EXTENSION))
-        await self._commit()
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
+            await session.execute(text(CREATE_VCHORD_EXTENSION))
 
     async def _create_tables(self) -> None:
         """Create the necessary tables."""
-        req = EmbeddingRequest(snippet_id=0, text="dimension")
+        req = EmbeddingRequest(snippet_id="0", text="dimension")
         vector_dim: list[float] | None = None
         async for batch in self.embedding_provider.embed([req]):
             if batch:
@@ -125,45 +126,35 @@ class VectorChordVectorSearchRepository(VectorSearchRepository):
         if vector_dim is None:
             msg = "Failed to obtain embedding dimension from provider"
             raise RuntimeError(msg)
-        await self._session.execute(
-            text(
-                f"""CREATE TABLE IF NOT EXISTS {self.table_name} (
-                    id SERIAL PRIMARY KEY,
-                    snippet_id VARCHAR(255) NOT NULL UNIQUE,
-                    embedding VECTOR({len(vector_dim)}) NOT NULL
-                );"""
-            )
-        )
-        await self._session.execute(
-            text(
-                CREATE_VCHORD_INDEX.format(
-                    TABLE_NAME=self.table_name, INDEX_NAME=self.index_name
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
+            await session.execute(
+                text(
+                    f"""CREATE TABLE IF NOT EXISTS {self.table_name} (
+                        id SERIAL PRIMARY KEY,
+                        snippet_id VARCHAR(255) NOT NULL UNIQUE,
+                        embedding VECTOR({len(vector_dim)}) NOT NULL
+                    );"""
                 )
             )
-        )
-        result = await self._session.execute(
-            text(CHECK_VCHORD_EMBEDDING_DIMENSION.format(TABLE_NAME=self.table_name))
-        )
-        vector_dim_from_db = result.scalar_one()
-        if vector_dim_from_db != len(vector_dim):
-            msg = (
-                f"Embedding vector dimension does not match database, "
-                f"please delete your index: {vector_dim_from_db} != {len(vector_dim)}"
+            await session.execute(
+                text(
+                    CREATE_VCHORD_INDEX.format(
+                        TABLE_NAME=self.table_name, INDEX_NAME=self.index_name
+                    )
+                )
             )
-            raise ValueError(msg)
-        await self._commit()
-
-    async def _execute(
-        self, query: TextClause, param_list: list[Any] | dict[str, Any] | None = None
-    ) -> Result:
-        """Execute a query."""
-        if not self._initialized:
-            await self._initialize()
-        return await self._session.execute(query, param_list)
-
-    async def _commit(self) -> None:
-        """Commit the session."""
-        await self._session.commit()
+            result = await session.execute(
+                text(
+                    CHECK_VCHORD_EMBEDDING_DIMENSION.format(TABLE_NAME=self.table_name)
+                )
+            )
+            vector_dim_from_db = result.scalar_one()
+            if vector_dim_from_db != len(vector_dim):
+                msg = (
+                    f"Embedding vector dimension does not match database, "
+                    f"please delete your index: {vector_dim_from_db} != {len(vector_dim)}"
+                )
+                raise ValueError(msg)
 
     async def index_documents(
         self, request: IndexRequest
@@ -179,25 +170,25 @@ class VectorChordVectorSearchRepository(VectorSearchRepository):
         ]
 
         async for batch in self.embedding_provider.embed(requests):
-            await self._execute(
-                text(INSERT_QUERY.format(TABLE_NAME=self.table_name)),
-                [
-                    {
-                        "snippet_id": result.snippet_id,
-                        "embedding": str(result.embedding),
-                    }
-                    for result in batch
-                ],
-            )
-            await self._commit()
-            yield [IndexResult(snippet_id=result.snippet_id) for result in batch]
+            async with SqlAlchemyUnitOfWork(self.session_factory) as session:
+                await session.execute(
+                    text(INSERT_QUERY.format(TABLE_NAME=self.table_name)),
+                    [
+                        {
+                            "snippet_id": result.snippet_id,
+                            "embedding": str(result.embedding),
+                        }
+                        for result in batch
+                    ],
+                )
+                yield [IndexResult(snippet_id=result.snippet_id) for result in batch]
 
     async def search(self, request: SearchRequest) -> list[SearchResult]:
         """Search documents using vector similarity."""
         if not request.query or not request.query.strip():
             return []
 
-        req = EmbeddingRequest(snippet_id=0, text=request.query)
+        req = EmbeddingRequest(snippet_id="0", text=request.query)
         embedding_vec: list[float] | None = None
         async for batch in self.embedding_provider.embed([req]):
             if batch:
@@ -207,28 +198,29 @@ class VectorChordVectorSearchRepository(VectorSearchRepository):
         if not embedding_vec:
             return []
 
-        # Use filtered query if snippet_ids are provided
-        if request.snippet_ids is not None:
-            result = await self._execute(
-                text(SEARCH_QUERY_WITH_FILTER.format(TABLE_NAME=self.table_name)),
-                {
-                    "query": str(embedding_vec),
-                    "top_k": request.top_k,
-                    "snippet_ids": request.snippet_ids,
-                },
-            )
-        else:
-            result = await self._execute(
-                text(SEARCH_QUERY.format(TABLE_NAME=self.table_name)),
-                {"query": str(embedding_vec), "top_k": request.top_k},
-            )
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
+            # Use filtered query if snippet_ids are provided
+            if request.snippet_ids is not None:
+                result = await session.execute(
+                    text(SEARCH_QUERY_WITH_FILTER.format(TABLE_NAME=self.table_name)),
+                    {
+                        "query": str(embedding_vec),
+                        "top_k": request.top_k,
+                        "snippet_ids": request.snippet_ids,
+                    },
+                )
+            else:
+                result = await session.execute(
+                    text(SEARCH_QUERY.format(TABLE_NAME=self.table_name)),
+                    {"query": str(embedding_vec), "top_k": request.top_k},
+                )
 
-        rows = result.mappings().all()
+            rows = result.mappings().all()
 
-        return [
-            SearchResult(snippet_id=row["snippet_id"], score=row["score"])
-            for row in rows
-        ]
+            return [
+                SearchResult(snippet_id=row["snippet_id"], score=row["score"])
+                for row in rows
+            ]
 
     async def has_embedding(
         self, snippet_id: int, embedding_type: EmbeddingType
@@ -238,8 +230,9 @@ class VectorChordVectorSearchRepository(VectorSearchRepository):
         # Note: embedding_type is ignored since VectorChord uses separate
         # tables per task
         # ruff: noqa: ARG002
-        result = await self._execute(
-            text(CHECK_VCHORD_EMBEDDING_EXISTS.format(TABLE_NAME=self.table_name)),
-            {"snippet_id": snippet_id},
-        )
-        return bool(result.scalar())
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
+            result = await session.execute(
+                text(CHECK_VCHORD_EMBEDDING_EXISTS.format(TABLE_NAME=self.table_name)),
+                {"snippet_id": snippet_id},
+            )
+            return bool(result.scalar())

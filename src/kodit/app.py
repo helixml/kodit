@@ -24,7 +24,10 @@ from kodit.infrastructure.sqlalchemy.task_status_repository import (
     create_task_status_repository,
 )
 from kodit.mcp import mcp
-from kodit.middleware import ASGICancelledErrorMiddleware, logging_middleware
+from kodit.middleware import (
+    ASGICancelledErrorMiddleware,
+    logging_middleware,
+)
 
 # Global services
 _sync_scheduler_service: SyncSchedulerService | None = None

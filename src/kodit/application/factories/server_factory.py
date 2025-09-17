@@ -16,7 +16,6 @@ from kodit.application.services.reporting import ProgressTracker
 from kodit.application.services.sync_scheduler import SyncSchedulerService
 from kodit.config import AppContext
 from kodit.domain.protocols import (
-    CommitIndexRepository,
     FusionService,
     GitAdapter,
     GitRepoRepository,
@@ -45,9 +44,6 @@ from kodit.infrastructure.enrichment.enrichment_factory import (
 # InMemoryGitTagRepository removed - now handled by InMemoryGitRepoRepository
 from kodit.infrastructure.indexing.fusion_service import ReciprocalRankFusionService
 from kodit.infrastructure.slicing.slicer import Slicer
-from kodit.infrastructure.sqlalchemy.commit_index_repository import (
-    create_commit_index_repository,
-)
 from kodit.infrastructure.sqlalchemy.embedding_repository import (
     SqlAlchemyEmbeddingRepository,
     create_embedding_repository,
@@ -74,7 +70,6 @@ class ServerFactory:
         self.app_context = app_context
         self.session_factory = session_factory
         self._repo_repository: GitRepoRepository | None = None
-        self._commit_index_repository: CommitIndexRepository | None = None
         self._snippet_v2_repository: SnippetRepositoryV2 | None = None
         self._git_adapter: GitAdapter | None = None
         self._scanner: GitRepositoryScanner | None = None
@@ -131,7 +126,7 @@ class ServerFactory:
         if not self._bm25_repository:
             if self.app_context.default_search.provider == "vectorchord":
                 self._bm25_repository = VectorChordBM25Repository(
-                    session=self.session_factory()
+                    session_factory=self.session_factory
                 )
             else:
                 self._bm25_repository = LocalBM25Repository(
@@ -149,7 +144,7 @@ class ServerFactory:
         """Create a EmbeddingDomainService instance."""
         if not self._code_search_service:
             self._code_search_service = embedding_domain_service_factory(
-                "code", self.app_context, self.session_factory(), self.session_factory
+                "code", self.app_context, self.session_factory
             )
         return self._code_search_service
 
@@ -157,7 +152,7 @@ class ServerFactory:
         """Create a EmbeddingDomainService instance."""
         if not self._text_search_service:
             self._text_search_service = embedding_domain_service_factory(
-                "text", self.app_context, self.session_factory(), self.session_factory
+                "text", self.app_context, self.session_factory
             )
         return self._text_search_service
 
@@ -166,7 +161,6 @@ class ServerFactory:
         if not self._commit_indexing_application_service:
             self._commit_indexing_application_service = (
                 CommitIndexingApplicationService(
-                    commit_index_repository=self.commit_index_repository(),
                     snippet_v2_repository=self.snippet_v2_repository(),
                     repo_repository=self.repo_repository(),
                     operation=self.operation(),
@@ -221,14 +215,6 @@ class ServerFactory:
                 self.git_adapter(), self.app_context.get_clone_dir()
             )
         return self._cloner
-
-    def commit_index_repository(self) -> CommitIndexRepository:
-        """Create a CommitIndexRepository instance."""
-        if not self._commit_index_repository:
-            self._commit_index_repository = create_commit_index_repository(
-                session_factory=self.session_factory
-            )
-        return self._commit_index_repository
 
     def snippet_v2_repository(self) -> SnippetRepositoryV2:
         """Create a SnippetRepositoryV2 instance."""

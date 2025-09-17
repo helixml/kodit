@@ -10,7 +10,6 @@ from kodit.application.services.reporting import ProgressTracker
 from kodit.domain.entities import Task
 from kodit.domain.entities.git import GitFile, GitRepo, SnippetV2
 from kodit.domain.protocols import (
-    CommitIndexRepository,
     GitRepoRepository,
     SnippetRepositoryV2,
 )
@@ -46,7 +45,6 @@ class CommitIndexingApplicationService:
 
     def __init__(  # noqa: PLR0913
         self,
-        commit_index_repository: CommitIndexRepository,
         snippet_v2_repository: SnippetRepositoryV2,
         repo_repository: GitRepoRepository,
         operation: ProgressTracker,
@@ -71,7 +69,6 @@ class CommitIndexingApplicationService:
             operation: Progress tracker for reporting operations.
 
         """
-        self.commit_index_repository = commit_index_repository
         self.snippet_repository = snippet_v2_repository
         self.repo_repository = repo_repository
         self.operation = operation

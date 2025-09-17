@@ -1,6 +1,6 @@
 """FastAPI dependencies for the REST API."""
 
-from collections.abc import AsyncGenerator, Callable
+from collections.abc import Callable
 from typing import Annotated, cast
 
 from fastapi import Depends, Request
@@ -44,24 +44,11 @@ def get_server_factory(request: Request) -> ServerFactory:
 ServerFactoryDep = Annotated[ServerFactory, Depends(get_server_factory)]
 
 
-async def get_db_session(
-    app_context: AppContextDep,
-) -> AsyncGenerator[AsyncSession, None]:
-    """Get database session dependency."""
-    db = await app_context.get_db()
-    async with db.session_factory() as session:
-        yield session
-
-
-DBSessionDep = Annotated[AsyncSession, Depends(get_db_session)]
-
-
 async def get_db_session_factory(
-    app_context: AppContextDep,
-) -> AsyncGenerator[Callable[[], AsyncSession], None]:
+    server_factory: ServerFactoryDep,
+) -> Callable[[], AsyncSession]:
     """Get database session dependency."""
-    db = await app_context.get_db()
-    yield db.session_factory
+    return server_factory.session_factory
 
 
 DBSessionFactoryDep = Annotated[

@@ -18,81 +18,81 @@ def create_snippet_v2_repository(
     session_factory: Callable[[], AsyncSession],
 ) -> SnippetRepositoryV2:
     """Create a snippet v2 repository."""
-    uow = SqlAlchemyUnitOfWork(session_factory=session_factory)
-    return SqlAlchemySnippetRepositoryV2(uow)
+    return SqlAlchemySnippetRepositoryV2(session_factory=session_factory)
 
 
 class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
     """SQLAlchemy implementation of SnippetRepositoryV2."""
 
-    def __init__(self, uow: SqlAlchemyUnitOfWork) -> None:
+    def __init__(self, session_factory: Callable[[], AsyncSession]) -> None:
         """Initialize the repository."""
-        self.uow = uow
+        self.session_factory = session_factory
 
     @property
     def _mapper(self) -> GitMapper:
         return GitMapper()
-
-    @property
-    def _session(self) -> AsyncSession:
-        if self.uow.session is None:
-            raise RuntimeError("UnitOfWork must be used within async context")
-        return self.uow.session
 
     async def save_snippets(self, commit_sha: str, snippets: list[SnippetV2]) -> None:
         """Batch save snippets for a commit."""
         if not snippets:
             return
 
-        async with self.uow:
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             for domain_snippet in snippets:
                 db_snippet = await self._get_or_create_raw_snippet(
-                    commit_sha, domain_snippet
+                    session, commit_sha, domain_snippet
                 )
-                await self._update_enrichments_if_changed(db_snippet, domain_snippet)
-                await self._session.flush()
+                await self._update_enrichments_if_changed(
+                    session, db_snippet, domain_snippet
+                )
+                await session.flush()
 
     async def _get_or_create_raw_snippet(
-        self, commit_sha: str, domain_snippet: SnippetV2
+        self, session: AsyncSession, commit_sha: str, domain_snippet: SnippetV2
     ) -> db_entities.SnippetV2:
         """Get or create a SnippetV2 in the database."""
-        db_snippet = await self._session.get(db_entities.SnippetV2, domain_snippet.sha)
+        db_snippet = await session.get(db_entities.SnippetV2, domain_snippet.sha)
         if not db_snippet:
             db_snippet = self._mapper.from_domain_snippet_v2(domain_snippet)
-            self._session.add(db_snippet)
-            await self._session.flush()
+            session.add(db_snippet)
+            await session.flush()
 
             # Associate snippet with commit
             db_association = db_entities.CommitSnippetV2(commit_sha, domain_snippet.sha)
-            self._session.add(db_association)
+            session.add(db_association)
 
             # Associate snippet with files
             for file in domain_snippet.derives_from:
-                db_file = await self._get_or_create_file(file)
-                self._session.add(db_file)
+                db_file = await self._get_or_create_file(session, file)
+                session.add(db_file)
                 association = db_entities.SnippetV2File(
                     snippet_sha=db_snippet.sha,
                     file_blob_sha=db_file.blob_sha,
                 )
-                self._session.add(association)
+                session.add(association)
 
-            await self._session.flush()
+            await session.flush()
         return db_snippet
 
-    async def _get_or_create_file(self, domain_file: GitFile) -> db_entities.GitFile:
+    async def _get_or_create_file(
+        self, session: AsyncSession, domain_file: GitFile
+    ) -> db_entities.GitFile:
         """Get or create a GitFile in the database."""
-        db_file = await self._session.get(db_entities.GitFile, domain_file.blob_sha)
+        db_file = await session.get(db_entities.GitFile, domain_file.blob_sha)
         if not db_file:
             db_file = self._mapper.from_domain_file(domain_file)
-            self._session.add(db_file)
-            await self._session.flush()
+            session.add(db_file)
+            await session.flush()
         return db_file
 
     async def _update_enrichments_if_changed(
-        self, db_snippet: db_entities.SnippetV2, domain_snippet: SnippetV2
+        self,
+        session: AsyncSession,
+        db_snippet: db_entities.SnippetV2,
+        domain_snippet: SnippetV2,
     ) -> None:
         """Update enrichments if they have changed."""
-        current_enrichments = await self._session.scalars(
+        current_enrichments = await session.scalars(
             select(db_entities.Enrichment).where(
                 db_entities.Enrichment.snippet_sha == db_snippet.sha
             )
@@ -111,18 +111,18 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
                 db_entities.Enrichment.type
                 == db_entities.EnrichmentType(enrichment.type.value),
             )
-            await self._session.execute(stmt)
+            await session.execute(stmt)
 
             db_enrichment = db_entities.Enrichment(
                 snippet_sha=db_snippet.sha,
                 type=db_entities.EnrichmentType(enrichment.type.value),
                 content=enrichment.content,
             )
-            self._session.add(db_enrichment)
+            session.add(db_enrichment)
 
     async def get_snippets_for_commit(self, commit_sha: str) -> list[SnippetV2]:
         """Get all snippets for a specific commit."""
-        async with self.uow:
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             # Get snippets for the commit through the association table
             snippets_stmt = (
                 select(db_entities.SnippetV2)
@@ -133,7 +133,7 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
                 )
                 .where(db_entities.CommitSnippetV2.commit_sha == commit_sha)
             )
-            db_snippets = (await self._session.scalars(snippets_stmt)).all()
+            db_snippets = (await session.scalars(snippets_stmt)).all()
 
             domain_snippets = []
             for db_snippet in db_snippets:
@@ -147,13 +147,13 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
                     )
                     .where(db_entities.SnippetV2File.snippet_sha == db_snippet.sha)
                 )
-                db_files = (await self._session.scalars(files_stmt)).all()
+                db_files = (await session.scalars(files_stmt)).all()
 
                 # Get enrichments for this snippet
                 enrichments_stmt = select(db_entities.Enrichment).where(
                     db_entities.Enrichment.snippet_sha == db_snippet.sha
                 )
-                db_enrichments = (await self._session.scalars(enrichments_stmt)).all()
+                db_enrichments = (await session.scalars(enrichments_stmt)).all()
 
                 # Convert files to domain entities
                 domain_files = []
@@ -177,13 +177,13 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
 
     async def delete_snippets_for_commit(self, commit_sha: str) -> None:
         """Delete all snippet associations for a commit."""
-        async with self.uow:
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             # Note: We only delete the commit-snippet associations,
             # not the snippets themselves as they might be used by other commits
             stmt = delete(db_entities.CommitSnippetV2).where(
                 db_entities.CommitSnippetV2.commit_sha == commit_sha
             )
-            await self._session.execute(stmt)
+            await session.execute(stmt)
 
     def _hash_string(self, string: str) -> int:
         """Hash a string."""
@@ -257,7 +257,7 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
         query = query.limit(request.top_k)
 
         # Execute query
-        async with self.uow:
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             result = await self._session.scalars(query)
             db_snippets = result.all()
 
@@ -272,12 +272,12 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
 
     async def get_by_ids(self, ids: list[str]) -> list[SnippetV2]:
         """Get snippets by their IDs."""
-        async with self.uow:
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             # Get snippets for the commit through the association table
             snippets_stmt = select(db_entities.SnippetV2).where(
                 db_entities.SnippetV2.sha.in_(ids)
             )
-            db_snippets = (await self._session.scalars(snippets_stmt)).all()
+            db_snippets = (await session.scalars(snippets_stmt)).all()
 
             domain_snippets = []
             for db_snippet in db_snippets:
@@ -291,13 +291,13 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
                     )
                     .where(db_entities.SnippetV2File.snippet_sha == db_snippet.sha)
                 )
-                db_files = (await self._session.scalars(files_stmt)).all()
+                db_files = (await session.scalars(files_stmt)).all()
 
                 # Get enrichments for this snippet
                 enrichments_stmt = select(db_entities.Enrichment).where(
                     db_entities.Enrichment.snippet_sha == db_snippet.sha
                 )
-                db_enrichments = (await self._session.scalars(enrichments_stmt)).all()
+                db_enrichments = (await session.scalars(enrichments_stmt)).all()
 
                 # Convert files to domain entities
                 domain_files = []

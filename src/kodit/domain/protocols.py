@@ -11,7 +11,6 @@ from kodit.domain.entities import (
     TaskStatus,
 )
 from kodit.domain.entities.git import (
-    CommitIndex,
     GitCommit,
     GitRepo,
     SnippetV2,
@@ -176,26 +175,6 @@ class GitAdapter(ABC):
     @abstractmethod
     async def get_all_tags(self, local_path: Path) -> list[dict[str, Any]]:
         """Get all tags in repository."""
-
-
-class CommitIndexRepository(ABC):
-    """Repository for commit indexing operations."""
-
-    @abstractmethod
-    async def save(self, commit_index: CommitIndex) -> None:
-        """Save or update a commit index."""
-
-    @abstractmethod
-    async def get_by_commit(self, commit_sha: str) -> CommitIndex | None:
-        """Get index data for a specific commit."""
-
-    @abstractmethod
-    async def get_indexed_commits_for_repo(self, repo_uri: str) -> list[CommitIndex]:
-        """Get all indexed commits for a repository."""
-
-    @abstractmethod
-    async def delete(self, commit_sha: str) -> bool:
-        """Delete index data for a commit."""
 
 
 class SnippetRepositoryV2(ABC):
