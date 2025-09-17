@@ -1,6 +1,6 @@
 """MCP server for kodit."""
 
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -9,9 +9,10 @@ from typing import Annotated
 import structlog
 from fastmcp import Context, FastMCP
 from pydantic import Field
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit._version import version
+from kodit.application.factories.server_factory import ServerFactory
+from kodit.application.services.code_search_application_service import MultiSearchResult
 from kodit.config import AppContext
 from kodit.database import Database
 from kodit.domain.value_objects import (
@@ -21,15 +22,14 @@ from kodit.domain.value_objects import (
 
 # Global database connection for MCP server
 _mcp_db: Database | None = None
+_mcp_server_factory: ServerFactory | None = None
 
 
 @dataclass
 class MCPContext:
     """Context for the MCP server."""
 
-    session: AsyncSession
-    session_factory: Callable[[], AsyncSession]
-    app_context: AppContext
+    server_factory: ServerFactory
 
 
 @asynccontextmanager
@@ -47,16 +47,12 @@ async def mcp_lifespan(_: FastMCP) -> AsyncIterator[MCPContext]:
     Since they don't provide a good way to handle global state, we must use a
     global variable to store the database connection.
     """
-    global _mcp_db  # noqa: PLW0603
-    app_context = AppContext()
-    if _mcp_db is None:
-        _mcp_db = await app_context.get_db()
-    async with _mcp_db.session_factory() as session:
-        yield MCPContext(
-            session=session,
-            app_context=app_context,
-            session_factory=_mcp_db.session_factory,
-        )
+    global _mcp_server_factory
+    if _mcp_server_factory is None:
+        app_context = AppContext()
+        db = await app_context.get_db()
+        _mcp_server_factory = ServerFactory(app_context, db.session_factory)
+    yield MCPContext(_mcp_server_factory)
 
 
 def create_mcp_server(name: str, instructions: str | None = None) -> FastMCP:
@@ -171,13 +167,8 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:
 
         mcp_context: MCPContext = ctx.request_context.lifespan_context
 
-        raise NotImplementedError("Not implemented")
-
         # Use the unified application service
-        service = create_server_code_search_application_service(
-            app_context=mcp_context.app_context,
-            session_factory=mcp_context.session_factory,
-        )
+        service = mcp_context.server_factory.code_search_application_service()
 
         log.debug("Searching for snippets")
 

@@ -25,6 +25,24 @@ class MultiSearchResult:
     snippet: SnippetV2
     original_scores: list[float]
 
+    def to_json(self) -> str:
+        """Return LLM-optimized JSON representation following the compact schema."""
+        return self.snippet.model_dump_json()
+
+    @classmethod
+    def to_jsonlines(cls, results: list["MultiSearchResult"]) -> str:
+        """Convert multiple MultiSearchResult objects to JSON Lines format.
+
+        Args:
+            results: List of MultiSearchResult objects
+            include_summary: Whether to include summary fields
+
+        Returns:
+            JSON Lines string (one JSON object per line)
+
+        """
+        return "\n".join(result.to_json() for result in results)
+
 
 class CodeSearchApplicationService:
     """Service for searching the indexes."""
