@@ -168,7 +168,7 @@ class DocumentSearchResult:
 class SearchResult:
     """Generic search result model."""
 
-    snippet_id: int
+    snippet_id: str
     score: float
 
 
@@ -289,7 +289,7 @@ class MultiSearchRequest:
 class MultiSearchResult:
     """Enhanced search result with comprehensive snippet metadata."""
 
-    id: int
+    id: str
     content: str
     original_scores: list[float]
     source_uri: str
@@ -376,7 +376,7 @@ class MultiSearchResult:
 class FusionRequest:
     """Domain model for fusion request."""
 
-    id: int
+    id: str
     score: float
 
 
@@ -384,7 +384,7 @@ class FusionRequest:
 class FusionResult:
     """Domain model for fusion result."""
 
-    id: int
+    id: str
     score: float
     original_scores: list[float]
 

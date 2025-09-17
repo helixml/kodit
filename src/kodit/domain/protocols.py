@@ -16,7 +16,12 @@ from kodit.domain.entities.git import (
     GitRepo,
     SnippetV2,
 )
-from kodit.domain.value_objects import TaskOperation
+from kodit.domain.value_objects import (
+    FusionRequest,
+    FusionResult,
+    MultiSearchRequest,
+    TaskOperation,
+)
 
 
 class TaskRepository(Protocol):
@@ -204,6 +209,20 @@ class SnippetRepositoryV2(ABC):
     async def get_snippets_for_commit(self, commit_sha: str) -> list[SnippetV2]:
         """Get all snippets for a specific commit."""
 
+    @abstractmethod
+    async def search(self, request: MultiSearchRequest) -> list[SnippetV2]:
+        """Search snippets with filters."""
 
-# GitTagRepository removed - now handled internally by GitRepoRepository
-# as GitRepo is the aggregate root that owns tags""
+    @abstractmethod
+    async def get_by_ids(self, ids: list[str]) -> list[SnippetV2]:
+        """Get snippets by their IDs."""
+
+
+class FusionService(ABC):
+    """Abstract fusion service interface."""
+
+    @abstractmethod
+    def reciprocal_rank_fusion(
+        self, rankings: list[list[FusionRequest]], k: float = 60
+    ) -> list[FusionResult]:
+        """Perform reciprocal rank fusion on search results."""

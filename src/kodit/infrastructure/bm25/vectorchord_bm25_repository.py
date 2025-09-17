@@ -114,7 +114,7 @@ class VectorChordBM25Repository(BM25Repository):
             session: The SQLAlchemy async session to use for database operations
 
         """
-        self.__session = session
+        self.__session = session  # TODO(Phil): Should use uow
         self._initialized = False
         self.log = structlog.get_logger(__name__)
 

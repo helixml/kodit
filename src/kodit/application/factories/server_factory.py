@@ -5,6 +5,9 @@ from collections.abc import Callable
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.application.factories.reporting_factory import create_server_operation
+from kodit.application.services.code_search_application_service import (
+    CodeSearchApplicationService,
+)
 from kodit.application.services.commit_indexing_application_service import (
     CommitIndexingApplicationService,
 )
@@ -14,6 +17,7 @@ from kodit.application.services.sync_scheduler import SyncSchedulerService
 from kodit.config import AppContext
 from kodit.domain.protocols import (
     CommitIndexRepository,
+    FusionService,
     GitAdapter,
     GitRepoRepository,
     SnippetRepositoryV2,
@@ -39,6 +43,7 @@ from kodit.infrastructure.enrichment.enrichment_factory import (
 )
 
 # InMemoryGitTagRepository removed - now handled by InMemoryGitRepoRepository
+from kodit.infrastructure.indexing.fusion_service import ReciprocalRankFusionService
 from kodit.infrastructure.slicing.slicer import Slicer
 from kodit.infrastructure.sqlalchemy.commit_index_repository import (
     create_commit_index_repository,
@@ -88,6 +93,10 @@ class ServerFactory:
         self._text_search_service: EmbeddingDomainService | None = None
         self._sync_scheduler_service: SyncSchedulerService | None = None
         self._embedding_repository: SqlAlchemyEmbeddingRepository | None = None
+        self._fusion_service: FusionService | None = None
+        self._code_search_application_service: CodeSearchApplicationService | None = (
+            None
+        )
 
     def queue_service(self) -> QueueService:
         """Create a QueueService instance."""
@@ -253,3 +262,22 @@ class ServerFactory:
                 session_factory=self.session_factory
             )
         return self._embedding_repository
+
+    def fusion_service(self) -> FusionService:
+        """Create a FusionService instance."""
+        if not self._fusion_service:
+            self._fusion_service = ReciprocalRankFusionService()
+        return self._fusion_service
+
+    def code_search_application_service(self) -> CodeSearchApplicationService:
+        """Create a CodeSearchApplicationService instance."""
+        if not self._code_search_application_service:
+            self._code_search_application_service = CodeSearchApplicationService(
+                bm25_service=self.bm25_service(),
+                code_search_service=self.code_search_service(),
+                text_search_service=self.text_search_service(),
+                progress_tracker=self.operation(),
+                snippet_repository=self.snippet_v2_repository(),
+                fusion_service=self.fusion_service(),
+            )
+        return self._code_search_application_service

@@ -229,6 +229,8 @@ async def list_commit_snippets(
     )
 
 
+# TODO(Phil): This doesn't return vectorchord embeddings properly because it's
+# implemented in a different repo
 @router.get(
     "/{repo_id}/commits/{commit_sha}/embeddings",
     summary="List commit embeddings",

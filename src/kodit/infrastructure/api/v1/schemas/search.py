@@ -126,7 +126,7 @@ class SnippetData(BaseModel):
     """Snippet data for JSON:API responses."""
 
     type: str = "snippet"
-    id: int
+    id: str
     attributes: SnippetAttributes
 
 

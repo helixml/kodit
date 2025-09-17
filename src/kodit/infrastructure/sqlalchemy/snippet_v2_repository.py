@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.domain.entities.git import GitFile, SnippetV2
 from kodit.domain.protocols import SnippetRepositoryV2
+from kodit.domain.value_objects import MultiSearchRequest
 from kodit.infrastructure.mappers.git_mapper import GitMapper
 from kodit.infrastructure.sqlalchemy import entities as db_entities
 from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
@@ -155,8 +156,6 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
                 db_enrichments = (await self._session.scalars(enrichments_stmt)).all()
 
                 # Convert files to domain entities
-                from kodit.domain.entities.git import GitFile
-
                 domain_files = []
                 for db_file in db_files:
                     domain_file = GitFile(
@@ -189,3 +188,133 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
     def _hash_string(self, string: str) -> int:
         """Hash a string."""
         return zlib.crc32(string.encode())
+
+    async def search(self, request: MultiSearchRequest) -> list[SnippetV2]:
+        """Search snippets with filters."""
+        raise NotImplementedError("Not implemented")
+
+        # Build base query joining all necessary tables
+        query = (
+            select(
+                db_entities.SnippetV2,
+                db_entities.GitCommit,
+                db_entities.GitFile,
+                db_entities.GitRepo,
+            )
+            .join(
+                db_entities.CommitSnippetV2,
+                db_entities.SnippetV2.sha == db_entities.CommitSnippetV2.snippet_sha,
+            )
+            .join(
+                db_entities.GitCommit,
+                db_entities.CommitSnippetV2.commit_sha
+                == db_entities.GitCommit.commit_sha,
+            )
+            .join(
+                db_entities.SnippetV2File,
+                db_entities.SnippetV2.sha == db_entities.SnippetV2File.snippet_sha,
+            )
+            .join(
+                db_entities.GitCommitFile,
+                db_entities.SnippetV2.sha == db_entities.Enrichment.snippet_sha,
+            )
+            .join(
+                db_entities.GitFile,
+                db_entities.SnippetV2File.file_blob_sha == db_entities.GitFile.blob_sha,
+            )
+            .join(
+                db_entities.GitRepo,
+                db_entities.GitCommitFile.file_blob_sha == db_entities.GitRepo.id,
+            )
+        )
+
+        # Apply filters if provided
+        if request.filters:
+            if request.filters.source_repo:
+                query = query.where(
+                    db_entities.GitRepo.sanitized_remote_uri.ilike(
+                        f"%{request.filters.source_repo}%"
+                    )
+                )
+
+            if request.filters.file_path:
+                query = query.where(
+                    db_entities.GitFile.path.ilike(f"%{request.filters.file_path}%")
+                )
+
+            # TODO(Phil): Double check that git timestamps are correctly populated
+            if request.filters.created_after:
+                query = query.where(
+                    db_entities.GitFile.created_at >= request.filters.created_after
+                )
+
+            if request.filters.created_before:
+                query = query.where(
+                    db_entities.GitFile.created_at <= request.filters.created_before
+                )
+
+        # Apply limit
+        query = query.limit(request.top_k)
+
+        # Execute query
+        async with self.uow:
+            result = await self._session.scalars(query)
+            db_snippets = result.all()
+
+            return [
+                self._mapper.to_domain_snippet_v2(
+                    db_snippet=snippet,
+                    derives_from=git_file,
+                    db_enrichments=[],
+                )
+                for snippet, git_commit, git_file, git_repo in db_snippets
+            ]
+
+    async def get_by_ids(self, ids: list[str]) -> list[SnippetV2]:
+        """Get snippets by their IDs."""
+        async with self.uow:
+            # Get snippets for the commit through the association table
+            snippets_stmt = select(db_entities.SnippetV2).where(
+                db_entities.SnippetV2.sha.in_(ids)
+            )
+            db_snippets = (await self._session.scalars(snippets_stmt)).all()
+
+            domain_snippets = []
+            for db_snippet in db_snippets:
+                # Get associated files for this snippet
+                files_stmt = (
+                    select(db_entities.GitFile)
+                    .join(
+                        db_entities.SnippetV2File,
+                        db_entities.GitFile.blob_sha
+                        == db_entities.SnippetV2File.file_blob_sha,
+                    )
+                    .where(db_entities.SnippetV2File.snippet_sha == db_snippet.sha)
+                )
+                db_files = (await self._session.scalars(files_stmt)).all()
+
+                # Get enrichments for this snippet
+                enrichments_stmt = select(db_entities.Enrichment).where(
+                    db_entities.Enrichment.snippet_sha == db_snippet.sha
+                )
+                db_enrichments = (await self._session.scalars(enrichments_stmt)).all()
+
+                # Convert files to domain entities
+                domain_files = []
+                for db_file in db_files:
+                    domain_file = GitFile(
+                        blob_sha=db_file.blob_sha,
+                        path=db_file.path,
+                        mime_type=db_file.mime_type,
+                        size=db_file.size,
+                        extension=db_file.extension,
+                    )
+                    domain_files.append(domain_file)
+
+                # Convert snippet to domain entity
+                domain_snippet = self._mapper.to_domain_snippet_v2(
+                    db_snippet, domain_files, list(db_enrichments)
+                )
+                domain_snippets.append(domain_snippet)
+
+            return domain_snippets

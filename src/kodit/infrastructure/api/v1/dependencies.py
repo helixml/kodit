@@ -7,6 +7,9 @@ from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.application.factories.server_factory import ServerFactory
+from kodit.application.services.code_search_application_service import (
+    CodeSearchApplicationService,
+)
 from kodit.application.services.commit_indexing_application_service import (
     CommitIndexingApplicationService,
 )
@@ -111,4 +114,16 @@ async def get_commit_indexing_app_service(
 
 CommitIndexingAppServiceDep = Annotated[
     CommitIndexingApplicationService, Depends(get_commit_indexing_app_service)
+]
+
+
+async def get_code_search_app_service(
+    server_factory: ServerFactoryDep,
+) -> CodeSearchApplicationService:
+    """Get code search application service dependency."""
+    return server_factory.code_search_application_service()
+
+
+CodeSearchAppServiceDep = Annotated[
+    CodeSearchApplicationService, Depends(get_code_search_app_service)
 ]
