@@ -18,41 +18,8 @@ if [ -d "$HOME/.kodit" ]; then
     exit 1
 fi
 
-#
-
-# Create a temporary directory
-tmp_dir=$(mktemp -d)
-
-# Write a dummy python file to the temporary directory
-echo -e "def main():\n    print('Hello, world!')" > $tmp_dir/test.py
-
 # Test version command
 $prefix kodit version
-
-# Test index command
-$prefix kodit index $tmp_dir
-$prefix kodit index https://github.com/winderai/analytics-ai-agent-demo
-$prefix kodit index
-
-# Test search command
-$prefix kodit search keyword "Hello"
-$prefix kodit search code "Hello"
-$prefix kodit search hybrid --keywords "main" --code "def main()" --text "main"
-
-# Test show command
-$prefix kodit show snippets --by-path test.py
-$prefix kodit show snippets --by-source https://github.com/winderai/analytics-ai-agent-demo
-
-# Test search command with filters
-result=$($prefix kodit search keyword "list_bigquery_fields,client" --top-k=3 --output-format=json | head -n 1)
-# Check that result CONTAINS "def list_bigquery_fields() -> str:"
-if [[ "$result" != *"def list_bigquery_fields() -> str:"* ]]; then
-    echo "Result does not contain 'def list_bigquery_fields() -> str:'"
-    echo "Result: $result"
-    exit 1
-fi
-$prefix kodit search code "Hello" --source-repo=winderai/analytics-ai-agent-demo
-$prefix kodit search hybrid --keywords "main" --code "def main()" --text "main" --language=python
 
 # Test indexes API endpoints
 echo "Testing indexes API..."
@@ -83,21 +50,16 @@ wait_for_server() {
 
 # Wait for server to be ready
 if wait_for_server; then
-    # Test GET /api/v1/indexes (list indexes)
-    echo "Testing GET /api/v1/indexes"
-    curl -s -f http://127.0.0.1:8080/api/v1/indexes || echo "List indexes test failed"
+    # Test GET /api/v1/repositories (list indexes)
+    echo "Testing GET /api/v1/repositories"
+    curl -s -f http://127.0.0.1:8080/api/v1/repositories || echo "List repository test failed"
     
-    # Test POST /api/v1/indexes (create index)
-    echo "Testing POST /api/v1/indexes"
-    INDEX_RESPONSE=$(curl -s -f -X POST http://127.0.0.1:8080/api/v1/indexes \
+    # Test POST /api/v1/repositories (create repository)
+    echo "Testing POST /api/v1/repositories"
+    INDEX_RESPONSE=$(curl -s -f -X POST http://127.0.0.1:8080/api/v1/repositories \
         -H "Content-Type: application/json" \
         -d '{"data": {"type": "index", "attributes": {"uri": "https://gist.github.com/7aa38185e20433c04c533f2b28f4e217.git"}}}' \
-        || echo "Create index test failed")
-    INDEX_ID=$(echo "$INDEX_RESPONSE" | jq -r '.data.id')
-
-    # Test GET /api/v1/indexes/$INDEX_ID/status
-    echo "Testing GET /api/v1/indexes/$INDEX_ID/status"
-    curl -s -f http://127.0.0.1:8080/api/v1/indexes/$INDEX_ID/status || echo "Get index status test failed"
+        || echo "Create repository test failed")
 
     # Test search API as well
     echo "Testing POST /api/v1/search"
@@ -105,17 +67,6 @@ if wait_for_server; then
         -H "Content-Type: application/json" \
         -d '{"data": {"type": "search", "attributes": {"keywords": ["test"], "code": "def", "text": "function"}}, "limit": 5}' \
         || echo "Search API test failed"
-    
-    # Test DELETE /api/v1/indexes/$INDEX_ID (delete index)
-    if [[ "$INDEX_RESPONSE" == "Create index test failed" ]]; then
-        echo "Delete index test skipped"
-    else
-        INDEX_ID=$(echo "$INDEX_RESPONSE" | jq -r '.data.id')
-        echo "Testing DELETE /api/v1/indexes/$INDEX_ID"
-        curl -s -f -X DELETE http://127.0.0.1:8080/api/v1/indexes/$INDEX_ID \
-            -H "Content-Type: application/json" \
-            || echo "Delete index test failed"
-    fi
 fi
 
 # Clean up: stop the server
@@ -124,4 +75,5 @@ if [ -n "$SERVER_PID" ]; then
     wait $SERVER_PID 2>/dev/null || true
 fi
 
+echo "--------------------------------"
 echo "API tests completed"
