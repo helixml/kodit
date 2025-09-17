@@ -1,21 +1,29 @@
 """Service for searching the indexes."""
 
-from datetime import UTC, datetime
+from dataclasses import dataclass
 
 import structlog
 
 from kodit.application.services.reporting import ProgressTracker
+from kodit.domain.entities.git import SnippetV2
 from kodit.domain.protocols import FusionService, SnippetRepositoryV2
 from kodit.domain.services.bm25_service import BM25DomainService
 from kodit.domain.services.embedding_service import EmbeddingDomainService
 from kodit.domain.value_objects import (
     FusionRequest,
     MultiSearchRequest,
-    MultiSearchResult,
     SearchRequest,
     SearchResult,
 )
 from kodit.log import log_event
+
+
+@dataclass
+class MultiSearchResult:
+    """Enhanced search result with comprehensive snippet metadata."""
+
+    snippet: SnippetV2
+    original_scores: list[float]
 
 
 class CodeSearchApplicationService:
@@ -117,19 +125,8 @@ class CodeSearchApplicationService:
         search_results.sort(key=lambda x: ids.index(x.id))
         return [
             MultiSearchResult(
-                id=snippet.id,
-                content=snippet.content,
+                snippet=snippet,
                 original_scores=[x.score for x in final_results if x.id == snippet.id],
-                # Enhanced fields
-                source_uri="N/A",  # TODO(Phil): What to do about these fields...
-                relative_path="N/A",
-                language=MultiSearchResult.detect_language_from_extension(
-                    snippet.extension
-                ),
-                authors=[],
-                created_at=snippet.created_at or datetime.now(UTC),
-                # Summary from snippet entity
-                summary="N/A",
             )
             for snippet in search_results
         ]

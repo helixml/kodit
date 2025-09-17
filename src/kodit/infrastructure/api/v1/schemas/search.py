@@ -4,6 +4,12 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from kodit.infrastructure.api.v1.schemas.snippet import (
+    EnrichmentSchema,
+    GitFileSchema,
+    SnippetContentSchema,
+)
+
 
 class SearchFilters(BaseModel):
     """Search filters for JSON:API requests."""
@@ -111,15 +117,12 @@ class SearchRequest(BaseModel):
 class SnippetAttributes(BaseModel):
     """Snippet attributes for JSON:API responses."""
 
-    content: str
-    created_at: datetime
-    updated_at: datetime
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    derives_from: list[GitFileSchema]
+    content: SnippetContentSchema
+    enrichments: list[EnrichmentSchema]
     original_scores: list[float]
-    source_uri: str
-    relative_path: str
-    language: str
-    authors: list[str]
-    summary: str
 
 
 class SnippetData(BaseModel):

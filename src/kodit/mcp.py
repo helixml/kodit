@@ -16,7 +16,6 @@ from kodit.config import AppContext
 from kodit.database import Database
 from kodit.domain.value_objects import (
     MultiSearchRequest,
-    MultiSearchResult,
     SnippetSearchFilters,
 )
 

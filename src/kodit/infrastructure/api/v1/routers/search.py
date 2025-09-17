@@ -10,6 +10,11 @@ from kodit.infrastructure.api.v1.schemas.search import (
     SnippetAttributes,
     SnippetData,
 )
+from kodit.infrastructure.api.v1.schemas.snippet import (
+    EnrichmentSchema,
+    GitFileSchema,
+    SnippetContentSchema,
+)
 
 router = APIRouter(tags=["search"])
 
@@ -54,17 +59,31 @@ async def search_snippets(
         data=[
             SnippetData(
                 type="snippet",
-                id=result.id,
+                id=result.snippet.id,
                 attributes=SnippetAttributes(
-                    content=result.content,
-                    created_at=result.created_at,
-                    updated_at=result.created_at,  # Use created_at as fallback
+                    created_at=result.snippet.created_at,
+                    updated_at=result.snippet.updated_at,
+                    derives_from=[
+                        GitFileSchema(
+                            blob_sha=file.blob_sha,
+                            path=file.path,
+                            mime_type=file.mime_type,
+                            size=file.size,
+                        )
+                        for file in result.snippet.derives_from
+                    ],
+                    content=SnippetContentSchema(
+                        value=result.snippet.content,
+                        language=result.snippet.extension,
+                    ),
+                    enrichments=[
+                        EnrichmentSchema(
+                            type=enrichment.type.value,
+                            content=enrichment.content,
+                        )
+                        for enrichment in result.snippet.enrichments
+                    ],
                     original_scores=result.original_scores,
-                    source_uri=result.source_uri,
-                    relative_path=result.relative_path,
-                    language=result.language,
-                    authors=result.authors,
-                    summary=result.summary,
                 ),
             )
             for result in results
