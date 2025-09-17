@@ -73,6 +73,10 @@ CHECK_VCHORD_EMBEDDING_EXISTS = """
 SELECT EXISTS(SELECT 1 FROM {TABLE_NAME} WHERE snippet_id = :snippet_id)
 """
 
+CHECK_VCHORD_EMBEDDING_EXISTS_MULTIPLE = """
+SELECT snippet_id FROM {TABLE_NAME} WHERE snippet_id = ANY(:snippet_ids)
+"""
+
 TaskName = Literal["code", "text"]
 
 
@@ -160,16 +164,30 @@ class VectorChordVectorSearchRepository(VectorSearchRepository):
         self, request: IndexRequest
     ) -> AsyncGenerator[list[IndexResult], None]:
         """Index documents for vector search."""
+        if not self._initialized:
+            await self._initialize()
+
         if not request.documents:
             yield []
 
+        # Search for existing embeddings
+        existing_ids = await self._get_existing_ids(
+            [doc.snippet_id for doc in request.documents]
+        )
+        new_documents = [
+            doc for doc in request.documents if doc.snippet_id not in existing_ids
+        ]
+        if not new_documents:
+            self.log.info("No new documents to index")
+            return
+
         # Convert to embedding requests
-        requests = [
+        embedding_requests = [
             EmbeddingRequest(snippet_id=doc.snippet_id, text=doc.text)
-            for doc in request.documents
+            for doc in new_documents
         ]
 
-        async for batch in self.embedding_provider.embed(requests):
+        async for batch in self.embedding_provider.embed(embedding_requests):
             async with SqlAlchemyUnitOfWork(self.session_factory) as session:
                 await session.execute(
                     text(INSERT_QUERY.format(TABLE_NAME=self.table_name)),
@@ -185,6 +203,8 @@ class VectorChordVectorSearchRepository(VectorSearchRepository):
 
     async def search(self, request: SearchRequest) -> list[SearchResult]:
         """Search documents using vector similarity."""
+        if not self._initialized:
+            await self._initialize()
         if not request.query or not request.query.strip():
             return []
 
@@ -226,6 +246,8 @@ class VectorChordVectorSearchRepository(VectorSearchRepository):
         self, snippet_id: int, embedding_type: EmbeddingType
     ) -> bool:
         """Check if a snippet has an embedding."""
+        if not self._initialized:
+            await self._initialize()
         # For VectorChord, we check if the snippet exists in the table
         # Note: embedding_type is ignored since VectorChord uses separate
         # tables per task
@@ -236,3 +258,15 @@ class VectorChordVectorSearchRepository(VectorSearchRepository):
                 {"snippet_id": snippet_id},
             )
             return bool(result.scalar())
+
+    async def _get_existing_ids(self, snippet_ids: list[str]) -> set[str]:
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
+            result = await session.execute(
+                text(
+                    CHECK_VCHORD_EMBEDDING_EXISTS_MULTIPLE.format(
+                        TABLE_NAME=self.table_name
+                    )
+                ),
+                {"snippet_ids": snippet_ids},
+            )
+            return {row[0] for row in result.fetchall()}

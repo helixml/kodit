@@ -162,6 +162,9 @@ class VectorChordBM25Repository(BM25Repository):
 
     async def index_documents(self, request: IndexRequest) -> None:
         """Index documents for BM25 search."""
+        if not self._initialized:
+            await self._initialize()
+
         # Filter out any documents that don't have a snippet_id or text
         valid_documents = [
             doc
@@ -200,6 +203,8 @@ class VectorChordBM25Repository(BM25Repository):
 
     async def search(self, request: SearchRequest) -> list[SearchResult]:
         """Search documents using BM25."""
+        if not self._initialized:
+            await self._initialize()
         if not request.query or request.query.strip() == "":
             return []
 
@@ -226,6 +231,8 @@ class VectorChordBM25Repository(BM25Repository):
 
     async def delete_documents(self, request: DeleteRequest) -> None:
         """Delete documents from the index."""
+        if not self._initialized:
+            await self._initialize()
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             await session.execute(
                 text(DELETE_QUERY).bindparams(bindparam("snippet_ids", expanding=True)),

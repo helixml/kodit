@@ -190,6 +190,9 @@ class CommitIndexingApplicationService:
                 )
                 all_snippets.extend(snippets)
 
+            self._log.info(
+                f"Saving {len(all_snippets)} snippets for commit {commit.commit_sha}"
+            )
             await self.snippet_repository.save_snippets(commit.commit_sha, all_snippets)
 
     async def process_bm25_index(self, commit_sha: str) -> None:

@@ -128,32 +128,25 @@ class LiteLLMEnrichmentProvider(EnrichmentProvider):
                         snippet_id=request.snippet_id,
                         text="",
                     )
-                try:
-                    messages = [
-                        {
-                            "role": "system",
-                            "content": ENRICHMENT_SYSTEM_PROMPT,
-                        },
-                        {"role": "user", "content": request.text},
-                    ]
-                    response = await self._call_chat_completion(messages)
-                    content = (
-                        response.get("choices", [{}])[0]
-                        .get("message", {})
-                        .get("content", "")
-                    )
-                    # Remove thinking tags from the response
-                    cleaned_content = clean_thinking_tags(content or "")
-                    return EnrichmentResponse(
-                        snippet_id=request.snippet_id,
-                        text=cleaned_content,
-                    )
-                except Exception as e:
-                    self.log.exception("Error enriching request", error=str(e))
-                    return EnrichmentResponse(
-                        snippet_id=request.snippet_id,
-                        text="",
-                    )
+                messages = [
+                    {
+                        "role": "system",
+                        "content": ENRICHMENT_SYSTEM_PROMPT,
+                    },
+                    {"role": "user", "content": request.text},
+                ]
+                response = await self._call_chat_completion(messages)
+                content = (
+                    response.get("choices", [{}])[0]
+                    .get("message", {})
+                    .get("content", "")
+                )
+                # Remove thinking tags from the response
+                cleaned_content = clean_thinking_tags(content or "")
+                return EnrichmentResponse(
+                    snippet_id=request.snippet_id,
+                    text=cleaned_content,
+                )
 
         # Create tasks for all requests
         tasks = [process_request(request) for request in requests]

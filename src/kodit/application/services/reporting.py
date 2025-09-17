@@ -82,7 +82,6 @@ class ProgressTracker:
     async def skip(self, reason: str) -> None:
         """Skip the step."""
         self.task_status.skip(reason)
-        await self.notify_subscribers()
 
     def subscribe(self, subscriber: "ReportingModule") -> None:
         """Subscribe to the step."""
@@ -91,7 +90,6 @@ class ProgressTracker:
     async def set_total(self, total: int) -> None:
         """Set the total for the step."""
         self.task_status.set_total(total)
-        await self.notify_subscribers()
 
     async def set_current(self, current: int, message: str | None = None) -> None:
         """Progress the step."""
