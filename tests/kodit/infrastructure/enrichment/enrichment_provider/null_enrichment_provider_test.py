@@ -30,7 +30,7 @@ class TestNullEnrichmentProvider:
     async def test_enrich_single_request(self) -> None:
         """Test enrichment with a single request."""
         provider = NullEnrichmentProvider()
-        requests = [EnrichmentRequest(snippet_id=1, text="def test(): pass")]
+        requests = [EnrichmentRequest(snippet_id="1", text="def test(): pass")]
 
         results = [result async for result in provider.enrich(requests)]
 
@@ -43,9 +43,9 @@ class TestNullEnrichmentProvider:
         """Test enrichment with multiple requests."""
         provider = NullEnrichmentProvider()
         requests = [
-            EnrichmentRequest(snippet_id=1, text="def hello(): pass"),
-            EnrichmentRequest(snippet_id=2, text="def world(): pass"),
-            EnrichmentRequest(snippet_id=3, text=""),
+            EnrichmentRequest(snippet_id="1", text="def hello(): pass"),
+            EnrichmentRequest(snippet_id="2", text="def world(): pass"),
+            EnrichmentRequest(snippet_id="3", text=""),
         ]
 
         results = [result async for result in provider.enrich(requests)]
@@ -63,8 +63,8 @@ class TestNullEnrichmentProvider:
         """Test that snippet IDs are preserved correctly."""
         provider = NullEnrichmentProvider()
         requests = [
-            EnrichmentRequest(snippet_id=42, text="def test(): pass"),
-            EnrichmentRequest(snippet_id=123, text="def another(): pass"),
+            EnrichmentRequest(snippet_id="42", text="def test(): pass"),
+            EnrichmentRequest(snippet_id="123", text="def another(): pass"),
         ]
 
         results = [result async for result in provider.enrich(requests)]
@@ -80,10 +80,12 @@ class TestNullEnrichmentProvider:
         """Test that the provider filters out non-alphabetic characters."""
         provider = NullEnrichmentProvider()
         requests = [
-            EnrichmentRequest(snippet_id=1, text="def test(): pass"),
-            EnrichmentRequest(snippet_id=2, text=""),
-            EnrichmentRequest(snippet_id=3, text="   "),
-            EnrichmentRequest(snippet_id=4, text="complex code with imports and logic"),
+            EnrichmentRequest(snippet_id="1", text="def test(): pass"),
+            EnrichmentRequest(snippet_id="2", text=""),
+            EnrichmentRequest(snippet_id="3", text="   "),
+            EnrichmentRequest(
+                snippet_id="4", text="complex code with imports and logic"
+            ),
         ]
 
         results = [result async for result in provider.enrich(requests)]

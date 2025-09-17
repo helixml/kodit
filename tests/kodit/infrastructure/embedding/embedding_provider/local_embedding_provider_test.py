@@ -60,7 +60,7 @@ class TestLocalEmbeddingProvider:
             mock_transformer_class.return_value = mock_model
 
             provider = LocalEmbeddingProvider()
-            requests = [EmbeddingRequest(snippet_id=1, text="python programming")]
+            requests = [EmbeddingRequest(snippet_id="1", text="python programming")]
 
             results = []
             async for batch in provider.embed(requests):
@@ -86,9 +86,9 @@ class TestLocalEmbeddingProvider:
 
             provider = LocalEmbeddingProvider()
             requests = [
-                EmbeddingRequest(snippet_id=1, text="python programming"),
-                EmbeddingRequest(snippet_id=2, text="javascript development"),
-                EmbeddingRequest(snippet_id=3, text="java enterprise"),
+                EmbeddingRequest(snippet_id="1", text="python programming"),
+                EmbeddingRequest(snippet_id="2", text="javascript development"),
+                EmbeddingRequest(snippet_id="3", text="java enterprise"),
             ]
 
             results = []
@@ -119,8 +119,8 @@ class TestLocalEmbeddingProvider:
 
             provider = LocalEmbeddingProvider()
             requests = [
-                EmbeddingRequest(snippet_id=1, text="python programming"),
-                EmbeddingRequest(snippet_id=2, text="javascript development"),
+                EmbeddingRequest(snippet_id="1", text="python programming"),
+                EmbeddingRequest(snippet_id="2", text="javascript development"),
             ]
 
             results = []
@@ -149,7 +149,7 @@ class TestLocalEmbeddingProvider:
             provider = LocalEmbeddingProvider()
             # Create requests with different token counts
             requests = [
-                EmbeddingRequest(snippet_id=i, text=f"text {i}") for i in range(5)
+                EmbeddingRequest(snippet_id=str(i), text=f"text {i}") for i in range(5)
             ]
 
             batch_count = 0
@@ -173,7 +173,7 @@ class TestLocalEmbeddingProvider:
             mock_transformer_class.return_value = mock_model
 
             provider = LocalEmbeddingProvider()
-            requests = [EmbeddingRequest(snippet_id=1, text="test text")]
+            requests = [EmbeddingRequest(snippet_id="1", text="test text")]
 
             results = []
             async for batch in provider.embed(requests):
@@ -194,7 +194,7 @@ class TestLocalEmbeddingProvider:
             mock_transformer_class.return_value = mock_model
 
             provider = LocalEmbeddingProvider()
-            requests = [EmbeddingRequest(snippet_id=1, text="")]
+            requests = [EmbeddingRequest(snippet_id="1", text="")]
 
             results = []
             async for batch in provider.embed(requests):
@@ -215,7 +215,7 @@ class TestLocalEmbeddingProvider:
             mock_transformer_class.return_value = mock_model
 
             provider = LocalEmbeddingProvider()
-            requests = [EmbeddingRequest(snippet_id=1, text="python 🐍 programming")]
+            requests = [EmbeddingRequest(snippet_id="1", text="python 🐍 programming")]
 
             results = []
             async for batch in provider.embed(requests):
@@ -238,8 +238,8 @@ class TestLocalEmbeddingProvider:
 
             # Test with short texts that should fit in one batch
             short_requests = [
-                EmbeddingRequest(snippet_id=1, text="short"),
-                EmbeddingRequest(snippet_id=2, text="text"),
+                EmbeddingRequest(snippet_id="1", text="short"),
+                EmbeddingRequest(snippet_id="2", text="text"),
             ]
 
             batches = provider._split_sub_batches(mock_encoding, short_requests)  # noqa: SLF001
@@ -248,7 +248,7 @@ class TestLocalEmbeddingProvider:
 
             # Test with long text that should be split
             long_requests = [
-                EmbeddingRequest(snippet_id=1, text="x" * 10000),  # Very long text
+                EmbeddingRequest(snippet_id="1", text="x" * 10000),  # Very long text
             ]
 
             batches = provider._split_sub_batches(mock_encoding, long_requests)  # noqa: SLF001

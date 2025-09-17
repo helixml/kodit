@@ -37,8 +37,8 @@ class TestLocalBM25Repository:
         """Test that indexing replaces snippet_ids since BM25 index is rebuilt."""
         # Setup: Create initial documents and index them
         initial_documents = [
-            Document(snippet_id=1, text="first document content"),
-            Document(snippet_id=2, text="second document content"),
+            Document(snippet_id="1", text="first document content"),
+            Document(snippet_id="2", text="second document content"),
         ]
         initial_request = IndexRequest(documents=initial_documents)
 
@@ -65,8 +65,8 @@ class TestLocalBM25Repository:
 
         # Now add new documents - this should EXTEND the existing snippet_ids
         new_documents = [
-            Document(snippet_id=3, text="third document content"),
-            Document(snippet_id=4, text="fourth document content"),
+            Document(snippet_id="3", text="third document content"),
+            Document(snippet_id="4", text="fourth document content"),
         ]
         new_request = IndexRequest(documents=new_documents)
 
@@ -98,8 +98,8 @@ class TestLocalBM25Repository:
         """Test that search works correctly after incremental indexing."""
         # Setup: Index initial documents
         documents = [
-            Document(snippet_id=1, text="first document content"),
-            Document(snippet_id=2, text="second document content"),
+            Document(snippet_id="1", text="first document content"),
+            Document(snippet_id="2", text="second document content"),
         ]
         request = IndexRequest(documents=documents)
 
@@ -125,8 +125,8 @@ class TestLocalBM25Repository:
 
         # Now add new documents - this should EXTEND the existing snippet_ids
         new_documents = [
-            Document(snippet_id=3, text="third document content"),
-            Document(snippet_id=4, text="fourth document content"),
+            Document(snippet_id="3", text="third document content"),
+            Document(snippet_id="4", text="fourth document content"),
         ]
         new_request = IndexRequest(documents=new_documents)
 
@@ -152,9 +152,9 @@ class TestLocalBM25Repository:
         """Test that search correctly handles BM25 returning actual snippet IDs."""
         # Setup: Index documents with non-sequential snippet IDs
         documents = [
-            Document(snippet_id=100, text="python programming language"),
-            Document(snippet_id=200, text="javascript web development"),
-            Document(snippet_id=300, text="java enterprise applications"),
+            Document(snippet_id="100", text="python programming language"),
+            Document(snippet_id="200", text="javascript web development"),
+            Document(snippet_id="300", text="java enterprise applications"),
         ]
         request = IndexRequest(documents=documents)
 
@@ -210,10 +210,10 @@ class TestLocalBM25Repository:
         """Test search results maintain consistent ordering with different top_k."""
         # Setup: Index documents
         documents = [
-            Document(snippet_id=100, text="python programming tutorial advanced"),
-            Document(snippet_id=200, text="python tutorial for beginners"),
-            Document(snippet_id=300, text="advanced python programming guide"),
-            Document(snippet_id=400, text="basic python introduction"),
+            Document(snippet_id="100", text="python programming tutorial advanced"),
+            Document(snippet_id="200", text="python tutorial for beginners"),
+            Document(snippet_id="300", text="advanced python programming guide"),
+            Document(snippet_id="400", text="basic python introduction"),
         ]
         request = IndexRequest(documents=documents)
 

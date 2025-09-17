@@ -23,7 +23,6 @@ from kodit.infrastructure.embedding.local_vector_search_repository import (
 @pytest.mark.asyncio
 async def test_embedding_domain_service_factory(
     app_context: AppContext,
-    session: AsyncSession,
     session_factory: Callable[[], AsyncSession],
 ) -> None:
     """Test the embedding domain service factory."""
@@ -35,7 +34,6 @@ async def test_embedding_domain_service_factory(
     service = embedding_domain_service_factory(
         "code",
         app_context=app_context,
-        session=session,
         session_factory=session_factory,
     )
     assert isinstance(service.vector_search_repository, LocalVectorSearchRepository)
@@ -50,7 +48,6 @@ async def test_embedding_domain_service_factory(
     service = embedding_domain_service_factory(
         "code",
         app_context=app_context,
-        session=session,
         session_factory=session_factory,
     )
     assert isinstance(service.vector_search_repository, LocalVectorSearchRepository)

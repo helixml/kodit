@@ -1,20 +1,23 @@
 """Tests for SqlAlchemyGitRepoRepository."""
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 from pydantic import AnyUrl
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.domain.entities.git import GitBranch, GitCommit, GitFile, GitRepo, GitTag
 from kodit.infrastructure.sqlalchemy.git_repository import SqlAlchemyGitRepoRepository
-from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 
 
 @pytest.fixture
-def repository(unit_of_work: SqlAlchemyUnitOfWork) -> SqlAlchemyGitRepoRepository:
-    """Create a repository with a unit of work."""
-    return SqlAlchemyGitRepoRepository(unit_of_work)
+def repository(
+    session_factory: Callable[[], AsyncSession],
+) -> SqlAlchemyGitRepoRepository:
+    """Create a repository with a session factory."""
+    return SqlAlchemyGitRepoRepository(session_factory)
 
 
 @pytest.fixture

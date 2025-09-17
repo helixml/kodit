@@ -1,5 +1,6 @@
 """Tests for SqlAlchemySnippetRepositoryV2."""
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -12,7 +13,6 @@ from kodit.infrastructure.sqlalchemy import entities as db_entities
 from kodit.infrastructure.sqlalchemy.snippet_v2_repository import (
     SqlAlchemySnippetRepositoryV2,
 )
-from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 
 
 @pytest.fixture
@@ -104,9 +104,11 @@ async def test_git_commit(
 
 
 @pytest.fixture
-def repository(unit_of_work: SqlAlchemyUnitOfWork) -> SqlAlchemySnippetRepositoryV2:
-    """Create a repository with a unit of work."""
-    return SqlAlchemySnippetRepositoryV2(unit_of_work)
+def repository(
+    session_factory: Callable[[], AsyncSession],
+) -> SqlAlchemySnippetRepositoryV2:
+    """Create a repository with a session factory."""
+    return SqlAlchemySnippetRepositoryV2(session_factory)
 
 
 @pytest.fixture

@@ -65,7 +65,9 @@ class TestLiteLLMEnrichmentProvider:
         }
         mock_acompletion.return_value = mock_response
 
-        requests = [EnrichmentRequest(snippet_id=1, text="def add(a, b): return a + b")]
+        requests = [
+            EnrichmentRequest(snippet_id="1", text="def add(a, b): return a + b")
+        ]
 
         results = [result async for result in provider.enrich(requests)]
 
@@ -118,9 +120,9 @@ class TestLiteLLMEnrichmentProvider:
         mock_acompletion.side_effect = mock_acompletion_func
 
         requests = [
-            EnrichmentRequest(snippet_id=1, text="def add(a, b): return a + b"),
-            EnrichmentRequest(snippet_id=2, text="def multiply(a, b): return a * b"),
-            EnrichmentRequest(snippet_id=3, text="def divide(a, b): return a / b"),
+            EnrichmentRequest(snippet_id="1", text="def add(a, b): return a + b"),
+            EnrichmentRequest(snippet_id="2", text="def multiply(a, b): return a * b"),
+            EnrichmentRequest(snippet_id="3", text="def divide(a, b): return a / b"),
         ]
 
         results = [result async for result in provider.enrich(requests)]
@@ -153,7 +155,7 @@ class TestLiteLLMEnrichmentProvider:
         }
         mock_acompletion.return_value = mock_response
 
-        requests = [EnrichmentRequest(snippet_id=1, text="test code")]
+        requests = [EnrichmentRequest(snippet_id="1", text="test code")]
 
         [result async for result in provider.enrich(requests)]
 
@@ -174,7 +176,7 @@ class TestLiteLLMEnrichmentProvider:
         }
         mock_acompletion.return_value = mock_response
 
-        requests = [EnrichmentRequest(snippet_id=1, text="test code")]
+        requests = [EnrichmentRequest(snippet_id="1", text="test code")]
 
         [result async for result in provider.enrich(requests)]
 
@@ -196,7 +198,7 @@ class TestLiteLLMEnrichmentProvider:
         }
         mock_acompletion.return_value = mock_response
 
-        requests = [EnrichmentRequest(snippet_id=1, text="test")]
+        requests = [EnrichmentRequest(snippet_id="1", text="test")]
 
         [result async for result in provider.enrich(requests)]
 
@@ -212,7 +214,7 @@ class TestLiteLLMEnrichmentProvider:
         endpoint = Endpoint()
         provider = LiteLLMEnrichmentProvider(endpoint)
 
-        requests = [EnrichmentRequest(snippet_id=1, text="")]
+        requests = [EnrichmentRequest(snippet_id="1", text="")]
 
         results = [result async for result in provider.enrich(requests)]
 
@@ -231,7 +233,7 @@ class TestLiteLLMEnrichmentProvider:
         provider = LiteLLMEnrichmentProvider(endpoint)
         mock_acompletion.side_effect = Exception("LiteLLM API Error")
 
-        requests = [EnrichmentRequest(snippet_id=1, text="def test(): pass")]
+        requests = [EnrichmentRequest(snippet_id="1", text="def test(): pass")]
 
         results = [result async for result in provider.enrich(requests)]
 
@@ -255,7 +257,7 @@ class TestLiteLLMEnrichmentProvider:
         }
         mock_acompletion.return_value = mock_response
 
-        requests = [EnrichmentRequest(snippet_id=1, text="test")]
+        requests = [EnrichmentRequest(snippet_id="1", text="test")]
 
         results = [result async for result in provider.enrich(requests)]
 
@@ -277,7 +279,7 @@ class TestLiteLLMEnrichmentProvider:
         }
         mock_acompletion.return_value = mock_response
 
-        requests = [EnrichmentRequest(snippet_id=1, text="test")]
+        requests = [EnrichmentRequest(snippet_id="1", text="test")]
 
         results = [result async for result in provider.enrich(requests)]
 
@@ -299,7 +301,7 @@ class TestLiteLLMEnrichmentProvider:
         }
         mock_acompletion.return_value = mock_response
 
-        requests = [EnrichmentRequest(snippet_id=1, text="test code")]
+        requests = [EnrichmentRequest(snippet_id="1", text="test code")]
 
         [result async for result in provider.enrich(requests)]
 
@@ -328,7 +330,7 @@ class TestLiteLLMEnrichmentProvider:
         mock_acompletion.return_value = mock_response
         mock_clean_thinking.return_value = "Response with tags"
 
-        requests = [EnrichmentRequest(snippet_id=1, text="test")]
+        requests = [EnrichmentRequest(snippet_id="1", text="test")]
 
         results = [result async for result in provider.enrich(requests)]
 

@@ -16,7 +16,7 @@ def test_split_sub_batches_handles_endoftext_token() -> None:
     encoding = tiktoken.encoding_for_model("text-embedding-3-small")
 
     # Single request that is just the special token
-    data = [EmbeddingRequest(snippet_id=1, text="<|endoftext|>")]
+    data = [EmbeddingRequest(snippet_id="1", text="<|endoftext|>")]
 
     # Perform batching - any reasonable token limit should keep this in one batch
     batches = split_sub_batches(encoding, data, max_tokens=10)
@@ -40,7 +40,9 @@ def test_split_sub_batches_respects_token_limit() -> None:
     max_tokens = tokens_per_item * 2
 
     num_items = 5  # Deliberately more than can fit in a single batch
-    data = [EmbeddingRequest(snippet_id=i, text=sample_text) for i in range(num_items)]
+    data = [
+        EmbeddingRequest(snippet_id=str(i), text=sample_text) for i in range(num_items)
+    ]
 
     batches = split_sub_batches(encoding, data, max_tokens=max_tokens)
 
@@ -71,7 +73,7 @@ def test_split_sub_batches_truncates_long_items() -> None:
     while len(encoding.encode(long_text, disallowed_special=())) <= max_tokens:
         long_text += base_chunk
 
-    data = [EmbeddingRequest(snippet_id=1, text=long_text)]
+    data = [EmbeddingRequest(snippet_id="1", text=long_text)]
 
     batches = split_sub_batches(encoding, data, max_tokens=max_tokens)
 

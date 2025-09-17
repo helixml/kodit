@@ -44,8 +44,8 @@ async def test_index_documents_success(
     """Test successful document indexing."""
     # Setup
     documents = [
-        Document(snippet_id=1, text="test content 1"),
-        Document(snippet_id=2, text="test content 2"),
+        Document(snippet_id="1", text="test content 1"),
+        Document(snippet_id="2", text="test content 2"),
     ]
     request = IndexRequest(documents=documents)
 
@@ -80,8 +80,8 @@ async def test_index_documents_invalid_documents(
     """Test indexing with invalid documents."""
     # Setup
     documents = [
-        Document(snippet_id=1, text="valid content"),
-        Document(snippet_id=2, text=""),  # Empty text
+        Document(snippet_id="1", text="valid content"),
+        Document(snippet_id="2", text=""),  # Empty text
     ]
     request = IndexRequest(documents=documents)
 
@@ -102,8 +102,8 @@ async def test_search_success(
     """Test successful search."""
     # Setup
     expected_results = [
-        SearchResult(snippet_id=1, score=0.8),
-        SearchResult(snippet_id=2, score=0.6),
+        SearchResult(snippet_id="1", score=0.8),
+        SearchResult(snippet_id="2", score=0.6),
     ]
     mock_repository.search.return_value = expected_results
 
@@ -148,7 +148,7 @@ async def test_delete_documents_success(
 ) -> None:
     """Test successful document deletion."""
     # Setup
-    request = DeleteRequest(snippet_ids=[1, 2, 3])
+    request = DeleteRequest(snippet_ids=[str(x) for x in [1, 2, 3]])
 
     # Execute
     await bm25_domain_service.delete_documents(request)
@@ -178,7 +178,7 @@ async def test_delete_documents_invalid_ids(
 ) -> None:
     """Test deletion with invalid snippet IDs."""
     # Setup
-    request = DeleteRequest(snippet_ids=[1, 0, -1, 3])
+    request = DeleteRequest(snippet_ids=["1", "0", "-1", "3"])
 
     # Execute
     await bm25_domain_service.delete_documents(request)

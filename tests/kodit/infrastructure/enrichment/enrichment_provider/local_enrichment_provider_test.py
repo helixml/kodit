@@ -42,8 +42,8 @@ class TestLocalEnrichmentProvider:
         """Test enrichment with requests containing empty text."""
         provider = LocalEnrichmentProvider()
         requests = [
-            EnrichmentRequest(snippet_id=1, text=""),
-            EnrichmentRequest(snippet_id=2, text="   "),
+            EnrichmentRequest(snippet_id="1", text=""),
+            EnrichmentRequest(snippet_id="2", text="   "),
         ]
 
         results = [result async for result in provider.enrich(requests)]
@@ -79,7 +79,7 @@ class TestLocalEnrichmentProvider:
         mock_model_class.from_pretrained.return_value = mock_model
 
         provider = LocalEnrichmentProvider()
-        requests = [EnrichmentRequest(snippet_id=1, text="def test(): pass")]
+        requests = [EnrichmentRequest(snippet_id="1", text="def test(): pass")]
 
         results = [result async for result in provider.enrich(requests)]
 
@@ -125,8 +125,8 @@ class TestLocalEnrichmentProvider:
 
         provider = LocalEnrichmentProvider()
         requests = [
-            EnrichmentRequest(snippet_id=1, text="def hello(): pass"),
-            EnrichmentRequest(snippet_id=2, text="def world(): pass"),
+            EnrichmentRequest(snippet_id="1", text="def hello(): pass"),
+            EnrichmentRequest(snippet_id="2", text="def world(): pass"),
         ]
 
         results = [result async for result in provider.enrich(requests)]
@@ -164,9 +164,9 @@ class TestLocalEnrichmentProvider:
 
         provider = LocalEnrichmentProvider()
         requests = [
-            EnrichmentRequest(snippet_id=1, text=""),  # Empty
-            EnrichmentRequest(snippet_id=2, text="def valid(): pass"),  # Valid
-            EnrichmentRequest(snippet_id=3, text="   "),  # Whitespace only
+            EnrichmentRequest(snippet_id="1", text=""),  # Empty
+            EnrichmentRequest(snippet_id="2", text="def valid(): pass"),  # Valid
+            EnrichmentRequest(snippet_id="3", text="   "),  # Whitespace only
         ]
 
         results = [result async for result in provider.enrich(requests)]
@@ -204,7 +204,7 @@ class TestLocalEnrichmentProvider:
         mock_model_class.from_pretrained.return_value = mock_model
 
         provider = LocalEnrichmentProvider(model_name="custom-model")
-        requests = [EnrichmentRequest(snippet_id=1, text="def test(): pass")]
+        requests = [EnrichmentRequest(snippet_id="1", text="def test(): pass")]
 
         # First call should initialize tokenizer
         results = [result async for result in provider.enrich(requests)]
@@ -249,7 +249,7 @@ class TestLocalEnrichmentProvider:
         mock_model_class.from_pretrained.return_value = mock_model
 
         provider = LocalEnrichmentProvider(model_name="custom-model")
-        requests = [EnrichmentRequest(snippet_id=1, text="def test(): pass")]
+        requests = [EnrichmentRequest(snippet_id="1", text="def test(): pass")]
 
         # First call should initialize model
         results = [result async for result in provider.enrich(requests)]

@@ -47,15 +47,15 @@ async def test_enrich_documents_success(
     """Test successful document enrichment."""
     # Setup
     requests = [
-        EnrichmentRequest(snippet_id=1, text="def hello(): pass"),
-        EnrichmentRequest(snippet_id=2, text="def world(): pass"),
+        EnrichmentRequest(snippet_id="1", text="def hello(): pass"),
+        EnrichmentRequest(snippet_id="2", text="def world(): pass"),
     ]
     enrichment_request = EnrichmentIndexRequest(requests=requests)
 
     # Mock enrichment responses
     async def mock_enrichment() -> AsyncGenerator[EnrichmentResponse, None]:
-        yield EnrichmentResponse(snippet_id=1, text="enriched: def hello(): pass")
-        yield EnrichmentResponse(snippet_id=2, text="enriched: def world(): pass")
+        yield EnrichmentResponse(snippet_id="1", text="enriched: def hello(): pass")
+        yield EnrichmentResponse(snippet_id="2", text="enriched: def world(): pass")
 
     mock_enrichment_provider.enrich = lambda _: mock_enrichment()
 
@@ -109,11 +109,11 @@ async def test_enrich_documents_single_request(
 ) -> None:
     """Test enrichment with a single request."""
     # Setup
-    requests = [EnrichmentRequest(snippet_id=1, text="def test(): pass")]
+    requests = [EnrichmentRequest(snippet_id="1", text="def test(): pass")]
     enrichment_request = EnrichmentIndexRequest(requests=requests)
 
     async def mock_enrichment() -> AsyncGenerator[EnrichmentResponse, None]:
-        yield EnrichmentResponse(snippet_id=1, text="enriched: def test(): pass")
+        yield EnrichmentResponse(snippet_id="1", text="enriched: def test(): pass")
 
     mock_enrichment_provider.enrich = lambda _: mock_enrichment()
 
