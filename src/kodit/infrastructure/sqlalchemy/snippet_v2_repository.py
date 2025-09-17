@@ -97,9 +97,9 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
                 db_entities.Enrichment.snippet_sha == db_snippet.sha
             )
         )
-        current_enrichments = list(current_enrichments)
         current_enrichment_shas = {
-            self._hash_string(enrichment.content) for enrichment in current_enrichments
+            self._hash_string(enrichment.content)
+            for enrichment in list(current_enrichments)
         }
         for enrichment in domain_snippet.enrichments:
             if self._hash_string(enrichment.content) in current_enrichment_shas:

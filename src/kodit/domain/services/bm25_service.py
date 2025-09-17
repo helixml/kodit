@@ -103,9 +103,7 @@ class BM25DomainService:
 
         # Domain logic: filter out invalid IDs
         valid_ids = [
-            snippet_id
-            for snippet_id in request.snippet_ids
-            if snippet_id is not None and snippet_id > 0
+            snippet_id for snippet_id in request.snippet_ids if snippet_id is not None
         ]
 
         if not valid_ids:

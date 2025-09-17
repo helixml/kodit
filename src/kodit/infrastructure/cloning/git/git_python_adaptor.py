@@ -9,8 +9,8 @@ from pathlib import Path
 from typing import Any
 
 import structlog
-from git import InvalidGitRepositoryError, Repo
 
+from git import InvalidGitRepositoryError, Repo
 from kodit.domain.protocols import GitAdapter
 
 

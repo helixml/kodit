@@ -184,14 +184,14 @@ class SearchRequest:
 
     query: str
     top_k: int = 10
-    snippet_ids: list[int] | None = None
+    snippet_ids: list[str] | None = None
 
 
 @dataclass
 class DeleteRequest:
     """Generic deletion request."""
 
-    snippet_ids: list[int]
+    snippet_ids: list[str]
 
 
 @dataclass

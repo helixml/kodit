@@ -37,7 +37,7 @@ class LocalBM25Repository(BM25Repository):
         """
         self.log = structlog.get_logger(__name__)
         self.index_path = data_dir / "bm25s_index"
-        self.snippet_ids: list[int] = []
+        self.snippet_ids: list[str] = []
         self.stemmer = Stemmer.Stemmer("english")
         self.__retriever: bm25s.BM25 | None = None
 
@@ -133,7 +133,7 @@ class LocalBM25Repository(BM25Repository):
         # Filter results by snippet_ids if provided
         filtered_results = []
         for result, score in zip(results[0], scores[0], strict=True):
-            snippet_id = int(result)
+            snippet_id = result
             if score > 0.0 and (
                 request.snippet_ids is None or snippet_id in request.snippet_ids
             ):

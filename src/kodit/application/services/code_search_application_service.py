@@ -70,7 +70,7 @@ class CodeSearchApplicationService:
         log_event("kodit.index.search")
 
         # Apply filters if provided
-        filtered_snippet_ids: list[int] | None = None
+        filtered_snippet_ids: list[str] | None = None
         # TODO(Phil): Re-implement filtering on search results
 
         # Gather results from different search modes
