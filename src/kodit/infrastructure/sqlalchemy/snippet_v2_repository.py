@@ -6,10 +6,10 @@ from collections.abc import Callable
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.entities.git import GitFile, SnippetV2
+from kodit.domain.entities.git import SnippetV2
 from kodit.domain.protocols import SnippetRepositoryV2
 from kodit.domain.value_objects import MultiSearchRequest
-from kodit.infrastructure.mappers.git_mapper import GitMapper
+from kodit.infrastructure.mappers.snippet_mapper import SnippetMapper
 from kodit.infrastructure.sqlalchemy import entities as db_entities
 from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 
@@ -29,8 +29,8 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
         self.session_factory = session_factory
 
     @property
-    def _mapper(self) -> GitMapper:
-        return GitMapper()
+    def _mapper(self) -> SnippetMapper:
+        return SnippetMapper()
 
     async def save_snippets(self, commit_sha: str, snippets: list[SnippetV2]) -> None:
         """Batch save snippets for a commit."""
@@ -58,32 +58,31 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
             await session.flush()
 
             # Associate snippet with commit
-            db_association = db_entities.CommitSnippetV2(commit_sha, domain_snippet.sha)
-            session.add(db_association)
+            commit_association = db_entities.CommitSnippetV2(
+                commit_sha=commit_sha,
+                snippet_sha=db_snippet.sha,
+            )
+            session.add(commit_association)
 
             # Associate snippet with files
             for file in domain_snippet.derives_from:
-                db_file = await self._get_or_create_file(session, file)
-                session.add(db_file)
-                association = db_entities.SnippetV2File(
-                    snippet_sha=db_snippet.sha,
-                    file_blob_sha=db_file.blob_sha,
+                # Find the file in the database (which should have been created during
+                # the scan)
+                db_file = await session.get(
+                    db_entities.GitCommitFile, (commit_sha, file.path)
                 )
-                session.add(association)
-
-            await session.flush()
+                if not db_file:
+                    raise ValueError(
+                        f"File {file.path} not found for commit {commit_sha}"
+                    )
+                db_association = db_entities.SnippetV2File(
+                    snippet_sha=db_snippet.sha,
+                    blob_sha=db_file.blob_sha,
+                    commit_sha=commit_sha,
+                    file_path=file.path,
+                )
+                session.add(db_association)
         return db_snippet
-
-    async def _get_or_create_file(
-        self, session: AsyncSession, domain_file: GitFile
-    ) -> db_entities.GitFile:
-        """Get or create a GitFile in the database."""
-        db_file = await session.get(db_entities.GitFile, domain_file.blob_sha)
-        if not db_file:
-            db_file = self._mapper.from_domain_file(domain_file)
-            session.add(db_file)
-            await session.flush()
-        return db_file
 
     async def _update_enrichments_if_changed(
         self,
@@ -124,56 +123,33 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
         """Get all snippets for a specific commit."""
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             # Get snippets for the commit through the association table
-            snippets_stmt = (
-                select(db_entities.SnippetV2)
-                .join(
-                    db_entities.CommitSnippetV2,
-                    db_entities.SnippetV2.sha
-                    == db_entities.CommitSnippetV2.snippet_sha,
-                )
-                .where(db_entities.CommitSnippetV2.commit_sha == commit_sha)
-            )
-            db_snippets = (await session.scalars(snippets_stmt)).all()
-
-            domain_snippets = []
-            for db_snippet in db_snippets:
-                # Get associated files for this snippet
-                files_stmt = (
-                    select(db_entities.GitFile)
-                    .join(
-                        db_entities.SnippetV2File,
-                        db_entities.GitFile.blob_sha
-                        == db_entities.SnippetV2File.file_blob_sha,
+            snippet_associations = (
+                await session.scalars(
+                    select(db_entities.CommitSnippetV2).where(
+                        db_entities.CommitSnippetV2.commit_sha == commit_sha
                     )
-                    .where(db_entities.SnippetV2File.snippet_sha == db_snippet.sha)
                 )
-                db_files = (await session.scalars(files_stmt)).all()
-
-                # Get enrichments for this snippet
-                enrichments_stmt = select(db_entities.Enrichment).where(
-                    db_entities.Enrichment.snippet_sha == db_snippet.sha
-                )
-                db_enrichments = (await session.scalars(enrichments_stmt)).all()
-
-                # Convert files to domain entities
-                domain_files = []
-                for db_file in db_files:
-                    domain_file = GitFile(
-                        blob_sha=db_file.blob_sha,
-                        path=db_file.path,
-                        mime_type=db_file.mime_type,
-                        size=db_file.size,
-                        extension=db_file.extension,
+            ).all()
+            if not snippet_associations:
+                print("### No snippet associations found for commit", commit_sha)
+                return []
+            db_snippets = (
+                await session.scalars(
+                    select(db_entities.SnippetV2).where(
+                        db_entities.SnippetV2.sha.in_(
+                            [
+                                association.snippet_sha
+                                for association in snippet_associations
+                            ]
+                        )
                     )
-                    domain_files.append(domain_file)
-
-                # Convert snippet to domain entity
-                domain_snippet = self._mapper.to_domain_snippet_v2(
-                    db_snippet, domain_files, list(db_enrichments)
                 )
-                domain_snippets.append(domain_snippet)
+            ).all()
 
-            return domain_snippets
+            return [
+                await self._to_domain_snippet_v2(session, db_snippet)
+                for db_snippet in db_snippets
+            ]
 
     async def delete_snippets_for_commit(self, commit_sha: str) -> None:
         """Delete all snippet associations for a commit."""
@@ -274,47 +250,46 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
         """Get snippets by their IDs."""
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             # Get snippets for the commit through the association table
-            snippets_stmt = select(db_entities.SnippetV2).where(
-                db_entities.SnippetV2.sha.in_(ids)
+            db_snippets = (
+                await session.scalars(
+                    select(db_entities.SnippetV2).where(
+                        db_entities.SnippetV2.sha.in_(ids)
+                    )
+                )
+            ).all()
+
+            return [
+                await self._to_domain_snippet_v2(session, db_snippet)
+                for db_snippet in db_snippets
+            ]
+
+    async def _to_domain_snippet_v2(
+        self, session: AsyncSession, db_snippet: db_entities.SnippetV2
+    ) -> SnippetV2:
+        """Convert a SQLAlchemy SnippetV2 to a domain SnippetV2."""
+        # Files it derives from
+        db_files = await session.scalars(
+            select(db_entities.GitCommitFile)
+            .join(
+                db_entities.SnippetV2File,
+                (db_entities.GitCommitFile.path == db_entities.SnippetV2File.file_path)
+                & (
+                    db_entities.GitCommitFile.commit_sha
+                    == db_entities.SnippetV2File.commit_sha
+                ),
             )
-            db_snippets = (await session.scalars(snippets_stmt)).all()
+            .where(db_entities.SnippetV2File.snippet_sha == db_snippet.sha)
+        )
 
-            domain_snippets = []
-            for db_snippet in db_snippets:
-                # Get associated files for this snippet
-                files_stmt = (
-                    select(db_entities.GitFile)
-                    .join(
-                        db_entities.SnippetV2File,
-                        db_entities.GitFile.blob_sha
-                        == db_entities.SnippetV2File.file_blob_sha,
-                    )
-                    .where(db_entities.SnippetV2File.snippet_sha == db_snippet.sha)
-                )
-                db_files = (await session.scalars(files_stmt)).all()
+        # Enrichments related to this snippet
+        db_enrichments = await session.scalars(
+            select(db_entities.Enrichment).where(
+                db_entities.Enrichment.snippet_sha == db_snippet.sha
+            )
+        )
 
-                # Get enrichments for this snippet
-                enrichments_stmt = select(db_entities.Enrichment).where(
-                    db_entities.Enrichment.snippet_sha == db_snippet.sha
-                )
-                db_enrichments = (await session.scalars(enrichments_stmt)).all()
-
-                # Convert files to domain entities
-                domain_files = []
-                for db_file in db_files:
-                    domain_file = GitFile(
-                        blob_sha=db_file.blob_sha,
-                        path=db_file.path,
-                        mime_type=db_file.mime_type,
-                        size=db_file.size,
-                        extension=db_file.extension,
-                    )
-                    domain_files.append(domain_file)
-
-                # Convert snippet to domain entity
-                domain_snippet = self._mapper.to_domain_snippet_v2(
-                    db_snippet, domain_files, list(db_enrichments)
-                )
-                domain_snippets.append(domain_snippet)
-
-            return domain_snippets
+        return self._mapper.to_domain_snippet_v2(
+            db_snippet=db_snippet,
+            db_files=list(db_files),
+            db_enrichments=list(db_enrichments),
+        )

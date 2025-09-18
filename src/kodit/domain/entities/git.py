@@ -15,8 +15,7 @@ from kodit.utils.path_utils import repo_id_from_uri
 class GitFile(BaseModel):
     """File domain entity."""
 
-    created_at: datetime | None = None  # Is populated by repository
-    updated_at: datetime | None = None  # Is populated by repository
+    created_at: datetime
     blob_sha: str
     path: str
     mime_type: str
@@ -57,15 +56,16 @@ class GitCommit(BaseModel):
 class GitTag(BaseModel):
     """Git tag domain entity."""
 
-    created_at: datetime | None = None  # Is populated by repository
+    created_at: datetime  # Is populated by repository
     updated_at: datetime | None = None  # Is populated by repository
+    repo_id: int | None = None
     name: str  # e.g., "v1.0.0", "release-2023"
-    target_commit_sha: str  # The commit this tag points to
+    target_commit: GitCommit  # The commit this tag points to
 
     @property
     def id(self) -> str:
         """Get the unique id for a tag."""
-        return self.target_commit_sha
+        return f"{self.repo_id}-{self.name}"
 
     @property
     def is_version_tag(self) -> bool:
@@ -80,10 +80,10 @@ class GitTag(BaseModel):
 class GitBranch(BaseModel):
     """Branch domain entity."""
 
-    id: int | None = None  # Is populated by repository
+    repo_id: int | None = None  # primary key
+    name: str  # primary key
     created_at: datetime | None = None  # Is populated by repository
     updated_at: datetime | None = None  # Is populated by repository
-    name: str
     head_commit: GitCommit
 
 

@@ -51,7 +51,7 @@ class GitRepositoryScanner:
         self._log.info(f"Found {len(branch_data)} branches")
 
         branches, commit_cache = await self._process_branches(cloned_path, branch_data)
-        tags = await self._process_tags(cloned_path)
+        tags = await self._process_tags(cloned_path, commit_cache)
 
         return self._create_scan_result(branches, commit_cache, tags)
 
@@ -152,6 +152,7 @@ class GitRepositoryScanner:
                 mime_type=f.get("mime_type", "application/octet-stream"),
                 size=f["size"],
                 extension=GitFile.extension_from_path(f["path"]),
+                created_at=f["created_at"],
             )
             for f in files_data
         ]
@@ -164,16 +165,20 @@ class GitRepositoryScanner:
             return f"{author_name} <{author_email}>"
         return author_name or "Unknown"
 
-    async def _process_tags(self, cloned_path: Path) -> list[GitTag]:
+    async def _process_tags(
+        self, cloned_path: Path, commit_cache: dict[str, GitCommit]
+    ) -> list[GitTag]:
         """Process repository tags."""
         tag_data = await self.git_adapter.get_all_tags(cloned_path)
         tags = []
-
         for tag_info in tag_data:
             try:
+                target_commit = commit_cache[tag_info["target_commit_sha"]]
                 git_tag = GitTag(
                     name=tag_info["name"],
-                    target_commit_sha=tag_info["target_commit_sha"],
+                    target_commit=target_commit,
+                    created_at=target_commit.created_at or datetime.now(UTC),
+                    updated_at=target_commit.updated_at or datetime.now(UTC),
                 )
                 tags.append(git_tag)
             except (KeyError, ValueError) as e:

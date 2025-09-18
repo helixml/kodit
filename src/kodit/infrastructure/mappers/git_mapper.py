@@ -1,51 +1,42 @@
 """Mapping between domain Git entities and SQLAlchemy entities."""
 
+from collections import defaultdict
 from pathlib import Path
 
 from pydantic import AnyUrl
 
 import kodit.domain.entities.git as domain_git_entities
-from kodit.domain.value_objects import Enrichment, EnrichmentType
 from kodit.infrastructure.sqlalchemy import entities as db_entities
 
 
 class GitMapper:
     """Mapper for converting between domain Git entities and database entities."""
 
-    def to_domain_git_repo(  # noqa: PLR0913
+    def to_domain_commits(
         self,
-        db_repo: db_entities.GitRepo,
-        db_branches: list[db_entities.GitBranch],
         db_commits: list[db_entities.GitCommit],
-        db_tags: list[db_entities.GitTag],
-        db_files: list[db_entities.GitFile],
-        commit_files_map: dict[str, list[str]],  # commit_sha -> [file_blob_sha]
-        tracking_branch_name: str,
-    ) -> domain_git_entities.GitRepo:
-        """Convert SQLAlchemy GitRepo to domain GitRepo."""
-        # Convert files
-        domain_files = {}
-        for db_file in db_files:
-            domain_file = domain_git_entities.GitFile(
-                created_at=db_file.created_at,
-                updated_at=db_file.updated_at,
-                blob_sha=db_file.blob_sha,
-                path=db_file.path,
-                mime_type=db_file.mime_type,
-                size=db_file.size,
-                extension=db_file.extension,
-            )
-            domain_files[db_file.blob_sha] = domain_file
+        db_commit_files: list[db_entities.GitCommitFile],
+    ) -> list[domain_git_entities.GitCommit]:
+        """Convert SQLAlchemy GitCommit to domain GitCommit."""
+        commit_files_map = defaultdict(list)
+        for file in db_commit_files:
+            commit_files_map[file.commit_sha].append(file.blob_sha)
 
-        # Convert commits
+        commit_domain_files_map = defaultdict(list)
+        for file in db_commit_files:
+            commit_domain_files_map[file.commit_sha].append(
+                domain_git_entities.GitFile(
+                    created_at=file.created_at,
+                    blob_sha=file.blob_sha,
+                    path=file.path,
+                    mime_type=file.mime_type,
+                    size=file.size,
+                    extension=file.extension,
+                )
+            )
+
         domain_commits = []
         for db_commit in db_commits:
-            # Get files for this commit
-            file_blob_shas = commit_files_map.get(db_commit.commit_sha, [])
-            commit_files = [
-                domain_files[sha] for sha in file_blob_shas if sha in domain_files
-            ]
-
             domain_commit = domain_git_entities.GitCommit(
                 created_at=db_commit.created_at,
                 updated_at=db_commit.updated_at,
@@ -53,54 +44,95 @@ class GitMapper:
                 date=db_commit.date,
                 message=db_commit.message,
                 parent_commit_sha=db_commit.parent_commit_sha,
-                files=commit_files,
+                files=commit_domain_files_map[db_commit.commit_sha],
                 author=db_commit.author,
             )
             domain_commits.append(domain_commit)
+        return domain_commits
 
-        # Convert branches
+    def to_domain_branches(
+        self,
+        db_branches: list[db_entities.GitBranch],
+        domain_commits: list[domain_git_entities.GitCommit],
+    ) -> list[domain_git_entities.GitBranch]:
+        """Convert SQLAlchemy GitBranch to domain GitBranch."""
+        commit_map = {commit.commit_sha: commit for commit in domain_commits}
         domain_branches = []
-        tracking_branch = None
         for db_branch in db_branches:
-            # Find head commit
-            head_commit = next(
-                (
-                    c
-                    for c in domain_commits
-                    if c.commit_sha == db_branch.head_commit_sha
-                ),
-                None,
-            )
-            if not head_commit:
-                continue
-
+            if db_branch.head_commit_sha not in commit_map:
+                raise ValueError(
+                    f"Commit {db_branch.head_commit_sha} for "
+                    f"branch {db_branch.name} not found in commits: {commit_map.keys()}"
+                )
             domain_branch = domain_git_entities.GitBranch(
-                id=db_branch.id,
+                repo_id=db_branch.repo_id,
+                name=db_branch.name,
                 created_at=db_branch.created_at,
                 updated_at=db_branch.updated_at,
-                name=db_branch.name,
-                head_commit=head_commit,
+                head_commit=commit_map[db_branch.head_commit_sha],
             )
             domain_branches.append(domain_branch)
+        return domain_branches
 
-            if db_branch.name == tracking_branch_name:
-                tracking_branch = domain_branch
-
-        # Convert tags
+    def to_domain_tags(
+        self,
+        db_tags: list[db_entities.GitTag],
+        domain_commits: list[domain_git_entities.GitCommit],
+    ) -> list[domain_git_entities.GitTag]:
+        """Convert SQLAlchemy GitTag to domain GitTag."""
+        commit_map = {commit.commit_sha: commit for commit in domain_commits}
         domain_tags = []
         for db_tag in db_tags:
+            if db_tag.target_commit_sha not in commit_map:
+                raise ValueError(
+                    f"Commit {db_tag.target_commit_sha} for tag {db_tag.name} not found"
+                )
             domain_tag = domain_git_entities.GitTag(
                 created_at=db_tag.created_at,
                 updated_at=db_tag.updated_at,
+                repo_id=db_tag.repo_id,
                 name=db_tag.name,
-                target_commit_sha=db_tag.target_commit_sha,
+                target_commit=commit_map[db_tag.target_commit_sha],
             )
             domain_tags.append(domain_tag)
+        return domain_tags
 
-        # Create domain GitRepo
-        if not tracking_branch:
-            # Use first branch as fallback
-            tracking_branch = domain_branches[0] if domain_branches else None
+    def to_domain_tracking_branch(
+        self,
+        db_tracking_branch: db_entities.GitTrackingBranch | None,
+        domain_branches: list[domain_git_entities.GitBranch],
+    ) -> domain_git_entities.GitBranch | None:
+        """Convert SQLAlchemy GitTrackingBranch to domain GitBranch."""
+        if db_tracking_branch is None:
+            return None
+        domain_branches_map = {branch.name: branch for branch in domain_branches}
+        if db_tracking_branch.name not in domain_branches_map:
+            raise ValueError(f"Tracking branch {db_tracking_branch.name} not found")
+        return domain_branches_map[db_tracking_branch.name]
+
+    def to_domain_git_repo(  # noqa: PLR0913
+        self,
+        db_repo: db_entities.GitRepo,
+        db_branches: list[db_entities.GitBranch],
+        db_commits: list[db_entities.GitCommit],
+        db_tags: list[db_entities.GitTag],
+        db_commit_files: list[db_entities.GitCommitFile],
+        db_tracking_branch: db_entities.GitTrackingBranch | None,
+    ) -> domain_git_entities.GitRepo:
+        """Convert SQLAlchemy GitRepo to domain GitRepo."""
+        domain_commits = self.to_domain_commits(
+            db_commits=db_commits, db_commit_files=db_commit_files
+        )
+        print("### domain_commits", len(domain_commits))
+        domain_branches = self.to_domain_branches(
+            db_branches=db_branches, domain_commits=domain_commits
+        )
+        domain_tags = self.to_domain_tags(
+            db_tags=db_tags, domain_commits=domain_commits
+        )
+        tracking_branch = self.to_domain_tracking_branch(
+            db_tracking_branch=db_tracking_branch, domain_branches=domain_branches
+        )
 
         return domain_git_entities.GitRepo(
             id=db_repo.id,
@@ -115,72 +147,6 @@ class GitMapper:
             remote_uri=AnyUrl(db_repo.remote_uri),
             last_scanned_at=db_repo.last_scanned_at,
         )
-
-    def to_domain_snippet_v2(
-        self,
-        db_snippet: db_entities.SnippetV2,
-        derives_from: list[domain_git_entities.GitFile],
-        db_enrichments: list[db_entities.Enrichment],
-    ) -> domain_git_entities.SnippetV2:
-        """Convert SQLAlchemy SnippetV2 to domain SnippetV2."""
-        # Convert enrichments
-        enrichments = []
-        for db_enrichment in db_enrichments:
-            # Map from SQLAlchemy enum to domain enum
-            enrichment_type = EnrichmentType(db_enrichment.type.value)
-            enrichment = Enrichment(
-                type=enrichment_type,
-                content=db_enrichment.content,
-            )
-            enrichments.append(enrichment)
-
-        return domain_git_entities.SnippetV2(
-            sha=db_snippet.sha,
-            created_at=db_snippet.created_at,
-            updated_at=db_snippet.updated_at,
-            derives_from=derives_from,
-            content=db_snippet.content,
-            enrichments=enrichments,
-            extension=db_snippet.extension,
-        )
-
-    def from_domain_snippet_v2(
-        self, domain_snippet: domain_git_entities.SnippetV2
-    ) -> db_entities.SnippetV2:
-        """Convert domain SnippetV2 to SQLAlchemy SnippetV2."""
-        return db_entities.SnippetV2(
-            sha=domain_snippet.sha,
-            content=domain_snippet.content,
-            extension=domain_snippet.extension,
-        )
-
-    def from_domain_file(
-        self, domain_file: domain_git_entities.GitFile
-    ) -> db_entities.GitFile:
-        """Convert domain GitFile to SQLAlchemy GitFile."""
-        return db_entities.GitFile(
-            blob_sha=domain_file.blob_sha,
-            path=domain_file.path,
-            mime_type=domain_file.mime_type,
-            size=domain_file.size,
-            extension=domain_file.extension,
-        )
-
-    def from_domain_enrichments(
-        self, snippet_sha: str, enrichments: list[Enrichment]
-    ) -> list[db_entities.Enrichment]:
-        """Convert domain enrichments to SQLAlchemy enrichments."""
-        db_enrichments = []
-        for enrichment in enrichments:
-            # Map from domain enum to SQLAlchemy enum
-            db_enrichment_type = db_entities.EnrichmentType(enrichment.type.value)
-            db_enrichment = db_entities.Enrichment(
-                snippet_sha=snippet_sha,
-                type=db_enrichment_type,
-                content=enrichment.content,
-            )
-            db_enrichments.append(db_enrichment)
-        return db_enrichments
 
     def to_domain_commit_index(
         self,

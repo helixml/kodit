@@ -208,16 +208,18 @@ class GitService:
 
     def _get_all_tags(self, repo: Repo) -> list[GitTag]:
         """Get all tags in the repository."""
+        all_commits = self._get_all_commits(repo)
+        all_commits_map = {commit.commit_sha: commit for commit in all_commits}
         tags = []
-
         try:
             for tag_ref in repo.tags:
                 try:
                     # Get the commit that the tag points to
                     target_commit = tag_ref.commit
+
                     tag = GitTag(
                         name=tag_ref.name,
-                        target_commit_sha=target_commit.hexsha,
+                        target_commit=all_commits_map[target_commit.hexsha],
                     )
                     tags.append(tag)
                 except Exception:  # noqa: BLE001, S112
