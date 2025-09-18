@@ -22,7 +22,6 @@ class LoggingReportingModule(ReportingModule):
     async def on_change(self, progress: TaskStatus) -> None:
         """On step changed."""
         current_time = datetime.now(UTC)
-        # time_since_last_log = current_time - self._last_log_time
         step = progress
 
         if step.state == ReportingState.FAILED:

@@ -39,7 +39,7 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
     def _mapper(self) -> GitMapper:
         return GitMapper()
 
-    async def save(self, repo: GitRepo) -> GitRepo:
+    async def save(self, repo: GitRepo) -> GitRepo:  # noqa: PLR0912,C901
         """Save or update a repository with all its branches, commits, and tags."""
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             # 1. Save or update the GitRepo entity

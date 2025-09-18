@@ -368,7 +368,7 @@ class GitCommitFile(Base):
 
     __table_args__ = (UniqueConstraint("commit_sha", "path", name="uix_commit_file"),)
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         commit_sha: str,
         path: str,
