@@ -12,8 +12,8 @@ class TaskStatusQueryService:
         """Initialize the task status query service."""
         self._repository = repository
 
-    async def get_index_status(self, index_id: int) -> list[TaskStatus]:
+    async def get_index_status(self, repo_id: int) -> list[TaskStatus]:
         """Get the status of tasks for a specific index."""
         return await self._repository.load_with_hierarchy(
-            trackable_type=TrackableType.INDEX.value, trackable_id=index_id
+            trackable_type=TrackableType.KODIT_REPOSITORY.value, trackable_id=repo_id
         )

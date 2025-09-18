@@ -6,6 +6,7 @@ from kodit.infrastructure.api.middleware.auth import api_key_auth
 from kodit.infrastructure.api.v1.dependencies import (
     CommitIndexingAppServiceDep,
     GitRepositoryDep,
+    TaskStatusQueryServiceDep,
 )
 from kodit.infrastructure.api.v1.schemas.repository import (
     RepositoryBranchData,
@@ -21,6 +22,11 @@ from kodit.infrastructure.api.v1.schemas.tag import (
     TagData,
     TagListResponse,
     TagResponse,
+)
+from kodit.infrastructure.api.v1.schemas.task_status import (
+    TaskStatusAttributes,
+    TaskStatusData,
+    TaskStatusListResponse,
 )
 
 router = APIRouter(
@@ -139,6 +145,41 @@ async def get_repository(
 
 
 @router.get(
+    "/{repo_id}/status",
+    responses={404: {"description": "Index not found"}},
+)
+async def get_index_status(
+    repo_id: int,
+    status_service: TaskStatusQueryServiceDep,
+) -> TaskStatusListResponse:
+    """Get the status of tasks for an index."""
+    # Get all task statuses for this index
+    progress_trackers = await status_service.get_index_status(repo_id)
+
+    # Convert progress trackers to API response format
+    task_statuses = []
+    for _i, status in enumerate(progress_trackers):
+        task_statuses.append(
+            TaskStatusData(
+                id=status.id,
+                attributes=TaskStatusAttributes(
+                    step=status.operation,
+                    state=status.state,
+                    progress=status.completion_percent,
+                    total=status.total,
+                    current=status.current,
+                    created_at=status.created_at,
+                    updated_at=status.updated_at,
+                    error=status.error or "",
+                    message=status.message,
+                ),
+            )
+        )
+
+    return TaskStatusListResponse(data=task_statuses)
+
+
+@router.get(
     "/{repo_id}/tags",
     summary="List repository tags",
     responses={404: {"description": "Repository not found"}},
@@ -162,7 +203,7 @@ async def list_repository_tags(
                 id=tag.id,
                 attributes=TagAttributes(
                     name=tag.name,
-                    target_commit_sha=tag.target_commit_sha,
+                    target_commit_sha=tag.target_commit.commit_sha,
                     is_version_tag=tag.is_version_tag,
                 ),
             )
@@ -197,7 +238,7 @@ async def get_repository_tag(
             id=tag.id,
             attributes=TagAttributes(
                 name=tag.name,
-                target_commit_sha=tag.target_commit_sha,
+                target_commit_sha=tag.target_commit.commit_sha,
                 is_version_tag=tag.is_version_tag,
             ),
         )

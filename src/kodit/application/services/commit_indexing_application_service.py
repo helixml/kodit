@@ -86,7 +86,10 @@ class CommitIndexingApplicationService:
 
     async def create_git_repository(self, remote_uri: AnyUrl) -> GitRepo:
         """Create a new Git repository."""
-        async with self.operation.create_child(TaskOperation.CREATE_REPOSITORY):
+        async with self.operation.create_child(
+            TaskOperation.CREATE_REPOSITORY,
+            trackable_type=TrackableType.KODIT_REPOSITORY,
+        ):
             repo = GitRepo.from_remote_uri(remote_uri)
             repo = await self.repo_repository.save(repo)
             await self.queue.enqueue_tasks(
@@ -110,19 +113,22 @@ class CommitIndexingApplicationService:
             else:
                 raise ValueError(f"Unknown task type: {task.type}")
         elif task.type.is_commit_operation():
+            repository_id = task.payload["repository_id"]
+            if not repository_id:
+                raise ValueError("Repository ID is required")
             commit_sha = task.payload["commit_sha"]
             if not commit_sha:
                 raise ValueError("Commit SHA is required")
             if task.type == TaskOperation.EXTRACT_SNIPPETS_FOR_COMMIT:
-                await self.process_snippets_for_commit(commit_sha)
+                await self.process_snippets_for_commit(repository_id, commit_sha)
             elif task.type == TaskOperation.CREATE_BM25_INDEX_FOR_COMMIT:
-                await self.process_bm25_index(commit_sha)
+                await self.process_bm25_index(repository_id, commit_sha)
             elif task.type == TaskOperation.CREATE_CODE_EMBEDDINGS_FOR_COMMIT:
-                await self.process_code_embeddings(commit_sha)
+                await self.process_code_embeddings(repository_id, commit_sha)
             elif task.type == TaskOperation.CREATE_SUMMARY_ENRICHMENT_FOR_COMMIT:
-                await self.process_enrich(commit_sha)
+                await self.process_enrich(repository_id, commit_sha)
             elif task.type == TaskOperation.CREATE_SUMMARY_EMBEDDINGS_FOR_COMMIT:
-                await self.process_summary_embeddings(commit_sha)
+                await self.process_summary_embeddings(repository_id, commit_sha)
             else:
                 raise ValueError(f"Unknown task type: {task.type}")
         else:
@@ -130,14 +136,22 @@ class CommitIndexingApplicationService:
 
     async def process_clone_repo(self, repository_id: int) -> None:
         """Clone a repository."""
-        async with self.operation.create_child(TaskOperation.CLONE_REPOSITORY):
+        async with self.operation.create_child(
+            TaskOperation.CLONE_REPOSITORY,
+            trackable_type=TrackableType.KODIT_REPOSITORY,
+            trackable_id=repository_id,
+        ):
             repo = await self.repo_repository.get_by_id(repository_id)
             repo.cloned_path = await self.cloner.clone_repository(repo.remote_uri)
             await self.repo_repository.save(repo)
 
     async def process_scan_repo(self, repository_id: int) -> None:
         """Scan a repository."""
-        async with self.operation.create_child(TaskOperation.SCAN_REPOSITORY):
+        async with self.operation.create_child(
+            TaskOperation.SCAN_REPOSITORY,
+            trackable_type=TrackableType.KODIT_REPOSITORY,
+            trackable_id=repository_id,
+        ):
             repo = await self.repo_repository.get_by_id(repository_id)
             if not repo.cloned_path:
                 raise ValueError(f"Repository {repository_id} has never been cloned")
@@ -155,14 +169,17 @@ class CommitIndexingApplicationService:
         await self.queue.enqueue_tasks(
             tasks=PrescribedOperations.INDEX_COMMIT,
             base_priority=QueuePriority.USER_INITIATED,
-            payload={"commit_sha": commit_sha},
+            payload={"commit_sha": commit_sha, "repository_id": repository_id},
         )
 
-    async def process_snippets_for_commit(self, commit_sha: str) -> None:
+    async def process_snippets_for_commit(
+        self, repository_id: int, commit_sha: str
+    ) -> None:
         """Generate snippets for a repository."""
         async with self.operation.create_child(
             operation=TaskOperation.EXTRACT_SNIPPETS_FOR_COMMIT,
-            trackable_type=TrackableType.COMMIT,
+            trackable_type=TrackableType.KODIT_REPOSITORY,
+            trackable_id=repository_id,
         ) as step:
             commit = await self.repo_repository.get_commit_by_sha(commit_sha)
 
@@ -195,11 +212,12 @@ class CommitIndexingApplicationService:
             )
             await self.snippet_repository.save_snippets(commit.commit_sha, all_snippets)
 
-    async def process_bm25_index(self, commit_sha: str) -> None:
+    async def process_bm25_index(self, repository_id: int, commit_sha: str) -> None:
         """Handle BM25_INDEX task - create keyword index."""
         async with self.operation.create_child(
             TaskOperation.CREATE_BM25_INDEX_FOR_COMMIT,
-            trackable_type=TrackableType.COMMIT,
+            trackable_type=TrackableType.KODIT_REPOSITORY,
+            trackable_id=repository_id,
         ):
             snippets = await self.snippet_repository.get_snippets_for_commit(commit_sha)
 
@@ -213,11 +231,14 @@ class CommitIndexingApplicationService:
                 )
             )
 
-    async def process_code_embeddings(self, commit_sha: str) -> None:
+    async def process_code_embeddings(
+        self, repository_id: int, commit_sha: str
+    ) -> None:
         """Handle CODE_EMBEDDINGS task - create code embeddings."""
         async with self.operation.create_child(
             TaskOperation.CREATE_CODE_EMBEDDINGS_FOR_COMMIT,
-            trackable_type=TrackableType.COMMIT,
+            trackable_type=TrackableType.KODIT_REPOSITORY,
+            trackable_id=repository_id,
         ) as step:
             all_snippets = await self.snippet_repository.get_snippets_for_commit(
                 commit_sha
@@ -243,11 +264,12 @@ class CommitIndexingApplicationService:
                 processed += len(result)
                 await step.set_current(processed, "Creating code embeddings for commit")
 
-    async def process_enrich(self, commit_sha: str) -> None:
+    async def process_enrich(self, repository_id: int, commit_sha: str) -> None:
         """Handle ENRICH task - enrich snippets and create text embeddings."""
         async with self.operation.create_child(
             TaskOperation.CREATE_SUMMARY_ENRICHMENT_FOR_COMMIT,
-            trackable_type=TrackableType.COMMIT,
+            trackable_type=TrackableType.KODIT_REPOSITORY,
+            trackable_id=repository_id,
         ) as step:
             all_snippets = await self.snippet_repository.get_snippets_for_commit(
                 commit_sha
@@ -297,11 +319,14 @@ class CommitIndexingApplicationService:
                 processed += 1
                 await step.set_current(processed, "Enriching snippets for commit")
 
-    async def process_summary_embeddings(self, commit_sha: str) -> None:
+    async def process_summary_embeddings(
+        self, repository_id: int, commit_sha: str
+    ) -> None:
         """Handle SUMMARY_EMBEDDINGS task - create summary embeddings."""
         async with self.operation.create_child(
             TaskOperation.CREATE_SUMMARY_EMBEDDINGS_FOR_COMMIT,
-            trackable_type=TrackableType.COMMIT,
+            trackable_type=TrackableType.KODIT_REPOSITORY,
+            trackable_id=repository_id,
         ) as step:
             snippets = await self.snippet_repository.get_snippets_for_commit(commit_sha)
 

@@ -608,7 +608,8 @@ class TrackableType(StrEnum):
     """Trackable type."""
 
     INDEX = "indexes"
-    COMMIT = "commits"
+    KODIT_REPOSITORY = "kodit.repository"
+    KODIT_COMMIT = "kodit.commit"
 
 
 class TaskOperation(StrEnum):
@@ -628,9 +629,11 @@ class TaskOperation(StrEnum):
     CLEAR_FILE_PROCESSING_STATUSES = "kodit.index.run.clear_file_processing_statuses"
 
     # New commit-based workflow
+    KODIT_REPOSITORY = "kodit.repository"
     CREATE_REPOSITORY = "kodit.repository.create"
     CLONE_REPOSITORY = "kodit.repository.clone"
     SCAN_REPOSITORY = "kodit.repository.scan"
+    KODIT_COMMIT = "kodit.commit"
     EXTRACT_SNIPPETS_FOR_COMMIT = "kodit.commit.extract_snippets"
     CREATE_BM25_INDEX_FOR_COMMIT = "kodit.commit.create_bm25_index"
     CREATE_CODE_EMBEDDINGS_FOR_COMMIT = "kodit.commit.create_code_embeddings"
