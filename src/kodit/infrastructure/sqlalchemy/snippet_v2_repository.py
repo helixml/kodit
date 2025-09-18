@@ -131,7 +131,6 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
                 )
             ).all()
             if not snippet_associations:
-                print("### No snippet associations found for commit", commit_sha)
                 return []
             db_snippets = (
                 await session.scalars(

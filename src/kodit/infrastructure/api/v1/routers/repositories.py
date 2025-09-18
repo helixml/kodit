@@ -243,3 +243,26 @@ async def get_repository_tag(
             ),
         )
     )
+
+
+@router.delete(
+    "/{repo_id}",
+    status_code=204,
+    summary="Delete repository",
+    responses={404: {"description": "Repository not found"}},
+)
+async def delete_repository(
+    repo_id: str,
+    service: CommitIndexingAppServiceDep,
+) -> None:
+    """Delete a repository and all its associated data."""
+    try:
+        repo_id_int = int(repo_id)
+        deleted = await service.delete_git_repository(repo_id_int)
+        if not deleted:
+            _raise_not_found_error("Repository not found")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid repository ID") from None
+    except Exception as e:
+        msg = f"Failed to delete repository: {e}"
+        raise HTTPException(status_code=500, detail=msg) from e

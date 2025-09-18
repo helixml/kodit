@@ -631,6 +631,7 @@ class TaskOperation(StrEnum):
     # New commit-based workflow
     KODIT_REPOSITORY = "kodit.repository"
     CREATE_REPOSITORY = "kodit.repository.create"
+    DELETE_REPOSITORY = "kodit.repository.delete"
     CLONE_REPOSITORY = "kodit.repository.clone"
     SCAN_REPOSITORY = "kodit.repository.scan"
     KODIT_COMMIT = "kodit.commit"

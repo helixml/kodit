@@ -123,7 +123,6 @@ class GitMapper:
         domain_commits = self.to_domain_commits(
             db_commits=db_commits, db_commit_files=db_commit_files
         )
-        print("### domain_commits", len(domain_commits))
         domain_branches = self.to_domain_branches(
             db_branches=db_branches, domain_commits=domain_commits
         )

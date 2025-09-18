@@ -99,6 +99,19 @@ class CommitIndexingApplicationService:
             )
             return repo
 
+    async def delete_git_repository(self, repo_id: int) -> bool:
+        """Delete a Git repository by ID."""
+        async with self.operation.create_child(
+            TaskOperation.DELETE_REPOSITORY,
+            trackable_type=TrackableType.KODIT_REPOSITORY,
+            trackable_id=repo_id,
+        ):
+            repo = await self.repo_repository.get_by_id(repo_id)
+            if not repo:
+                return False
+
+            return await self.repo_repository.delete(repo.sanitized_remote_uri)
+
     # TODO(Phil): Make this polymorphic
     async def run_task(self, task: Task) -> None:  # noqa: PLR0912, C901
         """Run a task."""
@@ -110,6 +123,8 @@ class CommitIndexingApplicationService:
                 await self.process_clone_repo(repo_id)
             elif task.type == TaskOperation.SCAN_REPOSITORY:
                 await self.process_scan_repo(repo_id)
+            elif task.type == TaskOperation.DELETE_REPOSITORY:
+                await self.process_delete_repo(repo_id)
             else:
                 raise ValueError(f"Unknown task type: {task.type}")
         elif task.type.is_commit_operation():
@@ -171,6 +186,18 @@ class CommitIndexingApplicationService:
             base_priority=QueuePriority.USER_INITIATED,
             payload={"commit_sha": commit_sha, "repository_id": repository_id},
         )
+
+    async def process_delete_repo(self, repository_id: int) -> None:
+        """Delete a repository."""
+        async with self.operation.create_child(
+            TaskOperation.DELETE_REPOSITORY,
+            trackable_type=TrackableType.KODIT_REPOSITORY,
+            trackable_id=repository_id,
+        ):
+            repo = await self.repo_repository.get_by_id(repository_id)
+            if not repo:
+                raise ValueError(f"Repository {repository_id} not found")
+            await self.repo_repository.delete(repo.sanitized_remote_uri)
 
     async def process_snippets_for_commit(
         self, repository_id: int, commit_sha: str
