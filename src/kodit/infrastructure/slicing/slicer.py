@@ -614,7 +614,8 @@ class Slicer:
             if callers:
                 snippet_lines.append("")
                 snippet_lines.append("# === USAGE EXAMPLES ===")
-                for caller in list(callers)[:2]:  # Show up to 2 examples
+                # Show up to 2 examples, sorted for deterministic order
+                for caller in sorted(callers)[:2]:
                     call_line = self._find_function_call_line(
                         caller, function_name, state, file_contents
                     )
@@ -835,7 +836,7 @@ class Slicer:
             # Add direct dependencies
             to_visit.extend(
                 (callee, depth + 1)
-                for callee in state.call_graph.get(current, set())
+                for callee in sorted(state.call_graph.get(current, set()))
                 if callee not in visited and callee in state.def_index
             )
 
@@ -850,26 +851,26 @@ class Slicer:
         in_degree: dict[str, int] = defaultdict(int)
         graph: dict[str, set[str]] = defaultdict(set)
 
-        for func in functions:
-            for callee in state.call_graph.get(func, set()):
+        for func in sorted(functions):
+            for callee in sorted(state.call_graph.get(func, set())):
                 if callee in functions:
                     graph[func].add(callee)
                     in_degree[callee] += 1
 
         # Find roots
-        queue = [f for f in functions if in_degree[f] == 0]
+        queue = [f for f in sorted(functions) if in_degree[f] == 0]
         result = []
 
         while queue:
             current = queue.pop(0)
             result.append(current)
-            for neighbor in graph[current]:
+            for neighbor in sorted(graph[current]):
                 in_degree[neighbor] -= 1
                 if in_degree[neighbor] == 0:
                     queue.append(neighbor)
 
         # Add any remaining (cycles)
-        for func in functions:
+        for func in sorted(functions):
             if func not in result:
                 result.append(func)
 

@@ -181,6 +181,11 @@ class CommitIndexingApplicationService:
             trackable_type=TrackableType.KODIT_REPOSITORY,
             trackable_id=repository_id,
         ) as step:
+            # Have we already processed this commit? If yes, skip.
+            if await self.snippet_repository.get_snippets_for_commit(commit_sha):
+                await step.skip("All snippets already extracted for commit")
+                return
+
             commit = await self.repo_repository.get_commit_by_sha(commit_sha)
 
             # Create a set of languages to extract snippets for
