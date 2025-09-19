@@ -21,3 +21,8 @@ lint:
 
 test: lint type openapi-check
 	uv run pytest -s --cov=src --cov-report=xml tests/kodit
+
+no-database-changes-check:
+	rm -f .kodit.db
+	alembic upgrade head
+	alembic check
