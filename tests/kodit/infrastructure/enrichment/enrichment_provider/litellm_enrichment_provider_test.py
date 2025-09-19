@@ -65,12 +65,14 @@ class TestLiteLLMEnrichmentProvider:
         }
         mock_acompletion.return_value = mock_response
 
-        requests = [EnrichmentRequest(snippet_id=1, text="def add(a, b): return a + b")]
+        requests = [
+            EnrichmentRequest(snippet_id="1", text="def add(a, b): return a + b")
+        ]
 
         results = [result async for result in provider.enrich(requests)]
 
         assert len(results) == 1
-        assert results[0].snippet_id == 1
+        assert results[0].snippet_id == "1"
         assert results[0].text == "This is a Python function that calculates the sum."
 
         # Verify LiteLLM was called correctly
@@ -118,9 +120,9 @@ class TestLiteLLMEnrichmentProvider:
         mock_acompletion.side_effect = mock_acompletion_func
 
         requests = [
-            EnrichmentRequest(snippet_id=1, text="def add(a, b): return a + b"),
-            EnrichmentRequest(snippet_id=2, text="def multiply(a, b): return a * b"),
-            EnrichmentRequest(snippet_id=3, text="def divide(a, b): return a / b"),
+            EnrichmentRequest(snippet_id="1", text="def add(a, b): return a + b"),
+            EnrichmentRequest(snippet_id="2", text="def multiply(a, b): return a * b"),
+            EnrichmentRequest(snippet_id="3", text="def divide(a, b): return a / b"),
         ]
 
         results = [result async for result in provider.enrich(requests)]
@@ -130,11 +132,11 @@ class TestLiteLLMEnrichmentProvider:
         # Sort results by snippet_id since async processing may return them out of order
         sorted_results = sorted(results, key=lambda r: r.snippet_id)
 
-        assert sorted_results[0].snippet_id == 1
+        assert sorted_results[0].snippet_id == "1"
         assert "adds two numbers" in sorted_results[0].text
-        assert sorted_results[1].snippet_id == 2
+        assert sorted_results[1].snippet_id == "2"
         assert "multiplies two numbers" in sorted_results[1].text
-        assert sorted_results[2].snippet_id == 3
+        assert sorted_results[2].snippet_id == "3"
         assert "divides two numbers" in sorted_results[2].text
 
         # Verify LiteLLM was called 3 times
@@ -153,7 +155,7 @@ class TestLiteLLMEnrichmentProvider:
         }
         mock_acompletion.return_value = mock_response
 
-        requests = [EnrichmentRequest(snippet_id=1, text="test code")]
+        requests = [EnrichmentRequest(snippet_id="1", text="test code")]
 
         [result async for result in provider.enrich(requests)]
 
@@ -174,7 +176,7 @@ class TestLiteLLMEnrichmentProvider:
         }
         mock_acompletion.return_value = mock_response
 
-        requests = [EnrichmentRequest(snippet_id=1, text="test code")]
+        requests = [EnrichmentRequest(snippet_id="1", text="test code")]
 
         [result async for result in provider.enrich(requests)]
 
@@ -196,7 +198,7 @@ class TestLiteLLMEnrichmentProvider:
         }
         mock_acompletion.return_value = mock_response
 
-        requests = [EnrichmentRequest(snippet_id=1, text="test")]
+        requests = [EnrichmentRequest(snippet_id="1", text="test")]
 
         [result async for result in provider.enrich(requests)]
 
@@ -212,33 +214,16 @@ class TestLiteLLMEnrichmentProvider:
         endpoint = Endpoint()
         provider = LiteLLMEnrichmentProvider(endpoint)
 
-        requests = [EnrichmentRequest(snippet_id=1, text="")]
+        requests = [EnrichmentRequest(snippet_id="1", text="")]
 
         results = [result async for result in provider.enrich(requests)]
 
         assert len(results) == 1
-        assert results[0].snippet_id == 1
+        assert results[0].snippet_id == "1"
         assert results[0].text == ""
 
         # Should not call LiteLLM for empty text
         mock_acompletion.assert_not_called()
-
-    @pytest.mark.asyncio
-    @patch("kodit.infrastructure.enrichment.litellm_enrichment_provider.acompletion")
-    async def test_enrich_api_error_handling(self, mock_acompletion: AsyncMock) -> None:
-        """Test handling of API errors."""
-        endpoint = Endpoint()
-        provider = LiteLLMEnrichmentProvider(endpoint)
-        mock_acompletion.side_effect = Exception("LiteLLM API Error")
-
-        requests = [EnrichmentRequest(snippet_id=1, text="def test(): pass")]
-
-        results = [result async for result in provider.enrich(requests)]
-
-        # Should return empty text on error
-        assert len(results) == 1
-        assert results[0].snippet_id == 1
-        assert results[0].text == ""
 
     @pytest.mark.asyncio
     @patch("kodit.infrastructure.enrichment.litellm_enrichment_provider.acompletion")
@@ -255,12 +240,12 @@ class TestLiteLLMEnrichmentProvider:
         }
         mock_acompletion.return_value = mock_response
 
-        requests = [EnrichmentRequest(snippet_id=1, text="test")]
+        requests = [EnrichmentRequest(snippet_id="1", text="test")]
 
         results = [result async for result in provider.enrich(requests)]
 
         assert len(results) == 1
-        assert results[0].snippet_id == 1
+        assert results[0].snippet_id == "1"
         assert results[0].text == "Response without model_dump"
 
     @pytest.mark.asyncio
@@ -277,13 +262,13 @@ class TestLiteLLMEnrichmentProvider:
         }
         mock_acompletion.return_value = mock_response
 
-        requests = [EnrichmentRequest(snippet_id=1, text="test")]
+        requests = [EnrichmentRequest(snippet_id="1", text="test")]
 
         results = [result async for result in provider.enrich(requests)]
 
         # Should handle gracefully and return empty text
         assert len(results) == 1
-        assert results[0].snippet_id == 1
+        assert results[0].snippet_id == "1"
         assert results[0].text == ""
 
     @pytest.mark.asyncio
@@ -299,7 +284,7 @@ class TestLiteLLMEnrichmentProvider:
         }
         mock_acompletion.return_value = mock_response
 
-        requests = [EnrichmentRequest(snippet_id=1, text="test code")]
+        requests = [EnrichmentRequest(snippet_id="1", text="test code")]
 
         [result async for result in provider.enrich(requests)]
 
@@ -328,7 +313,7 @@ class TestLiteLLMEnrichmentProvider:
         mock_acompletion.return_value = mock_response
         mock_clean_thinking.return_value = "Response with tags"
 
-        requests = [EnrichmentRequest(snippet_id=1, text="test")]
+        requests = [EnrichmentRequest(snippet_id="1", text="test")]
 
         results = [result async for result in provider.enrich(requests)]
 

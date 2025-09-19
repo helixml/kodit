@@ -175,21 +175,381 @@
         }
       }
     },
-    "/api/v1/indexes": {
+    "/api/v1/repositories/{repo_id}/commits": {
       "get": {
         "tags": [
-          "indexes"
+          "commits"
         ],
-        "summary": "List Indexes",
-        "description": "List all indexes.",
-        "operationId": "list_indexes_api_v1_indexes_get",
+        "summary": "List repository commits",
+        "description": "List all commits for a repository.",
+        "operationId": "list_repository_commits_api_v1_repositories__repo_id__commits_get",
+        "security": [
+          {
+            "Header (X-API-KEY)": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "repo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Repo Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/IndexListResponse"
+                  "$ref": "#/components/schemas/CommitListResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Invalid request"
+          }
+        }
+      }
+    },
+    "/api/v1/repositories/{repo_id}/commits/{commit_sha}": {
+      "get": {
+        "tags": [
+          "commits"
+        ],
+        "summary": "Get repository commit",
+        "description": "Get a specific commit for a repository.",
+        "operationId": "get_repository_commit_api_v1_repositories__repo_id__commits__commit_sha__get",
+        "security": [
+          {
+            "Header (X-API-KEY)": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "repo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Repo Id"
+            }
+          },
+          {
+            "name": "commit_sha",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Commit Sha"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommitResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Invalid request"
+          },
+          "404": {
+            "description": "Repository or commit not found"
+          }
+        }
+      }
+    },
+    "/api/v1/repositories/{repo_id}/commits/{commit_sha}/files": {
+      "get": {
+        "tags": [
+          "commits"
+        ],
+        "summary": "List commit files",
+        "description": "List all files in a specific commit.",
+        "operationId": "list_commit_files_api_v1_repositories__repo_id__commits__commit_sha__files_get",
+        "security": [
+          {
+            "Header (X-API-KEY)": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "repo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Repo Id"
+            }
+          },
+          {
+            "name": "commit_sha",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Commit Sha"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileListResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Invalid request"
+          }
+        }
+      }
+    },
+    "/api/v1/repositories/{repo_id}/commits/{commit_sha}/files/{blob_sha}": {
+      "get": {
+        "tags": [
+          "commits"
+        ],
+        "summary": "Get commit file",
+        "description": "Get a specific file from a commit.",
+        "operationId": "get_commit_file_api_v1_repositories__repo_id__commits__commit_sha__files__blob_sha__get",
+        "security": [
+          {
+            "Header (X-API-KEY)": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "repo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Repo Id"
+            }
+          },
+          {
+            "name": "commit_sha",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Commit Sha"
+            }
+          },
+          {
+            "name": "blob_sha",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Blob Sha"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Invalid request"
+          },
+          "404": {
+            "description": "Repository, commit or file not found"
+          }
+        }
+      }
+    },
+    "/api/v1/repositories/{repo_id}/commits/{commit_sha}/snippets": {
+      "get": {
+        "tags": [
+          "commits"
+        ],
+        "summary": "List commit snippets",
+        "description": "List all snippets in a specific commit.",
+        "operationId": "list_commit_snippets_api_v1_repositories__repo_id__commits__commit_sha__snippets_get",
+        "security": [
+          {
+            "Header (X-API-KEY)": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "repo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Repo Id"
+            }
+          },
+          {
+            "name": "commit_sha",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Commit Sha"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SnippetListResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Invalid request"
+          },
+          "404": {
+            "description": "Repository or commit not found"
+          }
+        }
+      }
+    },
+    "/api/v1/repositories/{repo_id}/commits/{commit_sha}/embeddings": {
+      "get": {
+        "tags": [
+          "commits"
+        ],
+        "summary": "List commit embeddings",
+        "description": "List all embeddings for snippets in a specific commit.",
+        "operationId": "list_commit_embeddings_api_v1_repositories__repo_id__commits__commit_sha__embeddings_get",
+        "security": [
+          {
+            "Header (X-API-KEY)": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "repo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Repo Id"
+            }
+          },
+          {
+            "name": "commit_sha",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Commit Sha"
+            }
+          },
+          {
+            "name": "full",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "If true, return full vectors. If false, return first 5 values.",
+              "default": false,
+              "title": "Full"
+            },
+            "description": "If true, return full vectors. If false, return first 5 values."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingListResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Invalid request"
+          },
+          "404": {
+            "description": "Repository or commit not found"
+          }
+        }
+      }
+    },
+    "/api/v1/repositories": {
+      "get": {
+        "tags": [
+          "repositories"
+        ],
+        "summary": "List repositories",
+        "description": "List all cloned repositories.",
+        "operationId": "list_repositories_api_v1_repositories_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepositoryListResponse"
                 }
               }
             }
@@ -212,28 +572,28 @@
       },
       "post": {
         "tags": [
-          "indexes"
+          "repositories"
         ],
-        "summary": "Create Index",
-        "description": "Create a new index and start async indexing.",
-        "operationId": "create_index_api_v1_indexes_post",
+        "summary": "Create repository",
+        "description": "Clone a new repository and perform initial mapping.",
+        "operationId": "create_repository_api_v1_repositories_post",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/IndexCreateRequest"
+                "$ref": "#/components/schemas/RepositoryCreateRequest"
               }
             }
           },
           "required": true
         },
         "responses": {
-          "202": {
+          "201": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/IndexResponse"
+                  "$ref": "#/components/schemas/RepositoryResponse"
                 }
               }
             }
@@ -255,14 +615,14 @@
         ]
       }
     },
-    "/api/v1/indexes/{index_id}": {
+    "/api/v1/repositories/{repo_id}": {
       "get": {
         "tags": [
-          "indexes"
+          "repositories"
         ],
-        "summary": "Get Index",
-        "description": "Get index details.",
-        "operationId": "get_index_api_v1_indexes__index_id__get",
+        "summary": "Get repository",
+        "description": "Get repository details including branches and recent commits.",
+        "operationId": "get_repository_api_v1_repositories__repo_id__get",
         "security": [
           {
             "Header (X-API-KEY)": []
@@ -270,12 +630,12 @@
         ],
         "parameters": [
           {
-            "name": "index_id",
+            "name": "repo_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
-              "title": "Index Id"
+              "type": "string",
+              "title": "Repo Id"
             }
           }
         ],
@@ -285,7 +645,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/IndexDetailResponse"
+                  "$ref": "#/components/schemas/RepositoryDetailsResponse"
                 }
               }
             }
@@ -300,17 +660,17 @@
             "description": "Invalid request"
           },
           "404": {
-            "description": "Index not found"
+            "description": "Repository not found"
           }
         }
       },
       "delete": {
         "tags": [
-          "indexes"
+          "repositories"
         ],
-        "summary": "Delete Index",
-        "description": "Delete an index.",
-        "operationId": "delete_index_api_v1_indexes__index_id__delete",
+        "summary": "Delete repository",
+        "description": "Delete a repository and all its associated data.",
+        "operationId": "delete_repository_api_v1_repositories__repo_id__delete",
         "security": [
           {
             "Header (X-API-KEY)": []
@@ -318,12 +678,12 @@
         ],
         "parameters": [
           {
-            "name": "index_id",
+            "name": "repo_id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
-              "title": "Index Id"
+              "type": "string",
+              "title": "Repo Id"
             }
           }
         ],
@@ -341,19 +701,19 @@
             "description": "Invalid request"
           },
           "404": {
-            "description": "Index not found"
+            "description": "Repository not found"
           }
         }
       }
     },
-    "/api/v1/indexes/{index_id}/status": {
+    "/api/v1/repositories/{repo_id}/status": {
       "get": {
         "tags": [
-          "indexes"
+          "repositories"
         ],
         "summary": "Get Index Status",
         "description": "Get the status of tasks for an index.",
-        "operationId": "get_index_status_api_v1_indexes__index_id__status_get",
+        "operationId": "get_index_status_api_v1_repositories__repo_id__status_get",
         "security": [
           {
             "Header (X-API-KEY)": []
@@ -361,12 +721,12 @@
         ],
         "parameters": [
           {
-            "name": "index_id",
+            "name": "repo_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "integer",
-              "title": "Index Id"
+              "title": "Repo Id"
             }
           }
         ],
@@ -395,10 +755,409 @@
           }
         }
       }
+    },
+    "/api/v1/repositories/{repo_id}/tags": {
+      "get": {
+        "tags": [
+          "repositories"
+        ],
+        "summary": "List repository tags",
+        "description": "List all tags for a repository.",
+        "operationId": "list_repository_tags_api_v1_repositories__repo_id__tags_get",
+        "security": [
+          {
+            "Header (X-API-KEY)": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "repo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Repo Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TagListResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Invalid request"
+          },
+          "404": {
+            "description": "Repository not found"
+          }
+        }
+      }
+    },
+    "/api/v1/repositories/{repo_id}/tags/{tag_id}": {
+      "get": {
+        "tags": [
+          "repositories"
+        ],
+        "summary": "Get repository tag",
+        "description": "Get a specific tag for a repository.",
+        "operationId": "get_repository_tag_api_v1_repositories__repo_id__tags__tag_id__get",
+        "security": [
+          {
+            "Header (X-API-KEY)": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "repo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Repo Id"
+            }
+          },
+          {
+            "name": "tag_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Tag Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TagResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Invalid request"
+          },
+          "404": {
+            "description": "Repository or tag not found"
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "CommitAttributes": {
+        "properties": {
+          "commit_sha": {
+            "type": "string",
+            "title": "Commit Sha"
+          },
+          "date": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Date"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "parent_commit_sha": {
+            "type": "string",
+            "title": "Parent Commit Sha"
+          },
+          "author": {
+            "type": "string",
+            "title": "Author"
+          }
+        },
+        "type": "object",
+        "required": [
+          "commit_sha",
+          "date",
+          "message",
+          "parent_commit_sha",
+          "author"
+        ],
+        "title": "CommitAttributes",
+        "description": "Commit attributes following JSON-API spec."
+      },
+      "CommitData": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "default": "commit"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "attributes": {
+            "$ref": "#/components/schemas/CommitAttributes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "attributes"
+        ],
+        "title": "CommitData",
+        "description": "Commit data following JSON-API spec."
+      },
+      "CommitListResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/CommitData"
+            },
+            "type": "array",
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "CommitListResponse",
+        "description": "Commit list response following JSON-API spec."
+      },
+      "CommitResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CommitData"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "CommitResponse",
+        "description": "Single commit response following JSON-API spec."
+      },
+      "EmbeddingAttributes": {
+        "properties": {
+          "snippet_sha": {
+            "type": "string",
+            "title": "Snippet Sha"
+          },
+          "embedding_type": {
+            "type": "string",
+            "title": "Embedding Type"
+          },
+          "embedding": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Embedding"
+          }
+        },
+        "type": "object",
+        "required": [
+          "snippet_sha",
+          "embedding_type",
+          "embedding"
+        ],
+        "title": "EmbeddingAttributes",
+        "description": "Embedding attributes following JSON-API spec."
+      },
+      "EmbeddingData": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "default": "embedding"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "attributes": {
+            "$ref": "#/components/schemas/EmbeddingAttributes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "attributes"
+        ],
+        "title": "EmbeddingData",
+        "description": "Embedding data following JSON-API spec."
+      },
+      "EmbeddingListResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/EmbeddingData"
+            },
+            "type": "array",
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "EmbeddingListResponse",
+        "description": "Embedding list response following JSON-API spec."
+      },
+      "EnrichmentSchema": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "content"
+        ],
+        "title": "EnrichmentSchema",
+        "description": "Enrichment schema following JSON-API spec."
+      },
+      "FileAttributes": {
+        "properties": {
+          "blob_sha": {
+            "type": "string",
+            "title": "Blob Sha"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "mime_type": {
+            "type": "string",
+            "title": "Mime Type"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          },
+          "extension": {
+            "type": "string",
+            "title": "Extension"
+          }
+        },
+        "type": "object",
+        "required": [
+          "blob_sha",
+          "path",
+          "mime_type",
+          "size",
+          "extension"
+        ],
+        "title": "FileAttributes",
+        "description": "File attributes following JSON-API spec."
+      },
+      "FileData": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "default": "file"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "attributes": {
+            "$ref": "#/components/schemas/FileAttributes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "attributes"
+        ],
+        "title": "FileData",
+        "description": "File data following JSON-API spec."
+      },
+      "FileListResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/FileData"
+            },
+            "type": "array",
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "FileListResponse",
+        "description": "File list response following JSON-API spec."
+      },
+      "FileResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/FileData"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "FileResponse",
+        "description": "Single file response following JSON-API spec."
+      },
+      "GitFileSchema": {
+        "properties": {
+          "blob_sha": {
+            "type": "string",
+            "title": "Blob Sha"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "mime_type": {
+            "type": "string",
+            "title": "Mime Type"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "blob_sha",
+          "path",
+          "mime_type",
+          "size"
+        ],
+        "title": "GitFileSchema",
+        "description": "Git file schema following JSON-API spec."
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -412,91 +1171,205 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
-      "IndexAttributes": {
+      "RepositoryAttributes": {
         "properties": {
-          "created_at": {
+          "remote_uri": {
             "type": "string",
-            "format": "date-time",
+            "minLength": 1,
+            "format": "uri",
+            "title": "Remote Uri"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Created At"
           },
           "updated_at": {
-            "type": "string",
-            "format": "date-time",
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Updated At"
           },
-          "uri": {
-            "type": "string",
-            "title": "Uri"
+          "last_scanned_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Scanned At"
+          },
+          "cloned_path": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "path"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cloned Path"
+          },
+          "default_branch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Branch"
+          },
+          "num_commits": {
+            "type": "integer",
+            "title": "Num Commits",
+            "default": 0
+          },
+          "num_branches": {
+            "type": "integer",
+            "title": "Num Branches",
+            "default": 0
           }
         },
         "type": "object",
         "required": [
-          "created_at",
-          "updated_at",
-          "uri"
+          "remote_uri"
         ],
-        "title": "IndexAttributes",
-        "description": "Index attributes for JSON:API responses."
+        "title": "RepositoryAttributes",
+        "description": "Repository attributes following JSON-API spec."
       },
-      "IndexCreateAttributes": {
+      "RepositoryBranchData": {
         "properties": {
-          "uri": {
+          "name": {
             "type": "string",
-            "title": "Uri",
-            "description": "URI of the source to index"
+            "title": "Name"
+          },
+          "is_default": {
+            "type": "boolean",
+            "title": "Is Default"
+          },
+          "commit_count": {
+            "type": "integer",
+            "title": "Commit Count"
           }
         },
         "type": "object",
         "required": [
-          "uri"
+          "name",
+          "is_default",
+          "commit_count"
         ],
-        "title": "IndexCreateAttributes",
-        "description": "Attributes for creating an index."
+        "title": "RepositoryBranchData",
+        "description": "Repository branch data."
       },
-      "IndexCreateData": {
+      "RepositoryCommitData": {
+        "properties": {
+          "sha": {
+            "type": "string",
+            "title": "Sha"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "author": {
+            "type": "string",
+            "title": "Author"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sha",
+          "message",
+          "author",
+          "timestamp"
+        ],
+        "title": "RepositoryCommitData",
+        "description": "Repository commit data for repository details."
+      },
+      "RepositoryCreateAttributes": {
+        "properties": {
+          "remote_uri": {
+            "type": "string",
+            "minLength": 1,
+            "format": "uri",
+            "title": "Remote Uri"
+          }
+        },
+        "type": "object",
+        "required": [
+          "remote_uri"
+        ],
+        "title": "RepositoryCreateAttributes",
+        "description": "Repository creation attributes."
+      },
+      "RepositoryCreateData": {
         "properties": {
           "type": {
             "type": "string",
             "title": "Type",
-            "default": "index"
+            "default": "repository"
           },
           "attributes": {
-            "$ref": "#/components/schemas/IndexCreateAttributes"
+            "$ref": "#/components/schemas/RepositoryCreateAttributes"
           }
         },
         "type": "object",
         "required": [
           "attributes"
         ],
-        "title": "IndexCreateData",
-        "description": "Data for creating an index."
+        "title": "RepositoryCreateData",
+        "description": "Repository creation data."
       },
-      "IndexCreateRequest": {
+      "RepositoryCreateRequest": {
         "properties": {
           "data": {
-            "$ref": "#/components/schemas/IndexCreateData"
+            "$ref": "#/components/schemas/RepositoryCreateData"
           }
         },
         "type": "object",
         "required": [
           "data"
         ],
-        "title": "IndexCreateRequest",
-        "description": "JSON:API request for creating an index."
+        "title": "RepositoryCreateRequest",
+        "description": "Repository creation request."
       },
-      "IndexData": {
+      "RepositoryData": {
         "properties": {
           "type": {
             "type": "string",
             "title": "Type",
-            "default": "index"
+            "default": "repository"
           },
           "id": {
             "type": "string",
             "title": "Id"
           },
           "attributes": {
-            "$ref": "#/components/schemas/IndexAttributes"
+            "$ref": "#/components/schemas/RepositoryAttributes"
           }
         },
         "type": "object",
@@ -504,27 +1377,43 @@
           "id",
           "attributes"
         ],
-        "title": "IndexData",
-        "description": "Index data for JSON:API responses."
+        "title": "RepositoryData",
+        "description": "Repository data following JSON-API spec."
       },
-      "IndexDetailResponse": {
+      "RepositoryDetailsResponse": {
         "properties": {
           "data": {
-            "$ref": "#/components/schemas/IndexData"
+            "$ref": "#/components/schemas/RepositoryData"
+          },
+          "branches": {
+            "items": {
+              "$ref": "#/components/schemas/RepositoryBranchData"
+            },
+            "type": "array",
+            "title": "Branches"
+          },
+          "recent_commits": {
+            "items": {
+              "$ref": "#/components/schemas/RepositoryCommitData"
+            },
+            "type": "array",
+            "title": "Recent Commits"
           }
         },
         "type": "object",
         "required": [
-          "data"
+          "data",
+          "branches",
+          "recent_commits"
         ],
-        "title": "IndexDetailResponse",
-        "description": "JSON:API response for index details with included resources."
+        "title": "RepositoryDetailsResponse",
+        "description": "Repository details response with branches and commits."
       },
-      "IndexListResponse": {
+      "RepositoryListResponse": {
         "properties": {
           "data": {
             "items": {
-              "$ref": "#/components/schemas/IndexData"
+              "$ref": "#/components/schemas/RepositoryData"
             },
             "type": "array",
             "title": "Data"
@@ -534,21 +1423,21 @@
         "required": [
           "data"
         ],
-        "title": "IndexListResponse",
-        "description": "JSON:API response for index list."
+        "title": "RepositoryListResponse",
+        "description": "Repository list response following JSON-API spec."
       },
-      "IndexResponse": {
+      "RepositoryResponse": {
         "properties": {
           "data": {
-            "$ref": "#/components/schemas/IndexData"
+            "$ref": "#/components/schemas/RepositoryData"
           }
         },
         "type": "object",
         "required": [
           "data"
         ],
-        "title": "IndexResponse",
-        "description": "JSON:API response for single index."
+        "title": "RepositoryResponse",
+        "description": "Single repository response following JSON-API spec."
       },
       "SearchAttributes": {
         "properties": {
@@ -748,7 +1637,7 @@
         "properties": {
           "data": {
             "items": {
-              "$ref": "#/components/schemas/SnippetData"
+              "$ref": "#/components/schemas/kodit__infrastructure__api__v1__schemas__search__SnippetData"
             },
             "type": "array",
             "title": "Data"
@@ -761,81 +1650,79 @@
         "title": "SearchResponse",
         "description": "JSON:API response for search results."
       },
-      "SnippetAttributes": {
+      "SnippetContentSchema": {
         "properties": {
-          "content": {
+          "value": {
             "type": "string",
-            "title": "Content"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Created At"
-          },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Updated At"
-          },
-          "original_scores": {
-            "items": {
-              "type": "number"
-            },
-            "type": "array",
-            "title": "Original Scores"
-          },
-          "source_uri": {
-            "type": "string",
-            "title": "Source Uri"
-          },
-          "relative_path": {
-            "type": "string",
-            "title": "Relative Path"
+            "title": "Value"
           },
           "language": {
             "type": "string",
             "title": "Language"
-          },
-          "authors": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Authors"
-          },
-          "summary": {
-            "type": "string",
-            "title": "Summary"
           }
         },
         "type": "object",
         "required": [
-          "content",
-          "created_at",
-          "updated_at",
-          "original_scores",
-          "source_uri",
-          "relative_path",
-          "language",
-          "authors",
-          "summary"
+          "value",
+          "language"
         ],
-        "title": "SnippetAttributes",
-        "description": "Snippet attributes for JSON:API responses."
+        "title": "SnippetContentSchema",
+        "description": "Snippet content schema following JSON-API spec."
       },
-      "SnippetData": {
+      "SnippetListResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/kodit__infrastructure__api__v1__schemas__snippet__SnippetData"
+            },
+            "type": "array",
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "SnippetListResponse",
+        "description": "Snippet list response following JSON-API spec."
+      },
+      "TagAttributes": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "target_commit_sha": {
+            "type": "string",
+            "title": "Target Commit Sha"
+          },
+          "is_version_tag": {
+            "type": "boolean",
+            "title": "Is Version Tag"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "target_commit_sha",
+          "is_version_tag"
+        ],
+        "title": "TagAttributes",
+        "description": "Tag attributes following JSON-API spec."
+      },
+      "TagData": {
         "properties": {
           "type": {
             "type": "string",
             "title": "Type",
-            "default": "snippet"
+            "default": "tag"
           },
           "id": {
-            "type": "integer",
+            "type": "string",
             "title": "Id"
           },
           "attributes": {
-            "$ref": "#/components/schemas/SnippetAttributes"
+            "$ref": "#/components/schemas/TagAttributes"
           }
         },
         "type": "object",
@@ -843,8 +1730,38 @@
           "id",
           "attributes"
         ],
-        "title": "SnippetData",
-        "description": "Snippet data for JSON:API responses."
+        "title": "TagData",
+        "description": "Tag data following JSON-API spec."
+      },
+      "TagListResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/TagData"
+            },
+            "type": "array",
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "TagListResponse",
+        "description": "Tag list response following JSON-API spec."
+      },
+      "TagResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TagData"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "TagResponse",
+        "description": "Single tag response following JSON-API spec."
       },
       "TaskAttributes": {
         "properties": {
@@ -952,7 +1869,17 @@
           "kodit.index.run.create_text_embeddings",
           "kodit.index.run.update_index_timestamp",
           "kodit.index.run.clear_file_processing_statuses",
-          "kodit.index.run.index_commit"
+          "kodit.repository",
+          "kodit.repository.create",
+          "kodit.repository.delete",
+          "kodit.repository.clone",
+          "kodit.repository.scan",
+          "kodit.commit",
+          "kodit.commit.extract_snippets",
+          "kodit.commit.create_bm25_index",
+          "kodit.commit.create_code_embeddings",
+          "kodit.commit.create_summary_enrichment",
+          "kodit.commit.create_summary_embeddings"
         ],
         "title": "TaskOperation",
         "description": "Task operation."
@@ -1121,6 +2048,166 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "kodit__infrastructure__api__v1__schemas__search__SnippetAttributes": {
+        "properties": {
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "derives_from": {
+            "items": {
+              "$ref": "#/components/schemas/GitFileSchema"
+            },
+            "type": "array",
+            "title": "Derives From"
+          },
+          "content": {
+            "$ref": "#/components/schemas/SnippetContentSchema"
+          },
+          "enrichments": {
+            "items": {
+              "$ref": "#/components/schemas/EnrichmentSchema"
+            },
+            "type": "array",
+            "title": "Enrichments"
+          },
+          "original_scores": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Original Scores"
+          }
+        },
+        "type": "object",
+        "required": [
+          "derives_from",
+          "content",
+          "enrichments",
+          "original_scores"
+        ],
+        "title": "SnippetAttributes",
+        "description": "Snippet attributes for JSON:API responses."
+      },
+      "kodit__infrastructure__api__v1__schemas__search__SnippetData": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "default": "snippet"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "attributes": {
+            "$ref": "#/components/schemas/kodit__infrastructure__api__v1__schemas__search__SnippetAttributes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "attributes"
+        ],
+        "title": "SnippetData",
+        "description": "Snippet data for JSON:API responses."
+      },
+      "kodit__infrastructure__api__v1__schemas__snippet__SnippetAttributes": {
+        "properties": {
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "derives_from": {
+            "items": {
+              "$ref": "#/components/schemas/GitFileSchema"
+            },
+            "type": "array",
+            "title": "Derives From"
+          },
+          "content": {
+            "$ref": "#/components/schemas/SnippetContentSchema"
+          },
+          "enrichments": {
+            "items": {
+              "$ref": "#/components/schemas/EnrichmentSchema"
+            },
+            "type": "array",
+            "title": "Enrichments"
+          }
+        },
+        "type": "object",
+        "required": [
+          "derives_from",
+          "content",
+          "enrichments"
+        ],
+        "title": "SnippetAttributes",
+        "description": "Snippet attributes following JSON-API spec."
+      },
+      "kodit__infrastructure__api__v1__schemas__snippet__SnippetData": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "default": "snippet"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "attributes": {
+            "$ref": "#/components/schemas/kodit__infrastructure__api__v1__schemas__snippet__SnippetAttributes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "attributes"
+        ],
+        "title": "SnippetData",
+        "description": "Snippet data following JSON-API spec."
       }
     },
     "securitySchemes": {

@@ -5,9 +5,9 @@ import hashlib
 import shutil
 from pathlib import Path
 
-import git
 import structlog
 
+import git
 from kodit.application.factories.reporting_factory import create_noop_operation
 from kodit.application.services.reporting import ProgressTracker
 from kodit.domain.entities import WorkingCopy

@@ -232,8 +232,8 @@ async def test_litellm_providers_with_unix_socket_full() -> None:
 
             # Test embeddings
             embedding_requests = [
-                EmbeddingRequest(snippet_id=1, text="def hello_world():"),
-                EmbeddingRequest(snippet_id=2, text="print('Hello, World!')"),
+                EmbeddingRequest(snippet_id="1", text="def hello_world():"),
+                EmbeddingRequest(snippet_id="2", text="print('Hello, World!')"),
             ]
 
             embedding_results = []
@@ -250,7 +250,7 @@ async def test_litellm_providers_with_unix_socket_full() -> None:
             # Test enrichments
             enrichment_requests = [
                 EnrichmentRequest(
-                    snippet_id=1, text="def calculate_sum(a, b): return a + b"
+                    snippet_id="1", text="def calculate_sum(a, b): return a + b"
                 ),
             ]
 

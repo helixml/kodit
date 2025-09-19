@@ -117,8 +117,8 @@ class TestEmbeddingDomainService:
 
         # Mock repository response
         async def mock_index() -> AsyncGenerator[list[IndexResult], None]:
-            yield [IndexResult(snippet_id=1)]
-            yield [IndexResult(snippet_id=2)]
+            yield [IndexResult(snippet_id="1")]
+            yield [IndexResult(snippet_id="2")]
 
         mock_repository.index_documents.return_value = mock_index()
 
@@ -129,8 +129,8 @@ class TestEmbeddingDomainService:
 
         request = IndexRequest(
             documents=[
-                Document(snippet_id=1, text="python programming"),
-                Document(snippet_id=2, text="javascript development"),
+                Document(snippet_id="1", text="python programming"),
+                Document(snippet_id="2", text="javascript development"),
             ]
         )
 
@@ -139,8 +139,8 @@ class TestEmbeddingDomainService:
             results.extend(result)
 
         assert len(results) == 2
-        assert results[0].snippet_id == 1
-        assert results[1].snippet_id == 2
+        assert results[0].snippet_id == "1"
+        assert results[1].snippet_id == "2"
 
         # Verify repository was called with validated request
         mock_repository.index_documents.assert_called_once()
@@ -155,7 +155,7 @@ class TestEmbeddingDomainService:
 
         # Mock repository response
         async def mock_index() -> AsyncGenerator[list[IndexResult], None]:
-            yield [IndexResult(snippet_id=1)]
+            yield [IndexResult(snippet_id="1")]
 
         mock_repository.index_documents.return_value = mock_index()
 
@@ -166,9 +166,9 @@ class TestEmbeddingDomainService:
 
         request = IndexRequest(
             documents=[
-                Document(snippet_id=1, text="valid text"),
-                Document(snippet_id=2, text=""),  # Empty text
-                Document(snippet_id=3, text="   "),  # Whitespace only
+                Document(snippet_id="1", text="valid text"),
+                Document(snippet_id="2", text=""),  # Empty text
+                Document(snippet_id="3", text="   "),  # Whitespace only
                 # Note: VectorSearchRequest requires snippet_id to be int
                 # This test case is handled by the domain service validation
             ]
@@ -180,12 +180,12 @@ class TestEmbeddingDomainService:
 
         # Should only process the valid document
         assert len(results) == 1
-        assert results[0].snippet_id == 1
+        assert results[0].snippet_id == "1"
 
         # Verify repository was called with only valid documents
         call_args = mock_repository.index_documents.call_args[0][0]
         assert len(call_args.documents) == 1
-        assert call_args.documents[0].snippet_id == 1
+        assert call_args.documents[0].snippet_id == "1"
         assert call_args.documents[0].text == "valid text"
 
     @pytest.mark.asyncio
@@ -196,8 +196,8 @@ class TestEmbeddingDomainService:
 
         # Mock repository response
         mock_repository.search.return_value = [
-            SearchResult(snippet_id=1, score=0.95),
-            SearchResult(snippet_id=2, score=0.85),
+            SearchResult(snippet_id="1", score=0.95),
+            SearchResult(snippet_id="2", score=0.85),
         ]
 
         service = EmbeddingDomainService(
@@ -210,9 +210,9 @@ class TestEmbeddingDomainService:
         results = await service.search(request)
 
         assert len(results) == 2
-        assert results[0].snippet_id == 1
+        assert results[0].snippet_id == "1"
         assert results[0].score == 0.95
-        assert results[1].snippet_id == 2
+        assert results[1].snippet_id == "2"
         assert results[1].score == 0.85
 
         # Verify repository was called with normalized request

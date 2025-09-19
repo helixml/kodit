@@ -9,8 +9,8 @@ from pathlib import Path
 from typing import Any
 
 import structlog
-from git import InvalidGitRepositoryError, Repo
 
+from git import Blob, InvalidGitRepositoryError, Repo, Tree
 from kodit.domain.protocols import GitAdapter
 
 
@@ -186,23 +186,26 @@ class GitPythonAdapter(GitAdapter):
 
                 files = []
 
-                def process_tree(tree: Any, _: str = "") -> None:
+                def process_tree(tree: Tree, _: str = "") -> None:
                     for item in tree.traverse():
-                        if item.type == "blob":  # It's a file
-                            # Guess mime type from file path
-                            mime_type = mimetypes.guess_type(item.path)[0]
-                            if not mime_type:
-                                mime_type = "application/octet-stream"
-
-                            files.append(
-                                {
-                                    "path": item.path,
-                                    "blob_sha": item.hexsha,
-                                    "size": item.size,
-                                    "mode": oct(item.mode),
-                                    "mime_type": mime_type,
-                                }
-                            )
+                        if not item:
+                            continue
+                        if not isinstance(item, Blob):
+                            continue
+                        # Guess mime type from file path
+                        mime_type = mimetypes.guess_type(item.path)[0]
+                        if not mime_type:
+                            mime_type = "application/octet-stream"
+                        files.append(
+                            {
+                                "path": item.path,
+                                "blob_sha": item.hexsha,
+                                "size": item.size,
+                                "mode": oct(item.mode),
+                                "mime_type": mime_type,
+                                "created_at": commit.committed_datetime,
+                            }
+                        )
 
                 process_tree(commit.tree)
             except Exception as e:

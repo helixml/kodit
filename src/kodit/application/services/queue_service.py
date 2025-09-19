@@ -1,12 +1,13 @@
 """Queue service for managing tasks."""
 
 from collections.abc import Callable
+from typing import Any
 
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.domain.entities import Task
-from kodit.domain.value_objects import TaskOperation
+from kodit.domain.value_objects import QueuePriority, TaskOperation
 from kodit.infrastructure.sqlalchemy.task_repository import (
     create_task_repository,
 )
@@ -45,6 +46,24 @@ class QueueService:
                 task_type=task.type,
                 payload=task.payload,
             )
+
+    async def enqueue_tasks(
+        self,
+        tasks: list[TaskOperation],
+        base_priority: QueuePriority,
+        payload: dict[str, Any],
+    ) -> None:
+        """Queue repository tasks."""
+        priority_offset = len(tasks) * 10
+        for task in tasks:
+            await self.enqueue_task(
+                Task.create(
+                    task,
+                    base_priority + priority_offset,
+                    payload,
+                )
+            )
+            priority_offset -= 10
 
     async def list_tasks(
         self, task_operation: TaskOperation | None = None

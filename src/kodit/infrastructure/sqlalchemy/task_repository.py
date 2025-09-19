@@ -18,16 +18,15 @@ def create_task_repository(
     session_factory: Callable[[], AsyncSession],
 ) -> TaskRepository:
     """Create an index repository."""
-    uow = SqlAlchemyUnitOfWork(session_factory=session_factory)
-    return SqlAlchemyTaskRepository(uow)
+    return SqlAlchemyTaskRepository(session_factory=session_factory)
 
 
 class SqlAlchemyTaskRepository(TaskRepository):
     """Repository for task persistence using the existing Task entity."""
 
-    def __init__(self, uow: SqlAlchemyUnitOfWork) -> None:
+    def __init__(self, session_factory: Callable[[], AsyncSession]) -> None:
         """Initialize the repository."""
-        self.uow = uow
+        self.session_factory = session_factory
         self.log = structlog.get_logger(__name__)
 
     async def add(
@@ -35,14 +34,14 @@ class SqlAlchemyTaskRepository(TaskRepository):
         task: Task,
     ) -> None:
         """Create a new task in the database."""
-        async with self.uow:
-            self.uow.session.add(TaskMapper.from_domain_task(task))
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
+            session.add(TaskMapper.from_domain_task(task))
 
     async def get(self, task_id: str) -> Task | None:
         """Get a task by ID."""
-        async with self.uow:
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             stmt = select(db_entities.Task).where(db_entities.Task.dedup_key == task_id)
-            result = await self.uow.session.execute(stmt)
+            result = await session.execute(stmt)
             db_task = result.scalar_one_or_none()
             if not db_task:
                 return None
@@ -50,24 +49,24 @@ class SqlAlchemyTaskRepository(TaskRepository):
 
     async def take(self) -> Task | None:
         """Take a task for processing and remove it from the database."""
-        async with self.uow:
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             stmt = (
                 select(db_entities.Task)
                 .order_by(db_entities.Task.priority.desc(), db_entities.Task.created_at)
                 .limit(1)
             )
-            result = await self.uow.session.execute(stmt)
+            result = await session.execute(stmt)
             db_task = result.scalar_one_or_none()
             if not db_task:
                 return None
-            await self.uow.session.delete(db_task)
+            await session.delete(db_task)
             return TaskMapper.to_domain_task(db_task)
 
     async def update(self, task: Task) -> None:
         """Update a task in the database."""
-        async with self.uow:
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             stmt = select(db_entities.Task).where(db_entities.Task.dedup_key == task.id)
-            result = await self.uow.session.execute(stmt)
+            result = await session.execute(stmt)
             db_task = result.scalar_one_or_none()
 
             if not db_task:
@@ -78,7 +77,7 @@ class SqlAlchemyTaskRepository(TaskRepository):
 
     async def list(self, task_operation: TaskOperation | None = None) -> list[Task]:
         """List tasks with optional status filter."""
-        async with self.uow:
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             stmt = select(db_entities.Task)
 
             if task_operation:
@@ -88,7 +87,7 @@ class SqlAlchemyTaskRepository(TaskRepository):
                 db_entities.Task.priority.desc(), db_entities.Task.created_at
             )
 
-            result = await self.uow.session.execute(stmt)
+            result = await session.execute(stmt)
             records = result.scalars().all()
 
             # Convert to domain entities

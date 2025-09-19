@@ -40,7 +40,6 @@ def _get_endpoint_configuration(app_context: AppContext) -> Endpoint | None:
 def embedding_domain_service_factory(
     task_name: TaskName,
     app_context: AppContext,
-    session: AsyncSession,
     session_factory: Callable[[], AsyncSession],
 ) -> EmbeddingDomainService:
     """Create an embedding domain service."""
@@ -64,7 +63,9 @@ def embedding_domain_service_factory(
     if app_context.default_search.provider == "vectorchord":
         log_event("kodit.database", {"provider": "vectorchord"})
         vector_search_repository = VectorChordVectorSearchRepository(
-            task_name, session, embedding_provider
+            session_factory=session_factory,
+            task_name=task_name,
+            embedding_provider=embedding_provider,
         )
     elif app_context.default_search.provider == "sqlite":
         log_event("kodit.database", {"provider": "sqlite"})

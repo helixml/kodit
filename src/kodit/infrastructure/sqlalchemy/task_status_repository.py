@@ -17,45 +17,44 @@ def create_task_status_repository(
     session_factory: Callable[[], AsyncSession],
 ) -> TaskStatusRepository:
     """Create an index repository."""
-    uow = SqlAlchemyUnitOfWork(session_factory=session_factory)
-    return SqlAlchemyTaskStatusRepository(uow)
+    return SqlAlchemyTaskStatusRepository(session_factory=session_factory)
 
 
 class SqlAlchemyTaskStatusRepository(TaskStatusRepository):
     """Repository for persisting TaskStatus entities."""
 
-    def __init__(self, uow: SqlAlchemyUnitOfWork) -> None:
+    def __init__(self, session_factory: Callable[[], AsyncSession]) -> None:
         """Initialize the repository."""
-        self.uow = uow
-        self.log = structlog.get_logger(__name__)
+        self.session_factory = session_factory
         self.mapper = TaskStatusMapper()
+        self.log = structlog.get_logger(__name__)
 
     async def save(self, status: domain_entities.TaskStatus) -> None:
         """Save a TaskStatus to database."""
         # If this task has a parent, ensure the parent exists in the database first
         if status.parent is not None:
-            async with self.uow:
+            async with SqlAlchemyUnitOfWork(self.session_factory) as session:
                 parent_stmt = select(db_entities.TaskStatus).where(
                     db_entities.TaskStatus.id == status.parent.id,
                 )
-                parent_result = await self.uow.session.execute(parent_stmt)
+                parent_result = await session.execute(parent_stmt)
                 existing_parent = parent_result.scalar_one_or_none()
 
             if not existing_parent:
                 # Recursively save the parent first
                 await self.save(status.parent)
 
-        async with self.uow:
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             # Convert domain entity to database entity
             db_status = self.mapper.from_domain_task_status(status)
             stmt = select(db_entities.TaskStatus).where(
                 db_entities.TaskStatus.id == db_status.id,
             )
-            result = await self.uow.session.execute(stmt)
+            result = await session.execute(stmt)
             existing = result.scalar_one_or_none()
 
             if not existing:
-                self.uow.session.add(db_status)
+                session.add(db_status)
             else:
                 # Update existing record with new values
                 existing.operation = db_status.operation
@@ -72,12 +71,12 @@ class SqlAlchemyTaskStatusRepository(TaskStatusRepository):
         self, trackable_type: str, trackable_id: int
     ) -> list[domain_entities.TaskStatus]:
         """Load TaskStatus entities with hierarchy from database."""
-        async with self.uow:
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             stmt = select(db_entities.TaskStatus).where(
                 db_entities.TaskStatus.trackable_id == trackable_id,
                 db_entities.TaskStatus.trackable_type == trackable_type,
             )
-            result = await self.uow.session.execute(stmt)
+            result = await session.execute(stmt)
             db_statuses = list(result.scalars().all())
 
             # Use mapper to convert and reconstruct hierarchy
@@ -85,8 +84,8 @@ class SqlAlchemyTaskStatusRepository(TaskStatusRepository):
 
     async def delete(self, status: domain_entities.TaskStatus) -> None:
         """Delete a TaskStatus."""
-        async with self.uow:
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             stmt = delete(db_entities.TaskStatus).where(
                 db_entities.TaskStatus.id == status.id,
             )
-            await self.uow.session.execute(stmt)
+            await session.execute(stmt)

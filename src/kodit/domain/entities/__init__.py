@@ -1,7 +1,5 @@
 """Pure domain entities using Pydantic."""
 
-import shutil
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
@@ -10,15 +8,10 @@ from urllib.parse import urlparse, urlunparse
 from pydantic import AnyUrl, BaseModel
 
 from kodit.domain.value_objects import (
-    FileProcessingStatus,
     ReportingState,
-    SnippetContent,
-    SnippetContentType,
-    SourceType,
     TaskOperation,
     TrackableType,
 )
-from kodit.utils.path_utils import path_from_uri
 
 
 class IgnorePatternProvider(Protocol):
@@ -37,36 +30,8 @@ class Author(BaseModel):
     email: str
 
 
-class File(BaseModel):
-    """File domain entity."""
-
-    id: int | None = None  # Is populated by repository
-    created_at: datetime | None = None  # Is populated by repository
-    updated_at: datetime | None = None  # Is populated by repository
-    uri: AnyUrl
-    sha256: str
-    authors: list[Author]
-    mime_type: str
-    file_processing_status: FileProcessingStatus
-
-    def as_path(self) -> Path:
-        """Return the file as a path."""
-        return path_from_uri(str(self.uri))
-
-    def extension(self) -> str:
-        """Return the file extension."""
-        return Path(self.as_path()).suffix.lstrip(".")
-
-
 class WorkingCopy(BaseModel):
     """Working copy value object representing cloned source location."""
-
-    created_at: datetime | None = None  # Is populated by repository
-    updated_at: datetime | None = None  # Is populated by repository
-    remote_uri: AnyUrl
-    cloned_path: Path
-    source_type: SourceType
-    files: list[File]
 
     @classmethod
     def sanitize_local_path(cls, path: str) -> AnyUrl:
@@ -172,61 +137,6 @@ class WorkingCopy(BaseModel):
         except Exception as e:
             raise ValueError(f"Invalid URL: {url}") from e
 
-    def modified_or_deleted_files(self) -> list[File]:
-        """Return the modified or deleted files."""
-        return [
-            file
-            for file in self.files
-            if file.file_processing_status
-            in (FileProcessingStatus.MODIFIED, FileProcessingStatus.DELETED)
-        ]
-
-    def list_filesystem_paths(
-        self, ignore_provider: IgnorePatternProvider
-    ) -> list[Path]:
-        """List the filesystem paths of the files in the working copy."""
-        if not self.cloned_path.exists():
-            raise ValueError(f"Cloned path does not exist: {self.cloned_path}")
-
-        return [
-            f
-            for f in self.cloned_path.rglob("*")
-            if f.is_file() and not ignore_provider.should_ignore(f)
-        ]
-
-    def dirty_files(self) -> list[File]:
-        """Return the dirty files."""
-        return [
-            file
-            for file in self.files
-            if file.file_processing_status
-            in (FileProcessingStatus.MODIFIED, FileProcessingStatus.ADDED)
-        ]
-
-    def changed_files(self) -> list[File]:
-        """Return the changed files."""
-        return [
-            file
-            for file in self.files
-            if file.file_processing_status != FileProcessingStatus.CLEAN
-        ]
-
-    def clear_file_processing_statuses(self) -> None:
-        """Clear the file processing statuses."""
-        # First remove any files that are marked for deletion
-        self.files = [
-            file
-            for file in self.files
-            if file.file_processing_status != FileProcessingStatus.DELETED
-        ]
-        # Then clear the statuses for the remaining files
-        for file in self.files:
-            file.file_processing_status = FileProcessingStatus.CLEAN
-
-    def delete(self) -> None:
-        """Delete the working copy."""
-        shutil.rmtree(self.cloned_path)
-
 
 class Source(BaseModel):
     """Source domain entity."""
@@ -235,85 +145,6 @@ class Source(BaseModel):
     created_at: datetime | None = None  # Is populated by repository
     updated_at: datetime | None = None  # Is populated by repository
     working_copy: WorkingCopy
-
-
-class Snippet(BaseModel):
-    """Snippet domain entity."""
-
-    id: int | None = None  # Is populated by repository
-    created_at: datetime | None = None  # Is populated by repository
-    updated_at: datetime | None = None  # Is populated by repository
-    derives_from: list[File]
-    original_content: SnippetContent | None = None
-    summary_content: SnippetContent | None = None
-
-    def original_text(self) -> str:
-        """Return the original content of the snippet."""
-        if self.original_content is None:
-            return ""
-        return self.original_content.value
-
-    def summary_text(self) -> str:
-        """Return the summary content of the snippet."""
-        if self.summary_content is None:
-            return ""
-        return self.summary_content.value
-
-    def add_original_content(self, content: str, _language: str) -> None:
-        """Add an original content to the snippet."""
-        self.original_content = SnippetContent(
-            type=SnippetContentType.ORIGINAL,
-            value=content,
-        )
-
-    def add_summary(self, summary: str) -> None:
-        """Add a summary to the snippet."""
-        self.summary_content = SnippetContent(
-            type=SnippetContentType.SUMMARY,
-            value=summary,
-        )
-
-
-class Index(BaseModel):
-    """Index domain entity.
-
-    The snippets field is optional and only loaded when explicitly needed.
-    Most operations should use the SnippetRepository directly instead of
-    accessing this field.
-    """
-
-    id: int
-    created_at: datetime
-    updated_at: datetime
-    source: Source
-    snippets: list[Snippet] = []
-
-    def delete_snippets_for_files(self, files: list[File]) -> None:
-        """Delete the snippets that derive from a list of files.
-
-        Note: This method only operates on loaded snippets. For persistence,
-        use SnippetRepository.delete_by_file_ids() directly.
-        """
-        self.snippets = [
-            snippet
-            for snippet in self.snippets
-            if not any(file in snippet.derives_from for file in files)
-        ]
-
-    def has_snippets_loaded(self) -> bool:
-        """Check if snippets have been loaded into this entity."""
-        return len(self.snippets) > 0
-
-
-# FUTURE: Remove this type, use the domain to get the required information.
-@dataclass(frozen=True)
-class SnippetWithContext:
-    """Domain model for snippet with associated context information."""
-
-    source: Source
-    file: File
-    authors: list[Author]
-    snippet: Snippet
 
 
 class Task(BaseModel):
@@ -346,24 +177,8 @@ class Task(BaseModel):
     @staticmethod
     def create_id(operation: TaskOperation, payload: dict[str, Any]) -> str:
         """Create a unique id for a task."""
-        if operation in (
-            TaskOperation.REFRESH_WORKING_COPY,
-            TaskOperation.EXTRACT_SNIPPETS,
-            TaskOperation.CREATE_BM25_INDEX,
-            TaskOperation.CREATE_CODE_EMBEDDINGS,
-            TaskOperation.ENRICH_SNIPPETS,
-        ):
-            # Use a shortened name for the ID to keep it concise
-            operation_short_names = {
-                TaskOperation.REFRESH_WORKING_COPY: "SYNC",
-                TaskOperation.EXTRACT_SNIPPETS: "EXTRACT",
-                TaskOperation.CREATE_BM25_INDEX: "BM25_INDEX",
-                TaskOperation.CREATE_CODE_EMBEDDINGS: "CODE_EMBEDDINGS",
-                TaskOperation.ENRICH_SNIPPETS: "ENRICH",
-            }
-            return f"{operation_short_names[operation]}:{payload['index_id']}"
-
-        raise ValueError(f"Unknown operation: {operation}")
+        first_id = next(iter(payload.values()), None)
+        return f"{operation}:{first_id}"
 
 
 class TaskStatus(BaseModel):

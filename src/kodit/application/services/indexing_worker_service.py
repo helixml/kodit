@@ -8,10 +8,8 @@ from datetime import UTC, datetime
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.application.factories.code_indexing_factory import (
-    create_code_indexing_application_service,
-)
 from kodit.application.factories.reporting_factory import create_noop_operation
+from kodit.application.factories.server_factory import ServerFactory
 from kodit.application.services.reporting import ProgressTracker
 from kodit.config import AppContext
 from kodit.domain.entities import Task
@@ -29,10 +27,12 @@ class IndexingWorkerService:
         self,
         app_context: AppContext,
         session_factory: Callable[[], AsyncSession],
+        server_factory: ServerFactory,
     ) -> None:
         """Initialize the indexing worker service."""
         self.app_context = app_context
         self.session_factory = session_factory
+        self.server_factory = server_factory
         self._worker_task: asyncio.Task | None = None
         self._shutdown_event = asyncio.Event()
         self.task_repository = create_task_repository(session_factory)
@@ -44,7 +44,7 @@ class IndexingWorkerService:
         self._running = True
 
         # Start single worker task
-        self._worker_task = asyncio.create_task(self._worker_loop(operation))
+        self._worker_task = asyncio.create_task(self._worker_loop())
 
         self.log.info(
             "Indexing worker started",
@@ -62,7 +62,7 @@ class IndexingWorkerService:
 
         self.log.info("Indexing worker stopped")
 
-    async def _worker_loop(self, operation: ProgressTracker) -> None:
+    async def _worker_loop(self) -> None:
         self.log.debug("Worker loop started")
 
         while not self._shutdown_event.is_set():
@@ -73,7 +73,7 @@ class IndexingWorkerService:
 
                 # If there's a task, process it in a new thread
                 if task:
-                    await self._process_task(task, operation)
+                    await self._process_task(task)
                     continue
 
                 # If no task, sleep for a bit
@@ -89,7 +89,7 @@ class IndexingWorkerService:
 
         self.log.info("Worker loop stopped")
 
-    async def _process_task(self, task: Task, operation: ProgressTracker) -> None:
+    async def _process_task(self, task: Task) -> None:
         """Process a task based on its type."""
         self.log.info(
             "Processing task",
@@ -104,16 +104,8 @@ class IndexingWorkerService:
         asyncio.set_event_loop(loop)
 
         try:
-            index_id = task.payload.get("index_id")
-            if not index_id:
-                raise ValueError("Missing index_id in task payload")
-
-            service = create_code_indexing_application_service(
-                app_context=self.app_context,
-                session_factory=self.session_factory,
-                operation=operation,
-            )
-            await service.run_task(task)
+            commit_service = self.server_factory.commit_indexing_application_service()
+            await commit_service.run_task(task)
         finally:
             loop.close()
 

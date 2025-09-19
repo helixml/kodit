@@ -42,8 +42,8 @@ class TestLocalEnrichmentProvider:
         """Test enrichment with requests containing empty text."""
         provider = LocalEnrichmentProvider()
         requests = [
-            EnrichmentRequest(snippet_id=1, text=""),
-            EnrichmentRequest(snippet_id=2, text="   "),
+            EnrichmentRequest(snippet_id="1", text=""),
+            EnrichmentRequest(snippet_id="2", text="   "),
         ]
 
         results = [result async for result in provider.enrich(requests)]
@@ -51,7 +51,7 @@ class TestLocalEnrichmentProvider:
         # The local provider actually processes whitespace-only text
         # So we expect 1 result for the whitespace-only request
         assert len(results) == 1
-        assert results[0].snippet_id == 2
+        assert results[0].snippet_id == "2"
 
     @pytest.mark.asyncio
     @patch("transformers.models.auto.tokenization_auto.AutoTokenizer")
@@ -79,12 +79,12 @@ class TestLocalEnrichmentProvider:
         mock_model_class.from_pretrained.return_value = mock_model
 
         provider = LocalEnrichmentProvider()
-        requests = [EnrichmentRequest(snippet_id=1, text="def test(): pass")]
+        requests = [EnrichmentRequest(snippet_id="1", text="def test(): pass")]
 
         results = [result async for result in provider.enrich(requests)]
 
         assert len(results) == 1
-        assert results[0].snippet_id == 1
+        assert results[0].snippet_id == "1"
         assert results[0].text == "This is a test function"
 
         # Verify the tokenizer was called correctly
@@ -125,16 +125,16 @@ class TestLocalEnrichmentProvider:
 
         provider = LocalEnrichmentProvider()
         requests = [
-            EnrichmentRequest(snippet_id=1, text="def hello(): pass"),
-            EnrichmentRequest(snippet_id=2, text="def world(): pass"),
+            EnrichmentRequest(snippet_id="1", text="def hello(): pass"),
+            EnrichmentRequest(snippet_id="2", text="def world(): pass"),
         ]
 
         results = [result async for result in provider.enrich(requests)]
 
         assert len(results) == 2
-        assert results[0].snippet_id == 1
+        assert results[0].snippet_id == "1"
         assert results[0].text == "Enriched content"
-        assert results[1].snippet_id == 2
+        assert results[1].snippet_id == "2"
         assert results[1].text == "Enriched content"
 
     @pytest.mark.asyncio
@@ -164,18 +164,18 @@ class TestLocalEnrichmentProvider:
 
         provider = LocalEnrichmentProvider()
         requests = [
-            EnrichmentRequest(snippet_id=1, text=""),  # Empty
-            EnrichmentRequest(snippet_id=2, text="def valid(): pass"),  # Valid
-            EnrichmentRequest(snippet_id=3, text="   "),  # Whitespace only
+            EnrichmentRequest(snippet_id="1", text=""),  # Empty
+            EnrichmentRequest(snippet_id="2", text="def valid(): pass"),  # Valid
+            EnrichmentRequest(snippet_id="3", text="   "),  # Whitespace only
         ]
 
         results = [result async for result in provider.enrich(requests)]
 
         # Should process the valid and whitespace requests (2 total)
         assert len(results) == 2
-        assert results[0].snippet_id == 2
+        assert results[0].snippet_id == "2"
         assert results[0].text == "Enriched content"
-        assert results[1].snippet_id == 3
+        assert results[1].snippet_id == "3"
         assert results[1].text == "Enriched content"
 
     @pytest.mark.asyncio
@@ -204,7 +204,7 @@ class TestLocalEnrichmentProvider:
         mock_model_class.from_pretrained.return_value = mock_model
 
         provider = LocalEnrichmentProvider(model_name="custom-model")
-        requests = [EnrichmentRequest(snippet_id=1, text="def test(): pass")]
+        requests = [EnrichmentRequest(snippet_id="1", text="def test(): pass")]
 
         # First call should initialize tokenizer
         results = [result async for result in provider.enrich(requests)]
@@ -249,7 +249,7 @@ class TestLocalEnrichmentProvider:
         mock_model_class.from_pretrained.return_value = mock_model
 
         provider = LocalEnrichmentProvider(model_name="custom-model")
-        requests = [EnrichmentRequest(snippet_id=1, text="def test(): pass")]
+        requests = [EnrichmentRequest(snippet_id="1", text="def test(): pass")]
 
         # First call should initialize model
         results = [result async for result in provider.enrich(requests)]

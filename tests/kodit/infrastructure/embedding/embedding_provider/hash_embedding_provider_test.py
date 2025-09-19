@@ -42,14 +42,14 @@ class TestHashEmbeddingProvider:
     async def test_embed_single_request(self) -> None:
         """Test embedding with a single request."""
         provider = HashEmbeddingProvider()
-        requests = [EmbeddingRequest(snippet_id=1, text="python programming")]
+        requests = [EmbeddingRequest(snippet_id="1", text="python programming")]
 
         results = []
         async for batch in provider.embed(requests):
             results.extend(batch)
 
         assert len(results) == 1
-        assert results[0].snippet_id == 1
+        assert results[0].snippet_id == "1"
         assert len(results[0].embedding) == CODE
         assert all(isinstance(v, float) for v in results[0].embedding)
         assert all(-1 <= v <= 1 for v in results[0].embedding)
@@ -59,9 +59,9 @@ class TestHashEmbeddingProvider:
         """Test embedding with multiple requests."""
         provider = HashEmbeddingProvider()
         requests = [
-            EmbeddingRequest(snippet_id=1, text="python programming"),
-            EmbeddingRequest(snippet_id=2, text="javascript development"),
-            EmbeddingRequest(snippet_id=3, text="java enterprise"),
+            EmbeddingRequest(snippet_id="1", text="python programming"),
+            EmbeddingRequest(snippet_id="2", text="javascript development"),
+            EmbeddingRequest(snippet_id="3", text="java enterprise"),
         ]
 
         results = []
@@ -70,7 +70,7 @@ class TestHashEmbeddingProvider:
 
         assert len(results) == 3
         for i, result in enumerate(results):
-            assert result.snippet_id == i + 1
+            assert result.snippet_id == str(i + 1)
             assert len(result.embedding) == CODE
             assert all(isinstance(v, float) for v in result.embedding)
             assert all(-1 <= v <= 1 for v in result.embedding)
@@ -81,8 +81,8 @@ class TestHashEmbeddingProvider:
         provider = HashEmbeddingProvider()
         text = "python programming language"
         requests = [
-            EmbeddingRequest(snippet_id=1, text=text),
-            EmbeddingRequest(snippet_id=2, text=text),
+            EmbeddingRequest(snippet_id="1", text=text),
+            EmbeddingRequest(snippet_id="2", text=text),
         ]
 
         results = []
@@ -97,8 +97,8 @@ class TestHashEmbeddingProvider:
         """Test that different texts produce different embeddings."""
         provider = HashEmbeddingProvider()
         requests = [
-            EmbeddingRequest(snippet_id=1, text="python programming"),
-            EmbeddingRequest(snippet_id=2, text="javascript development"),
+            EmbeddingRequest(snippet_id="1", text="python programming"),
+            EmbeddingRequest(snippet_id="2", text="javascript development"),
         ]
 
         results = []
@@ -114,7 +114,7 @@ class TestHashEmbeddingProvider:
         provider = HashEmbeddingProvider()
         # Create more than batch_size requests
         requests = [
-            EmbeddingRequest(snippet_id=i, text=f"text {i}")
+            EmbeddingRequest(snippet_id=str(i), text=f"text {i}")
             for i in range(15)  # More than batch_size of 10
         ]
 
@@ -131,7 +131,7 @@ class TestHashEmbeddingProvider:
     async def test_embed_tiny_size(self) -> None:
         """Test embedding with tiny size."""
         provider = HashEmbeddingProvider(embedding_size=TINY)
-        requests = [EmbeddingRequest(snippet_id=1, text="test text")]
+        requests = [EmbeddingRequest(snippet_id="1", text="test text")]
 
         results = []
         async for batch in provider.embed(requests):
@@ -172,10 +172,10 @@ class TestHashEmbeddingProvider:
         different_text = "javascript web development"
 
         similar_requests = [
-            EmbeddingRequest(snippet_id=i, text=text)
+            EmbeddingRequest(snippet_id=str(i), text=text)
             for i, text in enumerate(similar_texts)
         ]
-        different_request = [EmbeddingRequest(snippet_id=99, text=different_text)]
+        different_request = [EmbeddingRequest(snippet_id="99", text=different_text)]
 
         # Get embeddings
         similar_embeddings = []
@@ -214,7 +214,7 @@ class TestHashEmbeddingProvider:
     async def test_embed_empty_text(self) -> None:
         """Test embedding with empty text."""
         provider = HashEmbeddingProvider()
-        requests = [EmbeddingRequest(snippet_id=1, text="")]
+        requests = [EmbeddingRequest(snippet_id="1", text="")]
 
         results = []
         async for batch in provider.embed(requests):
@@ -229,7 +229,7 @@ class TestHashEmbeddingProvider:
     async def test_embed_unicode_text(self) -> None:
         """Test embedding with unicode text."""
         provider = HashEmbeddingProvider()
-        requests = [EmbeddingRequest(snippet_id=1, text="python 🐍 programming")]
+        requests = [EmbeddingRequest(snippet_id="1", text="python 🐍 programming")]
 
         results = []
         async for batch in provider.embed(requests):
@@ -244,7 +244,7 @@ class TestHashEmbeddingProvider:
         """Test embedding with a large embedding size."""
         large_size = 2048
         provider = HashEmbeddingProvider(embedding_size=large_size)
-        requests = [EmbeddingRequest(snippet_id=1, text="test text")]
+        requests = [EmbeddingRequest(snippet_id="1", text="test text")]
 
         results = []
         async for batch in provider.embed(requests):

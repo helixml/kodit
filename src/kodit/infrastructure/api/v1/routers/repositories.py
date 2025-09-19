@@ -1,14 +1,14 @@
 """Repository management router for the REST API."""
 
-from datetime import UTC, datetime
-
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import AnyUrl
 
 from kodit.infrastructure.api.middleware.auth import api_key_auth
-from kodit.infrastructure.api.v1.dependencies import GitAppServiceDep, GitRepositoryDep
+from kodit.infrastructure.api.v1.dependencies import (
+    CommitIndexingAppServiceDep,
+    GitRepositoryDep,
+    TaskStatusQueryServiceDep,
+)
 from kodit.infrastructure.api.v1.schemas.repository import (
-    RepositoryAttributes,
     RepositoryBranchData,
     RepositoryCommitData,
     RepositoryCreateRequest,
@@ -22,6 +22,11 @@ from kodit.infrastructure.api.v1.schemas.tag import (
     TagData,
     TagListResponse,
     TagResponse,
+)
+from kodit.infrastructure.api.v1.schemas.task_status import (
+    TaskStatusAttributes,
+    TaskStatusData,
+    TaskStatusListResponse,
 )
 
 router = APIRouter(
@@ -47,53 +52,22 @@ async def list_repositories(
     """List all cloned repositories."""
     repos = await git_repository.get_all()
     return RepositoryListResponse(
-        data=[
-            RepositoryData(
-                type="repository",
-                id=str(repo.id) if repo.id is not None else repo.business_key,
-                attributes=RepositoryAttributes(
-                    remote_uri=repo.remote_uri,
-                    sanitized_remote_uri=repo.sanitized_remote_uri,
-                    cloned_path=repo.cloned_path,
-                    created_at=repo.last_scanned_at or datetime.now(UTC),
-                    updated_at=repo.last_scanned_at,
-                    default_branch=repo.tracking_branch.name,
-                    total_commits=repo.total_unique_commits,
-                    total_branches=len(repo.branches),
-                ),
-            )
-            for repo in repos
-        ]
+        data=[RepositoryData.from_git_repo(repo) for repo in repos]
     )
 
 
 @router.post("", status_code=201, summary="Create repository")
 async def create_repository(
     request: RepositoryCreateRequest,
-    git_service: GitAppServiceDep,
+    service: CommitIndexingAppServiceDep,
 ) -> RepositoryResponse:
     """Clone a new repository and perform initial mapping."""
     try:
         remote_uri = request.data.attributes.remote_uri
 
-        repo = await git_service.clone_and_map_repository(remote_uri)
+        repo = await service.create_git_repository(remote_uri)
 
-        return RepositoryResponse(
-            data=RepositoryData(
-                type="repository",
-                id=str(repo.id) if repo.id is not None else repo.business_key,
-                attributes=RepositoryAttributes(
-                    remote_uri=repo.remote_uri,
-                    sanitized_remote_uri=repo.sanitized_remote_uri,
-                    cloned_path=repo.cloned_path,
-                    created_at=repo.last_scanned_at or datetime.now(UTC),
-                    updated_at=repo.last_scanned_at,
-                    default_branch=repo.tracking_branch.name,
-                    total_commits=repo.total_unique_commits,
-                    total_branches=len(repo.branches),
-                ),
-            )
-        )
+        return RepositoryResponse(data=RepositoryData.from_git_repo(repo))
     except ValueError as e:
         if "already exists" in str(e):
             raise HTTPException(status_code=409, detail=str(e)) from e
@@ -148,26 +122,15 @@ async def get_repository(
         branch_data.append(
             RepositoryBranchData(
                 name=branch.name,
-                is_default=branch.name == repo.tracking_branch.name,
+                is_default=branch.name == repo.tracking_branch.name
+                if repo.tracking_branch
+                else False,
                 commit_count=branch_commit_count,
             )
         )
 
     return RepositoryDetailsResponse(
-        data=RepositoryData(
-            type="repository",
-            id=str(repo.id) if repo.id is not None else repo.business_key,
-            attributes=RepositoryAttributes(
-                remote_uri=repo.remote_uri,
-                sanitized_remote_uri=repo.sanitized_remote_uri,
-                cloned_path=repo.cloned_path,
-                created_at=repo.last_scanned_at or datetime.now(UTC),
-                updated_at=repo.last_scanned_at,
-                default_branch=repo.tracking_branch.name,
-                total_commits=repo.total_unique_commits,
-                total_branches=len(repo.branches),
-            ),
-        ),
+        data=RepositoryData.from_git_repo(repo),
         branches=branch_data,
         recent_commits=[
             RepositoryCommitData(
@@ -181,31 +144,39 @@ async def get_repository(
     )
 
 
-@router.delete(
-    "/{repo_id}",
-    status_code=204,
-    summary="Delete repository",
-    responses={404: {"description": "Repository not found"}},
+@router.get(
+    "/{repo_id}/status",
+    responses={404: {"description": "Index not found"}},
 )
-async def delete_repository(
-    repo_id: str,
-    git_service: GitAppServiceDep,
-) -> None:
-    """Delete a repository."""
-    repo = await git_service.repo_repository.get_by_id(int(repo_id))
-    if not repo:
-        raise HTTPException(status_code=404, detail="Repository not found")
+async def get_index_status(
+    repo_id: int,
+    status_service: TaskStatusQueryServiceDep,
+) -> TaskStatusListResponse:
+    """Get the status of tasks for an index."""
+    # Get all task statuses for this index
+    progress_trackers = await status_service.get_index_status(repo_id)
 
-    try:
-        await git_service.repo_repository.delete(AnyUrl(repo_id))
+    # Convert progress trackers to API response format
+    task_statuses = []
+    for _i, status in enumerate(progress_trackers):
+        task_statuses.append(
+            TaskStatusData(
+                id=status.id,
+                attributes=TaskStatusAttributes(
+                    step=status.operation,
+                    state=status.state,
+                    progress=status.completion_percent,
+                    total=status.total,
+                    current=status.current,
+                    created_at=status.created_at,
+                    updated_at=status.updated_at,
+                    error=status.error or "",
+                    message=status.message,
+                ),
+            )
+        )
 
-        if repo.cloned_path.exists():
-            import shutil
-
-            shutil.rmtree(repo.cloned_path, ignore_errors=True)
-    except Exception as e:
-        msg = f"Failed to delete repository: {e}"
-        raise HTTPException(status_code=500, detail=msg) from e
+    return TaskStatusListResponse(data=task_statuses)
 
 
 @router.get(
@@ -232,7 +203,7 @@ async def list_repository_tags(
                 id=tag.id,
                 attributes=TagAttributes(
                     name=tag.name,
-                    target_commit_sha=tag.target_commit_sha,
+                    target_commit_sha=tag.target_commit.commit_sha,
                     is_version_tag=tag.is_version_tag,
                 ),
             )
@@ -267,8 +238,31 @@ async def get_repository_tag(
             id=tag.id,
             attributes=TagAttributes(
                 name=tag.name,
-                target_commit_sha=tag.target_commit_sha,
+                target_commit_sha=tag.target_commit.commit_sha,
                 is_version_tag=tag.is_version_tag,
             ),
         )
     )
+
+
+@router.delete(
+    "/{repo_id}",
+    status_code=204,
+    summary="Delete repository",
+    responses={404: {"description": "Repository not found"}},
+)
+async def delete_repository(
+    repo_id: str,
+    service: CommitIndexingAppServiceDep,
+) -> None:
+    """Delete a repository and all its associated data."""
+    try:
+        repo_id_int = int(repo_id)
+        deleted = await service.delete_git_repository(repo_id_int)
+        if not deleted:
+            _raise_not_found_error("Repository not found")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid repository ID") from None
+    except Exception as e:
+        msg = f"Failed to delete repository: {e}"
+        raise HTTPException(status_code=500, detail=msg) from e

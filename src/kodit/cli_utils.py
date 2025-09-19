@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 import click
 
-from kodit.infrastructure.api.client import IndexClient, SearchClient
+from kodit.infrastructure.api.client import SearchClient
 
 if TYPE_CHECKING:
     from kodit.config import AppContext
@@ -37,7 +37,7 @@ def with_client(f: Callable) -> Callable:
             inner_func = getattr(
                 getattr(session_wrapped, "__wrapped__", session_wrapped),
                 "__wrapped__",
-                session_wrapped
+                session_wrapped,
             )
 
             # Get database session manually
@@ -47,13 +47,6 @@ def with_client(f: Callable) -> Callable:
         else:
             # Remote mode - use API clients
             clients = {
-                "index_client": IndexClient(
-                    base_url=app_context.remote.server_url or "",
-                    api_key=app_context.remote.api_key,
-                    timeout=app_context.remote.timeout,
-                    max_retries=app_context.remote.max_retries,
-                    verify_ssl=app_context.remote.verify_ssl,
-                ),
                 "search_client": SearchClient(
                     base_url=app_context.remote.server_url or "",
                     api_key=app_context.remote.api_key,

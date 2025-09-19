@@ -75,14 +75,14 @@ class TestLiteLLMEmbeddingProvider:
         }
         mock_aembedding.return_value = mock_response
 
-        requests = [EmbeddingRequest(snippet_id=1, text="python programming")]
+        requests = [EmbeddingRequest(snippet_id="1", text="python programming")]
 
         results = []
         async for batch in provider.embed(requests):
             results.extend(batch)
 
         assert len(results) == 1
-        assert results[0].snippet_id == 1
+        assert results[0].snippet_id == "1"
         assert len(results[0].embedding) == 1500
         assert all(isinstance(v, float) for v in results[0].embedding)
 
@@ -116,9 +116,9 @@ class TestLiteLLMEmbeddingProvider:
         mock_aembedding.return_value = mock_response
 
         requests = [
-            EmbeddingRequest(snippet_id=1, text="python programming"),
-            EmbeddingRequest(snippet_id=2, text="javascript development"),
-            EmbeddingRequest(snippet_id=3, text="java enterprise"),
+            EmbeddingRequest(snippet_id="1", text="python programming"),
+            EmbeddingRequest(snippet_id="2", text="javascript development"),
+            EmbeddingRequest(snippet_id="3", text="java enterprise"),
         ]
 
         results = []
@@ -127,7 +127,7 @@ class TestLiteLLMEmbeddingProvider:
 
         assert len(results) == 3
         for i, result in enumerate(results):
-            assert result.snippet_id == i + 1
+            assert result.snippet_id == str(i + 1)
             assert len(result.embedding) == 1500
             assert all(isinstance(v, float) for v in result.embedding)
 
@@ -148,14 +148,16 @@ class TestLiteLLMEmbeddingProvider:
     )
     async def test_embed_with_base_url(self, mock_aembedding: AsyncMock) -> None:
         """Test embedding with custom base URL."""
-        endpoint = Endpoint(model="text-embedding-3-small", base_url="https://custom.api.com")
+        endpoint = Endpoint(
+            model="text-embedding-3-small", base_url="https://custom.api.com"
+        )
         provider = LiteLLMEmbeddingProvider(endpoint)
 
         mock_response = Mock()
         mock_response.model_dump.return_value = {"data": [{"embedding": [0.1] * 1500}]}
         mock_aembedding.return_value = mock_response
 
-        requests = [EmbeddingRequest(snippet_id=1, text="test")]
+        requests = [EmbeddingRequest(snippet_id="1", text="test")]
 
         results = []
         async for batch in provider.embed(requests):
@@ -182,7 +184,7 @@ class TestLiteLLMEmbeddingProvider:
         mock_response.model_dump.return_value = {"data": [{"embedding": [0.1] * 1500}]}
         mock_aembedding.return_value = mock_response
 
-        requests = [EmbeddingRequest(snippet_id=1, text="test")]
+        requests = [EmbeddingRequest(snippet_id="1", text="test")]
 
         results = []
         async for batch in provider.embed(requests):
@@ -210,7 +212,7 @@ class TestLiteLLMEmbeddingProvider:
         mock_response.model_dump.return_value = {"data": [{"embedding": [0.1] * 1500}]}
         mock_aembedding.return_value = mock_response
 
-        requests = [EmbeddingRequest(snippet_id=1, text="test")]
+        requests = [EmbeddingRequest(snippet_id="1", text="test")]
 
         results = []
         async for batch in provider.embed(requests):
@@ -246,7 +248,9 @@ class TestLiteLLMEmbeddingProvider:
         mock_aembedding.side_effect = mock_aembedding_func
 
         # Create more than batch_size requests (batch_size = 10)
-        requests = [EmbeddingRequest(snippet_id=i, text=f"text {i}") for i in range(15)]
+        requests = [
+            EmbeddingRequest(snippet_id=str(i), text=f"text {i}") for i in range(15)
+        ]
 
         batch_count = 0
         total_results = []
@@ -268,7 +272,7 @@ class TestLiteLLMEmbeddingProvider:
         provider = LiteLLMEmbeddingProvider(endpoint)
         mock_aembedding.side_effect = Exception("LiteLLM API Error")
 
-        requests = [EmbeddingRequest(snippet_id=1, text="python programming")]
+        requests = [EmbeddingRequest(snippet_id="1", text="python programming")]
 
         # Should raise exception on error
         with pytest.raises(Exception, match="LiteLLM API Error"):
@@ -290,14 +294,14 @@ class TestLiteLLMEmbeddingProvider:
         mock_response = {"data": [{"embedding": [0.1] * 1500}]}
         mock_aembedding.return_value = mock_response
 
-        requests = [EmbeddingRequest(snippet_id=1, text="test")]
+        requests = [EmbeddingRequest(snippet_id="1", text="test")]
 
         results = []
         async for batch in provider.embed(requests):
             results.extend(batch)
 
         assert len(results) == 1
-        assert results[0].snippet_id == 1
+        assert results[0].snippet_id == "1"
         assert len(results[0].embedding) == 1500
 
     @pytest.mark.asyncio
@@ -313,7 +317,7 @@ class TestLiteLLMEmbeddingProvider:
         mock_response.model_dump.return_value = {"data": [{"embedding": [0.1] * 1500}]}
         mock_aembedding.return_value = mock_response
 
-        requests = [EmbeddingRequest(snippet_id=1, text="test text")]
+        requests = [EmbeddingRequest(snippet_id="1", text="test text")]
 
         results = []
         async for batch in provider.embed(requests):

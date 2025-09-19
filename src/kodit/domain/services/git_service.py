@@ -139,7 +139,6 @@ class GitService:
             cloned_path=repo_path,
             remote_uri=remote_uri,
             last_scanned_at=datetime.now(UTC),
-            total_unique_commits=len(all_commits),
         )
 
     def get_commit_history(
@@ -209,16 +208,19 @@ class GitService:
 
     def _get_all_tags(self, repo: Repo) -> list[GitTag]:
         """Get all tags in the repository."""
+        all_commits = self._get_all_commits(repo)
+        all_commits_map = {commit.commit_sha: commit for commit in all_commits}
         tags = []
-
         try:
             for tag_ref in repo.tags:
                 try:
                     # Get the commit that the tag points to
                     target_commit = tag_ref.commit
+
                     tag = GitTag(
+                        created_at=datetime.now(UTC),
                         name=tag_ref.name,
-                        target_commit_sha=target_commit.hexsha,
+                        target_commit=all_commits_map[target_commit.hexsha],
                     )
                     tags.append(tag)
                 except Exception:  # noqa: BLE001, S112
@@ -278,6 +280,7 @@ class GitService:
                     try:
                         blob = diff_item.b_blob
                         file_entity = GitFile(
+                            created_at=datetime.now(UTC),
                             blob_sha=blob.hexsha,
                             path=str(Path(repo.working_dir) / file_path),
                             mime_type="application/octet-stream",  # Default

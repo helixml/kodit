@@ -1,6 +1,5 @@
 """Pure domain value objects and DTOs."""
 
-import json
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum, IntEnum, StrEnum
@@ -152,7 +151,7 @@ class SearchType(Enum):
 class Document:
     """Generic document model for indexing."""
 
-    snippet_id: int
+    snippet_id: str
     text: str
 
 
@@ -160,7 +159,7 @@ class Document:
 class DocumentSearchResult:
     """Generic document search result model."""
 
-    snippet_id: int
+    snippet_id: str
     score: float
 
 
@@ -168,7 +167,7 @@ class DocumentSearchResult:
 class SearchResult:
     """Generic search result model."""
 
-    snippet_id: int
+    snippet_id: str
     score: float
 
 
@@ -185,21 +184,21 @@ class SearchRequest:
 
     query: str
     top_k: int = 10
-    snippet_ids: list[int] | None = None
+    snippet_ids: list[str] | None = None
 
 
 @dataclass
 class DeleteRequest:
     """Generic deletion request."""
 
-    snippet_ids: list[int]
+    snippet_ids: list[str]
 
 
 @dataclass
 class IndexResult:
     """Generic indexing result."""
 
-    snippet_id: int
+    snippet_id: str
 
 
 @dataclass(frozen=True)
@@ -286,97 +285,10 @@ class MultiSearchRequest:
 
 
 @dataclass
-class MultiSearchResult:
-    """Enhanced search result with comprehensive snippet metadata."""
-
-    id: int
-    content: str
-    original_scores: list[float]
-    source_uri: str
-    relative_path: str
-    language: str
-    authors: list[str]
-    created_at: datetime
-    summary: str
-
-    def __str__(self) -> str:
-        """Return enhanced formatted string representation."""
-        lines = [
-            "---",
-            f"id: {self.id}",
-            f"source: {self.source_uri}",
-            f"path: {self.relative_path}",
-            f"lang: {self.language}",
-            f"created: {self.created_at.isoformat()}",
-            f"authors: {', '.join(self.authors)}",
-            f"scores: {self.original_scores}",
-            "---",
-            f"{self.summary}\n",
-            f"```{self.language}",
-            f"{self.content}",
-            "```\n",
-        ]
-        return "\n".join(lines)
-
-    def to_json(self) -> str:
-        """Return LLM-optimized JSON representation following the compact schema."""
-        json_obj = {
-            "id": self.id,
-            "source": self.source_uri,
-            "path": self.relative_path,
-            "lang": self.language.lower(),
-            "created": self.created_at.isoformat() if self.created_at else "",
-            "author": ", ".join(self.authors),
-            "score": self.original_scores,
-            "code": self.content,
-            "summary": self.summary,
-        }
-
-        return json.dumps(json_obj, separators=(",", ":"))
-
-    @classmethod
-    def to_jsonlines(cls, results: list["MultiSearchResult"]) -> str:
-        """Convert multiple MultiSearchResult objects to JSON Lines format.
-
-        Args:
-            results: List of MultiSearchResult objects
-            include_summary: Whether to include summary fields
-
-        Returns:
-            JSON Lines string (one JSON object per line)
-
-        """
-        return "\n".join(result.to_json() for result in results)
-
-    @classmethod
-    def to_string(cls, results: list["MultiSearchResult"]) -> str:
-        """Convert multiple MultiSearchResult objects to a string."""
-        return "\n\n".join(str(result) for result in results)
-
-    @staticmethod
-    def calculate_relative_path(file_path: str, source_path: str) -> str:
-        """Calculate relative path from source root."""
-        try:
-            return str(Path(file_path).relative_to(Path(source_path)))
-        except ValueError:
-            # If file_path is not relative to source_path, return the file name
-            return Path(file_path).name
-
-    @staticmethod
-    def detect_language_from_extension(extension: str) -> str:
-        """Detect programming language from file extension."""
-        try:
-            return LanguageMapping.get_language_for_extension(extension).title()
-        except ValueError:
-            # Unknown extension, return a default
-            return "Unknown"
-
-
-@dataclass
 class FusionRequest:
     """Domain model for fusion request."""
 
-    id: int
+    id: str
     score: float
 
 
@@ -384,7 +296,7 @@ class FusionRequest:
 class FusionResult:
     """Domain model for fusion result."""
 
-    id: int
+    id: str
     score: float
     original_scores: list[float]
 
@@ -422,7 +334,7 @@ class ProgressState:
 class EmbeddingRequest:
     """Domain model for embedding request."""
 
-    snippet_id: int
+    snippet_id: str
     text: str
 
 
@@ -430,7 +342,7 @@ class EmbeddingRequest:
 class EmbeddingResponse:
     """Domain model for embedding response."""
 
-    snippet_id: int
+    snippet_id: str
     embedding: list[float]
 
 
@@ -438,7 +350,7 @@ class EmbeddingResponse:
 class EnrichmentRequest:
     """Domain model for enrichment request."""
 
-    snippet_id: int
+    snippet_id: str
     text: str
 
 
@@ -446,7 +358,7 @@ class EnrichmentRequest:
 class EnrichmentResponse:
     """Domain model for enrichment response."""
 
-    snippet_id: int
+    snippet_id: str
     text: str
 
 
@@ -696,6 +608,8 @@ class TrackableType(StrEnum):
     """Trackable type."""
 
     INDEX = "indexes"
+    KODIT_REPOSITORY = "kodit.repository"
+    KODIT_COMMIT = "kodit.commit"
 
 
 class TaskOperation(StrEnum):
@@ -713,7 +627,46 @@ class TaskOperation(StrEnum):
     CREATE_TEXT_EMBEDDINGS = "kodit.index.run.create_text_embeddings"
     UPDATE_INDEX_TIMESTAMP = "kodit.index.run.update_index_timestamp"
     CLEAR_FILE_PROCESSING_STATUSES = "kodit.index.run.clear_file_processing_statuses"
-    INDEX_COMMIT = "kodit.index.run.index_commit"
+
+    # New commit-based workflow
+    KODIT_REPOSITORY = "kodit.repository"
+    CREATE_REPOSITORY = "kodit.repository.create"
+    DELETE_REPOSITORY = "kodit.repository.delete"
+    CLONE_REPOSITORY = "kodit.repository.clone"
+    SCAN_REPOSITORY = "kodit.repository.scan"
+    KODIT_COMMIT = "kodit.commit"
+    EXTRACT_SNIPPETS_FOR_COMMIT = "kodit.commit.extract_snippets"
+    CREATE_BM25_INDEX_FOR_COMMIT = "kodit.commit.create_bm25_index"
+    CREATE_CODE_EMBEDDINGS_FOR_COMMIT = "kodit.commit.create_code_embeddings"
+    CREATE_SUMMARY_ENRICHMENT_FOR_COMMIT = "kodit.commit.create_summary_enrichment"
+    CREATE_SUMMARY_EMBEDDINGS_FOR_COMMIT = "kodit.commit.create_summary_embeddings"
+
+    def is_repository_operation(self) -> bool:
+        """Check if the task operation is a repository operation."""
+        return self.startswith("kodit.repository.")
+
+    def is_commit_operation(self) -> bool:
+        """Check if the task operation is a commit operation."""
+        return self.startswith("kodit.commit.")
+
+
+class PrescribedOperations:
+    """Prescribed common operations."""
+
+    CREATE_NEW_REPOSITORY: ClassVar[list[TaskOperation]] = [
+        TaskOperation.CLONE_REPOSITORY,
+        TaskOperation.SCAN_REPOSITORY,
+    ]
+    INDEX_COMMIT: ClassVar[list[TaskOperation]] = [
+        TaskOperation.EXTRACT_SNIPPETS_FOR_COMMIT,
+        TaskOperation.CREATE_BM25_INDEX_FOR_COMMIT,
+        TaskOperation.CREATE_CODE_EMBEDDINGS_FOR_COMMIT,
+        TaskOperation.CREATE_SUMMARY_ENRICHMENT_FOR_COMMIT,
+        TaskOperation.CREATE_SUMMARY_EMBEDDINGS_FOR_COMMIT,
+    ]
+    SYNC_REPOSITORY: ClassVar[list[TaskOperation]] = [
+        TaskOperation.SCAN_REPOSITORY,
+    ]
 
 
 class IndexStatus(StrEnum):

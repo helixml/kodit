@@ -5,18 +5,34 @@ from pathlib import Path
 
 from pydantic import AnyUrl, BaseModel
 
+from kodit.domain.entities.git import GitRepo
+
 
 class RepositoryAttributes(BaseModel):
     """Repository attributes following JSON-API spec."""
 
     remote_uri: AnyUrl
-    sanitized_remote_uri: AnyUrl
-    cloned_path: Path
-    created_at: datetime
+    created_at: datetime | None = None
     updated_at: datetime | None = None
-    default_branch: str
-    total_commits: int = 0
-    total_branches: int = 0
+    last_scanned_at: datetime | None = None
+    cloned_path: Path | None = None
+    default_branch: str | None = None
+    num_commits: int = 0
+    num_branches: int = 0
+
+    @staticmethod
+    def from_git_repo(repo: GitRepo) -> "RepositoryAttributes":
+        """Create a repository attributes from a Git repository."""
+        return RepositoryAttributes(
+            remote_uri=repo.sanitized_remote_uri,
+            cloned_path=repo.cloned_path,
+            created_at=repo.created_at,
+            updated_at=repo.updated_at,
+            last_scanned_at=repo.last_scanned_at,
+            default_branch=repo.tracking_branch.name if repo.tracking_branch else None,
+            num_commits=len(repo.commits),
+            num_branches=len(repo.branches),
+        )
 
 
 class RepositoryData(BaseModel):
@@ -25,6 +41,14 @@ class RepositoryData(BaseModel):
     type: str = "repository"
     id: str
     attributes: RepositoryAttributes
+
+    @staticmethod
+    def from_git_repo(repo: GitRepo) -> "RepositoryData":
+        """Create a repository data from a Git repository."""
+        return RepositoryData(
+            id=str(repo.id) or "",
+            attributes=RepositoryAttributes.from_git_repo(repo),
+        )
 
 
 class RepositoryResponse(BaseModel):

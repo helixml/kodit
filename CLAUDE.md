@@ -112,4 +112,6 @@ the name `_test.py`.
 
 - Docstrings should be very minimal. Descriptions only. No arguments or return types. No
   examples. No deprecation notices.
-- Do not use **init**.py files to store imports.
+- Do not store imports imports in `__init__.py` files.
+- Do not use patches in tests because they are fragile to changes. If you must use them,
+  ONLY use them on core python libraries.

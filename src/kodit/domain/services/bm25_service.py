@@ -105,7 +105,11 @@ class BM25DomainService:
         valid_ids = [
             snippet_id
             for snippet_id in request.snippet_ids
-            if snippet_id is not None and snippet_id > 0
+            if (
+                snippet_id is not None
+                and snippet_id != "0"
+                and not snippet_id.startswith("-")
+            )
         ]
 
         if not valid_ids:

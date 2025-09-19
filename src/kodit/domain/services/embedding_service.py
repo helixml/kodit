@@ -91,6 +91,9 @@ class EmbeddingDomainService:
         if not valid_documents:
             return
 
+        # TODO(Phil): We should handle the embedding of the documents here, then use the
+        # repo to simply store the embeddings.
+
         # Domain logic: create new request with validated documents
         validated_request = IndexRequest(documents=valid_documents)
         async for result in self.vector_search_repository.index_documents(

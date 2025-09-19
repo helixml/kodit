@@ -1,37 +1,22 @@
 """FastAPI dependencies for the REST API."""
 
-from collections.abc import AsyncGenerator, Callable
+from collections.abc import Callable
 from typing import Annotated, cast
 
 from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.application.factories.code_indexing_factory import (
-    create_server_code_indexing_application_service,
-)
-from kodit.application.factories.code_search_factory import (
-    create_server_code_search_application_service,
-)
 from kodit.application.factories.server_factory import ServerFactory
-from kodit.application.services.code_indexing_application_service import (
-    CodeIndexingApplicationService,
-)
 from kodit.application.services.code_search_application_service import (
     CodeSearchApplicationService,
 )
 from kodit.application.services.commit_indexing_application_service import (
     CommitIndexingApplicationService,
-    CommitIndexQueryService,
 )
-from kodit.application.services.git_application_service import GitApplicationService
 from kodit.application.services.queue_service import QueueService
 from kodit.config import AppContext
 from kodit.domain.protocols import GitRepoRepository
-from kodit.domain.services.index_query_service import IndexQueryService
 from kodit.domain.services.task_status_query_service import TaskStatusQueryService
-from kodit.infrastructure.indexing.fusion_service import ReciprocalRankFusionService
-from kodit.infrastructure.sqlalchemy.index_repository import create_index_repository
-from kodit.infrastructure.sqlalchemy.snippet_repository import create_snippet_repository
 from kodit.infrastructure.sqlalchemy.task_status_repository import (
     create_task_status_repository,
 )
@@ -48,68 +33,26 @@ def get_app_context(request: Request) -> AppContext:
 AppContextDep = Annotated[AppContext, Depends(get_app_context)]
 
 
-async def get_db_session(
-    app_context: AppContextDep,
-) -> AsyncGenerator[AsyncSession, None]:
-    """Get database session dependency."""
-    db = await app_context.get_db()
-    async with db.session_factory() as session:
-        yield session
+def get_server_factory(request: Request) -> ServerFactory:
+    """Get the server factory dependency."""
+    server_factory = cast("ServerFactory", request.state.server_factory)
+    if server_factory is None:
+        raise RuntimeError("Server factory not initialized")
+    return server_factory
 
 
-DBSessionDep = Annotated[AsyncSession, Depends(get_db_session)]
+ServerFactoryDep = Annotated[ServerFactory, Depends(get_server_factory)]
 
 
 async def get_db_session_factory(
-    app_context: AppContextDep,
-) -> AsyncGenerator[Callable[[], AsyncSession], None]:
+    server_factory: ServerFactoryDep,
+) -> Callable[[], AsyncSession]:
     """Get database session dependency."""
-    db = await app_context.get_db()
-    yield db.session_factory
+    return server_factory.session_factory
 
 
 DBSessionFactoryDep = Annotated[
     Callable[[], AsyncSession], Depends(get_db_session_factory)
-]
-
-
-async def get_index_query_service(
-    session_factory: DBSessionFactoryDep,
-) -> IndexQueryService:
-    """Get index query service dependency."""
-    return IndexQueryService(
-        index_repository=create_index_repository(session_factory=session_factory),
-        snippet_repository=create_snippet_repository(session_factory=session_factory),
-        fusion_service=ReciprocalRankFusionService(),
-    )
-
-
-IndexQueryServiceDep = Annotated[IndexQueryService, Depends(get_index_query_service)]
-
-
-async def get_indexing_app_service(
-    app_context: AppContextDep,
-    session_factory: DBSessionFactoryDep,
-) -> CodeIndexingApplicationService:
-    """Get indexing application service dependency."""
-    return create_server_code_indexing_application_service(app_context, session_factory)
-
-
-IndexingAppServiceDep = Annotated[
-    CodeIndexingApplicationService, Depends(get_indexing_app_service)
-]
-
-
-async def get_search_app_service(
-    app_context: AppContextDep,
-    session_factory: DBSessionFactoryDep,
-) -> CodeSearchApplicationService:
-    """Get search application service dependency."""
-    return create_server_code_search_application_service(app_context, session_factory)
-
-
-SearchAppServiceDep = Annotated[
-    CodeSearchApplicationService, Depends(get_search_app_service)
 ]
 
 
@@ -139,45 +82,6 @@ TaskStatusQueryServiceDep = Annotated[
 ]
 
 
-class _ServerFactoryHolder:
-    """Holder for server factory instance."""
-
-    def __init__(self) -> None:
-        self._instance: ServerFactory | None = None
-
-    def get_or_create(
-        self, app_context: AppContext, session_factory: Callable[[], AsyncSession]
-    ) -> ServerFactory:
-        """Get or create server factory instance."""
-        if self._instance is None:
-            self._instance = ServerFactory(app_context, session_factory)
-        return self._instance
-
-
-_server_factory_holder = _ServerFactoryHolder()
-
-
-async def get_server_factory(
-    app_context: AppContextDep,
-    session_factory: DBSessionFactoryDep,
-) -> ServerFactory:
-    """Get server factory dependency."""
-    return _server_factory_holder.get_or_create(app_context, session_factory)
-
-
-ServerFactoryDep = Annotated[ServerFactory, Depends(get_server_factory)]
-
-
-async def get_git_app_service(
-    server_factory: ServerFactoryDep,
-) -> GitApplicationService:
-    """Get git application service dependency."""
-    return server_factory.git_application_service()
-
-
-GitAppServiceDep = Annotated[GitApplicationService, Depends(get_git_app_service)]
-
-
 async def get_git_repository(
     server_factory: ServerFactoryDep,
 ) -> GitRepoRepository:
@@ -200,13 +104,13 @@ CommitIndexingAppServiceDep = Annotated[
 ]
 
 
-async def get_commit_index_query_service(
+async def get_code_search_app_service(
     server_factory: ServerFactoryDep,
-) -> CommitIndexQueryService:
-    """Get commit index query service dependency."""
-    return server_factory.commit_index_query_service()
+) -> CodeSearchApplicationService:
+    """Get code search application service dependency."""
+    return server_factory.code_search_application_service()
 
 
-CommitIndexQueryServiceDep = Annotated[
-    CommitIndexQueryService, Depends(get_commit_index_query_service)
+CodeSearchAppServiceDep = Annotated[
+    CodeSearchApplicationService, Depends(get_code_search_app_service)
 ]

@@ -6,6 +6,8 @@ from types import TracebackType
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
+# TODO(Phil): Major issue here, if the same repository has concurrent access, then it is
+# sharing the same session.
 class SqlAlchemyUnitOfWork:
     """SQLAlchemy implementation of Unit of Work pattern."""
 
@@ -14,17 +16,10 @@ class SqlAlchemyUnitOfWork:
         self._session_factory = session_factory
         self._session: AsyncSession | None = None
 
-    @property
-    def session(self) -> AsyncSession:
-        """Get the current session."""
-        if self._session is None:
-            raise RuntimeError("UnitOfWork must be used within async context")
-        return self._session
-
-    async def __aenter__(self) -> "SqlAlchemyUnitOfWork":
+    async def __aenter__(self) -> "AsyncSession":
         """Enter the unit of work context."""
         self._session = self._session_factory()
-        return self
+        return self._session
 
     async def __aexit__(
         self,
@@ -34,11 +29,14 @@ class SqlAlchemyUnitOfWork:
     ) -> None:
         """Exit the unit of work context."""
         if self._session:
-            if exc_type is not None:
-                await self._session.rollback()
-            await self._session.commit()
-            await self._session.close()
-            self._session = None
+            try:
+                if exc_type is None:  # Only commit if no exception
+                    await self._session.commit()
+                else:
+                    await self._session.rollback()
+            finally:
+                await self._session.close()
+                self._session = None
 
     async def commit(self) -> None:
         """Commit the current transaction."""

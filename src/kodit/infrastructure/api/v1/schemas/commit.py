@@ -72,3 +72,25 @@ class FileListResponse(BaseModel):
     """File list response following JSON-API spec."""
 
     data: list[FileData]
+
+
+class EmbeddingAttributes(BaseModel):
+    """Embedding attributes following JSON-API spec."""
+
+    snippet_sha: str
+    embedding_type: str
+    embedding: list[float]
+
+
+class EmbeddingData(BaseModel):
+    """Embedding data following JSON-API spec."""
+
+    type: str = "embedding"
+    id: str
+    attributes: EmbeddingAttributes
+
+
+class EmbeddingListResponse(BaseModel):
+    """Embedding list response following JSON-API spec."""
+
+    data: list[EmbeddingData]

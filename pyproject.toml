@@ -52,7 +52,7 @@ dependencies = [
     "accelerate>=1.7.0",
     "rudder-sdk-python>=2.1.4",
     "pystemmer>=3.0.0",
-    "litellm>=1.75.8",
+    "litellm>=1.77.1",
     "openai==1.99.9",
 ]
 
@@ -129,6 +129,8 @@ ignore = [
   "EM101", # Annoying because an extra msg just for a raise adds unnecessary lines
   "EM102", # As above
   "S108", # Just annoying. It's never insecure use of /tmp
+  "FIX002", # I like todos
+  "TD003", # I like todos
 ]
 select = ["ALL"]
 

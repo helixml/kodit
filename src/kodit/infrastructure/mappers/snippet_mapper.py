@@ -1,112 +1,126 @@
-"""Mapping between domain Snippet entities and SQLAlchemy entities."""
+"""Mapping between domain Git entities and SQLAlchemy entities."""
 
-from pathlib import Path
-
-from pydantic import AnyUrl
-
-import kodit.domain.entities as domain_entities
-from kodit.domain.value_objects import FileProcessingStatus, SourceType
+import kodit.domain.entities.git as domain_git_entities
+from kodit.domain.value_objects import Enrichment, EnrichmentType
 from kodit.infrastructure.sqlalchemy import entities as db_entities
 
 
 class SnippetMapper:
-    """Mapper for converting between domain Snippet entities and database entities."""
+    """Mapper for converting between domain Git entities and database entities."""
 
-    def to_domain_snippet(
-        self, db_snippet: db_entities.Snippet, domain_files: list[domain_entities.File]
-    ) -> domain_entities.Snippet:
-        """Convert SQLAlchemy Snippet to domain Snippet."""
-        # Find the file this snippet derives from
-        derives_from = []
-        for domain_file in domain_files:
-            if domain_file.id == db_snippet.file_id:
-                derives_from.append(domain_file)
-                break
+    def to_domain_snippet_v2(
+        self,
+        db_snippet: db_entities.SnippetV2,
+        db_files: list[db_entities.GitCommitFile],
+        db_enrichments: list[db_entities.Enrichment],
+    ) -> domain_git_entities.SnippetV2:
+        """Convert SQLAlchemy SnippetV2 to domain SnippetV2."""
+        # Convert enrichments
+        enrichments = []
+        for db_enrichment in db_enrichments:
+            # Map from SQLAlchemy enum to domain enum
+            enrichment_type = EnrichmentType(db_enrichment.type.value)
+            enrichment = Enrichment(
+                type=enrichment_type,
+                content=db_enrichment.content,
+            )
+            enrichments.append(enrichment)
 
-        # Create domain snippet with original content
-        domain_snippet = domain_entities.Snippet(
-            id=db_snippet.id,
+        derives_from = [
+            domain_git_entities.GitFile(
+                created_at=file.created_at,
+                blob_sha=file.blob_sha,
+                path=file.path,
+                mime_type=file.mime_type,
+                size=file.size,
+                extension=file.extension,
+            )
+            for file in db_files
+        ]
+
+        return domain_git_entities.SnippetV2(
+            sha=db_snippet.sha,
             created_at=db_snippet.created_at,
             updated_at=db_snippet.updated_at,
             derives_from=derives_from,
+            content=db_snippet.content,
+            enrichments=enrichments,
+            extension=db_snippet.extension,
         )
 
-        # Add original content
-        if db_snippet.content:
-            domain_snippet.add_original_content(db_snippet.content, "unknown")
-
-        # Add summary content if it exists
-        if db_snippet.summary:
-            domain_snippet.add_summary(db_snippet.summary)
-
-        return domain_snippet
-
-    def from_domain_snippet(
-        self, domain_snippet: domain_entities.Snippet, index_id: int
-    ) -> db_entities.Snippet:
-        """Convert domain Snippet to SQLAlchemy Snippet."""
-        # Get file ID from derives_from (use first file if multiple)
-        if not domain_snippet.derives_from:
-            raise ValueError("Snippet must derive from at least one file")
-
-        file_id = domain_snippet.derives_from[0].id
-        if file_id is None:
-            raise ValueError("File must have an ID")
-
-        db_snippet = db_entities.Snippet(
-            file_id=file_id,
-            index_id=index_id,
-            content=domain_snippet.original_text(),
-            summary=domain_snippet.summary_text(),
+    def from_domain_snippet_v2(
+        self, domain_snippet: domain_git_entities.SnippetV2
+    ) -> db_entities.SnippetV2:
+        """Convert domain SnippetV2 to SQLAlchemy SnippetV2."""
+        return db_entities.SnippetV2(
+            sha=domain_snippet.sha,
+            content=domain_snippet.content,
+            extension=domain_snippet.extension,
         )
 
-        if domain_snippet.id:
-            db_snippet.id = domain_snippet.id
-        if domain_snippet.created_at:
-            db_snippet.created_at = domain_snippet.created_at
-        if domain_snippet.updated_at:
-            db_snippet.updated_at = domain_snippet.updated_at
+    def from_domain_enrichments(
+        self, snippet_sha: str, enrichments: list[Enrichment]
+    ) -> list[db_entities.Enrichment]:
+        """Convert domain enrichments to SQLAlchemy enrichments."""
+        db_enrichments = []
+        for enrichment in enrichments:
+            # Map from domain enum to SQLAlchemy enum
+            db_enrichment_type = db_entities.EnrichmentType(enrichment.type.value)
+            db_enrichment = db_entities.Enrichment(
+                snippet_sha=snippet_sha,
+                type=db_enrichment_type,
+                content=enrichment.content,
+            )
+            db_enrichments.append(db_enrichment)
+        return db_enrichments
 
-        return db_snippet
+    def to_domain_commit_index(
+        self,
+        db_commit_index: db_entities.CommitIndex,
+        snippets: list[domain_git_entities.SnippetV2],
+    ) -> domain_git_entities.CommitIndex:
+        """Convert SQLAlchemy CommitIndex to domain CommitIndex."""
+        from kodit.domain.entities.git import IndexStatus
 
-    def to_domain_file(
-        self, db_file: db_entities.File, db_authors: list[db_entities.Author]
-    ) -> domain_entities.File:
-        """Convert SQLAlchemy File to domain File."""
-        domain_authors = [
-            domain_entities.Author(id=author.id, name=author.name, email=author.email)
-            for author in db_authors
-        ]
+        # Map status
+        status_map = {
+            db_entities.IndexStatusType.PENDING: IndexStatus.PENDING,
+            db_entities.IndexStatusType.IN_PROGRESS: IndexStatus.IN_PROGRESS,
+            db_entities.IndexStatusType.COMPLETED: IndexStatus.COMPLETED,
+            db_entities.IndexStatusType.FAILED: IndexStatus.FAILED,
+        }
 
-        return domain_entities.File(
-            id=db_file.id,
-            created_at=db_file.created_at,
-            updated_at=db_file.updated_at,
-            uri=AnyUrl(db_file.uri),
-            sha256=db_file.sha256,
-            authors=domain_authors,
-            mime_type=db_file.mime_type,
-            file_processing_status=FileProcessingStatus(db_file.file_processing_status),
+        return domain_git_entities.CommitIndex(
+            commit_sha=db_commit_index.commit_sha,
+            created_at=db_commit_index.created_at,
+            updated_at=db_commit_index.updated_at,
+            snippets=snippets,
+            status=status_map[db_commit_index.status],
+            indexed_at=db_commit_index.indexed_at,
+            error_message=db_commit_index.error_message,
+            files_processed=db_commit_index.files_processed,
+            processing_time_seconds=float(db_commit_index.processing_time_seconds),
         )
 
-    def to_domain_source(
-        self, db_source: db_entities.Source, domain_files: list[domain_entities.File]
-    ) -> domain_entities.Source:
-        """Convert SQLAlchemy Source to domain Source."""
-        # Create working copy
-        working_copy = domain_entities.WorkingCopy(
-            created_at=db_source.created_at,
-            updated_at=db_source.updated_at,
-            remote_uri=AnyUrl(db_source.uri),
-            cloned_path=Path(db_source.cloned_path),
-            source_type=SourceType(db_source.type.value),
-            files=domain_files,
-        )
+    def from_domain_commit_index(
+        self, domain_commit_index: domain_git_entities.CommitIndex
+    ) -> db_entities.CommitIndex:
+        """Convert domain CommitIndex to SQLAlchemy CommitIndex."""
+        from kodit.domain.entities.git import IndexStatus
 
-        # Create source
-        return domain_entities.Source(
-            id=db_source.id,
-            created_at=db_source.created_at,
-            updated_at=db_source.updated_at,
-            working_copy=working_copy,
+        # Map status
+        status_map = {
+            IndexStatus.PENDING: db_entities.IndexStatusType.PENDING,
+            IndexStatus.IN_PROGRESS: db_entities.IndexStatusType.IN_PROGRESS,
+            IndexStatus.COMPLETED: db_entities.IndexStatusType.COMPLETED,
+            IndexStatus.FAILED: db_entities.IndexStatusType.FAILED,
+        }
+
+        return db_entities.CommitIndex(
+            commit_sha=domain_commit_index.commit_sha,
+            status=status_map[domain_commit_index.status],
+            indexed_at=domain_commit_index.indexed_at,
+            error_message=domain_commit_index.error_message,
+            files_processed=domain_commit_index.files_processed,
+            processing_time_seconds=domain_commit_index.processing_time_seconds,
         )

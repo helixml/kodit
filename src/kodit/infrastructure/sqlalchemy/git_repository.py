@@ -6,7 +6,7 @@ from pydantic import AnyUrl
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.entities.git import GitCommit, GitRepo
+from kodit.domain.entities.git import GitCommit, GitFile, GitRepo
 from kodit.domain.protocols import GitRepoRepository
 from kodit.infrastructure.mappers.git_mapper import GitMapper
 from kodit.infrastructure.sqlalchemy import entities as db_entities
@@ -17,8 +17,7 @@ def create_git_repo_repository(
     session_factory: Callable[[], AsyncSession],
 ) -> GitRepoRepository:
     """Create a git repository."""
-    uow = SqlAlchemyUnitOfWork(session_factory=session_factory)
-    return SqlAlchemyGitRepoRepository(uow)
+    return SqlAlchemyGitRepoRepository(session_factory=session_factory)
 
 
 class SqlAlchemyGitRepoRepository(GitRepoRepository):
@@ -32,221 +31,183 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
     - GitFile entities and associations
     """
 
-    def __init__(self, uow: SqlAlchemyUnitOfWork) -> None:
+    def __init__(self, session_factory: Callable[[], AsyncSession]) -> None:
         """Initialize the repository."""
-        self.uow = uow
+        self.session_factory = session_factory
 
     @property
     def _mapper(self) -> GitMapper:
         return GitMapper()
 
-    @property
-    def _session(self) -> AsyncSession:
-        if self.uow.session is None:
-            raise RuntimeError("UnitOfWork must be used within async context")
-        return self.uow.session
-
-    async def save(self, repo: GitRepo) -> None:  # noqa: C901, PLR0912, PLR0915
+    async def save(self, repo: GitRepo) -> GitRepo:  # noqa: PLR0912,C901
         """Save or update a repository with all its branches, commits, and tags."""
-        async with self.uow:
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             # 1. Save or update the GitRepo entity
-            if repo.id:
-                # Update existing repo
-                existing_repo = await self._session.get(db_entities.GitRepo, repo.id)
-                if existing_repo:
-                    existing_repo.sanitized_remote_uri = str(repo.sanitized_remote_uri)
-                    existing_repo.remote_uri = str(repo.remote_uri)
-                    existing_repo.cloned_path = str(repo.cloned_path)
-                    existing_repo.last_scanned_at = repo.last_scanned_at
-                    existing_repo.total_unique_commits = repo.total_unique_commits
-                    db_repo = existing_repo
-                else:
-                    raise ValueError(f"Repository with ID {repo.id} not found")
+            # Check if repo exists by URI (for new repos from domain)
+            existing_repo_stmt = select(db_entities.GitRepo).where(
+                db_entities.GitRepo.sanitized_remote_uri
+                == str(repo.sanitized_remote_uri)
+            )
+            existing_repo = await session.scalar(existing_repo_stmt)
+
+            if existing_repo:
+                # Update existing repo found by URI
+                existing_repo.remote_uri = str(repo.remote_uri)
+                existing_repo.cloned_path = repo.cloned_path
+                existing_repo.last_scanned_at = repo.last_scanned_at
+                db_repo = existing_repo
+                repo.id = existing_repo.id  # Set the domain ID
             else:
-                # Check if repo exists by URI (for new repos from domain)
-                existing_repo_stmt = select(db_entities.GitRepo).where(
-                    db_entities.GitRepo.sanitized_remote_uri
-                    == str(repo.sanitized_remote_uri)
+                # Create new repo
+                db_repo = db_entities.GitRepo(
+                    sanitized_remote_uri=str(repo.sanitized_remote_uri),
+                    remote_uri=str(repo.remote_uri),
+                    cloned_path=repo.cloned_path,
+                    last_scanned_at=repo.last_scanned_at,
                 )
-                existing_repo = await self._session.scalar(existing_repo_stmt)
+                session.add(db_repo)
+                await session.flush()  # Get the new ID
+                repo.id = db_repo.id  # Set the domain ID
 
-                if existing_repo:
-                    # Update existing repo found by URI
-                    existing_repo.remote_uri = str(repo.remote_uri)
-                    existing_repo.cloned_path = str(repo.cloned_path)
-                    existing_repo.last_scanned_at = repo.last_scanned_at
-                    existing_repo.total_unique_commits = repo.total_unique_commits
-                    db_repo = existing_repo
-                    repo.id = existing_repo.id  # Set the domain ID
-                else:
-                    # Create new repo
-                    db_repo = db_entities.GitRepo(
-                        sanitized_remote_uri=str(repo.sanitized_remote_uri),
-                        remote_uri=str(repo.remote_uri),
-                        cloned_path=str(repo.cloned_path),
-                        last_scanned_at=repo.last_scanned_at,
-                        total_unique_commits=repo.total_unique_commits,
-                    )
-                    self._session.add(db_repo)
-                    await self._session.flush()  # Get the new ID
-                    repo.id = db_repo.id  # Set the domain ID
+            await session.flush()
 
-            await self._session.flush()
-            repo_id = db_repo.id
+            # 2. Save commits
 
-            # 2. Save files (they don't have foreign keys to repo, so save first)
-            all_files = {}
             for commit in repo.commits:
-                for file in commit.files:
-                    if file.blob_sha not in all_files:
-                        all_files[file.blob_sha] = file
-
-            for file in all_files.values():
-                existing_file = await self._session.get(
-                    db_entities.GitFile, file.blob_sha
-                )
-                if not existing_file:
-                    db_file = db_entities.GitFile(
-                        blob_sha=file.blob_sha,
-                        path=file.path,
-                        mime_type=file.mime_type,
-                        size=file.size,
-                        extension=file.extension,
-                    )
-                    self._session.add(db_file)
-
-            await self._session.flush()
-
-            # 3. Save commits
-            for commit in repo.commits:
-                existing_commit = await self._session.get(
+                existing_commit = await session.get(
                     db_entities.GitCommit, commit.commit_sha
                 )
                 if not existing_commit:
                     db_commit = db_entities.GitCommit(
                         commit_sha=commit.commit_sha,
-                        repo_id=repo_id,
+                        repo_id=repo.id,
                         date=commit.date,
                         message=commit.message,
                         parent_commit_sha=commit.parent_commit_sha,
                         author=commit.author,
                     )
-                    self._session.add(db_commit)
+                    session.add(db_commit)
+            await session.flush()
 
-            await self._session.flush()
-
-            # 4. Save commit-file associations
+            # 3. Save files
             for commit in repo.commits:
-                # Delete existing associations for this commit
-                stmt = delete(db_entities.GitCommitFile).where(
-                    db_entities.GitCommitFile.commit_sha == commit.commit_sha
-                )
-                await self._session.execute(stmt)
-
-                # Add new associations
                 for file in commit.files:
-                    db_commit_file = db_entities.GitCommitFile(
-                        commit_sha=commit.commit_sha,
-                        file_blob_sha=file.blob_sha,
+                    existing_file = await session.get(
+                        db_entities.GitCommitFile, (commit.commit_sha, file.path)
                     )
-                    self._session.add(db_commit_file)
-
-            await self._session.flush()
+                    if not existing_file:
+                        db_file = db_entities.GitCommitFile(
+                            commit_sha=commit.commit_sha,
+                            path=file.path,
+                            blob_sha=file.blob_sha,
+                            extension=file.extension,
+                            mime_type=file.mime_type,
+                            size=file.size,
+                            created_at=file.created_at,
+                        )
+                        session.add(db_file)
+            # No need for a flush since nothing relies on blob IDs
 
             # 5. Save branches
-            # Delete existing branches for this repo
-            stmt = delete(db_entities.GitBranch).where(
-                db_entities.GitBranch.repo_id == repo_id
-            )
-            await self._session.execute(stmt)
-
-            # Add new branches
             for branch in repo.branches:
-                db_branch = db_entities.GitBranch(
-                    repo_id=repo_id,
-                    name=branch.name,
-                    head_commit_sha=branch.head_commit.commit_sha,
+                existing_branch = await session.get(
+                    db_entities.GitBranch, (repo.id, branch.name)
                 )
-                self._session.add(db_branch)
+                if not existing_branch:
+                    db_branch = db_entities.GitBranch(
+                        repo_id=repo.id,
+                        name=branch.name,
+                        head_commit_sha=branch.head_commit.commit_sha,
+                    )
+                    session.add(db_branch)
 
-            await self._session.flush()
+            # 6. Save tracking branch
+            if repo.tracking_branch:
+                existing_tracking_branch = await session.get(
+                    db_entities.GitTrackingBranch, repo.id
+                )
+                if not existing_tracking_branch:
+                    db_tracking_branch = db_entities.GitTrackingBranch(
+                        repo_id=repo.id,
+                        name=repo.tracking_branch.name,
+                    )
+                    session.add(db_tracking_branch)
 
-            # 6. Save tags
-            # Delete existing tags for this repo
-            stmt = delete(db_entities.GitTag).where(
-                db_entities.GitTag.repo_id == repo_id
-            )
-            await self._session.execute(stmt)
-
-            # Add new tags
+            # 7. Save tags
             for tag in repo.tags:
-                db_tag = db_entities.GitTag(
-                    repo_id=repo_id,
-                    name=tag.name,
-                    target_commit_sha=tag.target_commit_sha,
+                existing_tag = await session.get(
+                    db_entities.GitTag, (repo.id, tag.name)
                 )
-                self._session.add(db_tag)
+                if not existing_tag:
+                    db_tag = db_entities.GitTag(
+                        repo_id=repo.id,
+                        name=tag.name,
+                        target_commit_sha=tag.target_commit.commit_sha,
+                    )
+                    session.add(db_tag)
+            await session.flush()
+            return repo
 
     async def get_by_id(self, repo_id: int) -> GitRepo:
         """Get repository by ID with all associated data."""
-        async with self.uow:
-            db_repo = await self._session.get(db_entities.GitRepo, repo_id)
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
+            db_repo = await session.get(db_entities.GitRepo, repo_id)
             if not db_repo:
                 raise ValueError(f"Repository with ID {repo_id} not found")
 
-            return await self._load_complete_repo(db_repo)
+            return await self._load_complete_repo(session, db_repo)
 
     async def get_by_uri(self, sanitized_uri: AnyUrl) -> GitRepo:
         """Get repository by sanitized URI with all associated data."""
-        async with self.uow:
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             stmt = select(db_entities.GitRepo).where(
                 db_entities.GitRepo.sanitized_remote_uri == str(sanitized_uri)
             )
-            db_repo = await self._session.scalar(stmt)
+            db_repo = await session.scalar(stmt)
             if not db_repo:
                 raise ValueError(f"Repository with URI {sanitized_uri} not found")
 
-            return await self._load_complete_repo(db_repo)
+            return await self._load_complete_repo(session, db_repo)
 
     async def get_by_commit(self, commit_sha: str) -> GitRepo:
         """Get repository by commit SHA with all associated data."""
-        async with self.uow:
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             # Find the commit first
             stmt = select(db_entities.GitCommit).where(
                 db_entities.GitCommit.commit_sha == commit_sha
             )
-            db_commit = await self._session.scalar(stmt)
+            db_commit = await session.scalar(stmt)
             if not db_commit:
                 raise ValueError(f"Commit with SHA {commit_sha} not found")
 
             # Get the repo
-            db_repo = await self._session.get(db_entities.GitRepo, db_commit.repo_id)
+            db_repo = await session.get(db_entities.GitRepo, db_commit.repo_id)
             if not db_repo:
                 raise ValueError(f"Repository with commit SHA {commit_sha} not found")
 
-            return await self._load_complete_repo(db_repo)
+            return await self._load_complete_repo(session, db_repo)
 
     async def get_all(self) -> list[GitRepo]:
         """Get all repositories."""
-        async with self.uow:
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             stmt = select(db_entities.GitRepo)
-            db_repos = (await self._session.scalars(stmt)).all()
+            db_repos = (await session.scalars(stmt)).all()
 
             repos = []
             for db_repo in db_repos:
-                repo = await self._load_complete_repo(db_repo)
+                repo = await self._load_complete_repo(session, db_repo)
                 repos.append(repo)
 
             return repos
 
     async def delete(self, sanitized_uri: AnyUrl) -> bool:
         """Delete a repository and all its associated data."""
-        async with self.uow:
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             # Find the repo
             stmt = select(db_entities.GitRepo).where(
                 db_entities.GitRepo.sanitized_remote_uri == str(sanitized_uri)
             )
-            db_repo = await self._session.scalar(stmt)
+            db_repo = await session.scalar(stmt)
             if not db_repo:
                 return False
 
@@ -257,66 +218,57 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
             commit_shas_stmt = select(db_entities.GitCommit.commit_sha).where(
                 db_entities.GitCommit.repo_id == repo_id
             )
-            commit_shas = (await self._session.scalars(commit_shas_stmt)).all()
+            commit_shas = (await session.scalars(commit_shas_stmt)).all()
 
             for commit_sha in commit_shas:
                 del_stmt = delete(db_entities.GitCommitFile).where(
                     db_entities.GitCommitFile.commit_sha == commit_sha
                 )
-                await self._session.execute(del_stmt)
+                await session.execute(del_stmt)
 
             # 2. Delete branches
             del_stmt = delete(db_entities.GitBranch).where(
                 db_entities.GitBranch.repo_id == repo_id
             )
-            await self._session.execute(del_stmt)
+            await session.execute(del_stmt)
 
             # 3. Delete tags
             del_stmt = delete(db_entities.GitTag).where(
                 db_entities.GitTag.repo_id == repo_id
             )
-            await self._session.execute(del_stmt)
+            await session.execute(del_stmt)
 
             # 4. Delete commits
             del_stmt = delete(db_entities.GitCommit).where(
                 db_entities.GitCommit.repo_id == repo_id
             )
-            await self._session.execute(del_stmt)
+            await session.execute(del_stmt)
 
             # 5. Delete the repo
             del_stmt = delete(db_entities.GitRepo).where(
                 db_entities.GitRepo.id == repo_id
             )
-            await self._session.execute(del_stmt)
+            await session.execute(del_stmt)
 
             # Note: We don't delete GitFiles as they might be referenced by other repos
             return True
 
     async def get_commit_by_sha(self, commit_sha: str) -> GitCommit:
         """Get a specific commit by its SHA across all repositories."""
-        async with self.uow:
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             # Get the commit
             stmt = select(db_entities.GitCommit).where(
                 db_entities.GitCommit.commit_sha == commit_sha
             )
-            db_commit = await self._session.scalar(stmt)
+            db_commit = await session.scalar(stmt)
             if not db_commit:
                 raise ValueError(f"Commit with SHA {commit_sha} not found")
 
             # Get associated files
-            files_stmt = (
-                select(db_entities.GitFile)
-                .join(
-                    db_entities.GitCommitFile,
-                    db_entities.GitFile.blob_sha
-                    == db_entities.GitCommitFile.file_blob_sha,
-                )
-                .where(db_entities.GitCommitFile.commit_sha == commit_sha)
+            files_stmt = select(db_entities.GitCommitFile).where(
+                db_entities.GitCommitFile.commit_sha == commit_sha
             )
-            db_files = (await self._session.scalars(files_stmt)).all()
-
-            # Convert to domain entities
-            from kodit.domain.entities.git import GitFile
+            db_files = (await session.scalars(files_stmt)).all()
 
             domain_files = []
             for db_file in db_files:
@@ -326,6 +278,7 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
                     mime_type=db_file.mime_type,
                     size=db_file.size,
                     extension=db_file.extension,
+                    created_at=db_file.created_at,
                 )
                 domain_files.append(domain_file)
 
@@ -338,76 +291,54 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
                 author=db_commit.author,
             )
 
-    async def _load_complete_repo(self, db_repo: db_entities.GitRepo) -> GitRepo:
+    async def _load_complete_repo(
+        self, session: AsyncSession, db_repo: db_entities.GitRepo
+    ) -> GitRepo:
         """Load a complete repo with all its associations."""
-        repo_id = db_repo.id
-
-        # Load branches
-        branches_stmt = select(db_entities.GitBranch).where(
-            db_entities.GitBranch.repo_id == repo_id
+        all_branches = list(
+            (
+                await session.scalars(
+                    select(db_entities.GitBranch).where(
+                        db_entities.GitBranch.repo_id == db_repo.id
+                    )
+                )
+            ).all()
         )
-        db_branches = (await self._session.scalars(branches_stmt)).all()
-
-        # Load commits
-        commits_stmt = select(db_entities.GitCommit).where(
-            db_entities.GitCommit.repo_id == repo_id
+        all_commits = list(
+            (
+                await session.scalars(
+                    select(db_entities.GitCommit).where(
+                        db_entities.GitCommit.repo_id == db_repo.id
+                    )
+                )
+            ).all()
         )
-        db_commits = (await self._session.scalars(commits_stmt)).all()
-
-        # Load tags
-        tags_stmt = select(db_entities.GitTag).where(
-            db_entities.GitTag.repo_id == repo_id
+        all_tags = list(
+            (
+                await session.scalars(
+                    select(db_entities.GitTag).where(
+                        db_entities.GitTag.repo_id == db_repo.id
+                    )
+                )
+            ).all()
         )
-        db_tags = (await self._session.scalars(tags_stmt)).all()
-
-        # Load all files for all commits in this repo
-        files_stmt = (
-            select(db_entities.GitFile)
-            .join(
-                db_entities.GitCommitFile,
-                db_entities.GitFile.blob_sha == db_entities.GitCommitFile.file_blob_sha,
-            )
-            .join(
-                db_entities.GitCommit,
-                db_entities.GitCommitFile.commit_sha
-                == db_entities.GitCommit.commit_sha,
-            )
-            .where(db_entities.GitCommit.repo_id == repo_id)
+        all_files = list(
+            (
+                await session.scalars(
+                    select(db_entities.GitCommitFile).where(
+                        db_entities.GitCommitFile.commit_sha.in_(
+                            [commit.commit_sha for commit in all_commits]
+                        )
+                    )
+                )
+            ).all()
         )
-        db_files = (await self._session.scalars(files_stmt)).all()
-
-        # Load commit-file associations
-        commit_files_stmt = (
-            select(
-                db_entities.GitCommitFile.commit_sha,
-                db_entities.GitCommitFile.file_blob_sha,
-            )
-            .join(
-                db_entities.GitCommit,
-                db_entities.GitCommitFile.commit_sha
-                == db_entities.GitCommit.commit_sha,
-            )
-            .where(db_entities.GitCommit.repo_id == repo_id)
-        )
-        commit_file_pairs = (await self._session.execute(commit_files_stmt)).all()
-
-        # Build commit -> files mapping
-        commit_files_map: dict[str, list[str]] = {}
-        for commit_sha, file_blob_sha in commit_file_pairs:
-            if commit_sha not in commit_files_map:
-                commit_files_map[commit_sha] = []
-            commit_files_map[commit_sha].append(file_blob_sha)
-
-        # Use mapper to convert to domain entity
-        # For tracking branch, we'll use the first branch as fallback
-        tracking_branch_name = db_branches[0].name if db_branches else "main"
-
+        tracking_branch = await session.get(db_entities.GitTrackingBranch, db_repo.id)
         return self._mapper.to_domain_git_repo(
             db_repo=db_repo,
-            db_branches=list(db_branches),
-            db_commits=list(db_commits),
-            db_tags=list(db_tags),
-            db_files=list(db_files),
-            commit_files_map=commit_files_map,
-            tracking_branch_name=tracking_branch_name,
+            db_branches=all_branches,
+            db_commits=all_commits,
+            db_tags=all_tags,
+            db_commit_files=all_files,
+            db_tracking_branch=tracking_branch,
         )

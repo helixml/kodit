@@ -1,41 +1,68 @@
 """Service for searching the indexes."""
 
-from dataclasses import replace
-from datetime import UTC, datetime
+from dataclasses import dataclass
 
 import structlog
 
 from kodit.application.services.reporting import ProgressTracker
+from kodit.domain.entities.git import SnippetV2
+from kodit.domain.protocols import FusionService, SnippetRepositoryV2
 from kodit.domain.services.bm25_service import BM25DomainService
 from kodit.domain.services.embedding_service import EmbeddingDomainService
-from kodit.domain.services.index_query_service import IndexQueryService
 from kodit.domain.value_objects import (
     FusionRequest,
     MultiSearchRequest,
-    MultiSearchResult,
     SearchRequest,
     SearchResult,
 )
 from kodit.log import log_event
 
 
+@dataclass
+class MultiSearchResult:
+    """Enhanced search result with comprehensive snippet metadata."""
+
+    snippet: SnippetV2
+    original_scores: list[float]
+
+    def to_json(self) -> str:
+        """Return LLM-optimized JSON representation following the compact schema."""
+        return self.snippet.model_dump_json()
+
+    @classmethod
+    def to_jsonlines(cls, results: list["MultiSearchResult"]) -> str:
+        """Convert multiple MultiSearchResult objects to JSON Lines format.
+
+        Args:
+            results: List of MultiSearchResult objects
+            include_summary: Whether to include summary fields
+
+        Returns:
+            JSON Lines string (one JSON object per line)
+
+        """
+        return "\n".join(result.to_json() for result in results)
+
+
 class CodeSearchApplicationService:
     """Service for searching the indexes."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
-        index_query_service: IndexQueryService,
         bm25_service: BM25DomainService,
         code_search_service: EmbeddingDomainService,
         text_search_service: EmbeddingDomainService,
         progress_tracker: ProgressTracker,
+        snippet_repository: SnippetRepositoryV2,
+        fusion_service: FusionService,
     ) -> None:
         """Initialize the code search application service."""
-        self.index_query_service = index_query_service
         self.bm25_service = bm25_service
         self.code_search_service = code_search_service
         self.text_search_service = text_search_service
         self.progress_tracker = progress_tracker
+        self.snippet_repository = snippet_repository
+        self.fusion_service = fusion_service
         self.log = structlog.get_logger(__name__)
 
     async def search(self, request: MultiSearchRequest) -> list[MultiSearchResult]:
@@ -43,16 +70,8 @@ class CodeSearchApplicationService:
         log_event("kodit.index.search")
 
         # Apply filters if provided
-        filtered_snippet_ids: list[int] | None = None
-        if request.filters:
-            # Use domain service for filtering (use large top_k for pre-filtering)
-            prefilter_request = replace(request, top_k=10000)
-            snippet_results = await self.index_query_service.search_snippets(
-                prefilter_request
-            )
-            filtered_snippet_ids = [
-                snippet.snippet.id for snippet in snippet_results if snippet.snippet.id
-            ]
+        filtered_snippet_ids: list[str] | None = None
+        # TODO(Phil): Re-implement filtering on search results
 
         # Gather results from different search modes
         fusion_list: list[list[FusionRequest]] = []
@@ -104,7 +123,7 @@ class CodeSearchApplicationService:
             return []
 
         # Fusion ranking
-        final_results = await self.index_query_service.perform_fusion(
+        final_results = self.fusion_service.reciprocal_rank_fusion(
             rankings=fusion_list,
             k=60,  # This is a parameter in the RRF algorithm, not top_k
         )
@@ -113,40 +132,13 @@ class CodeSearchApplicationService:
         final_results = final_results[: request.top_k]
 
         # Get snippet details
-        search_results = await self.index_query_service.get_snippets_by_ids(
-            [x.id for x in final_results]
-        )
-
-        # Create a mapping from snippet ID to search result to handle cases where
-        # some snippet IDs don't exist (e.g., with vectorchord inconsistencies)
-        snippet_map = {
-            result.snippet.id: result
-            for result in search_results
-            if result.snippet.id is not None
-        }
-
-        # Filter final_results to only include IDs that we actually found snippets for
-        valid_final_results = [fr for fr in final_results if fr.id in snippet_map]
-
+        ids = [x.id for x in final_results]
+        search_results = await self.snippet_repository.get_by_ids(ids)
+        search_results.sort(key=lambda x: ids.index(x.id))
         return [
             MultiSearchResult(
-                id=snippet_map[fr.id].snippet.id or 0,
-                content=snippet_map[fr.id].snippet.original_text(),
-                original_scores=fr.original_scores,
-                # Enhanced fields
-                source_uri=str(snippet_map[fr.id].source.working_copy.remote_uri),
-                relative_path=str(
-                    snippet_map[fr.id]
-                    .file.as_path()
-                    .relative_to(snippet_map[fr.id].source.working_copy.cloned_path)
-                ),
-                language=MultiSearchResult.detect_language_from_extension(
-                    snippet_map[fr.id].file.extension()
-                ),
-                authors=[author.name for author in snippet_map[fr.id].authors],
-                created_at=snippet_map[fr.id].snippet.created_at or datetime.now(UTC),
-                # Summary from snippet entity
-                summary=snippet_map[fr.id].snippet.summary_text(),
+                snippet=snippet,
+                original_scores=[x.score for x in final_results if x.id == snippet.id],
             )
-            for fr in valid_final_results
+            for snippet in search_results
         ]

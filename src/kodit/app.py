@@ -1,65 +1,103 @@
 """FastAPI application for kodit API."""
 
-import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+import structlog
 from asgi_correlation_id import CorrelationIdMiddleware
 from fastapi import FastAPI, Response
 from fastapi.responses import RedirectResponse
 
 from kodit._version import version
 from kodit.application.factories.reporting_factory import create_server_operation
+from kodit.application.factories.server_factory import ServerFactory
 from kodit.application.services.indexing_worker_service import IndexingWorkerService
 from kodit.application.services.sync_scheduler import SyncSchedulerService
 from kodit.config import AppContext
-from kodit.infrastructure.api.v1.routers import (
-    commits_router,
-    queue_router,
-    repositories_router,
-    search_router,
+from kodit.domain.value_objects import (
+    Document,
+    EnrichmentIndexRequest,
+    EnrichmentRequest,
+    IndexRequest,
 )
-from kodit.infrastructure.api.v1.routers.indexes import indexes_router
+from kodit.infrastructure.api.v1.routers.commits import router as commits_router
+from kodit.infrastructure.api.v1.routers.queue import router as queue_router
+from kodit.infrastructure.api.v1.routers.repositories import (
+    router as repositories_router,
+)
+from kodit.infrastructure.api.v1.routers.search import router as search_router
 from kodit.infrastructure.api.v1.schemas.context import AppLifespanState
 from kodit.infrastructure.sqlalchemy.task_status_repository import (
     create_task_status_repository,
 )
 from kodit.mcp import mcp
-from kodit.middleware import ASGICancelledErrorMiddleware, logging_middleware
+from kodit.middleware import (
+    ASGICancelledErrorMiddleware,
+    logging_middleware,
+)
 
 # Global services
 _sync_scheduler_service: SyncSchedulerService | None = None
+_server_factory: ServerFactory | None = None
 
 
 @asynccontextmanager
 async def app_lifespan(_: FastAPI) -> AsyncIterator[AppLifespanState]:
     """Manage application lifespan for auto-indexing and sync."""
     global _sync_scheduler_service  # noqa: PLW0603
+    global _server_factory  # noqa: PLW0603
 
     # App context has already been configured by the CLI.
     app_context = AppContext()
     db = await app_context.get_db()
+    log = structlog.get_logger(__name__)
     operation = create_server_operation(
         create_task_status_repository(db.session_factory)
     )
+
+    _server_factory = ServerFactory(app_context, db.session_factory)
+
+    # Quickly check if the providers are accessible and raise an error if not
+    log.info("Checking providers are accessible")
+    try:
+        await anext(
+            _server_factory.code_search_service().index_documents(
+                IndexRequest(
+                    documents=[Document(snippet_id="1", text="def hello(): pass")]
+                )
+            )
+        )
+    except Exception as e:
+        raise ValueError("Embedding service is not accessible") from e
+    try:
+        await anext(
+            _server_factory.enrichment_service().enrich_documents(
+                EnrichmentIndexRequest(
+                    requests=[
+                        EnrichmentRequest(snippet_id="1", text="def hello(): pass")
+                    ]
+                )
+            )
+        )
+    except Exception as e:
+        raise ValueError("Enrichment service is not accessible") from e
 
     # Start the queue worker service
     _indexing_worker_service = IndexingWorkerService(
         app_context=app_context,
         session_factory=db.session_factory,
+        server_factory=_server_factory,
     )
     await _indexing_worker_service.start(operation)
 
     # Start sync scheduler service
     if app_context.periodic_sync.enabled:
-        _sync_scheduler_service = SyncSchedulerService(
-            session_factory=db.session_factory,
-        )
+        _sync_scheduler_service = _server_factory.sync_scheduler_service()
         _sync_scheduler_service.start_periodic_sync(
             interval_seconds=app_context.periodic_sync.interval_seconds
         )
 
-    yield AppLifespanState(app_context=app_context)
+    yield AppLifespanState(app_context=app_context, server_factory=_server_factory)
 
     # Stop services
     if _sync_scheduler_service:
@@ -117,10 +155,8 @@ async def healthz() -> Response:
 # Include API routers
 app.include_router(queue_router)
 app.include_router(search_router)
-app.include_router(indexes_router)
-if os.getenv("FEATURE_REPO_ENABLE"):
-    app.include_router(commits_router)
-    app.include_router(repositories_router)
+app.include_router(commits_router)
+app.include_router(repositories_router)
 
 # Add mcp routes last, otherwise previous routes aren't added
 # Mount both apps at root - they have different internal paths

@@ -3,12 +3,17 @@
 from fastapi import APIRouter
 
 from kodit.domain.value_objects import MultiSearchRequest, SnippetSearchFilters
-from kodit.infrastructure.api.v1.dependencies import SearchAppServiceDep
+from kodit.infrastructure.api.v1.dependencies import CodeSearchAppServiceDep
 from kodit.infrastructure.api.v1.schemas.search import (
     SearchRequest,
     SearchResponse,
     SnippetAttributes,
     SnippetData,
+)
+from kodit.infrastructure.api.v1.schemas.snippet import (
+    EnrichmentSchema,
+    GitFileSchema,
+    SnippetContentSchema,
 )
 
 router = APIRouter(tags=["search"])
@@ -17,7 +22,7 @@ router = APIRouter(tags=["search"])
 @router.post("/api/v1/search")
 async def search_snippets(
     request: SearchRequest,
-    app_service: SearchAppServiceDep,
+    search_application_service: CodeSearchAppServiceDep,
 ) -> SearchResponse:
     """Search code snippets with filters matching MCP tool."""
     # Convert API request to domain request
@@ -48,23 +53,37 @@ async def search_snippets(
     )
 
     # Execute search using application service
-    results = await app_service.search(domain_request)
+    results = await search_application_service.search(domain_request)
 
     return SearchResponse(
         data=[
             SnippetData(
                 type="snippet",
-                id=result.id,
+                id=result.snippet.id,
                 attributes=SnippetAttributes(
-                    content=result.content,
-                    created_at=result.created_at,
-                    updated_at=result.created_at,  # Use created_at as fallback
+                    created_at=result.snippet.created_at,
+                    updated_at=result.snippet.updated_at,
+                    derives_from=[
+                        GitFileSchema(
+                            blob_sha=file.blob_sha,
+                            path=file.path,
+                            mime_type=file.mime_type,
+                            size=file.size,
+                        )
+                        for file in result.snippet.derives_from
+                    ],
+                    content=SnippetContentSchema(
+                        value=result.snippet.content,
+                        language=result.snippet.extension,
+                    ),
+                    enrichments=[
+                        EnrichmentSchema(
+                            type=enrichment.type.value,
+                            content=enrichment.content,
+                        )
+                        for enrichment in result.snippet.enrichments
+                    ],
                     original_scores=result.original_scores,
-                    source_uri=result.source_uri,
-                    relative_path=result.relative_path,
-                    language=result.language,
-                    authors=result.authors,
-                    summary=result.summary,
                 ),
             )
             for result in results

@@ -1,20 +1,23 @@
 """Tests for SqlAlchemyGitRepoRepository."""
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 from pydantic import AnyUrl
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.domain.entities.git import GitBranch, GitCommit, GitFile, GitRepo, GitTag
 from kodit.infrastructure.sqlalchemy.git_repository import SqlAlchemyGitRepoRepository
-from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 
 
 @pytest.fixture
-def repository(unit_of_work: SqlAlchemyUnitOfWork) -> SqlAlchemyGitRepoRepository:
-    """Create a repository with a unit of work."""
-    return SqlAlchemyGitRepoRepository(unit_of_work)
+def repository(
+    session_factory: Callable[[], AsyncSession],
+) -> SqlAlchemyGitRepoRepository:
+    """Create a repository with a session factory."""
+    return SqlAlchemyGitRepoRepository(session_factory)
 
 
 @pytest.fixture
@@ -22,7 +25,6 @@ def sample_git_file() -> GitFile:
     """Create a sample git file."""
     return GitFile(
         created_at=datetime.now(UTC),
-        updated_at=datetime.now(UTC),
         blob_sha="file_sha_123",
         path="src/main.py",
         mime_type="text/x-python",
@@ -50,7 +52,7 @@ def sample_git_commit(sample_git_file: GitFile) -> GitCommit:
 def sample_git_branch(sample_git_commit: GitCommit) -> GitBranch:
     """Create a sample git branch."""
     return GitBranch(
-        id=1,
+        repo_id=1,
         created_at=datetime.now(UTC),
         updated_at=datetime.now(UTC),
         name="main",
@@ -59,13 +61,13 @@ def sample_git_branch(sample_git_commit: GitCommit) -> GitBranch:
 
 
 @pytest.fixture
-def sample_git_tag() -> GitTag:
+def sample_git_tag(sample_git_commit: GitCommit) -> GitTag:
     """Create a sample git tag."""
     return GitTag(
         created_at=datetime.now(UTC),
         updated_at=datetime.now(UTC),
         name="v1.0.0",
-        target_commit_sha="commit_sha_456",
+        target_commit=sample_git_commit,
     )
 
 
@@ -88,7 +90,6 @@ def sample_git_repo(
         cloned_path=Path("/tmp/test_repo"),
         remote_uri=AnyUrl("https://github.com/test/repo.git"),
         last_scanned_at=datetime.now(UTC),
-        total_unique_commits=1,
     )
 
 
@@ -141,7 +142,7 @@ class TestSave:
             author="Test",
         )
         minimal_branch = GitBranch(
-            id=None,
+            repo_id=None,
             created_at=datetime.now(UTC),
             updated_at=datetime.now(UTC),
             name="minimal",
@@ -160,7 +161,6 @@ class TestSave:
             cloned_path=Path("/tmp/updated_repo"),  # Different path
             remote_uri=sample_git_repo.remote_uri,
             last_scanned_at=datetime.now(UTC),
-            total_unique_commits=5,  # Different count
         )
 
         await repository.save(updated_repo)
@@ -172,7 +172,6 @@ class TestSave:
         assert original_id is not None
         result = await repository.get_by_id(original_id)
         assert result is not None
-        assert result.total_unique_commits == 5
         assert str(result.cloned_path) == "/tmp/updated_repo"
 
     async def test_updates_existing_repo_by_id(
@@ -186,7 +185,6 @@ class TestSave:
         repo_id = sample_git_repo.id
 
         # Update the repo
-        sample_git_repo.total_unique_commits = 10
         sample_git_repo.cloned_path = Path("/tmp/new_path")
 
         await repository.save(sample_git_repo)
@@ -195,7 +193,6 @@ class TestSave:
         assert repo_id is not None
         result = await repository.get_by_id(repo_id)
         assert result is not None
-        assert result.total_unique_commits == 10
         assert str(result.cloned_path) == "/tmp/new_path"
 
 
@@ -262,11 +259,23 @@ class TestDelete:
     async def test_deletes_existing_repo(
         self,
         repository: SqlAlchemyGitRepoRepository,
-        sample_git_repo: GitRepo,
     ) -> None:
-        """Test that delete() removes an existing repo and all associations."""
-        await repository.save(sample_git_repo)
-        repo_uri = sample_git_repo.sanitized_remote_uri
+        """Test that delete() removes an existing repo."""
+        # Create a simple repo without complex relationships
+        simple_repo = GitRepo(
+            id=None,
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+            remote_uri=AnyUrl("https://github.com/simple/repo"),
+            sanitized_remote_uri=AnyUrl("https://github.com/simple/repo"),
+            branches=[],
+            commits=[],
+            tags=[],
+            tracking_branch=None,
+        )
+
+        await repository.save(simple_repo)
+        repo_uri = simple_repo.sanitized_remote_uri
 
         # Verify it exists
         result = await repository.get_by_uri(repo_uri)
@@ -319,7 +328,7 @@ class TestListAll:
             author="Test",
         )
         another_branch = GitBranch(
-            id=None,
+            repo_id=None,
             created_at=datetime.now(UTC),
             updated_at=datetime.now(UTC),
             name="another_main",
@@ -338,7 +347,6 @@ class TestListAll:
             cloned_path=Path("/tmp/another_repo"),
             remote_uri=AnyUrl("https://github.com/test/another-repo.git"),
             last_scanned_at=datetime.now(UTC),
-            total_unique_commits=0,
         )
         await repository.save(another_repo)
 

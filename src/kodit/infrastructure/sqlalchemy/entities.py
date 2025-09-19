@@ -2,12 +2,13 @@
 
 from datetime import UTC, datetime
 from enum import Enum
+from pathlib import Path
 from typing import Any
 
-from git import Actor
 from sqlalchemy import (
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Integer,
     String,
     TypeDecorator,
@@ -43,6 +44,25 @@ class TZDateTime(TypeDecorator):
         return value
 
 
+class PathType(TypeDecorator):
+    """Path type that stores Path objects as strings."""
+
+    impl = String
+    cache_ok = True
+
+    def process_bind_param(self, value: Any, dialect: Any) -> Any:  # noqa: ARG002
+        """Process bind param - convert Path to string."""
+        if value is not None:
+            return str(value)
+        return value
+
+    def process_result_value(self, value: Any, dialect: Any) -> Any:  # noqa: ARG002
+        """Process result value - convert string to Path."""
+        if value is not None:
+            return Path(value)
+        return value
+
+
 class Base(AsyncAttrs, DeclarativeBase):
     """Base class for all models."""
 
@@ -62,114 +82,6 @@ class CommonMixin:
     )
 
 
-class SourceType(Enum):
-    """The type of source."""
-
-    UNKNOWN = 0
-    FOLDER = 1
-    GIT = 2
-
-
-class Source(Base, CommonMixin):
-    """Base model for tracking code sources.
-
-    This model serves as the parent table for different types of sources.
-    It provides common fields and relationships for all source types.
-
-    Attributes:
-        id: The unique identifier for the source.
-        created_at: Timestamp when the source was created.
-        updated_at: Timestamp when the source was last updated.
-        cloned_uri: A URI to a copy of the source on the local filesystem.
-        uri: The URI of the source.
-
-    """
-
-    __tablename__ = "sources"
-    uri: Mapped[str] = mapped_column(String(1024), index=True, unique=True)
-    cloned_path: Mapped[str] = mapped_column(String(1024), index=True)
-    type: Mapped[SourceType] = mapped_column(
-        SQLAlchemyEnum(SourceType), default=SourceType.UNKNOWN, index=True
-    )
-
-    def __init__(self, uri: str, cloned_path: str, source_type: SourceType) -> None:
-        """Initialize a new Source instance for typing purposes."""
-        super().__init__()
-        self.uri = uri
-        self.cloned_path = cloned_path
-        self.type = source_type
-
-
-class Author(Base, CommonMixin):
-    """Author model."""
-
-    __tablename__ = "authors"
-
-    __table_args__ = (UniqueConstraint("name", "email", name="uix_author"),)
-
-    name: Mapped[str] = mapped_column(String(255), index=True)
-    email: Mapped[str] = mapped_column(String(255), index=True)
-
-    @staticmethod
-    def from_actor(actor: Actor) -> "Author":
-        """Create an Author from an Actor."""
-        return Author(name=actor.name, email=actor.email)
-
-
-class AuthorFileMapping(Base, CommonMixin):
-    """Author file mapping model."""
-
-    __tablename__ = "author_file_mappings"
-
-    __table_args__ = (
-        UniqueConstraint("author_id", "file_id", name="uix_author_file_mapping"),
-    )
-
-    author_id: Mapped[int] = mapped_column(ForeignKey("authors.id"), index=True)
-    file_id: Mapped[int] = mapped_column(ForeignKey("files.id"), index=True)
-
-
-class File(Base, CommonMixin):
-    """File model."""
-
-    __tablename__ = "files"
-
-    source_id: Mapped[int] = mapped_column(ForeignKey("sources.id"))
-    mime_type: Mapped[str] = mapped_column(String(255), default="", index=True)
-    uri: Mapped[str] = mapped_column(String(1024), default="", index=True)
-    cloned_path: Mapped[str] = mapped_column(String(1024), index=True)
-    sha256: Mapped[str] = mapped_column(String(64), default="", index=True)
-    size_bytes: Mapped[int] = mapped_column(Integer, default=0)
-    extension: Mapped[str] = mapped_column(String(255), default="", index=True)
-    file_processing_status: Mapped[int] = mapped_column(Integer, default=0)
-
-    def __init__(  # noqa: PLR0913
-        self,
-        created_at: datetime,
-        updated_at: datetime,
-        source_id: int,
-        mime_type: str,
-        uri: str,
-        cloned_path: str,
-        sha256: str,
-        size_bytes: int,
-        extension: str,
-        file_processing_status: int,
-    ) -> None:
-        """Initialize a new File instance for typing purposes."""
-        super().__init__()
-        self.created_at = created_at
-        self.updated_at = updated_at
-        self.source_id = source_id
-        self.mime_type = mime_type
-        self.uri = uri
-        self.cloned_path = cloned_path
-        self.sha256 = sha256
-        self.size_bytes = size_bytes
-        self.extension = extension
-        self.file_processing_status = file_processing_status
-
-
 class EmbeddingType(Enum):
     """Embedding type."""
 
@@ -182,54 +94,11 @@ class Embedding(Base, CommonMixin):
 
     __tablename__ = "embeddings"
 
-    snippet_id: Mapped[int] = mapped_column(ForeignKey("snippets.id"), index=True)
+    snippet_id: Mapped[str] = mapped_column(ForeignKey("snippets_v2.sha"), index=True)
     type: Mapped[EmbeddingType] = mapped_column(
         SQLAlchemyEnum(EmbeddingType), index=True
     )
     embedding: Mapped[list[float]] = mapped_column(JSON)
-
-
-class Index(Base, CommonMixin):
-    """Index model."""
-
-    __tablename__ = "indexes"
-
-    source_id: Mapped[int] = mapped_column(
-        ForeignKey("sources.id"), unique=True, index=True
-    )
-
-    def __init__(self, source_id: int) -> None:
-        """Initialize the index."""
-        super().__init__()
-        self.source_id = source_id
-
-
-class Snippet(Base, CommonMixin):
-    """Snippet model."""
-
-    __tablename__ = "snippets"
-
-    file_id: Mapped[int] = mapped_column(ForeignKey("files.id"), index=True)
-    index_id: Mapped[int] = mapped_column(ForeignKey("indexes.id"), index=True)
-    content: Mapped[str] = mapped_column(UnicodeText, default="")
-    summary: Mapped[str] = mapped_column(UnicodeText, default="")
-
-    def __init__(
-        self,
-        file_id: int,
-        index_id: int,
-        content: str,
-        summary: str = "",
-    ) -> None:
-        """Initialize the snippet."""
-        super().__init__()
-        self.file_id = file_id
-        self.index_id = index_id
-        self.content = content
-        self.summary = summary
-
-
-# Removed TaskType enum - now using string-based operations
 
 
 class Task(Base, CommonMixin):
@@ -240,7 +109,7 @@ class Task(Base, CommonMixin):
     # dedup_key is used to deduplicate items in the queue
     dedup_key: Mapped[str] = mapped_column(String(255), index=True)
     # type represents what the task is meant to achieve
-    type: Mapped[str] = mapped_column(String(50), index=True)
+    type: Mapped[str] = mapped_column(String(255), index=True)
     # payload contains the task-specific payload data
     payload: Mapped[dict] = mapped_column(JSON)
     # priority is used to determine the order of the items in the queue
@@ -334,17 +203,15 @@ class GitRepo(Base, CommonMixin):
         String(1024), index=True, unique=True
     )
     remote_uri: Mapped[str] = mapped_column(String(1024))
-    cloned_path: Mapped[str] = mapped_column(String(1024))
+    cloned_path: Mapped[Path | None] = mapped_column(PathType(1024), nullable=True)
     last_scanned_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
-    total_unique_commits: Mapped[int] = mapped_column(Integer, default=0)
 
     def __init__(
         self,
         sanitized_remote_uri: str,
         remote_uri: str,
-        cloned_path: str,
+        cloned_path: Path | None,
         last_scanned_at: datetime | None = None,
-        total_unique_commits: int = 0,
     ) -> None:
         """Initialize Git repository."""
         super().__init__()
@@ -352,39 +219,6 @@ class GitRepo(Base, CommonMixin):
         self.remote_uri = remote_uri
         self.cloned_path = cloned_path
         self.last_scanned_at = last_scanned_at
-        self.total_unique_commits = total_unique_commits
-
-
-class GitFile(Base):
-    """Git file model."""
-
-    __tablename__ = "git_files"
-
-    blob_sha: Mapped[str] = mapped_column(String(64), primary_key=True)
-    created_at: Mapped[datetime] = mapped_column(
-        TZDateTime, nullable=False, default=lambda: datetime.now(UTC)
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        TZDateTime,
-        nullable=False,
-        default=lambda: datetime.now(UTC),
-        onupdate=lambda: datetime.now(UTC),
-    )
-    path: Mapped[str] = mapped_column(String(1024), index=True)
-    mime_type: Mapped[str] = mapped_column(String(255), index=True)
-    size: Mapped[int] = mapped_column(Integer)
-    extension: Mapped[str] = mapped_column(String(255), index=True)
-
-    def __init__(
-        self, blob_sha: str, path: str, mime_type: str, size: int, extension: str
-    ) -> None:
-        """Initialize Git file."""
-        super().__init__()
-        self.blob_sha = blob_sha
-        self.path = path
-        self.mime_type = mime_type
-        self.size = size
-        self.extension = extension
 
 
 class GitCommit(Base):
@@ -427,36 +261,23 @@ class GitCommit(Base):
         self.author = author
 
 
-class GitCommitFile(Base, CommonMixin):
-    """Association table for git commits and files."""
-
-    __tablename__ = "git_commit_files"
-
-    commit_sha: Mapped[str] = mapped_column(
-        ForeignKey("git_commits.commit_sha"), index=True
-    )
-    file_blob_sha: Mapped[str] = mapped_column(
-        ForeignKey("git_files.blob_sha"), index=True
-    )
-
-    __table_args__ = (
-        UniqueConstraint("commit_sha", "file_blob_sha", name="uix_commit_file"),
-    )
-
-    def __init__(self, commit_sha: str, file_blob_sha: str) -> None:
-        """Initialize commit file association."""
-        super().__init__()
-        self.commit_sha = commit_sha
-        self.file_blob_sha = file_blob_sha
-
-
-class GitBranch(Base, CommonMixin):
+class GitBranch(Base):
     """Git branch model."""
 
     __tablename__ = "git_branches"
-
-    repo_id: Mapped[int] = mapped_column(ForeignKey("git_repos.id"), index=True)
-    name: Mapped[str] = mapped_column(String(255), index=True)
+    repo_id: Mapped[int] = mapped_column(
+        ForeignKey("git_repos.id"), index=True, primary_key=True
+    )
+    name: Mapped[str] = mapped_column(String(255), index=True, primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(
+        TZDateTime, nullable=False, default=lambda: datetime.now(UTC)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TZDateTime,
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
     head_commit_sha: Mapped[str] = mapped_column(ForeignKey("git_commits.commit_sha"))
 
     __table_args__ = (UniqueConstraint("repo_id", "name", name="uix_repo_branch"),)
@@ -469,13 +290,53 @@ class GitBranch(Base, CommonMixin):
         self.head_commit_sha = head_commit_sha
 
 
-class GitTag(Base, CommonMixin):
+class GitTrackingBranch(Base):
+    """Git tracking branch model."""
+
+    __tablename__ = "git_tracking_branches"
+    repo_id: Mapped[int] = mapped_column(index=True, primary_key=True)
+    name: Mapped[str] = mapped_column(index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        TZDateTime, nullable=False, default=lambda: datetime.now(UTC)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TZDateTime,
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["repo_id", "name"], ["git_branches.repo_id", "git_branches.name"]
+        ),
+        UniqueConstraint("repo_id", "name", name="uix_repo_tracking_branch"),
+    )
+
+    def __init__(self, repo_id: int, name: str) -> None:
+        """Initialize Git tracking branch."""
+        super().__init__()
+        self.repo_id = repo_id
+        self.name = name
+
+
+class GitTag(Base):
     """Git tag model."""
 
     __tablename__ = "git_tags"
-
-    repo_id: Mapped[int] = mapped_column(ForeignKey("git_repos.id"), index=True)
-    name: Mapped[str] = mapped_column(String(255), index=True)
+    repo_id: Mapped[int] = mapped_column(
+        ForeignKey("git_repos.id"), index=True, primary_key=True
+    )
+    name: Mapped[str] = mapped_column(String(255), index=True, primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(
+        TZDateTime, nullable=False, default=lambda: datetime.now(UTC)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TZDateTime,
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
     target_commit_sha: Mapped[str] = mapped_column(
         ForeignKey("git_commits.commit_sha"), index=True
     )
@@ -488,6 +349,44 @@ class GitTag(Base, CommonMixin):
         self.repo_id = repo_id
         self.name = name
         self.target_commit_sha = target_commit_sha
+
+
+class GitCommitFile(Base):
+    """Files in a git commit (tree entries)."""
+
+    __tablename__ = "git_commit_files"
+
+    commit_sha: Mapped[str] = mapped_column(
+        ForeignKey("git_commits.commit_sha"), primary_key=True
+    )
+    path: Mapped[str] = mapped_column(String(1024), primary_key=True)
+    blob_sha: Mapped[str] = mapped_column(String(64), index=True)
+    mime_type: Mapped[str] = mapped_column(String(255), index=True)
+    extension: Mapped[str] = mapped_column(String(255), index=True)
+    size: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(TZDateTime, nullable=False)
+
+    __table_args__ = (UniqueConstraint("commit_sha", "path", name="uix_commit_file"),)
+
+    def __init__(  # noqa: PLR0913
+        self,
+        commit_sha: str,
+        path: str,
+        blob_sha: str,
+        mime_type: str,
+        extension: str,
+        size: int,
+        created_at: datetime,
+    ) -> None:
+        """Initialize Git commit file."""
+        super().__init__()
+        self.commit_sha = commit_sha
+        self.path = path
+        self.blob_sha = blob_sha
+        self.mime_type = mime_type
+        self.size = size
+        self.created_at = created_at
+        self.extension = extension
 
 
 class SnippetV2(Base):
@@ -522,25 +421,39 @@ class SnippetV2(Base):
 
 
 class SnippetV2File(Base):
-    """Association table for snippets v2 and git files."""
+    """Association between snippets and files."""
 
     __tablename__ = "snippet_v2_files"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     snippet_sha: Mapped[str] = mapped_column(ForeignKey("snippets_v2.sha"), index=True)
-    file_blob_sha: Mapped[str] = mapped_column(
-        ForeignKey("git_files.blob_sha"), index=True
-    )
+    blob_sha: Mapped[str] = mapped_column(String(64), index=True)
+    commit_sha: Mapped[str] = mapped_column(String(64), index=True)
+    file_path: Mapped[str] = mapped_column(String(1024), index=True)
 
     __table_args__ = (
-        UniqueConstraint("snippet_sha", "file_blob_sha", name="uix_snippet_file"),
+        ForeignKeyConstraint(
+            ["commit_sha", "file_path"],
+            ["git_commit_files.commit_sha", "git_commit_files.path"],
+        ),
+        UniqueConstraint(
+            "snippet_sha",
+            "blob_sha",
+            "commit_sha",
+            "file_path",
+            name="uix_snippet_file",
+        ),
     )
 
-    def __init__(self, snippet_sha: str, file_blob_sha: str) -> None:
+    def __init__(
+        self, snippet_sha: str, blob_sha: str, commit_sha: str, file_path: str
+    ) -> None:
         """Initialize snippet file association."""
         super().__init__()
         self.snippet_sha = snippet_sha
-        self.file_blob_sha = file_blob_sha
+        self.blob_sha = blob_sha
+        self.commit_sha = commit_sha
+        self.file_path = file_path
 
 
 class CommitSnippetV2(Base):
