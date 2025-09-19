@@ -1,9 +1,10 @@
 """SQLAlchemy implementation of GitRepoRepository."""
 
 from collections.abc import Callable
+from typing import Any
 
 from pydantic import AnyUrl
-from sqlalchemy import delete, select
+from sqlalchemy import delete, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.domain.entities.git import GitCommit, GitFile, GitRepo
@@ -39,7 +40,7 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
     def _mapper(self) -> GitMapper:
         return GitMapper()
 
-    async def save(self, repo: GitRepo) -> GitRepo:  # noqa: PLR0912,C901
+    async def save(self, repo: GitRepo) -> GitRepo:
         """Save or update a repository with all its branches, commits, and tags."""
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             # 1. Save or update the GitRepo entity
@@ -69,84 +70,215 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
                 await session.flush()  # Get the new ID
                 repo.id = db_repo.id  # Set the domain ID
 
-            await session.flush()
+            # 2. Bulk save commits
+            await self._save_commits_bulk(session, repo)
 
-            # 2. Save commits
+            # 3. Bulk save files
+            await self._save_files_bulk(session, repo)
 
-            for commit in repo.commits:
-                existing_commit = await session.get(
-                    db_entities.GitCommit, commit.commit_sha
-                )
-                if not existing_commit:
-                    db_commit = db_entities.GitCommit(
-                        commit_sha=commit.commit_sha,
-                        repo_id=repo.id,
-                        date=commit.date,
-                        message=commit.message,
-                        parent_commit_sha=commit.parent_commit_sha,
-                        author=commit.author,
-                    )
-                    session.add(db_commit)
-            await session.flush()
+            # 4. Bulk save branches
+            await self._save_branches_bulk(session, repo)
 
-            # 3. Save files
-            for commit in repo.commits:
-                for file in commit.files:
-                    existing_file = await session.get(
-                        db_entities.GitCommitFile, (commit.commit_sha, file.path)
-                    )
-                    if not existing_file:
-                        db_file = db_entities.GitCommitFile(
-                            commit_sha=commit.commit_sha,
-                            path=file.path,
-                            blob_sha=file.blob_sha,
-                            extension=file.extension,
-                            mime_type=file.mime_type,
-                            size=file.size,
-                            created_at=file.created_at,
-                        )
-                        session.add(db_file)
-            # No need for a flush since nothing relies on blob IDs
+            # 5. Save tracking branch
+            await self._save_tracking_branch(session, repo)
 
-            # 5. Save branches
-            for branch in repo.branches:
-                existing_branch = await session.get(
-                    db_entities.GitBranch, (repo.id, branch.name)
-                )
-                if not existing_branch:
-                    db_branch = db_entities.GitBranch(
-                        repo_id=repo.id,
-                        name=branch.name,
-                        head_commit_sha=branch.head_commit.commit_sha,
-                    )
-                    session.add(db_branch)
+            # 6. Bulk save tags
+            await self._save_tags_bulk(session, repo)
 
-            # 6. Save tracking branch
-            if repo.tracking_branch:
-                existing_tracking_branch = await session.get(
-                    db_entities.GitTrackingBranch, repo.id
-                )
-                if not existing_tracking_branch:
-                    db_tracking_branch = db_entities.GitTrackingBranch(
-                        repo_id=repo.id,
-                        name=repo.tracking_branch.name,
-                    )
-                    session.add(db_tracking_branch)
-
-            # 7. Save tags
-            for tag in repo.tags:
-                existing_tag = await session.get(
-                    db_entities.GitTag, (repo.id, tag.name)
-                )
-                if not existing_tag:
-                    db_tag = db_entities.GitTag(
-                        repo_id=repo.id,
-                        name=tag.name,
-                        target_commit_sha=tag.target_commit.commit_sha,
-                    )
-                    session.add(db_tag)
             await session.flush()
             return repo
+
+    async def _save_commits_bulk(self, session: AsyncSession, repo: GitRepo) -> None:
+        """Bulk save commits using efficient batch operations."""
+        if not repo.commits:
+            return
+
+        commit_shas = [commit.commit_sha for commit in repo.commits]
+
+        # Get existing commits in bulk
+        existing_commits_stmt = select(db_entities.GitCommit.commit_sha).where(
+            db_entities.GitCommit.commit_sha.in_(commit_shas)
+        )
+        existing_commit_shas = set(
+            (await session.scalars(existing_commits_stmt)).all()
+        )
+
+        # Prepare new commits for bulk insert
+        new_commits = [
+            {
+                "commit_sha": commit.commit_sha,
+                "repo_id": repo.id,
+                "date": commit.date,
+                "message": commit.message,
+                "parent_commit_sha": commit.parent_commit_sha,
+                "author": commit.author,
+            }
+            for commit in repo.commits
+            if commit.commit_sha not in existing_commit_shas
+        ]
+
+        # Bulk insert new commits
+        if new_commits:
+            stmt = insert(db_entities.GitCommit).values(new_commits)
+            await session.execute(stmt)
+
+    async def _save_files_bulk(self, session: AsyncSession, repo: GitRepo) -> None:
+        """Bulk save files using efficient batch operations."""
+        if not repo.commits:
+            return
+
+        file_identifiers = [
+            (commit.commit_sha, file.path)
+            for commit in repo.commits
+            for file in commit.files
+        ]
+
+        if not file_identifiers:
+            return
+
+        existing_file_keys = await self._get_existing_file_keys(
+            session, file_identifiers
+        )
+        new_files = self._prepare_new_files(repo, existing_file_keys)
+        await self._bulk_insert_files(session, new_files)
+
+    async def _get_existing_file_keys(
+        self, session: AsyncSession, file_identifiers: list[tuple[str, str]]
+    ) -> set[tuple[str, str]]:
+        """Get existing file keys in chunks to avoid SQL parameter limits."""
+        chunk_size = 1000
+        existing_file_keys = set()
+
+        for i in range(0, len(file_identifiers), chunk_size):
+            chunk = file_identifiers[i:i + chunk_size]
+            commit_shas = [item[0] for item in chunk]
+            paths = [item[1] for item in chunk]
+
+            existing_files_stmt = select(
+                db_entities.GitCommitFile.commit_sha,
+                db_entities.GitCommitFile.path
+            ).where(
+                db_entities.GitCommitFile.commit_sha.in_(commit_shas),
+                db_entities.GitCommitFile.path.in_(paths)
+            )
+
+            chunk_existing = await session.execute(existing_files_stmt)
+            for commit_sha, path in chunk_existing:
+                existing_file_keys.add((commit_sha, path))
+
+        return existing_file_keys
+
+    def _prepare_new_files(
+        self, repo: GitRepo, existing_file_keys: set[tuple[str, str]]
+    ) -> list[dict[str, Any]]:
+        """Prepare new files for bulk insert."""
+        new_files = []
+        for commit in repo.commits:
+            for file in commit.files:
+                file_key = (commit.commit_sha, file.path)
+                if file_key not in existing_file_keys:
+                    new_files.append({
+                        "commit_sha": commit.commit_sha,
+                        "path": file.path,
+                        "blob_sha": file.blob_sha,
+                        "extension": file.extension,
+                        "mime_type": file.mime_type,
+                        "size": file.size,
+                        "created_at": file.created_at,
+                    })
+        return new_files
+
+    async def _bulk_insert_files(
+        self, session: AsyncSession, new_files: list[dict[str, Any]]
+    ) -> None:
+        """Bulk insert new files in chunks."""
+        if not new_files:
+            return
+
+        chunk_size = 1000
+        for i in range(0, len(new_files), chunk_size):
+            chunk = new_files[i:i + chunk_size]
+            stmt = insert(db_entities.GitCommitFile).values(chunk)
+            await session.execute(stmt)
+
+    async def _save_branches_bulk(self, session: AsyncSession, repo: GitRepo) -> None:
+        """Bulk save branches using efficient batch operations."""
+        if not repo.branches:
+            return
+
+        branch_names = [branch.name for branch in repo.branches]
+
+        # Get existing branches in bulk
+        existing_branches_stmt = select(db_entities.GitBranch.name).where(
+            db_entities.GitBranch.repo_id == repo.id,
+            db_entities.GitBranch.name.in_(branch_names)
+        )
+        existing_branch_names = set(
+            (await session.scalars(existing_branches_stmt)).all()
+        )
+
+        # Prepare new branches for bulk insert
+        new_branches = [
+            {
+                "repo_id": repo.id,
+                "name": branch.name,
+                "head_commit_sha": branch.head_commit.commit_sha,
+            }
+            for branch in repo.branches
+            if branch.name not in existing_branch_names
+        ]
+
+        # Bulk insert new branches
+        if new_branches:
+            stmt = insert(db_entities.GitBranch).values(new_branches)
+            await session.execute(stmt)
+
+    async def _save_tracking_branch(self, session: AsyncSession, repo: GitRepo) -> None:
+        """Save tracking branch if it doesn't exist."""
+        if not repo.tracking_branch:
+            return
+
+        existing_tracking_branch = await session.get(
+            db_entities.GitTrackingBranch, repo.id
+        )
+        if not existing_tracking_branch and repo.id is not None:
+            db_tracking_branch = db_entities.GitTrackingBranch(
+                repo_id=repo.id,
+                name=repo.tracking_branch.name,
+            )
+            session.add(db_tracking_branch)
+
+    async def _save_tags_bulk(self, session: AsyncSession, repo: GitRepo) -> None:
+        """Bulk save tags using efficient batch operations."""
+        if not repo.tags:
+            return
+
+        tag_names = [tag.name for tag in repo.tags]
+
+        # Get existing tags in bulk
+        existing_tags_stmt = select(db_entities.GitTag.name).where(
+            db_entities.GitTag.repo_id == repo.id,
+            db_entities.GitTag.name.in_(tag_names)
+        )
+        existing_tag_names = set(
+            (await session.scalars(existing_tags_stmt)).all()
+        )
+
+        # Prepare new tags for bulk insert
+        new_tags = [
+            {
+                "repo_id": repo.id,
+                "name": tag.name,
+                "target_commit_sha": tag.target_commit.commit_sha,
+            }
+            for tag in repo.tags
+            if tag.name not in existing_tag_names
+        ]
+
+        # Bulk insert new tags
+        if new_tags:
+            stmt = insert(db_entities.GitTag).values(new_tags)
+            await session.execute(stmt)
 
     async def get_by_id(self, repo_id: int) -> GitRepo:
         """Get repository by ID with all associated data."""

@@ -68,12 +68,14 @@ class IndexingWorkerService:
         while not self._shutdown_event.is_set():
             try:
                 async with self.session_factory() as session:
-                    task = await self.task_repository.take()
+                    task = await self.task_repository.next()
                     await session.commit()
 
                 # If there's a task, process it in a new thread
                 if task:
                     await self._process_task(task)
+                    # Only remove the task if it was processed successfully
+                    await self.task_repository.remove(task)
                     continue
 
                 # If no task, sleep for a bit

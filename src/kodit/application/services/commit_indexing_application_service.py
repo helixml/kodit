@@ -175,17 +175,17 @@ class CommitIndexingApplicationService:
             )
             await self.repo_repository.save(repo)
 
-        if not repo.tracking_branch:
-            raise ValueError(f"Repository {repository_id} has no tracking branch")
-        commit_sha = repo.tracking_branch.head_commit.commit_sha
-        if not commit_sha:
-            raise ValueError(f"Repository {repository_id} has no head commit")
+            if not repo.tracking_branch:
+                raise ValueError(f"Repository {repository_id} has no tracking branch")
+            commit_sha = repo.tracking_branch.head_commit.commit_sha
+            if not commit_sha:
+                raise ValueError(f"Repository {repository_id} has no head commit")
 
-        await self.queue.enqueue_tasks(
-            tasks=PrescribedOperations.INDEX_COMMIT,
-            base_priority=QueuePriority.USER_INITIATED,
-            payload={"commit_sha": commit_sha, "repository_id": repository_id},
-        )
+            await self.queue.enqueue_tasks(
+                tasks=PrescribedOperations.INDEX_COMMIT,
+                base_priority=QueuePriority.USER_INITIATED,
+                payload={"commit_sha": commit_sha, "repository_id": repository_id},
+            )
 
     async def process_delete_repo(self, repository_id: int) -> None:
         """Delete a repository."""

@@ -1,3 +1,16 @@
 {
-    "includeCoAuthoredBy": false
+    "includeCoAuthoredBy": false,
+    "hooks": {
+        "PostToolUse": [
+            {
+                "matcher": "Edit|MultiEdit|Write",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "uv run ruff check"
+                    }
+                ]
+            }
+        ]
+    }
 }

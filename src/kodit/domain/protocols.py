@@ -37,8 +37,12 @@ class TaskRepository(Protocol):
         """Get a task by ID."""
         ...
 
-    async def take(self) -> Task | None:
+    async def next(self) -> Task | None:
         """Take a task for processing."""
+        ...
+
+    async def remove(self, task: Task) -> None:
+        """Remove a task."""
         ...
 
     async def update(self, task: Task) -> None:
