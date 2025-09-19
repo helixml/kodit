@@ -24,5 +24,5 @@ test: lint type openapi-check
 
 no-database-changes-check:
 	rm -f .kodit.db
-	alembic upgrade head
-	alembic check
+	uv run alembic upgrade head
+	uv run alembic check
