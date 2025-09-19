@@ -427,17 +427,15 @@ class SnippetV2File(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     snippet_sha: Mapped[str] = mapped_column(ForeignKey("snippets_v2.sha"), index=True)
-    blob_sha: Mapped[str] = mapped_column(
-        ForeignKey("git_commit_files.blob_sha"), index=True
-    )
-    commit_sha: Mapped[str] = mapped_column(
-        ForeignKey("git_commit_files.commit_sha"), index=True
-    )
-    file_path: Mapped[str] = mapped_column(
-        ForeignKey("git_commit_files.path"), index=True
-    )
+    blob_sha: Mapped[str] = mapped_column(String(64), index=True)
+    commit_sha: Mapped[str] = mapped_column(String(64), index=True)
+    file_path: Mapped[str] = mapped_column(String(1024), index=True)
 
     __table_args__ = (
+        ForeignKeyConstraint(
+            ["commit_sha", "file_path"],
+            ["git_commit_files.commit_sha", "git_commit_files.path"],
+        ),
         UniqueConstraint(
             "snippet_sha",
             "blob_sha",

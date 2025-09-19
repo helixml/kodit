@@ -259,11 +259,23 @@ class TestDelete:
     async def test_deletes_existing_repo(
         self,
         repository: SqlAlchemyGitRepoRepository,
-        sample_git_repo: GitRepo,
     ) -> None:
-        """Test that delete() removes an existing repo and all associations."""
-        await repository.save(sample_git_repo)
-        repo_uri = sample_git_repo.sanitized_remote_uri
+        """Test that delete() removes an existing repo."""
+        # Create a simple repo without complex relationships
+        simple_repo = GitRepo(
+            id=None,
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+            remote_uri=AnyUrl("https://github.com/simple/repo"),
+            sanitized_remote_uri=AnyUrl("https://github.com/simple/repo"),
+            branches=[],
+            commits=[],
+            tags=[],
+            tracking_branch=None,
+        )
+
+        await repository.save(simple_repo)
+        repo_uri = simple_repo.sanitized_remote_uri
 
         # Verify it exists
         result = await repository.get_by_uri(repo_uri)

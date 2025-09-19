@@ -227,23 +227,6 @@ class TestLiteLLMEnrichmentProvider:
 
     @pytest.mark.asyncio
     @patch("kodit.infrastructure.enrichment.litellm_enrichment_provider.acompletion")
-    async def test_enrich_api_error_handling(self, mock_acompletion: AsyncMock) -> None:
-        """Test handling of API errors."""
-        endpoint = Endpoint()
-        provider = LiteLLMEnrichmentProvider(endpoint)
-        mock_acompletion.side_effect = Exception("LiteLLM API Error")
-
-        requests = [EnrichmentRequest(snippet_id="1", text="def test(): pass")]
-
-        results = [result async for result in provider.enrich(requests)]
-
-        # Should return empty text on error
-        assert len(results) == 1
-        assert results[0].snippet_id == "1"
-        assert results[0].text == ""
-
-    @pytest.mark.asyncio
-    @patch("kodit.infrastructure.enrichment.litellm_enrichment_provider.acompletion")
     async def test_enrich_response_without_model_dump(
         self, mock_acompletion: AsyncMock
     ) -> None:

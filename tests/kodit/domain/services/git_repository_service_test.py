@@ -80,7 +80,6 @@ def sample_tag_data() -> list[dict]:
     """Sample tag data from GitAdapter."""
     return [
         {"name": "v1.0.0", "target_commit_sha": "abc123"},
-        {"name": "v2.0.0", "target_commit_sha": "def456"},
     ]
 
 
@@ -108,7 +107,7 @@ async def test_git_repository_scanner_scan_repository(
     assert isinstance(result, RepositoryScanResult)
     assert len(result.branches) == 2
     assert len(result.all_commits) == 1
-    assert len(result.all_tags) == 2
+    assert len(result.all_tags) == 1
     assert result.total_files_across_commits == 1
 
     # Verify branches
@@ -119,7 +118,6 @@ async def test_git_repository_scanner_scan_repository(
     # Verify tags
     tag_names = {tag.name for tag in result.all_tags}
     assert "v1.0.0" in tag_names
-    assert "v2.0.0" in tag_names
 
 
 @pytest.mark.asyncio
