@@ -25,7 +25,6 @@ def sample_git_file() -> GitFile:
     """Create a sample git file."""
     return GitFile(
         created_at=datetime.now(UTC),
-        updated_at=datetime.now(UTC),
         blob_sha="file_sha_123",
         path="src/main.py",
         mime_type="text/x-python",
@@ -53,7 +52,7 @@ def sample_git_commit(sample_git_file: GitFile) -> GitCommit:
 def sample_git_branch(sample_git_commit: GitCommit) -> GitBranch:
     """Create a sample git branch."""
     return GitBranch(
-        id=1,
+        repo_id=1,
         created_at=datetime.now(UTC),
         updated_at=datetime.now(UTC),
         name="main",
@@ -62,13 +61,13 @@ def sample_git_branch(sample_git_commit: GitCommit) -> GitBranch:
 
 
 @pytest.fixture
-def sample_git_tag() -> GitTag:
+def sample_git_tag(sample_git_commit: GitCommit) -> GitTag:
     """Create a sample git tag."""
     return GitTag(
         created_at=datetime.now(UTC),
         updated_at=datetime.now(UTC),
         name="v1.0.0",
-        target_commit_sha="commit_sha_456",
+        target_commit=sample_git_commit,
     )
 
 
@@ -143,7 +142,7 @@ class TestSave:
             author="Test",
         )
         minimal_branch = GitBranch(
-            id=None,
+            repo_id=None,
             created_at=datetime.now(UTC),
             updated_at=datetime.now(UTC),
             name="minimal",
@@ -317,7 +316,7 @@ class TestListAll:
             author="Test",
         )
         another_branch = GitBranch(
-            id=None,
+            repo_id=None,
             created_at=datetime.now(UTC),
             updated_at=datetime.now(UTC),
             name="another_main",

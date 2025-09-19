@@ -93,7 +93,11 @@ class GitRepositoryScanner:
         )
 
         if head_commit:
-            return GitBranch(name=branch_info["name"], head_commit=head_commit)
+            return GitBranch(
+                created_at=datetime.now(UTC),
+                name=branch_info["name"],
+                head_commit=head_commit,
+            )
         return None
 
     async def _process_branch_commits(
@@ -133,6 +137,7 @@ class GitRepositoryScanner:
         author = self._format_author(commit_data)
 
         return GitCommit(
+            created_at=datetime.now(UTC),
             commit_sha=commit_sha,
             date=commit_data["date"],
             message=commit_data["message"],
@@ -152,7 +157,7 @@ class GitRepositoryScanner:
                 mime_type=f.get("mime_type", "application/octet-stream"),
                 size=f["size"],
                 extension=GitFile.extension_from_path(f["path"]),
-                created_at=f["created_at"],
+                created_at=f.get("created_at", datetime.now(UTC)),
             )
             for f in files_data
         ]

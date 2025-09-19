@@ -48,6 +48,21 @@ def sample_commit_data() -> list[dict]:
 
 
 @pytest.fixture
+def sample_develop_commit_data() -> list[dict]:
+    """Sample commit data for develop branch from GitAdapter."""
+    return [
+        {
+            "sha": "def456",
+            "date": datetime.now(UTC),
+            "message": "Second commit",
+            "parent_sha": "abc123",
+            "author_name": "Test Author",
+            "author_email": "test@example.com",
+        }
+    ]
+
+
+@pytest.fixture
 def sample_file_data() -> list[dict]:
     """Sample file data from GitAdapter."""
     return [

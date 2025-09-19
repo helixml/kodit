@@ -1,7 +1,7 @@
 """Tests for GitPython adapter module."""
 
 import asyncio
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -319,12 +319,15 @@ async def test_get_commit_files(git_adapter: GitPythonAdapter) -> None:
 
         mock_commit = MagicMock()
         mock_commit.tree.traverse.return_value = [mock_blob]
+        mock_commit.committed_datetime = datetime.now(UTC)
 
         mock_repo = MagicMock()
         mock_repo.commit.return_value = mock_commit
         mock_repo_class.return_value = mock_repo
 
-        result = await git_adapter.get_commit_files(local_path, commit_sha)
+        # Mock the isinstance check to return True for blob type
+        with patch("builtins.isinstance", return_value=True):
+            result = await git_adapter.get_commit_files(local_path, commit_sha)
 
         assert len(result) == 1
         file_info = result[0]

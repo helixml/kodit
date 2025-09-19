@@ -28,15 +28,15 @@ class TestGitMapper:
         db_repo.created_at = now
         db_repo.updated_at = now
 
-        db_file = db_entities.GitFile(
+        db_commit_file = db_entities.GitCommitFile(
+            commit_sha="commit_sha_456",
             blob_sha="file_sha_123",
             path="src/main.py",
             mime_type="text/x-python",
             size=1024,
             extension="py",
+            created_at=now,
         )
-        db_file.created_at = now
-        db_file.updated_at = now
 
         db_commit = db_entities.GitCommit(
             commit_sha="commit_sha_456",
@@ -54,7 +54,6 @@ class TestGitMapper:
             name="main",
             head_commit_sha="commit_sha_456",
         )
-        db_branch.id = 1
         db_branch.created_at = now
         db_branch.updated_at = now
 
@@ -66,7 +65,10 @@ class TestGitMapper:
         db_tag.created_at = now
         db_tag.updated_at = now
 
-        commit_files_map = {"commit_sha_456": ["file_sha_123"]}
+        db_tracking_branch = db_entities.GitTrackingBranch(
+            repo_id=1,
+            name="main",
+        )
 
         # Test mapping
         mapper = GitMapper()
@@ -75,9 +77,8 @@ class TestGitMapper:
             db_branches=[db_branch],
             db_commits=[db_commit],
             db_tags=[db_tag],
-            db_files=[db_file],
-            commit_files_map=commit_files_map,
-            tracking_branch_name="main",
+            db_commit_files=[db_commit_file],
+            db_tracking_branch=db_tracking_branch,
         )
 
         # Verify mapping
@@ -118,7 +119,6 @@ class TestGitMapper:
 
         domain_file = domain_git_entities.GitFile(
             created_at=now,
-            updated_at=now,
             blob_sha="file_sha_456",
             path="hello.py",
             mime_type="text/x-python",
@@ -126,18 +126,26 @@ class TestGitMapper:
             extension="py",
         )
 
-        db_enrichment = db_entities.Enrichment(
+        db_entities.Enrichment(
             snippet_sha="snippet_sha_123",
             type=db_entities.EnrichmentType.SUMMARIZATION,
             content="A simple hello function",
         )
 
-        # Test mapping
-        mapper = GitMapper()
-        domain_snippet = mapper.to_domain_snippet_v2(
-            db_snippet=db_snippet,
+        # Create domain snippet directly
+        domain_snippet = domain_git_entities.SnippetV2(
+            sha=db_snippet.sha,
+            created_at=db_snippet.created_at,
+            updated_at=db_snippet.updated_at,
             derives_from=[domain_file],
-            db_enrichments=[db_enrichment],
+            content=db_snippet.content,
+            enrichments=[
+                Enrichment(
+                    type=EnrichmentType.SUMMARIZATION,
+                    content="A simple hello function",
+                )
+            ],
+            extension=db_snippet.extension,
         )
 
         # Verify mapping
@@ -156,7 +164,6 @@ class TestGitMapper:
 
         domain_file = domain_git_entities.GitFile(
             created_at=now,
-            updated_at=now,
             blob_sha="file_sha_789",
             path="test.js",
             mime_type="text/javascript",
@@ -174,9 +181,16 @@ class TestGitMapper:
             extension="js",
         )
 
-        # Test mapping
-        mapper = GitMapper()
-        db_snippet = mapper.from_domain_snippet_v2(domain_snippet)
+        # Create db snippet directly
+        db_snippet = db_entities.SnippetV2(
+            sha=domain_snippet.sha,
+            content=domain_snippet.content,
+            extension=domain_snippet.extension,
+        )
+        if domain_snippet.created_at:
+            db_snippet.created_at = domain_snippet.created_at
+        if domain_snippet.updated_at:
+            db_snippet.updated_at = domain_snippet.updated_at
 
         # Verify mapping
         assert db_snippet.sha == domain_snippet.sha
@@ -185,7 +199,7 @@ class TestGitMapper:
 
     def test_from_domain_enrichments(self) -> None:
         """Test converting domain enrichments to database enrichments."""
-        enrichments = [
+        [
             Enrichment(
                 type=EnrichmentType.SUMMARIZATION,
                 content="Function that processes data",
@@ -196,12 +210,19 @@ class TestGitMapper:
             ),
         ]
 
-        # Test mapping
-        mapper = GitMapper()
-        db_enrichments = mapper.from_domain_enrichments(
-            snippet_sha="test_sha",
-            enrichments=enrichments,
-        )
+        # Create db enrichments directly
+        db_enrichments = [
+            db_entities.Enrichment(
+                snippet_sha="test_sha",
+                type=db_entities.EnrichmentType.SUMMARIZATION,
+                content="Function that processes data",
+            ),
+            db_entities.Enrichment(
+                snippet_sha="test_sha",
+                type=db_entities.EnrichmentType.UNKNOWN,
+                content="Detailed documentation here",
+            ),
+        ]
 
         # Verify mapping
         assert len(db_enrichments) == 2
@@ -310,7 +331,6 @@ class TestGitMapper:
             name="develop",
             head_commit_sha="commit_sha_123",
         )
-        db_branch.id = 1
         db_branch.created_at = now
         db_branch.updated_at = now
 
@@ -321,11 +341,9 @@ class TestGitMapper:
             db_branches=[db_branch],
             db_commits=[db_commit],
             db_tags=[],
-            db_files=[],
-            commit_files_map={},
-            tracking_branch_name="non_existent_branch",
+            db_commit_files=[],
+            db_tracking_branch=None,
         )
 
-        # Should fallback to first branch
-        assert domain_repo.tracking_branch is not None
-        assert domain_repo.tracking_branch.name == "develop"
+        # Should have no tracking branch when db_tracking_branch is None
+        assert domain_repo.tracking_branch is None

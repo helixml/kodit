@@ -663,6 +663,97 @@
             "description": "Repository not found"
           }
         }
+      },
+      "delete": {
+        "tags": [
+          "repositories"
+        ],
+        "summary": "Delete repository",
+        "description": "Delete a repository and all its associated data.",
+        "operationId": "delete_repository_api_v1_repositories__repo_id__delete",
+        "security": [
+          {
+            "Header (X-API-KEY)": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "repo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Repo Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "500": {
+            "description": "Internal server error"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Invalid request"
+          },
+          "404": {
+            "description": "Repository not found"
+          }
+        }
+      }
+    },
+    "/api/v1/repositories/{repo_id}/status": {
+      "get": {
+        "tags": [
+          "repositories"
+        ],
+        "summary": "Get Index Status",
+        "description": "Get the status of tasks for an index.",
+        "operationId": "get_index_status_api_v1_repositories__repo_id__status_get",
+        "security": [
+          {
+            "Header (X-API-KEY)": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "repo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Repo Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskStatusListResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Invalid request"
+          },
+          "404": {
+            "description": "Index not found"
+          }
+        }
       }
     },
     "/api/v1/repositories/{repo_id}/tags": {
@@ -1778,9 +1869,12 @@
           "kodit.index.run.create_text_embeddings",
           "kodit.index.run.update_index_timestamp",
           "kodit.index.run.clear_file_processing_statuses",
+          "kodit.repository",
           "kodit.repository.create",
+          "kodit.repository.delete",
           "kodit.repository.clone",
           "kodit.repository.scan",
+          "kodit.commit",
           "kodit.commit.extract_snippets",
           "kodit.commit.create_bm25_index",
           "kodit.commit.create_code_embeddings",
@@ -1802,6 +1896,125 @@
         ],
         "title": "TaskResponse",
         "description": "JSON:API response for single task."
+      },
+      "TaskStatusAttributes": {
+        "properties": {
+          "step": {
+            "type": "string",
+            "title": "Step",
+            "description": "Name of the task/operation"
+          },
+          "state": {
+            "type": "string",
+            "title": "State",
+            "description": "Current state of the task"
+          },
+          "progress": {
+            "type": "number",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Progress",
+            "description": "Progress percentage (0-100)",
+            "default": 0.0
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "description": "Total number of items to process",
+            "default": 0
+          },
+          "current": {
+            "type": "integer",
+            "title": "Current",
+            "description": "Current number of items processed",
+            "default": 0
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At",
+            "description": "Task start time"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At",
+            "description": "Last update time"
+          },
+          "error": {
+            "type": "string",
+            "title": "Error",
+            "description": "Error message",
+            "default": ""
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Message",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "step",
+          "state"
+        ],
+        "title": "TaskStatusAttributes",
+        "description": "Task status attributes for JSON:API responses."
+      },
+      "TaskStatusData": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "default": "task_status"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "attributes": {
+            "$ref": "#/components/schemas/TaskStatusAttributes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "attributes"
+        ],
+        "title": "TaskStatusData",
+        "description": "Task status data for JSON:API responses."
+      },
+      "TaskStatusListResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/TaskStatusData"
+            },
+            "type": "array",
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "TaskStatusListResponse",
+        "description": "JSON:API response for task status list."
       },
       "ValidationError": {
         "properties": {

@@ -96,6 +96,18 @@ async def test_git_commit(
     for commit in commits:
         session.add(commit)
 
+    # Create GitCommitFile for the file that tests expect
+    commit_file = db_entities.GitCommitFile(
+        commit_sha="commit_sha_789",
+        blob_sha="file_sha_123",
+        path="src/main.py",
+        mime_type="text/x-python",
+        size=1024,
+        extension="py",
+        created_at=datetime.now(UTC),
+    )
+    session.add(commit_file)
+
     await session.flush()
     await session.commit()
 
@@ -116,7 +128,6 @@ def sample_git_file() -> GitFile:
     """Create a sample git file."""
     return GitFile(
         created_at=datetime.now(UTC),
-        updated_at=datetime.now(UTC),
         blob_sha="file_sha_123",
         path="src/main.py",
         mime_type="text/x-python",
@@ -229,7 +240,6 @@ class TestSaveSnippets:
         # Create a snippet with a new file that doesn't exist in DB
         new_file = GitFile(
             created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
             blob_sha="new_file_sha_999",
             path="src/new_file.py",
             mime_type="text/x-python",

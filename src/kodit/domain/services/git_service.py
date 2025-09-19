@@ -218,6 +218,7 @@ class GitService:
                     target_commit = tag_ref.commit
 
                     tag = GitTag(
+                        created_at=datetime.now(UTC),
                         name=tag_ref.name,
                         target_commit=all_commits_map[target_commit.hexsha],
                     )
@@ -279,6 +280,7 @@ class GitService:
                     try:
                         blob = diff_item.b_blob
                         file_entity = GitFile(
+                            created_at=datetime.now(UTC),
                             blob_sha=blob.hexsha,
                             path=str(Path(repo.working_dir) / file_path),
                             mime_type="application/octet-stream",  # Default
