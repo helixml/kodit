@@ -99,9 +99,7 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
         existing_commits_stmt = select(db_entities.GitCommit.commit_sha).where(
             db_entities.GitCommit.commit_sha.in_(commit_shas)
         )
-        existing_commit_shas = set(
-            (await session.scalars(existing_commits_stmt)).all()
-        )
+        existing_commit_shas = set((await session.scalars(existing_commits_stmt)).all())
 
         # Prepare new commits for bulk insert
         new_commits = [
@@ -150,16 +148,15 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
         existing_file_keys = set()
 
         for i in range(0, len(file_identifiers), chunk_size):
-            chunk = file_identifiers[i:i + chunk_size]
+            chunk = file_identifiers[i : i + chunk_size]
             commit_shas = [item[0] for item in chunk]
             paths = [item[1] for item in chunk]
 
             existing_files_stmt = select(
-                db_entities.GitCommitFile.commit_sha,
-                db_entities.GitCommitFile.path
+                db_entities.GitCommitFile.commit_sha, db_entities.GitCommitFile.path
             ).where(
                 db_entities.GitCommitFile.commit_sha.in_(commit_shas),
-                db_entities.GitCommitFile.path.in_(paths)
+                db_entities.GitCommitFile.path.in_(paths),
             )
 
             chunk_existing = await session.execute(existing_files_stmt)
@@ -177,15 +174,17 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
             for file in commit.files:
                 file_key = (commit.commit_sha, file.path)
                 if file_key not in existing_file_keys:
-                    new_files.append({
-                        "commit_sha": commit.commit_sha,
-                        "path": file.path,
-                        "blob_sha": file.blob_sha,
-                        "extension": file.extension,
-                        "mime_type": file.mime_type,
-                        "size": file.size,
-                        "created_at": file.created_at,
-                    })
+                    new_files.append(
+                        {
+                            "commit_sha": commit.commit_sha,
+                            "path": file.path,
+                            "blob_sha": file.blob_sha,
+                            "extension": file.extension,
+                            "mime_type": file.mime_type,
+                            "size": file.size,
+                            "created_at": file.created_at,
+                        }
+                    )
         return new_files
 
     async def _bulk_insert_files(
@@ -197,7 +196,7 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
 
         chunk_size = 1000
         for i in range(0, len(new_files), chunk_size):
-            chunk = new_files[i:i + chunk_size]
+            chunk = new_files[i : i + chunk_size]
             stmt = insert(db_entities.GitCommitFile).values(chunk)
             await session.execute(stmt)
 
@@ -211,7 +210,7 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
         # Get existing branches in bulk
         existing_branches_stmt = select(db_entities.GitBranch.name).where(
             db_entities.GitBranch.repo_id == repo.id,
-            db_entities.GitBranch.name.in_(branch_names)
+            db_entities.GitBranch.name.in_(branch_names),
         )
         existing_branch_names = set(
             (await session.scalars(existing_branches_stmt)).all()
@@ -239,7 +238,7 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
             return
 
         existing_tracking_branch = await session.get(
-            db_entities.GitTrackingBranch, repo.id
+            db_entities.GitTrackingBranch, [repo.id, repo.tracking_branch.name]
         )
         if not existing_tracking_branch and repo.id is not None:
             db_tracking_branch = db_entities.GitTrackingBranch(
@@ -258,11 +257,9 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
         # Get existing tags in bulk
         existing_tags_stmt = select(db_entities.GitTag.name).where(
             db_entities.GitTag.repo_id == repo.id,
-            db_entities.GitTag.name.in_(tag_names)
+            db_entities.GitTag.name.in_(tag_names),
         )
-        existing_tag_names = set(
-            (await session.scalars(existing_tags_stmt)).all()
-        )
+        existing_tag_names = set((await session.scalars(existing_tags_stmt)).all())
 
         # Prepare new tags for bulk insert
         new_tags = [
@@ -465,7 +462,11 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
                 )
             ).all()
         )
-        tracking_branch = await session.get(db_entities.GitTrackingBranch, db_repo.id)
+        tracking_branch = await session.scalar(
+            select(db_entities.GitTrackingBranch).where(
+                db_entities.GitTrackingBranch.repo_id == db_repo.id
+            )
+        )
         return self._mapper.to_domain_git_repo(
             db_repo=db_repo,
             db_branches=all_branches,

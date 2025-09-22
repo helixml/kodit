@@ -153,22 +153,12 @@ class GitMapper:
         snippets: list[domain_git_entities.SnippetV2],
     ) -> domain_git_entities.CommitIndex:
         """Convert SQLAlchemy CommitIndex to domain CommitIndex."""
-        from kodit.domain.entities.git import IndexStatus
-
-        # Map status
-        status_map = {
-            db_entities.IndexStatusType.PENDING: IndexStatus.PENDING,
-            db_entities.IndexStatusType.IN_PROGRESS: IndexStatus.IN_PROGRESS,
-            db_entities.IndexStatusType.COMPLETED: IndexStatus.COMPLETED,
-            db_entities.IndexStatusType.FAILED: IndexStatus.FAILED,
-        }
-
         return domain_git_entities.CommitIndex(
             commit_sha=db_commit_index.commit_sha,
             created_at=db_commit_index.created_at,
             updated_at=db_commit_index.updated_at,
             snippets=snippets,
-            status=status_map[db_commit_index.status],
+            status=domain_git_entities.IndexStatus(db_commit_index.status),
             indexed_at=db_commit_index.indexed_at,
             error_message=db_commit_index.error_message,
             files_processed=db_commit_index.files_processed,
@@ -179,19 +169,9 @@ class GitMapper:
         self, domain_commit_index: domain_git_entities.CommitIndex
     ) -> db_entities.CommitIndex:
         """Convert domain CommitIndex to SQLAlchemy CommitIndex."""
-        from kodit.domain.entities.git import IndexStatus
-
-        # Map status
-        status_map = {
-            IndexStatus.PENDING: db_entities.IndexStatusType.PENDING,
-            IndexStatus.IN_PROGRESS: db_entities.IndexStatusType.IN_PROGRESS,
-            IndexStatus.COMPLETED: db_entities.IndexStatusType.COMPLETED,
-            IndexStatus.FAILED: db_entities.IndexStatusType.FAILED,
-        }
-
         return db_entities.CommitIndex(
             commit_sha=domain_commit_index.commit_sha,
-            status=status_map[domain_commit_index.status],
+            status=domain_commit_index.status,
             indexed_at=domain_commit_index.indexed_at,
             error_message=domain_commit_index.error_message,
             files_processed=domain_commit_index.files_processed,
