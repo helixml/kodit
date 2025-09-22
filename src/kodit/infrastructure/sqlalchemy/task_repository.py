@@ -47,7 +47,7 @@ class SqlAlchemyTaskRepository(TaskRepository):
                 return None
             return TaskMapper.to_domain_task(db_task)
 
-    async def take(self) -> Task | None:
+    async def next(self) -> Task | None:
         """Take a task for processing and remove it from the database."""
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             stmt = (
@@ -59,8 +59,17 @@ class SqlAlchemyTaskRepository(TaskRepository):
             db_task = result.scalar_one_or_none()
             if not db_task:
                 return None
-            await session.delete(db_task)
             return TaskMapper.to_domain_task(db_task)
+
+    async def remove(self, task: Task) -> None:
+        """Remove a task from the database."""
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
+            db_task = await session.scalar(
+                select(db_entities.Task).where(db_entities.Task.dedup_key == task.id)
+            )
+            if not db_task:
+                raise ValueError(f"Task not found: {task.id}")
+            await session.delete(db_task)
 
     async def update(self, task: Task) -> None:
         """Update a task in the database."""

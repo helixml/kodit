@@ -6,8 +6,6 @@ from types import TracebackType
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
-# TODO(Phil): Major issue here, if the same repository has concurrent access, then it is
-# sharing the same session.
 class SqlAlchemyUnitOfWork:
     """SQLAlchemy implementation of Unit of Work pattern."""
 
