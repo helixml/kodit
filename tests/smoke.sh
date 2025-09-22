@@ -1,6 +1,13 @@
 #!/bin/bash
 set -e
 
+# Make sure curl is installed
+if ! command -v curl &> /dev/null; then
+    echo "curl could not be found"
+    env
+    exit 1
+fi
+
 # Set this according to what you want to test. uv run will run the command in the current directory
 prefix="uv run"
 
@@ -11,7 +18,6 @@ fi
 
 # Disable telemetry
 export DISABLE_TELEMETRY=true
-export LOG_LEVEL=DEBUG
 
 # Check that the kodit data_dir does not exist
 if [ -d "$HOME/.kodit" ]; then
