@@ -33,7 +33,7 @@ sleep 3
 
 # Function to check if server is responding
 wait_for_server() {
-    local max_attempts=10
+    local max_attempts=30
     local attempt=1
     while [ $attempt -le $max_attempts ]; do
         if curl -s -f http://127.0.0.1:8080/ > /dev/null 2>&1; then
@@ -45,7 +45,7 @@ wait_for_server() {
         ((attempt++))
     done
     echo "Server failed to start"
-    return 1
+    exit 1
 }
 
 # Wait for server to be ready
