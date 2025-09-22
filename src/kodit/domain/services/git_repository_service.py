@@ -4,6 +4,7 @@ import shutil
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import structlog
 from pydantic import AnyUrl
@@ -46,14 +47,99 @@ class GitRepositoryScanner:
         """Scan repository and return immutable result data."""
         self._log.info(f"Starting repository scan at: {cloned_path}")
 
-        # Get all branches and process them
+        # Get all data in bulk for maximum efficiency
         branch_data = await self.git_adapter.get_all_branches(cloned_path)
         self._log.info(f"Found {len(branch_data)} branches")
 
-        branches, commit_cache = await self._process_branches(cloned_path, branch_data)
+        # Get all commits at once to avoid redundant processing
+        all_commits_data = await self.git_adapter.get_all_commits_bulk(cloned_path)
+        self._log.info(f"Found {len(all_commits_data)} unique commits")
+
+        # Process branches efficiently using bulk commit data
+        branches, commit_cache = await self._process_branches_bulk(
+            cloned_path, branch_data, all_commits_data
+        )
         tags = await self._process_tags(cloned_path, commit_cache)
 
         return self._create_scan_result(branches, commit_cache, tags)
+
+    async def _process_branches_bulk(
+        self,
+        cloned_path: Path,
+        branch_data: list[dict],
+        all_commits_data: dict[str, dict[str, Any]],
+    ) -> tuple[list[GitBranch], dict[str, GitCommit]]:
+        """Process branches efficiently using bulk commit data."""
+        branches = []
+        commit_cache: dict[str, GitCommit] = {}
+
+        # First, convert all commit data to GitCommit objects with files
+        for commit_sha, commit_data in all_commits_data.items():
+            if commit_sha not in commit_cache:
+                git_commit = await self._create_git_commit_from_data(
+                    cloned_path, commit_data
+                )
+                if git_commit:
+                    commit_cache[commit_sha] = git_commit
+
+        # Now process branches using the pre-built commit cache
+        for branch_info in branch_data:
+            # Get commit SHAs for this branch (much faster than full commit data)
+            try:
+                commit_shas = await self.git_adapter.get_branch_commit_shas(
+                    cloned_path, branch_info["name"]
+                )
+
+                if commit_shas and commit_shas[0] in commit_cache:
+                    head_commit = commit_cache[commit_shas[0]]
+                    branch = GitBranch(
+                        created_at=datetime.now(UTC),
+                        name=branch_info["name"],
+                        head_commit=head_commit,
+                    )
+                    branches.append(branch)
+                    self._log.info(f"Processed branch: {branch_info['name']}")
+                else:
+                    self._log.warning(
+                        "No commits found for branch %s", branch_info["name"]
+                    )
+
+            except Exception as e:  # noqa: BLE001
+                self._log.warning(
+                    "Failed to process branch %s: %s", branch_info["name"], e
+                )
+                continue
+
+        return branches, commit_cache
+
+    async def _create_git_commit_from_data(
+        self, cloned_path: Path, commit_data: dict[str, Any]
+    ) -> GitCommit | None:
+        """Create GitCommit from pre-fetched commit data."""
+        commit_sha = commit_data["sha"]
+
+        # Get files for this commit
+        files_data = await self.git_adapter.get_commit_files(cloned_path, commit_sha)
+        files = self._create_git_files(cloned_path, files_data)
+        author = self._format_author_from_data(commit_data)
+
+        return GitCommit(
+            created_at=datetime.now(UTC),
+            commit_sha=commit_sha,
+            date=commit_data["date"],
+            message=commit_data["message"],
+            parent_commit_sha=commit_data["parent_sha"],
+            files=files,
+            author=author,
+        )
+
+    def _format_author_from_data(self, commit_data: dict[str, Any]) -> str:
+        """Format author string from commit data."""
+        author_name = commit_data.get("author_name", "")
+        author_email = commit_data.get("author_email", "")
+        if author_name and author_email:
+            return f"{author_name} <{author_email}>"
+        return author_name or "Unknown"
 
     async def _process_branches(
         self, cloned_path: Path, branch_data: list[dict]

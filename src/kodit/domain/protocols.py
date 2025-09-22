@@ -180,6 +180,16 @@ class GitAdapter(ABC):
     async def get_all_tags(self, local_path: Path) -> list[dict[str, Any]]:
         """Get all tags in repository."""
 
+    @abstractmethod
+    async def get_all_commits_bulk(self, local_path: Path) -> dict[str, dict[str, Any]]:
+        """Get all commits from all branches in bulk for efficiency."""
+
+    @abstractmethod
+    async def get_branch_commit_shas(
+        self, local_path: Path, branch_name: str
+    ) -> list[str]:
+        """Get only commit SHAs for a branch (much faster than full commit data)."""
+
 
 class SnippetRepositoryV2(ABC):
     """Repository for snippet operations."""
