@@ -29,14 +29,14 @@ $prefix kodit serve --host 127.0.0.1 --port 8080 &
 SERVER_PID=$!
 
 # Wait for server to start up
-sleep 3
+sleep 10
 
 # Function to check if server is responding
 wait_for_server() {
-    local max_attempts=30
+    local max_attempts=60
     local attempt=1
     while [ $attempt -le $max_attempts ]; do
-        if curl -s -f http://127.0.0.1:8080/ > /dev/null 2>&1; then
+        if curl -s -f http://127.0.0.1:8080/healthz > /dev/null 2>&1; then
             echo "Server is ready"
             return 0
         fi
