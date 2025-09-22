@@ -488,10 +488,6 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["snippet_id"],
-            ["snippets_v2.sha"],
-        ),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(

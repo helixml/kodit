@@ -95,7 +95,7 @@ class Embedding(Base, CommonMixin):
 
     __tablename__ = "embeddings"
 
-    snippet_id: Mapped[str] = mapped_column(ForeignKey("snippets_v2.sha"), index=True)
+    snippet_id: Mapped[str] = mapped_column(String(64), index=True)
     type: Mapped[EmbeddingType] = mapped_column(
         SQLAlchemyEnum(EmbeddingType), index=True
     )
