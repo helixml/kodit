@@ -10,7 +10,10 @@ from kodit.application.services.reporting import ProgressTracker
 from kodit.domain.entities import Task
 from kodit.domain.entities.git import GitFile, GitRepo, SnippetV2
 from kodit.domain.protocols import (
+    GitBranchRepository,
+    GitCommitRepository,
     GitRepoRepository,
+    GitTagRepository,
     SnippetRepositoryV2,
 )
 from kodit.domain.services.bm25_service import BM25DomainService
@@ -47,10 +50,12 @@ class CommitIndexingApplicationService:
         self,
         snippet_v2_repository: SnippetRepositoryV2,
         repo_repository: GitRepoRepository,
+        commit_repository: GitCommitRepository,
+        branch_repository: GitBranchRepository,
+        tag_repository: GitTagRepository,
         operation: ProgressTracker,
         scanner: GitRepositoryScanner,
         cloner: RepositoryCloner,
-        snippet_repository: SnippetRepositoryV2,
         slicer: Slicer,
         queue: QueueService,
         bm25_service: BM25DomainService,
@@ -59,22 +64,15 @@ class CommitIndexingApplicationService:
         enrichment_service: EnrichmentDomainService,
         embedding_repository: SqlAlchemyEmbeddingRepository,
     ) -> None:
-        """Initialize the commit indexing application service.
-
-        Args:
-            commit_index_repository: Repository for commit index data.
-            snippet_v2_repository: Repository for snippet data.
-            repo_repository: Repository for Git repository data.
-            domain_indexer: Domain service for indexing operations.
-            operation: Progress tracker for reporting operations.
-
-        """
+        """Initialize the commit indexing application service."""
         self.snippet_repository = snippet_v2_repository
         self.repo_repository = repo_repository
+        self.commit_repository = commit_repository
+        self.branch_repository = branch_repository
+        self.tag_repository = tag_repository
         self.operation = operation
         self.scanner = scanner
         self.cloner = cloner
-        self.snippet_repository = snippet_repository
         self.slicer = slicer
         self.queue = queue
         self.bm25_service = bm25_service
@@ -112,7 +110,6 @@ class CommitIndexingApplicationService:
 
             return await self.repo_repository.delete(repo.sanitized_remote_uri)
 
-    # TODO(Phil): Make this polymorphic
     async def run_task(self, task: Task) -> None:  # noqa: PLR0912, C901
         """Run a task."""
         if task.type.is_repository_operation():
@@ -170,14 +167,38 @@ class CommitIndexingApplicationService:
             repo = await self.repo_repository.get_by_id(repository_id)
             if not repo.cloned_path:
                 raise ValueError(f"Repository {repository_id} has never been cloned")
-            repo.update_with_scan_result(
-                await self.scanner.scan_repository(repo.cloned_path)
-            )
+
+            # Create a scanner for this specific repository
+            repo_scanner = GitRepositoryScanner(self.scanner.git_adapter, repo.id)
+            scan_result = await repo_scanner.scan_repository(repo.cloned_path)
+
+            # Save the scan results across the different repositories
+            # First save commits
+            await self.commit_repository.save_commits_bulk(scan_result.commits)
+
+            # Save branches
+            await self.branch_repository.save_branches_bulk(scan_result.branches)
+
+            # Save tags
+            await self.tag_repository.save_tags_bulk(scan_result.tags)
+
+            # Set tracking branch
+            if scan_result.tracking_branch_name:
+                await self.branch_repository.set_tracking_branch(
+                    repo.id, scan_result.tracking_branch_name
+                )
+                repo.tracking_branch_name = scan_result.tracking_branch_name
+
+            # Update repository metadata
+            repo.last_scanned_at = scan_result.scan_timestamp
             await self.repo_repository.save(repo)
 
-            if not repo.tracking_branch:
+            # Get tracking branch and queue indexing for head commit
+            tracking_branch = await self.branch_repository.get_tracking_branch(repo.id)
+            if not tracking_branch:
                 raise ValueError(f"Repository {repository_id} has no tracking branch")
-            commit_sha = repo.tracking_branch.head_commit.commit_sha
+
+            commit_sha = tracking_branch.head_commit_sha
             if not commit_sha:
                 raise ValueError(f"Repository {repository_id} has no head commit")
 
@@ -202,7 +223,7 @@ class CommitIndexingApplicationService:
     async def process_snippets_for_commit(
         self, repository_id: int, commit_sha: str
     ) -> None:
-        """Generate snippets for a repository."""
+        """Generate snippets for a commit."""
         async with self.operation.create_child(
             operation=TaskOperation.EXTRACT_SNIPPETS_FOR_COMMIT,
             trackable_type=TrackableType.KODIT_REPOSITORY,
@@ -213,7 +234,12 @@ class CommitIndexingApplicationService:
                 await step.skip("All snippets already extracted for commit")
                 return
 
-            commit = await self.repo_repository.get_commit_by_sha(commit_sha)
+            # Get the repository and specific commit with its files
+            repo = await self.repo_repository.get_by_id(repository_id)
+            if not repo.cloned_path:
+                raise ValueError(f"Repository {repository_id} has no cloned path")
+
+            commit = await self.commit_repository.get_by_sha(commit_sha)
 
             # Create a set of languages to extract snippets for
             extensions = {file.extension for file in commit.files}
@@ -235,9 +261,14 @@ class CommitIndexingApplicationService:
             for i, (lang, lang_files) in enumerate(lang_files_map.items()):
                 await step.set_current(i, f"Extracting snippets for {lang}")
                 snippets = slicer.extract_snippets_from_git_files(
-                    lang_files, language=lang
+                    lang_files, lang, repo.cloned_path
                 )
                 all_snippets.extend(snippets)
+
+            # Deduplicate snippets by their sha
+            all_snippets = list(
+                {snippet.sha: snippet for snippet in all_snippets}.values()
+            )
 
             self._log.info(
                 f"Saving {len(all_snippets)} snippets for commit {commit.commit_sha}"

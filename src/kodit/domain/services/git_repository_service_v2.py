@@ -1,4 +1,8 @@
-"""Domain services for Git repository scanning and cloning operations."""
+"""Domain services for Git repository scanning and cloning operations (V2).
+
+This version works with the refactored V2 entities and repositories
+for improved performance.
+"""
 
 import shutil
 from dataclasses import dataclass
@@ -10,28 +14,33 @@ import structlog
 from pydantic import AnyUrl
 
 from kodit.domain.entities import WorkingCopy
-from kodit.domain.entities.git import (
-    GitBranch,
-    GitCommit,
-    GitFile,
-    GitTag,
-    RepositoryScanResult,
-)
+from kodit.domain.entities.git_v2 import GitBranchV2, GitCommitV2, GitFileV2, GitTagV2
 from kodit.domain.protocols import GitAdapter
-from kodit.utils.path_utils import repo_id_from_uri
 
 
 @dataclass(frozen=True)
-class RepositoryInfo:
-    """Immutable repository information needed for GitRepo construction."""
+class RepositoryInfoV2:
+    """Immutable repository information needed for GitRepositoryV2 construction."""
 
     remote_uri: AnyUrl
     sanitized_remote_uri: AnyUrl
     cloned_path: Path
 
 
-class GitRepositoryScanner:
-    """Pure scanner that extracts data without mutation."""
+@dataclass(frozen=True)
+class RepositoryScanResultV2:
+    """Immutable scan result containing all repository metadata (V2)."""
+
+    commits: list[GitCommitV2]
+    branches: list[GitBranchV2]
+    tags: list[GitTagV2]
+    scan_timestamp: datetime
+    total_files_across_commits: int
+    tracking_branch_name: str | None
+
+
+class GitRepositoryScannerV2:
+    """Pure scanner that extracts data without mutation (V2)."""
 
     def __init__(self, git_adapter: GitAdapter, repo_id: int) -> None:
         """Initialize the Git repository scanner.
@@ -45,7 +54,7 @@ class GitRepositoryScanner:
         self.git_adapter = git_adapter
         self.repo_id = repo_id
 
-    async def scan_repository(self, cloned_path: Path) -> RepositoryScanResult:
+    async def scan_repository(self, cloned_path: Path) -> RepositoryScanResultV2:
         """Scan repository and return immutable result data."""
         self._log.info(f"Starting repository scan at: {cloned_path}")
 
@@ -68,7 +77,7 @@ class GitRepositoryScanner:
 
         total_files = sum(len(commit.files) for commit in commits)
 
-        return RepositoryScanResult(
+        return RepositoryScanResultV2(
             commits=commits,
             branches=branches,
             tags=tags,
@@ -82,12 +91,12 @@ class GitRepositoryScanner:
         cloned_path: Path,
         branch_data: list[dict],
         all_commits_data: dict[str, dict[str, Any]],
-    ) -> tuple[list[GitBranch], list[GitCommit]]:
+    ) -> tuple[list[GitBranchV2], list[GitCommitV2]]:
         """Process branches and commits efficiently using bulk commit data."""
         branches = []
-        commit_cache: dict[str, GitCommit] = {}
+        commit_cache: dict[str, GitCommitV2] = {}
 
-        # First, convert all commit data to GitCommit objects with files
+        # First, convert all commit data to GitCommitV2 objects with files
         for commit_sha, commit_data in all_commits_data.items():
             if commit_sha not in commit_cache:
                 git_commit = await self._create_git_commit_from_data(
@@ -106,7 +115,7 @@ class GitRepositoryScanner:
 
                 if commit_shas and commit_shas[0] in commit_cache:
                     head_commit_sha = commit_shas[0]
-                    branch = GitBranch(
+                    branch = GitBranchV2(
                         repo_id=self.repo_id,
                         name=branch_info["name"],
                         head_commit_sha=head_commit_sha,
@@ -126,10 +135,10 @@ class GitRepositoryScanner:
 
     async def _create_git_commit_from_data(
         self, cloned_path: Path, commit_data: dict[str, Any]
-    ) -> GitCommit | None:
-        """Create a GitCommit object from commit data."""
+    ) -> GitCommitV2 | None:
+        """Create a GitCommitV2 object from commit data."""
         try:
-            commit_sha = commit_data["sha"]
+            commit_sha = commit_data["commit"]
             files_data = await self.git_adapter.get_commit_files(
                 cloned_path, commit_sha
             )
@@ -137,13 +146,13 @@ class GitRepositoryScanner:
             files = []
             for file_data in files_data:
                 try:
-                    git_file = GitFile(
+                    git_file = GitFileV2(
                         created_at=datetime.now(UTC),
                         blob_sha=file_data["blob_sha"],
                         path=file_data["path"],
                         mime_type=file_data["mime_type"],
                         size=file_data["size"],
-                        extension=GitFile.extension_from_path(file_data["path"]),
+                        extension=GitFileV2.extension_from_path(file_data["path"]),
                     )
                     files.append(git_file)
                 except Exception as e:
@@ -152,15 +161,15 @@ class GitRepositoryScanner:
                     )
                     continue
 
-            return GitCommit(
+            return GitCommitV2(
                 created_at=datetime.now(UTC),
                 commit_sha=commit_sha,
                 repo_id=self.repo_id,
                 date=commit_data["date"],
                 message=commit_data["message"],
-                parent_commit_sha=commit_data.get("parent_sha"),
+                parent_commit_sha=commit_data.get("parent_commit"),
                 files=files,
-                author=commit_data["author_name"],
+                author=commit_data["author"],
             )
         except Exception as e:
             self._log.error(f"Failed to create GitCommit from {commit_data}: {e}")
@@ -168,7 +177,7 @@ class GitRepositoryScanner:
 
     async def _process_tags(
         self, cloned_path: Path, all_commits_data: dict[str, dict[str, Any]]
-    ) -> list[GitTag]:
+    ) -> list[GitTagV2]:
         """Process tags and associate them with commits."""
         tags = []
         try:
@@ -178,7 +187,7 @@ class GitRepositoryScanner:
             for tag_info in tags_data:
                 target_commit_sha = tag_info["target_commit"]
                 if target_commit_sha in all_commits_data:
-                    tag = GitTag(
+                    tag = GitTagV2(
                         created_at=datetime.now(UTC),
                         repo_id=self.repo_id,
                         name=tag_info["name"],
@@ -191,7 +200,7 @@ class GitRepositoryScanner:
 
         return tags
 
-    def _determine_tracking_branch(self, branches: list[GitBranch]) -> str | None:
+    def _determine_tracking_branch(self, branches: list[GitBranchV2]) -> str | None:
         """Determine the tracking branch (prefer main, then master, then first)."""
         if not branches:
             return None
@@ -207,8 +216,8 @@ class GitRepositoryScanner:
         return branches[0].name
 
 
-class RepositoryCloner:
-    """Service for cloning Git repositories."""
+class RepositoryClonerV2:
+    """Service for cloning Git repositories (V2)."""
 
     def __init__(self, git_adapter: GitAdapter, clone_base_path: Path) -> None:
         """Initialize the repository cloner.
@@ -227,9 +236,8 @@ class RepositoryCloner:
         self._log.info(f"Cloning repository: {remote_uri}")
 
         # Create local path for the repository
-        sanitized_uri = WorkingCopy.sanitize_git_url(str(remote_uri))
-        local_directory_name = repo_id_from_uri(sanitized_uri)
-        clone_path = self.clone_base_path / local_directory_name
+        working_copy = WorkingCopy(remote_uri)
+        clone_path = self.clone_base_path / working_copy.local_directory_name
 
         # Ensure the clone directory exists
         self.clone_base_path.mkdir(parents=True, exist_ok=True)

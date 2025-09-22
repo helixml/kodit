@@ -1,7 +1,7 @@
-"""Git domain entities."""
+"""Git domain entities - Lightweight version for improved performance."""
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 from hashlib import sha256
 from pathlib import Path
 
@@ -24,7 +24,7 @@ class GitFile(BaseModel):
 
     @property
     def id(self) -> str:
-        """Get the unique id for a tag."""
+        """Get the unique id for a file."""
         return self.blob_sha
 
     @staticmethod
@@ -36,31 +36,47 @@ class GitFile(BaseModel):
 
 
 class GitCommit(BaseModel):
-    """Commit domain entity."""
+    """Commit domain entity as its own aggregate root."""
 
-    created_at: datetime | None = None  # Is populated by repository
-    updated_at: datetime | None = None  # Is populated by repository
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
     commit_sha: str
+    repo_id: int = 0  # Will be set when saving
     date: datetime
     message: str
-    parent_commit_sha: str | None = None  # The first commit in the repo is None
+    parent_commit_sha: str | None = None
     files: list[GitFile]
     author: str
 
     @property
     def id(self) -> str:
-        """Get the unique id for a tag."""
+        """Get the unique id for a commit."""
         return self.commit_sha
 
 
-class GitTag(BaseModel):
-    """Git tag domain entity."""
+class GitBranch(BaseModel):
+    """Branch domain entity as its own aggregate root."""
 
-    created_at: datetime  # Is populated by repository
-    updated_at: datetime | None = None  # Is populated by repository
-    repo_id: int | None = None
-    name: str  # e.g., "v1.0.0", "release-2023"
-    target_commit: GitCommit  # The commit this tag points to
+    repo_id: int = 0  # Will be set when saving
+    name: str
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    head_commit_sha: str
+
+    @property
+    def id(self) -> str:
+        """Get the unique id for a branch."""
+        return f"{self.repo_id}-{self.name}"
+
+
+class GitTag(BaseModel):
+    """Tag domain entity as its own aggregate root."""
+
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    repo_id: int = 0  # Will be set when saving
+    name: str
+    target_commit_sha: str
 
     @property
     def id(self) -> str:
@@ -77,48 +93,21 @@ class GitTag(BaseModel):
         return bool(re.match(version_pattern, self.name))
 
 
-class GitBranch(BaseModel):
-    """Branch domain entity."""
-
-    repo_id: int | None = None  # primary key
-    name: str  # primary key
-    created_at: datetime | None = None  # Is populated by repository
-    updated_at: datetime | None = None  # Is populated by repository
-    head_commit: GitCommit
-
-
-@dataclass(frozen=True)
-class RepositoryScanResult:
-    """Immutable scan result containing all repository metadata."""
-
-    branches: list[GitBranch]
-    all_commits: list[GitCommit]
-    all_tags: list[GitTag]
-    scan_timestamp: datetime
-    total_files_across_commits: int
-
-
 class GitRepo(BaseModel):
-    """Repository domain entity."""
+    """Lightweight repository domain entity containing only essential metadata.
 
-    id: int | None = None  # Database-generated surrogate key
-    created_at: datetime | None = None  # Is populated by repository
-    updated_at: datetime | None = None  # Is populated by repository
-    sanitized_remote_uri: AnyUrl  # Business key for lookups
-    remote_uri: AnyUrl  # May include credentials
+    This replaces the old massive aggregate that contained all commits, branches,
+    tags, and files. Now it only contains repository metadata.
+    """
 
-    # The following may be empty when initially created
-    branches: list[GitBranch] = []
-    commits: list[GitCommit] = []
-    tags: list[GitTag] = []
+    id: int = 0  # Will be set by database
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    sanitized_remote_uri: AnyUrl
+    remote_uri: AnyUrl
     cloned_path: Path | None = None
-    tracking_branch: GitBranch | None = None
+    tracking_branch_name: str | None = None
     last_scanned_at: datetime | None = None
-
-    @staticmethod
-    def create_id(sanitized_remote_uri: AnyUrl) -> str:
-        """Create a unique business key for a repository (kept for compatibility)."""
-        return repo_id_from_uri(sanitized_remote_uri)
 
     @staticmethod
     def from_remote_uri(remote_uri: AnyUrl) -> "GitRepo":
@@ -128,38 +117,30 @@ class GitRepo(BaseModel):
             sanitized_remote_uri=WorkingCopy.sanitize_git_url(str(remote_uri)),
         )
 
-    def update_with_scan_result(self, scan_result: RepositoryScanResult) -> None:
-        """Update the GitRepo with a scan result."""
-        # Determine tracking branch (prefer main, then master, then first available)
-        if not self.tracking_branch:
-            tracking_branch = None
-            for preferred_name in ["main", "master"]:
-                tracking_branch = next(
-                    (b for b in scan_result.branches if b.name == preferred_name), None
-                )
-                if tracking_branch:
-                    break
+    @staticmethod
+    def create_id(sanitized_remote_uri: AnyUrl) -> str:
+        """Create a unique business key for a repository."""
+        return repo_id_from_uri(sanitized_remote_uri)
 
-            if not tracking_branch and scan_result.branches:
-                tracking_branch = scan_result.branches[0]
 
-            if not tracking_branch:
-                raise ValueError("No tracking branch found")
+@dataclass(frozen=True)
+class RepositoryScanResult:
+    """Immutable scan result containing all repository metadata."""
 
-            self.tracking_branch = tracking_branch
-
-        self.branches = scan_result.branches
-        self.last_scanned_at = datetime.now(UTC)
-        self.commits = scan_result.all_commits
-        self.tags = scan_result.all_tags
+    commits: list[GitCommit]
+    branches: list[GitBranch]
+    tags: list[GitTag]
+    scan_timestamp: datetime
+    total_files_across_commits: int
+    tracking_branch_name: str | None
 
 
 class CommitIndex(BaseModel):
     """Aggregate root for indexed commit data."""
 
     commit_sha: str
-    created_at: datetime | None = None  # Is populated by repository
-    updated_at: datetime | None = None  # Is populated by repository
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
     snippets: list["SnippetV2"]
     status: IndexStatus
     indexed_at: datetime | None = None
@@ -173,16 +154,16 @@ class CommitIndex(BaseModel):
 
     @property
     def id(self) -> str:
-        """Get the unique id for a tag."""
+        """Get the unique id for a commit index."""
         return self.commit_sha
 
 
 class SnippetV2(BaseModel):
     """Snippet domain entity."""
 
-    sha: str  # Content addressed ID to prevent duplicates and unnecessary updates
-    created_at: datetime | None = None  # Is populated by repository
-    updated_at: datetime | None = None  # Is populated by repository
+    sha: str
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
     derives_from: list[GitFile]
     content: str
     enrichments: list[Enrichment] = []

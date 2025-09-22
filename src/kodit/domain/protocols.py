@@ -11,8 +11,10 @@ from kodit.domain.entities import (
     TaskStatus,
 )
 from kodit.domain.entities.git import (
+    GitBranch,
     GitCommit,
     GitRepo,
+    GitTag,
     SnippetV2,
 )
 from kodit.domain.value_objects import (
@@ -83,44 +85,123 @@ class TaskStatusRepository(Protocol):
 class GitRepoRepository(ABC):
     """Repository pattern for GitRepo aggregate.
 
-    GitRepo is the aggregate root that owns branches, commits, and tags.
-    This repository handles persistence of the entire aggregate.
+    This is now a lightweight repository that handles only repository metadata,
+    not the full graph of commits, branches, and tags.
     """
 
     @abstractmethod
     async def save(self, repo: GitRepo) -> GitRepo:
-        """Save or update a repository with all its branches, commits, and tags.
-
-        This method persists the entire aggregate:
-        - The GitRepo entity itself
-        - All associated branches
-        - All associated commits
-        - All associated tags
-        """
+        """Save or update a repository (metadata only)."""
 
     @abstractmethod
     async def get_by_id(self, repo_id: int) -> GitRepo:
-        """Get repository by ID with all associated data."""
+        """Get repository by ID (metadata only)."""
 
     @abstractmethod
     async def get_by_uri(self, sanitized_uri: AnyUrl) -> GitRepo:
-        """Get repository by sanitized URI with all associated data."""
-
-    @abstractmethod
-    async def get_by_commit(self, commit_sha: str) -> GitRepo:
-        """Get repository by commit SHA with all associated data."""
+        """Get repository by sanitized URI (metadata only)."""
 
     @abstractmethod
     async def get_all(self) -> list[GitRepo]:
-        """Get all repositories."""
+        """Get all repositories (metadata only)."""
+
+    @abstractmethod
+    async def exists_by_uri(self, sanitized_uri: AnyUrl) -> bool:
+        """Check if repository exists by URI."""
 
     @abstractmethod
     async def delete(self, sanitized_uri: AnyUrl) -> bool:
-        """Delete a repository."""
+        """Delete a repository and all its associated data."""
+
+
+class GitCommitRepository(ABC):
+    """Repository pattern for GitCommit aggregate."""
 
     @abstractmethod
-    async def get_commit_by_sha(self, commit_sha: str) -> GitCommit:
-        """Get a specific commit by its SHA across all repositories."""
+    async def save_commits_bulk(self, commits: list[GitCommit]) -> None:
+        """Bulk save commits for efficiency."""
+
+    @abstractmethod
+    async def get_by_sha(self, commit_sha: str) -> GitCommit:
+        """Get a specific commit by its SHA with files."""
+
+    @abstractmethod
+    async def get_commits_for_repo(
+        self, repo_id: int, limit: int | None = None, offset: int = 0
+    ) -> list[GitCommit]:
+        """Get commits for a repository with optional pagination."""
+
+    @abstractmethod
+    async def get_commits_by_shas(self, commit_shas: list[str]) -> list[GitCommit]:
+        """Get multiple commits by their SHAs."""
+
+    @abstractmethod
+    async def get_commit_count_for_repo(self, repo_id: int) -> int:
+        """Get total count of commits for a repository."""
+
+    @abstractmethod
+    async def delete_commits_for_repo(self, repo_id: int) -> int:
+        """Delete all commits for a repository, return count deleted."""
+
+    @abstractmethod
+    async def commit_exists(self, commit_sha: str) -> bool:
+        """Check if a commit exists."""
+
+    @abstractmethod
+    async def get_repo_id_by_commit(self, commit_sha: str) -> int:
+        """Get the repository ID that contains a specific commit."""
+
+
+class GitBranchRepository(ABC):
+    """Repository pattern for GitBranch aggregate."""
+
+    @abstractmethod
+    async def save_branches_bulk(self, branches: list[GitBranch]) -> None:
+        """Bulk save branches for efficiency."""
+
+    @abstractmethod
+    async def get_branches_for_repo(self, repo_id: int) -> list[GitBranch]:
+        """Get all branches for a repository."""
+
+    @abstractmethod
+    async def get_branch_by_name(self, repo_id: int, name: str) -> GitBranch:
+        """Get a specific branch by repository ID and name."""
+
+    @abstractmethod
+    async def get_tracking_branch(self, repo_id: int) -> GitBranch | None:
+        """Get the tracking branch for a repository (main/master)."""
+
+    @abstractmethod
+    async def set_tracking_branch(self, repo_id: int, branch_name: str) -> None:
+        """Set the tracking branch for a repository."""
+
+    @abstractmethod
+    async def delete_branches_for_repo(self, repo_id: int) -> int:
+        """Delete all branches for a repository, return count deleted."""
+
+
+class GitTagRepository(ABC):
+    """Repository pattern for GitTag aggregate."""
+
+    @abstractmethod
+    async def save_tags_bulk(self, tags: list[GitTag]) -> None:
+        """Bulk save tags for efficiency."""
+
+    @abstractmethod
+    async def get_tags_for_repo(self, repo_id: int) -> list[GitTag]:
+        """Get all tags for a repository."""
+
+    @abstractmethod
+    async def get_tag_by_name(self, repo_id: int, name: str) -> GitTag:
+        """Get a specific tag by repository ID and name."""
+
+    @abstractmethod
+    async def get_version_tags_for_repo(self, repo_id: int) -> list[GitTag]:
+        """Get only version tags for a repository."""
+
+    @abstractmethod
+    async def delete_tags_for_repo(self, repo_id: int) -> int:
+        """Delete all tags for a repository, return count deleted."""
 
 
 class GitAdapter(ABC):

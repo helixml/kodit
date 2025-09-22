@@ -1,57 +1,45 @@
-"""SQLAlchemy implementation of lightweight Git repositories."""
+"""SQLAlchemy implementation of lightweight Git repositories.
+
+This module contains repository implementations that follow DDD principles
+with proper aggregate boundaries for improved performance.
+"""
 
 from collections.abc import Callable
 from typing import Any
 
 from pydantic import AnyUrl
-from sqlalchemy import delete, func, insert, select
+from sqlalchemy import delete, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.entities.git import GitBranch, GitCommit, GitRepo, GitTag
-from kodit.domain.protocols import (
-    GitBranchRepository,
-    GitCommitRepository,
-    GitRepoRepository,
-    GitTagRepository,
+from kodit.domain.entities.git_v2 import (
+    GitBranchV2,
+    GitCommitV2,
+    GitRepositoryV2,
+    GitTagV2,
 )
-from kodit.infrastructure.mappers.git_mapper import GitMapper
+from kodit.domain.protocols_v2 import (
+    GitBranchRepositoryV2,
+    GitCommitRepositoryV2,
+    GitRepositoryRepositoryV2,
+    GitTagRepositoryV2,
+)
+from kodit.infrastructure.mappers.git_mapper_v2 import GitMapperV2
 from kodit.infrastructure.sqlalchemy import entities as db_entities
 from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 
 
-def create_git_repo_repository(
+def create_git_repository_repository_v2(
     session_factory: Callable[[], AsyncSession],
-) -> GitRepoRepository:
+) -> GitRepositoryRepositoryV2:
     """Create a lightweight git repository."""
-    return SqlAlchemyGitRepoRepository(session_factory=session_factory)
+    return SqlAlchemyGitRepositoryRepositoryV2(session_factory=session_factory)
 
 
-def create_git_commit_repository(
-    session_factory: Callable[[], AsyncSession],
-) -> GitCommitRepository:
-    """Create a git commit repository."""
-    return SqlAlchemyGitCommitRepository(session_factory=session_factory)
+class SqlAlchemyGitRepositoryRepositoryV2(GitRepositoryRepositoryV2):
+    """SQLAlchemy implementation of GitRepositoryRepositoryV2.
 
-
-def create_git_branch_repository(
-    session_factory: Callable[[], AsyncSession],
-) -> GitBranchRepository:
-    """Create a git branch repository."""
-    return SqlAlchemyGitBranchRepository(session_factory=session_factory)
-
-
-def create_git_tag_repository(
-    session_factory: Callable[[], AsyncSession],
-) -> GitTagRepository:
-    """Create a git tag repository."""
-    return SqlAlchemyGitTagRepository(session_factory=session_factory)
-
-
-class SqlAlchemyGitRepoRepository(GitRepoRepository):
-    """SQLAlchemy implementation of GitRepoRepository.
-
-    This repository manages only the GitRepo metadata,
-    focusing on essential repository information for optimal performance.
+    This repository manages only the GitRepositoryV2 aggregate,
+    focusing on essential repository metadata for optimal performance.
     """
 
     def __init__(self, session_factory: Callable[[], AsyncSession]) -> None:
@@ -59,10 +47,10 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
         self.session_factory = session_factory
 
     @property
-    def _mapper(self) -> GitMapper:
-        return GitMapper()
+    def _mapper(self) -> GitMapperV2:
+        return GitMapperV2()
 
-    async def save(self, repo: GitRepo) -> GitRepo:
+    async def save(self, repo: GitRepositoryV2) -> GitRepositoryV2:
         """Save or update a repository (metadata only)."""
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             # Check if repo exists by URI (for new repos from domain)
@@ -94,7 +82,7 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
             await session.flush()
             return repo
 
-    async def get_by_id(self, repo_id: int) -> GitRepo:
+    async def get_by_id(self, repo_id: int) -> GitRepositoryV2:
         """Get repository by ID (metadata only)."""
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             db_repo = await session.get(db_entities.GitRepo, repo_id)
@@ -109,11 +97,9 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
             )
             tracking_branch_name = tracking_branch.name if tracking_branch else None
 
-            return self._mapper.to_domain_git_repo_lightweight(
-                db_repo, tracking_branch_name
-            )
+            return self._mapper.to_domain_git_repository(db_repo, tracking_branch_name)
 
-    async def get_by_uri(self, sanitized_uri: AnyUrl) -> GitRepo:
+    async def get_by_uri(self, sanitized_uri: AnyUrl) -> GitRepositoryV2:
         """Get repository by sanitized URI (metadata only)."""
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             stmt = select(db_entities.GitRepo).where(
@@ -131,11 +117,9 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
             )
             tracking_branch_name = tracking_branch.name if tracking_branch else None
 
-            return self._mapper.to_domain_git_repo_lightweight(
-                db_repo, tracking_branch_name
-            )
+            return self._mapper.to_domain_git_repository(db_repo, tracking_branch_name)
 
-    async def get_all(self) -> list[GitRepo]:
+    async def get_all(self) -> list[GitRepositoryV2]:
         """Get all repositories (metadata only)."""
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             stmt = select(db_entities.GitRepo)
@@ -153,7 +137,7 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
                     tracking_branch.name if tracking_branch else None
                 )
 
-                repo = self._mapper.to_domain_git_repo_lightweight(
+                repo = self._mapper.to_domain_git_repository(
                     db_repo, tracking_branch_name
                 )
                 repositories.append(repo)
@@ -170,7 +154,11 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
             return result is not None
 
     async def delete(self, sanitized_uri: AnyUrl) -> bool:
-        """Delete a repository and all its associated data."""
+        """Delete a repository and all its associated data.
+
+        Note: This method coordinates deletion across all related aggregates
+        but maintains transactional consistency.
+        """
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             # Find the repo
             stmt = select(db_entities.GitRepo).where(
@@ -183,7 +171,12 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
             repo_id = db_repo.id
 
             # Delete in order to respect foreign keys
+            # This temporarily handles cleanup across aggregates until we have
+            # proper domain services for coordinating deletions
+
             # 1. Delete commit-file associations
+            from sqlalchemy import delete
+
             commit_shas_stmt = select(db_entities.GitCommit.commit_sha).where(
                 db_entities.GitCommit.repo_id == repo_id
             )
@@ -228,18 +221,29 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
             return True
 
 
-class SqlAlchemyGitCommitRepository(GitCommitRepository):
-    """SQLAlchemy implementation of GitCommitRepository."""
+def create_git_commit_repository_v2(
+    session_factory: Callable[[], AsyncSession],
+) -> GitCommitRepositoryV2:
+    """Create a git commit repository."""
+    return SqlAlchemyGitCommitRepositoryV2(session_factory=session_factory)
+
+
+class SqlAlchemyGitCommitRepositoryV2(GitCommitRepositoryV2):
+    """SQLAlchemy implementation of GitCommitRepositoryV2.
+
+    This repository manages GitCommitV2 aggregates with their associated files,
+    providing efficient operations for individual commits.
+    """
 
     def __init__(self, session_factory: Callable[[], AsyncSession]) -> None:
         """Initialize the repository."""
         self.session_factory = session_factory
 
     @property
-    def _mapper(self) -> GitMapper:
-        return GitMapper()
+    def _mapper(self) -> GitMapperV2:
+        return GitMapperV2()
 
-    async def save_commits_bulk(self, commits: list[GitCommit]) -> None:
+    async def save_commits_bulk(self, commits: list[GitCommitV2]) -> None:
         """Bulk save commits for efficiency."""
         if not commits:
             return
@@ -273,19 +277,19 @@ class SqlAlchemyGitCommitRepository(GitCommitRepository):
                     )
 
                     # Add file data for this commit
-                    new_files.extend([
-                        {
-                            "commit_sha": commit.commit_sha,
-                            "repo_id": commit.repo_id,
-                            "path": file.path,
-                            "blob_sha": file.blob_sha,
-                            "extension": file.extension,
-                            "mime_type": file.mime_type,
-                            "size": file.size,
-                            "created_at": file.created_at,
-                        }
-                        for file in commit.files
-                    ])
+                    for file in commit.files:
+                        new_files.append(
+                            {
+                                "commit_sha": commit.commit_sha,
+                                "repo_id": commit.repo_id,
+                                "path": file.path,
+                                "blob_sha": file.blob_sha,
+                                "extension": file.extension,
+                                "mime_type": file.mime_type,
+                                "size": file.size,
+                                "created_at": file.created_at,
+                            }
+                        )
 
             # Bulk insert commits
             if new_commits:
@@ -306,7 +310,7 @@ class SqlAlchemyGitCommitRepository(GitCommitRepository):
             stmt = insert(db_entities.GitCommitFile).values(chunk)
             await session.execute(stmt)
 
-    async def get_by_sha(self, commit_sha: str) -> GitCommit:
+    async def get_by_sha(self, commit_sha: str) -> GitCommitV2:
         """Get a specific commit by its SHA with files."""
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             # Get the commit
@@ -327,7 +331,7 @@ class SqlAlchemyGitCommitRepository(GitCommitRepository):
 
     async def get_commits_for_repo(
         self, repo_id: int, limit: int | None = None, offset: int = 0
-    ) -> list[GitCommit]:
+    ) -> list[GitCommitV2]:
         """Get commits for a repository with optional pagination."""
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             # Get commits
@@ -350,7 +354,7 @@ class SqlAlchemyGitCommitRepository(GitCommitRepository):
             db_files = (await session.scalars(files_stmt)).all()
 
             # Group files by commit SHA
-            files_by_commit: dict[str, list[db_entities.GitCommitFile]] = {}
+            files_by_commit = {}
             for db_file in db_files:
                 if db_file.commit_sha not in files_by_commit:
                     files_by_commit[db_file.commit_sha] = []
@@ -367,7 +371,7 @@ class SqlAlchemyGitCommitRepository(GitCommitRepository):
 
             return domain_commits
 
-    async def get_commits_by_shas(self, commit_shas: list[str]) -> list[GitCommit]:
+    async def get_commits_by_shas(self, commit_shas: list[str]) -> list[GitCommitV2]:
         """Get multiple commits by their SHAs."""
         if not commit_shas:
             return []
@@ -389,7 +393,7 @@ class SqlAlchemyGitCommitRepository(GitCommitRepository):
             db_files = (await session.scalars(files_stmt)).all()
 
             # Group files by commit SHA
-            files_by_commit: dict[str, list[db_entities.GitCommitFile]] = {}
+            files_by_commit = {}
             for db_file in db_files:
                 if db_file.commit_sha not in files_by_commit:
                     files_by_commit[db_file.commit_sha] = []
@@ -409,6 +413,8 @@ class SqlAlchemyGitCommitRepository(GitCommitRepository):
     async def get_commit_count_for_repo(self, repo_id: int) -> int:
         """Get total count of commits for a repository."""
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
+            from sqlalchemy import func
+
             stmt = select(func.count(db_entities.GitCommit.commit_sha)).where(
                 db_entities.GitCommit.repo_id == repo_id
             )
@@ -463,49 +469,63 @@ class SqlAlchemyGitCommitRepository(GitCommitRepository):
             return result
 
 
-class SqlAlchemyGitBranchRepository(GitBranchRepository):
-    """SQLAlchemy implementation of GitBranchRepository."""
+def create_git_branch_repository_v2(
+    session_factory: Callable[[], AsyncSession],
+) -> GitBranchRepositoryV2:
+    """Create a git branch repository."""
+    return SqlAlchemyGitBranchRepositoryV2(session_factory=session_factory)
+
+
+class SqlAlchemyGitBranchRepositoryV2(GitBranchRepositoryV2):
+    """SQLAlchemy implementation of GitBranchRepositoryV2."""
 
     def __init__(self, session_factory: Callable[[], AsyncSession]) -> None:
         """Initialize the repository."""
         self.session_factory = session_factory
 
     @property
-    def _mapper(self) -> GitMapper:
-        return GitMapper()
+    def _mapper(self) -> GitMapperV2:
+        return GitMapperV2()
 
-    async def save_branches_bulk(self, branches: list[GitBranch]) -> None:
+    async def save_branches_bulk(self, branches: list[GitBranchV2]) -> None:
         """Bulk save branches for efficiency."""
         if not branches:
             return
 
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
-            # Check existing branches (repo_id + name combinations)
+            # Get existing branches for each repo
+            repo_branch_pairs = [(branch.repo_id, branch.name) for branch in branches]
+
+            if not repo_branch_pairs:
+                return
+
+            # Check existing branches (we need to check repo_id + name combinations)
             existing_branches = set()
-            for branch in branches:
+            for repo_id, branch_name in repo_branch_pairs:
                 existing_branch = await session.get(
-                    db_entities.GitBranch, [branch.repo_id, branch.name]
+                    db_entities.GitBranch, [repo_id, branch_name]
                 )
                 if existing_branch:
-                    existing_branches.add((branch.repo_id, branch.name))
+                    existing_branches.add((repo_id, branch_name))
 
             # Prepare new branches for bulk insert
-            new_branches = [
-                {
-                    "repo_id": branch.repo_id,
-                    "name": branch.name,
-                    "head_commit_sha": branch.head_commit_sha,
-                }
-                for branch in branches
-                if (branch.repo_id, branch.name) not in existing_branches
-            ]
+            new_branches = []
+            for branch in branches:
+                if (branch.repo_id, branch.name) not in existing_branches:
+                    new_branches.append(
+                        {
+                            "repo_id": branch.repo_id,
+                            "name": branch.name,
+                            "head_commit_sha": branch.head_commit_sha,
+                        }
+                    )
 
             # Bulk insert new branches
             if new_branches:
                 stmt = insert(db_entities.GitBranch).values(new_branches)
                 await session.execute(stmt)
 
-    async def get_branches_for_repo(self, repo_id: int) -> list[GitBranch]:
+    async def get_branches_for_repo(self, repo_id: int) -> list[GitBranchV2]:
         """Get all branches for a repository."""
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             stmt = select(db_entities.GitBranch).where(
@@ -514,7 +534,7 @@ class SqlAlchemyGitBranchRepository(GitBranchRepository):
             db_branches = (await session.scalars(stmt)).all()
             return [self._mapper.to_domain_git_branch(branch) for branch in db_branches]
 
-    async def get_branch_by_name(self, repo_id: int, name: str) -> GitBranch:
+    async def get_branch_by_name(self, repo_id: int, name: str) -> GitBranchV2:
         """Get a specific branch by repository ID and name."""
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             db_branch = await session.get(db_entities.GitBranch, [repo_id, name])
@@ -522,7 +542,7 @@ class SqlAlchemyGitBranchRepository(GitBranchRepository):
                 raise ValueError(f"Branch '{name}' not found in repository {repo_id}")
             return self._mapper.to_domain_git_branch(db_branch)
 
-    async def get_tracking_branch(self, repo_id: int) -> GitBranch | None:
+    async def get_tracking_branch(self, repo_id: int) -> GitBranchV2 | None:
         """Get the tracking branch for a repository (main/master)."""
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             # First check if there's a specific tracking branch set
@@ -586,18 +606,25 @@ class SqlAlchemyGitBranchRepository(GitBranchRepository):
             return result.rowcount or 0
 
 
-class SqlAlchemyGitTagRepository(GitTagRepository):
-    """SQLAlchemy implementation of GitTagRepository."""
+def create_git_tag_repository_v2(
+    session_factory: Callable[[], AsyncSession],
+) -> GitTagRepositoryV2:
+    """Create a git tag repository."""
+    return SqlAlchemyGitTagRepositoryV2(session_factory=session_factory)
+
+
+class SqlAlchemyGitTagRepositoryV2(GitTagRepositoryV2):
+    """SQLAlchemy implementation of GitTagRepositoryV2."""
 
     def __init__(self, session_factory: Callable[[], AsyncSession]) -> None:
         """Initialize the repository."""
         self.session_factory = session_factory
 
     @property
-    def _mapper(self) -> GitMapper:
-        return GitMapper()
+    def _mapper(self) -> GitMapperV2:
+        return GitMapperV2()
 
-    async def save_tags_bulk(self, tags: list[GitTag]) -> None:
+    async def save_tags_bulk(self, tags: list[GitTagV2]) -> None:
         """Bulk save tags for efficiency."""
         if not tags:
             return
@@ -613,22 +640,23 @@ class SqlAlchemyGitTagRepository(GitTagRepository):
                     existing_tags.add((tag.repo_id, tag.name))
 
             # Prepare new tags for bulk insert
-            new_tags = [
-                {
-                    "repo_id": tag.repo_id,
-                    "name": tag.name,
-                    "target_commit_sha": tag.target_commit_sha,
-                }
-                for tag in tags
-                if (tag.repo_id, tag.name) not in existing_tags
-            ]
+            new_tags = []
+            for tag in tags:
+                if (tag.repo_id, tag.name) not in existing_tags:
+                    new_tags.append(
+                        {
+                            "repo_id": tag.repo_id,
+                            "name": tag.name,
+                            "target_commit_sha": tag.target_commit_sha,
+                        }
+                    )
 
             # Bulk insert new tags
             if new_tags:
                 stmt = insert(db_entities.GitTag).values(new_tags)
                 await session.execute(stmt)
 
-    async def get_tags_for_repo(self, repo_id: int) -> list[GitTag]:
+    async def get_tags_for_repo(self, repo_id: int) -> list[GitTagV2]:
         """Get all tags for a repository."""
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             stmt = select(db_entities.GitTag).where(
@@ -637,7 +665,7 @@ class SqlAlchemyGitTagRepository(GitTagRepository):
             db_tags = (await session.scalars(stmt)).all()
             return [self._mapper.to_domain_git_tag(tag) for tag in db_tags]
 
-    async def get_tag_by_name(self, repo_id: int, name: str) -> GitTag:
+    async def get_tag_by_name(self, repo_id: int, name: str) -> GitTagV2:
         """Get a specific tag by repository ID and name."""
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             db_tag = await session.get(db_entities.GitTag, [repo_id, name])
@@ -645,7 +673,7 @@ class SqlAlchemyGitTagRepository(GitTagRepository):
                 raise ValueError(f"Tag '{name}' not found in repository {repo_id}")
             return self._mapper.to_domain_git_tag(db_tag)
 
-    async def get_version_tags_for_repo(self, repo_id: int) -> list[GitTag]:
+    async def get_version_tags_for_repo(self, repo_id: int) -> list[GitTagV2]:
         """Get only version tags for a repository."""
         all_tags = await self.get_tags_for_repo(repo_id)
         return [tag for tag in all_tags if tag.is_version_tag]

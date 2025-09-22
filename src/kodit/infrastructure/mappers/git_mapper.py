@@ -69,7 +69,7 @@ class GitMapper:
                 name=db_branch.name,
                 created_at=db_branch.created_at,
                 updated_at=db_branch.updated_at,
-                head_commit=commit_map[db_branch.head_commit_sha],
+                head_commit_sha=db_branch.head_commit_sha,
             )
             domain_branches.append(domain_branch)
         return domain_branches
@@ -92,7 +92,7 @@ class GitMapper:
                 updated_at=db_tag.updated_at,
                 repo_id=db_tag.repo_id,
                 name=db_tag.name,
-                target_commit=commit_map[db_tag.target_commit_sha],
+                target_commit_sha=db_tag.target_commit_sha,
             )
             domain_tags.append(domain_tag)
         return domain_tags
@@ -126,7 +126,7 @@ class GitMapper:
         domain_branches = self.to_domain_branches(
             db_branches=db_branches, domain_commits=domain_commits
         )
-        domain_tags = self.to_domain_tags(
+        self.to_domain_tags(
             db_tags=db_tags, domain_commits=domain_commits
         )
         tracking_branch = self.to_domain_tracking_branch(
@@ -138,12 +138,9 @@ class GitMapper:
             created_at=db_repo.created_at,
             updated_at=db_repo.updated_at,
             sanitized_remote_uri=AnyUrl(db_repo.sanitized_remote_uri),
-            branches=domain_branches,
-            commits=domain_commits,
-            tags=domain_tags,
-            tracking_branch=tracking_branch,
-            cloned_path=Path(db_repo.cloned_path) if db_repo.cloned_path else None,
             remote_uri=AnyUrl(db_repo.remote_uri),
+            cloned_path=Path(db_repo.cloned_path) if db_repo.cloned_path else None,
+            tracking_branch_name=tracking_branch.name if tracking_branch else None,
             last_scanned_at=db_repo.last_scanned_at,
         )
 
@@ -176,4 +173,75 @@ class GitMapper:
             error_message=domain_commit_index.error_message,
             files_processed=domain_commit_index.files_processed,
             processing_time_seconds=domain_commit_index.processing_time_seconds,
+        )
+
+    def to_domain_git_repo_lightweight(
+        self,
+        db_repo: db_entities.GitRepo,
+        tracking_branch_name: str | None = None,
+    ) -> domain_git_entities.GitRepo:
+        """Convert SQLAlchemy GitRepo to lightweight domain GitRepo."""
+        return domain_git_entities.GitRepo(
+            id=db_repo.id,
+            created_at=db_repo.created_at,
+            updated_at=db_repo.updated_at,
+            sanitized_remote_uri=AnyUrl(db_repo.sanitized_remote_uri),
+            remote_uri=AnyUrl(db_repo.remote_uri),
+            cloned_path=db_repo.cloned_path,
+            tracking_branch_name=tracking_branch_name,
+            last_scanned_at=db_repo.last_scanned_at,
+        )
+
+    def to_domain_git_commit(
+        self,
+        db_commit: db_entities.GitCommit,
+        db_files: list[db_entities.GitCommitFile],
+    ) -> domain_git_entities.GitCommit:
+        """Convert SQLAlchemy GitCommit to domain GitCommit."""
+        domain_files = [
+            domain_git_entities.GitFile(
+                created_at=db_file.created_at,
+                blob_sha=db_file.blob_sha,
+                path=db_file.path,
+                mime_type=db_file.mime_type,
+                size=db_file.size,
+                extension=db_file.extension,
+            )
+            for db_file in db_files
+        ]
+
+        return domain_git_entities.GitCommit(
+            created_at=db_commit.created_at,
+            updated_at=db_commit.updated_at,
+            commit_sha=db_commit.commit_sha,
+            repo_id=db_commit.repo_id,
+            date=db_commit.date,
+            message=db_commit.message,
+            parent_commit_sha=db_commit.parent_commit_sha,
+            files=domain_files,
+            author=db_commit.author,
+        )
+
+    def to_domain_git_branch(
+        self, db_branch: db_entities.GitBranch
+    ) -> domain_git_entities.GitBranch:
+        """Convert SQLAlchemy GitBranch to domain GitBranch."""
+        return domain_git_entities.GitBranch(
+            repo_id=db_branch.repo_id,
+            name=db_branch.name,
+            created_at=db_branch.created_at,
+            updated_at=db_branch.updated_at,
+            head_commit_sha=db_branch.head_commit_sha,
+        )
+
+    def to_domain_git_tag(
+        self, db_tag: db_entities.GitTag
+    ) -> domain_git_entities.GitTag:
+        """Convert SQLAlchemy GitTag to domain GitTag."""
+        return domain_git_entities.GitTag(
+            created_at=db_tag.created_at,
+            updated_at=db_tag.updated_at,
+            repo_id=db_tag.repo_id,
+            name=db_tag.name,
+            target_commit_sha=db_tag.target_commit_sha,
         )

@@ -15,7 +15,12 @@ from kodit.application.services.commit_indexing_application_service import (
 )
 from kodit.application.services.queue_service import QueueService
 from kodit.config import AppContext
-from kodit.domain.protocols import GitRepoRepository
+from kodit.domain.protocols import (
+    GitBranchRepository,
+    GitCommitRepository,
+    GitRepoRepository,
+    GitTagRepository,
+)
 from kodit.domain.services.task_status_query_service import TaskStatusQueryService
 from kodit.infrastructure.sqlalchemy.task_status_repository import (
     create_task_status_repository,
@@ -90,6 +95,40 @@ async def get_git_repository(
 
 
 GitRepositoryDep = Annotated[GitRepoRepository, Depends(get_git_repository)]
+
+
+async def get_git_branch_repository(
+    server_factory: ServerFactoryDep,
+) -> GitBranchRepository:
+    """Get git branch repository dependency."""
+    return server_factory.branch_repository()
+
+
+GitBranchRepositoryDep = Annotated[
+    GitBranchRepository, Depends(get_git_branch_repository)
+]
+
+
+async def get_git_commit_repository(
+    server_factory: ServerFactoryDep,
+) -> GitCommitRepository:
+    """Get git commit repository dependency."""
+    return server_factory.commit_repository()
+
+
+GitCommitRepositoryDep = Annotated[
+    GitCommitRepository, Depends(get_git_commit_repository)
+]
+
+
+async def get_git_tag_repository(
+    server_factory: ServerFactoryDep,
+) -> GitTagRepository:
+    """Get git tag repository dependency."""
+    return server_factory.tag_repository()
+
+
+GitTagRepositoryDep = Annotated[GitTagRepository, Depends(get_git_tag_repository)]
 
 
 async def get_commit_indexing_app_service(

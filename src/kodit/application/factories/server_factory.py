@@ -18,7 +18,10 @@ from kodit.config import AppContext
 from kodit.domain.protocols import (
     FusionService,
     GitAdapter,
+    GitBranchRepository,
+    GitCommitRepository,
     GitRepoRepository,
+    GitTagRepository,
     SnippetRepositoryV2,
     TaskStatusRepository,
 )
@@ -40,15 +43,18 @@ from kodit.infrastructure.embedding.embedding_factory import (
 from kodit.infrastructure.enrichment.enrichment_factory import (
     enrichment_domain_service_factory,
 )
-
-# InMemoryGitTagRepository removed - now handled by InMemoryGitRepoRepository
 from kodit.infrastructure.indexing.fusion_service import ReciprocalRankFusionService
 from kodit.infrastructure.slicing.slicer import Slicer
 from kodit.infrastructure.sqlalchemy.embedding_repository import (
     SqlAlchemyEmbeddingRepository,
     create_embedding_repository,
 )
-from kodit.infrastructure.sqlalchemy.git_repository import create_git_repo_repository
+from kodit.infrastructure.sqlalchemy.git_repository import (
+    create_git_branch_repository,
+    create_git_commit_repository,
+    create_git_repo_repository,
+    create_git_tag_repository,
+)
 from kodit.infrastructure.sqlalchemy.snippet_v2_repository import (
     create_snippet_v2_repository,
 )
@@ -70,6 +76,9 @@ class ServerFactory:
         self.app_context = app_context
         self.session_factory = session_factory
         self._repo_repository: GitRepoRepository | None = None
+        self._commit_repository: GitCommitRepository | None = None
+        self._branch_repository: GitBranchRepository | None = None
+        self._tag_repository: GitTagRepository | None = None
         self._snippet_v2_repository: SnippetRepositoryV2 | None = None
         self._git_adapter: GitAdapter | None = None
         self._scanner: GitRepositoryScanner | None = None
@@ -163,10 +172,12 @@ class ServerFactory:
                 CommitIndexingApplicationService(
                     snippet_v2_repository=self.snippet_v2_repository(),
                     repo_repository=self.repo_repository(),
+                    commit_repository=self.commit_repository(),
+                    branch_repository=self.branch_repository(),
+                    tag_repository=self.tag_repository(),
                     operation=self.operation(),
                     scanner=self.scanner(),
                     cloner=self.cloner(),
-                    snippet_repository=self.snippet_v2_repository(),
                     slicer=self.slicer(),
                     queue=self.queue_service(),
                     bm25_service=self.bm25_service(),
@@ -191,8 +202,29 @@ class ServerFactory:
             )
         return self._repo_repository
 
-    # branch_repository and commit_repository removed - now handled by repo_repository
-    # as GitRepo is the aggregate root
+    def commit_repository(self) -> GitCommitRepository:
+        """Create a GitCommitRepository instance."""
+        if not self._commit_repository:
+            self._commit_repository = create_git_commit_repository(
+                session_factory=self.session_factory
+            )
+        return self._commit_repository
+
+    def branch_repository(self) -> GitBranchRepository:
+        """Create a GitBranchRepository instance."""
+        if not self._branch_repository:
+            self._branch_repository = create_git_branch_repository(
+                session_factory=self.session_factory
+            )
+        return self._branch_repository
+
+    def tag_repository(self) -> GitTagRepository:
+        """Create a GitTagRepository instance."""
+        if not self._tag_repository:
+            self._tag_repository = create_git_tag_repository(
+                session_factory=self.session_factory
+            )
+        return self._tag_repository
 
     def git_adapter(self) -> GitAdapter:
         """Create a GitAdapter instance."""
@@ -200,12 +232,11 @@ class ServerFactory:
             self._git_adapter = GitPythonAdapter()
         return self._git_adapter
 
-    # tag_repository removed - now handled by repo_repository
-
     def scanner(self) -> GitRepositoryScanner:
         """Create a GitRepositoryScanner instance."""
         if not self._scanner:
-            self._scanner = GitRepositoryScanner(self.git_adapter())
+            # Generic scanner - specific repo scanners are created per operation
+            self._scanner = GitRepositoryScanner(self.git_adapter(), repo_id=0)
         return self._scanner
 
     def cloner(self) -> RepositoryCloner:

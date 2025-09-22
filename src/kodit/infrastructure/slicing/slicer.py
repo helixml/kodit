@@ -150,13 +150,17 @@ class Slicer:
         self.log = structlog.get_logger(__name__)
 
     def extract_snippets_from_git_files(  # noqa: C901
-        self, files: list[GitFile], language: str = "python"
+        self,
+        files: list[GitFile],
+        language: str,
+        repo_path: Path,
     ) -> list[SnippetV2]:
         """Extract code snippets from a list of files.
 
         Args:
             files: List of domain File objects to analyze
             language: Programming language for analysis
+            repo_path: Base path of the repository
 
         Returns:
             List of extracted code snippets as domain entities
@@ -190,7 +194,7 @@ class Slicer:
         path_to_file_map: dict[Path, GitFile] = {}
         file_paths: list[Path] = []
         for file in files:
-            file_path = Path(file.path)
+            file_path = repo_path / file.path
 
             # Validate file matches language
             if not self._file_matches_language(file_path.suffix, language):

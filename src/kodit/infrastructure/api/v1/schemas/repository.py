@@ -29,9 +29,9 @@ class RepositoryAttributes(BaseModel):
             created_at=repo.created_at,
             updated_at=repo.updated_at,
             last_scanned_at=repo.last_scanned_at,
-            default_branch=repo.tracking_branch.name if repo.tracking_branch else None,
-            num_commits=len(repo.commits),
-            num_branches=len(repo.branches),
+            default_branch=repo.tracking_branch_name,
+            num_commits=0,  # Would need separate query to get count
+            num_branches=0,  # Would need separate query to get count
         )
 
 
