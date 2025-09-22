@@ -11,6 +11,7 @@ fi
 
 # Disable telemetry
 export DISABLE_TELEMETRY=true
+export LOG_LEVEL=DEBUG
 
 # Check that the kodit data_dir does not exist
 if [ -d "$HOME/.kodit" ]; then
@@ -45,7 +46,7 @@ wait_for_server() {
         ((attempt++))
     done
     echo "Server failed to start"
-    exit 1
+    return 1
 }
 
 # Wait for server to be ready
@@ -74,6 +75,3 @@ if [ -n "$SERVER_PID" ]; then
     kill $SERVER_PID 2>/dev/null || true
     wait $SERVER_PID 2>/dev/null || true
 fi
-
-echo "--------------------------------"
-echo "API tests completed"
