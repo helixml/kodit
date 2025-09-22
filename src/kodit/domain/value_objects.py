@@ -655,7 +655,6 @@ class PrescribedOperations:
 
     CREATE_NEW_REPOSITORY: ClassVar[list[TaskOperation]] = [
         TaskOperation.CLONE_REPOSITORY,
-        TaskOperation.SCAN_REPOSITORY,
     ]
     INDEX_COMMIT: ClassVar[list[TaskOperation]] = [
         TaskOperation.EXTRACT_SNIPPETS_FOR_COMMIT,

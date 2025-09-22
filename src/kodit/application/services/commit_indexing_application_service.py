@@ -159,6 +159,11 @@ class CommitIndexingApplicationService:
             repo = await self.repo_repository.get_by_id(repository_id)
             repo.cloned_path = await self.cloner.clone_repository(repo.remote_uri)
             await self.repo_repository.save(repo)
+            await self.queue.enqueue_tasks(
+                tasks=PrescribedOperations.SYNC_REPOSITORY,
+                base_priority=QueuePriority.BACKGROUND,
+                payload={"repository_id": repository_id},
+            )
 
     async def process_scan_repo(self, repository_id: int) -> None:
         """Scan a repository."""
@@ -168,8 +173,19 @@ class CommitIndexingApplicationService:
             trackable_id=repository_id,
         ):
             repo = await self.repo_repository.get_by_id(repository_id)
-            if not repo.cloned_path:
-                raise ValueError(f"Repository {repository_id} has never been cloned")
+            if not repo.cloned_path or not repo.cloned_path.exists():
+                self._log.info(
+                    "Repository hasn't been cloned or has been deleted. "
+                    "Enqueuing clone task...",
+                    repository_id=repository_id,
+                )
+                await self.queue.enqueue_tasks(
+                    tasks=PrescribedOperations.CREATE_NEW_REPOSITORY,
+                    base_priority=QueuePriority.BACKGROUND,
+                    payload={"repository_id": repository_id},
+                )
+                return
+
             repo.update_with_scan_result(
                 await self.scanner.scan_repository(repo.cloned_path)
             )
@@ -242,6 +258,11 @@ class CommitIndexingApplicationService:
             self._log.info(
                 f"Saving {len(all_snippets)} snippets for commit {commit.commit_sha}"
             )
+            # Remove duplicates by their sha
+            all_snippets = list(
+                {snippet.sha: snippet for snippet in all_snippets}.values()
+            )
+
             await self.snippet_repository.save_snippets(commit.commit_sha, all_snippets)
 
     async def process_bm25_index(self, repository_id: int, commit_sha: str) -> None:
