@@ -355,6 +355,7 @@ class GitCommitFile(Base):
     commit_sha: Mapped[str] = mapped_column(
         ForeignKey("git_commits.commit_sha"), primary_key=True
     )
+    repo_id: Mapped[int] = mapped_column(ForeignKey("git_repos.id"), index=True)
     path: Mapped[str] = mapped_column(String(1024), primary_key=True)
     blob_sha: Mapped[str] = mapped_column(String(64), index=True)
     mime_type: Mapped[str] = mapped_column(String(255), index=True)

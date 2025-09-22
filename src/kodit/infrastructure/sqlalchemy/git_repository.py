@@ -177,6 +177,7 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
                     new_files.append(
                         {
                             "commit_sha": commit.commit_sha,
+                            "repo_id": repo.id,
                             "path": file.path,
                             "blob_sha": file.blob_sha,
                             "extension": file.extension,
@@ -455,9 +456,7 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
             (
                 await session.scalars(
                     select(db_entities.GitCommitFile).where(
-                        db_entities.GitCommitFile.commit_sha.in_(
-                            [commit.commit_sha for commit in all_commits]
-                        )
+                        db_entities.GitCommitFile.repo_id == db_repo.id
                     )
                 )
             ).all()
