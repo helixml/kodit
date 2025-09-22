@@ -73,6 +73,7 @@ apt-get update -qy
 apt-get install -qyy \
     -o APT::Install-Recommends=false \
     -o APT::Install-Suggests=false \
+    curl \
     git 
 EOT
 
