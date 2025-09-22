@@ -14,6 +14,51 @@ from git import Blob, InvalidGitRepositoryError, Repo, Tree
 from kodit.domain.protocols import GitAdapter
 
 
+def _collect_unique_commits(repo: Repo, log: Any) -> set:
+    """Collect all unique commits from all branches."""
+    all_commits = set()
+
+    # Collect from local branches
+    for branch in repo.branches:
+        for commit in repo.iter_commits(branch):
+            all_commits.add(commit)
+
+    # Collect from remote branches
+    for remote in repo.remotes:
+        for ref in remote.refs:
+            if ref.name != f"{remote.name}/HEAD":
+                try:
+                    for commit in repo.iter_commits(ref):
+                        all_commits.add(commit)
+                except Exception as e:  # noqa: BLE001
+                    log.debug("Skipping ref %s: %s", ref.name, e)
+                    continue
+
+    return all_commits
+
+
+def _process_commits(all_commits: set) -> dict[str, dict[str, Any]]:
+    """Process commits into the final format."""
+    commits_map = {}
+    for commit in all_commits:
+        parent_sha = ""
+        if commit.parents:
+            parent_sha = commit.parents[0].hexsha
+
+        commits_map[commit.hexsha] = {
+            "sha": commit.hexsha,
+            "date": datetime.fromtimestamp(commit.committed_date, UTC),
+            "message": commit.message.strip(),
+            "parent_sha": parent_sha,
+            "author_name": commit.author.name,
+            "author_email": commit.author.email,
+            "committer_name": commit.committer.name,
+            "committer_email": commit.committer.email,
+            "tree_sha": commit.tree.hexsha,
+        }
+    return commits_map
+
+
 class GitPythonAdapter(GitAdapter):
     """GitPython implementation of Git operations."""
 
@@ -172,6 +217,60 @@ class GitPythonAdapter(GitAdapter):
 
         return await asyncio.get_event_loop().run_in_executor(
             self.executor, _get_commits
+        )
+
+    async def get_all_commits_bulk(self, local_path: Path) -> dict[str, dict[str, Any]]:
+        """Get all commits from all branches in bulk for efficiency."""
+
+        def _get_all_commits() -> dict[str, dict[str, Any]]:
+            try:
+                repo = Repo(local_path)
+                all_commits = _collect_unique_commits(repo, self._log)
+                return _process_commits(all_commits)
+            except Exception as e:
+                self._log.error("Failed to get bulk commits for %s: %s", local_path, e)
+                raise
+
+        return await asyncio.get_event_loop().run_in_executor(
+            self.executor, _get_all_commits
+        )
+
+    async def get_branch_commit_shas(
+        self, local_path: Path, branch_name: str
+    ) -> list[str]:
+        """Get only commit SHAs for a branch (much faster than full commit data)."""
+
+        def _get_commit_shas() -> list[str]:
+            try:
+                repo = Repo(local_path)
+
+                # Get the branch reference
+                branch_ref = None
+                try:
+                    branch_ref = repo.branches[branch_name]
+                except IndexError:
+                    # Try remote branches
+                    for remote in repo.remotes:
+                        try:
+                            branch_ref = remote.refs[branch_name]
+                            break
+                        except IndexError:
+                            continue
+
+                if not branch_ref:
+                    self._raise_branch_not_found_error(branch_name)
+
+                return [commit.hexsha for commit in repo.iter_commits(branch_ref)]
+
+            except Exception as e:
+                self._log.error(
+                    f"Failed to get commit SHAs for branch {branch_name} in "
+                    f"{local_path}: {e}"
+                )
+                raise
+
+        return await asyncio.get_event_loop().run_in_executor(
+            self.executor, _get_commit_shas
         )
 
     async def get_commit_files(

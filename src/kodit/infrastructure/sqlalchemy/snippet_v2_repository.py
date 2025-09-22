@@ -3,7 +3,7 @@
 import zlib
 from collections.abc import Callable
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.domain.entities.git import SnippetV2
@@ -38,14 +38,192 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
             return
 
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
-            for domain_snippet in snippets:
-                db_snippet = await self._get_or_create_raw_snippet(
-                    session, commit_sha, domain_snippet
+            # Bulk operations for better performance
+            await self._bulk_save_snippets(session, snippets)
+            await self._bulk_create_commit_associations(session, commit_sha, snippets)
+            await self._bulk_create_file_associations(session, commit_sha, snippets)
+            await self._bulk_update_enrichments(session, snippets)
+
+    async def _bulk_save_snippets(
+        self, session: AsyncSession, snippets: list[SnippetV2]
+    ) -> None:
+        """Bulk save snippets using efficient batch operations."""
+        snippet_shas = [snippet.sha for snippet in snippets]
+
+        # Get existing snippets in bulk
+        existing_snippets_stmt = select(db_entities.SnippetV2.sha).where(
+            db_entities.SnippetV2.sha.in_(snippet_shas)
+        )
+        existing_snippet_shas = set(
+            (await session.scalars(existing_snippets_stmt)).all()
+        )
+
+        # Prepare new snippets for bulk insert
+        new_snippets = [
+            {
+                "sha": snippet.sha,
+                "content": snippet.content,
+                "extension": snippet.extension,
+            }
+            for snippet in snippets
+            if snippet.sha not in existing_snippet_shas
+        ]
+
+        # Bulk insert new snippets
+        if new_snippets:
+            stmt = insert(db_entities.SnippetV2).values(new_snippets)
+            await session.execute(stmt)
+
+    async def _bulk_create_commit_associations(
+        self, session: AsyncSession, commit_sha: str, snippets: list[SnippetV2]
+    ) -> None:
+        """Bulk create commit-snippet associations."""
+        snippet_shas = [snippet.sha for snippet in snippets]
+
+        # Get existing associations in bulk
+        existing_associations_stmt = select(
+            db_entities.CommitSnippetV2.snippet_sha
+        ).where(
+            db_entities.CommitSnippetV2.commit_sha == commit_sha,
+            db_entities.CommitSnippetV2.snippet_sha.in_(snippet_shas)
+        )
+        existing_association_shas = set(
+            (await session.scalars(existing_associations_stmt)).all()
+        )
+
+        # Prepare new associations for bulk insert
+        new_associations = [
+            {
+                "commit_sha": commit_sha,
+                "snippet_sha": snippet.sha,
+            }
+            for snippet in snippets
+            if snippet.sha not in existing_association_shas
+        ]
+
+        # Bulk insert new associations
+        if new_associations:
+            stmt = insert(db_entities.CommitSnippetV2).values(new_associations)
+            await session.execute(stmt)
+
+    async def _bulk_create_file_associations(
+        self, session: AsyncSession, commit_sha: str, snippets: list[SnippetV2]
+    ) -> None:
+        """Bulk create snippet-file associations."""
+        # Collect all file paths from all snippets
+        file_paths = set()
+        for snippet in snippets:
+            for file in snippet.derives_from:
+                file_paths.add(file.path)
+
+        if not file_paths:
+            return
+
+        # Get existing files in bulk
+        existing_files_stmt = select(
+            db_entities.GitCommitFile.path,
+            db_entities.GitCommitFile.blob_sha
+        ).where(
+            db_entities.GitCommitFile.commit_sha == commit_sha,
+            db_entities.GitCommitFile.path.in_(list(file_paths))
+        )
+        existing_files_result = await session.execute(existing_files_stmt)
+        existing_files_map: dict[str, str] = {
+            row[0]: row[1] for row in existing_files_result.fetchall()
+        }
+
+        # Get existing snippet-file associations to avoid duplicates
+        snippet_shas = [snippet.sha for snippet in snippets]
+        existing_snippet_files_stmt = select(
+            db_entities.SnippetV2File.snippet_sha,
+            db_entities.SnippetV2File.file_path
+        ).where(
+            db_entities.SnippetV2File.commit_sha == commit_sha,
+            db_entities.SnippetV2File.snippet_sha.in_(snippet_shas)
+        )
+        existing_snippet_files = set(await session.execute(existing_snippet_files_stmt))
+
+        # Prepare new file associations
+        new_file_associations = []
+        for snippet in snippets:
+            for file in snippet.derives_from:
+                association_key = (snippet.sha, file.path)
+                if (association_key not in existing_snippet_files
+                    and file.path in existing_files_map):
+                    new_file_associations.append({
+                        "snippet_sha": snippet.sha,
+                        "blob_sha": existing_files_map[file.path],
+                        "commit_sha": commit_sha,
+                        "file_path": file.path,
+                    })
+
+        # Bulk insert new file associations
+        if new_file_associations:
+            stmt = insert(db_entities.SnippetV2File).values(new_file_associations)
+            await session.execute(stmt)
+
+    async def _bulk_update_enrichments(
+        self, session: AsyncSession, snippets: list[SnippetV2]
+    ) -> None:
+        """Bulk update enrichments for snippets."""
+        snippet_shas = [snippet.sha for snippet in snippets]
+
+        # Get all existing enrichments for these snippets
+        existing_enrichments_stmt = select(
+            db_entities.Enrichment.snippet_sha,
+            db_entities.Enrichment.type,
+            db_entities.Enrichment.content
+        ).where(
+            db_entities.Enrichment.snippet_sha.in_(snippet_shas)
+        )
+        existing_enrichments = await session.execute(existing_enrichments_stmt)
+
+        # Create lookup for existing enrichment hashes
+        existing_enrichment_map = {}
+        for snippet_sha, enrichment_type, content in existing_enrichments:
+            content_hash = self._hash_string(content)
+            key = (snippet_sha, enrichment_type)
+            existing_enrichment_map[key] = content_hash
+
+        # Collect enrichments to delete and add
+        enrichments_to_delete = []
+        enrichments_to_add = []
+
+        for snippet in snippets:
+            for enrichment in snippet.enrichments:
+                key = (snippet.sha, db_entities.EnrichmentType(enrichment.type.value))
+                new_hash = self._hash_string(enrichment.content)
+
+                if key in existing_enrichment_map:
+                    if existing_enrichment_map[key] != new_hash:
+                        # Content changed, mark for deletion and re-addition
+                        enrichments_to_delete.append(key)
+                        enrichments_to_add.append({
+                            "snippet_sha": snippet.sha,
+                            "type": db_entities.EnrichmentType(enrichment.type.value),
+                            "content": enrichment.content,
+                        })
+                else:
+                    # New enrichment
+                    enrichments_to_add.append({
+                        "snippet_sha": snippet.sha,
+                        "type": db_entities.EnrichmentType(enrichment.type.value),
+                        "content": enrichment.content,
+                    })
+
+        # Bulk delete changed enrichments
+        if enrichments_to_delete:
+            for snippet_sha, enrichment_type in enrichments_to_delete:
+                stmt = delete(db_entities.Enrichment).where(
+                    db_entities.Enrichment.snippet_sha == snippet_sha,
+                    db_entities.Enrichment.type == enrichment_type,
                 )
-                await self._update_enrichments_if_changed(
-                    session, db_snippet, domain_snippet
-                )
-                await session.flush()
+                await session.execute(stmt)
+
+        # Bulk insert new/updated enrichments
+        if enrichments_to_add:
+            insert_stmt = insert(db_entities.Enrichment).values(enrichments_to_add)
+            await session.execute(insert_stmt)
 
     async def _get_or_create_raw_snippet(
         self, session: AsyncSession, commit_sha: str, domain_snippet: SnippetV2

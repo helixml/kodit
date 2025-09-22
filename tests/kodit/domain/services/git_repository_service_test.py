@@ -98,6 +98,21 @@ async def test_git_repository_scanner_scan_repository(
     mock_git_adapter.get_commit_files.return_value = sample_file_data
     mock_git_adapter.get_all_tags.return_value = sample_tag_data
 
+    # Setup new bulk operations - using sample_develop_commit_data for def456
+    sample_develop_commit = {
+        "sha": "def456",
+        "date": datetime.now(UTC),
+        "message": "Second commit",
+        "parent_sha": "abc123",
+        "author_name": "Test Author",
+        "author_email": "test@example.com",
+    }
+    mock_git_adapter.get_all_commits_bulk.return_value = {
+        "abc123": sample_commit_data[0],
+        "def456": sample_develop_commit,
+    }
+    mock_git_adapter.get_branch_commit_shas.return_value = ["abc123", "def456"]
+
     scanner = GitRepositoryScanner(mock_git_adapter)
     cloned_path = Path("/tmp/test-repo")
 
@@ -106,9 +121,9 @@ async def test_git_repository_scanner_scan_repository(
     # Verify result structure
     assert isinstance(result, RepositoryScanResult)
     assert len(result.branches) == 2
-    assert len(result.all_commits) == 1
+    assert len(result.all_commits) == 2
     assert len(result.all_tags) == 1
-    assert result.total_files_across_commits == 1
+    assert result.total_files_across_commits == 2
 
     # Verify branches
     branch_names = {branch.name for branch in result.branches}
@@ -130,6 +145,10 @@ async def test_git_repository_scanner_empty_branch(
     ]
     mock_git_adapter.get_branch_commits.return_value = []  # Empty branch
     mock_git_adapter.get_all_tags.return_value = []
+
+    # Setup new bulk operations for empty repository
+    mock_git_adapter.get_all_commits_bulk.return_value = {}
+    mock_git_adapter.get_branch_commit_shas.return_value = []
 
     scanner = GitRepositoryScanner(mock_git_adapter)
     result = await scanner.scan_repository(Path("/tmp/test-repo"))
@@ -155,6 +174,21 @@ async def test_git_repository_scanner_malformed_tag(
         {"name": "v1.0.0", "target_commit_sha": "abc123"},
         {"malformed": "tag"},  # Missing required fields
     ]
+
+    # Setup new bulk operations - using sample_develop_commit_data for def456
+    sample_develop_commit = {
+        "sha": "def456",
+        "date": datetime.now(UTC),
+        "message": "Second commit",
+        "parent_sha": "abc123",
+        "author_name": "Test Author",
+        "author_email": "test@example.com",
+    }
+    mock_git_adapter.get_all_commits_bulk.return_value = {
+        "abc123": sample_commit_data[0],
+        "def456": sample_develop_commit,
+    }
+    mock_git_adapter.get_branch_commit_shas.return_value = ["abc123", "def456"]
 
     scanner = GitRepositoryScanner(mock_git_adapter)
     result = await scanner.scan_repository(Path("/tmp/test-repo"))
