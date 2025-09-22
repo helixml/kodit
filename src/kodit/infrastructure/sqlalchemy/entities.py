@@ -7,6 +7,7 @@ from typing import Any
 
 from sqlalchemy import (
     DateTime,
+    Float,
     ForeignKey,
     ForeignKeyConstraint,
     Integer,
@@ -294,8 +295,10 @@ class GitTrackingBranch(Base):
     """Git tracking branch model."""
 
     __tablename__ = "git_tracking_branches"
-    repo_id: Mapped[int] = mapped_column(index=True, primary_key=True)
-    name: Mapped[str] = mapped_column(index=True)
+    repo_id: Mapped[int] = mapped_column(
+        ForeignKey("git_repos.id"), index=True, primary_key=True
+    )
+    name: Mapped[str] = mapped_column(String(255), index=True, primary_key=True)
     created_at: Mapped[datetime] = mapped_column(
         TZDateTime, nullable=False, default=lambda: datetime.now(UTC)
     )
@@ -304,13 +307,6 @@ class GitTrackingBranch(Base):
         nullable=False,
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
-    )
-
-    __table_args__ = (
-        ForeignKeyConstraint(
-            ["repo_id", "name"], ["git_branches.repo_id", "git_branches.name"]
-        ),
-        UniqueConstraint("repo_id", "name", name="uix_repo_tracking_branch"),
     )
 
     def __init__(self, repo_id: int, name: str) -> None:
@@ -516,36 +512,31 @@ class Enrichment(Base, CommonMixin):
         self.content = content
 
 
-class IndexStatusType(Enum):
-    """Index status enum."""
-
-    PENDING = "pending"
-    IN_PROGRESS = "in_progress"
-    COMPLETED = "completed"
-    FAILED = "failed"
-
-
-class CommitIndex(Base, CommonMixin):
+class CommitIndex(Base):
     """Commit index model."""
 
     __tablename__ = "commit_indexes"
 
-    commit_sha: Mapped[str] = mapped_column(String(64), unique=True, index=True)
-    status: Mapped[IndexStatusType] = mapped_column(
-        SQLAlchemyEnum(IndexStatusType), index=True
+    created_at: Mapped[datetime] = mapped_column(
+        TZDateTime, nullable=False, default=lambda: datetime.now(UTC)
     )
+    updated_at: Mapped[datetime] = mapped_column(
+        TZDateTime,
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+    commit_sha: Mapped[str] = mapped_column(String(64), primary_key=True)
+    status: Mapped[str] = mapped_column(String(255), index=True)
     indexed_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
     error_message: Mapped[str | None] = mapped_column(UnicodeText, nullable=True)
     files_processed: Mapped[int] = mapped_column(Integer, default=0)
-    processing_time_seconds: Mapped[str] = mapped_column(
-        String(50),
-        default="0.0",  # Store as string for precision
-    )
+    processing_time_seconds: Mapped[float] = mapped_column(Float, default=0.0)
 
     def __init__(  # noqa: PLR0913
         self,
         commit_sha: str,
-        status: IndexStatusType = IndexStatusType.PENDING,
+        status: str,
         indexed_at: datetime | None = None,
         error_message: str | None = None,
         files_processed: int = 0,
@@ -558,4 +549,4 @@ class CommitIndex(Base, CommonMixin):
         self.indexed_at = indexed_at
         self.error_message = error_message
         self.files_processed = files_processed
-        self.processing_time_seconds = str(processing_time_seconds)
+        self.processing_time_seconds = processing_time_seconds

@@ -238,7 +238,7 @@ class TestGitMapper:
 
         db_commit_index = db_entities.CommitIndex(
             commit_sha="commit_sha_123",
-            status=db_entities.IndexStatusType.COMPLETED,
+            status="completed",
             indexed_at=now,
             error_message=None,
             files_processed=5,
@@ -295,11 +295,11 @@ class TestGitMapper:
 
         # Verify mapping
         assert db_commit_index.commit_sha == domain_commit_index.commit_sha
-        assert db_commit_index.status == db_entities.IndexStatusType.IN_PROGRESS
+        assert db_commit_index.status == "in_progress"
         assert db_commit_index.indexed_at == domain_commit_index.indexed_at
         assert db_commit_index.error_message == domain_commit_index.error_message
         assert db_commit_index.files_processed == domain_commit_index.files_processed
-        assert db_commit_index.processing_time_seconds == "1.5"
+        assert db_commit_index.processing_time_seconds == 1.5
 
     def test_to_domain_git_repo_no_tracking_branch(self) -> None:
         """Test converting GitRepo when tracking branch is not found."""
