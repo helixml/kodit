@@ -1,6 +1,13 @@
 #!/bin/bash
 set -e
 
+# Make sure curl is installed
+if ! command -v curl &> /dev/null; then
+    echo "curl could not be found"
+    env
+    exit 1
+fi
+
 # Set this according to what you want to test. uv run will run the command in the current directory
 prefix="uv run"
 
@@ -29,14 +36,14 @@ $prefix kodit serve --host 127.0.0.1 --port 8080 &
 SERVER_PID=$!
 
 # Wait for server to start up
-sleep 3
+sleep 10
 
 # Function to check if server is responding
 wait_for_server() {
-    local max_attempts=10
+    local max_attempts=60
     local attempt=1
     while [ $attempt -le $max_attempts ]; do
-        if curl -s -f http://127.0.0.1:8080/ > /dev/null 2>&1; then
+        if curl -v -f http://127.0.0.1:8080/healthz; then
             echo "Server is ready"
             return 0
         fi
@@ -45,7 +52,8 @@ wait_for_server() {
         ((attempt++))
     done
     echo "Server failed to start"
-    return 1
+    kill $SERVER_PID 2>/dev/null || true
+    exit 1
 }
 
 # Wait for server to be ready
@@ -74,6 +82,3 @@ if [ -n "$SERVER_PID" ]; then
     kill $SERVER_PID 2>/dev/null || true
     wait $SERVER_PID 2>/dev/null || true
 fi
-
-echo "--------------------------------"
-echo "API tests completed"
