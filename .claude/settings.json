@@ -7,7 +7,7 @@
                 "hooks": [
                     {
                         "type": "command",
-                        "command": "uv run ruff check"
+                        "command": "uv run ruff check 1>&2"
                     }
                 ]
             },
