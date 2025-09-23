@@ -136,7 +136,7 @@ class GitMapper:
         domain_commits = self.to_domain_commits(
             db_commits=db_commits, db_commit_files=db_commit_files
         )
-        domain_tags = self.to_domain_tags(
+        self.to_domain_tags(
             db_tags=db_tags, domain_commits=domain_commits
         )
         tracking_branch = self.to_domain_tracking_branch(
@@ -153,12 +153,12 @@ class GitMapper:
             updated_at=db_repo.updated_at,
             sanitized_remote_uri=AnyUrl(db_repo.sanitized_remote_uri),
             remote_uri=AnyUrl(db_repo.remote_uri),
-            tags=domain_tags,
             tracking_branch=tracking_branch,
             cloned_path=Path(db_repo.cloned_path) if db_repo.cloned_path else None,
             last_scanned_at=db_repo.last_scanned_at,
             num_commits=db_repo.num_commits,
             num_branches=db_repo.num_branches,
+            num_tags=db_repo.num_tags,
         )
 
     def to_domain_commit_index(

@@ -8,6 +8,7 @@ from kodit.infrastructure.api.v1.dependencies import (
     GitBranchRepositoryDep,
     GitCommitRepositoryDep,
     GitRepositoryDep,
+    GitTagRepositoryDep,
     TaskStatusQueryServiceDep,
 )
 from kodit.infrastructure.api.v1.schemas.repository import (
@@ -197,14 +198,15 @@ async def get_index_status(
 async def list_repository_tags(
     repo_id: str,
     git_repository: GitRepositoryDep,
+    git_tag_repository: GitTagRepositoryDep,
 ) -> TagListResponse:
     """List all tags for a repository."""
     repo = await git_repository.get_by_id(int(repo_id))
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
 
-    # Tags are now available directly from the repo aggregate
-    tags = repo.tags
+    # Tags are now stored in a dedicated repository
+    tags = await git_tag_repository.get_by_repo_id(int(repo_id))
 
     return TagListResponse(
         data=[
@@ -231,14 +233,16 @@ async def get_repository_tag(
     repo_id: str,
     tag_id: str,
     git_repository: GitRepositoryDep,
+    git_tag_repository: GitTagRepositoryDep,
 ) -> TagResponse:
     """Get a specific tag for a repository."""
     repo = await git_repository.get_by_id(int(repo_id))
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
 
-    # Find tag by ID from the repo's tags
-    tag = next((t for t in repo.tags if t.id == tag_id), None)
+    # Get all tags and find the specific one by ID
+    tags = await git_tag_repository.get_by_repo_id(int(repo_id))
+    tag = next((t for t in tags if t.id == tag_id), None)
     if not tag:
         raise HTTPException(status_code=404, detail="Tag not found")
 

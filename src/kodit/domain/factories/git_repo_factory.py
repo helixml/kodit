@@ -6,7 +6,7 @@ from pathlib import Path
 from pydantic import AnyUrl
 
 from kodit.domain.entities import WorkingCopy
-from kodit.domain.entities.git import GitBranch, GitRepo, GitTag
+from kodit.domain.entities.git import GitBranch, GitRepo
 
 
 class GitRepoFactory:
@@ -28,12 +28,12 @@ class GitRepoFactory:
         updated_at: datetime | None = None,
         sanitized_remote_uri: AnyUrl,
         remote_uri: AnyUrl,
-        tags: list[GitTag] | None = None,
         cloned_path: Path | None = None,
         tracking_branch: GitBranch | None = None,
         last_scanned_at: datetime | None = None,
         num_commits: int = 0,
         num_branches: int = 0,
+        num_tags: int = 0,
     ) -> GitRepo:
         """Create a GitRepo from individual components."""
         return GitRepo(
@@ -42,12 +42,12 @@ class GitRepoFactory:
             updated_at=updated_at,
             sanitized_remote_uri=sanitized_remote_uri,
             remote_uri=remote_uri,
-            tags=tags or [],
             cloned_path=cloned_path,
             tracking_branch=tracking_branch,
             last_scanned_at=last_scanned_at,
             num_commits=num_commits,
             num_branches=num_branches,
+            num_tags=num_tags,
         )
 
     @staticmethod
@@ -56,21 +56,21 @@ class GitRepoFactory:
         remote_uri: AnyUrl,
         sanitized_remote_uri: AnyUrl,
         repo_path: Path,
-        tags: list[GitTag],
         tracking_branch: GitBranch | None = None,
         last_scanned_at: datetime | None = None,
         num_commits: int = 0,
         num_branches: int = 0,
+        num_tags: int = 0,
     ) -> GitRepo:
         """Create a GitRepo from a scanned local repository path."""
         return GitRepo(
             id=None,  # Let repository assign database ID
             sanitized_remote_uri=sanitized_remote_uri,
             remote_uri=remote_uri,
-            tags=tags,
             tracking_branch=tracking_branch,
             cloned_path=repo_path,
             last_scanned_at=last_scanned_at,
             num_commits=num_commits,
             num_branches=num_branches,
+            num_tags=num_tags,
         )

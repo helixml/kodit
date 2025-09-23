@@ -14,6 +14,7 @@ from kodit.domain.protocols import (
     GitBranchRepository,
     GitCommitRepository,
     GitRepoRepository,
+    GitTagRepository,
     SnippetRepositoryV2,
 )
 from kodit.domain.services.bm25_service import BM25DomainService
@@ -52,6 +53,7 @@ class CommitIndexingApplicationService:
         repo_repository: GitRepoRepository,
         git_commit_repository: GitCommitRepository,
         git_branch_repository: GitBranchRepository,
+        git_tag_repository: GitTagRepository,
         operation: ProgressTracker,
         scanner: GitRepositoryScanner,
         cloner: RepositoryCloner,
@@ -78,6 +80,7 @@ class CommitIndexingApplicationService:
         self.repo_repository = repo_repository
         self.git_commit_repository = git_commit_repository
         self.git_branch_repository = git_branch_repository
+        self.git_tag_repository = git_tag_repository
         self.operation = operation
         self.scanner = scanner
         self.cloner = cloner
@@ -173,29 +176,41 @@ class CommitIndexingApplicationService:
             TaskOperation.SCAN_REPOSITORY,
             trackable_type=TrackableType.KODIT_REPOSITORY,
             trackable_id=repository_id,
-        ):
+        ) as step:
+            await step.set_total(6)
             repo = await self.repo_repository.get_by_id(repository_id)
             if not repo.cloned_path:
                 raise ValueError(f"Repository {repository_id} has never been cloned")
 
             # Scan the repository to get all metadata
+            await step.set_current(0, "Scanning repository")
             scan_result = await self.scanner.scan_repository(repo.cloned_path)
 
             # Update repo with scan result (this sets num_commits, num_branches, etc.)
+            await step.set_current(1, "Updating repository with scan result")
             repo.update_with_scan_result(scan_result)
             await self.repo_repository.save(repo)
 
-            # Save commits and branches to their dedicated repositories
+            # Save commits, branches, and tags to their dedicated repositories
+            await step.set_current(2, "Saving commits")
             if scan_result.all_commits:
                 await self.git_commit_repository.save_bulk(
                     scan_result.all_commits, repository_id
                 )
 
+            await step.set_current(3, "Saving branches")
             if scan_result.branches:
                 await self.git_branch_repository.save_bulk(
                     scan_result.branches, repository_id
                 )
 
+            await step.set_current(4, "Saving tags")
+            if scan_result.all_tags:
+                await self.git_tag_repository.save_bulk(
+                    scan_result.all_tags, repository_id
+                )
+
+            await step.set_current(5, "Enqueuing commit indexing tasks")
             if not repo.tracking_branch:
                 raise ValueError(f"Repository {repository_id} has no tracking branch")
             commit_sha = repo.tracking_branch.head_commit.commit_sha
@@ -219,9 +234,10 @@ class CommitIndexingApplicationService:
             if not repo:
                 raise ValueError(f"Repository {repository_id} not found")
 
-            # Delete commits and branches before deleting the repository
+            # Delete commits, branches, and tags before deleting the repository
             await self.git_commit_repository.delete_by_repo_id(repository_id)
             await self.git_branch_repository.delete_by_repo_id(repository_id)
+            await self.git_tag_repository.delete_by_repo_id(repository_id)
 
             await self.repo_repository.delete(repo.sanitized_remote_uri)
 
@@ -265,10 +281,21 @@ class CommitIndexingApplicationService:
                 )
                 all_snippets.extend(snippets)
 
+            # Deduplicate snippets by SHA before saving to prevent constraint violations
+            unique_snippets: dict[str, SnippetV2] = {}
+            for snippet in all_snippets:
+                unique_snippets[snippet.sha] = snippet
+
+            deduplicated_snippets = list(unique_snippets.values())
+
+            commit_short = commit.commit_sha[:8]
             self._log.info(
-                f"Saving {len(all_snippets)} snippets for commit {commit.commit_sha}"
+                f"Extracted {len(all_snippets)} snippets, "
+                f"deduplicated to {len(deduplicated_snippets)} for {commit_short}"
             )
-            await self.snippet_repository.save_snippets(commit.commit_sha, all_snippets)
+            await self.snippet_repository.save_snippets(
+                commit.commit_sha, deduplicated_snippets
+            )
 
     async def process_bm25_index(self, repository_id: int, commit_sha: str) -> None:
         """Handle BM25_INDEX task - create keyword index."""

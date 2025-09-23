@@ -19,6 +19,7 @@ from kodit.domain.protocols import (
     GitBranchRepository,
     GitCommitRepository,
     GitRepoRepository,
+    GitTagRepository,
 )
 from kodit.domain.services.task_status_query_service import TaskStatusQueryService
 from kodit.infrastructure.sqlalchemy.task_status_repository import (
@@ -117,6 +118,18 @@ async def get_git_branch_repository(
 
 GitBranchRepositoryDep = Annotated[
     GitBranchRepository, Depends(get_git_branch_repository)
+]
+
+
+async def get_git_tag_repository(
+    server_factory: ServerFactoryDep,
+) -> GitTagRepository:
+    """Get git tag repository dependency."""
+    return server_factory.git_tag_repository()
+
+
+GitTagRepositoryDep = Annotated[
+    GitTagRepository, Depends(get_git_tag_repository)
 ]
 
 

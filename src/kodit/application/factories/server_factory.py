@@ -21,6 +21,7 @@ from kodit.domain.protocols import (
     GitBranchRepository,
     GitCommitRepository,
     GitRepoRepository,
+    GitTagRepository,
     SnippetRepositoryV2,
     TaskStatusRepository,
 )
@@ -57,6 +58,9 @@ from kodit.infrastructure.sqlalchemy.git_commit_repository import (
     create_git_commit_repository,
 )
 from kodit.infrastructure.sqlalchemy.git_repository import create_git_repo_repository
+from kodit.infrastructure.sqlalchemy.git_tag_repository import (
+    create_git_tag_repository,
+)
 from kodit.infrastructure.sqlalchemy.snippet_v2_repository import (
     create_snippet_v2_repository,
 )
@@ -102,6 +106,7 @@ class ServerFactory:
         )
         self._git_commit_repository: GitCommitRepository | None = None
         self._git_branch_repository: GitBranchRepository | None = None
+        self._git_tag_repository: GitTagRepository | None = None
 
     def queue_service(self) -> QueueService:
         """Create a QueueService instance."""
@@ -175,6 +180,7 @@ class ServerFactory:
                     repo_repository=self.repo_repository(),
                     git_commit_repository=self.git_commit_repository(),
                     git_branch_repository=self.git_branch_repository(),
+                    git_tag_repository=self.git_tag_repository(),
                     operation=self.operation(),
                     scanner=self.scanner(),
                     cloner=self.cloner(),
@@ -295,3 +301,11 @@ class ServerFactory:
                 session_factory=self.session_factory
             )
         return self._git_branch_repository
+
+    def git_tag_repository(self) -> GitTagRepository:
+        """Create a GitTagRepository instance."""
+        if not self._git_tag_repository:
+            self._git_tag_repository = create_git_tag_repository(
+                session_factory=self.session_factory
+            )
+        return self._git_tag_repository

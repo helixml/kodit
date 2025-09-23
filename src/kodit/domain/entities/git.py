@@ -107,12 +107,12 @@ class GitRepo(BaseModel):
     remote_uri: AnyUrl  # May include credentials
 
     # The following may be empty when initially created
-    tags: list[GitTag] = []
     cloned_path: Path | None = None
     tracking_branch: GitBranch | None = None
     last_scanned_at: datetime | None = None
     num_commits: int = 0  # Total number of commits in this repository
     num_branches: int = 0  # Total number of branches in this repository
+    num_tags: int = 0  # Total number of tags in this repository
 
     @staticmethod
     def create_id(sanitized_remote_uri: AnyUrl) -> str:
@@ -140,9 +140,9 @@ class GitRepo(BaseModel):
             self.tracking_branch = tracking_branch
 
         self.last_scanned_at = datetime.now(UTC)
-        self.tags = scan_result.all_tags
         self.num_commits = len(scan_result.all_commits)
         self.num_branches = len(scan_result.branches)
+        self.num_tags = len(scan_result.all_tags)
 
 
 class CommitIndex(BaseModel):

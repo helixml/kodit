@@ -30,9 +30,14 @@ def upgrade() -> None:
         "git_repos",
         sa.Column("num_branches", sa.Integer(), nullable=False, server_default="0"),
     )
+    op.add_column(
+        "git_repos",
+        sa.Column("num_tags", sa.Integer(), nullable=False, server_default="0"),
+    )
 
 
 def downgrade() -> None:
     """Downgrade schema."""
     op.drop_column("git_repos", "num_commits")
     op.drop_column("git_repos", "num_branches")
+    op.drop_column("git_repos", "num_tags")

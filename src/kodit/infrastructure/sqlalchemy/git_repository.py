@@ -3,7 +3,7 @@
 from collections.abc import Callable
 
 from pydantic import AnyUrl
-from sqlalchemy import delete, insert, select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.domain.entities.git import GitRepo
@@ -76,9 +76,6 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
             # 2. Save tracking branch
             await self._save_tracking_branch(session, repo)
 
-            # 3. Bulk save tags
-            await self._save_tags_bulk(session, repo)
-
             await session.flush()
             return repo
 
@@ -99,35 +96,6 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
             )
             session.add(db_tracking_branch)
 
-    async def _save_tags_bulk(self, session: AsyncSession, repo: GitRepo) -> None:
-        """Bulk save tags using efficient batch operations."""
-        if not repo.tags:
-            return
-
-        tag_names = [tag.name for tag in repo.tags]
-
-        # Get existing tags in bulk
-        existing_tags_stmt = select(db_entities.GitTag.name).where(
-            db_entities.GitTag.repo_id == repo.id,
-            db_entities.GitTag.name.in_(tag_names),
-        )
-        existing_tag_names = set((await session.scalars(existing_tags_stmt)).all())
-
-        # Prepare new tags for bulk insert
-        new_tags = [
-            {
-                "repo_id": repo.id,
-                "name": tag.name,
-                "target_commit_sha": tag.target_commit.commit_sha,
-            }
-            for tag in repo.tags
-            if tag.name not in existing_tag_names
-        ]
-
-        # Bulk insert new tags
-        if new_tags:
-            stmt = insert(db_entities.GitTag).values(new_tags)
-            await session.execute(stmt)
 
     async def get_by_id(self, repo_id: int) -> GitRepo:
         """Get repository by ID with all associated data."""
