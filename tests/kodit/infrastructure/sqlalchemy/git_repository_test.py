@@ -88,6 +88,7 @@ def sample_git_repo(
         cloned_path=Path("/tmp/test_repo"),
         remote_uri=AnyUrl("https://github.com/test/repo.git"),
         last_scanned_at=datetime.now(UTC),
+        num_commits=1,  # One commit for testing
     )
 
 
@@ -157,6 +158,7 @@ class TestSave:
             cloned_path=Path("/tmp/updated_repo"),  # Different path
             remote_uri=sample_git_repo.remote_uri,
             last_scanned_at=datetime.now(UTC),
+            num_commits=2,  # Different commit count for testing
         )
 
         await repository.save(updated_repo)
@@ -267,6 +269,7 @@ class TestDelete:
             branches=[],
             tags=[],
             tracking_branch=None,
+            num_commits=0,  # Simple repo with no commits
         )
 
         await repository.save(simple_repo)
@@ -341,6 +344,7 @@ class TestListAll:
             cloned_path=Path("/tmp/another_repo"),
             remote_uri=AnyUrl("https://github.com/test/another-repo.git"),
             last_scanned_at=datetime.now(UTC),
+            num_commits=3,  # Another repo with different commit count
         )
         await repository.save(another_repo)
 

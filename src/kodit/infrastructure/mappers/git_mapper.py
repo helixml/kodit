@@ -147,6 +147,7 @@ class GitMapper:
             tracking_branch=tracking_branch,
             cloned_path=Path(db_repo.cloned_path) if db_repo.cloned_path else None,
             last_scanned_at=db_repo.last_scanned_at,
+            num_commits=db_repo.num_commits,
         )
 
     def to_domain_commit_index(

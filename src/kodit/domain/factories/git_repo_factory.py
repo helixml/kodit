@@ -33,6 +33,7 @@ class GitRepoFactory:
         cloned_path: Path | None = None,
         tracking_branch: GitBranch | None = None,
         last_scanned_at: datetime | None = None,
+        num_commits: int = 0,
     ) -> GitRepo:
         """Create a GitRepo from individual components."""
         return GitRepo(
@@ -46,6 +47,7 @@ class GitRepoFactory:
             cloned_path=cloned_path,
             tracking_branch=tracking_branch,
             last_scanned_at=last_scanned_at,
+            num_commits=num_commits,
         )
 
     @staticmethod
@@ -58,6 +60,7 @@ class GitRepoFactory:
         tags: list[GitTag],
         tracking_branch: GitBranch | None = None,
         last_scanned_at: datetime | None = None,
+        num_commits: int = 0,
     ) -> GitRepo:
         """Create a GitRepo from a scanned local repository path."""
         return GitRepo(
@@ -69,4 +72,5 @@ class GitRepoFactory:
             tracking_branch=tracking_branch,
             cloned_path=repo_path,
             last_scanned_at=last_scanned_at,
+            num_commits=num_commits,
         )

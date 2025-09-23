@@ -110,7 +110,9 @@ class GitService:
         # Get all branches with their commit histories
         branches = self._get_all_branches(repo)
 
-        # Commits are now managed separately by GitCommitRepository
+        # Count commits for num_commits field (managed by GitCommitRepository)
+        all_commits = self._get_all_commits(repo)
+        num_commits = len(all_commits)
 
         # Get all tags
         all_tags = self._get_all_tags(repo)
@@ -137,6 +139,7 @@ class GitService:
             tags=all_tags,
             tracking_branch=tracking_branch,
             last_scanned_at=datetime.now(UTC),
+            num_commits=num_commits,
         )
 
     def get_commit_history(

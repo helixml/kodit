@@ -55,6 +55,7 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
                 existing_repo.remote_uri = str(repo.remote_uri)
                 existing_repo.cloned_path = repo.cloned_path
                 existing_repo.last_scanned_at = repo.last_scanned_at
+                existing_repo.num_commits = repo.num_commits
                 db_repo = existing_repo
                 repo.id = existing_repo.id  # Set the domain ID
             else:
@@ -64,6 +65,7 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
                     remote_uri=str(repo.remote_uri),
                     cloned_path=repo.cloned_path,
                     last_scanned_at=repo.last_scanned_at,
+                    num_commits=repo.num_commits,
                 )
                 session.add(db_repo)
                 await session.flush()  # Get the new ID

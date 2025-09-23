@@ -112,12 +112,12 @@ class GitRepo(BaseModel):
     cloned_path: Path | None = None
     tracking_branch: GitBranch | None = None
     last_scanned_at: datetime | None = None
+    num_commits: int = 0  # Total number of commits in this repository
 
     @staticmethod
     def create_id(sanitized_remote_uri: AnyUrl) -> str:
         """Create a unique business key for a repository (kept for compatibility)."""
         return repo_id_from_uri(sanitized_remote_uri)
-
 
     def update_with_scan_result(self, scan_result: RepositoryScanResult) -> None:
         """Update the GitRepo with a scan result."""
@@ -142,6 +142,7 @@ class GitRepo(BaseModel):
         self.branches = scan_result.branches
         self.last_scanned_at = datetime.now(UTC)
         self.tags = scan_result.all_tags
+        self.num_commits = len(scan_result.all_commits)
 
 
 class CommitIndex(BaseModel):
