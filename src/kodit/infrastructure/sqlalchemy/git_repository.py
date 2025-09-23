@@ -1,13 +1,12 @@
 """SQLAlchemy implementation of GitRepoRepository."""
 
 from collections.abc import Callable
-from typing import Any
 
 from pydantic import AnyUrl
 from sqlalchemy import delete, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.entities.git import GitCommit, GitFile, GitRepo
+from kodit.domain.entities.git import GitRepo
 from kodit.domain.protocols import GitRepoRepository
 from kodit.infrastructure.mappers.git_mapper import GitMapper
 from kodit.infrastructure.sqlalchemy import entities as db_entities
@@ -24,12 +23,12 @@ def create_git_repo_repository(
 class SqlAlchemyGitRepoRepository(GitRepoRepository):
     """SQLAlchemy implementation of GitRepoRepository.
 
-    This repository manages the complete GitRepo aggregate, including:
+    This repository manages the GitRepo aggregate, including:
     - GitRepo entity
     - GitBranch entities
-    - GitCommit entities
     - GitTag entities
-    - GitFile entities and associations
+
+    Note: Commits are now managed by the separate GitCommitRepository.
     """
 
     def __init__(self, session_factory: Callable[[], AsyncSession]) -> None:
@@ -70,135 +69,18 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
                 await session.flush()  # Get the new ID
                 repo.id = db_repo.id  # Set the domain ID
 
-            # 2. Bulk save commits
-            await self._save_commits_bulk(session, repo)
-
-            # 3. Bulk save files
-            await self._save_files_bulk(session, repo)
-
-            # 4. Bulk save branches
+            # 2. Bulk save branches
             await self._save_branches_bulk(session, repo)
 
-            # 5. Save tracking branch
+            # 3. Save tracking branch
             await self._save_tracking_branch(session, repo)
 
-            # 6. Bulk save tags
+            # 4. Bulk save tags
             await self._save_tags_bulk(session, repo)
 
             await session.flush()
             return repo
 
-    async def _save_commits_bulk(self, session: AsyncSession, repo: GitRepo) -> None:
-        """Bulk save commits using efficient batch operations."""
-        if not repo.commits:
-            return
-
-        commit_shas = [commit.commit_sha for commit in repo.commits]
-
-        # Get existing commits in bulk
-        existing_commits_stmt = select(db_entities.GitCommit.commit_sha).where(
-            db_entities.GitCommit.commit_sha.in_(commit_shas)
-        )
-        existing_commit_shas = set((await session.scalars(existing_commits_stmt)).all())
-
-        # Prepare new commits for bulk insert
-        new_commits = [
-            {
-                "commit_sha": commit.commit_sha,
-                "repo_id": repo.id,
-                "date": commit.date,
-                "message": commit.message,
-                "parent_commit_sha": commit.parent_commit_sha,
-                "author": commit.author,
-            }
-            for commit in repo.commits
-            if commit.commit_sha not in existing_commit_shas
-        ]
-
-        # Bulk insert new commits
-        if new_commits:
-            stmt = insert(db_entities.GitCommit).values(new_commits)
-            await session.execute(stmt)
-
-    async def _save_files_bulk(self, session: AsyncSession, repo: GitRepo) -> None:
-        """Bulk save files using efficient batch operations."""
-        if not repo.commits:
-            return
-
-        file_identifiers = [
-            (commit.commit_sha, file.path)
-            for commit in repo.commits
-            for file in commit.files
-        ]
-
-        if not file_identifiers:
-            return
-
-        existing_file_keys = await self._get_existing_file_keys(
-            session, file_identifiers
-        )
-        new_files = self._prepare_new_files(repo, existing_file_keys)
-        await self._bulk_insert_files(session, new_files)
-
-    async def _get_existing_file_keys(
-        self, session: AsyncSession, file_identifiers: list[tuple[str, str]]
-    ) -> set[tuple[str, str]]:
-        """Get existing file keys in chunks to avoid SQL parameter limits."""
-        chunk_size = 1000
-        existing_file_keys = set()
-
-        for i in range(0, len(file_identifiers), chunk_size):
-            chunk = file_identifiers[i : i + chunk_size]
-            commit_shas = [item[0] for item in chunk]
-            paths = [item[1] for item in chunk]
-
-            existing_files_stmt = select(
-                db_entities.GitCommitFile.commit_sha, db_entities.GitCommitFile.path
-            ).where(
-                db_entities.GitCommitFile.commit_sha.in_(commit_shas),
-                db_entities.GitCommitFile.path.in_(paths),
-            )
-
-            chunk_existing = await session.execute(existing_files_stmt)
-            for commit_sha, path in chunk_existing:
-                existing_file_keys.add((commit_sha, path))
-
-        return existing_file_keys
-
-    def _prepare_new_files(
-        self, repo: GitRepo, existing_file_keys: set[tuple[str, str]]
-    ) -> list[dict[str, Any]]:
-        """Prepare new files for bulk insert."""
-        new_files = []
-        for commit in repo.commits:
-            for file in commit.files:
-                file_key = (commit.commit_sha, file.path)
-                if file_key not in existing_file_keys:
-                    new_files.append(
-                        {
-                            "commit_sha": commit.commit_sha,
-                            "path": file.path,
-                            "blob_sha": file.blob_sha,
-                            "extension": file.extension,
-                            "mime_type": file.mime_type,
-                            "size": file.size,
-                            "created_at": file.created_at,
-                        }
-                    )
-        return new_files
-
-    async def _bulk_insert_files(
-        self, session: AsyncSession, new_files: list[dict[str, Any]]
-    ) -> None:
-        """Bulk insert new files in chunks."""
-        if not new_files:
-            return
-
-        chunk_size = 1000
-        for i in range(0, len(new_files), chunk_size):
-            chunk = new_files[i : i + chunk_size]
-            stmt = insert(db_entities.GitCommitFile).values(chunk)
-            await session.execute(stmt)
 
     async def _save_branches_bulk(self, session: AsyncSession, repo: GitRepo) -> None:
         """Bulk save branches using efficient batch operations."""
@@ -382,43 +264,6 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
             # Note: We don't delete GitFiles as they might be referenced by other repos
             return True
 
-    async def get_commit_by_sha(self, commit_sha: str) -> GitCommit:
-        """Get a specific commit by its SHA across all repositories."""
-        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
-            # Get the commit
-            stmt = select(db_entities.GitCommit).where(
-                db_entities.GitCommit.commit_sha == commit_sha
-            )
-            db_commit = await session.scalar(stmt)
-            if not db_commit:
-                raise ValueError(f"Commit with SHA {commit_sha} not found")
-
-            # Get associated files
-            files_stmt = select(db_entities.GitCommitFile).where(
-                db_entities.GitCommitFile.commit_sha == commit_sha
-            )
-            db_files = (await session.scalars(files_stmt)).all()
-
-            domain_files = []
-            for db_file in db_files:
-                domain_file = GitFile(
-                    blob_sha=db_file.blob_sha,
-                    path=db_file.path,
-                    mime_type=db_file.mime_type,
-                    size=db_file.size,
-                    extension=db_file.extension,
-                    created_at=db_file.created_at,
-                )
-                domain_files.append(domain_file)
-
-            return GitCommit(
-                commit_sha=db_commit.commit_sha,
-                date=db_commit.date,
-                message=db_commit.message,
-                parent_commit_sha=db_commit.parent_commit_sha,
-                files=domain_files,
-                author=db_commit.author,
-            )
 
     async def _load_complete_repo(
         self, session: AsyncSession, db_repo: db_entities.GitRepo
@@ -433,15 +278,6 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
                 )
             ).all()
         )
-        all_commits = list(
-            (
-                await session.scalars(
-                    select(db_entities.GitCommit).where(
-                        db_entities.GitCommit.repo_id == db_repo.id
-                    )
-                )
-            ).all()
-        )
         all_tags = list(
             (
                 await session.scalars(
@@ -451,27 +287,47 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
                 )
             ).all()
         )
-        all_files = list(
-            (
-                await session.scalars(
-                    select(db_entities.GitCommitFile).where(
-                        db_entities.GitCommitFile.commit_sha.in_(
-                            [commit.commit_sha for commit in all_commits]
-                        )
-                    )
-                )
-            ).all()
-        )
         tracking_branch = await session.scalar(
             select(db_entities.GitTrackingBranch).where(
                 db_entities.GitTrackingBranch.repo_id == db_repo.id
             )
         )
+
+        # Get only commits needed for branches and tags
+        referenced_commit_shas = set()
+        for branch in all_branches:
+            referenced_commit_shas.add(branch.head_commit_sha)
+        for tag in all_tags:
+            referenced_commit_shas.add(tag.target_commit_sha)
+
+        # Load only the referenced commits
+        referenced_commits = []
+        referenced_files = []
+        if referenced_commit_shas:
+            referenced_commits = list(
+                (
+                    await session.scalars(
+                        select(db_entities.GitCommit).where(
+                            db_entities.GitCommit.commit_sha.in_(referenced_commit_shas)
+                        )
+                    )
+                ).all()
+            )
+            referenced_files = list(
+                (
+                    await session.scalars(
+                        select(db_entities.GitCommitFile).where(
+                            db_entities.GitCommitFile.commit_sha.in_(referenced_commit_shas)
+                        )
+                    )
+                ).all()
+            )
+
         return self._mapper.to_domain_git_repo(
             db_repo=db_repo,
             db_branches=all_branches,
-            db_commits=all_commits,
+            db_commits=referenced_commits,
             db_tags=all_tags,
-            db_commit_files=all_files,
+            db_commit_files=referenced_files,
             db_tracking_branch=tracking_branch,
         )

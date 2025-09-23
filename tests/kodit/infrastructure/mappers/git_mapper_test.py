@@ -94,12 +94,8 @@ class TestGitMapper:
         assert domain_repo.tracking_branch is not None
         assert domain_repo.tracking_branch.name == "main"
 
-        # Verify commit
-        assert len(domain_repo.commits) == 1
-        assert domain_repo.commits[0].commit_sha == "commit_sha_456"
-        assert domain_repo.commits[0].message == "Initial commit"
-        assert len(domain_repo.commits[0].files) == 1
-        assert domain_repo.commits[0].files[0].blob_sha == "file_sha_123"
+        # Commits are no longer part of the GitRepo aggregate
+        # They are now managed separately by GitCommitRepository
 
         # Verify tag
         assert len(domain_repo.tags) == 1

@@ -110,8 +110,7 @@ class GitService:
         # Get all branches with their commit histories
         branches = self._get_all_branches(repo)
 
-        # Get all unique commits across all branches
-        all_commits = self._get_all_commits(repo)
+        # Commits are now managed separately by GitCommitRepository
 
         # Get all tags
         all_tags = self._get_all_tags(repo)
@@ -135,7 +134,6 @@ class GitService:
             sanitized_remote_uri=sanitized_remote_uri,
             repo_path=repo_path,
             branches=branches,
-            commits=all_commits,
             tags=all_tags,
             tracking_branch=tracking_branch,
             last_scanned_at=datetime.now(UTC),

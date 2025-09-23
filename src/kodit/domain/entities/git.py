@@ -108,16 +108,10 @@ class GitRepo(BaseModel):
 
     # The following may be empty when initially created
     branches: list[GitBranch] = []
-    _commits: list[GitCommit] = []
     tags: list[GitTag] = []
     cloned_path: Path | None = None
     tracking_branch: GitBranch | None = None
     last_scanned_at: datetime | None = None
-
-    @property
-    def commits(self) -> list[GitCommit]:
-        """Get the commits for this repository."""
-        return self._commits
 
     @staticmethod
     def create_id(sanitized_remote_uri: AnyUrl) -> str:
@@ -147,7 +141,6 @@ class GitRepo(BaseModel):
 
         self.branches = scan_result.branches
         self.last_scanned_at = datetime.now(UTC)
-        self._commits = scan_result.all_commits
         self.tags = scan_result.all_tags
 
 

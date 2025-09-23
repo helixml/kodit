@@ -11,6 +11,7 @@ from kodit.domain.entities import Task
 from kodit.domain.entities.git import GitFile, GitRepo, SnippetV2
 from kodit.domain.factories.git_repo_factory import GitRepoFactory
 from kodit.domain.protocols import (
+    GitCommitRepository,
     GitRepoRepository,
     SnippetRepositoryV2,
 )
@@ -48,6 +49,7 @@ class CommitIndexingApplicationService:
         self,
         snippet_v2_repository: SnippetRepositoryV2,
         repo_repository: GitRepoRepository,
+        git_commit_repository: GitCommitRepository,
         operation: ProgressTracker,
         scanner: GitRepositoryScanner,
         cloner: RepositoryCloner,
@@ -72,6 +74,7 @@ class CommitIndexingApplicationService:
         """
         self.snippet_repository = snippet_v2_repository
         self.repo_repository = repo_repository
+        self.git_commit_repository = git_commit_repository
         self.operation = operation
         self.scanner = scanner
         self.cloner = cloner
@@ -214,7 +217,7 @@ class CommitIndexingApplicationService:
                 await step.skip("All snippets already extracted for commit")
                 return
 
-            commit = await self.repo_repository.get_commit_by_sha(commit_sha)
+            commit = await self.git_commit_repository.get_by_sha(commit_sha)
 
             # Create a set of languages to extract snippets for
             extensions = {file.extension for file in commit.files}

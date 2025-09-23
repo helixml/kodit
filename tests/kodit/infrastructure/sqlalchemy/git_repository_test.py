@@ -74,7 +74,6 @@ def sample_git_tag(sample_git_commit: GitCommit) -> GitTag:
 @pytest.fixture
 def sample_git_repo(
     sample_git_branch: GitBranch,
-    sample_git_commit: GitCommit,
     sample_git_tag: GitTag,
 ) -> GitRepo:
     """Create a sample git repository."""
@@ -84,7 +83,6 @@ def sample_git_repo(
         updated_at=datetime.now(UTC),
         sanitized_remote_uri=AnyUrl("https://github.com/test/repo"),
         branches=[sample_git_branch],
-        commits=[sample_git_commit],
         tags=[sample_git_tag],
         tracking_branch=sample_git_branch,
         cloned_path=Path("/tmp/test_repo"),
@@ -114,11 +112,10 @@ class TestSave:
             sample_git_repo.sanitized_remote_uri
         )
         assert len(result.branches) == 1
-        assert len(result.commits) == 1
         assert len(result.tags) == 1
         assert result.branches[0].name == "main"
-        assert result.commits[0].commit_sha == "commit_sha_456"
         assert result.tags[0].name == "v1.0.0"
+        # Commits are no longer part of the GitRepo aggregate
 
     async def test_updates_existing_repo_by_uri(
         self,
@@ -155,7 +152,6 @@ class TestSave:
             updated_at=datetime.now(UTC),
             sanitized_remote_uri=sample_git_repo.sanitized_remote_uri,  # Same URI
             branches=[minimal_branch],  # Minimal branch
-            commits=[minimal_commit],
             tags=[],
             tracking_branch=minimal_branch,
             cloned_path=Path("/tmp/updated_repo"),  # Different path
@@ -220,10 +216,10 @@ class TestGetById:
         assert result is not None
         assert result.id == sample_git_repo.id
         assert len(result.branches) == 1
-        assert len(result.commits) == 1
         assert len(result.tags) == 1
         assert result.tracking_branch is not None
         assert result.tracking_branch.name == "main"
+        # Commits are no longer part of the GitRepo aggregate
 
 
 class TestGetByUri:
@@ -269,7 +265,6 @@ class TestDelete:
             remote_uri=AnyUrl("https://github.com/simple/repo"),
             sanitized_remote_uri=AnyUrl("https://github.com/simple/repo"),
             branches=[],
-            commits=[],
             tags=[],
             tracking_branch=None,
         )
@@ -341,7 +336,6 @@ class TestListAll:
             updated_at=datetime.now(UTC),
             sanitized_remote_uri=AnyUrl("https://github.com/test/another-repo"),
             branches=[another_branch],
-            commits=[another_commit],
             tags=[],
             tracking_branch=another_branch,
             cloned_path=Path("/tmp/another_repo"),

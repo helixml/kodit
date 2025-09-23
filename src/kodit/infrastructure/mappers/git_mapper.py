@@ -120,6 +120,7 @@ class GitMapper:
         db_tracking_branch: db_entities.GitTrackingBranch | None,
     ) -> domain_git_entities.GitRepo:
         """Convert SQLAlchemy GitRepo to domain GitRepo."""
+        # Build commits needed for branches and tags (but not stored in repo)
         domain_commits = self.to_domain_commits(
             db_commits=db_commits, db_commit_files=db_commit_files
         )
@@ -142,7 +143,6 @@ class GitMapper:
             sanitized_remote_uri=AnyUrl(db_repo.sanitized_remote_uri),
             remote_uri=AnyUrl(db_repo.remote_uri),
             branches=domain_branches,
-            commits=domain_commits,
             tags=domain_tags,
             tracking_branch=tracking_branch,
             cloned_path=Path(db_repo.cloned_path) if db_repo.cloned_path else None,

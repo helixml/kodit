@@ -168,6 +168,7 @@ class ServerFactory:
                 CommitIndexingApplicationService(
                     snippet_v2_repository=self.snippet_v2_repository(),
                     repo_repository=self.repo_repository(),
+                    git_commit_repository=self.git_commit_repository(),
                     operation=self.operation(),
                     scanner=self.scanner(),
                     cloner=self.cloner(),

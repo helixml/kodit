@@ -236,7 +236,6 @@ def test_git_repo_factory_create_from_scan() -> None:
     assert git_repo.sanitized_remote_uri == repo_info.sanitized_remote_uri
     assert git_repo.tracking_branch == main_branch
     assert len(git_repo.branches) == 1
-    assert len(git_repo.commits) == 1
 
 
 def test_git_repo_factory_prefers_main_branch() -> None:

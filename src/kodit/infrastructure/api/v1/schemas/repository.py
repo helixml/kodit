@@ -21,7 +21,7 @@ class RepositoryAttributes(BaseModel):
     num_branches: int = 0
 
     @staticmethod
-    def from_git_repo(repo: GitRepo) -> "RepositoryAttributes":
+    def from_git_repo(repo: GitRepo, num_commits: int = 0) -> "RepositoryAttributes":
         """Create a repository attributes from a Git repository."""
         return RepositoryAttributes(
             remote_uri=repo.sanitized_remote_uri,
@@ -30,7 +30,7 @@ class RepositoryAttributes(BaseModel):
             updated_at=repo.updated_at,
             last_scanned_at=repo.last_scanned_at,
             default_branch=repo.tracking_branch.name if repo.tracking_branch else None,
-            num_commits=len(repo.commits),
+            num_commits=num_commits,
             num_branches=len(repo.branches),
         )
 
@@ -43,11 +43,11 @@ class RepositoryData(BaseModel):
     attributes: RepositoryAttributes
 
     @staticmethod
-    def from_git_repo(repo: GitRepo) -> "RepositoryData":
+    def from_git_repo(repo: GitRepo, num_commits: int = 0) -> "RepositoryData":
         """Create a repository data from a Git repository."""
         return RepositoryData(
             id=str(repo.id) or "",
-            attributes=RepositoryAttributes.from_git_repo(repo),
+            attributes=RepositoryAttributes.from_git_repo(repo, num_commits),
         )
 
 

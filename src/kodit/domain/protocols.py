@@ -150,9 +150,6 @@ class GitRepoRepository(ABC):
     async def delete(self, sanitized_uri: AnyUrl) -> bool:
         """Delete a repository."""
 
-    @abstractmethod
-    async def get_commit_by_sha(self, commit_sha: str) -> GitCommit:
-        """Get a specific commit by its SHA across all repositories."""
 
 
 class GitAdapter(ABC):
