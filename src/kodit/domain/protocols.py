@@ -80,6 +80,34 @@ class TaskStatusRepository(Protocol):
         ...
 
 
+class GitCommitRepository(ABC):
+    """Repository for Git commits."""
+
+    @abstractmethod
+    async def get_by_sha(self, commit_sha: str) -> GitCommit:
+        """Get a commit by its SHA."""
+
+    @abstractmethod
+    async def get_by_repo_id(self, repo_id: int) -> list[GitCommit]:
+        """Get all commits for a repository."""
+
+    @abstractmethod
+    async def save(self, commit: GitCommit, repo_id: int) -> GitCommit:
+        """Save a commit to a repository."""
+
+    @abstractmethod
+    async def save_bulk(self, commits: list[GitCommit], repo_id: int) -> None:
+        """Bulk save commits to a repository."""
+
+    @abstractmethod
+    async def exists(self, commit_sha: str) -> bool:
+        """Check if a commit exists."""
+
+    @abstractmethod
+    async def delete_by_repo_id(self, repo_id: int) -> None:
+        """Delete all commits for a repository."""
+
+
 class GitRepoRepository(ABC):
     """Repository pattern for GitRepo aggregate.
 
