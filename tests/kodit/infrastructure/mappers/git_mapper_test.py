@@ -74,7 +74,7 @@ class TestGitMapper:
         mapper = GitMapper()
         domain_repo = mapper.to_domain_git_repo(
             db_repo=db_repo,
-            db_branches=[db_branch],
+            db_tracking_branch_entity=db_branch,
             db_commits=[db_commit],
             db_tags=[db_tag],
             db_commit_files=[db_commit_file],
@@ -88,18 +88,14 @@ class TestGitMapper:
         assert domain_repo.cloned_path == db_repo.cloned_path
         assert domain_repo.last_scanned_at == db_repo.last_scanned_at
 
-        # Verify branch
-        assert len(domain_repo.branches) == 1
-        assert domain_repo.branches[0].name == "main"
+        # Verify tracking branch (still part of GitRepo for main branch reference)
         assert domain_repo.tracking_branch is not None
         assert domain_repo.tracking_branch.name == "main"
 
-        # Commits are no longer part of the GitRepo aggregate
-        # They are now managed separately by GitCommitRepository
-
-        # Verify tag
-        assert len(domain_repo.tags) == 1
-        assert domain_repo.tags[0].name == "v1.0.0"
+        # Verify counts (branches, commits, and tags are now managed separately)
+        assert domain_repo.num_branches == 0  # Should be 0 as not set in test data
+        assert domain_repo.num_commits == 0   # Should be 0 as not set in test data
+        assert domain_repo.num_tags == 0      # Should be 0 as not set in test data
 
     def test_to_domain_snippet_v2(self) -> None:
         """Test converting database SnippetV2 to domain SnippetV2."""
@@ -334,7 +330,7 @@ class TestGitMapper:
         mapper = GitMapper()
         domain_repo = mapper.to_domain_git_repo(
             db_repo=db_repo,
-            db_branches=[db_branch],
+            db_tracking_branch_entity=None,
             db_commits=[db_commit],
             db_tags=[],
             db_commit_files=[],

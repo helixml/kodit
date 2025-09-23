@@ -19,6 +19,7 @@ class RepositoryAttributes(BaseModel):
     tracking_branch: str | None = None
     num_commits: int = 0
     num_branches: int = 0
+    num_tags: int = 0
 
     @staticmethod
     def from_git_repo(repo: GitRepo) -> "RepositoryAttributes":
@@ -32,6 +33,7 @@ class RepositoryAttributes(BaseModel):
             tracking_branch=repo.tracking_branch.name if repo.tracking_branch else None,
             num_commits=repo.num_commits,
             num_branches=repo.num_branches,
+            num_tags=repo.num_tags,
         )
 
 

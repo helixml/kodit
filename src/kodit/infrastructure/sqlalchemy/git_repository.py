@@ -57,6 +57,7 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
                 existing_repo.last_scanned_at = repo.last_scanned_at
                 existing_repo.num_commits = repo.num_commits
                 existing_repo.num_branches = repo.num_branches
+                existing_repo.num_tags = repo.num_tags
                 db_repo = existing_repo
                 repo.id = existing_repo.id  # Set the domain ID
             else:
@@ -68,6 +69,7 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
                     last_scanned_at=repo.last_scanned_at,
                     num_commits=repo.num_commits,
                     num_branches=repo.num_branches,
+                    num_tags=repo.num_tags,
                 )
                 session.add(db_repo)
                 await session.flush()  # Get the new ID

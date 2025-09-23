@@ -627,9 +627,10 @@ Repository attributes following JSON-API spec.
 | updated_at |  |  |
 | last_scanned_at |  |  |
 | cloned_path |  |  |
-| default_branch |  |  |
+| tracking_branch |  |  |
 | num_commits | integer |  |
 | num_branches | integer |  |
+| num_tags | integer |  |
 
 
 ### RepositoryBranchData
