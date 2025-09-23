@@ -11,6 +11,7 @@ from kodit.domain.entities import (
     TaskStatus,
 )
 from kodit.domain.entities.git import (
+    GitBranch,
     GitCommit,
     GitRepo,
     SnippetV2,
@@ -110,6 +111,38 @@ class GitCommitRepository(ABC):
     @abstractmethod
     async def count_by_repo_id(self, repo_id: int) -> int:
         """Count the number of commits for a repository."""
+
+
+class GitBranchRepository(ABC):
+    """Repository for Git branches."""
+
+    @abstractmethod
+    async def get_by_name(self, branch_name: str, repo_id: int) -> GitBranch:
+        """Get a branch by name and repository ID."""
+
+    @abstractmethod
+    async def get_by_repo_id(self, repo_id: int) -> list[GitBranch]:
+        """Get all branches for a repository."""
+
+    @abstractmethod
+    async def save(self, branch: GitBranch, repo_id: int) -> GitBranch:
+        """Save a branch to a repository."""
+
+    @abstractmethod
+    async def save_bulk(self, branches: list[GitBranch], repo_id: int) -> None:
+        """Bulk save branches to a repository."""
+
+    @abstractmethod
+    async def exists(self, branch_name: str, repo_id: int) -> bool:
+        """Check if a branch exists."""
+
+    @abstractmethod
+    async def delete_by_repo_id(self, repo_id: int) -> None:
+        """Delete all branches for a repository."""
+
+    @abstractmethod
+    async def count_by_repo_id(self, repo_id: int) -> int:
+        """Count the number of branches for a repository."""
 
 
 class GitRepoRepository(ABC):

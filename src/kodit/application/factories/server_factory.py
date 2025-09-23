@@ -18,6 +18,7 @@ from kodit.config import AppContext
 from kodit.domain.protocols import (
     FusionService,
     GitAdapter,
+    GitBranchRepository,
     GitCommitRepository,
     GitRepoRepository,
     SnippetRepositoryV2,
@@ -48,6 +49,9 @@ from kodit.infrastructure.slicing.slicer import Slicer
 from kodit.infrastructure.sqlalchemy.embedding_repository import (
     SqlAlchemyEmbeddingRepository,
     create_embedding_repository,
+)
+from kodit.infrastructure.sqlalchemy.git_branch_repository import (
+    create_git_branch_repository,
 )
 from kodit.infrastructure.sqlalchemy.git_commit_repository import (
     create_git_commit_repository,
@@ -97,6 +101,7 @@ class ServerFactory:
             None
         )
         self._git_commit_repository: GitCommitRepository | None = None
+        self._git_branch_repository: GitBranchRepository | None = None
 
     def queue_service(self) -> QueueService:
         """Create a QueueService instance."""
@@ -281,3 +286,11 @@ class ServerFactory:
                 session_factory=self.session_factory
             )
         return self._git_commit_repository
+
+    def git_branch_repository(self) -> GitBranchRepository:
+        """Create a GitBranchRepository instance."""
+        if not self._git_branch_repository:
+            self._git_branch_repository = create_git_branch_repository(
+                session_factory=self.session_factory
+            )
+        return self._git_branch_repository

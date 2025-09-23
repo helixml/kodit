@@ -82,13 +82,13 @@ def sample_git_repo(
         created_at=datetime.now(UTC),
         updated_at=datetime.now(UTC),
         sanitized_remote_uri=AnyUrl("https://github.com/test/repo"),
-        branches=[sample_git_branch],
         tags=[sample_git_tag],
         tracking_branch=sample_git_branch,
         cloned_path=Path("/tmp/test_repo"),
         remote_uri=AnyUrl("https://github.com/test/repo.git"),
         last_scanned_at=datetime.now(UTC),
         num_commits=1,  # One commit for testing
+        num_branches=1,  # One branch for testing
     )
 
 
@@ -112,9 +112,8 @@ class TestSave:
         assert str(result.sanitized_remote_uri) == str(
             sample_git_repo.sanitized_remote_uri
         )
-        assert len(result.branches) == 1
         assert len(result.tags) == 1
-        assert result.branches[0].name == "main"
+        assert result.num_branches == 1
         assert result.tags[0].name == "v1.0.0"
         # Commits are no longer part of the GitRepo aggregate
 
@@ -152,13 +151,13 @@ class TestSave:
             created_at=datetime.now(UTC),
             updated_at=datetime.now(UTC),
             sanitized_remote_uri=sample_git_repo.sanitized_remote_uri,  # Same URI
-            branches=[minimal_branch],  # Minimal branch
             tags=[],
             tracking_branch=minimal_branch,
             cloned_path=Path("/tmp/updated_repo"),  # Different path
             remote_uri=sample_git_repo.remote_uri,
             last_scanned_at=datetime.now(UTC),
             num_commits=2,  # Different commit count for testing
+            num_branches=1,  # Different branch count for testing
         )
 
         await repository.save(updated_repo)
@@ -217,7 +216,7 @@ class TestGetById:
         result = await repository.get_by_id(sample_git_repo.id)
         assert result is not None
         assert result.id == sample_git_repo.id
-        assert len(result.branches) == 1
+        assert result.num_branches == 1
         assert len(result.tags) == 1
         assert result.tracking_branch is not None
         assert result.tracking_branch.name == "main"
@@ -266,10 +265,10 @@ class TestDelete:
             updated_at=datetime.now(UTC),
             remote_uri=AnyUrl("https://github.com/simple/repo"),
             sanitized_remote_uri=AnyUrl("https://github.com/simple/repo"),
-            branches=[],
             tags=[],
             tracking_branch=None,
             num_commits=0,  # Simple repo with no commits
+            num_branches=0,  # Simple repo with no branches
         )
 
         await repository.save(simple_repo)
@@ -338,13 +337,13 @@ class TestListAll:
             created_at=datetime.now(UTC),
             updated_at=datetime.now(UTC),
             sanitized_remote_uri=AnyUrl("https://github.com/test/another-repo"),
-            branches=[another_branch],
             tags=[],
             tracking_branch=another_branch,
             cloned_path=Path("/tmp/another_repo"),
             remote_uri=AnyUrl("https://github.com/test/another-repo.git"),
             last_scanned_at=datetime.now(UTC),
             num_commits=3,  # Another repo with different commit count
+            num_branches=1,  # Another repo with one branch
         )
         await repository.save(another_repo)
 

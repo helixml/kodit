@@ -135,11 +135,11 @@ class GitService:
             remote_uri=remote_uri,
             sanitized_remote_uri=sanitized_remote_uri,
             repo_path=repo_path,
-            branches=branches,
             tags=all_tags,
             tracking_branch=tracking_branch,
             last_scanned_at=datetime.now(UTC),
             num_commits=num_commits,
+            num_branches=len(branches),
         )
 
     def get_commit_history(

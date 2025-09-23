@@ -22,9 +22,17 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-    op.add_column("git_repos", sa.Column("num_commits", sa.Integer(), nullable=False, server_default="0"))
+    op.add_column(
+        "git_repos",
+        sa.Column("num_commits", sa.Integer(), nullable=False, server_default="0"),
+    )
+    op.add_column(
+        "git_repos",
+        sa.Column("num_branches", sa.Integer(), nullable=False, server_default="0"),
+    )
 
 
 def downgrade() -> None:
     """Downgrade schema."""
     op.drop_column("git_repos", "num_commits")
+    op.drop_column("git_repos", "num_branches")

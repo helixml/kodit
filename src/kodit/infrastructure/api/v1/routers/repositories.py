@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from kodit.infrastructure.api.middleware.auth import api_key_auth
 from kodit.infrastructure.api.v1.dependencies import (
     CommitIndexingAppServiceDep,
+    GitBranchRepositoryDep,
     GitCommitRepositoryDep,
     GitRepositoryDep,
     TaskStatusQueryServiceDep,
@@ -87,6 +88,7 @@ async def get_repository(
     repo_id: str,
     git_repository: GitRepositoryDep,
     git_commit_repository: GitCommitRepositoryDep,
+    git_branch_repository: GitBranchRepositoryDep,
 ) -> RepositoryDetailsResponse:
     """Get repository details including branches and recent commits."""
     repo = await git_repository.get_by_id(int(repo_id))
@@ -117,9 +119,12 @@ async def get_repository(
     # Get commit count for the repository using the commit repository
     commit_count = await git_commit_repository.count_by_repo_id(int(repo_id))
 
+    # Get branches for the repository using the branch repository
+    repo_branches = await git_branch_repository.get_by_repo_id(int(repo_id))
+
     # Get commit counts for all branches using the commit repository
     branch_data = []
-    for branch in repo.branches:
+    for branch in repo_branches:
         # For simplicity, use the total commit count for all branches
         # In a more advanced implementation, we would traverse each branch's history
         branch_commit_count = commit_count

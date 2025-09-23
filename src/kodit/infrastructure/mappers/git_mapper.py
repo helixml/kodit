@@ -100,38 +100,49 @@ class GitMapper:
     def to_domain_tracking_branch(
         self,
         db_tracking_branch: db_entities.GitTrackingBranch | None,
-        domain_branches: list[domain_git_entities.GitBranch],
+        db_tracking_branch_entity: db_entities.GitBranch | None,
+        domain_commits: list[domain_git_entities.GitCommit],
     ) -> domain_git_entities.GitBranch | None:
         """Convert SQLAlchemy GitTrackingBranch to domain GitBranch."""
-        if db_tracking_branch is None:
+        if db_tracking_branch is None or db_tracking_branch_entity is None:
             return None
-        domain_branches_map = {branch.name: branch for branch in domain_branches}
-        if db_tracking_branch.name not in domain_branches_map:
-            raise ValueError(f"Tracking branch {db_tracking_branch.name} not found")
-        return domain_branches_map[db_tracking_branch.name]
+
+        commit_map = {commit.commit_sha: commit for commit in domain_commits}
+        if db_tracking_branch_entity.head_commit_sha not in commit_map:
+            raise ValueError(
+                f"Commit {db_tracking_branch_entity.head_commit_sha} for "
+                f"tracking branch {db_tracking_branch.name} not found"
+            )
+
+        return domain_git_entities.GitBranch(
+            repo_id=db_tracking_branch_entity.repo_id,
+            name=db_tracking_branch_entity.name,
+            created_at=db_tracking_branch_entity.created_at,
+            updated_at=db_tracking_branch_entity.updated_at,
+            head_commit=commit_map[db_tracking_branch_entity.head_commit_sha],
+        )
 
     def to_domain_git_repo(  # noqa: PLR0913
         self,
         db_repo: db_entities.GitRepo,
-        db_branches: list[db_entities.GitBranch],
+        db_tracking_branch_entity: db_entities.GitBranch | None,
         db_commits: list[db_entities.GitCommit],
         db_tags: list[db_entities.GitTag],
         db_commit_files: list[db_entities.GitCommitFile],
         db_tracking_branch: db_entities.GitTrackingBranch | None,
     ) -> domain_git_entities.GitRepo:
         """Convert SQLAlchemy GitRepo to domain GitRepo."""
-        # Build commits needed for branches and tags (but not stored in repo)
+        # Build commits needed for tags and tracking branch
         domain_commits = self.to_domain_commits(
             db_commits=db_commits, db_commit_files=db_commit_files
-        )
-        domain_branches = self.to_domain_branches(
-            db_branches=db_branches, domain_commits=domain_commits
         )
         domain_tags = self.to_domain_tags(
             db_tags=db_tags, domain_commits=domain_commits
         )
         tracking_branch = self.to_domain_tracking_branch(
-            db_tracking_branch=db_tracking_branch, domain_branches=domain_branches
+            db_tracking_branch=db_tracking_branch,
+            db_tracking_branch_entity=db_tracking_branch_entity,
+            domain_commits=domain_commits,
         )
 
         from kodit.domain.factories.git_repo_factory import GitRepoFactory
@@ -142,12 +153,12 @@ class GitMapper:
             updated_at=db_repo.updated_at,
             sanitized_remote_uri=AnyUrl(db_repo.sanitized_remote_uri),
             remote_uri=AnyUrl(db_repo.remote_uri),
-            branches=domain_branches,
             tags=domain_tags,
             tracking_branch=tracking_branch,
             cloned_path=Path(db_repo.cloned_path) if db_repo.cloned_path else None,
             last_scanned_at=db_repo.last_scanned_at,
             num_commits=db_repo.num_commits,
+            num_branches=db_repo.num_branches,
         )
 
     def to_domain_commit_index(

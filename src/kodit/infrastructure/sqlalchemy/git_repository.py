@@ -56,6 +56,7 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
                 existing_repo.cloned_path = repo.cloned_path
                 existing_repo.last_scanned_at = repo.last_scanned_at
                 existing_repo.num_commits = repo.num_commits
+                existing_repo.num_branches = repo.num_branches
                 db_repo = existing_repo
                 repo.id = existing_repo.id  # Set the domain ID
             else:
@@ -66,55 +67,22 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
                     cloned_path=repo.cloned_path,
                     last_scanned_at=repo.last_scanned_at,
                     num_commits=repo.num_commits,
+                    num_branches=repo.num_branches,
                 )
                 session.add(db_repo)
                 await session.flush()  # Get the new ID
                 repo.id = db_repo.id  # Set the domain ID
 
-            # 2. Bulk save branches
-            await self._save_branches_bulk(session, repo)
-
-            # 3. Save tracking branch
+            # 2. Save tracking branch
             await self._save_tracking_branch(session, repo)
 
-            # 4. Bulk save tags
+            # 3. Bulk save tags
             await self._save_tags_bulk(session, repo)
 
             await session.flush()
             return repo
 
 
-    async def _save_branches_bulk(self, session: AsyncSession, repo: GitRepo) -> None:
-        """Bulk save branches using efficient batch operations."""
-        if not repo.branches:
-            return
-
-        branch_names = [branch.name for branch in repo.branches]
-
-        # Get existing branches in bulk
-        existing_branches_stmt = select(db_entities.GitBranch.name).where(
-            db_entities.GitBranch.repo_id == repo.id,
-            db_entities.GitBranch.name.in_(branch_names),
-        )
-        existing_branch_names = set(
-            (await session.scalars(existing_branches_stmt)).all()
-        )
-
-        # Prepare new branches for bulk insert
-        new_branches = [
-            {
-                "repo_id": repo.id,
-                "name": branch.name,
-                "head_commit_sha": branch.head_commit.commit_sha,
-            }
-            for branch in repo.branches
-            if branch.name not in existing_branch_names
-        ]
-
-        # Bulk insert new branches
-        if new_branches:
-            stmt = insert(db_entities.GitBranch).values(new_branches)
-            await session.execute(stmt)
 
     async def _save_tracking_branch(self, session: AsyncSession, repo: GitRepo) -> None:
         """Save tracking branch if it doesn't exist."""
@@ -271,15 +239,6 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
         self, session: AsyncSession, db_repo: db_entities.GitRepo
     ) -> GitRepo:
         """Load a complete repo with all its associations."""
-        all_branches = list(
-            (
-                await session.scalars(
-                    select(db_entities.GitBranch).where(
-                        db_entities.GitBranch.repo_id == db_repo.id
-                    )
-                )
-            ).all()
-        )
         all_tags = list(
             (
                 await session.scalars(
@@ -295,12 +254,22 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
             )
         )
 
-        # Get only commits needed for branches and tags
+        # Get tracking branch from branches table if needed
+        db_tracking_branch_entity = None
+        if tracking_branch:
+            db_tracking_branch_entity = await session.scalar(
+                select(db_entities.GitBranch).where(
+                    db_entities.GitBranch.repo_id == db_repo.id,
+                    db_entities.GitBranch.name == tracking_branch.name,
+                )
+            )
+
+        # Get only commits needed for tags and tracking branch
         referenced_commit_shas = set()
-        for branch in all_branches:
-            referenced_commit_shas.add(branch.head_commit_sha)
         for tag in all_tags:
             referenced_commit_shas.add(tag.target_commit_sha)
+        if db_tracking_branch_entity:
+            referenced_commit_shas.add(db_tracking_branch_entity.head_commit_sha)
 
         # Load only the referenced commits
         referenced_commits = []
@@ -327,7 +296,7 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
 
         return self._mapper.to_domain_git_repo(
             db_repo=db_repo,
-            db_branches=all_branches,
+            db_tracking_branch_entity=db_tracking_branch_entity,
             db_commits=referenced_commits,
             db_tags=all_tags,
             db_commit_files=referenced_files,
