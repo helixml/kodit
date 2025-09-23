@@ -11,8 +11,10 @@ from kodit.domain.entities import (
     TaskStatus,
 )
 from kodit.domain.entities.git import (
+    GitBranch,
     GitCommit,
     GitRepo,
+    GitTag,
     SnippetV2,
 )
 from kodit.domain.value_objects import (
@@ -80,6 +82,102 @@ class TaskStatusRepository(Protocol):
         ...
 
 
+class GitCommitRepository(ABC):
+    """Repository for Git commits."""
+
+    @abstractmethod
+    async def get_by_sha(self, commit_sha: str) -> GitCommit:
+        """Get a commit by its SHA."""
+
+    @abstractmethod
+    async def get_by_repo_id(self, repo_id: int) -> list[GitCommit]:
+        """Get all commits for a repository."""
+
+    @abstractmethod
+    async def save(self, commit: GitCommit, repo_id: int) -> GitCommit:
+        """Save a commit to a repository."""
+
+    @abstractmethod
+    async def save_bulk(self, commits: list[GitCommit], repo_id: int) -> None:
+        """Bulk save commits to a repository."""
+
+    @abstractmethod
+    async def exists(self, commit_sha: str) -> bool:
+        """Check if a commit exists."""
+
+    @abstractmethod
+    async def delete_by_repo_id(self, repo_id: int) -> None:
+        """Delete all commits for a repository."""
+
+    @abstractmethod
+    async def count_by_repo_id(self, repo_id: int) -> int:
+        """Count the number of commits for a repository."""
+
+
+class GitBranchRepository(ABC):
+    """Repository for Git branches."""
+
+    @abstractmethod
+    async def get_by_name(self, branch_name: str, repo_id: int) -> GitBranch:
+        """Get a branch by name and repository ID."""
+
+    @abstractmethod
+    async def get_by_repo_id(self, repo_id: int) -> list[GitBranch]:
+        """Get all branches for a repository."""
+
+    @abstractmethod
+    async def save(self, branch: GitBranch, repo_id: int) -> GitBranch:
+        """Save a branch to a repository."""
+
+    @abstractmethod
+    async def save_bulk(self, branches: list[GitBranch], repo_id: int) -> None:
+        """Bulk save branches to a repository."""
+
+    @abstractmethod
+    async def exists(self, branch_name: str, repo_id: int) -> bool:
+        """Check if a branch exists."""
+
+    @abstractmethod
+    async def delete_by_repo_id(self, repo_id: int) -> None:
+        """Delete all branches for a repository."""
+
+    @abstractmethod
+    async def count_by_repo_id(self, repo_id: int) -> int:
+        """Count the number of branches for a repository."""
+
+
+class GitTagRepository(ABC):
+    """Repository for Git tags."""
+
+    @abstractmethod
+    async def get_by_name(self, tag_name: str, repo_id: int) -> GitTag:
+        """Get a tag by name and repository ID."""
+
+    @abstractmethod
+    async def get_by_repo_id(self, repo_id: int) -> list[GitTag]:
+        """Get all tags for a repository."""
+
+    @abstractmethod
+    async def save(self, tag: GitTag, repo_id: int) -> GitTag:
+        """Save a tag to a repository."""
+
+    @abstractmethod
+    async def save_bulk(self, tags: list[GitTag], repo_id: int) -> None:
+        """Bulk save tags to a repository."""
+
+    @abstractmethod
+    async def exists(self, tag_name: str, repo_id: int) -> bool:
+        """Check if a tag exists."""
+
+    @abstractmethod
+    async def delete_by_repo_id(self, repo_id: int) -> None:
+        """Delete all tags for a repository."""
+
+    @abstractmethod
+    async def count_by_repo_id(self, repo_id: int) -> int:
+        """Count the number of tags for a repository."""
+
+
 class GitRepoRepository(ABC):
     """Repository pattern for GitRepo aggregate.
 
@@ -118,9 +216,6 @@ class GitRepoRepository(ABC):
     async def delete(self, sanitized_uri: AnyUrl) -> bool:
         """Delete a repository."""
 
-    @abstractmethod
-    async def get_commit_by_sha(self, commit_sha: str) -> GitCommit:
-        """Get a specific commit by its SHA across all repositories."""
 
 
 class GitAdapter(ABC):

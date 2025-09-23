@@ -1227,7 +1227,7 @@
             ],
             "title": "Cloned Path"
           },
-          "default_branch": {
+          "tracking_branch": {
             "anyOf": [
               {
                 "type": "string"
@@ -1236,7 +1236,7 @@
                 "type": "null"
               }
             ],
-            "title": "Default Branch"
+            "title": "Tracking Branch"
           },
           "num_commits": {
             "type": "integer",
@@ -1246,6 +1246,11 @@
           "num_branches": {
             "type": "integer",
             "title": "Num Branches",
+            "default": 0
+          },
+          "num_tags": {
+            "type": "integer",
+            "title": "Num Tags",
             "default": 0
           }
         },

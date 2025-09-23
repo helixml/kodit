@@ -16,9 +16,10 @@ class RepositoryAttributes(BaseModel):
     updated_at: datetime | None = None
     last_scanned_at: datetime | None = None
     cloned_path: Path | None = None
-    default_branch: str | None = None
+    tracking_branch: str | None = None
     num_commits: int = 0
     num_branches: int = 0
+    num_tags: int = 0
 
     @staticmethod
     def from_git_repo(repo: GitRepo) -> "RepositoryAttributes":
@@ -29,9 +30,10 @@ class RepositoryAttributes(BaseModel):
             created_at=repo.created_at,
             updated_at=repo.updated_at,
             last_scanned_at=repo.last_scanned_at,
-            default_branch=repo.tracking_branch.name if repo.tracking_branch else None,
-            num_commits=len(repo.commits),
-            num_branches=len(repo.branches),
+            tracking_branch=repo.tracking_branch.name if repo.tracking_branch else None,
+            num_commits=repo.num_commits,
+            num_branches=repo.num_branches,
+            num_tags=repo.num_tags,
         )
 
 

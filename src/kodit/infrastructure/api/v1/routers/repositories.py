@@ -5,7 +5,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from kodit.infrastructure.api.middleware.auth import api_key_auth
 from kodit.infrastructure.api.v1.dependencies import (
     CommitIndexingAppServiceDep,
+    GitBranchRepositoryDep,
+    GitCommitRepositoryDep,
     GitRepositoryDep,
+    GitTagRepositoryDep,
     TaskStatusQueryServiceDep,
 )
 from kodit.infrastructure.api.v1.schemas.repository import (
@@ -85,11 +88,17 @@ async def create_repository(
 async def get_repository(
     repo_id: str,
     git_repository: GitRepositoryDep,
+    git_commit_repository: GitCommitRepositoryDep,
+    git_branch_repository: GitBranchRepositoryDep,
 ) -> RepositoryDetailsResponse:
     """Get repository details including branches and recent commits."""
     repo = await git_repository.get_by_id(int(repo_id))
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
+
+    # Get all commits for this repository from the commit repository
+    repo_commits = await git_commit_repository.get_by_repo_id(int(repo_id))
+    commits_by_sha = {commit.commit_sha: commit for commit in repo_commits}
 
     # Get recent commits from the tracking branch's head commit
     recent_commits = []
@@ -101,23 +110,25 @@ async def get_repository(
         # Traverse parent commits for more recent commits (up to 10)
         current_sha = current_commit.parent_commit_sha
         while current_sha and len(recent_commits) < 10:
-            parent_commit = next(
-                (c for c in repo.commits if c.commit_sha == current_sha), None
-            )
+            parent_commit = commits_by_sha.get(current_sha)
             if parent_commit:
                 recent_commits.append(parent_commit)
                 current_sha = parent_commit.parent_commit_sha
             else:
                 break
 
-    # Get commit counts for all branches using the existing commits in the repo
+    # Get commit count for the repository using the commit repository
+    commit_count = await git_commit_repository.count_by_repo_id(int(repo_id))
+
+    # Get branches for the repository using the branch repository
+    repo_branches = await git_branch_repository.get_by_repo_id(int(repo_id))
+
+    # Get commit counts for all branches using the commit repository
     branch_data = []
-    for branch in repo.branches:
-        # Count commits accessible from this branch's head
-        branch_commit_count = 0
-        if branch.head_commit:
-            # For simplicity, count all commits (could traverse branch history)
-            branch_commit_count = len([c for c in repo.commits if c])
+    for branch in repo_branches:
+        # For simplicity, use the total commit count for all branches
+        # In a more advanced implementation, we would traverse each branch's history
+        branch_commit_count = commit_count
 
         branch_data.append(
             RepositoryBranchData(
@@ -187,14 +198,15 @@ async def get_index_status(
 async def list_repository_tags(
     repo_id: str,
     git_repository: GitRepositoryDep,
+    git_tag_repository: GitTagRepositoryDep,
 ) -> TagListResponse:
     """List all tags for a repository."""
     repo = await git_repository.get_by_id(int(repo_id))
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
 
-    # Tags are now available directly from the repo aggregate
-    tags = repo.tags
+    # Tags are now stored in a dedicated repository
+    tags = await git_tag_repository.get_by_repo_id(int(repo_id))
 
     return TagListResponse(
         data=[
@@ -221,14 +233,16 @@ async def get_repository_tag(
     repo_id: str,
     tag_id: str,
     git_repository: GitRepositoryDep,
+    git_tag_repository: GitTagRepositoryDep,
 ) -> TagResponse:
     """Get a specific tag for a repository."""
     repo = await git_repository.get_by_id(int(repo_id))
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
 
-    # Find tag by ID from the repo's tags
-    tag = next((t for t in repo.tags if t.id == tag_id), None)
+    # Get all tags and find the specific one by ID
+    tags = await git_tag_repository.get_by_repo_id(int(repo_id))
+    tag = next((t for t in tags if t.id == tag_id), None)
     if not tag:
         raise HTTPException(status_code=404, detail="Tag not found")
 

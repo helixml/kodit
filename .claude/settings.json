@@ -7,7 +7,16 @@
                 "hooks": [
                     {
                         "type": "command",
-                        "command": "uv run ruff check"
+                        "command": "uv run ruff check --fix --unsafe-fixes"
+                    }
+                ]
+            },
+            {
+                "matcher": "Write",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "uv run mypy --config-file pyproject.toml ."
                     }
                 ]
             }

@@ -7,7 +7,6 @@ from pathlib import Path
 
 from pydantic import AnyUrl, BaseModel
 
-from kodit.domain.entities import WorkingCopy
 from kodit.domain.value_objects import Enrichment, IndexStatus
 from kodit.utils.path_utils import repo_id_from_uri
 
@@ -108,25 +107,17 @@ class GitRepo(BaseModel):
     remote_uri: AnyUrl  # May include credentials
 
     # The following may be empty when initially created
-    branches: list[GitBranch] = []
-    commits: list[GitCommit] = []
-    tags: list[GitTag] = []
     cloned_path: Path | None = None
     tracking_branch: GitBranch | None = None
     last_scanned_at: datetime | None = None
+    num_commits: int = 0  # Total number of commits in this repository
+    num_branches: int = 0  # Total number of branches in this repository
+    num_tags: int = 0  # Total number of tags in this repository
 
     @staticmethod
     def create_id(sanitized_remote_uri: AnyUrl) -> str:
         """Create a unique business key for a repository (kept for compatibility)."""
         return repo_id_from_uri(sanitized_remote_uri)
-
-    @staticmethod
-    def from_remote_uri(remote_uri: AnyUrl) -> "GitRepo":
-        """Create a new Git repository from a remote URI."""
-        return GitRepo(
-            remote_uri=remote_uri,
-            sanitized_remote_uri=WorkingCopy.sanitize_git_url(str(remote_uri)),
-        )
 
     def update_with_scan_result(self, scan_result: RepositoryScanResult) -> None:
         """Update the GitRepo with a scan result."""
@@ -148,10 +139,10 @@ class GitRepo(BaseModel):
 
             self.tracking_branch = tracking_branch
 
-        self.branches = scan_result.branches
         self.last_scanned_at = datetime.now(UTC)
-        self.commits = scan_result.all_commits
-        self.tags = scan_result.all_tags
+        self.num_commits = len(scan_result.all_commits)
+        self.num_branches = len(scan_result.branches)
+        self.num_tags = len(scan_result.all_tags)
 
 
 class CommitIndex(BaseModel):

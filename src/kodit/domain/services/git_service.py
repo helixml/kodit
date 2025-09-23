@@ -21,6 +21,7 @@ from kodit.domain.entities.git import (
     GitRepo,
     GitTag,
 )
+from kodit.domain.factories.git_repo_factory import GitRepoFactory
 
 if TYPE_CHECKING:
     from git.objects import Commit
@@ -109,8 +110,9 @@ class GitService:
         # Get all branches with their commit histories
         branches = self._get_all_branches(repo)
 
-        # Get all unique commits across all branches
+        # Count commits for num_commits field (managed by GitCommitRepository)
         all_commits = self._get_all_commits(repo)
+        num_commits = len(all_commits)
 
         # Get all tags
         all_tags = self._get_all_tags(repo)
@@ -129,16 +131,15 @@ class GitService:
         if tracking_branch is None:
             raise ValueError("No branches found in repository")
 
-        return GitRepo(
-            id=None,  # Let repository assign database ID
-            sanitized_remote_uri=sanitized_remote_uri,
-            branches=branches,
-            commits=all_commits,
-            tags=all_tags,
-            tracking_branch=tracking_branch,
-            cloned_path=repo_path,
+        return GitRepoFactory.create_from_path_scan(
             remote_uri=remote_uri,
+            sanitized_remote_uri=sanitized_remote_uri,
+            repo_path=repo_path,
+            tracking_branch=tracking_branch,
             last_scanned_at=datetime.now(UTC),
+            num_commits=num_commits,
+            num_branches=len(branches),
+            num_tags=len(all_tags),
         )
 
     def get_commit_history(

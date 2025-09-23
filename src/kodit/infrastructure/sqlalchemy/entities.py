@@ -206,13 +206,19 @@ class GitRepo(Base, CommonMixin):
     remote_uri: Mapped[str] = mapped_column(String(1024))
     cloned_path: Mapped[Path | None] = mapped_column(PathType(1024), nullable=True)
     last_scanned_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
+    num_commits: Mapped[int] = mapped_column(Integer, default=0)
+    num_branches: Mapped[int] = mapped_column(Integer, default=0)
+    num_tags: Mapped[int] = mapped_column(Integer, default=0)
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         sanitized_remote_uri: str,
         remote_uri: str,
         cloned_path: Path | None,
         last_scanned_at: datetime | None = None,
+        num_commits: int = 0,
+        num_branches: int = 0,
+        num_tags: int = 0,
     ) -> None:
         """Initialize Git repository."""
         super().__init__()
@@ -220,6 +226,9 @@ class GitRepo(Base, CommonMixin):
         self.remote_uri = remote_uri
         self.cloned_path = cloned_path
         self.last_scanned_at = last_scanned_at
+        self.num_commits = num_commits
+        self.num_branches = num_branches
+        self.num_tags = num_tags
 
 
 class GitCommit(Base):
