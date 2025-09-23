@@ -5,7 +5,10 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from kodit.infrastructure.api.middleware.auth import api_key_auth
-from kodit.infrastructure.api.v1.dependencies import GitRepositoryDep, ServerFactoryDep
+from kodit.infrastructure.api.v1.dependencies import (
+    GitCommitRepositoryDep,
+    ServerFactoryDep,
+)
 from kodit.infrastructure.api.v1.schemas.commit import (
     CommitAttributes,
     CommitData,
@@ -41,15 +44,14 @@ router = APIRouter(
 
 @router.get("/{repo_id}/commits", summary="List repository commits")
 async def list_repository_commits(
-    repo_id: str, git_repository: GitRepositoryDep
+    repo_id: str, git_commit_repository: GitCommitRepositoryDep
 ) -> CommitListResponse:
     """List all commits for a repository."""
-    repo = await git_repository.get_by_id(int(repo_id))
-    if not repo:
-        raise HTTPException(status_code=404, detail="Repository not found")
-
-    # Get all commits for the repository
-    commits = repo.commits
+    try:
+        # Get all commits for the repository directly from commit repository
+        commits = await git_commit_repository.get_by_repo_id(int(repo_id))
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail="Repository not found") from e
 
     return CommitListResponse(
         data=[
@@ -75,19 +77,16 @@ async def list_repository_commits(
     responses={404: {"description": "Repository or commit not found"}},
 )
 async def get_repository_commit(
-    repo_id: str,
+    repo_id: str,  # noqa: ARG001
     commit_sha: str,
-    git_repository: GitRepositoryDep,
+    git_commit_repository: GitCommitRepositoryDep,
 ) -> CommitResponse:
     """Get a specific commit for a repository."""
-    repo = await git_repository.get_by_id(int(repo_id))
-    if not repo:
-        raise HTTPException(status_code=404, detail="Repository not found")
-
-    # Find the specific commit
-    commit = next((c for c in repo.commits if c.commit_sha == commit_sha), None)
-    if not commit:
-        raise HTTPException(status_code=404, detail="Commit not found")
+    try:
+        # Get the specific commit directly from commit repository
+        commit = await git_commit_repository.get_by_sha(commit_sha)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail="Commit not found") from e
 
     return CommitResponse(
         data=CommitData(
@@ -106,19 +105,16 @@ async def get_repository_commit(
 
 @router.get("/{repo_id}/commits/{commit_sha}/files", summary="List commit files")
 async def list_commit_files(
-    repo_id: str,
+    repo_id: str,  # noqa: ARG001
     commit_sha: str,
-    git_repository: GitRepositoryDep,
+    git_commit_repository: GitCommitRepositoryDep,
 ) -> FileListResponse:
     """List all files in a specific commit."""
-    repo = await git_repository.get_by_id(int(repo_id))
-    if not repo:
-        raise HTTPException(status_code=404, detail="Repository not found")
-
-    # Find the specific commit
-    commit = next((c for c in repo.commits if c.commit_sha == commit_sha), None)
-    if not commit:
-        raise HTTPException(status_code=404, detail="Commit not found")
+    try:
+        # Get the specific commit directly from commit repository
+        commit = await git_commit_repository.get_by_sha(commit_sha)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail="Commit not found") from e
 
     return FileListResponse(
         data=[
@@ -144,20 +140,17 @@ async def list_commit_files(
     responses={404: {"description": "Repository, commit or file not found"}},
 )
 async def get_commit_file(
-    repo_id: str,
+    repo_id: str,  # noqa: ARG001
     commit_sha: str,
     blob_sha: str,
-    git_repository: GitRepositoryDep,
+    git_commit_repository: GitCommitRepositoryDep,
 ) -> FileResponse:
     """Get a specific file from a commit."""
-    repo = await git_repository.get_by_id(int(repo_id))
-    if not repo:
-        raise HTTPException(status_code=404, detail="Repository not found")
-
-    # Find the specific commit
-    commit = next((c for c in repo.commits if c.commit_sha == commit_sha), None)
-    if not commit:
-        raise HTTPException(status_code=404, detail="Commit not found")
+    try:
+        # Get the specific commit directly from commit repository
+        commit = await git_commit_repository.get_by_sha(commit_sha)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail="Commit not found") from e
 
     # Find the specific file
     file = next((f for f in commit.files if f.blob_sha == blob_sha), None)

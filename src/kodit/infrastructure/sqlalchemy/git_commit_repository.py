@@ -2,7 +2,7 @@
 
 from collections.abc import Callable
 
-from sqlalchemy import delete, insert, select
+from sqlalchemy import delete, func, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.domain.entities.git import GitCommit, GitFile
@@ -210,6 +210,15 @@ class SqlAlchemyGitCommitRepository(GitCommitRepository):
                 db_entities.GitCommit.repo_id == repo_id
             )
             await session.execute(del_commits_stmt)
+
+    async def count_by_repo_id(self, repo_id: int) -> int:
+        """Count the number of commits for a repository."""
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
+            stmt = select(func.count()).select_from(db_entities.GitCommit).where(
+                db_entities.GitCommit.repo_id == repo_id
+            )
+            result = await session.scalar(stmt)
+            return result or 0
 
     async def _save_commit_files(
         self, session: AsyncSession, commit: GitCommit

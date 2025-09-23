@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from kodit.infrastructure.api.middleware.auth import api_key_auth
 from kodit.infrastructure.api.v1.dependencies import (
     CommitIndexingAppServiceDep,
+    GitCommitRepositoryDep,
     GitRepositoryDep,
     TaskStatusQueryServiceDep,
 )
@@ -85,11 +86,16 @@ async def create_repository(
 async def get_repository(
     repo_id: str,
     git_repository: GitRepositoryDep,
+    git_commit_repository: GitCommitRepositoryDep,
 ) -> RepositoryDetailsResponse:
     """Get repository details including branches and recent commits."""
     repo = await git_repository.get_by_id(int(repo_id))
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
+
+    # Get all commits for this repository from the commit repository
+    repo_commits = await git_commit_repository.get_by_repo_id(int(repo_id))
+    commits_by_sha = {commit.commit_sha: commit for commit in repo_commits}
 
     # Get recent commits from the tracking branch's head commit
     recent_commits = []
@@ -101,23 +107,22 @@ async def get_repository(
         # Traverse parent commits for more recent commits (up to 10)
         current_sha = current_commit.parent_commit_sha
         while current_sha and len(recent_commits) < 10:
-            parent_commit = next(
-                (c for c in repo.commits if c.commit_sha == current_sha), None
-            )
+            parent_commit = commits_by_sha.get(current_sha)
             if parent_commit:
                 recent_commits.append(parent_commit)
                 current_sha = parent_commit.parent_commit_sha
             else:
                 break
 
-    # Get commit counts for all branches using the existing commits in the repo
+    # Get commit count for the repository using the commit repository
+    commit_count = await git_commit_repository.count_by_repo_id(int(repo_id))
+
+    # Get commit counts for all branches using the commit repository
     branch_data = []
     for branch in repo.branches:
-        # Count commits accessible from this branch's head
-        branch_commit_count = 0
-        if branch.head_commit:
-            # For simplicity, count all commits (could traverse branch history)
-            branch_commit_count = len([c for c in repo.commits if c])
+        # For simplicity, use the total commit count for all branches
+        # In a more advanced implementation, we would traverse each branch's history
+        branch_commit_count = commit_count
 
         branch_data.append(
             RepositoryBranchData(

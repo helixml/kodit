@@ -107,6 +107,10 @@ class GitCommitRepository(ABC):
     async def delete_by_repo_id(self, repo_id: int) -> None:
         """Delete all commits for a repository."""
 
+    @abstractmethod
+    async def count_by_repo_id(self, repo_id: int) -> int:
+        """Count the number of commits for a repository."""
+
 
 class GitRepoRepository(ABC):
     """Repository pattern for GitRepo aggregate.
