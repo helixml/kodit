@@ -11,6 +11,7 @@ from kodit.domain.entities import Task
 from kodit.domain.entities.git import GitFile, GitRepo, SnippetV2
 from kodit.domain.factories.git_repo_factory import GitRepoFactory
 from kodit.domain.protocols import (
+    GitBranchRepository,
     GitCommitRepository,
     GitRepoRepository,
     SnippetRepositoryV2,
@@ -50,6 +51,7 @@ class CommitIndexingApplicationService:
         snippet_v2_repository: SnippetRepositoryV2,
         repo_repository: GitRepoRepository,
         git_commit_repository: GitCommitRepository,
+        git_branch_repository: GitBranchRepository,
         operation: ProgressTracker,
         scanner: GitRepositoryScanner,
         cloner: RepositoryCloner,
@@ -75,6 +77,7 @@ class CommitIndexingApplicationService:
         self.snippet_repository = snippet_v2_repository
         self.repo_repository = repo_repository
         self.git_commit_repository = git_commit_repository
+        self.git_branch_repository = git_branch_repository
         self.operation = operation
         self.scanner = scanner
         self.cloner = cloner
@@ -174,10 +177,24 @@ class CommitIndexingApplicationService:
             repo = await self.repo_repository.get_by_id(repository_id)
             if not repo.cloned_path:
                 raise ValueError(f"Repository {repository_id} has never been cloned")
-            repo.update_with_scan_result(
-                await self.scanner.scan_repository(repo.cloned_path)
-            )
+
+            # Scan the repository to get all metadata
+            scan_result = await self.scanner.scan_repository(repo.cloned_path)
+
+            # Update repo with scan result (this sets num_commits, num_branches, etc.)
+            repo.update_with_scan_result(scan_result)
             await self.repo_repository.save(repo)
+
+            # Save commits and branches to their dedicated repositories
+            if scan_result.all_commits:
+                await self.git_commit_repository.save_bulk(
+                    scan_result.all_commits, repository_id
+                )
+
+            if scan_result.branches:
+                await self.git_branch_repository.save_bulk(
+                    scan_result.branches, repository_id
+                )
 
             if not repo.tracking_branch:
                 raise ValueError(f"Repository {repository_id} has no tracking branch")
@@ -201,6 +218,11 @@ class CommitIndexingApplicationService:
             repo = await self.repo_repository.get_by_id(repository_id)
             if not repo:
                 raise ValueError(f"Repository {repository_id} not found")
+
+            # Delete commits and branches before deleting the repository
+            await self.git_commit_repository.delete_by_repo_id(repository_id)
+            await self.git_branch_repository.delete_by_repo_id(repository_id)
+
             await self.repo_repository.delete(repo.sanitized_remote_uri)
 
     async def process_snippets_for_commit(

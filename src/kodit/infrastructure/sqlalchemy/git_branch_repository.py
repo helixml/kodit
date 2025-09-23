@@ -175,7 +175,8 @@ class SqlAlchemyGitBranchRepository(GitBranchRepository):
             if existing_branch:
                 # Update existing branch
                 existing_branch.head_commit_sha = branch.head_commit.commit_sha
-                existing_branch.updated_at = branch.updated_at
+                if branch.updated_at:
+                    existing_branch.updated_at = branch.updated_at
             else:
                 # Create new branch
                 db_branch = db_entities.GitBranch(
