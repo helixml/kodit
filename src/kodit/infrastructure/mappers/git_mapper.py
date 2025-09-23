@@ -133,17 +133,19 @@ class GitMapper:
             db_tracking_branch=db_tracking_branch, domain_branches=domain_branches
         )
 
-        return domain_git_entities.GitRepo(
-            id=db_repo.id,
+        from kodit.domain.factories.git_repo_factory import GitRepoFactory
+
+        return GitRepoFactory.create_from_components(
+            repo_id=db_repo.id,
             created_at=db_repo.created_at,
             updated_at=db_repo.updated_at,
             sanitized_remote_uri=AnyUrl(db_repo.sanitized_remote_uri),
+            remote_uri=AnyUrl(db_repo.remote_uri),
             branches=domain_branches,
             commits=domain_commits,
             tags=domain_tags,
             tracking_branch=tracking_branch,
             cloned_path=Path(db_repo.cloned_path) if db_repo.cloned_path else None,
-            remote_uri=AnyUrl(db_repo.remote_uri),
             last_scanned_at=db_repo.last_scanned_at,
         )
 

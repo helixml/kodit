@@ -21,6 +21,7 @@ from kodit.domain.entities.git import (
     GitRepo,
     GitTag,
 )
+from kodit.domain.factories.git_repo_factory import GitRepoFactory
 
 if TYPE_CHECKING:
     from git.objects import Commit
@@ -129,15 +130,14 @@ class GitService:
         if tracking_branch is None:
             raise ValueError("No branches found in repository")
 
-        return GitRepo(
-            id=None,  # Let repository assign database ID
+        return GitRepoFactory.create_from_path_scan(
+            remote_uri=remote_uri,
             sanitized_remote_uri=sanitized_remote_uri,
+            repo_path=repo_path,
             branches=branches,
             commits=all_commits,
             tags=all_tags,
             tracking_branch=tracking_branch,
-            cloned_path=repo_path,
-            remote_uri=remote_uri,
             last_scanned_at=datetime.now(UTC),
         )
 

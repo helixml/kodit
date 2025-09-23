@@ -9,6 +9,7 @@ from kodit.application.services.queue_service import QueueService
 from kodit.application.services.reporting import ProgressTracker
 from kodit.domain.entities import Task
 from kodit.domain.entities.git import GitFile, GitRepo, SnippetV2
+from kodit.domain.factories.git_repo_factory import GitRepoFactory
 from kodit.domain.protocols import (
     GitRepoRepository,
     SnippetRepositoryV2,
@@ -90,7 +91,7 @@ class CommitIndexingApplicationService:
             TaskOperation.CREATE_REPOSITORY,
             trackable_type=TrackableType.KODIT_REPOSITORY,
         ):
-            repo = GitRepo.from_remote_uri(remote_uri)
+            repo = GitRepoFactory.create_from_remote_uri(remote_uri)
             repo = await self.repo_repository.save(repo)
             await self.queue.enqueue_tasks(
                 tasks=PrescribedOperations.CREATE_NEW_REPOSITORY,

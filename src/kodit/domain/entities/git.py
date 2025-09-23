@@ -7,7 +7,6 @@ from pathlib import Path
 
 from pydantic import AnyUrl, BaseModel
 
-from kodit.domain.entities import WorkingCopy
 from kodit.domain.value_objects import Enrichment, IndexStatus
 from kodit.utils.path_utils import repo_id_from_uri
 
@@ -125,13 +124,6 @@ class GitRepo(BaseModel):
         """Create a unique business key for a repository (kept for compatibility)."""
         return repo_id_from_uri(sanitized_remote_uri)
 
-    @staticmethod
-    def from_remote_uri(remote_uri: AnyUrl) -> "GitRepo":
-        """Create a new Git repository from a remote URI."""
-        return GitRepo(
-            remote_uri=remote_uri,
-            sanitized_remote_uri=WorkingCopy.sanitize_git_url(str(remote_uri)),
-        )
 
     def update_with_scan_result(self, scan_result: RepositoryScanResult) -> None:
         """Update the GitRepo with a scan result."""

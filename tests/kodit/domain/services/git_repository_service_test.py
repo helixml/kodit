@@ -8,6 +8,7 @@ import pytest
 from pydantic import AnyUrl
 
 from kodit.domain.entities.git import GitBranch, GitCommit, GitRepo
+from kodit.domain.factories.git_repo_factory import GitRepoFactory
 from kodit.domain.protocols import GitAdapter
 from kodit.domain.services.git_repository_service import (
     GitRepositoryScanner,
@@ -227,7 +228,7 @@ def test_git_repo_factory_create_from_scan() -> None:
     )
 
     # Create GitRepo
-    git_repo = GitRepo.from_remote_uri(repo_info.remote_uri)
+    git_repo = GitRepoFactory.create_from_remote_uri(repo_info.remote_uri)
     git_repo.update_with_scan_result(scan_result)
 
     assert isinstance(git_repo, GitRepo)
@@ -262,7 +263,7 @@ def test_git_repo_factory_prefers_main_branch() -> None:
         GitBranch(name="main", head_commit=commit),
     ]
 
-    git_repo = GitRepo.from_remote_uri(repo_info.remote_uri)
+    git_repo = GitRepoFactory.create_from_remote_uri(repo_info.remote_uri)
 
     scan_result = RepositoryScanResult(
         branches=branches,
@@ -293,7 +294,7 @@ def test_git_repo_factory_no_branches_raises_error() -> None:
         total_files_across_commits=0,
     )
 
-    git_repo = GitRepo.from_remote_uri(repo_info.remote_uri)
+    git_repo = GitRepoFactory.create_from_remote_uri(repo_info.remote_uri)
 
     with pytest.raises(ValueError, match="No tracking branch found"):
         git_repo.update_with_scan_result(scan_result)
