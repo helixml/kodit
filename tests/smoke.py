@@ -13,23 +13,6 @@ from typing import Any
 
 import httpx
 import structlog
-from pydantic import AnyUrl
-
-# Ensure kodit module can be imported
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
-from kodit.infrastructure.api.v1.schemas.commit import (
-    CommitListResponse,
-    FileListResponse,
-)
-from kodit.infrastructure.api.v1.schemas.repository import (
-    RepositoryCreateAttributes,
-    RepositoryCreateData,
-    RepositoryCreateRequest,
-    RepositoryListResponse,
-)
-from kodit.infrastructure.api.v1.schemas.tag import TagListResponse
-from kodit.infrastructure.api.v1.schemas.task_status import TaskStatusListResponse
 
 BASE_HOST = "127.0.0.1"
 BASE_PORT = 8080
@@ -110,22 +93,20 @@ def main() -> None:  # noqa: PLR0915
 
             log.info("Testing repository lifecycle")
             resp = client.get(f"{BASE_URL}/api/v1/repositories")
-            repos = RepositoryListResponse.model_validate(resp.json())
-            log.info("Listed existing repositories", count=len(repos.data))
+            repos = resp.json()
+            log.info("Listed existing repositories", count=len(repos["data"]))
 
-            payload = RepositoryCreateRequest(
-                data=RepositoryCreateData(
-                    attributes=RepositoryCreateAttributes(remote_uri=AnyUrl(TARGET_URI))
-                )
-            )
+            payload = {
+                "data": {"type": "repository", "attributes": {"remote_uri": TARGET_URI}}
+            }
             client.post(
-                f"{BASE_URL}/api/v1/repositories", json=payload.model_dump(mode="json")
+                f"{BASE_URL}/api/v1/repositories", json=payload
             ).raise_for_status()
             log.info("Created repository", uri=TARGET_URI)
 
             resp = client.get(f"{BASE_URL}/api/v1/repositories")
-            repos = RepositoryListResponse.model_validate(resp.json())
-            repo_id = repos.data[0].id
+            repos = resp.json()
+            repo_id = repos["data"][0]["id"]
             log.info("Retrieved repository ID", repo_id=repo_id)
 
             log.info("Testing repository endpoints", repo_id=repo_id)
@@ -140,12 +121,13 @@ def main() -> None:  # noqa: PLR0915
                 response = client.get(
                     f"{BASE_URL}/api/v1/repositories/{repo_id}/status"
                 )
-                status = TaskStatusListResponse(**response.json())
+                status = response.json()
                 return (
                     all(
-                        status.attributes.state == "completed" for status in status.data
+                        task["attributes"]["state"] == "completed"
+                        for task in status["data"]
                     )
-                    and len(status.data) > 5
+                    and len(status["data"]) > 5
                 )
 
             retry_with_timeout(indexing_finished)
@@ -153,21 +135,20 @@ def main() -> None:  # noqa: PLR0915
 
             log.info("Testing tags", repo_id=repo_id)
             resp = client.get(f"{BASE_URL}/api/v1/repositories/{repo_id}/tags")
-            tags = TagListResponse.model_validate(resp.json())
-            log.info("Retrieved tags", count=len(tags.data))
-            if tags.data:
-                tag_url = (
-                    f"{BASE_URL}/api/v1/repositories/{repo_id}/tags/{tags.data[0].id}"
-                )
+            tags = resp.json()
+            log.info("Retrieved tags", count=len(tags["data"]))
+            if tags["data"]:
+                tag_id = tags["data"][0]["id"]
+                tag_url = f"{BASE_URL}/api/v1/repositories/{repo_id}/tags/{tag_id}"
                 client.get(tag_url).raise_for_status()
-                log.info("Retrieved tag details", tag_id=tags.data[0].id)
+                log.info("Retrieved tag details", tag_id=tags["data"][0]["id"])
 
             log.info("Testing commits", repo_id=repo_id)
             resp = client.get(f"{BASE_URL}/api/v1/repositories/{repo_id}/commits")
-            commits = CommitListResponse.model_validate(resp.json())
-            log.info("Retrieved commits", count=len(commits.data))
-            if commits.data:
-                commit_sha = commits.data[0].attributes.commit_sha
+            commits = resp.json()
+            log.info("Retrieved commits", count=len(commits["data"]))
+            if commits["data"]:
+                commit_sha = commits["data"][0]["attributes"]["commit_sha"]
                 commit_url = (
                     f"{BASE_URL}/api/v1/repositories/{repo_id}/commits/{commit_sha}"
                 )
@@ -175,10 +156,10 @@ def main() -> None:  # noqa: PLR0915
                 log.info("Retrieved commit details", commit_sha=commit_sha)
 
                 resp = client.get(f"{commit_url}/files")
-                files = FileListResponse.model_validate(resp.json())
-                log.info("Retrieved commit files", count=len(files.data))
-                if files.data:
-                    blob_sha = files.data[0].attributes.blob_sha
+                files = resp.json()
+                log.info("Retrieved commit files", count=len(files["data"]))
+                if files["data"]:
+                    blob_sha = files["data"][0]["attributes"]["blob_sha"]
                     client.get(f"{commit_url}/files/{blob_sha}").raise_for_status()
                     log.info("Retrieved file content", blob_sha=blob_sha)
 
