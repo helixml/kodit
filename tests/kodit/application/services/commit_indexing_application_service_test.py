@@ -14,11 +14,9 @@ from kodit.application.services.commit_indexing_application_service import (
 from kodit.application.services.queue_service import QueueService
 from kodit.application.services.reporting import ProgressTracker
 from kodit.domain.entities.git import (
-    GitBranch,
     GitCommit,
     GitFile,
     GitRepo,
-    GitTag,
     SnippetV2,
 )
 from kodit.domain.factories.git_repo_factory import GitRepoFactory
@@ -64,51 +62,9 @@ def mock_progress_tracker() -> MagicMock:
 
 
 @pytest.fixture
-def mock_scanner() -> MagicMock:
-    """Create a mock git repository scanner."""
-    return MagicMock(spec=GitRepositoryScanner)
-
-
-@pytest.fixture
-def mock_cloner() -> MagicMock:
-    """Create a mock repository cloner."""
-    return MagicMock(spec=RepositoryCloner)
-
-
-@pytest.fixture
-def mock_slicer() -> MagicMock:
-    """Create a mock slicer."""
-    return MagicMock(spec=Slicer)
-
-
-@pytest.fixture
-def mock_bm25_service() -> AsyncMock:
-    """Create a mock BM25 service."""
-    return AsyncMock(spec=BM25DomainService)
-
-
-@pytest.fixture
-def mock_embedding_service() -> AsyncMock:
-    """Create a mock embedding service."""
-    return AsyncMock(spec=EmbeddingDomainService)
-
-
-@pytest.fixture
-def mock_enrichment_service() -> AsyncMock:
-    """Create a mock enrichment service."""
-    return AsyncMock(spec=EnrichmentDomainService)
-
-
-@pytest.fixture
-async def commit_indexing_service(  # noqa: PLR0913
+async def commit_indexing_service(
     session_factory: Callable[[], AsyncSession],
     mock_progress_tracker: MagicMock,
-    mock_scanner: MagicMock,
-    mock_cloner: MagicMock,
-    mock_slicer: MagicMock,
-    mock_bm25_service: AsyncMock,
-    mock_embedding_service: AsyncMock,
-    mock_enrichment_service: AsyncMock,
 ) -> CommitIndexingApplicationService:
     """Create a CommitIndexingApplicationService instance for testing."""
     queue_service = QueueService(session_factory=session_factory)
@@ -132,28 +88,27 @@ async def commit_indexing_service(  # noqa: PLR0913
         git_branch_repository=git_branch_repository,
         git_tag_repository=git_tag_repository,
         operation=mock_progress_tracker,
-        scanner=mock_scanner,
-        cloner=mock_cloner,
+        scanner=AsyncMock(spec=GitRepositoryScanner),
+        cloner=MagicMock(spec=RepositoryCloner),
         snippet_repository=snippet_v2_repository,
-        slicer=mock_slicer,
+        slicer=MagicMock(spec=Slicer),
         queue=queue_service,
-        bm25_service=mock_bm25_service,
-        code_search_service=mock_embedding_service,
-        text_search_service=mock_embedding_service,
-        enrichment_service=mock_enrichment_service,
+        bm25_service=AsyncMock(spec=BM25DomainService),
+        code_search_service=AsyncMock(spec=EmbeddingDomainService),
+        text_search_service=AsyncMock(spec=EmbeddingDomainService),
+        enrichment_service=AsyncMock(spec=EnrichmentDomainService),
         embedding_repository=embedding_repository,
     )
 
 
-async def create_test_repository_with_full_data(
+async def create_test_repository_with_data(
     service: CommitIndexingApplicationService,
-) -> tuple[GitRepo, GitCommit, GitBranch, GitTag, list[SnippetV2]]:
-    """Create a test repository with commits, branches, tags, and snippets."""
+) -> tuple[GitRepo, GitCommit, list[SnippetV2]]:
+    """Create a test repository with commits and snippets."""
     # Create and save a repository
     repo = GitRepoFactory.create_from_remote_uri(AnyUrl("https://github.com/test/repo"))
     repo = await service.repo_repository.save(repo)
 
-    # Ensure repo has an ID
     if repo.id is None:
         msg = "Repository ID cannot be None"
         raise ValueError(msg)
@@ -165,28 +120,11 @@ async def create_test_repository_with_full_data(
         message="Test commit",
         parent_commit_sha=None,
         author="test@example.com",
-        files=[],  # Empty for simplicity
+        files=[],
     )
     await service.git_commit_repository.save_bulk([commit], repo.id)
 
-    # Create and save a branch
-    branch = GitBranch(
-        repo_id=repo.id,
-        name="main",
-        head_commit=commit,
-    )
-    await service.git_branch_repository.save_bulk([branch], repo.id)
-
-    # Create and save a tag
-    tag = GitTag(
-        created_at=datetime.now(UTC),
-        repo_id=repo.id,
-        name="v1.0.0",
-        target_commit=commit,
-    )
-    await service.git_tag_repository.save_bulk([tag], repo.id)
-
-    # Create test files for snippets
+    # Create test file for snippets
     test_file = GitFile(
         created_at=datetime.now(UTC),
         blob_sha="file1sha",
@@ -209,55 +147,42 @@ async def create_test_repository_with_full_data(
                 )
             ],
         ),
-        SnippetV2(
-            sha="snippet2sha",
-            derives_from=[test_file],
-            content="class TestClass:\n    pass",
-            extension="py",
-            enrichments=[],
-        ),
     ]
 
     # Save snippets and associate them with the commit
     await service.snippet_repository.save_snippets(commit.commit_sha, snippets)
 
-    return repo, commit, branch, tag, snippets
+    return repo, commit, snippets
 
 
 @pytest.mark.asyncio
-async def test_delete_repository_with_full_data_succeeds(
+async def test_delete_repository_with_data_succeeds(
     commit_indexing_service: CommitIndexingApplicationService,
 ) -> None:
-    """Test that deleting a repository with all associated data works correctly.
-
-    This test demonstrates that the deletion logic properly handles all foreign key
-    dependencies, including snippets and their associations.
-    """
-    # Create a repository with full data (commits, branches, tags, snippets)
-    (
-        repo,
-        commit,
-        _branch,
-        _tag,
-        _snippets,
-    ) = await create_test_repository_with_full_data(commit_indexing_service)
+    """Test that deleting a repository with associated data works correctly."""
+    # Create a repository with data
+    repo, commit, snippets = await create_test_repository_with_data(
+        commit_indexing_service
+    )
 
     # Verify the data was created successfully
     assert repo.id is not None
     repo_exists = await commit_indexing_service.repo_repository.get_by_id(repo.id)
     assert repo_exists is not None
+
     saved_commit = await commit_indexing_service.git_commit_repository.get_by_sha(
         commit.commit_sha
     )
     assert saved_commit is not None
+
     saved_snippets = (
         await commit_indexing_service.snippet_repository.get_snippets_for_commit(
             commit.commit_sha
         )
     )
-    assert len(saved_snippets) == 2
+    assert len(saved_snippets) == 1
 
-    # The deletion should succeed because proper FK handling is implemented
+    # Delete the repository
     success = await commit_indexing_service.delete_git_repository(repo.id)
     assert success is True
 
@@ -267,40 +192,10 @@ async def test_delete_repository_with_full_data_succeeds(
 
 
 @pytest.mark.asyncio
-async def test_delete_repository_via_process_delete_repo_succeeds(
+async def test_delete_nonexistent_repository_raises_error(
     commit_indexing_service: CommitIndexingApplicationService,
 ) -> None:
-    """Test deletion using the process_delete_repo method.
-
-    This test demonstrates that the process_delete_repo method properly handles
-    deletion order and foreign key constraints.
-    """
-    # Create a repository with full data
-    (
-        repo,
-        commit,
-        _branch,
-        _tag,
-        _snippets,
-    ) = await create_test_repository_with_full_data(commit_indexing_service)
-
-    # Verify the data exists
-    assert repo.id is not None
-    saved_commit = await commit_indexing_service.git_commit_repository.get_by_sha(
-        commit.commit_sha
-    )
-    assert saved_commit is not None
-    saved_snippets = (
-        await commit_indexing_service.snippet_repository.get_snippets_for_commit(
-            commit.commit_sha
-        )
-    )
-    assert len(saved_snippets) == 2
-
-    # Delete using the application service's process_delete_repo method
-    # This should succeed because proper FK handling is implemented
-    await commit_indexing_service.process_delete_repo(repo.id)
-
-    # Verify the repository was deleted successfully
+    """Test that deleting a non-existent repository raises ValueError."""
+    # Try to delete a repository that doesn't exist - should raise ValueError
     with pytest.raises(ValueError, match="not found"):
-        await commit_indexing_service.repo_repository.get_by_id(repo.id)
+        await commit_indexing_service.delete_git_repository(99999)

@@ -40,11 +40,11 @@ echo "Testing indexes API..."
 
 # Start the server in the background
 TMPFILE=$(mktemp)
-trap 'rm -f "$TMPFILE" && echo "deleted $TMPFILE"' EXIT
+trap "rm -f $TMPFILE && echo deleted $TMPFILE" EXIT
 $prefix kodit --env-file $TMPFILE serve --host 127.0.0.1 --port 8080 &
 SERVER_PID=$!
-# Kill the server on exit
-trap 'kill -9 $SERVER_PID 2>/dev/null || true' EXIT
+# Kill the server on exit (don't use -9 because it won't clean up child processes)
+trap "kill $SERVER_PID 2>/dev/null && echo killed $SERVER_PID" EXIT
 
 # Function to check if server is responding
 wait_for_server() {

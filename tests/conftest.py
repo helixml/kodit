@@ -2,10 +2,12 @@
 
 import tempfile
 from collections.abc import AsyncGenerator, Callable, Generator
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from pydantic import AnyUrl
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -15,6 +17,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from kodit.config import AppContext, LogFormat
+from kodit.domain.entities.git import GitCommit, GitFile, GitRepo
 
 # Need to import these models to create the tables
 from kodit.infrastructure.sqlalchemy.entities import (
@@ -104,3 +107,50 @@ def session_factory(engine: AsyncEngine) -> Callable[[], AsyncSession]:
 def unit_of_work(session_factory: Callable[[], AsyncSession]) -> SqlAlchemyUnitOfWork:
     """Create a test unit of work."""
     return SqlAlchemyUnitOfWork(session_factory)
+
+
+# Shared fixtures for deletion tests
+
+
+
+
+@pytest.fixture
+def sample_git_file() -> GitFile:
+    """Create a sample git file for deletion tests."""
+    return GitFile(
+        created_at=datetime.now(UTC),
+        blob_sha="file_sha_123",
+        path="src/main.py",
+        mime_type="text/x-python",
+        size=1024,
+        extension="py",
+    )
+
+
+@pytest.fixture
+def sample_git_commit(sample_git_file: GitFile) -> GitCommit:
+    """Create a sample git commit for deletion tests."""
+    return GitCommit(
+        created_at=datetime.now(UTC),
+        commit_sha="commit_sha_456",
+        date=datetime.now(UTC),
+        message="Test commit",
+        parent_commit_sha=None,
+        files=[sample_git_file],
+        author="test@example.com",
+    )
+
+
+@pytest.fixture
+def sample_git_repo() -> GitRepo:
+    """Create a sample git repository for deletion tests."""
+    return GitRepo(
+        id=None,
+        created_at=datetime.now(UTC),
+        sanitized_remote_uri=AnyUrl("https://github.com/test/repo"),
+        remote_uri=AnyUrl("https://github.com/test/repo.git"),
+        tracking_branch=None,
+        num_commits=1,
+        num_branches=1,
+        num_tags=1,
+    )
