@@ -22,7 +22,7 @@ docker exec -it kodit-vectorchord /bin/bash -c "while ! pg_isready -U postgres -
 
 # Run the smokes against the vectorchord container
 (
-    DB_URL=postgresql+asyncpg://postgres:mysecretpassword@localhost:5432/kodit \
+    SMOKE_DB_URL=postgresql+asyncpg://postgres:mysecretpassword@localhost:5432/kodit \
     DEFAULT_SEARCH_PROVIDER=vectorchord \
-    ./${script_dir}/smoke.sh
+    uv run ./${script_dir}/smoke.py
 )
