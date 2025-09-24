@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from datetime import UTC, datetime
+from pathlib import Path
 
 import pytest
 from sqlalchemy import text
@@ -9,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.domain.entities.git import GitCommit, GitFile, GitRepo
 from kodit.infrastructure.sqlalchemy.git_commit_repository import (
+    SqlAlchemyGitCommitRepository,
     create_git_commit_repository,
 )
 from kodit.infrastructure.sqlalchemy.git_repository import create_git_repo_repository
@@ -64,7 +66,7 @@ class TestCommitDeletion:
     ) -> None:
         """Test that delete_by_repo_id only deletes commits and files, not repos."""
         commit_repository = create_git_commit_repository(session_factory)
-        repo, commits = repo_with_commits
+        repo, _ = repo_with_commits
 
         # Verify initial state
         async with session_factory() as session:
@@ -98,7 +100,7 @@ class TestCommitDeletion:
 
             assert remaining_commits == 0
             assert remaining_files == 0
-            assert remaining_repos == 1    # Repos should remain
+            assert remaining_repos == 1  # Repos should remain
 
     async def test_handles_nonexistent_repo(
         self,
@@ -210,3 +212,329 @@ async def test_nonexistent_commit_raises_error(
     # Query for a commit that doesn't exist - should raise ValueError
     with pytest.raises(ValueError, match="not found"):
         await commit_repository.get_by_sha("nonexistent_sha")
+
+
+@pytest.fixture
+def repository(
+    session_factory: Callable[[], AsyncSession],
+) -> SqlAlchemyGitCommitRepository:
+    """Create a repository with a session factory."""
+    return SqlAlchemyGitCommitRepository(session_factory)
+
+
+@pytest.fixture
+def local_sample_git_file() -> GitFile:
+    """Create a sample git file for bulk tests in this module."""
+    return GitFile(
+        created_at=datetime.now(UTC),
+        blob_sha="file_sha_123",
+        path="src/main.py",
+        mime_type="text/x-python",
+        size=1024,
+        extension="py",
+    )
+
+
+@pytest.fixture
+def local_sample_git_commit(local_sample_git_file: GitFile) -> GitCommit:
+    """Create a sample git commit for bulk tests in this module."""
+    return GitCommit(
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+        commit_sha="commit_sha_456",
+        date=datetime.now(UTC),
+        message="Initial commit",
+        parent_commit_sha="parent_sha_789",
+        files=[local_sample_git_file],
+        author="Test Author",
+    )
+
+
+def create_large_commit_list(num_commits: int) -> list[GitCommit]:
+    """Create a large list of commits for testing bulk operations."""
+    commits = []
+    for i in range(num_commits):
+        files = []
+        for j in range(10):
+            file = GitFile(
+                created_at=datetime.now(UTC),
+                blob_sha=f"file_sha_{i}_{j}",
+                path=f"src/file_{i}_{j}.py",
+                mime_type="text/x-python",
+                size=1024 + j,
+                extension="py",
+            )
+            files.append(file)
+
+        commit = GitCommit(
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+            commit_sha=f"commit_sha_{i:06d}",
+            date=datetime.now(UTC),
+            message=f"Commit {i}",
+            parent_commit_sha=f"parent_sha_{i - 1:06d}" if i > 0 else None,
+            files=files,
+            author=f"Author {i}",
+        )
+        commits.append(commit)
+    return commits
+
+
+class TestBulkInsertLimits:
+    """Test bulk insert operations with large data sets."""
+
+    @pytest.mark.asyncio
+    async def test_bulk_save_demonstrates_parameter_limit_issue(
+        self,
+        repository: SqlAlchemyGitCommitRepository,
+        session_factory: Callable[[], AsyncSession],
+    ) -> None:
+        """Test to demonstrate the PostgreSQL parameter limit issue."""
+        from kodit.infrastructure.sqlalchemy import entities as db_entities
+        from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
+
+        repo_id = None
+        async with SqlAlchemyUnitOfWork(session_factory) as session:
+            test_repo = db_entities.GitRepo(
+                sanitized_remote_uri="https://github.com/test/large-repo",
+                remote_uri="https://github.com/test/large-repo.git",
+                cloned_path=Path("/tmp/test/large-repo"),
+                num_commits=5000,
+                num_branches=1,
+                num_tags=0,
+            )
+            session.add(test_repo)
+            await session.flush()
+            repo_id = test_repo.id
+
+        large_commits = []
+        for i in range(5000):
+            commit = GitCommit(
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
+                commit_sha=f"commit_sha_{i:06d}",
+                date=datetime.now(UTC),
+                message=f"Commit {i}",
+                parent_commit_sha=f"parent_sha_{i - 1:06d}" if i > 0 else None,
+                files=[],
+                author=f"Author {i}",
+            )
+            large_commits.append(commit)
+
+        try:
+            await repository.save_bulk(large_commits, repo_id)
+            for i in range(0, min(100, len(large_commits)), 10):
+                assert await repository.exists(large_commits[i].commit_sha)
+        except Exception as exc:
+            error_msg = str(exc).lower()
+            is_parameter_error = any(
+                phrase in error_msg
+                for phrase in [
+                    "the number of query arguments cannot exceed 32767",
+                    "too many sql variables",
+                    "parameter limit",
+                    "too many parameters",
+                    "variable number limit exceeded",
+                    "bind variables",
+                ]
+            )
+
+            if is_parameter_error:
+                pytest.fail(
+                    f"Parameter limit error occurred - chunking fix needed: {exc}"
+                )
+            else:
+                raise
+
+    @pytest.mark.asyncio
+    async def test_bulk_save_with_large_file_count_exceeds_limit(
+        self,
+        repository: SqlAlchemyGitCommitRepository,
+        session_factory: Callable[[], AsyncSession],
+    ) -> None:
+        """Test bulk save where files cause parameter limit to be exceeded."""
+        from kodit.infrastructure.sqlalchemy import entities as db_entities
+        from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
+
+        repo_id = None
+        async with SqlAlchemyUnitOfWork(session_factory) as session:
+            test_repo = db_entities.GitRepo(
+                sanitized_remote_uri="https://github.com/test/file-heavy-repo",
+                remote_uri="https://github.com/test/file-heavy-repo.git",
+                cloned_path=Path("/tmp/test/file-heavy-repo"),
+                num_commits=100,
+                num_branches=1,
+                num_tags=0,
+            )
+            session.add(test_repo)
+            await session.flush()
+            repo_id = test_repo.id
+
+        commits = []
+        for i in range(100):
+            files = []
+            for j in range(50):
+                file = GitFile(
+                    created_at=datetime.now(UTC),
+                    blob_sha=f"file_sha_{i}_{j}",
+                    path=f"src/very_long_path_name_that_takes_more_space_{i}_{j}.py",
+                    mime_type="text/x-python",
+                    size=1024 + j,
+                    extension="py",
+                )
+                files.append(file)
+
+            commit = GitCommit(
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
+                commit_sha=f"commit_sha_{i:06d}",
+                date=datetime.now(UTC),
+                message=f"Commit {i}",
+                parent_commit_sha=f"parent_sha_{i - 1:06d}" if i > 0 else None,
+                files=files,
+                author=f"Author {i}",
+            )
+            commits.append(commit)
+
+        try:
+            await repository.save_bulk(commits, repo_id)
+            for i in range(min(10, len(commits))):
+                assert await repository.exists(commits[i].commit_sha)
+        except Exception as exc:
+            error_msg = str(exc).lower()
+            is_parameter_error = any(
+                phrase in error_msg
+                for phrase in [
+                    "the number of query arguments cannot exceed 32767",
+                    "too many sql variables",
+                    "parameter limit",
+                    "too many parameters",
+                    "variable number limit exceeded",
+                    "bind variables",
+                ]
+            )
+
+            if is_parameter_error:
+                pytest.fail(
+                    f"Parameter limit error occurred - chunking fix needed: {exc}"
+                )
+            else:
+                raise
+
+
+class TestSaveBulk:
+    """Test save_bulk() method with normal operations."""
+
+    @pytest.mark.asyncio
+    async def test_saves_new_commits_in_bulk(
+        self,
+        repository: SqlAlchemyGitCommitRepository,
+        session_factory: Callable[[], AsyncSession],
+    ) -> None:
+        """Test that save_bulk() creates new commits."""
+        from kodit.infrastructure.sqlalchemy import entities as db_entities
+        from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
+
+        repo_id = None
+        async with SqlAlchemyUnitOfWork(session_factory) as session:
+            test_repo = db_entities.GitRepo(
+                sanitized_remote_uri="https://github.com/test/repo",
+                remote_uri="https://github.com/test/repo.git",
+                cloned_path=Path("/tmp/test/repo"),
+                num_commits=10,
+                num_branches=1,
+                num_tags=0,
+            )
+            session.add(test_repo)
+            await session.flush()
+            repo_id = test_repo.id
+
+        commits = create_large_commit_list(10)
+
+        await repository.save_bulk(commits, repo_id)
+
+        for commit in commits:
+            assert await repository.exists(commit.commit_sha)
+
+    @pytest.mark.asyncio
+    async def test_skips_existing_commits_in_bulk(
+        self,
+        repository: SqlAlchemyGitCommitRepository,
+        session_factory: Callable[[], AsyncSession],
+    ) -> None:
+        """Test that save_bulk() skips existing commits."""
+        from kodit.infrastructure.sqlalchemy import entities as db_entities
+        from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
+
+        repo_id = None
+        async with SqlAlchemyUnitOfWork(session_factory) as session:
+            test_repo = db_entities.GitRepo(
+                sanitized_remote_uri="https://github.com/test/repo2",
+                remote_uri="https://github.com/test/repo2.git",
+                cloned_path=Path("/tmp/test/repo2"),
+                num_commits=5,
+                num_branches=1,
+                num_tags=0,
+            )
+            session.add(test_repo)
+            await session.flush()
+            repo_id = test_repo.id
+
+        commits = create_large_commit_list(5)
+
+        await repository.save_bulk(commits, repo_id)
+        await repository.save_bulk(commits, repo_id)
+
+        for commit in commits:
+            assert await repository.exists(commit.commit_sha)
+
+    @pytest.mark.asyncio
+    async def test_handles_empty_commit_list(
+        self,
+        repository: SqlAlchemyGitCommitRepository,
+    ) -> None:
+        """Test that save_bulk() handles empty commit lists."""
+        await repository.save_bulk([], 1)
+
+    @pytest.mark.asyncio
+    async def test_saves_commits_with_no_files(
+        self,
+        repository: SqlAlchemyGitCommitRepository,
+        session_factory: Callable[[], AsyncSession],
+    ) -> None:
+        """Test that save_bulk() handles commits with no files."""
+        from kodit.infrastructure.sqlalchemy import entities as db_entities
+        from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
+
+        repo_id = None
+        async with SqlAlchemyUnitOfWork(session_factory) as session:
+            test_repo = db_entities.GitRepo(
+                sanitized_remote_uri="https://github.com/test/repo3",
+                remote_uri="https://github.com/test/repo3.git",
+                cloned_path=Path("/tmp/test/repo3"),
+                num_commits=5,
+                num_branches=1,
+                num_tags=0,
+            )
+            session.add(test_repo)
+            await session.flush()
+            repo_id = test_repo.id
+
+        commits = []
+        for i in range(5):
+            commit = GitCommit(
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
+                commit_sha=f"commit_sha_{i:06d}",
+                date=datetime.now(UTC),
+                message=f"Commit {i}",
+                parent_commit_sha=None,
+                files=[],
+                author=f"Author {i}",
+            )
+            commits.append(commit)
+
+        await repository.save_bulk(commits, repo_id)
+
+        for commit in commits:
+            assert await repository.exists(commit.commit_sha)

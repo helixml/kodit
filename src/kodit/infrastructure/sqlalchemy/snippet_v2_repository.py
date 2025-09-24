@@ -69,10 +69,13 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
             if snippet.sha not in existing_snippet_shas
         ]
 
-        # Bulk insert new snippets
+        # Bulk insert new snippets in chunks to avoid parameter limits
         if new_snippets:
-            stmt = insert(db_entities.SnippetV2).values(new_snippets)
-            await session.execute(stmt)
+            chunk_size = 1000  # Conservative chunk size for parameter limits
+            for i in range(0, len(new_snippets), chunk_size):
+                chunk = new_snippets[i : i + chunk_size]
+                stmt = insert(db_entities.SnippetV2).values(chunk)
+                await session.execute(stmt)
 
     async def _bulk_create_commit_associations(
         self, session: AsyncSession, commit_sha: str, snippets: list[SnippetV2]
@@ -101,10 +104,13 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
             if snippet.sha not in existing_association_shas
         ]
 
-        # Bulk insert new associations
+        # Bulk insert new associations in chunks to avoid parameter limits
         if new_associations:
-            stmt = insert(db_entities.CommitSnippetV2).values(new_associations)
-            await session.execute(stmt)
+            chunk_size = 1000  # Conservative chunk size for parameter limits
+            for i in range(0, len(new_associations), chunk_size):
+                chunk = new_associations[i : i + chunk_size]
+                stmt = insert(db_entities.CommitSnippetV2).values(chunk)
+                await session.execute(stmt)
 
     async def _bulk_create_file_associations(
         self, session: AsyncSession, commit_sha: str, snippets: list[SnippetV2]
@@ -157,10 +163,13 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
                         "file_path": file.path,
                     })
 
-        # Bulk insert new file associations
+        # Bulk insert new file associations in chunks to avoid parameter limits
         if new_file_associations:
-            stmt = insert(db_entities.SnippetV2File).values(new_file_associations)
-            await session.execute(stmt)
+            chunk_size = 1000  # Conservative chunk size for parameter limits
+            for i in range(0, len(new_file_associations), chunk_size):
+                chunk = new_file_associations[i : i + chunk_size]
+                stmt = insert(db_entities.SnippetV2File).values(chunk)
+                await session.execute(stmt)
 
     async def _bulk_update_enrichments(
         self, session: AsyncSession, snippets: list[SnippetV2]
@@ -220,10 +229,13 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
                 )
                 await session.execute(stmt)
 
-        # Bulk insert new/updated enrichments
+        # Bulk insert new/updated enrichments in chunks to avoid parameter limits
         if enrichments_to_add:
-            insert_stmt = insert(db_entities.Enrichment).values(enrichments_to_add)
-            await session.execute(insert_stmt)
+            chunk_size = 1000  # Conservative chunk size for parameter limits
+            for i in range(0, len(enrichments_to_add), chunk_size):
+                chunk = enrichments_to_add[i : i + chunk_size]
+                insert_stmt = insert(db_entities.Enrichment).values(chunk)
+                await session.execute(insert_stmt)
 
     async def _get_or_create_raw_snippet(
         self, session: AsyncSession, commit_sha: str, domain_snippet: SnippetV2

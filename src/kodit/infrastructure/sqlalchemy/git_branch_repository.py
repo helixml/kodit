@@ -226,10 +226,13 @@ class SqlAlchemyGitBranchRepository(GitBranchRepository):
                 if branch.name not in existing_branch_names
             ]
 
-            # Bulk insert new branches
+            # Bulk insert new branches in chunks to avoid parameter limits
             if new_branches_data:
-                stmt = insert(db_entities.GitBranch).values(new_branches_data)
-                await session.execute(stmt)
+                chunk_size = 1000  # Conservative chunk size for parameter limits
+                for i in range(0, len(new_branches_data), chunk_size):
+                    chunk = new_branches_data[i : i + chunk_size]
+                    stmt = insert(db_entities.GitBranch).values(chunk)
+                    await session.execute(stmt)
 
     async def exists(self, branch_name: str, repo_id: int) -> bool:
         """Check if a branch exists."""

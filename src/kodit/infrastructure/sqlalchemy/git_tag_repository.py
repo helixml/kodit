@@ -220,10 +220,13 @@ class SqlAlchemyGitTagRepository(GitTagRepository):
                 if tag.name not in existing_tag_names
             ]
 
-            # Bulk insert new tags
+            # Bulk insert new tags in chunks to avoid parameter limits
             if new_tags_data:
-                stmt = insert(db_entities.GitTag).values(new_tags_data)
-                await session.execute(stmt)
+                chunk_size = 1000  # Conservative chunk size for parameter limits
+                for i in range(0, len(new_tags_data), chunk_size):
+                    chunk = new_tags_data[i : i + chunk_size]
+                    stmt = insert(db_entities.GitTag).values(chunk)
+                    await session.execute(stmt)
 
     async def exists(self, tag_name: str, repo_id: int) -> bool:
         """Check if a tag exists."""
