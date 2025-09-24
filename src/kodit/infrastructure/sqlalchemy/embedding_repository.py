@@ -50,7 +50,7 @@ class SqlAlchemyEmbeddingRepository:
             result = await session.execute(query)
             return list(result.scalars())
 
-    async def delete_embeddings_by_snippet_id(self, snippet_id: int) -> None:
+    async def delete_embeddings_by_snippet_id(self, snippet_id: str) -> None:
         """Delete all embeddings for a snippet."""
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             query = select(Embedding).where(Embedding.snippet_id == snippet_id)

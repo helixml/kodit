@@ -10,4 +10,4 @@ fi
 script_dir=$(dirname "$0")
 
 # Start the container, mount the smoke test and run it
-docker run -i -v $script_dir:/tests --entrypoint /bin/bash --env CI=true $TEST_TAG -c "/tests/smoke.sh"
+docker run -i -v $script_dir:/tests --entrypoint /bin/bash --env CI=true $TEST_TAG -c "/tests/smoke.py"

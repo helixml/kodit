@@ -82,7 +82,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           sparse-checkout: |
-            tests/smoke.sh
+            tests/smoke.py
             uv.lock
           sparse-checkout-cone-mode: false
 
@@ -115,4 +115,4 @@ jobs:
         run: rm -rf ${HOME}/.kodit
 
       - name: Run smoke test
-        run: ./tests/smoke.sh
+        run: uv run ./tests/smoke.py

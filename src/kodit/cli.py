@@ -61,6 +61,7 @@ def serve(
     # Disable uvicorn's websockets deprecation warnings
     warnings.filterwarnings("ignore", category=DeprecationWarning, module="websockets")
     warnings.filterwarnings("ignore", category=DeprecationWarning, module="uvicorn")
+    warnings.filterwarnings("ignore", category=DeprecationWarning, module="httpx")
 
     # Configure uvicorn with graceful shutdown
     config = uvicorn.Config(

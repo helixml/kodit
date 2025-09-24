@@ -25,6 +25,7 @@ from kodit.domain.services.git_repository_service import (
     RepositoryCloner,
 )
 from kodit.domain.value_objects import (
+    DeleteRequest,
     Document,
     Enrichment,
     EnrichmentIndexRequest,
@@ -111,16 +112,13 @@ class CommitIndexingApplicationService:
 
     async def delete_git_repository(self, repo_id: int) -> bool:
         """Delete a Git repository by ID."""
-        async with self.operation.create_child(
-            TaskOperation.DELETE_REPOSITORY,
-            trackable_type=TrackableType.KODIT_REPOSITORY,
-            trackable_id=repo_id,
-        ):
-            repo = await self.repo_repository.get_by_id(repo_id)
-            if not repo:
-                return False
+        repo = await self.repo_repository.get_by_id(repo_id)
+        if not repo:
+            return False
 
-            return await self.repo_repository.delete(repo.sanitized_remote_uri)
+        # Use the proper deletion process that handles all dependencies
+        await self.process_delete_repo(repo_id)
+        return True
 
     # TODO(Phil): Make this polymorphic
     async def run_task(self, task: Task) -> None:  # noqa: PLR0912, C901
@@ -234,11 +232,51 @@ class CommitIndexingApplicationService:
             if not repo:
                 raise ValueError(f"Repository {repository_id} not found")
 
-            # Delete commits, branches, and tags before deleting the repository
-            await self.git_commit_repository.delete_by_repo_id(repository_id)
+            # Get all commit SHAs for this repository first (needed for cleanup)
+            commits = await self.git_commit_repository.get_by_repo_id(repository_id)
+            commit_shas = [commit.commit_sha for commit in commits]
+
+            # Step 1: Get all snippet IDs that are associated with these commits FIRST
+            # (before deleting the associations)
+            all_snippet_ids = []
+            if commit_shas:
+                for commit_sha in commit_shas:
+                    snippets = await self.snippet_repository.get_snippets_for_commit(
+                        commit_sha
+                    )
+                    all_snippet_ids.extend([
+                        snippet.id for snippet in snippets if snippet.id
+                    ])
+
+            # Step 2: Delete from BM25 and embedding indices
+            if all_snippet_ids:
+                # Convert to strings as DeleteRequest expects list[str]
+                snippet_id_strings = [
+                    str(snippet_id) for snippet_id in all_snippet_ids
+                ]
+                delete_request = DeleteRequest(snippet_ids=snippet_id_strings)
+                await self.bm25_service.delete_documents(delete_request)
+
+                # Delete embeddings for each snippet
+                for snippet_id in all_snippet_ids:
+                    await self.embedding_repository.delete_embeddings_by_snippet_id(
+                        snippet_id
+                    )
+
+            # Step 3: Delete snippet associations for all commits
+            for commit_sha in commit_shas:
+                await self.snippet_repository.delete_snippets_for_commit(commit_sha)
+
+            # Step 4: Delete branches (they reference commits via head_commit_sha)
             await self.git_branch_repository.delete_by_repo_id(repository_id)
+
+            # Step 5: Delete tags (they reference commits via target_commit_sha)
             await self.git_tag_repository.delete_by_repo_id(repository_id)
 
+            # Step 6: Delete commits and their files
+            await self.git_commit_repository.delete_by_repo_id(repository_id)
+
+            # Step 7: Finally delete the repository
             await self.repo_repository.delete(repo.sanitized_remote_uri)
 
     async def process_snippets_for_commit(

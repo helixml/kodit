@@ -5,12 +5,213 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.entities.git import GitCommit, GitFile
+from kodit.domain.entities.git import GitCommit, GitFile, GitRepo
 from kodit.infrastructure.sqlalchemy.git_commit_repository import (
     SqlAlchemyGitCommitRepository,
+    create_git_commit_repository,
 )
+from kodit.infrastructure.sqlalchemy.git_repository import create_git_repo_repository
+
+
+@pytest.fixture
+async def repo_with_commits(
+    session_factory: Callable[[], AsyncSession],
+    sample_git_repo: GitRepo,
+    sample_git_file: GitFile,
+) -> tuple[GitRepo, list[GitCommit]]:
+    """Create a repository with commits for testing."""
+    repo_repository = create_git_repo_repository(session_factory)
+    commit_repository = create_git_commit_repository(session_factory)
+
+    # Save repository
+    saved_repo = await repo_repository.save(sample_git_repo)
+    assert saved_repo.id is not None
+
+    # Create commits
+    commits = [
+        GitCommit(
+            created_at=datetime.now(UTC),
+            commit_sha="commit1",
+            date=datetime.now(UTC),
+            message="First commit",
+            parent_commit_sha=None,
+            files=[sample_git_file],
+            author="test@example.com",
+        ),
+        GitCommit(
+            created_at=datetime.now(UTC),
+            commit_sha="commit2",
+            date=datetime.now(UTC),
+            message="Second commit",
+            parent_commit_sha="commit1",
+            files=[],
+            author="test@example.com",
+        ),
+    ]
+
+    await commit_repository.save_bulk(commits, saved_repo.id)
+    return saved_repo, commits
+
+
+class TestCommitDeletion:
+    """Test commit deletion functionality."""
+
+    async def test_deletes_commits_and_files_only(
+        self,
+        session_factory: Callable[[], AsyncSession],
+        repo_with_commits: tuple[GitRepo, list[GitCommit]],
+    ) -> None:
+        """Test that delete_by_repo_id only deletes commits and files, not repos."""
+        commit_repository = create_git_commit_repository(session_factory)
+        repo, _ = repo_with_commits
+
+        # Verify initial state
+        async with session_factory() as session:
+            initial_commits = await session.scalar(
+                text("SELECT COUNT(*) FROM git_commits")
+            )
+            initial_files = await session.scalar(
+                text("SELECT COUNT(*) FROM git_commit_files")
+            )
+            initial_repos = await session.scalar(text("SELECT COUNT(*) FROM git_repos"))
+
+            assert initial_commits == 2
+            assert initial_files == 1  # Only first commit has files
+            assert initial_repos == 1
+
+        # Delete commits
+        assert repo.id is not None
+        await commit_repository.delete_by_repo_id(repo.id)
+
+        # Verify only commits and their files were deleted
+        async with session_factory() as session:
+            remaining_commits = await session.scalar(
+                text("SELECT COUNT(*) FROM git_commits")
+            )
+            remaining_files = await session.scalar(
+                text("SELECT COUNT(*) FROM git_commit_files")
+            )
+            remaining_repos = await session.scalar(
+                text("SELECT COUNT(*) FROM git_repos")
+            )
+
+            assert remaining_commits == 0
+            assert remaining_files == 0
+            assert remaining_repos == 1  # Repos should remain
+
+    async def test_handles_nonexistent_repo(
+        self,
+        session_factory: Callable[[], AsyncSession],
+    ) -> None:
+        """Test that deleting commits for non-existent repo handles gracefully."""
+        commit_repository = create_git_commit_repository(session_factory)
+
+        # Should not raise an exception
+        await commit_repository.delete_by_repo_id(99999)
+
+
+async def test_save_and_get_commits(
+    session_factory: Callable[[], AsyncSession],
+    sample_git_repo: GitRepo,
+    sample_git_commit: GitCommit,
+) -> None:
+    """Test saving and retrieving commits."""
+    commit_repository = create_git_commit_repository(session_factory)
+    repo_repository = create_git_repo_repository(session_factory)
+
+    # Save repository
+    saved_repo = await repo_repository.save(sample_git_repo)
+    assert saved_repo.id is not None
+
+    # Save commit
+    await commit_repository.save_bulk([sample_git_commit], saved_repo.id)
+
+    # Retrieve commit
+    retrieved_commits = await commit_repository.get_by_repo_id(saved_repo.id)
+    assert len(retrieved_commits) == 1
+    assert retrieved_commits[0].commit_sha == sample_git_commit.commit_sha
+    assert retrieved_commits[0].message == sample_git_commit.message
+
+    # Test get by SHA
+    retrieved_commit = await commit_repository.get_by_sha(sample_git_commit.commit_sha)
+    assert retrieved_commit is not None
+    assert retrieved_commit.commit_sha == sample_git_commit.commit_sha
+
+
+async def test_save_multiple_commits(
+    session_factory: Callable[[], AsyncSession],
+    sample_git_repo: GitRepo,
+    sample_git_file: GitFile,
+) -> None:
+    """Test saving multiple commits for a repository."""
+    commit_repository = create_git_commit_repository(session_factory)
+    repo_repository = create_git_repo_repository(session_factory)
+
+    # Save repository
+    saved_repo = await repo_repository.save(sample_git_repo)
+    assert saved_repo.id is not None
+
+    # Create multiple commits
+    commits = [
+        GitCommit(
+            created_at=datetime.now(UTC),
+            commit_sha="commit1",
+            date=datetime.now(UTC),
+            message="First commit",
+            parent_commit_sha=None,
+            files=[sample_git_file],
+            author="author1@example.com",
+        ),
+        GitCommit(
+            created_at=datetime.now(UTC),
+            commit_sha="commit2",
+            date=datetime.now(UTC),
+            message="Second commit",
+            parent_commit_sha="commit1",
+            files=[],
+            author="author2@example.com",
+        ),
+    ]
+
+    # Save all commits
+    await commit_repository.save_bulk(commits, saved_repo.id)
+
+    # Retrieve and verify
+    retrieved_commits = await commit_repository.get_by_repo_id(saved_repo.id)
+    assert len(retrieved_commits) == 2
+    commit_shas = {commit.commit_sha for commit in retrieved_commits}
+    assert commit_shas == {"commit1", "commit2"}
+
+
+async def test_empty_repository_returns_empty_list(
+    session_factory: Callable[[], AsyncSession],
+    sample_git_repo: GitRepo,
+) -> None:
+    """Test querying commits for a repository with no commits returns empty list."""
+    commit_repository = create_git_commit_repository(session_factory)
+    repo_repository = create_git_repo_repository(session_factory)
+
+    # Save repository without commits
+    saved_repo = await repo_repository.save(sample_git_repo)
+    assert saved_repo.id is not None
+
+    # Query commits for the empty repository
+    commits = await commit_repository.get_by_repo_id(saved_repo.id)
+    assert commits == []
+
+
+async def test_nonexistent_commit_raises_error(
+    session_factory: Callable[[], AsyncSession],
+) -> None:
+    """Test that querying for a non-existent commit raises ValueError."""
+    commit_repository = create_git_commit_repository(session_factory)
+
+    # Query for a commit that doesn't exist - should raise ValueError
+    with pytest.raises(ValueError, match="not found"):
+        await commit_repository.get_by_sha("nonexistent_sha")
 
 
 @pytest.fixture
@@ -22,8 +223,8 @@ def repository(
 
 
 @pytest.fixture
-def sample_git_file() -> GitFile:
-    """Create a sample git file."""
+def local_sample_git_file() -> GitFile:
+    """Create a sample git file for bulk tests in this module."""
     return GitFile(
         created_at=datetime.now(UTC),
         blob_sha="file_sha_123",
@@ -35,8 +236,8 @@ def sample_git_file() -> GitFile:
 
 
 @pytest.fixture
-def sample_git_commit(sample_git_file: GitFile) -> GitCommit:
-    """Create a sample git commit."""
+def local_sample_git_commit(local_sample_git_file: GitFile) -> GitCommit:
+    """Create a sample git commit for bulk tests in this module."""
     return GitCommit(
         created_at=datetime.now(UTC),
         updated_at=datetime.now(UTC),
@@ -44,7 +245,7 @@ def sample_git_commit(sample_git_file: GitFile) -> GitCommit:
         date=datetime.now(UTC),
         message="Initial commit",
         parent_commit_sha="parent_sha_789",
-        files=[sample_git_file],
+        files=[local_sample_git_file],
         author="Test Author",
     )
 
@@ -53,9 +254,8 @@ def create_large_commit_list(num_commits: int) -> list[GitCommit]:
     """Create a large list of commits for testing bulk operations."""
     commits = []
     for i in range(num_commits):
-        # Create multiple files per commit to increase parameter count
         files = []
-        for j in range(10):  # 10 files per commit
+        for j in range(10):
             file = GitFile(
                 created_at=datetime.now(UTC),
                 blob_sha=f"file_sha_{i}_{j}",
@@ -72,7 +272,7 @@ def create_large_commit_list(num_commits: int) -> list[GitCommit]:
             commit_sha=f"commit_sha_{i:06d}",
             date=datetime.now(UTC),
             message=f"Commit {i}",
-            parent_commit_sha=f"parent_sha_{i-1:06d}" if i > 0 else None,
+            parent_commit_sha=f"parent_sha_{i - 1:06d}" if i > 0 else None,
             files=files,
             author=f"Author {i}",
         )
@@ -89,15 +289,7 @@ class TestBulkInsertLimits:
         repository: SqlAlchemyGitCommitRepository,
         session_factory: Callable[[], AsyncSession],
     ) -> None:
-        """Test to demonstrate the PostgreSQL parameter limit issue.
-
-        This test documents the parameter limit issue that occurs in production.
-        In PostgreSQL, the limit is 32767 parameters per query.
-        For commits: 32767 / 8 fields = ~4095 commits maximum.
-
-        Note: This test may pass in SQLite (test env) but would fail in PostgreSQL.
-        """
-        # Create a test repository first to avoid foreign key errors
+        """Test to demonstrate the PostgreSQL parameter limit issue."""
         from kodit.infrastructure.sqlalchemy import entities as db_entities
         from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 
@@ -109,14 +301,12 @@ class TestBulkInsertLimits:
                 cloned_path=Path("/tmp/test/large-repo"),
                 num_commits=5000,
                 num_branches=1,
-                num_tags=0
+                num_tags=0,
             )
             session.add(test_repo)
             await session.flush()
             repo_id = test_repo.id
 
-        # Create 5000 commits that would exceed PostgreSQL's 32767 parameter limit
-        # 5000 commits * 8 fields = 40,000 parameters (exceeds PostgreSQL limit)
         large_commits = []
         for i in range(5000):
             commit = GitCommit(
@@ -125,37 +315,35 @@ class TestBulkInsertLimits:
                 commit_sha=f"commit_sha_{i:06d}",
                 date=datetime.now(UTC),
                 message=f"Commit {i}",
-                parent_commit_sha=f"parent_sha_{i-1:06d}" if i > 0 else None,
-                files=[],  # NO FILES to focus on commits only
+                parent_commit_sha=f"parent_sha_{i - 1:06d}" if i > 0 else None,
+                files=[],
                 author=f"Author {i}",
             )
             large_commits.append(commit)
 
-        # In PostgreSQL production, this would fail with parameter limit error
-        # In SQLite test env, this may pass - but the fix should handle both
         try:
             await repository.save_bulk(large_commits, repo_id)
-            # If no error, verify all commits were saved (test passed with chunking)
-            for i in range(0, min(100, len(large_commits)), 10):  # Sample check
+            for i in range(0, min(100, len(large_commits)), 10):
                 assert await repository.exists(large_commits[i].commit_sha)
         except Exception as exc:
-            # If error occurs, check if it's the parameter limit error
             error_msg = str(exc).lower()
-            is_parameter_error = any(phrase in error_msg for phrase in [
-                "the number of query arguments cannot exceed 32767",  # PostgreSQL
-                "too many sql variables",  # SQLite
-                "parameter limit",
-                "too many parameters",
-                "variable number limit exceeded",
-                "bind variables"
-            ])
+            is_parameter_error = any(
+                phrase in error_msg
+                for phrase in [
+                    "the number of query arguments cannot exceed 32767",
+                    "too many sql variables",
+                    "parameter limit",
+                    "too many parameters",
+                    "variable number limit exceeded",
+                    "bind variables",
+                ]
+            )
 
             if is_parameter_error:
                 pytest.fail(
                     f"Parameter limit error occurred - chunking fix needed: {exc}"
                 )
             else:
-                # Re-raise non-parameter-limit errors
                 raise
 
     @pytest.mark.asyncio
@@ -165,7 +353,6 @@ class TestBulkInsertLimits:
         session_factory: Callable[[], AsyncSession],
     ) -> None:
         """Test bulk save where files cause parameter limit to be exceeded."""
-        # Create a test repository first to avoid foreign key errors
         from kodit.infrastructure.sqlalchemy import entities as db_entities
         from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 
@@ -177,22 +364,16 @@ class TestBulkInsertLimits:
                 cloned_path=Path("/tmp/test/file-heavy-repo"),
                 num_commits=100,
                 num_branches=1,
-                num_tags=0
+                num_tags=0,
             )
             session.add(test_repo)
             await session.flush()
             repo_id = test_repo.id
 
-        # Each GitCommitFile has 7 fields for commit_sha, path, blob_sha, etc.
-        # With 32767 parameters, that's ~4681 files maximum
-        # Let's create fewer commits but more files per commit
         commits = []
-
-        # Create 100 commits with 50 files each = 5000 files
-        # This should exceed the parameter limit when inserting files
         for i in range(100):
             files = []
-            for j in range(50):  # 50 files per commit
+            for j in range(50):
                 file = GitFile(
                     created_at=datetime.now(UTC),
                     blob_sha=f"file_sha_{i}_{j}",
@@ -209,37 +390,35 @@ class TestBulkInsertLimits:
                 commit_sha=f"commit_sha_{i:06d}",
                 date=datetime.now(UTC),
                 message=f"Commit {i}",
-                parent_commit_sha=f"parent_sha_{i-1:06d}" if i > 0 else None,
+                parent_commit_sha=f"parent_sha_{i - 1:06d}" if i > 0 else None,
                 files=files,
                 author=f"Author {i}",
             )
             commits.append(commit)
 
-        # In PostgreSQL production, this would fail with parameter limit error
-        # In SQLite test env, this may pass - but the fix should handle both
         try:
             await repository.save_bulk(commits, repo_id)
-            # If no error, verify some commits were saved (test passed with chunking)
-            for i in range(min(10, len(commits))):  # Sample check
+            for i in range(min(10, len(commits))):
                 assert await repository.exists(commits[i].commit_sha)
         except Exception as exc:
-            # If error occurs, check if it's the parameter limit error
             error_msg = str(exc).lower()
-            is_parameter_error = any(phrase in error_msg for phrase in [
-                "the number of query arguments cannot exceed 32767",  # PostgreSQL
-                "too many sql variables",  # SQLite
-                "parameter limit",
-                "too many parameters",
-                "variable number limit exceeded",
-                "bind variables"
-            ])
+            is_parameter_error = any(
+                phrase in error_msg
+                for phrase in [
+                    "the number of query arguments cannot exceed 32767",
+                    "too many sql variables",
+                    "parameter limit",
+                    "too many parameters",
+                    "variable number limit exceeded",
+                    "bind variables",
+                ]
+            )
 
             if is_parameter_error:
                 pytest.fail(
                     f"Parameter limit error occurred - chunking fix needed: {exc}"
                 )
             else:
-                # Re-raise non-parameter-limit errors
                 raise
 
 
@@ -253,7 +432,6 @@ class TestSaveBulk:
         session_factory: Callable[[], AsyncSession],
     ) -> None:
         """Test that save_bulk() creates new commits."""
-        # Create a test repository first
         from kodit.infrastructure.sqlalchemy import entities as db_entities
         from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 
@@ -265,17 +443,16 @@ class TestSaveBulk:
                 cloned_path=Path("/tmp/test/repo"),
                 num_commits=10,
                 num_branches=1,
-                num_tags=0
+                num_tags=0,
             )
             session.add(test_repo)
             await session.flush()
             repo_id = test_repo.id
 
-        commits = create_large_commit_list(10)  # Small number for normal test
+        commits = create_large_commit_list(10)
 
         await repository.save_bulk(commits, repo_id)
 
-        # Verify commits were saved
         for commit in commits:
             assert await repository.exists(commit.commit_sha)
 
@@ -286,7 +463,6 @@ class TestSaveBulk:
         session_factory: Callable[[], AsyncSession],
     ) -> None:
         """Test that save_bulk() skips existing commits."""
-        # Create a test repository first
         from kodit.infrastructure.sqlalchemy import entities as db_entities
         from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 
@@ -298,7 +474,7 @@ class TestSaveBulk:
                 cloned_path=Path("/tmp/test/repo2"),
                 num_commits=5,
                 num_branches=1,
-                num_tags=0
+                num_tags=0,
             )
             session.add(test_repo)
             await session.flush()
@@ -306,13 +482,9 @@ class TestSaveBulk:
 
         commits = create_large_commit_list(5)
 
-        # Save once
+        await repository.save_bulk(commits, repo_id)
         await repository.save_bulk(commits, repo_id)
 
-        # Save again - should not error and should skip existing
-        await repository.save_bulk(commits, repo_id)
-
-        # All should still exist
         for commit in commits:
             assert await repository.exists(commit.commit_sha)
 
@@ -322,7 +494,7 @@ class TestSaveBulk:
         repository: SqlAlchemyGitCommitRepository,
     ) -> None:
         """Test that save_bulk() handles empty commit lists."""
-        await repository.save_bulk([], 1)  # Should not error
+        await repository.save_bulk([], 1)
 
     @pytest.mark.asyncio
     async def test_saves_commits_with_no_files(
@@ -331,7 +503,6 @@ class TestSaveBulk:
         session_factory: Callable[[], AsyncSession],
     ) -> None:
         """Test that save_bulk() handles commits with no files."""
-        # Create a test repository first
         from kodit.infrastructure.sqlalchemy import entities as db_entities
         from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 
@@ -343,7 +514,7 @@ class TestSaveBulk:
                 cloned_path=Path("/tmp/test/repo3"),
                 num_commits=5,
                 num_branches=1,
-                num_tags=0
+                num_tags=0,
             )
             session.add(test_repo)
             await session.flush()
@@ -358,13 +529,12 @@ class TestSaveBulk:
                 date=datetime.now(UTC),
                 message=f"Commit {i}",
                 parent_commit_sha=None,
-                files=[],  # No files
+                files=[],
                 author=f"Author {i}",
             )
             commits.append(commit)
 
         await repository.save_bulk(commits, repo_id)
 
-        # Verify commits were saved
         for commit in commits:
             assert await repository.exists(commit.commit_sha)

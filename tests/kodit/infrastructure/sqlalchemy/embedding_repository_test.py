@@ -19,6 +19,9 @@ class TestSqlAlchemyEmbeddingRepository:
         """Test creating an embedding."""
         mock_session_factory = MagicMock()
         mock_session = AsyncMock()
+        mock_session.add = MagicMock()  # add() is sync
+        mock_session.commit = AsyncMock()  # commit() is async
+        mock_session.close = AsyncMock()   # close() is async
         mock_session_factory.return_value = mock_session
 
         repository = SqlAlchemyEmbeddingRepository(session_factory=mock_session_factory)
@@ -29,6 +32,9 @@ class TestSqlAlchemyEmbeddingRepository:
         embedding.embedding = [0.1, 0.2, 0.3]
 
         await repository.create_embedding(embedding)
+
+        # Verify the embedding was added
+        mock_session.add.assert_called_once_with(embedding)
 
     @pytest.mark.asyncio
     async def test_get_embedding_by_snippet_id_and_type_found(self) -> None:
