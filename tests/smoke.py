@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+# /// script
+# dependencies = [
+#   "httpx",
+#   "structlog",
+# ]
+# ///
 """Smoke tests for Kodit API endpoints."""
 
 import os

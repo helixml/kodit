@@ -26,3 +26,6 @@ no-database-changes-check:
 	rm -f .kodit.db
 	uv run alembic upgrade head
 	uv run alembic check
+
+smoke:
+	uv run tests/smoke.py
