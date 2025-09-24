@@ -172,10 +172,13 @@ class SqlAlchemyGitCommitRepository(GitCommitRepository):
                     })
                     new_commits_objects.append(commit)
 
-            # Bulk insert new commits
+            # Bulk insert new commits in chunks to avoid parameter limits
             if new_commits_data:
-                stmt = insert(db_entities.GitCommit).values(new_commits_data)
-                await session.execute(stmt)
+                chunk_size = 1000  # Conservative chunk size for parameter limits
+                for i in range(0, len(new_commits_data), chunk_size):
+                    chunk = new_commits_data[i : i + chunk_size]
+                    stmt = insert(db_entities.GitCommit).values(chunk)
+                    await session.execute(stmt)
 
                 # Bulk save files for new commits
                 await self._save_commits_files_bulk(session, new_commits_objects)
@@ -251,10 +254,13 @@ class SqlAlchemyGitCommitRepository(GitCommitRepository):
                     "created_at": file.created_at,
                 })
 
-        # Bulk insert new files
+        # Bulk insert new files in chunks to avoid parameter limits
         if new_files:
-            stmt = insert(db_entities.GitCommitFile).values(new_files)
-            await session.execute(stmt)
+            chunk_size = 1000  # Conservative chunk size for parameter limits
+            for i in range(0, len(new_files), chunk_size):
+                chunk = new_files[i : i + chunk_size]
+                stmt = insert(db_entities.GitCommitFile).values(chunk)
+                await session.execute(stmt)
 
     async def _save_commits_files_bulk(
         self, session: AsyncSession, commits: list[GitCommit]
