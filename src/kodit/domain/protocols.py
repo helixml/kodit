@@ -226,6 +226,10 @@ class GitAdapter(ABC):
         """Clone a repository to local path."""
 
     @abstractmethod
+    async def checkout_commit(self, local_path: Path, commit_sha: str) -> None:
+        """Checkout a specific commit in the repository."""
+
+    @abstractmethod
     async def pull_repository(self, local_path: Path) -> None:
         """Pull latest changes for existing repository."""
 

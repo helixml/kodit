@@ -101,6 +101,21 @@ class GitPythonAdapter(GitAdapter):
 
         await asyncio.get_event_loop().run_in_executor(self.executor, _clone)
 
+    async def checkout_commit(self, local_path: Path, commit_sha: str) -> None:
+        """Checkout a specific commit in the repository."""
+
+        def _checkout() -> None:
+            try:
+                repo = Repo(local_path)
+                self._log.debug(f"Checking out commit {commit_sha} in {local_path}")
+                repo.git.checkout(commit_sha)
+                self._log.debug(f"Successfully checked out {commit_sha}")
+            except Exception as e:
+                self._log.error(f"Failed to checkout {commit_sha}: {e}")
+                raise
+
+        await asyncio.get_event_loop().run_in_executor(self.executor, _checkout)
+
     async def pull_repository(self, local_path: Path) -> None:
         """Pull latest changes for existing repository."""
 

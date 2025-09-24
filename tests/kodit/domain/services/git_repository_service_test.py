@@ -124,7 +124,8 @@ async def test_git_repository_scanner_scan_repository(
     assert len(result.branches) == 2
     assert len(result.all_commits) == 2
     assert len(result.all_tags) == 1
-    assert result.total_files_across_commits == 2
+    # Files loaded on-demand for performance optimization
+    assert result.total_files_across_commits == 0
 
     # Verify branches
     branch_names = {branch.name for branch in result.branches}

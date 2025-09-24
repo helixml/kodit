@@ -302,22 +302,28 @@ class CommitIndexingApplicationService:
             if not repo.cloned_path:
                 raise ValueError(f"Repository {repository_id} has never been cloned")
 
+            # Ensure we're on the specific commit for file access
+            await self.scanner.git_adapter.checkout_commit(repo.cloned_path, commit_sha)
+
             # Get files directly from Git adapter for this specific commit
             files_data = await self.scanner.git_adapter.get_commit_files(
                 repo.cloned_path, commit_sha
             )
 
-            # Create GitFile entities from files data
+            # Create GitFile entities with absolute paths for the slicer
             files = []
             for file_data in files_data:
                 # Extract extension from file path
                 file_path = Path(file_data["path"])
                 extension = file_path.suffix.lstrip(".")
 
+                # Create absolute path for the slicer to read
+                absolute_path = str(repo.cloned_path / file_data["path"])
+
                 git_file = GitFile(
                     created_at=file_data.get("created_at", commit.date),
                     blob_sha=file_data["blob_sha"],
-                    path=file_data["path"],
+                    path=absolute_path,  # Use absolute path for file reading
                     mime_type=file_data.get("mime_type", "application/octet-stream"),
                     size=file_data.get("size", 0),
                     extension=extension,
