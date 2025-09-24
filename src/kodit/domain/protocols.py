@@ -298,6 +298,10 @@ class SnippetRepositoryV2(ABC):
         """Get all snippets for a specific commit."""
 
     @abstractmethod
+    async def delete_snippets_for_commit(self, commit_sha: str) -> None:
+        """Delete all snippet associations for a commit."""
+
+    @abstractmethod
     async def search(self, request: MultiSearchRequest) -> list[SnippetV2]:
         """Search snippets with filters."""
 

@@ -152,7 +152,13 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
             return repos
 
     async def delete(self, sanitized_uri: AnyUrl) -> bool:
-        """Delete a repository and all its associated data."""
+        """Delete only the repository entity itself.
+
+        According to DDD principles, this repository should only delete
+        the GitRepo entity it directly controls. Related entities (commits,
+        branches, tags, snippets) should be deleted by their respective
+        repositories before calling this method.
+        """
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             # Find the repo
             stmt = select(db_entities.GitRepo).where(
@@ -162,46 +168,18 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
             if not db_repo:
                 return False
 
-            repo_id = db_repo.id
-
-            # Delete in order to respect foreign keys:
-            # 1. Delete commit-file associations
-            commit_shas_stmt = select(db_entities.GitCommit.commit_sha).where(
-                db_entities.GitCommit.repo_id == repo_id
+            # Delete tracking branches first (they reference the repo)
+            del_tracking_branches_stmt = delete(db_entities.GitTrackingBranch).where(
+                db_entities.GitTrackingBranch.repo_id == db_repo.id
             )
-            commit_shas = (await session.scalars(commit_shas_stmt)).all()
+            await session.execute(del_tracking_branches_stmt)
 
-            for commit_sha in commit_shas:
-                del_stmt = delete(db_entities.GitCommitFile).where(
-                    db_entities.GitCommitFile.commit_sha == commit_sha
-                )
-                await session.execute(del_stmt)
-
-            # 2. Delete branches
-            del_stmt = delete(db_entities.GitBranch).where(
-                db_entities.GitBranch.repo_id == repo_id
-            )
-            await session.execute(del_stmt)
-
-            # 3. Delete tags
-            del_stmt = delete(db_entities.GitTag).where(
-                db_entities.GitTag.repo_id == repo_id
-            )
-            await session.execute(del_stmt)
-
-            # 4. Delete commits
-            del_stmt = delete(db_entities.GitCommit).where(
-                db_entities.GitCommit.repo_id == repo_id
-            )
-            await session.execute(del_stmt)
-
-            # 5. Delete the repo
+            # Delete only the repo entity itself
+            # Foreign key constraints will prevent deletion if related entities exist
             del_stmt = delete(db_entities.GitRepo).where(
-                db_entities.GitRepo.id == repo_id
+                db_entities.GitRepo.id == db_repo.id
             )
             await session.execute(del_stmt)
-
-            # Note: We don't delete GitFiles as they might be referenced by other repos
             return True
 
 

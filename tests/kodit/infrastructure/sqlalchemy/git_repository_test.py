@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 from pydantic import AnyUrl
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.domain.entities.git import GitBranch, GitCommit, GitFile, GitRepo, GitTag
@@ -292,6 +293,164 @@ class TestDelete:
         deleted = await repository.delete(AnyUrl("https://github.com/nonexistent/repo"))
         assert deleted is False
 
+    async def test_fails_to_delete_repo_with_foreign_key_relationships(
+        self,
+        repository: SqlAlchemyGitRepoRepository,
+        sample_git_repo: GitRepo,
+        session_factory: Callable[[], AsyncSession],
+    ) -> None:
+        """Test that delete() fails when repo has foreign key relationships.
+
+        This test demonstrates the current problem: when a repository has
+        commits, branches, and tags in the database, deletion fails due
+        to foreign key constraints because the git repo repository tries
+        to delete everything instead of just the repo itself.
+        """
+        from sqlalchemy import text
+
+        from kodit.infrastructure.sqlalchemy.git_branch_repository import (
+            create_git_branch_repository,
+        )
+        from kodit.infrastructure.sqlalchemy.git_commit_repository import (
+            create_git_commit_repository,
+        )
+        from kodit.infrastructure.sqlalchemy.git_tag_repository import (
+            create_git_tag_repository,
+        )
+
+        # First save the repo
+        await repository.save(sample_git_repo)
+        assert sample_git_repo.id is not None
+
+        # Now add commits, branches, and tags using their respective repositories
+        commit_repo = create_git_commit_repository(session_factory)
+        branch_repo = create_git_branch_repository(session_factory)
+        tag_repo = create_git_tag_repository(session_factory)
+
+        # Save commits, branches, and tags to create foreign key relationships
+        assert sample_git_repo.tracking_branch is not None
+        await commit_repo.save_bulk([sample_git_repo.tracking_branch.head_commit],
+                                   sample_git_repo.id)
+        await branch_repo.save_bulk([sample_git_repo.tracking_branch],
+                                   sample_git_repo.id)
+
+        # Create and save a tag
+        tag = GitTag(
+            created_at=datetime.now(UTC),
+            repo_id=sample_git_repo.id,
+            name="v1.0.0",
+            target_commit=sample_git_repo.tracking_branch.head_commit,
+        )
+        await tag_repo.save_bulk([tag], sample_git_repo.id)
+
+        # Also manually insert some commit files to create more FK relationships
+        async with session_factory() as session:
+            await session.execute(
+                text("""
+                INSERT INTO git_commit_files
+                (commit_sha, path, blob_sha, mime_type, extension, size, created_at)
+                VALUES (:commit_sha, :path, :blob_sha, :mime_type,
+                        :extension, :size, :created_at)
+                """),
+                {
+                    "commit_sha": (
+                        sample_git_repo.tracking_branch.head_commit.commit_sha
+                    ),
+                    "path": "test.py",
+                    "blob_sha": "test_blob_sha",
+                    "mime_type": "text/x-python",
+                    "extension": "py",
+                    "size": 100,
+                    "created_at": datetime.now(UTC)
+                }
+            )
+            await session.commit()
+
+        # Now deletion should fail due to foreign key constraints
+        # The DDD-compliant implementation only deletes the repo itself
+        # Foreign key constraints prevent deletion when related entities exist
+        from sqlalchemy.exc import IntegrityError
+        with pytest.raises(IntegrityError) as exc_info:
+            await repository.delete(sample_git_repo.sanitized_remote_uri)
+
+        # Verify it's a foreign key constraint error
+        error_msg = str(exc_info.value).lower()
+        assert any(keyword in error_msg for keyword in [
+            "foreign key",
+            "constraint",
+            "integrity"
+        ]), f"Expected foreign key constraint error, got: {exc_info.value}"
+
+    async def test_successfully_deletes_repo_when_no_foreign_keys_exist(
+        self,
+        repository: SqlAlchemyGitRepoRepository,
+        sample_git_repo: GitRepo,
+        session_factory: Callable[[], AsyncSession],
+    ) -> None:
+        """Test that delete() succeeds when all foreign key relationships are removed.
+
+        This test demonstrates the correct DDD approach: when all related entities
+        have been properly deleted by their respective repositories, the git repo
+        repository can successfully delete just the repo itself.
+        """
+        from kodit.infrastructure.sqlalchemy.git_branch_repository import (
+            create_git_branch_repository,
+        )
+        from kodit.infrastructure.sqlalchemy.git_commit_repository import (
+            create_git_commit_repository,
+        )
+        from kodit.infrastructure.sqlalchemy.git_tag_repository import (
+            create_git_tag_repository,
+        )
+
+        # First save the repo and related entities
+        await repository.save(sample_git_repo)
+        assert sample_git_repo.id is not None
+
+        commit_repo = create_git_commit_repository(session_factory)
+        branch_repo = create_git_branch_repository(session_factory)
+        tag_repo = create_git_tag_repository(session_factory)
+
+        # Save commits, branches, and tags
+        assert sample_git_repo.tracking_branch is not None
+        await commit_repo.save_bulk([sample_git_repo.tracking_branch.head_commit],
+                                   sample_git_repo.id)
+        await branch_repo.save_bulk([sample_git_repo.tracking_branch],
+                                   sample_git_repo.id)
+
+        tag = GitTag(
+            created_at=datetime.now(UTC),
+            repo_id=sample_git_repo.id,
+            name="v1.0.0",
+            target_commit=sample_git_repo.tracking_branch.head_commit,
+        )
+        await tag_repo.save_bulk([tag], sample_git_repo.id)
+
+        # Now delete them in the correct order (following DDD principles)
+        # 1. Delete branches and tags first (they reference commits)
+        await branch_repo.delete_by_repo_id(sample_git_repo.id)
+        await tag_repo.delete_by_repo_id(sample_git_repo.id)
+
+        # 2. Delete commits (they reference the repo)
+        await commit_repo.delete_by_repo_id(sample_git_repo.id)
+
+        # 3. Delete tracking branches (they also reference the repo)
+        async with session_factory() as session:
+            from sqlalchemy import text
+            await session.execute(
+                text("DELETE FROM git_tracking_branches WHERE repo_id = :repo_id"),
+                {"repo_id": sample_git_repo.id}
+            )
+            await session.commit()
+
+        # 4. Finally, delete the repo itself (no more foreign key constraints)
+        deleted = await repository.delete(sample_git_repo.sanitized_remote_uri)
+        assert deleted is True
+
+        # Verify the repo is gone
+        with pytest.raises(ValueError, match="Repository .* not found"):
+            await repository.get_by_uri(sample_git_repo.sanitized_remote_uri)
+
 
 class TestListAll:
     """Test list_all() method."""
@@ -352,3 +511,60 @@ class TestListAll:
         uris = {str(repo.sanitized_remote_uri) for repo in result}
         assert "https://github.com/test/repo" in uris
         assert "https://github.com/test/another-repo" in uris
+
+
+class TestDeleteWithTrackingBranchConstraints:
+    """Test deletion with git_tracking_branches foreign key constraints."""
+
+    async def test_successfully_deletes_repo_with_tracking_branch_cleanup(
+        self,
+        repository: SqlAlchemyGitRepoRepository,
+        sample_git_repo: GitRepo,
+        session_factory: Callable[[], AsyncSession],
+    ) -> None:
+        """Test that deletion succeeds when git_tracking_branches are cleaned up first.
+
+        This test verifies that the repository deletion process now properly
+        handles the git_tracking_branches foreign key constraint by deleting
+        tracking branches before deleting the repository.
+        """
+        # Save the repository first
+        saved_repo = await repository.save(sample_git_repo)
+        assert saved_repo.id is not None
+
+        # The repository save process creates a git_tracking_branches record
+        # Let's verify it exists
+        async with session_factory() as session:
+            tracking_branch_count = await session.scalar(
+                text(
+                    "SELECT COUNT(*) FROM git_tracking_branches "
+                    "WHERE repo_id = :repo_id"
+                ),
+                {"repo_id": saved_repo.id}
+            )
+            assert tracking_branch_count == 1, "Should have one tracking branch record"
+
+        # Now try to delete the repository - this should succeed now that we
+        # clean up git_tracking_branches first
+        deleted = await repository.delete(saved_repo.sanitized_remote_uri)
+        assert deleted is True
+
+        # Verify the repository was actually deleted
+        async with session_factory() as session:
+            remaining_repos = await session.scalar(
+                text("SELECT COUNT(*) FROM git_repos WHERE id = :repo_id"),
+                {"repo_id": saved_repo.id}
+            )
+            assert remaining_repos == 0, "Repository should be deleted"
+
+            # Verify tracking branches were also cleaned up
+            remaining_tracking_branches = await session.scalar(
+                text(
+                    "SELECT COUNT(*) FROM git_tracking_branches "
+                    "WHERE repo_id = :repo_id"
+                ),
+                {"repo_id": saved_repo.id}
+            )
+            assert remaining_tracking_branches == 0, (
+                "Tracking branches should be deleted"
+            )

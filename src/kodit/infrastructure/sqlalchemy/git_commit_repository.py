@@ -198,7 +198,14 @@ class SqlAlchemyGitCommitRepository(GitCommitRepository):
             )
             commit_shas = (await session.scalars(commit_shas_stmt)).all()
 
-            # Delete commit files first (foreign key constraint)
+            # Delete snippet file associations first (they reference commit files)
+            for commit_sha in commit_shas:
+                del_snippet_files_stmt = delete(db_entities.SnippetV2File).where(
+                    db_entities.SnippetV2File.commit_sha == commit_sha
+                )
+                await session.execute(del_snippet_files_stmt)
+
+            # Delete commit files second (foreign key constraint)
             for commit_sha in commit_shas:
                 del_files_stmt = delete(db_entities.GitCommitFile).where(
                     db_entities.GitCommitFile.commit_sha == commit_sha
