@@ -1,5 +1,6 @@
 """Domain services for Git repository scanning and cloning operations."""
 
+import asyncio
 import shutil
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -59,9 +60,52 @@ class GitRepositoryScanner:
         branches, commit_cache = await self._process_branches_bulk(
             cloned_path, branch_data, all_commits_data
         )
+        self._log.info(f"Found {len(branches)} branches")
         tags = await self._process_tags(cloned_path, commit_cache)
+        self._log.info(f"Found {len(tags)} tags")
 
         return self._create_scan_result(branches, commit_cache, tags)
+
+    async def _process_commits_concurrently(
+        self,
+        cloned_path: Path,
+        commits_batch: list[tuple[str, dict[str, Any]]],
+    ) -> dict[str, GitCommit]:
+        """Process a batch of commits concurrently."""
+        batch_cache = {}
+
+        async def process_single_commit(
+            commit_sha: str, commit_data: dict[str, Any]
+        ) -> tuple[str, GitCommit | None]:
+            git_commit = await self._create_git_commit_from_data(
+                cloned_path, commit_data
+            )
+            return commit_sha, git_commit
+
+        # Process commits concurrently in smaller batches
+        semaphore = asyncio.Semaphore(50)  # Limit concurrent operations
+
+        async def bounded_process(
+            item: tuple[str, dict[str, Any]]
+        ) -> tuple[str, GitCommit | None]:
+            async with semaphore:
+                return await process_single_commit(item[0], item[1])
+
+        # Process all commits concurrently
+        results = await asyncio.gather(
+            *[bounded_process(item) for item in commits_batch],
+            return_exceptions=True,
+        )
+
+        # Collect successful results
+        for result in results:
+            if isinstance(result, tuple):
+                # Type narrowing: result is now tuple[str, GitCommit | None]
+                commit_sha, git_commit = result
+                if git_commit is not None:
+                    batch_cache[commit_sha] = git_commit
+
+        return batch_cache
 
     async def _process_branches_bulk(
         self,
@@ -73,14 +117,28 @@ class GitRepositoryScanner:
         branches = []
         commit_cache: dict[str, GitCommit] = {}
 
-        # First, convert all commit data to GitCommit objects with files
-        for commit_sha, commit_data in all_commits_data.items():
-            if commit_sha not in commit_cache:
-                git_commit = await self._create_git_commit_from_data(
-                    cloned_path, commit_data
-                )
-                if git_commit:
-                    commit_cache[commit_sha] = git_commit
+        # Cache expensive operations
+        current_time = datetime.now(UTC)
+
+        # Process commits in larger concurrent batches for better performance
+        commit_items = list(all_commits_data.items())
+        batch_size = 2000  # Larger batches with concurrency
+
+        self._log.info(
+            f"Processing {len(commit_items)} commits in batches of {batch_size}"
+        )
+
+        for i in range(0, len(commit_items), batch_size):
+            batch = commit_items[i : i + batch_size]
+            batch_num = i // batch_size + 1
+            total_batches = (len(commit_items) + batch_size - 1) // batch_size
+            self._log.info(
+                f"Processing commit batch {batch_num}/{total_batches}"
+            )
+
+            # Process this batch concurrently
+            batch_cache = await self._process_commits_concurrently(cloned_path, batch)
+            commit_cache.update(batch_cache)
 
         # Now process branches using the pre-built commit cache
         for branch_info in branch_data:
@@ -93,7 +151,7 @@ class GitRepositoryScanner:
                 if commit_shas and commit_shas[0] in commit_cache:
                     head_commit = commit_cache[commit_shas[0]]
                     branch = GitBranch(
-                        created_at=datetime.now(UTC),
+                        created_at=current_time,
                         name=branch_info["name"],
                         head_commit=head_commit,
                     )
@@ -123,8 +181,11 @@ class GitRepositoryScanner:
         files = self._create_git_files(cloned_path, files_data)
         author = self._format_author_from_data(commit_data)
 
+        # Cache datetime creation
+        created_at = datetime.now(UTC)
+
         return GitCommit(
-            created_at=datetime.now(UTC),
+            created_at=created_at,
             commit_sha=commit_sha,
             date=commit_data["date"],
             message=commit_data["message"],
@@ -236,17 +297,25 @@ class GitRepositoryScanner:
         self, cloned_path: Path, files_data: list[dict]
     ) -> list[GitFile]:
         """Create GitFile entities from files data."""
-        return [
-            GitFile(
+        # Cache expensive path operations
+        cloned_path_str = str(cloned_path)
+        current_time = datetime.now(UTC)
+
+        result = []
+        for f in files_data:
+            # Avoid expensive Path operations by doing string concatenation
+            file_path = f["path"]
+            full_path = f"{cloned_path_str}/{file_path}"
+
+            result.append(GitFile(
                 blob_sha=f["blob_sha"],
-                path=str(cloned_path / f["path"]),
+                path=full_path,
                 mime_type=f.get("mime_type", "application/octet-stream"),
                 size=f["size"],
-                extension=GitFile.extension_from_path(f["path"]),
-                created_at=f.get("created_at", datetime.now(UTC)),
-            )
-            for f in files_data
-        ]
+                extension=GitFile.extension_from_path(file_path),
+                created_at=f.get("created_at", current_time),
+            ))
+        return result
 
     def _format_author(self, commit_data: dict) -> str:
         """Format author string from commit data."""
