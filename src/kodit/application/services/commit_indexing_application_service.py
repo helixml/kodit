@@ -1,6 +1,7 @@
 """Application services for commit indexing operations."""
 
 from collections import defaultdict
+from pathlib import Path
 
 import structlog
 from pydantic import AnyUrl
@@ -295,14 +296,42 @@ class CommitIndexingApplicationService:
 
             commit = await self.git_commit_repository.get_by_sha(commit_sha)
 
+            # Load files on demand for snippet extraction (performance optimization)
+            # Instead of using commit.files (which may be empty), load files directly
+            repo = await self.repo_repository.get_by_id(repository_id)
+            if not repo.cloned_path:
+                raise ValueError(f"Repository {repository_id} has never been cloned")
+
+            # Get files directly from Git adapter for this specific commit
+            files_data = await self.scanner.git_adapter.get_commit_files(
+                repo.cloned_path, commit_sha
+            )
+
+            # Create GitFile entities from files data
+            files = []
+            for file_data in files_data:
+                # Extract extension from file path
+                file_path = Path(file_data["path"])
+                extension = file_path.suffix.lstrip(".")
+
+                git_file = GitFile(
+                    created_at=file_data.get("created_at", commit.date),
+                    blob_sha=file_data["blob_sha"],
+                    path=file_data["path"],
+                    mime_type=file_data.get("mime_type", "application/octet-stream"),
+                    size=file_data.get("size", 0),
+                    extension=extension,
+                )
+                files.append(git_file)
+
             # Create a set of languages to extract snippets for
-            extensions = {file.extension for file in commit.files}
+            extensions = {file.extension for file in files}
             lang_files_map: dict[str, list[GitFile]] = defaultdict(list)
             for ext in extensions:
                 try:
                     lang = LanguageMapping.get_language_for_extension(ext)
                     lang_files_map[lang].extend(
-                        file for file in commit.files if file.extension == ext
+                        file for file in files if file.extension == ext
                     )
                 except ValueError as e:
                     self._log.debug("Skipping", error=str(e))

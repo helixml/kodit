@@ -120,25 +120,13 @@ class GitRepositoryScanner:
         # Cache expensive operations
         current_time = datetime.now(UTC)
 
-        # Process commits in larger concurrent batches for better performance
-        commit_items = list(all_commits_data.items())
-        batch_size = 2000  # Larger batches with concurrency
+        # Create lightweight commits without file data (major optimization)
+        self._log.info(f"Processing {len(all_commits_data)} commits (metadata only)")
 
-        self._log.info(
-            f"Processing {len(commit_items)} commits in batches of {batch_size}"
-        )
-
-        for i in range(0, len(commit_items), batch_size):
-            batch = commit_items[i : i + batch_size]
-            batch_num = i // batch_size + 1
-            total_batches = (len(commit_items) + batch_size - 1) // batch_size
-            self._log.info(
-                f"Processing commit batch {batch_num}/{total_batches}"
-            )
-
-            # Process this batch concurrently
-            batch_cache = await self._process_commits_concurrently(cloned_path, batch)
-            commit_cache.update(batch_cache)
+        for commit_sha, commit_data in all_commits_data.items():
+            git_commit = self._create_lightweight_git_commit(commit_data, current_time)
+            if git_commit:
+                commit_cache[commit_sha] = git_commit
 
         # Now process branches using the pre-built commit cache
         for branch_info in branch_data:
@@ -156,7 +144,7 @@ class GitRepositoryScanner:
                         head_commit=head_commit,
                     )
                     branches.append(branch)
-                    self._log.info(f"Processed branch: {branch_info['name']}")
+                    self._log.debug(f"Processed branch: {branch_info['name']}")
                 else:
                     self._log.warning(
                         "No commits found for branch %s", branch_info["name"]
@@ -201,6 +189,29 @@ class GitRepositoryScanner:
         if author_name and author_email:
             return f"{author_name} <{author_email}>"
         return author_name or "Unknown"
+
+    def _create_lightweight_git_commit(
+        self, commit_data: dict[str, Any], created_at: datetime
+    ) -> GitCommit | None:
+        """Create a GitCommit without expensive file data fetching."""
+        try:
+            commit_sha = commit_data["sha"]
+            author = self._format_author_from_data(commit_data)
+
+            # Create commit with empty files list for now
+            # Files will be loaded lazily when actually needed (e.g., during indexing)
+            return GitCommit(
+                created_at=created_at,
+                commit_sha=commit_sha,
+                date=commit_data["date"],
+                message=commit_data["message"],
+                parent_commit_sha=commit_data["parent_sha"],
+                files=[],  # Empty for performance - load on demand
+                author=author,
+            )
+        except Exception as e:  # noqa: BLE001
+            self._log.warning(f"Failed to create commit {commit_data.get('sha')}: {e}")
+            return None
 
     async def _process_branches(
         self, cloned_path: Path, branch_data: list[dict]
@@ -357,7 +368,8 @@ class GitRepositoryScanner:
         tags: list[GitTag],
     ) -> RepositoryScanResult:
         """Create final scan result."""
-        total_files = sum(len(commit.files) for commit in commit_cache.values())
+        # Files are loaded on-demand for performance, so total_files is 0 during scan
+        total_files = 0
 
         scan_result = RepositoryScanResult(
             branches=branches,

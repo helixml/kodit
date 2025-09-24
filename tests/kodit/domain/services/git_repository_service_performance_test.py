@@ -18,6 +18,7 @@ class MockGitAdapterForPerformance(AsyncMock):
     """Mock Git adapter that simulates performance characteristics of a large repo."""
 
     def __init__(self, num_branches: int = 268, num_commits: int = 17899) -> None:
+        """Initialize mock adapter with test data parameters."""
         super().__init__(spec=GitAdapter)
         self.num_branches = num_branches
         self.num_commits = num_commits
@@ -69,7 +70,9 @@ class MockGitAdapterForPerformance(AsyncMock):
 
             self.all_commits_data[commit_sha] = {
                 "sha": commit_sha,
-                "date": datetime(2020, 1, 1, tzinfo=UTC).replace(day=min(28, (i % 28) + 1)),
+                "date": datetime(2020, 1, 1, tzinfo=UTC).replace(
+                    day=min(28, (i % 28) + 1)
+                ),
                 "message": f"Commit #{i}",
                 "parent_sha": parent_sha,
                 "author_name": "Test Author",
@@ -78,14 +81,15 @@ class MockGitAdapterForPerformance(AsyncMock):
 
             # Each commit touches 1-5 files
             num_files = min(5, (i % 5) + 1)
-            files = []
-            for f in range(num_files):
-                files.append({
+            files = [
+                {
                     "blob_sha": f"blob_{i:06d}_{f}",
                     "path": f"src/module_{f % 10}/file_{i % 100}.py",
                     "mime_type": "text/x-python",
                     "size": 512 + (i % 2048),
-                })
+                }
+                for f in range(num_files)
+            ]
             self.commit_to_files[commit_sha] = files
 
         # Generate branches with realistic commit distributions
@@ -120,11 +124,15 @@ class MockGitAdapterForPerformance(AsyncMock):
                 })
                 self.branch_to_commits[branch_name] = branch_commits
 
-    async def _get_branch_commit_shas(self, local_path: Path, branch_name: str) -> list[str]:
+    async def _get_branch_commit_shas(
+        self, _local_path: Path, branch_name: str
+    ) -> list[str]:
         """Return commit SHAs for a branch."""
         return self.branch_to_commits.get(branch_name, [])
 
-    async def _get_commit_files(self, local_path: Path, commit_sha: str) -> list[dict[str, Any]]:
+    async def _get_commit_files(
+        self, _local_path: Path, commit_sha: str
+    ) -> list[dict[str, Any]]:
         """Return files for a commit."""
         return self.commit_to_files.get(commit_sha, [])
 
@@ -174,13 +182,11 @@ async def test_performance_bottleneck_analysis() -> None:
     profiler.enable()
 
     # Get data needed for _process_branches_bulk
-    branch_data = await mock_adapter.get_all_branches(cloned_path)
-    all_commits_data = await mock_adapter.get_all_commits_bulk(cloned_path)
+    await mock_adapter.get_all_branches(cloned_path)
+    await mock_adapter.get_all_commits_bulk(cloned_path)
 
-    # Profile the specific bottleneck method
-    branches, commit_cache = await scanner._process_branches_bulk(
-        cloned_path, branch_data, all_commits_data
-    )
+    # Profile the scan method (replaces previous private method test)
+    await scanner.scan_repository(cloned_path)
 
     profiler.disable()
 
@@ -228,8 +234,10 @@ async def test_performance_scaling_branches() -> None:
 
         # Performance should scale roughly linearly with branches
         # Allow some overhead but flag if it's quadratic
-        assert scaling_factor < branch_factor * 2, \
-            f"Poor scaling: {scaling_factor:.2f}x time for {branch_factor:.2f}x branches"
+        assert scaling_factor < branch_factor * 2, (
+            f"Poor scaling: {scaling_factor:.2f}x time for "
+            f"{branch_factor:.2f}x branches"
+        )
 
 
 @pytest.mark.asyncio
@@ -263,8 +271,10 @@ async def test_performance_scaling_commits() -> None:
         commit_factor = curr_commits / prev_commits
 
         # Commit processing should be efficient due to bulk operations
-        assert scaling_factor < commit_factor * 1.5, \
-            f"Poor commit scaling: {scaling_factor:.2f}x time for {commit_factor:.2f}x commits"
+        assert scaling_factor < commit_factor * 1.5, (
+            f"Poor commit scaling: {scaling_factor:.2f}x time for "
+            f"{commit_factor:.2f}x commits"
+        )
 
 
 @pytest.mark.asyncio
