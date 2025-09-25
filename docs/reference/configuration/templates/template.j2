@@ -1,0 +1,53 @@
+---
+title: Configuration Reference
+description: Kodit Configuration Reference
+weight: 29
+---
+
+This document contains the complete configuration reference for Kodit. All configuration is done through environment variables.
+
+{% for model_name, model_info in models.items() %}
+{%- if model_name != "BaseSettings" and model_info.env_vars %}
+
+## {{ model_name }}
+
+{{ model_info.description }}
+
+| Environment Variable | Type | Default | Description |
+|---------------------|------|---------|-------------|
+{%- for env_var in model_info.env_vars %}
+| `{{ env_var.name }}` | {{ env_var.type }} | `{{ env_var.default }}` | {{ env_var.description }} |
+{%- endfor %}
+
+{% endif %}
+{% endfor %}
+
+## Applying Configuration
+
+There are two ways to apply configuration to Kodit:
+
+1. A local `.env` file (e.g. `kodit --env-file .env serve`)
+2. Environment variables (e.g. `DATA_DIR=/path/to/kodit/data kodit serve`)
+
+How you specify environment variables is dependent on your deployment mechanism.
+
+### Docker Compose 
+
+For example, in docker compose you can use the `environment` key:
+
+```yaml
+services:
+  kodit:
+    environment:
+      - DATA_DIR=/path/to/kodit/data
+```
+
+### Kubernetes
+
+For example, in Kubernetes you can use the `env` key:
+
+```yaml
+env:
+  - name: DATA_DIR
+    value: /path/to/kodit/data
+```

@@ -4,11 +4,13 @@
 build:
 	uv build
 
-openapi: build
+docs: build
 	uv run src/kodit/utils/dump_openapi.py --out docs/reference/api/ kodit.app:app
+	uv run python src/kodit/utils/dump_config.py
 
-openapi-check: openapi
+docs-check: docs
 	git diff --exit-code docs/reference/api/index.md
+	git diff --exit-code docs/reference/configuration/index.md
 
 generate-api-paths: openapi
 	uv run python src/kodit/utils/generate_api_paths.py
@@ -19,7 +21,7 @@ type:
 lint:
 	uv run ruff check --fix --unsafe-fixes
 
-test: lint type openapi-check
+test: lint type docs-check
 	uv run pytest -s --cov=src --cov-report=xml tests/kodit
 
 no-database-changes-check:

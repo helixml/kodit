@@ -4,7 +4,20 @@ description: How to install Kodit.
 weight: 1
 ---
 
-Kodit is a Python CLI application that can be installed locally or remotely. To install choose the path that is most appropriate for your setup. Most users start by experimenting with Kodit locally and progress to installing it remotely on a server.
+Unlike many MCP tools, Kodit is designed to run as a server. You're welcome to use the
+[public server](../_index.md), but if you want to index your own private repositories
+then you should deploy your own server.
+
+Kodit is a Python-based webserver that hosts a REST API and an MCP server. Although most
+people install Kodit remotely in a container, you can also install it as a package.
+
+## Docker
+
+```sh
+docker run -it --rm registry.helix.ml/helix/kodit:latest
+```
+
+Always replace latest with a specific version.
 
 ## homebrew
 
@@ -23,14 +36,6 @@ uv tool install kodit
 ```sh
 pipx install kodit
 ```
-
-## Docker
-
-```sh
-docker run -it --rm registry.helix.ml/helix/kodit:latest
-```
-
-Always replace latest with a specific version.
 
 ## pip
 
