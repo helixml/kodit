@@ -40,7 +40,7 @@ To use the hosted Kodit service:
 
 1. Add the MCP server URL to your AI coding assistant:
 
-   ```
+   ```txt
    https://kodit.helix.ml/mcp
    ```
 

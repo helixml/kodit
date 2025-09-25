@@ -1,6 +1,18 @@
 version: "3.9"
 
 services:
+  ollama:
+    image: ollama/ollama:latest
+    restart: always
+  ollamasetup:
+    image: ollama/ollama:latest
+    depends_on:
+      - ollama
+    restart: "no"
+    environment:
+      - OLLAMA_HOST=ollama:11434
+    entrypoint: [ "bash", "-c", "ollama pull qwen3:1.7b && ollama pull granite-embedding:278m"]
+    
   kodit:
     image: registry.helix.ml/helix/kodit:latest # Replace with a version
     ports:
@@ -18,13 +30,18 @@ services:
       DB_URL: postgresql+asyncpg://postgres:mysecretpassword@vectorchord:5432/kodit
       DEFAULT_SEARCH_PROVIDER: vectorchord
 
-      # External embedding provider
-      EMBEDDING_ENDPOINT_API_KEY: ${OPENAI_API_KEY:-}
-      EMBEDDING_ENDPOINT_MODEL: openai/text-embedding-3-small
-
       # External enrichment provider
-      ENRICHMENT_ENDPOINT_API_KEY: ${OPENAI_API_KEY:-}
-      ENRICHMENT_ENDPOINT_MODEL: openai/gpt-5-nano
+      ## This is an Ollama example, please replace with your own
+      ENRICHMENT_ENDPOINT_BASE_URL: http://ollama:11434
+      ENRICHMENT_ENDPOINT_MODEL: ollama/qwen3:1.7b
+      ENRICHMENT_ENDPOINT_NUM_PARALLEL_TASKS: 3
+      ENRICHMENT_ENDPOINT_TIMEOUT: 300
+      ENRICHMENT_ENDPOINT_EXTRA_PARAMS: "{\"extra_body\": {\"think\": false, \"options\": {\"num_predict\": 200, \"temperature\": 0.7}}}"
+
+      # External embedding provider
+      ## This is an OpenAI example, please replace with your own
+      EMBEDDING_ENDPOINT_API_KEY: sk-proj-xxxx
+      EMBEDDING_ENDPOINT_MODEL: openai/text-embedding-3-small
 
       # Sync configuration
       SYNC_PERIODIC_ENABLED: true
