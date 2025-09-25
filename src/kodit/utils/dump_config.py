@@ -100,11 +100,11 @@ def _extract_env_vars(
             if field_info.default is None:
                 default_value = "None"
             else:
-                default_value = str(field_info.default)
+                default_value = _format_default_value(field_info.default, field_name)
         elif field_info.default_factory is not None:
             try:
                 factory_result = field_info.default_factory()  # type: ignore[call-arg]
-                default_value = str(factory_result)
+                default_value = _format_default_value(factory_result, field_name)
             except (TypeError, ValueError, AttributeError):
                 default_value = f"{field_info.default_factory.__name__}()"
         else:
@@ -181,11 +181,11 @@ def _extract_nested_env_vars(  # noqa: C901, PLR0912
             if field_info.default is None:
                 default_value = "None"
             else:
-                default_value = str(field_info.default)
+                default_value = _format_default_value(field_info.default, field_name)
         elif field_info.default_factory is not None:
             try:
                 factory_result = field_info.default_factory()  # type: ignore[call-arg]
-                default_value = str(factory_result)
+                default_value = _format_default_value(factory_result, field_name)
             except (TypeError, ValueError, AttributeError):
                 default_value = f"{field_info.default_factory.__name__}()"
         else:
@@ -222,6 +222,25 @@ def _is_pydantic_model(type_annotation: Any) -> bool:
         )
     except (TypeError, AttributeError):
         return False
+
+
+def _format_default_value(value: Any, field_name: str) -> str:
+    """Format default values for documentation, handling special cases."""
+    from pathlib import Path
+
+    # Handle Path objects that contain user home directory
+    if isinstance(value, Path):
+        path_str = str(value)
+        # Replace actual home directory with generic placeholder
+        home_dir = str(Path.home())
+        if path_str.startswith(home_dir):
+            return path_str.replace(home_dir, "~")
+
+    # Handle special field names that we know represent dynamic defaults
+    if field_name.lower() == "data_dir" and isinstance(value, Path):
+        return "~/.kodit"
+
+    return str(value)
 
 
 def _lint_markdown(content: str) -> str:

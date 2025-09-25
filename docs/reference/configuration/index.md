@@ -12,7 +12,7 @@ Global context for the kodit project. Provides a shared state for the app.
 
 | Environment Variable | Type | Default | Description |
 |---------------------|------|---------|-------------|
-| `DATA_DIR` | Path | `/Users/phil/.kodit` |  |
+| `DATA_DIR` | Path | `~/.kodit` |  |
 | `DB_URL` | str | `<lambda>()` |  |
 | `LOG_LEVEL` | str | `INFO` |  |
 | `LOG_FORMAT` | LogFormat | `LogFormat.PRETTY` |  |
