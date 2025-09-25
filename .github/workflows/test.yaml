@@ -39,7 +39,7 @@ jobs:
         run: make no-database-changes-check
 
       - name: API Doc check
-        run: make openapi-check
+        run: make docs-check
 
       - name: Run tests
         run: make test
