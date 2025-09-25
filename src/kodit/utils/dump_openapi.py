@@ -2,7 +2,6 @@
 
 import argparse
 import json
-import re
 from pathlib import Path
 from typing import Any
 
@@ -22,11 +21,10 @@ if __name__ == "__main__":
     openapi = app.openapi()
 
     # A regex that maches semver only (nothing after the final minor version)
-    re_version = re.compile(r"^([\d.]+)(?:.+)$")
-    git_tag = re_version.match(openapi["info"]["version"])
+    git_tag = openapi["info"]["version"]
     if not git_tag:
-        raise ValueError(f"Invalid version: {openapi['info']['version']}")
-    openapi["info"]["version"] = git_tag.group(1)
+        raise ValueError(f"Invalid version: {openapi['info']}")
+    openapi["info"]["version"] = git_tag
 
     output_json_file = Path(args.out_dir) / "openapi.json"
 
