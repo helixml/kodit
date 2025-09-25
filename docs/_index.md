@@ -44,21 +44,18 @@ and produce fewer hallucinations.
 
 ### Codebase Indexing
 
-Kodit connects to a variety of local and remote codebases to build an index of your
+Kodit connects to remote codebases to build an index of your
 code. This index is used to build a snippet library, ready for ingestion into an LLM.
 
-- Index local directories and public Git repositories
+- Index public and private Git repositories (via a PAT)
 - Build comprehensive snippet libraries for LLM ingestion
 - Support for 20+ programming languages including Python, JavaScript/TypeScript, Java, Go, Rust, C/C++, C#, HTML/CSS, and more
-- Advanced code analysis with dependency tracking and call graph generation
+- Advanced code slicing with dependency tracking and call graph generation
 - Intelligent snippet extraction with context-aware dependencies
 - Efficient indexing with selective reindexing (only processes modified files)
 - Privacy first: respects .gitignore and .noindex files
-- **NEW in 0.3**: Auto-indexing configuration for shared server deployments
-- **NEW in 0.3**: Enhanced Git provider support including Azure DevOps
-- **NEW in 0.3**: Index private repositories via a PAT
-- **NEW in 0.3**: Improved progress monitoring and reporting during indexing
-- **NEW in 0.4**: Advanced code slicing infrastructure with Tree-sitter parsing
+- Enhanced Git provider support including Github, Gitlab, Azure DevOps
+- **New in 0.5**: Index Git structure for incremental indexing and unlock future enrichments
 
 ### MCP Server
 
@@ -68,16 +65,16 @@ intent. Kodit has been tested to work well with:
 
 - Seamless integration with popular AI coding assistants
 - Tested and verified with:
-  - [Cursor](./getting-started/integration/index.md#integration-with-cursor)
-  - [Cline](./getting-started/integration/index.md#integration-with-cline)
+  - [Cursor](./reference/mcp/index.md)
+  - [Cline](./reference/mcp/index.md)
+  - [Claude Code](./reference/mcp/index.md)
 - Please contribute more instructions! ... any other assistant is likely to work ...
-- **New in 0.3**: Advanced search filters by source, language, author, date range, and file path
-- **New in 0.3**: Hybrid search combining BM25 keyword search with semantic search
-- **New in 0.3**: Enhanced MCP tools with rich context parameters and metadata
+- Advanced search filters by source, language, author, date range, and file path
+- Hybrid search combining BM25 keyword search with semantic search
 
 ### Hosted MCP Server
 
-**New in 0.4**: Try Kodit instantly with our hosted MCP server at [https://kodit.helix.ml/mcp](https://kodit.helix.ml/mcp)! No installation required - just add it to your AI coding assistant and start searching popular codebases immediately.
+Try Kodit instantly with our hosted MCP server at [https://kodit.helix.ml/mcp](https://kodit.helix.ml/mcp)! No installation required - just add it to your AI coding assistant and start searching popular codebases immediately.
 
 The hosted server provides:
 
@@ -103,12 +100,8 @@ Supported databases:
 Supported providers:
 
 - Local (which uses tiny CPU-only open-source models)
-- OpenAI
 - Secure, private LLM enclave with [Helix](https://helix.ml).
-- Any other OpenAI compatible API
-
-**NEW in 0.3**: Enhanced deployment options:
-
+- Any other provider supported by [LiteLLM](https://docs.litellm.ai/docs/providers).
 - Docker Compose configurations with VectorChord
 - Kubernetes manifests for production deployments
 
