@@ -226,10 +226,6 @@ class GitAdapter(ABC):
         """Clone a repository to local path."""
 
     @abstractmethod
-    async def checkout_commit(self, local_path: Path, commit_sha: str) -> None:
-        """Checkout a specific commit in the repository."""
-
-    @abstractmethod
     async def pull_repository(self, local_path: Path) -> None:
         """Pull latest changes for existing repository."""
 
@@ -247,7 +243,13 @@ class GitAdapter(ABC):
     async def get_commit_files(
         self, local_path: Path, commit_sha: str
     ) -> list[dict[str, Any]]:
-        """Get all files in a specific commit."""
+        """Get all files in a specific commit from the git tree."""
+
+    @abstractmethod
+    async def get_commit_file_data(
+        self, local_path: Path, commit_sha: str
+    ) -> list[dict[str, Any]]:
+        """Get file metadata for a commit, with files checked out to disk."""
 
     @abstractmethod
     async def repository_exists(self, local_path: Path) -> bool:

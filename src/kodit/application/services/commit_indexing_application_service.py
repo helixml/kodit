@@ -302,11 +302,7 @@ class CommitIndexingApplicationService:
             if not repo.cloned_path:
                 raise ValueError(f"Repository {repository_id} has never been cloned")
 
-            # Ensure we're on the specific commit for file access
-            await self.scanner.git_adapter.checkout_commit(repo.cloned_path, commit_sha)
-
-            # Get files directly from Git adapter for this specific commit
-            files_data = await self.scanner.git_adapter.get_commit_files(
+            files_data = await self.scanner.git_adapter.get_commit_file_data(
                 repo.cloned_path, commit_sha
             )
 
@@ -365,7 +361,7 @@ class CommitIndexingApplicationService:
             self._log.info(
                 f"Extracted {len(all_snippets)} snippets, "
                 f"deduplicated to {len(deduplicated_snippets)} for {commit_short}"
-            )
+                )
             await self.snippet_repository.save_snippets(
                 commit.commit_sha, deduplicated_snippets
             )

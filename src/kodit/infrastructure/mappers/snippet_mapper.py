@@ -1,6 +1,7 @@
 """Mapping between domain Git entities and SQLAlchemy entities."""
 
 import kodit.domain.entities.git as domain_git_entities
+from kodit.domain.entities.enrichment import EnrichmentV2, SnippetEnrichment
 from kodit.domain.value_objects import Enrichment, EnrichmentType
 from kodit.infrastructure.sqlalchemy import entities as db_entities
 
@@ -12,19 +13,17 @@ class SnippetMapper:
         self,
         db_snippet: db_entities.SnippetV2,
         db_files: list[db_entities.GitCommitFile],
-        db_enrichments: list[db_entities.Enrichment],
+        db_enrichments: list[EnrichmentV2],
     ) -> domain_git_entities.SnippetV2:
         """Convert SQLAlchemy SnippetV2 to domain SnippetV2."""
-        # Convert enrichments
-        enrichments = []
-        for db_enrichment in db_enrichments:
-            # Map from SQLAlchemy enum to domain enum
-            enrichment_type = EnrichmentType(db_enrichment.type.value)
-            enrichment = Enrichment(
-                type=enrichment_type,
-                content=db_enrichment.content,
+        # Convert enrichments from SnippetEnrichment to Enrichment value objects
+        enrichments: list[Enrichment] = [
+            Enrichment(
+                type=EnrichmentType.SUMMARIZATION,
+                content=enrichment.content,
             )
-            enrichments.append(enrichment)
+            for enrichment in db_enrichments
+        ]
 
         derives_from = [
             domain_git_entities.GitFile(
@@ -59,20 +58,18 @@ class SnippetMapper:
         )
 
     def from_domain_enrichments(
-        self, snippet_sha: str, enrichments: list[Enrichment]
-    ) -> list[db_entities.Enrichment]:
-        """Convert domain enrichments to SQLAlchemy enrichments."""
-        db_enrichments = []
-        for enrichment in enrichments:
-            # Map from domain enum to SQLAlchemy enum
-            db_enrichment_type = db_entities.EnrichmentType(enrichment.type.value)
-            db_enrichment = db_entities.Enrichment(
-                snippet_sha=snippet_sha,
-                type=db_enrichment_type,
+        self,
+        snippet_sha: str,
+        enrichments: list[Enrichment],
+    ) -> list[SnippetEnrichment]:
+        """Convert domain enrichments to SnippetEnrichment entities."""
+        return [
+            SnippetEnrichment(
+                entity_id=snippet_sha,
                 content=enrichment.content,
             )
-            db_enrichments.append(db_enrichment)
-        return db_enrichments
+            for enrichment in enrichments
+        ]
 
     def to_domain_commit_index(
         self,

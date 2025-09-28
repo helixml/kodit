@@ -1,0 +1,148 @@
+"""End-to-end test for physical architecture discovery."""
+
+from pathlib import Path
+
+import pytest
+
+from kodit.domain.services.physical_architecture_service import (
+    PhysicalArchitectureService,
+)
+
+
+class TestPhysicalArchitectureEndToEnd:
+    """End-to-end test for physical architecture discovery with narrative output."""
+
+    @pytest.mark.asyncio
+    async def test_discover_architecture_simple_web_app(self) -> None:
+        """Test full architecture discovery on simple web app fixture generates narrative."""  # noqa: E501
+        service = PhysicalArchitectureService()
+        fixture_path = Path(__file__).parent / "fixtures" / "simple_web_app"
+
+        narrative = await service.discover_architecture(fixture_path)
+
+        # Should return narrative text, not structured data
+        assert isinstance(narrative, str)
+        assert len(narrative) > 100  # Should be substantial text
+
+        # Should contain markdown structure
+        assert "# Repository Architecture Discovery" in narrative
+        assert "## Repository Context" in narrative
+        assert "## Component Observations" in narrative
+        assert "## Connection Observations" in narrative
+        assert "## Infrastructure Observations" in narrative
+        assert "## Discovery Metadata" in narrative
+
+        # Should mention the services from the fixture
+        narrative_lower = narrative.lower()
+        assert "api" in narrative_lower
+        assert "postgres" in narrative_lower
+        assert "redis" in narrative_lower
+        assert "frontend" in narrative_lower
+        assert "worker" in narrative_lower
+
+        # Should describe architectural concepts
+        assert any(word in narrative_lower for word in [
+            "service", "component", "database", "cache", "dependency"
+        ])
+
+        # Should mention Docker Compose
+        assert "docker" in narrative_lower
+        assert "compose" in narrative_lower
+
+    @pytest.mark.asyncio
+    async def test_discover_architecture_empty_directory(self) -> None:
+        """Test architecture discovery on empty directory generates appropriate narrative."""  # noqa: E501
+        service = PhysicalArchitectureService()
+        empty_path = Path("/tmp")  # Unlikely to have docker-compose files
+
+        narrative = await service.discover_architecture(empty_path)
+
+        # Should still return narrative text
+        assert isinstance(narrative, str)
+        assert len(narrative) > 100  # Should have basic structure
+
+        # Should contain markdown structure
+        assert "# Repository Architecture Discovery" in narrative
+        assert "## Repository Context" in narrative
+        assert "## Component Observations" in narrative
+
+        # Should indicate no components found
+        narrative_lower = narrative.lower()
+        assert any(phrase in narrative_lower for phrase in [
+            "no distinct components",
+            "no infrastructure configuration",
+            "limited infrastructure"
+        ])
+
+    @pytest.mark.asyncio
+    async def test_narrative_contains_discovery_metadata(self) -> None:
+        """Test that narrative includes proper discovery metadata."""
+        service = PhysicalArchitectureService()
+        fixture_path = Path(__file__).parent / "fixtures" / "simple_web_app"
+
+        narrative = await service.discover_architecture(fixture_path)
+
+        # Should contain discovery metadata section
+        assert "## Discovery Metadata" in narrative
+
+        # Should mention methodology and confidence
+        narrative_lower = narrative.lower()
+        assert any(word in narrative_lower for word in [
+            "analysis", "methodology", "confidence", "docker compose"
+        ])
+
+        # Should contain timestamp information
+        assert any(word in narrative_lower for word in [
+            "completed", "timestamp", "analysis"
+        ])
+
+    @pytest.mark.asyncio
+    async def test_narrative_structure_is_llm_optimized(self) -> None:
+        """Test that narrative structure is optimized for LLM consumption."""
+        service = PhysicalArchitectureService()
+        fixture_path = Path(__file__).parent / "fixtures" / "simple_web_app"
+
+        narrative = await service.discover_architecture(fixture_path)
+
+        # Should have clear section structure
+        sections = narrative.split("##")
+        assert len(sections) >= 5  # Should have multiple sections
+
+        # Each section should be substantial
+        for section in sections[1:]:  # Skip title section
+            if section.strip():
+                assert len(section.strip()) > 20  # Should have meaningful content
+
+        # Should use markdown formatting
+        assert "**" in narrative  # Bold formatting
+        assert "#" in narrative    # Headers
+
+        # Should be descriptive rather than just listing facts
+        narrative_lower = narrative.lower()
+        assert any(descriptive_word in narrative_lower for descriptive_word in [
+            "suggests", "indicates", "configured", "pattern", "architecture"
+        ])
+
+    @pytest.mark.asyncio
+    async def test_narrative_describes_relationships_not_just_components(self) -> None:
+        """Test that narrative describes relationships and context, not just components."""  # noqa: E501
+        service = PhysicalArchitectureService()
+        fixture_path = Path(__file__).parent / "fixtures" / "simple_web_app"
+
+        narrative = await service.discover_architecture(fixture_path)
+
+        # Should describe dependencies and relationships
+        narrative_lower = narrative.lower()
+        assert any(relationship_word in narrative_lower for relationship_word in [
+            "depends", "dependency", "connection", "communication", "startup"
+        ])
+
+        # Should provide context about roles and purposes
+        assert any(context_word in narrative_lower for context_word in [
+            "database", "cache", "worker", "api", "frontend"
+        ])
+
+        # Should explain configuration patterns
+        assert any(pattern_word in narrative_lower for pattern_word in [
+            "configuration", "deployment", "orchestration", "containerized"
+        ])

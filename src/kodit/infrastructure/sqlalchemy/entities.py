@@ -10,6 +10,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     ForeignKeyConstraint,
+    Index,
     Integer,
     String,
     TypeDecorator,
@@ -483,44 +484,6 @@ class CommitSnippetV2(Base):
         self.snippet_sha = snippet_sha
 
 
-# Enrichment model for SnippetV2
-
-
-class EnrichmentType(Enum):
-    """Enrichment type enum."""
-
-    UNKNOWN = "unknown"
-    SUMMARIZATION = "summarization"
-
-
-class Enrichment(Base, CommonMixin):
-    """Enrichment model for snippet enrichments."""
-
-    __tablename__ = "enrichments"
-
-    snippet_sha: Mapped[str] = mapped_column(ForeignKey("snippets_v2.sha"), index=True)
-    type: Mapped[EnrichmentType] = mapped_column(
-        SQLAlchemyEnum(EnrichmentType), index=True
-    )
-    content: Mapped[str] = mapped_column(UnicodeText)
-
-    __table_args__ = (
-        UniqueConstraint("snippet_sha", "type", name="uix_snippet_enrichment"),
-    )
-
-    def __init__(
-        self,
-        snippet_sha: str,
-        type: EnrichmentType,  # noqa: A002
-        content: str,
-    ) -> None:
-        """Initialize enrichment."""
-        super().__init__()
-        self.snippet_sha = snippet_sha
-        self.type = type
-        self.content = content
-
-
 class CommitIndex(Base):
     """Commit index model."""
 
@@ -559,3 +522,44 @@ class CommitIndex(Base):
         self.error_message = error_message
         self.files_processed = files_processed
         self.processing_time_seconds = processing_time_seconds
+
+
+class EnrichmentV2(Base, CommonMixin):
+    """Generic enrichment entity."""
+
+    __tablename__ = "enrichments_v2"
+
+    content: Mapped[str] = mapped_column(UnicodeText, nullable=False)
+
+
+class EnrichmentAssociation(Base, CommonMixin):
+    """Polymorphic association between enrichments and entities."""
+
+    __tablename__ = "enrichment_associations"
+
+    enrichment_id: Mapped[int] = mapped_column(
+        ForeignKey("enrichments_v2.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    entity_type: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        index=True,
+    )
+    entity_id: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        index=True,
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "entity_type",
+            "entity_id",
+            "enrichment_id",
+            name="uix_entity_enrichment",
+        ),
+        Index("idx_entity_lookup", "entity_type", "entity_id"),
+        {"sqlite_autoincrement": True},
+    )
