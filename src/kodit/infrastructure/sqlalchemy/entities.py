@@ -491,6 +491,7 @@ class EnrichmentType(Enum):
 
     UNKNOWN = "unknown"
     SUMMARIZATION = "summarization"
+    PHYSICAL_ARCHITECTURE = "physical_architecture"
 
 
 class Enrichment(Base, CommonMixin):
