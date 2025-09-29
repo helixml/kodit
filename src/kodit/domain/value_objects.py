@@ -30,6 +30,7 @@ class EnrichmentType(StrEnum):
 
     UNKNOWN = "unknown"
     SUMMARIZATION = "summarization"
+    PHYSICAL_ARCHITECTURE = "physical_architecture"
 
 
 @dataclass(frozen=True)
