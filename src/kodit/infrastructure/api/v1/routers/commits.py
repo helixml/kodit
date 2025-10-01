@@ -22,6 +22,11 @@ from kodit.infrastructure.api.v1.schemas.commit import (
     FileListResponse,
     FileResponse,
 )
+from kodit.infrastructure.api.v1.schemas.enrichment import (
+    EnrichmentAttributes,
+    EnrichmentData,
+    EnrichmentListResponse,
+)
 from kodit.infrastructure.api.v1.schemas.snippet import (
     EnrichmentSchema,
     GitFileSchema,
@@ -267,5 +272,39 @@ async def list_commit_embeddings(
                 ),
             )
             for embedding in embeddings
+        ]
+    )
+
+
+@router.get(
+    "/{repo_id}/commits/{commit_sha}/enrichments",
+    summary="List commit enrichments",
+    responses={404: {"description": "Repository or commit not found"}},
+)
+async def list_commit_enrichments(
+    repo_id: str,  # noqa: ARG001
+    commit_sha: str,
+    server_factory: ServerFactoryDep,
+) -> EnrichmentListResponse:
+    """List all enrichments for a specific commit."""
+    enrichment_v2_repository = server_factory.enrichment_v2_repository()
+    enrichments = await enrichment_v2_repository.get_enrichments(
+        entity_type="git_commit",
+        entity_ids=[commit_sha],
+    )
+
+    return EnrichmentListResponse(
+        data=[
+            EnrichmentData(
+                type="enrichment",
+                id=str(enrichment.id),
+                attributes=EnrichmentAttributes(
+                    type=enrichment.type,
+                    content=enrichment.content,
+                    created_at=enrichment.created_at,
+                    updated_at=enrichment.updated_at,
+                ),
+            )
+            for enrichment in enrichments
         ]
     )

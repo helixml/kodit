@@ -529,6 +529,7 @@ class EnrichmentV2(Base, CommonMixin):
 
     __tablename__ = "enrichments_v2"
 
+    type: Mapped[str] = mapped_column(String, nullable=False)
     content: Mapped[str] = mapped_column(UnicodeText, nullable=False)
 
 

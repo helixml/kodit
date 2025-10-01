@@ -1,6 +1,7 @@
 """Enrichment mapper."""
 
 from kodit.domain.entities.enrichment import (
+    ArchitectureEnrichment,
     CommitEnrichment,
     EnrichmentV2,
     SnippetEnrichment,
@@ -16,6 +17,7 @@ class EnrichmentMapper:
         """Convert domain enrichment to database entity."""
         return db_entities.EnrichmentV2(
             id=domain_enrichment.id,
+            type=domain_enrichment.type,
             content=domain_enrichment.content,
             created_at=domain_enrichment.created_at,
             updated_at=domain_enrichment.updated_at,
@@ -24,11 +26,12 @@ class EnrichmentMapper:
     @staticmethod
     def to_domain(
         db_enrichment: db_entities.EnrichmentV2,
-        entity_type: str,
+        entity_type: str,  # noqa: ARG004
         entity_id: str,
     ) -> EnrichmentV2:
         """Convert database enrichment to domain entity."""
-        if entity_type == "snippet_v2":
+        # Use the stored type to determine the correct domain class
+        if db_enrichment.type == "snippet":
             return SnippetEnrichment(
                 id=db_enrichment.id,
                 entity_id=entity_id,
@@ -36,7 +39,15 @@ class EnrichmentMapper:
                 created_at=db_enrichment.created_at,
                 updated_at=db_enrichment.updated_at,
             )
-        if entity_type == "git_commit":
+        if db_enrichment.type == "architecture":
+            return ArchitectureEnrichment(
+                id=db_enrichment.id,
+                entity_id=entity_id,
+                content=db_enrichment.content,
+                created_at=db_enrichment.created_at,
+                updated_at=db_enrichment.updated_at,
+            )
+        if db_enrichment.type == "commit":
             return CommitEnrichment(
                 id=db_enrichment.id,
                 entity_id=entity_id,
@@ -44,4 +55,4 @@ class EnrichmentMapper:
                 created_at=db_enrichment.created_at,
                 updated_at=db_enrichment.updated_at,
             )
-        raise ValueError(f"Unknown entity type: {entity_type}")
+        raise ValueError(f"Unknown enrichment type: {db_enrichment.type}")

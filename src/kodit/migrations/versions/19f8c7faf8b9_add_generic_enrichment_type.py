@@ -27,6 +27,7 @@ def upgrade() -> None:
         "enrichments_v2",
         sa.Column("content", sa.UnicodeText(), nullable=False),
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
+        sa.Column("type", sa.String(length=255), nullable=False),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
