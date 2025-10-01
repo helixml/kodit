@@ -5,7 +5,6 @@ from pathlib import Path
 
 import kodit.domain.entities.git as domain_git_entities
 from kodit.domain.entities.git import IndexStatus
-from kodit.domain.value_objects import Enrichment, EnrichmentType
 from kodit.infrastructure.mappers.git_mapper import GitMapper
 from kodit.infrastructure.sqlalchemy import entities as db_entities
 
@@ -118,12 +117,6 @@ class TestGitMapper:
             extension="py",
         )
 
-        db_entities.Enrichment(
-            snippet_sha="snippet_sha_123",
-            type=db_entities.EnrichmentType.SUMMARIZATION,
-            content="A simple hello function",
-        )
-
         # Create domain snippet directly
         domain_snippet = domain_git_entities.SnippetV2(
             sha=db_snippet.sha,
@@ -131,12 +124,7 @@ class TestGitMapper:
             updated_at=db_snippet.updated_at,
             derives_from=[domain_file],
             content=db_snippet.content,
-            enrichments=[
-                Enrichment(
-                    type=EnrichmentType.SUMMARIZATION,
-                    content="A simple hello function",
-                )
-            ],
+            enrichments=[],
             extension=db_snippet.extension,
         )
 
@@ -146,9 +134,6 @@ class TestGitMapper:
         assert domain_snippet.extension == db_snippet.extension
         assert len(domain_snippet.derives_from) == 1
         assert domain_snippet.derives_from[0].blob_sha == "file_sha_456"
-        assert len(domain_snippet.enrichments) == 1
-        assert domain_snippet.enrichments[0].type == EnrichmentType.SUMMARIZATION
-        assert domain_snippet.enrichments[0].content == "A simple hello function"
 
     def test_from_domain_snippet_v2(self) -> None:
         """Test converting domain SnippetV2 to database SnippetV2."""
@@ -190,39 +175,11 @@ class TestGitMapper:
         assert db_snippet.extension == domain_snippet.extension
 
     def test_from_domain_enrichments(self) -> None:
-        """Test converting domain enrichments to database enrichments."""
-        [
-            Enrichment(
-                type=EnrichmentType.SUMMARIZATION,
-                content="Function that processes data",
-            ),
-            Enrichment(
-                type=EnrichmentType.UNKNOWN,
-                content="Detailed documentation here",
-            ),
-        ]
-
-        # Create db enrichments directly
-        db_enrichments = [
-            db_entities.Enrichment(
-                snippet_sha="test_sha",
-                type=db_entities.EnrichmentType.SUMMARIZATION,
-                content="Function that processes data",
-            ),
-            db_entities.Enrichment(
-                snippet_sha="test_sha",
-                type=db_entities.EnrichmentType.UNKNOWN,
-                content="Detailed documentation here",
-            ),
-        ]
-
-        # Verify mapping
-        assert len(db_enrichments) == 2
-        assert db_enrichments[0].snippet_sha == "test_sha"
-        assert db_enrichments[0].type == db_entities.EnrichmentType.SUMMARIZATION
-        assert db_enrichments[0].content == "Function that processes data"
-        assert db_enrichments[1].type == db_entities.EnrichmentType.UNKNOWN
-        assert db_enrichments[1].content == "Detailed documentation here"
+        """Test that enrichments are now handled by the EnrichmentV2 system."""
+        # Note: The old Enrichment system has been replaced by EnrichmentV2
+        # with a generic polymorphic association pattern. Enrichment mapping
+        # is now tested in enrichment_v2_repository_test.py
+        # This test is kept as a placeholder to document the change.
 
     def test_to_domain_commit_index(self) -> None:
         """Test converting database CommitIndex to domain CommitIndex."""
