@@ -51,3 +51,17 @@ class CommitEnrichment(EnrichmentV2):
     def entity_type_key(self) -> str:
         """Return the entity type key this enrichment is for."""
         return "git_commit"
+
+
+@dataclass
+class ArchitectureEnrichment(EnrichmentV2):
+    """Enrichment containing physical architecture discovery for a commit."""
+
+    @property
+    def type(self) -> str:
+        """Return the enrichment type."""
+        return "architecture"
+
+    def entity_type_key(self) -> str:
+        """Return the entity type key this enrichment is for."""
+        return "git_commit"

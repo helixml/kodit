@@ -27,10 +27,16 @@ from kodit.domain.services.git_repository_service import (
     GitRepositoryScanner,
     RepositoryCloner,
 )
+from kodit.domain.services.physical_architecture_service import (
+    PhysicalArchitectureService,
+)
 from kodit.domain.value_objects import Enrichment, EnrichmentType
 from kodit.infrastructure.slicing.slicer import Slicer
 from kodit.infrastructure.sqlalchemy.embedding_repository import (
     create_embedding_repository,
+)
+from kodit.infrastructure.sqlalchemy.enrichment_v2_repository import (
+    EnrichmentV2Repository,
 )
 from kodit.infrastructure.sqlalchemy.git_branch_repository import (
     create_git_branch_repository,
@@ -80,6 +86,7 @@ async def commit_indexing_service(
     )
     git_tag_repository = create_git_tag_repository(session_factory=session_factory)
     embedding_repository = create_embedding_repository(session_factory=session_factory)
+    enrichment_v2_repository = EnrichmentV2Repository(session_factory=session_factory)
 
     return CommitIndexingApplicationService(
         snippet_v2_repository=snippet_v2_repository,
@@ -98,6 +105,8 @@ async def commit_indexing_service(
         text_search_service=AsyncMock(spec=EmbeddingDomainService),
         enrichment_service=AsyncMock(spec=EnrichmentDomainService),
         embedding_repository=embedding_repository,
+        architecture_service=AsyncMock(spec=PhysicalArchitectureService),
+        enrichment_v2_repository=enrichment_v2_repository,
     )
 
 

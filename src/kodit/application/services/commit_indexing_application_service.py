@@ -9,6 +9,7 @@ from pydantic import AnyUrl
 from kodit.application.services.queue_service import QueueService
 from kodit.application.services.reporting import ProgressTracker
 from kodit.domain.entities import Task
+from kodit.domain.entities.enrichment import ArchitectureEnrichment
 from kodit.domain.entities.git import GitFile, GitRepo, SnippetV2
 from kodit.domain.factories.git_repo_factory import GitRepoFactory
 from kodit.domain.protocols import (
@@ -24,6 +25,9 @@ from kodit.domain.services.enrichment_service import EnrichmentDomainService
 from kodit.domain.services.git_repository_service import (
     GitRepositoryScanner,
     RepositoryCloner,
+)
+from kodit.domain.services.physical_architecture_service import (
+    PhysicalArchitectureService,
 )
 from kodit.domain.value_objects import (
     DeleteRequest,
@@ -42,6 +46,9 @@ from kodit.domain.value_objects import (
 from kodit.infrastructure.slicing.slicer import Slicer
 from kodit.infrastructure.sqlalchemy.embedding_repository import (
     SqlAlchemyEmbeddingRepository,
+)
+from kodit.infrastructure.sqlalchemy.enrichment_v2_repository import (
+    EnrichmentV2Repository,
 )
 from kodit.infrastructure.sqlalchemy.entities import EmbeddingType
 
@@ -67,6 +74,8 @@ class CommitIndexingApplicationService:
         text_search_service: EmbeddingDomainService,
         enrichment_service: EnrichmentDomainService,
         embedding_repository: SqlAlchemyEmbeddingRepository,
+        architecture_service: PhysicalArchitectureService,
+        enrichment_v2_repository: EnrichmentV2Repository,
     ) -> None:
         """Initialize the commit indexing application service.
 
@@ -94,6 +103,8 @@ class CommitIndexingApplicationService:
         self.text_search_service = text_search_service
         self.enrichment_service = enrichment_service
         self.embedding_repository = embedding_repository
+        self.architecture_service = architecture_service
+        self.enrichment_v2_repository = enrichment_v2_repository
         self._log = structlog.get_logger(__name__)
 
     async def create_git_repository(self, remote_uri: AnyUrl) -> GitRepo:
@@ -153,6 +164,8 @@ class CommitIndexingApplicationService:
                 await self.process_enrich(repository_id, commit_sha)
             elif task.type == TaskOperation.CREATE_SUMMARY_EMBEDDINGS_FOR_COMMIT:
                 await self.process_summary_embeddings(repository_id, commit_sha)
+            elif task.type == TaskOperation.CREATE_ARCHITECTURE_ENRICHMENT_FOR_COMMIT:
+                await self.process_architecture_discovery(repository_id, commit_sha)
             else:
                 raise ValueError(f"Unknown task type: {task.type}")
         else:
@@ -521,6 +534,57 @@ class CommitIndexingApplicationService:
             ):
                 processed += len(result)
                 await step.set_current(processed, "Creating text embeddings for commit")
+
+    async def process_architecture_discovery(
+        self, repository_id: int, commit_sha: str
+    ) -> None:
+        """Handle ARCHITECTURE_DISCOVERY task - discover physical architecture."""
+        async with self.operation.create_child(
+            TaskOperation.CREATE_ARCHITECTURE_ENRICHMENT_FOR_COMMIT,
+            trackable_type=TrackableType.KODIT_REPOSITORY,
+            trackable_id=repository_id,
+        ) as step:
+            # Check if architecture enrichment already exists for this commit
+            existing_enrichments = await self.enrichment_v2_repository.get_enrichments(
+                entity_type="git_commit",
+                entity_ids=[commit_sha],
+            )
+
+            # Check if architecture enrichment already exists
+            has_architecture = any(
+                enrichment.type == "architecture"
+                for enrichment in existing_enrichments
+            )
+
+            if has_architecture:
+                await step.skip("Architecture enrichment already exists for commit")
+                return
+
+            # Get repository path
+            repo = await self.repo_repository.get_by_id(repository_id)
+            if not repo.cloned_path:
+                raise ValueError(f"Repository {repository_id} has never been cloned")
+
+            await step.set_current(1, "Discovering physical architecture")
+
+            # Discover architecture
+            architecture_narrative = (
+                await self.architecture_service.discover_architecture(
+                    repo.cloned_path
+                )
+            )
+
+            # Create and save architecture enrichment
+            architecture_enrichment = ArchitectureEnrichment(
+                entity_id=commit_sha,
+                content=architecture_narrative,
+            )
+
+            await self.enrichment_v2_repository.bulk_save_enrichments([
+                architecture_enrichment
+            ])
+
+            await step.set_current(2, "Architecture enrichment completed")
 
     async def _new_snippets_for_type(
         self, all_snippets: list[SnippetV2], embedding_type: EmbeddingType

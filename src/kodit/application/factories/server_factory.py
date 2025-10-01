@@ -32,6 +32,9 @@ from kodit.domain.services.git_repository_service import (
     GitRepositoryScanner,
     RepositoryCloner,
 )
+from kodit.domain.services.physical_architecture_service import (
+    PhysicalArchitectureService,
+)
 from kodit.infrastructure.bm25.local_bm25_repository import LocalBM25Repository
 from kodit.infrastructure.bm25.vectorchord_bm25_repository import (
     VectorChordBM25Repository,
@@ -50,6 +53,9 @@ from kodit.infrastructure.slicing.slicer import Slicer
 from kodit.infrastructure.sqlalchemy.embedding_repository import (
     SqlAlchemyEmbeddingRepository,
     create_embedding_repository,
+)
+from kodit.infrastructure.sqlalchemy.enrichment_v2_repository import (
+    EnrichmentV2Repository,
 )
 from kodit.infrastructure.sqlalchemy.git_branch_repository import (
     create_git_branch_repository,
@@ -107,6 +113,22 @@ class ServerFactory:
         self._git_commit_repository: GitCommitRepository | None = None
         self._git_branch_repository: GitBranchRepository | None = None
         self._git_tag_repository: GitTagRepository | None = None
+        self._architecture_service: PhysicalArchitectureService | None = None
+        self._enrichment_v2_repository: EnrichmentV2Repository | None = None
+
+    def architecture_service(self) -> PhysicalArchitectureService:
+        """Create a PhysicalArchitectureService instance."""
+        if not self._architecture_service:
+            self._architecture_service = PhysicalArchitectureService()
+        return self._architecture_service
+
+    def enrichment_v2_repository(self) -> EnrichmentV2Repository:
+        """Create a EnrichmentV2Repository instance."""
+        if not self._enrichment_v2_repository:
+            self._enrichment_v2_repository = EnrichmentV2Repository(
+                session_factory=self.session_factory
+            )
+        return self._enrichment_v2_repository
 
     def queue_service(self) -> QueueService:
         """Create a QueueService instance."""
@@ -192,6 +214,8 @@ class ServerFactory:
                     text_search_service=self.text_search_service(),
                     enrichment_service=self.enrichment_service(),
                     embedding_repository=self.embedding_repository(),
+                    architecture_service=self.architecture_service(),
+                    enrichment_v2_repository=self.enrichment_v2_repository(),
                 )
             )
 
