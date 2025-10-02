@@ -103,6 +103,8 @@ When writing tests for my code, follow these guidelines:
 - Minimize mocking - only mock when it provides clear benefits
 - Database layer mocking is acceptable for end-to-end tests
 - Avoid mocking everything else
+- Do not use patches in tests because they are fragile to changes. If you must use them,
+  ONLY use them on core python libraries.
 
 **Test Organization:**
 
@@ -114,5 +116,3 @@ When writing tests for my code, follow these guidelines:
 - Docstrings should be very minimal. Descriptions only. No arguments or return types. No
   examples. No deprecation notices.
 - Do not store imports imports in `__init__.py` files.
-- Do not use patches in tests because they are fragile to changes. If you must use them,
-  ONLY use them on core python libraries.
