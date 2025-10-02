@@ -28,6 +28,7 @@ def upgrade() -> None:
         sa.Column("content", sa.UnicodeText(), nullable=False),
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
         sa.Column("type", sa.String(length=255), nullable=False),
+        sa.Column("subtype", sa.String(length=255), nullable=False),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -39,6 +40,15 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        "idx_type_subtype", "enrichments_v2", ["type", "subtype"], unique=False
+    )
+    op.create_index(
+        op.f("ix_enrichments_v2_type"), "enrichments_v2", ["type"], unique=False
+    )
+    op.create_index(
+        op.f("ix_enrichments_v2_subtype"), "enrichments_v2", ["subtype"], unique=False
     )
     op.create_table(
         "enrichment_associations",
@@ -105,13 +115,15 @@ def upgrade() -> None:
         ).fetchall()
 
         for old_enrichment in old_enrichments:
-            # Insert into enrichments_v2
+            # Insert into enrichments_v2 with type='snippet', subtype=None
             result = connection.execute(
                 sa.text(
-                    "INSERT INTO enrichments_v2 (content, created_at, updated_at) "
-                    "VALUES (:content, :created_at, :updated_at)"
+                    "INSERT INTO enrichments_v2 (type, subtype, content, created_at, updated_at) "
+                    "VALUES (:type, :subtype, :content, :created_at, :updated_at)"
                 ),
                 {
+                    "type": "snippet",
+                    "subtype": None,
                     "content": old_enrichment[1],
                     "created_at": old_enrichment[2],
                     "updated_at": old_enrichment[3],
@@ -215,5 +227,8 @@ def downgrade() -> None:
     )
     op.drop_index("idx_entity_lookup", table_name="enrichment_associations")
     op.drop_table("enrichment_associations")
+    op.drop_index(op.f("ix_enrichments_v2_subtype"), table_name="enrichments_v2")
+    op.drop_index(op.f("ix_enrichments_v2_type"), table_name="enrichments_v2")
+    op.drop_index("idx_type_subtype", table_name="enrichments_v2")
     op.drop_table("enrichments_v2")
     # ### end Alembic commands ###

@@ -529,8 +529,11 @@ class EnrichmentV2(Base, CommonMixin):
 
     __tablename__ = "enrichments_v2"
 
-    type: Mapped[str] = mapped_column(String, nullable=False)
+    type: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    subtype: Mapped[str] = mapped_column(String, nullable=False, index=True)
     content: Mapped[str] = mapped_column(UnicodeText, nullable=False)
+
+    __table_args__ = (Index("idx_type_subtype", "type", "subtype"),)
 
 
 class EnrichmentAssociation(Base, CommonMixin):

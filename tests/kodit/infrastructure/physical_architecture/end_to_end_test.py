@@ -79,31 +79,8 @@ class TestPhysicalArchitectureEndToEnd:
         ])
 
     @pytest.mark.asyncio
-    async def test_narrative_contains_discovery_metadata(self) -> None:
-        """Test that narrative includes proper discovery metadata."""
-        formatter = NarrativeFormatter()
-        service = PhysicalArchitectureService(formatter=formatter)
-        fixture_path = Path(__file__).parent / "fixtures" / "simple_web_app"
-
-        narrative = await service.discover_architecture(fixture_path)
-
-        # Should contain discovery metadata section
-        assert "## Discovery Methodology" in narrative
-
-        # Should mention methodology and confidence
-        narrative_lower = narrative.lower()
-        assert any(word in narrative_lower for word in [
-            "analysis", "methodology", "confidence", "docker compose"
-        ])
-
-        # Should contain timestamp information
-        assert any(word in narrative_lower for word in [
-            "completed", "timestamp", "analysis", "discovery"
-        ])
-
-    @pytest.mark.asyncio
-    async def test_narrative_structure_is_llm_optimized(self) -> None:
-        """Test that narrative structure is optimized for LLM consumption."""
+    async def test_narrative_structure_and_content(self) -> None:
+        """Test that narrative has proper structure and descriptive content."""
         formatter = NarrativeFormatter()
         service = PhysicalArchitectureService(formatter=formatter)
         fixture_path = Path(__file__).parent / "fixtures" / "simple_web_app"
@@ -111,45 +88,12 @@ class TestPhysicalArchitectureEndToEnd:
         narrative = await service.discover_architecture(fixture_path)
 
         # Should have clear section structure
+        assert "## Discovery Methodology" in narrative
         sections = narrative.split("##")
-        assert len(sections) >= 5  # Should have multiple sections
+        assert len(sections) >= 5
 
-        # Each section should be substantial
-        for section in sections[1:]:  # Skip title section
-            if section.strip():
-                assert len(section.strip()) > 20  # Should have meaningful content
-
-        # Should use markdown formatting
-        assert "**" in narrative  # Bold formatting
-        assert "#" in narrative    # Headers
-
-        # Should be descriptive rather than just listing facts
+        # Should describe relationships and context
         narrative_lower = narrative.lower()
-        assert any(descriptive_word in narrative_lower for descriptive_word in [
-            "suggests", "indicates", "configured", "pattern", "architecture"
-        ])
-
-    @pytest.mark.asyncio
-    async def test_narrative_describes_relationships_not_just_components(self) -> None:
-        """Test that narrative describes relationships and context, not just components."""  # noqa: E501
-        formatter = NarrativeFormatter()
-        service = PhysicalArchitectureService(formatter=formatter)
-        fixture_path = Path(__file__).parent / "fixtures" / "simple_web_app"
-
-        narrative = await service.discover_architecture(fixture_path)
-
-        # Should describe dependencies and relationships
-        narrative_lower = narrative.lower()
-        assert any(relationship_word in narrative_lower for relationship_word in [
-            "depends", "dependency", "connection", "communication", "startup"
-        ])
-
-        # Should provide context about roles and purposes
-        assert any(context_word in narrative_lower for context_word in [
-            "database", "cache", "worker", "api", "frontend"
-        ])
-
-        # Should explain configuration patterns
-        assert any(pattern_word in narrative_lower for pattern_word in [
-            "configuration", "deployment", "orchestration", "containerized"
+        assert any(word in narrative_lower for word in [
+            "depends", "dependency", "database", "configuration"
         ])

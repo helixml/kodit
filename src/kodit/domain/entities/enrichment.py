@@ -20,6 +20,11 @@ class EnrichmentV2(ABC):
     def type(self) -> str:
         """Return the enrichment type."""
 
+    @property
+    @abstractmethod
+    def subtype(self) -> str | None:
+        """Return the enrichment subtype (optional for hierarchical types)."""
+
     @abstractmethod
     def entity_type_key(self) -> str:
         """Return the entity type key this enrichment is for."""
@@ -33,6 +38,11 @@ class SnippetEnrichment(EnrichmentV2):
     def type(self) -> str:
         """Return the enrichment type."""
         return "snippet"
+
+    @property
+    def subtype(self) -> str | None:
+        """Return the enrichment subtype."""
+        return None
 
     def entity_type_key(self) -> str:
         """Return the entity type key this enrichment is for."""
@@ -48,6 +58,11 @@ class CommitEnrichment(EnrichmentV2):
         """Return the enrichment type."""
         return "commit"
 
+    @property
+    def subtype(self) -> str | None:
+        """Return the enrichment subtype."""
+        return None
+
     def entity_type_key(self) -> str:
         """Return the entity type key this enrichment is for."""
         return "git_commit"
@@ -61,6 +76,11 @@ class ArchitectureEnrichment(EnrichmentV2):
     def type(self) -> str:
         """Return the enrichment type."""
         return "architecture"
+
+    @property
+    def subtype(self) -> str | None:
+        """Return the enrichment subtype."""
+        return "physical"
 
     def entity_type_key(self) -> str:
         """Return the entity type key this enrichment is for."""

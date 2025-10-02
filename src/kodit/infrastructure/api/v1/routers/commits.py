@@ -300,6 +300,7 @@ async def list_commit_enrichments(
                 id=str(enrichment.id),
                 attributes=EnrichmentAttributes(
                     type=enrichment.type,
+                    subtype=enrichment.subtype,
                     content=enrichment.content,
                     created_at=enrichment.created_at,
                     updated_at=enrichment.updated_at,

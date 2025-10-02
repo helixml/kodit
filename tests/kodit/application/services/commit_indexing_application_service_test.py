@@ -238,3 +238,5 @@ async def test_delete_nonexistent_repository_raises_error(
     # Try to delete a repository that doesn't exist - should raise ValueError
     with pytest.raises(ValueError, match="not found"):
         await commit_indexing_service.delete_git_repository(99999)
+
+

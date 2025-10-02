@@ -18,6 +18,7 @@ class EnrichmentMapper:
         return db_entities.EnrichmentV2(
             id=domain_enrichment.id,
             type=domain_enrichment.type,
+            subtype=domain_enrichment.subtype,
             content=domain_enrichment.content,
             created_at=domain_enrichment.created_at,
             updated_at=domain_enrichment.updated_at,
@@ -30,7 +31,7 @@ class EnrichmentMapper:
         entity_id: str,
     ) -> EnrichmentV2:
         """Convert database enrichment to domain entity."""
-        # Use the stored type to determine the correct domain class
+        # Use the stored type and subtype to determine the correct domain class
         if db_enrichment.type == "snippet":
             return SnippetEnrichment(
                 id=db_enrichment.id,
@@ -39,7 +40,7 @@ class EnrichmentMapper:
                 created_at=db_enrichment.created_at,
                 updated_at=db_enrichment.updated_at,
             )
-        if db_enrichment.type == "architecture":
+        if db_enrichment.type == "architecture" and db_enrichment.subtype == "physical":
             return ArchitectureEnrichment(
                 id=db_enrichment.id,
                 entity_id=entity_id,
@@ -55,4 +56,8 @@ class EnrichmentMapper:
                 created_at=db_enrichment.created_at,
                 updated_at=db_enrichment.updated_at,
             )
-        raise ValueError(f"Unknown enrichment type: {db_enrichment.type}")
+
+        type_str = f"{db_enrichment.type}"
+        if db_enrichment.subtype:
+            type_str += f":{db_enrichment.subtype}"
+        raise ValueError(f"Unknown enrichment type: {type_str}")

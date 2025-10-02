@@ -1149,6 +1149,17 @@
             "type": "string",
             "title": "Type"
           },
+          "subtype": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subtype"
+          },
           "content": {
             "type": "string",
             "title": "Content"
@@ -1181,6 +1192,7 @@
         "type": "object",
         "required": [
           "type",
+          "subtype",
           "content",
           "created_at",
           "updated_at"

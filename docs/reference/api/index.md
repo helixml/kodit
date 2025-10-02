@@ -591,6 +591,7 @@ Enrichment attributes following JSON-API spec.
 | Field | Type | Description |
 |-------|------|-------------|
 | type | string |  |
+| subtype |  |  |
 | content | string |  |
 | created_at |  |  |
 | updated_at |  |  |

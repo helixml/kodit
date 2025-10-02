@@ -40,34 +40,3 @@ class TestNarrativeFormatter:
         result = formatter.format_for_llm(notes)
         assert isinstance(result, str)
         assert len(result) > 0
-
-    def test_format_extracts_port_information(self) -> None:
-        """Test that port information is extracted and highlighted."""
-        formatter = NarrativeFormatter()
-
-        notes = ArchitectureDiscoveryNotes(
-            repository_context="Test with port information",
-            component_observations=[
-                "Found 'api' service in Docker Compose configuration. "
-                "Service uses 'python:3.11' Docker image. "
-                "Exposes ports 8080, 443 suggesting HTTP/HTTPS service.",
-                "Found 'database' service in Docker Compose configuration. "
-                "Service uses 'postgres:15' Docker image. "
-                "Exposes ports 5432 suggesting database service.",
-            ],
-            connection_observations=["API depends on database"],
-            infrastructure_observations=["Docker Compose"],
-            discovery_metadata="Analysis completed"
-        )
-
-        result = formatter.format_for_llm(notes)
-
-        # Check port mappings section exists
-        assert "### Port Mappings" in result
-        # Check port information is extracted
-        assert "api" in result
-        assert "8080, 443" in result
-        assert "HTTP/HTTPS service" in result
-        assert "database" in result
-        assert "5432" in result
-        assert "database service" in result

@@ -66,6 +66,7 @@ class EnrichmentV2Repository:
             for enrichment in enrichments:
                 db_enrichment = db_entities.EnrichmentV2(
                     type=enrichment.type,
+                    subtype=enrichment.subtype,
                     content=enrichment.content,
                 )
                 session.add(db_enrichment)
