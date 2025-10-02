@@ -47,31 +47,6 @@ The codebase follows Domain-Driven Design (DDD) with clean architecture:
   - `bm25/` - BM25 search implementations
   - `indexing/` - Code indexing services
 
-### Key Components
-
-**Advanced Indexing Pipeline:**
-
-1. Clone/read source code with Git metadata extraction
-2. Language detection for 20+ programming languages
-3. Advanced snippet extraction using Tree-sitter with dependency analysis
-4. Build call graphs and import maps for context-aware extraction
-5. Generate embeddings and BM25 indices
-6. Store in database with selective reindexing for performance
-
-**Advanced Search System:**
-
-- Hybrid search combining semantic (embeddings) and keyword (BM25) with Reciprocal Rank Fusion
-- Multi-dimensional filtering: language, author, date range, source, file path
-- Context-aware results with dependency tracking and usage examples
-- Multiple providers: local models, OpenAI, custom APIs
-- Configurable via environment variables
-- Support for 20+ programming languages including HTML/CSS
-
-**MCP Server:**
-
-- FastMCP-based server exposing search tools
-- Integrates with Cursor, Cline, and other AI assistants
-
 ## Configuration
 
 Key environment variables:
@@ -89,7 +64,7 @@ Uses SQLAlchemy with async support. Supports:
 - SQLite (default, local development)
 - PostgreSQL with Vectorchord (production)
 
-Migrations managed with Alembic in `migrations/` directory. DO NOT EDIT THESE FILES.
+Migrations managed with Alembic in `src/kodit/migrations/` directory. DO NOT EDIT THESE FILES.
 
 ## Refactoring Strategy
 
@@ -99,14 +74,40 @@ Migrations managed with Alembic in `migrations/` directory. DO NOT EDIT THESE FI
 
 ## Testing Strategy
 
-- Unit tests for domain services and repositories
-- Integration tests for database operations
-- E2E tests for full indexing pipeline
-- Smoke tests for deployment validation
-- Performance tests for similarity search
+When writing tests for my code, follow these guidelines:
 
-Test file names should mirror the source structure under `tests/` directory and end in
-the name `_test.py`.
+**Test Strategy:**
+
+- Focus on testing critical paths and core functionality, not on achieving high coverage percentages
+- Prioritize practical, valuable tests over comprehensive coverage
+
+**Test Types & Architecture:**
+
+- Write integration tests that use the real database layer
+- Write end-to-end tests that mock the database layer to keep tests fast
+- Avoid tests that take a long time to run
+
+**Testing Workflow:**
+
+- Write tests after the implementation is complete
+- Tests should validate the working implementation
+
+**Test Scope:**
+
+- Focus primarily on happy path scenarios
+- Test only public interfaces, not private methods or implementation details
+- Only add edge case tests when bugs are discovered that need regression protection
+
+**Mocking Philosophy:**
+
+- Minimize mocking - only mock when it provides clear benefits
+- Database layer mocking is acceptable for end-to-end tests
+- Avoid mocking everything else
+
+**Test Organization:**
+
+- Test file structure should mirror the production codebase structure
+- Keep test organization consistent with the code being tested
 
 ## Coding Style
 

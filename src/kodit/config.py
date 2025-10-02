@@ -66,9 +66,9 @@ class Endpoint(BaseModel):
         default=None,
         description="Unix socket path for local communication (e.g., /tmp/openai.sock)",
     )
-    timeout: float | None = Field(
-        default=None,
-        description="Request timeout in seconds (default: 30.0)",
+    timeout: float = Field(
+        default=60,
+        description="Request timeout in seconds",
     )
     extra_params: dict[str, Any] | None = Field(
         default=None,

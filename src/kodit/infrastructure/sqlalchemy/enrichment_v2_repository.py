@@ -104,3 +104,13 @@ class EnrichmentV2Repository:
                         db_entities.EnrichmentV2.id.in_(enrichment_ids)
                     )
                 )
+
+    async def delete_enrichment(self, enrichment_id: int) -> bool:
+        """Delete a specific enrichment by ID."""
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
+            result = await session.execute(
+                delete(db_entities.EnrichmentV2).where(
+                    db_entities.EnrichmentV2.id == enrichment_id
+                )
+            )
+            return result.rowcount > 0

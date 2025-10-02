@@ -13,6 +13,7 @@ from kodit.domain.entities.enrichment import ArchitectureEnrichment
 from kodit.domain.entities.git import GitFile, GitRepo, SnippetV2
 from kodit.domain.factories.git_repo_factory import GitRepoFactory
 from kodit.domain.protocols import (
+    Enricher,
     GitBranchRepository,
     GitCommitRepository,
     GitRepoRepository,
@@ -27,6 +28,8 @@ from kodit.domain.services.git_repository_service import (
     RepositoryCloner,
 )
 from kodit.domain.services.physical_architecture_service import (
+    ARCHITECTURE_ENRICHMENT_SYSTEM_PROMPT,
+    ARCHITECTURE_ENRICHMENT_TASK_PROMPT,
     PhysicalArchitectureService,
 )
 from kodit.domain.value_objects import (
@@ -36,6 +39,7 @@ from kodit.domain.value_objects import (
     EnrichmentIndexRequest,
     EnrichmentRequest,
     EnrichmentType,
+    GenericEnrichmentRequest,
     IndexRequest,
     LanguageMapping,
     PrescribedOperations,
@@ -76,6 +80,7 @@ class CommitIndexingApplicationService:
         embedding_repository: SqlAlchemyEmbeddingRepository,
         architecture_service: PhysicalArchitectureService,
         enrichment_v2_repository: EnrichmentV2Repository,
+        enricher_service: Enricher,
     ) -> None:
         """Initialize the commit indexing application service.
 
@@ -105,6 +110,7 @@ class CommitIndexingApplicationService:
         self.embedding_repository = embedding_repository
         self.architecture_service = architecture_service
         self.enrichment_v2_repository = enrichment_v2_repository
+        self.enricher_service = enricher_service
         self._log = structlog.get_logger(__name__)
 
     async def create_git_repository(self, remote_uri: AnyUrl) -> GitRepo:
@@ -258,16 +264,14 @@ class CommitIndexingApplicationService:
                     snippets = await self.snippet_repository.get_snippets_for_commit(
                         commit_sha
                     )
-                    all_snippet_ids.extend([
-                        snippet.id for snippet in snippets if snippet.id
-                    ])
+                    all_snippet_ids.extend(
+                        [snippet.id for snippet in snippets if snippet.id]
+                    )
 
             # Step 2: Delete from BM25 and embedding indices
             if all_snippet_ids:
                 # Convert to strings as DeleteRequest expects list[str]
-                snippet_id_strings = [
-                    str(snippet_id) for snippet_id in all_snippet_ids
-                ]
+                snippet_id_strings = [str(snippet_id) for snippet_id in all_snippet_ids]
                 delete_request = DeleteRequest(snippet_ids=snippet_id_strings)
                 await self.bm25_service.delete_documents(delete_request)
 
@@ -277,20 +281,27 @@ class CommitIndexingApplicationService:
                         snippet_id
                     )
 
-            # Step 3: Delete snippet associations for all commits
+            # Step 3: Delete enrichments for all commits
+            if commit_shas:
+                await self.enrichment_v2_repository.bulk_delete_enrichments(
+                    entity_type="git_commit",
+                    entity_ids=commit_shas,
+                )
+
+            # Step 4: Delete snippet associations for all commits
             for commit_sha in commit_shas:
                 await self.snippet_repository.delete_snippets_for_commit(commit_sha)
 
-            # Step 4: Delete branches (they reference commits via head_commit_sha)
+            # Step 5: Delete branches (they reference commits via head_commit_sha)
             await self.git_branch_repository.delete_by_repo_id(repository_id)
 
-            # Step 5: Delete tags (they reference commits via target_commit_sha)
+            # Step 6: Delete tags (they reference commits via target_commit_sha)
             await self.git_tag_repository.delete_by_repo_id(repository_id)
 
-            # Step 6: Delete commits and their files
+            # Step 7: Delete commits and their files
             await self.git_commit_repository.delete_by_repo_id(repository_id)
 
-            # Step 7: Finally delete the repository
+            # Step 8: Finally delete the repository
             await self.repo_repository.delete(repo.sanitized_remote_uri)
 
     async def process_snippets_for_commit(
@@ -374,7 +385,7 @@ class CommitIndexingApplicationService:
             self._log.info(
                 f"Extracted {len(all_snippets)} snippets, "
                 f"deduplicated to {len(deduplicated_snippets)} for {commit_short}"
-                )
+            )
             await self.snippet_repository.save_snippets(
                 commit.commit_sha, deduplicated_snippets
             )
@@ -552,8 +563,7 @@ class CommitIndexingApplicationService:
 
             # Check if architecture enrichment already exists
             has_architecture = any(
-                enrichment.type == "architecture"
-                for enrichment in existing_enrichments
+                enrichment.type == "architecture" for enrichment in existing_enrichments
             )
 
             if has_architecture:
@@ -569,22 +579,35 @@ class CommitIndexingApplicationService:
 
             # Discover architecture
             architecture_narrative = (
-                await self.architecture_service.discover_architecture(
-                    repo.cloned_path
-                )
+                await self.architecture_service.discover_architecture(repo.cloned_path)
             )
 
-            # Create and save architecture enrichment
+            await step.set_current(2, "Enriching architecture notes with LLM")
+
+            # Enrich the architecture narrative through the enricher
+            enrichment_request = GenericEnrichmentRequest(
+                id=commit_sha,
+                text=ARCHITECTURE_ENRICHMENT_TASK_PROMPT.format(
+                    architecture_narrative=architecture_narrative,
+                ),
+                system_prompt=ARCHITECTURE_ENRICHMENT_SYSTEM_PROMPT,
+            )
+
+            enriched_content = ""
+            async for response in self.enricher_service.enrich([enrichment_request]):
+                enriched_content = response.text
+
+            # Create and save architecture enrichment with enriched content
             architecture_enrichment = ArchitectureEnrichment(
                 entity_id=commit_sha,
-                content=architecture_narrative,
+                content=enriched_content,
             )
 
-            await self.enrichment_v2_repository.bulk_save_enrichments([
-                architecture_enrichment
-            ])
+            await self.enrichment_v2_repository.bulk_save_enrichments(
+                [architecture_enrichment]
+            )
 
-            await step.set_current(2, "Architecture enrichment completed")
+            await step.set_current(3, "Architecture enrichment completed")
 
     async def _new_snippets_for_type(
         self, all_snippets: list[SnippetV2], embedding_type: EmbeddingType

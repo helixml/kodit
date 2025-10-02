@@ -1,6 +1,7 @@
 """Docker Compose detector for physical architecture discovery."""
 
 import contextlib
+import re
 from pathlib import Path
 
 import yaml
@@ -8,6 +9,24 @@ import yaml
 
 class DockerComposeDetector:
     """Detects physical components from Docker Compose files and generates narrative observations."""  # noqa: E501
+
+    # Regex pattern to detect communication addresses in environment variables
+    # Matches complete URLs with hostnames:
+    # - Simple URLs: http://api:8080, redis://cache:6379
+    # - Connection strings with auth: postgresql://user:pass@db:5432/dbname
+    # - Connection strings with asyncpg: postgresql+asyncpg://user:pass@db:5432
+    # Note: This captures the hostname portion, avoiding false matches in
+    # passwords or other parts of the URL
+    COMMUNICATION_PATTERN = re.compile(
+        r"(?:"
+        # Protocol-based URLs with optional auth (user:pass@)
+        r"(?:https?|tcp|grpc|ws|wss|amqp|kafka|redis|memcached|"
+        r"postgres(?:ql)?(?:\+\w+)?|mysql|mongodb)://"
+        r"(?:[^@/]+@)?"  # Optional user:pass@ (non-capturing, skip it)
+        r"([\w\-\.]+(?::\d+)?)"  # Capture hostname:port after @ or ://
+        r")",
+        re.IGNORECASE,
+    )
 
     async def analyze(self, repo_path: Path) -> tuple[list[str], list[str], list[str]]:
         """Generate narrative observations from Docker Compose analysis."""
@@ -37,7 +56,7 @@ class DockerComposeDetector:
                     compose_data,
                     component_notes,
                     connection_notes,
-                    infrastructure_notes
+                    infrastructure_notes,
                 )
 
             except (yaml.YAMLError, OSError, KeyError):
@@ -54,7 +73,7 @@ class DockerComposeDetector:
         compose_data: dict,
         component_notes: list[str],
         connection_notes: list[str],
-        infrastructure_notes: list[str]
+        infrastructure_notes: list[str],
     ) -> None:
         """Analyze a single Docker Compose file and generate observations."""
         services = compose_data.get("services", {})
@@ -73,20 +92,13 @@ class DockerComposeDetector:
                 service_config,
                 component_notes,
                 connection_notes,
-                infrastructure_notes
             )
 
         # Analyze service dependencies
-        self._analyze_service_dependencies(
-            services,
-            connection_notes
-        )
+        self._analyze_service_dependencies(services, connection_notes)
 
         # Check for additional Docker Compose features
-        self._analyze_compose_features(
-            compose_data,
-            infrastructure_notes
-        )
+        self._analyze_compose_features(compose_data, infrastructure_notes)
 
     def _analyze_service(
         self,
@@ -94,24 +106,15 @@ class DockerComposeDetector:
         service_config: dict,
         component_notes: list[str],
         _connection_notes: list[str],
-        infrastructure_notes: list[str]
     ) -> None:
         """Generate narrative observations for a single service."""
         # Extract key configuration details
         image = service_config.get("image", "")
         build = service_config.get("build", "")
         ports = self._extract_ports(service_config)
-        volumes = service_config.get("volumes", [])
-        environment = service_config.get("environment", {})
-
-        # Infer service role and generate component observation
-        role_description = self._infer_service_role_description(
-            service_name, service_config
-        )
 
         component_observation = (
-            f"Found '{service_name}' service in Docker Compose configuration "
-            f"{role_description}"
+            f"Found '{service_name}' service in Docker Compose configuration."
         )
 
         # Add deployment details
@@ -135,23 +138,8 @@ class DockerComposeDetector:
 
         component_notes.append(component_observation)
 
-        # Add infrastructure observations for advanced features
-        if volumes:
-            infrastructure_notes.append(
-                f"Service '{service_name}' configures {len(volumes)} volume mounts, "
-                "indicating persistent data storage requirements and stateful operation."  # noqa: E501
-            )
-
-        if environment:
-            infrastructure_notes.append(
-                f"Service '{service_name}' defines {len(environment)} environment variables, "  # noqa: E501
-                "suggesting configuration management through environment injection."
-            )
-
-    def _analyze_service_dependencies(
-        self,
-        services: dict,
-        connection_notes: list[str]
+    def _analyze_service_dependencies(  # noqa: PLR0912, C901
+        self, services: dict, connection_notes: list[str]
     ) -> None:
         """Analyze dependencies between services."""
         for service_name, service_config in services.items():
@@ -185,10 +173,103 @@ class DockerComposeDetector:
                     "dependency and likely runtime communication pattern."
                 )
 
-    def _analyze_compose_features(
+        # Check for communication patterns in environment variables
+        # and command arguments
+        service_names = {name for name, _ in services.items()}
+        # Track which connections we've already recorded to avoid duplicates
+        recorded_connections: set[tuple[str, str]] = set()
+
+        for service_name, service_config in services.items():
+            # Check environment variables
+            env = service_config.get("environment", [])
+            if isinstance(env, list):
+                for var in env:
+                    self._check_communication_pattern(
+                        var,
+                        service_name,
+                        service_names,
+                        "environment variable",
+                        connection_notes,
+                        recorded_connections,
+                    )
+            elif isinstance(env, dict):
+                for value in env.values():
+                    if isinstance(value, str):
+                        self._check_communication_pattern(
+                            value,
+                            service_name,
+                            service_names,
+                            "environment variable",
+                            connection_notes,
+                            recorded_connections,
+                        )
+
+            # Check command arguments
+            args = service_config.get("command", [])
+            if isinstance(args, list):
+                for arg in args:
+                    if isinstance(arg, str):
+                        self._check_communication_pattern(
+                            arg,
+                            service_name,
+                            service_names,
+                            "command argument",
+                            connection_notes,
+                            recorded_connections,
+                        )
+            elif isinstance(args, str):
+                self._check_communication_pattern(
+                    args,
+                    service_name,
+                    service_names,
+                    "command argument",
+                    connection_notes,
+                    recorded_connections,
+                )
+
+    def _check_communication_pattern(  # noqa: PLR0913
         self,
-        compose_data: dict,
-        infrastructure_notes: list[str]
+        text: str,
+        service_name: str,
+        service_names: set[str],
+        source_type: str,
+        connection_notes: list[str],
+        recorded_connections: set[tuple[str, str]],
+    ) -> None:
+        """Check if text contains communication patterns referencing other services."""
+        # Find all matches and extract hostnames from captured groups
+        matches = self.COMMUNICATION_PATTERN.finditer(text)
+        hostnames = set()
+
+        for match in matches:
+            # Group 1 contains the hostname
+            if match.group(1):
+                # Extract just the hostname (without port)
+                hostname = match.group(1).split(":")[0]
+                hostnames.add(hostname)
+
+        if not hostnames:
+            return
+
+        # Check if any extracted hostname matches a service name
+        for target_service in service_names:
+            if target_service == service_name:
+                continue
+
+            # Check if the target service is in the extracted hostnames
+            if target_service in hostnames:
+                connection_key = (service_name, target_service)
+                if connection_key not in recorded_connections:
+                    connection_notes.append(
+                        f"'{service_name}' has a communication address referencing "
+                        f"'{target_service}' in its {source_type}, indicating a "
+                        "direct runtime dependency."
+                    )
+                    recorded_connections.add(connection_key)
+                    break
+
+    def _analyze_compose_features(
+        self, compose_data: dict, infrastructure_notes: list[str]
     ) -> None:
         """Analyze additional Docker Compose features."""
         # Check for networks
@@ -197,22 +278,6 @@ class DockerComposeDetector:
             infrastructure_notes.append(
                 f"Docker Compose defines {len(networks)} custom networks, "
                 "indicating network segmentation and controlled service communication."
-            )
-
-        # Check for volumes
-        volumes = compose_data.get("volumes", {})
-        if volumes:
-            infrastructure_notes.append(
-                f"Docker Compose defines {len(volumes)} named volumes, "
-                "suggesting shared persistent storage across container restarts."
-            )
-
-        # Check for secrets
-        secrets = compose_data.get("secrets", {})
-        if secrets:
-            infrastructure_notes.append(
-                f"Docker Compose defines {len(secrets)} secrets, "
-                "indicating secure credential management for production deployment."
             )
 
     def _extract_ports(self, service_config: dict) -> list[int]:
@@ -241,62 +306,6 @@ class DockerComposeDetector:
 
         return sorted(set(ports))
 
-    def _infer_service_role_description(  # noqa: PLR0911
-        self, service_name: str, service_config: dict
-    ) -> str:
-        """Infer service role and return descriptive text."""
-        name_lower = service_name.lower()
-        image = service_config.get("image", "").lower()
-        ports = self._extract_ports(service_config)
-
-        # Database services
-        db_indicators = ["postgres", "mysql", "mongodb", "mongo", "mariadb", "database", "db"]  # noqa: E501
-        if any(indicator in name_lower for indicator in db_indicators) or \
-           any(indicator in image for indicator in db_indicators):
-            return ("configured as a database service. Database configuration "
-                   "suggests this handles persistent data storage for the application")
-
-        # Cache services
-        cache_indicators = ["redis", "memcached", "cache"]
-        if any(indicator in name_lower for indicator in cache_indicators) or \
-           any(indicator in image for indicator in cache_indicators):
-            return ("configured as a caching service. Cache configuration "
-                   "indicates performance optimization through data caching")
-
-        # Message queue services
-        mq_indicators = ["rabbitmq", "kafka", "activemq", "queue", "broker"]
-        if any(indicator in name_lower for indicator in mq_indicators) or \
-           any(indicator in image for indicator in mq_indicators):
-            return ("configured as a message queue service. Queue configuration "
-                   "suggests asynchronous communication and task processing")
-
-        # Worker services
-        worker_indicators = ["worker", "job", "task", "celery"]
-        if any(indicator in name_lower for indicator in worker_indicators):
-            return ("configured as a background worker service. Worker configuration "
-                   "indicates asynchronous task processing and job execution")
-
-        # Frontend services
-        frontend_indicators = ["frontend", "client", "ui", "web", "app"]
-        static_servers = ["nginx", "apache", "caddy"]
-        if any(indicator in name_lower for indicator in frontend_indicators) and \
-           any(server in image for server in static_servers):
-            return ("configured as a frontend application service. Static server "
-                   "configuration suggests serving of web assets and user interface")
-
-        # API/Backend services
-        backend_indicators = ["api", "backend", "server", "service"]
-        if any(indicator in name_lower for indicator in backend_indicators):
-            return ("configured as a backend API service. Service configuration "
-                   "suggests handling of business logic and data processing")
-
-        # Default based on ports
-        if ports:
-            return ("configured as a web service exposing network ports. "
-                   "Port configuration indicates external accessibility")
-        return ("configured as an internal service. No exposed ports "
-               "suggest internal-only operation within the container network")
-
     def _infer_protocol_description(self, ports: list[int]) -> str:
         """Infer protocol information from ports and return descriptive text."""
         protocols = []
@@ -311,10 +320,14 @@ class DockerComposeDetector:
         if any(port in grpc_ports for port in ports):
             protocols.append("gRPC API communication")
 
-        # Database ports
-        db_ports = {5432, 3306, 27017, 6379}
+        # Cache/Redis ports
+        if 6379 in ports:
+            protocols.append("cache service")
+
+        # Database ports (excluding Redis which is handled above)
+        db_ports = {5432, 3306, 27017}
         if any(port in db_ports for port in ports):
-            protocols.append("database connectivity")
+            protocols.append("database service")
 
         if protocols:
             return " and ".join(protocols)

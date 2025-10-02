@@ -22,7 +22,7 @@ class TestLiteLLMEnrichmentProvider:
         assert provider.model_name == "gpt-4o-mini"
         assert provider.api_key is None
         assert provider.base_url is None
-        assert provider.timeout == 30.0
+        assert provider.timeout == 60
         assert provider.extra_params == {}
         assert provider.log is not None
 
@@ -83,7 +83,7 @@ class TestLiteLLMEnrichmentProvider:
         assert call_args["messages"][0]["role"] == "system"
         assert call_args["messages"][1]["role"] == "user"
         assert call_args["messages"][1]["content"] == "def add(a, b): return a + b"
-        assert call_args["timeout"] == 30.0
+        assert call_args["timeout"] == 60
 
     @pytest.mark.asyncio
     @patch("kodit.infrastructure.enrichment.litellm_enrichment_provider.acompletion")

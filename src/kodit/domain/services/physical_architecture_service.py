@@ -4,15 +4,62 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from kodit.domain.physical_architecture import ArchitectureDiscoveryNotes
+from kodit.domain.protocols import PhysicalArchitectureFormatter
 from kodit.infrastructure.physical_architecture.detectors import docker_compose_detector
+
+ARCHITECTURE_ENRICHMENT_SYSTEM_PROMPT = """You are an expert software architect.
+Deliver the user's request succinctly.
+"""
+
+ARCHITECTURE_ENRICHMENT_TASK_PROMPT = """Convert the raw architecture discovery logs
+into a clean, structured summary written in markdown.
+
+<architecture_narrative>
+{architecture_narrative}
+</architecture_narrative>
+
+**Return the following information**
+
+## Services List
+
+For each service, write one line:
+- **[Service Name]**: [what it does] | Tech: [technology] | Ports: [ports]
+
+## Service Dependencies
+
+List the important connections:
+- [Service A] → [Service B]: [why they connect]
+
+## Mermaid Diagram
+
+Output a Mermaid diagram depicting the architecture using the names of the services and
+the ports that they expose.
+
+## Key Information
+
+Answer these questions in 1-2 sentences each:
+1. What databases are used and for what?
+2. What are the critical services that everything else depends on?
+3. Are there any unusual communication patterns between services that people should be
+aware of? (e.g. a different direction to what you'd expect)
+
+## Rules:
+- Skip duplicate services (keep only one instance)
+- Don't list environment variables
+- Don't describe Docker volumes in detail
+- Focus on WHAT each service does, not HOW it's configured
+- If a service name is unclear, make your best guess based on the information
+- Keep descriptions to 10 words or less per service
+"""
 
 
 class PhysicalArchitectureService:
     """Core service for discovering physical architecture and generating narrative observations."""  # noqa: E501
 
-    def __init__(self) -> None:
-        """Initialize the service with detectors."""
+    def __init__(self, formatter: PhysicalArchitectureFormatter) -> None:
+        """Initialize the service with detectors and formatter."""
         self.docker_detector = docker_compose_detector.DockerComposeDetector()
+        self.formatter = formatter
 
     async def discover_architecture(self, repo_path: Path) -> str:
         """Discover physical architecture and generate rich narrative observations."""
@@ -25,9 +72,11 @@ class PhysicalArchitectureService:
         infrastructure_notes = []
 
         # Run detectors and collect narrative observations
-        docker_component_notes, docker_connection_notes, docker_infrastructure_notes = (
-            await self.docker_detector.analyze(repo_path)
-        )
+        (
+            docker_component_notes,
+            docker_connection_notes,
+            docker_infrastructure_notes,
+        ) = await self.docker_detector.analyze(repo_path)
         component_notes.extend(docker_component_notes)
         connection_notes.extend(docker_connection_notes)
         infrastructure_notes.extend(docker_infrastructure_notes)
@@ -43,10 +92,10 @@ class PhysicalArchitectureService:
             component_observations=component_notes,
             connection_observations=connection_notes,
             infrastructure_observations=infrastructure_notes,
-            discovery_metadata=discovery_metadata
+            discovery_metadata=discovery_metadata,
         )
 
-        return self._format_notes_for_llm(notes)
+        return self.formatter.format_for_llm(notes)
 
     async def _analyze_repository_context(self, repo_path: Path) -> str:
         """Generate high-level repository context and scope."""
@@ -56,11 +105,15 @@ class PhysicalArchitectureService:
         context_observations.append(f"Analyzing repository at {repo_path}")
 
         # Check for common project indicators
-        has_docker_compose = bool(list(repo_path.glob("docker-compose*.yml")) +
-                                list(repo_path.glob("docker-compose*.yaml")))
+        has_docker_compose = bool(
+            list(repo_path.glob("docker-compose*.yml"))
+            + list(repo_path.glob("docker-compose*.yaml"))
+        )
         has_dockerfile = bool(list(repo_path.glob("Dockerfile*")))
-        has_k8s = bool(list(repo_path.glob("**/k8s/**/*.yaml")) +
-                      list(repo_path.glob("**/kubernetes/**/*.yaml")))
+        has_k8s = bool(
+            list(repo_path.glob("**/k8s/**/*.yaml"))
+            + list(repo_path.glob("**/kubernetes/**/*.yaml"))
+        )
         has_package_json = (repo_path / "package.json").exists()
         has_requirements_txt = (repo_path / "requirements.txt").exists()
         has_go_mod = (repo_path / "go.mod").exists()
@@ -118,64 +171,8 @@ class PhysicalArchitectureService:
         limitations = [
             "analysis limited to Docker Compose configurations",
             "code-level analysis not yet implemented",
-            "runtime behavior patterns not captured"
+            "runtime behavior patterns not captured",
         ]
         metadata_parts.append(f"Current limitations: {', '.join(limitations)}.")
 
         return " ".join(metadata_parts)
-
-    def _format_notes_for_llm(self, notes: ArchitectureDiscoveryNotes) -> str:
-        """Format observations as natural text optimized for LLM consumption."""
-        sections = []
-
-        # Repository Context section
-        sections.append("# Repository Architecture Discovery")
-        sections.append("")
-        sections.append("## Repository Context")
-        sections.append(notes.repository_context)
-        sections.append("")
-
-        # Component Observations section
-        if notes.component_observations:
-            sections.append("## Component Observations")
-            sections.append("")
-            for i, observation in enumerate(notes.component_observations, 1):
-                sections.append(f"**Component {i}**")
-                sections.append(observation)
-                sections.append("")
-        else:
-            sections.append("## Component Observations")
-            sections.append("No distinct components identified in the repository architecture.")  # noqa: E501
-            sections.append("")
-
-        # Connection Observations section
-        if notes.connection_observations:
-            sections.append("## Connection Observations")
-            sections.append("")
-            for i, observation in enumerate(notes.connection_observations, 1):
-                sections.append(f"**Connection Pattern {i}**")
-                sections.append(observation)
-                sections.append("")
-        else:
-            sections.append("## Connection Observations")
-            sections.append("No explicit service connections or dependencies identified.")  # noqa: E501
-            sections.append("")
-
-        # Infrastructure Observations section
-        if notes.infrastructure_observations:
-            sections.append("## Infrastructure Observations")
-            sections.append("")
-            for i, observation in enumerate(notes.infrastructure_observations, 1):
-                sections.append(f"**Infrastructure Pattern {i}**")
-                sections.append(observation)
-                sections.append("")
-        else:
-            sections.append("## Infrastructure Observations")
-            sections.append("No infrastructure configuration patterns identified.")
-            sections.append("")
-
-        # Discovery Metadata section
-        sections.append("## Discovery Metadata")
-        sections.append(notes.discovery_metadata)
-
-        return "\n".join(sections)

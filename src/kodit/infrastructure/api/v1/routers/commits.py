@@ -308,3 +308,22 @@ async def list_commit_enrichments(
             for enrichment in enrichments
         ]
     )
+
+
+@router.delete(
+    "/{repo_id}/commits/{commit_sha}/enrichments/{enrichment_id}",
+    summary="Delete commit enrichment",
+    responses={404: {"description": "Enrichment not found"}},
+    status_code=204,
+)
+async def delete_commit_enrichment(
+    repo_id: str,  # noqa: ARG001
+    commit_sha: str,  # noqa: ARG001
+    enrichment_id: int,
+    server_factory: ServerFactoryDep,
+) -> None:
+    """Delete a specific enrichment for a commit."""
+    enrichment_v2_repository = server_factory.enrichment_v2_repository()
+    deleted = await enrichment_v2_repository.delete_enrichment(enrichment_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Enrichment not found")

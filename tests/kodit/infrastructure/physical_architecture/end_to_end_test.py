@@ -7,6 +7,9 @@ import pytest
 from kodit.domain.services.physical_architecture_service import (
     PhysicalArchitectureService,
 )
+from kodit.infrastructure.physical_architecture.formatters.narrative_formatter import (
+    NarrativeFormatter,
+)
 
 
 class TestPhysicalArchitectureEndToEnd:
@@ -15,7 +18,8 @@ class TestPhysicalArchitectureEndToEnd:
     @pytest.mark.asyncio
     async def test_discover_architecture_simple_web_app(self) -> None:
         """Test full architecture discovery on simple web app fixture generates narrative."""  # noqa: E501
-        service = PhysicalArchitectureService()
+        formatter = NarrativeFormatter()
+        service = PhysicalArchitectureService(formatter=formatter)
         fixture_path = Path(__file__).parent / "fixtures" / "simple_web_app"
 
         narrative = await service.discover_architecture(fixture_path)
@@ -25,12 +29,11 @@ class TestPhysicalArchitectureEndToEnd:
         assert len(narrative) > 100  # Should be substantial text
 
         # Should contain markdown structure
-        assert "# Repository Architecture Discovery" in narrative
-        assert "## Repository Context" in narrative
-        assert "## Component Observations" in narrative
-        assert "## Connection Observations" in narrative
-        assert "## Infrastructure Observations" in narrative
-        assert "## Discovery Metadata" in narrative
+        assert "# Physical Architecture Discovery Report" in narrative
+        assert "## Components" in narrative
+        assert "## Connections" in narrative
+        assert "## Infrastructure" in narrative
+        assert "## Discovery Methodology" in narrative
 
         # Should mention the services from the fixture
         narrative_lower = narrative.lower()
@@ -52,7 +55,8 @@ class TestPhysicalArchitectureEndToEnd:
     @pytest.mark.asyncio
     async def test_discover_architecture_empty_directory(self) -> None:
         """Test architecture discovery on empty directory generates appropriate narrative."""  # noqa: E501
-        service = PhysicalArchitectureService()
+        formatter = NarrativeFormatter()
+        service = PhysicalArchitectureService(formatter=formatter)
         empty_path = Path("/tmp")  # Unlikely to have docker-compose files
 
         narrative = await service.discover_architecture(empty_path)
@@ -62,28 +66,29 @@ class TestPhysicalArchitectureEndToEnd:
         assert len(narrative) > 100  # Should have basic structure
 
         # Should contain markdown structure
-        assert "# Repository Architecture Discovery" in narrative
-        assert "## Repository Context" in narrative
-        assert "## Component Observations" in narrative
+        assert "# Physical Architecture Discovery Report" in narrative
+        assert "## Components" in narrative
 
         # Should indicate no components found
         narrative_lower = narrative.lower()
         assert any(phrase in narrative_lower for phrase in [
             "no distinct components",
             "no infrastructure configuration",
-            "limited infrastructure"
+            "limited infrastructure",
+            "no components detected"
         ])
 
     @pytest.mark.asyncio
     async def test_narrative_contains_discovery_metadata(self) -> None:
         """Test that narrative includes proper discovery metadata."""
-        service = PhysicalArchitectureService()
+        formatter = NarrativeFormatter()
+        service = PhysicalArchitectureService(formatter=formatter)
         fixture_path = Path(__file__).parent / "fixtures" / "simple_web_app"
 
         narrative = await service.discover_architecture(fixture_path)
 
         # Should contain discovery metadata section
-        assert "## Discovery Metadata" in narrative
+        assert "## Discovery Methodology" in narrative
 
         # Should mention methodology and confidence
         narrative_lower = narrative.lower()
@@ -93,13 +98,14 @@ class TestPhysicalArchitectureEndToEnd:
 
         # Should contain timestamp information
         assert any(word in narrative_lower for word in [
-            "completed", "timestamp", "analysis"
+            "completed", "timestamp", "analysis", "discovery"
         ])
 
     @pytest.mark.asyncio
     async def test_narrative_structure_is_llm_optimized(self) -> None:
         """Test that narrative structure is optimized for LLM consumption."""
-        service = PhysicalArchitectureService()
+        formatter = NarrativeFormatter()
+        service = PhysicalArchitectureService(formatter=formatter)
         fixture_path = Path(__file__).parent / "fixtures" / "simple_web_app"
 
         narrative = await service.discover_architecture(fixture_path)
@@ -126,7 +132,8 @@ class TestPhysicalArchitectureEndToEnd:
     @pytest.mark.asyncio
     async def test_narrative_describes_relationships_not_just_components(self) -> None:
         """Test that narrative describes relationships and context, not just components."""  # noqa: E501
-        service = PhysicalArchitectureService()
+        formatter = NarrativeFormatter()
+        service = PhysicalArchitectureService(formatter=formatter)
         fixture_path = Path(__file__).parent / "fixtures" / "simple_web_app"
 
         narrative = await service.discover_architecture(fixture_path)

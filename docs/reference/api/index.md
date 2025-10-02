@@ -270,6 +270,59 @@ List all embeddings for snippets in a specific commit.
 
 - 404: Repository or commit not found
 
+### GET /api/v1/repositories/{repo_id}/commits/{commit_sha}/enrichments
+
+List all enrichments for a specific commit.
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| repo_id | string | True |  |
+| commit_sha | string | True |  |
+
+
+#### Responses
+
+- 200: Successful Response
+
+[EnrichmentListResponse](#enrichmentlistresponse)
+
+- 500: Internal server error
+
+- 401: Unauthorized
+
+- 422: Invalid request
+
+- 404: Repository or commit not found
+
+### DELETE /api/v1/repositories/{repo_id}/commits/{commit_sha}/enrichments/{enrichment_id}
+
+Delete a specific enrichment for a commit.
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| repo_id | string | True |  |
+| commit_sha | string | True |  |
+| enrichment_id | integer | True |  |
+
+
+#### Responses
+
+- 204: Successful Response
+
+- 500: Internal server error
+
+- 401: Unauthorized
+
+- 422: Invalid request
+
+- 404: Enrichment not found
+
 ### GET /api/v1/repositories
 
 List all cloned repositories.
@@ -522,6 +575,44 @@ Embedding data following JSON-API spec.
 
 
 Embedding list response following JSON-API spec.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data | array |  |
+
+
+### EnrichmentAttributes
+
+
+Enrichment attributes following JSON-API spec.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| type | string |  |
+| content | string |  |
+| created_at |  |  |
+| updated_at |  |  |
+
+
+### EnrichmentData
+
+
+Enrichment data following JSON-API spec.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| type | string |  |
+| id | string |  |
+| attributes |  |  |
+
+
+### EnrichmentListResponse
+
+
+Enrichment list response following JSON-API spec.
 
 
 | Field | Type | Description |
