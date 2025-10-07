@@ -555,6 +555,8 @@ class CommitIndexingApplicationService:
             trackable_type=TrackableType.KODIT_REPOSITORY,
             trackable_id=repository_id,
         ) as step:
+            await step.set_total(3)
+
             # Check if architecture enrichment already exists for this commit
             existing_enrichments = await self.enrichment_v2_repository.get_enrichments(
                 entity_type="git_commit",
