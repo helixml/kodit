@@ -679,10 +679,10 @@ class PrescribedOperations:
     ]
     INDEX_COMMIT: ClassVar[list[TaskOperation]] = [
         TaskOperation.EXTRACT_SNIPPETS_FOR_COMMIT,
-        # TaskOperation.CREATE_BM25_INDEX_FOR_COMMIT,
-        # TaskOperation.CREATE_CODE_EMBEDDINGS_FOR_COMMIT,
-        # TaskOperation.CREATE_SUMMARY_ENRICHMENT_FOR_COMMIT,
-        # TaskOperation.CREATE_SUMMARY_EMBEDDINGS_FOR_COMMIT,
+        TaskOperation.CREATE_BM25_INDEX_FOR_COMMIT,
+        TaskOperation.CREATE_CODE_EMBEDDINGS_FOR_COMMIT,
+        TaskOperation.CREATE_SUMMARY_ENRICHMENT_FOR_COMMIT,
+        TaskOperation.CREATE_SUMMARY_EMBEDDINGS_FOR_COMMIT,
         TaskOperation.CREATE_ARCHITECTURE_ENRICHMENT_FOR_COMMIT,
     ]
     SYNC_REPOSITORY: ClassVar[list[TaskOperation]] = [
