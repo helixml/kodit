@@ -3,7 +3,9 @@
 from datetime import UTC, datetime
 from pathlib import Path
 
-from kodit.domain.physical_architecture import ArchitectureDiscoveryNotes
+from kodit.domain.enrichment.architecture.physical.discovery_notes import (
+    ArchitectureDiscoveryNotes,
+)
 from kodit.domain.protocols import PhysicalArchitectureFormatter
 from kodit.infrastructure.physical_architecture.detectors import docker_compose_detector
 

@@ -2,7 +2,9 @@
 
 import re
 
-from kodit.domain.physical_architecture import ArchitectureDiscoveryNotes
+from kodit.domain.enrichment.architecture.physical.discovery_notes import (
+    ArchitectureDiscoveryNotes,
+)
 
 
 class NarrativeFormatter:

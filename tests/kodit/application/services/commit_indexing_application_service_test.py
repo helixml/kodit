@@ -193,7 +193,9 @@ async def test_delete_repository_with_data_succeeds(
     assert len(saved_snippets) == 1
 
     # Create an enrichment for the commit
-    from kodit.domain.entities.enrichment import PhysicalArchitectureEnrichment
+    from kodit.domain.enrichment.architecture.physical.physical import (
+        PhysicalArchitectureEnrichment,
+    )
 
     test_enrichment = PhysicalArchitectureEnrichment(
         entity_id=commit.commit_sha,

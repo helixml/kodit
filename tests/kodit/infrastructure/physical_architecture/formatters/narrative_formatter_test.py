@@ -1,6 +1,8 @@
 """Tests for narrative formatter."""
 
-from kodit.domain.physical_architecture import ArchitectureDiscoveryNotes
+from kodit.domain.enrichment.architecture.physical.discovery_notes import (
+    ArchitectureDiscoveryNotes,
+)
 from kodit.infrastructure.physical_architecture.formatters.narrative_formatter import (
     NarrativeFormatter,
 )

@@ -6,10 +6,10 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.entities.enrichment import (
+from kodit.domain.enrichment.architecture.physical.physical import (
     PhysicalArchitectureEnrichment,
-    SnippetEnrichment,
 )
+from kodit.domain.enrichment.development.snippet.snippet import SnippetEnrichment
 from kodit.infrastructure.sqlalchemy.enrichment_v2_repository import (
     EnrichmentV2Repository,
 )

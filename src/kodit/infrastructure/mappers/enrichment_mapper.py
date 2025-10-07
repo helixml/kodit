@@ -1,11 +1,18 @@
 """Enrichment mapper."""
 
-from kodit.domain.entities import enrichment
-from kodit.domain.entities.enrichment import (
-    EnrichmentV2,
+from kodit.domain.enrichment.architecture.architecture import (
+    ENRICHMENT_TYPE_ARCHITECTURE,
+)
+from kodit.domain.enrichment.architecture.physical.physical import (
+    ENRICHMENT_SUBTYPE_PHYSICAL,
     PhysicalArchitectureEnrichment,
+)
+from kodit.domain.enrichment.development.development import ENRICHMENT_TYPE_DEVELOPMENT
+from kodit.domain.enrichment.development.snippet.snippet import (
+    ENRICHMENT_SUBTYPE_SNIPPET,
     SnippetEnrichment,
 )
+from kodit.domain.enrichment.enrichment import EnrichmentV2
 from kodit.infrastructure.sqlalchemy import entities as db_entities
 
 
@@ -33,8 +40,8 @@ class EnrichmentMapper:
         """Convert database enrichment to domain entity."""
         # Use the stored type and subtype to determine the correct domain class
         if (
-            db_enrichment.type == enrichment.ENRICHMENT_TYPE_DEVELOPMENT
-            and db_enrichment.subtype == enrichment.ENRICHMENT_SUBTYPE_SNIPPET
+            db_enrichment.type == ENRICHMENT_TYPE_DEVELOPMENT
+            and db_enrichment.subtype == ENRICHMENT_SUBTYPE_SNIPPET
         ):
             return SnippetEnrichment(
                 id=db_enrichment.id,
@@ -44,8 +51,8 @@ class EnrichmentMapper:
                 updated_at=db_enrichment.updated_at,
             )
         if (
-            db_enrichment.type == enrichment.ENRICHMENT_TYPE_ARCHITECTURE
-            and db_enrichment.subtype == enrichment.ENRICHMENT_SUBTYPE_PHYSICAL
+            db_enrichment.type == ENRICHMENT_TYPE_ARCHITECTURE
+            and db_enrichment.subtype == ENRICHMENT_SUBTYPE_PHYSICAL
         ):
             return PhysicalArchitectureEnrichment(
                 id=db_enrichment.id,
