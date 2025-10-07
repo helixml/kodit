@@ -42,7 +42,7 @@ class SnippetEnrichment(EnrichmentV2):
     @property
     def subtype(self) -> str | None:
         """Return the enrichment subtype."""
-        return None
+        return "general"
 
     def entity_type_key(self) -> str:
         """Return the entity type key this enrichment is for."""
@@ -61,7 +61,7 @@ class CommitEnrichment(EnrichmentV2):
     @property
     def subtype(self) -> str | None:
         """Return the enrichment subtype."""
-        return None
+        return "general"
 
     def entity_type_key(self) -> str:
         """Return the entity type key this enrichment is for."""
