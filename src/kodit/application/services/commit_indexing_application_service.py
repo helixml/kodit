@@ -11,11 +11,11 @@ from kodit.application.services.reporting import ProgressTracker
 from kodit.domain.enrichment.architecture.physical.physical import (
     PhysicalArchitectureEnrichment,
 )
+from kodit.domain.enrichment.enricher import Enricher
 from kodit.domain.entities import Task
 from kodit.domain.entities.git import GitFile, GitRepo, SnippetV2
 from kodit.domain.factories.git_repo_factory import GitRepoFactory
 from kodit.domain.protocols import (
-    Enricher,
     GitBranchRepository,
     GitCommitRepository,
     GitRepoRepository,

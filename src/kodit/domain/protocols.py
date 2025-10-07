@@ -1,7 +1,6 @@
 """Repository protocol interfaces for the domain layer."""
 
 from abc import ABC, abstractmethod
-from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -21,8 +20,6 @@ from kodit.domain.entities.git import (
 from kodit.domain.value_objects import (
     FusionRequest,
     FusionResult,
-    GenericEnrichmentRequest,
-    GenericEnrichmentResponse,
     MultiSearchRequest,
     TaskOperation,
 )
@@ -326,21 +323,3 @@ class FusionService(ABC):
         self, rankings: list[list[FusionRequest]], k: float = 60
     ) -> list[FusionResult]:
         """Perform reciprocal rank fusion on search results."""
-
-
-class Enricher(ABC):
-    """Abstract enricher interface for text enrichment with custom prompts."""
-
-    @abstractmethod
-    def enrich(
-        self, requests: list[GenericEnrichmentRequest]
-    ) -> AsyncGenerator[GenericEnrichmentResponse, None]:
-        """Enrich a list of requests with custom system prompts."""
-
-
-class PhysicalArchitectureFormatter(Protocol):
-    """Formatter for converting architecture discovery notes to LLM-optimized text."""
-
-    def format_for_llm(self, notes: Any) -> str:
-        """Format architecture discovery notes for LLM consumption."""
-        ...

@@ -8,7 +8,7 @@ from typing import Any
 import structlog
 import tiktoken
 
-from kodit.domain.protocols import Enricher
+from kodit.domain.enrichment.enricher import Enricher
 from kodit.domain.value_objects import (
     GenericEnrichmentRequest,
     GenericEnrichmentResponse,

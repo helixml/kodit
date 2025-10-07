@@ -10,7 +10,7 @@ import structlog
 from litellm import acompletion
 
 from kodit.config import Endpoint
-from kodit.domain.protocols import Enricher
+from kodit.domain.enrichment.enricher import Enricher
 from kodit.domain.value_objects import (
     GenericEnrichmentRequest,
     GenericEnrichmentResponse,
