@@ -4,6 +4,12 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
 
+ENRICHMENT_TYPE_ARCHITECTURE = "architecture"
+ENRICHMENT_TYPE_DEVELOPMENT = "development"
+ENRICHMENT_SUBTYPE_PHYSICAL = "physical"
+ENRICHMENT_SUBTYPE_GENERAL = "general"
+ENRICHMENT_SUBTYPE_SNIPPET = "snippet"
+
 
 @dataclass
 class EnrichmentV2(ABC):
@@ -37,12 +43,12 @@ class SnippetEnrichment(EnrichmentV2):
     @property
     def type(self) -> str:
         """Return the enrichment type."""
-        return "snippet"
+        return ENRICHMENT_TYPE_DEVELOPMENT
 
     @property
     def subtype(self) -> str | None:
         """Return the enrichment subtype."""
-        return "general"
+        return ENRICHMENT_SUBTYPE_SNIPPET
 
     def entity_type_key(self) -> str:
         """Return the entity type key this enrichment is for."""
@@ -50,18 +56,8 @@ class SnippetEnrichment(EnrichmentV2):
 
 
 @dataclass
-class CommitEnrichment(EnrichmentV2):
+class CommitEnrichment(EnrichmentV2, ABC):
     """Enrichment specific to commits."""
-
-    @property
-    def type(self) -> str:
-        """Return the enrichment type."""
-        return "commit"
-
-    @property
-    def subtype(self) -> str | None:
-        """Return the enrichment subtype."""
-        return "general"
 
     def entity_type_key(self) -> str:
         """Return the entity type key this enrichment is for."""
@@ -69,19 +65,15 @@ class CommitEnrichment(EnrichmentV2):
 
 
 @dataclass
-class ArchitectureEnrichment(EnrichmentV2):
+class PhysicalArchitectureEnrichment(CommitEnrichment):
     """Enrichment containing physical architecture discovery for a commit."""
 
     @property
     def type(self) -> str:
         """Return the enrichment type."""
-        return "architecture"
+        return ENRICHMENT_TYPE_ARCHITECTURE
 
     @property
     def subtype(self) -> str | None:
         """Return the enrichment subtype."""
-        return "physical"
-
-    def entity_type_key(self) -> str:
-        """Return the entity type key this enrichment is for."""
-        return "git_commit"
+        return ENRICHMENT_SUBTYPE_PHYSICAL

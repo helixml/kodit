@@ -6,7 +6,10 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.entities.enrichment import CommitEnrichment, SnippetEnrichment
+from kodit.domain.entities.enrichment import (
+    PhysicalArchitectureEnrichment,
+    SnippetEnrichment,
+)
 from kodit.infrastructure.sqlalchemy.enrichment_v2_repository import (
     EnrichmentV2Repository,
 )
@@ -37,11 +40,11 @@ async def test_bulk_save_and_get_enrichments(
     ]
 
     commit_enrichments = [
-        CommitEnrichment(
+        PhysicalArchitectureEnrichment(
             entity_id="commit_sha_1",
             content="Added authentication feature",
         ),
-        CommitEnrichment(
+        PhysicalArchitectureEnrichment(
             entity_id="commit_sha_2",
             content="Fixed bug in login flow",
         ),
@@ -75,7 +78,7 @@ async def test_bulk_save_and_get_enrichments(
         entity_ids=["commit_sha_1", "commit_sha_2"],
     )
     assert len(retrieved_commits) == 2
-    assert all(isinstance(e, CommitEnrichment) for e in retrieved_commits)
+    assert all(isinstance(e, PhysicalArchitectureEnrichment) for e in retrieved_commits)
     contents = {e.content for e in retrieved_commits}
     assert "Added authentication feature" in contents
     assert "Fixed bug in login flow" in contents
@@ -95,7 +98,7 @@ async def test_bulk_delete_enrichments(
             entity_id="snippet_sha_2",
             content="This function validates input",
         ),
-        CommitEnrichment(
+        PhysicalArchitectureEnrichment(
             entity_id="commit_sha_1",
             content="Added feature",
         ),
@@ -206,7 +209,7 @@ async def test_get_enrichments_filters_by_entity_type(
             entity_id="snippet_sha_1",
             content="Snippet enrichment",
         ),
-        CommitEnrichment(
+        PhysicalArchitectureEnrichment(
             entity_id="commit_sha_1",
             content="Commit enrichment",
         ),
@@ -226,4 +229,4 @@ async def test_get_enrichments_filters_by_entity_type(
         entity_ids=["snippet_sha_1", "commit_sha_1"],
     )
     assert len(commit_results) == 1
-    assert isinstance(commit_results[0], CommitEnrichment)
+    assert isinstance(commit_results[0], PhysicalArchitectureEnrichment)

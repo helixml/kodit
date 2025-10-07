@@ -1,9 +1,9 @@
 """Enrichment mapper."""
 
+from kodit.domain.entities import enrichment
 from kodit.domain.entities.enrichment import (
-    ArchitectureEnrichment,
-    CommitEnrichment,
     EnrichmentV2,
+    PhysicalArchitectureEnrichment,
     SnippetEnrichment,
 )
 from kodit.infrastructure.sqlalchemy import entities as db_entities
@@ -32,7 +32,10 @@ class EnrichmentMapper:
     ) -> EnrichmentV2:
         """Convert database enrichment to domain entity."""
         # Use the stored type and subtype to determine the correct domain class
-        if db_enrichment.type == "snippet":
+        if (
+            db_enrichment.type == enrichment.ENRICHMENT_TYPE_DEVELOPMENT
+            and db_enrichment.subtype == enrichment.ENRICHMENT_SUBTYPE_SNIPPET
+        ):
             return SnippetEnrichment(
                 id=db_enrichment.id,
                 entity_id=entity_id,
@@ -40,16 +43,11 @@ class EnrichmentMapper:
                 created_at=db_enrichment.created_at,
                 updated_at=db_enrichment.updated_at,
             )
-        if db_enrichment.type == "architecture" and db_enrichment.subtype == "physical":
-            return ArchitectureEnrichment(
-                id=db_enrichment.id,
-                entity_id=entity_id,
-                content=db_enrichment.content,
-                created_at=db_enrichment.created_at,
-                updated_at=db_enrichment.updated_at,
-            )
-        if db_enrichment.type == "commit":
-            return CommitEnrichment(
+        if (
+            db_enrichment.type == enrichment.ENRICHMENT_TYPE_ARCHITECTURE
+            and db_enrichment.subtype == enrichment.ENRICHMENT_SUBTYPE_PHYSICAL
+        ):
+            return PhysicalArchitectureEnrichment(
                 id=db_enrichment.id,
                 entity_id=entity_id,
                 content=db_enrichment.content,
@@ -57,7 +55,6 @@ class EnrichmentMapper:
                 updated_at=db_enrichment.updated_at,
             )
 
-        type_str = f"{db_enrichment.type}"
-        if db_enrichment.subtype:
-            type_str += f":{db_enrichment.subtype}"
-        raise ValueError(f"Unknown enrichment type: {type_str}")
+        raise ValueError(
+            f"Unknown enrichment type: {db_enrichment.type}/{db_enrichment.subtype}"
+        )
