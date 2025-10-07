@@ -14,7 +14,7 @@ import sqlalchemy as sa
 
 from kodit.domain.enrichments.development.development import ENRICHMENT_TYPE_DEVELOPMENT
 from kodit.domain.enrichments.development.snippet.snippet import (
-    ENRICHMENT_SUBTYPE_SNIPPET,
+    ENRICHMENT_SUBTYPE_SNIPPET_SUMMARY,
 )
 
 
@@ -127,7 +127,7 @@ def upgrade() -> None:
                 ),
                 {
                     "type": ENRICHMENT_TYPE_DEVELOPMENT,
-                    "subtype": ENRICHMENT_SUBTYPE_SNIPPET,
+                    "subtype": ENRICHMENT_SUBTYPE_SNIPPET_SUMMARY,
                     "content": old_enrichment[1],
                     "created_at": old_enrichment[2],
                     "updated_at": old_enrichment[3],

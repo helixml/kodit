@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from kodit.domain.enrichments.development.development import DevelopmentEnrichment
 
-ENRICHMENT_SUBTYPE_SNIPPET = "snippet"
+ENRICHMENT_SUBTYPE_SNIPPET_SUMMARY = "snippet_summary"
 
 
 @dataclass
@@ -14,7 +14,7 @@ class SnippetEnrichment(DevelopmentEnrichment):
     @property
     def subtype(self) -> str | None:
         """Return the enrichment subtype."""
-        return ENRICHMENT_SUBTYPE_SNIPPET
+        return ENRICHMENT_SUBTYPE_SNIPPET_SUMMARY
 
     def entity_type_key(self) -> str:
         """Return the entity type key this enrichment is for."""
