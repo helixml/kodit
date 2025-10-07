@@ -9,7 +9,7 @@ from kodit.domain.enrichments.architecture.physical.physical import (
 )
 from kodit.domain.enrichments.development.development import ENRICHMENT_TYPE_DEVELOPMENT
 from kodit.domain.enrichments.development.snippet.snippet import (
-    ENRICHMENT_SUBTYPE_SNIPPET,
+    ENRICHMENT_SUBTYPE_SNIPPET_SUMMARY,
     SnippetEnrichment,
 )
 from kodit.domain.enrichments.enrichment import EnrichmentV2
@@ -41,7 +41,7 @@ class EnrichmentMapper:
         # Use the stored type and subtype to determine the correct domain class
         if (
             db_enrichment.type == ENRICHMENT_TYPE_DEVELOPMENT
-            and db_enrichment.subtype == ENRICHMENT_SUBTYPE_SNIPPET
+            and db_enrichment.subtype == ENRICHMENT_SUBTYPE_SNIPPET_SUMMARY
         ):
             return SnippetEnrichment(
                 id=db_enrichment.id,
