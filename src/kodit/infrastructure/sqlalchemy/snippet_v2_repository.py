@@ -2,16 +2,34 @@
 
 import zlib
 from collections.abc import Callable
+from datetime import datetime
+from typing import TypedDict
 
 from sqlalchemy import delete, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from kodit.domain.enrichments.development.snippet.snippet import SnippetEnrichment
 from kodit.domain.entities.git import SnippetV2
 from kodit.domain.protocols import SnippetRepositoryV2
 from kodit.domain.value_objects import MultiSearchRequest
 from kodit.infrastructure.mappers.snippet_mapper import SnippetMapper
 from kodit.infrastructure.sqlalchemy import entities as db_entities
+from kodit.infrastructure.sqlalchemy.enrichment_v2_repository import (
+    EnrichmentV2Repository,
+)
 from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
+
+
+class _GitFileData(TypedDict):
+    """Type for GitCommitFile creation data."""
+
+    commit_sha: str
+    path: str
+    blob_sha: str
+    mime_type: str
+    size: int
+    extension: str
+    created_at: datetime
 
 
 def create_snippet_v2_repository(
@@ -27,6 +45,7 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
     def __init__(self, session_factory: Callable[[], AsyncSession]) -> None:
         """Initialize the repository."""
         self.session_factory = session_factory
+        self._enrichment_repo = EnrichmentV2Repository(session_factory)
 
     @property
     def _mapper(self) -> SnippetMapper:
@@ -112,10 +131,15 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
                 stmt = insert(db_entities.CommitSnippetV2).values(chunk)
                 await session.execute(stmt)
 
-    async def _bulk_create_file_associations(
+    async def _bulk_create_file_associations(  # noqa: C901
         self, session: AsyncSession, commit_sha: str, snippets: list[SnippetV2]
     ) -> None:
-        """Bulk create snippet-file associations."""
+        """Bulk create snippet-file associations.
+
+        Creates SnippetV2File records linking snippets to GitCommitFile records.
+        If a GitCommitFile doesn't exist, it creates it automatically to prevent
+        losing file associations during enrichment cycles.
+        """
         # Collect all file paths from all snippets
         file_paths = set()
         for snippet in snippets:
@@ -150,18 +174,55 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
         existing_snippet_files = set(await session.execute(existing_snippet_files_stmt))
 
         # Prepare new file associations
-        new_file_associations = []
+        new_file_associations: list[dict[str, str]] = []
+        missing_git_files: list[_GitFileData] = []
+
         for snippet in snippets:
             for file in snippet.derives_from:
                 association_key = (snippet.sha, file.path)
-                if (association_key not in existing_snippet_files
-                    and file.path in existing_files_map):
-                    new_file_associations.append({
-                        "snippet_sha": snippet.sha,
-                        "blob_sha": existing_files_map[file.path],
-                        "commit_sha": commit_sha,
-                        "file_path": file.path,
-                    })
+                if association_key not in existing_snippet_files:
+                    if file.path in existing_files_map:
+                        # GitCommitFile exists, use its blob_sha
+                        new_file_associations.append({
+                            "snippet_sha": snippet.sha,
+                            "blob_sha": existing_files_map[file.path],
+                            "commit_sha": commit_sha,
+                            "file_path": file.path,
+                        })
+                    else:
+                        # GitCommitFile doesn't exist - create it and the association
+                        missing_git_files.append({
+                            "commit_sha": commit_sha,
+                            "path": file.path,
+                            "blob_sha": file.blob_sha,
+                            "mime_type": file.mime_type,
+                            "size": file.size,
+                            "extension": file.extension,
+                            "created_at": file.created_at,
+                        })
+                        new_file_associations.append({
+                            "snippet_sha": snippet.sha,
+                            "blob_sha": file.blob_sha,
+                            "commit_sha": commit_sha,
+                            "file_path": file.path,
+                        })
+                        # Add to map so subsequent snippets can find it
+                        existing_files_map[file.path] = file.blob_sha
+
+        # Create missing GitCommitFile records
+        if missing_git_files:
+            for git_file_data in missing_git_files:
+                git_file = db_entities.GitCommitFile(
+                    commit_sha=git_file_data["commit_sha"],
+                    path=git_file_data["path"],
+                    blob_sha=git_file_data["blob_sha"],
+                    mime_type=git_file_data["mime_type"],
+                    size=git_file_data["size"],
+                    extension=git_file_data["extension"],
+                    created_at=git_file_data["created_at"],
+                )
+                session.add(git_file)
+            await session.flush()
 
         # Bulk insert new file associations in chunks to avoid parameter limits
         if new_file_associations:
@@ -172,70 +233,29 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
                 await session.execute(stmt)
 
     async def _bulk_update_enrichments(
-        self, session: AsyncSession, snippets: list[SnippetV2]
+        self, session: AsyncSession, snippets: list[SnippetV2]  # noqa: ARG002
     ) -> None:
-        """Bulk update enrichments for snippets."""
-        snippet_shas = [snippet.sha for snippet in snippets]
+        """Bulk update enrichments for snippets using new enrichment_v2."""
+        # Collect all enrichments from snippets using list comprehension
+        snippet_enrichments = [
+            SnippetEnrichment(
+                entity_id=snippet.sha,
+                content=enrichment.content,
+            )
+            for snippet in snippets
+            for enrichment in snippet.enrichments
+        ]
 
-        # Get all existing enrichments for these snippets
-        existing_enrichments_stmt = select(
-            db_entities.Enrichment.snippet_sha,
-            db_entities.Enrichment.type,
-            db_entities.Enrichment.content
-        ).where(
-            db_entities.Enrichment.snippet_sha.in_(snippet_shas)
-        )
-        existing_enrichments = await session.execute(existing_enrichments_stmt)
+        if snippet_enrichments:
+            # First delete existing enrichments for these snippets
+            snippet_shas = [snippet.sha for snippet in snippets]
+            await self._enrichment_repo.bulk_delete_enrichments(
+                entity_type="snippet_v2",
+                entity_ids=snippet_shas,
+            )
 
-        # Create lookup for existing enrichment hashes
-        existing_enrichment_map = {}
-        for snippet_sha, enrichment_type, content in existing_enrichments:
-            content_hash = self._hash_string(content)
-            key = (snippet_sha, enrichment_type)
-            existing_enrichment_map[key] = content_hash
-
-        # Collect enrichments to delete and add
-        enrichments_to_delete = []
-        enrichments_to_add = []
-
-        for snippet in snippets:
-            for enrichment in snippet.enrichments:
-                key = (snippet.sha, db_entities.EnrichmentType(enrichment.type.value))
-                new_hash = self._hash_string(enrichment.content)
-
-                if key in existing_enrichment_map:
-                    if existing_enrichment_map[key] != new_hash:
-                        # Content changed, mark for deletion and re-addition
-                        enrichments_to_delete.append(key)
-                        enrichments_to_add.append({
-                            "snippet_sha": snippet.sha,
-                            "type": db_entities.EnrichmentType(enrichment.type.value),
-                            "content": enrichment.content,
-                        })
-                else:
-                    # New enrichment
-                    enrichments_to_add.append({
-                        "snippet_sha": snippet.sha,
-                        "type": db_entities.EnrichmentType(enrichment.type.value),
-                        "content": enrichment.content,
-                    })
-
-        # Bulk delete changed enrichments
-        if enrichments_to_delete:
-            for snippet_sha, enrichment_type in enrichments_to_delete:
-                stmt = delete(db_entities.Enrichment).where(
-                    db_entities.Enrichment.snippet_sha == snippet_sha,
-                    db_entities.Enrichment.type == enrichment_type,
-                )
-                await session.execute(stmt)
-
-        # Bulk insert new/updated enrichments in chunks to avoid parameter limits
-        if enrichments_to_add:
-            chunk_size = 1000  # Conservative chunk size for parameter limits
-            for i in range(0, len(enrichments_to_add), chunk_size):
-                chunk = enrichments_to_add[i : i + chunk_size]
-                insert_stmt = insert(db_entities.Enrichment).values(chunk)
-                await session.execute(insert_stmt)
+            # Then save the new enrichments
+            await self._enrichment_repo.bulk_save_enrichments(snippet_enrichments)
 
     async def _get_or_create_raw_snippet(
         self, session: AsyncSession, commit_sha: str, domain_snippet: SnippetV2
@@ -281,33 +301,8 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
         domain_snippet: SnippetV2,
     ) -> None:
         """Update enrichments if they have changed."""
-        current_enrichments = await session.scalars(
-            select(db_entities.Enrichment).where(
-                db_entities.Enrichment.snippet_sha == db_snippet.sha
-            )
-        )
-        current_enrichment_shas = {
-            self._hash_string(enrichment.content)
-            for enrichment in list(current_enrichments)
-        }
-        for enrichment in domain_snippet.enrichments:
-            if self._hash_string(enrichment.content) in current_enrichment_shas:
-                continue
-
-            # If not present, delete the existing enrichment for this type if it exists
-            stmt = delete(db_entities.Enrichment).where(
-                db_entities.Enrichment.snippet_sha == db_snippet.sha,
-                db_entities.Enrichment.type
-                == db_entities.EnrichmentType(enrichment.type.value),
-            )
-            await session.execute(stmt)
-
-            db_enrichment = db_entities.Enrichment(
-                snippet_sha=db_snippet.sha,
-                type=db_entities.EnrichmentType(enrichment.type.value),
-                content=enrichment.content,
-            )
-            session.add(db_enrichment)
+        # For now, enrichments are not yet implemented with the new schema
+        # This method will need to be updated once we migrate to EnrichmentV2
 
     async def get_snippets_for_commit(self, commit_sha: str) -> list[SnippetV2]:
         """Get all snippets for a specific commit."""
@@ -469,16 +464,16 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
             )
             .where(db_entities.SnippetV2File.snippet_sha == db_snippet.sha)
         )
+        db_files_list = list(db_files)
 
-        # Enrichments related to this snippet
-        db_enrichments = await session.scalars(
-            select(db_entities.Enrichment).where(
-                db_entities.Enrichment.snippet_sha == db_snippet.sha
-            )
+        # Get enrichments for this snippet
+        db_enrichments = await self._enrichment_repo.enrichments_for_entity_type(
+            entity_type="snippet_v2",
+            entity_ids=[db_snippet.sha],
         )
 
         return self._mapper.to_domain_snippet_v2(
             db_snippet=db_snippet,
-            db_files=list(db_files),
-            db_enrichments=list(db_enrichments),
+            db_files=db_files_list,
+            db_enrichments=db_enrichments,
         )

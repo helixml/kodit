@@ -535,6 +535,126 @@
         }
       }
     },
+    "/api/v1/repositories/{repo_id}/commits/{commit_sha}/enrichments": {
+      "get": {
+        "tags": [
+          "commits"
+        ],
+        "summary": "List commit enrichments",
+        "description": "List all enrichments for a specific commit.",
+        "operationId": "list_commit_enrichments_api_v1_repositories__repo_id__commits__commit_sha__enrichments_get",
+        "security": [
+          {
+            "Header (X-API-KEY)": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "repo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Repo Id"
+            }
+          },
+          {
+            "name": "commit_sha",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Commit Sha"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnrichmentListResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Invalid request"
+          },
+          "404": {
+            "description": "Repository or commit not found"
+          }
+        }
+      }
+    },
+    "/api/v1/repositories/{repo_id}/commits/{commit_sha}/enrichments/{enrichment_id}": {
+      "delete": {
+        "tags": [
+          "commits"
+        ],
+        "summary": "Delete commit enrichment",
+        "description": "Delete a specific enrichment for a commit.",
+        "operationId": "delete_commit_enrichment_api_v1_repositories__repo_id__commits__commit_sha__enrichments__enrichment_id__delete",
+        "security": [
+          {
+            "Header (X-API-KEY)": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "repo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Repo Id"
+            }
+          },
+          {
+            "name": "commit_sha",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Commit Sha"
+            }
+          },
+          {
+            "name": "enrichment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Enrichment Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "500": {
+            "description": "Internal server error"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Invalid request"
+          },
+          "404": {
+            "description": "Enrichment not found"
+          }
+        }
+      }
+    },
     "/api/v1/repositories": {
       "get": {
         "tags": [
@@ -1022,6 +1142,103 @@
         ],
         "title": "EmbeddingListResponse",
         "description": "Embedding list response following JSON-API spec."
+      },
+      "EnrichmentAttributes": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "subtype": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subtype"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "subtype",
+          "content",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "EnrichmentAttributes",
+        "description": "Enrichment attributes following JSON-API spec."
+      },
+      "EnrichmentData": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "default": "enrichment"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "attributes": {
+            "$ref": "#/components/schemas/EnrichmentAttributes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "attributes"
+        ],
+        "title": "EnrichmentData",
+        "description": "Enrichment data following JSON-API spec."
+      },
+      "EnrichmentListResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/EnrichmentData"
+            },
+            "type": "array",
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "EnrichmentListResponse",
+        "description": "Enrichment list response following JSON-API spec."
       },
       "EnrichmentSchema": {
         "properties": {
@@ -1884,7 +2101,8 @@
           "kodit.commit.create_bm25_index",
           "kodit.commit.create_code_embeddings",
           "kodit.commit.create_summary_enrichment",
-          "kodit.commit.create_summary_embeddings"
+          "kodit.commit.create_summary_embeddings",
+          "kodit.commit.create_architecture_enrichment"
         ],
         "title": "TaskOperation",
         "description": "Task operation."

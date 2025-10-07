@@ -217,17 +217,12 @@ class GitRepoRepository(ABC):
         """Delete a repository."""
 
 
-
 class GitAdapter(ABC):
     """Abstract interface for Git operations."""
 
     @abstractmethod
     async def clone_repository(self, remote_uri: str, local_path: Path) -> None:
         """Clone a repository to local path."""
-
-    @abstractmethod
-    async def checkout_commit(self, local_path: Path, commit_sha: str) -> None:
-        """Checkout a specific commit in the repository."""
 
     @abstractmethod
     async def pull_repository(self, local_path: Path) -> None:
@@ -247,7 +242,13 @@ class GitAdapter(ABC):
     async def get_commit_files(
         self, local_path: Path, commit_sha: str
     ) -> list[dict[str, Any]]:
-        """Get all files in a specific commit."""
+        """Get all files in a specific commit from the git tree."""
+
+    @abstractmethod
+    async def get_commit_file_data(
+        self, local_path: Path, commit_sha: str
+    ) -> list[dict[str, Any]]:
+        """Get file metadata for a commit, with files checked out to disk."""
 
     @abstractmethod
     async def repository_exists(self, local_path: Path) -> bool:

@@ -640,6 +640,9 @@ class TaskOperation(StrEnum):
     CREATE_CODE_EMBEDDINGS_FOR_COMMIT = "kodit.commit.create_code_embeddings"
     CREATE_SUMMARY_ENRICHMENT_FOR_COMMIT = "kodit.commit.create_summary_enrichment"
     CREATE_SUMMARY_EMBEDDINGS_FOR_COMMIT = "kodit.commit.create_summary_embeddings"
+    CREATE_ARCHITECTURE_ENRICHMENT_FOR_COMMIT = (
+        "kodit.commit.create_architecture_enrichment"
+    )
 
     def is_repository_operation(self) -> bool:
         """Check if the task operation is a repository operation."""
@@ -663,6 +666,7 @@ class PrescribedOperations:
         TaskOperation.CREATE_CODE_EMBEDDINGS_FOR_COMMIT,
         TaskOperation.CREATE_SUMMARY_ENRICHMENT_FOR_COMMIT,
         TaskOperation.CREATE_SUMMARY_EMBEDDINGS_FOR_COMMIT,
+        TaskOperation.CREATE_ARCHITECTURE_ENRICHMENT_FOR_COMMIT,
     ]
     SYNC_REPOSITORY: ClassVar[list[TaskOperation]] = [
         TaskOperation.SCAN_REPOSITORY,

@@ -69,6 +69,7 @@ dev = [
     "types-tqdm>=4.67.0.20250516",
     "types-aiofiles>=24.1.0.20250708",
     "openapi-markdown>=0.4.3",
+    "types-pyyaml>=6.0.12.20250915",
 ]
 
 [project.urls]

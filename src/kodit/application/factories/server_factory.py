@@ -15,6 +15,10 @@ from kodit.application.services.queue_service import QueueService
 from kodit.application.services.reporting import ProgressTracker
 from kodit.application.services.sync_scheduler import SyncSchedulerService
 from kodit.config import AppContext
+from kodit.domain.enrichments.architecture.physical.formatter import (
+    PhysicalArchitectureFormatter,
+)
+from kodit.domain.enrichments.enricher import Enricher
 from kodit.domain.protocols import (
     FusionService,
     GitAdapter,
@@ -32,6 +36,9 @@ from kodit.domain.services.git_repository_service import (
     GitRepositoryScanner,
     RepositoryCloner,
 )
+from kodit.domain.services.physical_architecture_service import (
+    PhysicalArchitectureService,
+)
 from kodit.infrastructure.bm25.local_bm25_repository import LocalBM25Repository
 from kodit.infrastructure.bm25.vectorchord_bm25_repository import (
     VectorChordBM25Repository,
@@ -40,16 +47,25 @@ from kodit.infrastructure.cloning.git.git_python_adaptor import GitPythonAdapter
 from kodit.infrastructure.embedding.embedding_factory import (
     embedding_domain_service_factory,
 )
+from kodit.infrastructure.enricher.enricher_factory import (
+    enricher_domain_service_factory,
+)
 from kodit.infrastructure.enrichment.enrichment_factory import (
     enrichment_domain_service_factory,
 )
 
 # InMemoryGitTagRepository removed - now handled by InMemoryGitRepoRepository
 from kodit.infrastructure.indexing.fusion_service import ReciprocalRankFusionService
+from kodit.infrastructure.physical_architecture.formatters.narrative_formatter import (
+    NarrativeFormatter,
+)
 from kodit.infrastructure.slicing.slicer import Slicer
 from kodit.infrastructure.sqlalchemy.embedding_repository import (
     SqlAlchemyEmbeddingRepository,
     create_embedding_repository,
+)
+from kodit.infrastructure.sqlalchemy.enrichment_v2_repository import (
+    EnrichmentV2Repository,
 )
 from kodit.infrastructure.sqlalchemy.git_branch_repository import (
     create_git_branch_repository,
@@ -90,6 +106,7 @@ class ServerFactory:
             CommitIndexingApplicationService | None
         ) = None
         self._enrichment_service: EnrichmentDomainService | None = None
+        self._enricher_service: Enricher | None = None
         self._task_status_repository: TaskStatusRepository | None = None
         self._operation: ProgressTracker | None = None
         self._queue_service: QueueService | None = None
@@ -107,6 +124,31 @@ class ServerFactory:
         self._git_commit_repository: GitCommitRepository | None = None
         self._git_branch_repository: GitBranchRepository | None = None
         self._git_tag_repository: GitTagRepository | None = None
+        self._architecture_service: PhysicalArchitectureService | None = None
+        self._enrichment_v2_repository: EnrichmentV2Repository | None = None
+        self._architecture_formatter: PhysicalArchitectureFormatter | None = None
+
+    def architecture_formatter(self) -> PhysicalArchitectureFormatter:
+        """Create a PhysicalArchitectureFormatter instance."""
+        if not self._architecture_formatter:
+            self._architecture_formatter = NarrativeFormatter()
+        return self._architecture_formatter
+
+    def architecture_service(self) -> PhysicalArchitectureService:
+        """Create a PhysicalArchitectureService instance."""
+        if not self._architecture_service:
+            self._architecture_service = PhysicalArchitectureService(
+                formatter=self.architecture_formatter()
+            )
+        return self._architecture_service
+
+    def enrichment_v2_repository(self) -> EnrichmentV2Repository:
+        """Create a EnrichmentV2Repository instance."""
+        if not self._enrichment_v2_repository:
+            self._enrichment_v2_repository = EnrichmentV2Repository(
+                session_factory=self.session_factory
+            )
+        return self._enrichment_v2_repository
 
     def queue_service(self) -> QueueService:
         """Create a QueueService instance."""
@@ -192,6 +234,9 @@ class ServerFactory:
                     text_search_service=self.text_search_service(),
                     enrichment_service=self.enrichment_service(),
                     embedding_repository=self.embedding_repository(),
+                    architecture_service=self.architecture_service(),
+                    enrichment_v2_repository=self.enrichment_v2_repository(),
+                    enricher_service=self.enricher(),
                 )
             )
 
@@ -249,6 +294,12 @@ class ServerFactory:
                 self.app_context
             )
         return self._enrichment_service
+
+    def enricher(self) -> Enricher:
+        """Create a EnricherDomainService instance."""
+        if not self._enricher_service:
+            self._enricher_service = enricher_domain_service_factory(self.app_context)
+        return self._enricher_service
 
     def sync_scheduler_service(self) -> SyncSchedulerService:
         """Create a SyncSchedulerService instance."""

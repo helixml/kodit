@@ -215,6 +215,39 @@ class TestSaveSnippets:
 class TestGetSnippetsForCommit:
     """Tests the retrieval functionality for code snippets."""
 
+    async def test_snippet_always_has_derived_file(
+        self,
+        repository: SqlAlchemySnippetRepositoryV2,
+        test_git_commit: db_entities.GitCommit,
+        sample_snippet: SnippetV2,
+    ) -> None:
+        """Verifies that every snippet always has at least one file it derives from."""
+        # Ensure sample snippet has a derived file before saving
+        assert len(sample_snippet.derives_from) > 0, (
+            "Sample snippet must have at least one derived file"
+        )
+
+        # Save snippet
+        await repository.save_snippets(test_git_commit.commit_sha, [sample_snippet])
+
+        # Retrieve snippet
+        snippets = await repository.get_snippets_for_commit(test_git_commit.commit_sha)
+
+        # Verify every snippet has at least one derived file
+        assert len(snippets) == 1
+        retrieved_snippet = snippets[0]
+        assert len(retrieved_snippet.derives_from) > 0, (
+            f"Snippet {retrieved_snippet.sha} must have at least one file "
+            f"it derives from, but got {len(retrieved_snippet.derives_from)}"
+        )
+
+        # Verify the derived file has the expected attributes
+        derived_file = retrieved_snippet.derives_from[0]
+        assert derived_file.path is not None
+        assert derived_file.blob_sha is not None
+        assert derived_file.mime_type is not None
+        assert derived_file.extension is not None
+
     async def test_returns_empty_list_for_nonexistent_commit(
         self,
         repository: SqlAlchemySnippetRepositoryV2,
@@ -228,10 +261,27 @@ class TestGetSnippetsForCommit:
         repository: SqlAlchemySnippetRepositoryV2,
         test_git_commit: db_entities.GitCommit,
         sample_snippet: SnippetV2,
+        session: AsyncSession,
     ) -> None:
         """Validates complete snippet reconstruction with file metadata."""
         # Save snippet first
         await repository.save_snippets(test_git_commit.commit_sha, [sample_snippet])
+
+        # Debug: Check what's in the database
+        from sqlalchemy import select
+        snippet_files = await session.scalars(
+            select(db_entities.SnippetV2File)
+        )
+        snippet_files_list = list(snippet_files)
+        for _sf in snippet_files_list:
+            pass
+
+        git_files = await session.scalars(
+            select(db_entities.GitCommitFile)
+        )
+        git_files_list = list(git_files)
+        for _gf in git_files_list:
+            pass
 
         # Retrieve and verify complete reconstruction
         snippets = await repository.get_snippets_for_commit(test_git_commit.commit_sha)
@@ -239,13 +289,18 @@ class TestGetSnippetsForCommit:
         assert len(snippets) == 1
         retrieved_snippet = snippets[0]
 
+        for _df in retrieved_snippet.derives_from:
+            pass
+
         # Verify snippet data
         assert retrieved_snippet.sha == sample_snippet.sha
         assert retrieved_snippet.content == sample_snippet.content
         assert retrieved_snippet.extension == sample_snippet.extension
 
         # Verify file associations
-        assert len(retrieved_snippet.derives_from) == 1
+        assert len(retrieved_snippet.derives_from) == 1, (
+            f"Expected 1 file association, got {len(retrieved_snippet.derives_from)}"
+        )
         file_association = retrieved_snippet.derives_from[0]
         assert file_association.path == "src/main.py"
         assert file_association.blob_sha == "file_blob_sha_123"
@@ -256,6 +311,92 @@ class TestGetSnippetsForCommit:
         enrichment = retrieved_snippet.enrichments[0]
         assert enrichment.type == EnrichmentType.SUMMARIZATION
         assert enrichment.content == "A simple hello world function"
+
+
+    async def test_snippet_loses_derives_from_on_reload_if_git_commit_file_missing(
+        self,
+        repository: SqlAlchemySnippetRepositoryV2,
+        test_git_commit: db_entities.GitCommit,
+        session: AsyncSession,
+    ) -> None:
+        """Reproduces bug where derives_from becomes empty after save/reload cycle.
+
+        This happens when:
+        1. Snippet is created with derives_from
+        2. Snippet is saved (but GitCommitFile doesn't exist)
+        3. SnippetV2File associations are silently skipped
+        4. When loaded back, derives_from is empty
+        5. When saved again (e.g., with enrichment), it gets filtered out
+        """
+        # Create a snippet with derives_from but DON'T create the GitCommitFile
+        domain_file = GitFile(
+            created_at=datetime.now(UTC),
+            blob_sha="missing_blob_sha",
+            path="src/missing.py",
+            mime_type="text/x-python",
+            size=100,
+            extension="py",
+        )
+
+        content = "def missing_file_function():\n    pass"
+        snippet = SnippetV2(
+            sha=SnippetV2.compute_sha(content),
+            derives_from=[domain_file],
+            content=content,
+            enrichments=[],
+            extension="py",
+        )
+
+        # Verify the snippet has derives_from before saving
+        assert len(snippet.derives_from) == 1
+
+        # Save the snippet (this should create SnippetV2File associations)
+        await repository.save_snippets(test_git_commit.commit_sha, [snippet])
+
+        # Check if SnippetV2File was created
+        from sqlalchemy import select
+        snippet_files = await session.scalars(
+            select(db_entities.SnippetV2File).where(
+                db_entities.SnippetV2File.snippet_sha == snippet.sha
+            )
+        )
+        snippet_files_list = list(snippet_files)
+
+        # FIX: SnippetV2File IS created even though GitCommitFile didn't exist
+        # The repository now creates missing GitCommitFile records
+        assert len(snippet_files_list) == 1, (
+            "SnippetV2File should be created even when GitCommitFile is missing"
+        )
+
+        # Reload the snippet
+        reloaded_snippets = await repository.get_snippets_for_commit(
+            test_git_commit.commit_sha
+        )
+
+        # FIX: derives_from is preserved!
+        assert len(reloaded_snippets) == 1
+        reloaded_snippet = reloaded_snippets[0]
+        assert len(reloaded_snippet.derives_from) == 1, (
+            "derives_from should be preserved after reload"
+        )
+        assert reloaded_snippet.derives_from[0].path == "src/missing.py"
+
+        # Try to save again (e.g., after adding enrichment)
+        reloaded_snippet.enrichments.append(
+            Enrichment(type=EnrichmentType.SUMMARIZATION, content="A function")
+        )
+        await repository.save_snippets(
+            test_git_commit.commit_sha, [reloaded_snippet]
+        )
+
+        # FIX: Snippet is NOT filtered out because derives_from is populated
+        final_snippets = await repository.get_snippets_for_commit(
+            test_git_commit.commit_sha
+        )
+        assert len(final_snippets) == 1, (
+            "Snippet should not be filtered out - derives_from is preserved"
+        )
+        assert len(final_snippets[0].enrichments) == 1
 
 
 class TestDeleteSnippetsForCommit:

@@ -22,6 +22,11 @@ from kodit.infrastructure.api.v1.schemas.commit import (
     FileListResponse,
     FileResponse,
 )
+from kodit.infrastructure.api.v1.schemas.enrichment import (
+    EnrichmentAttributes,
+    EnrichmentData,
+    EnrichmentListResponse,
+)
 from kodit.infrastructure.api.v1.schemas.snippet import (
     EnrichmentSchema,
     GitFileSchema,
@@ -269,3 +274,57 @@ async def list_commit_embeddings(
             for embedding in embeddings
         ]
     )
+
+
+@router.get(
+    "/{repo_id}/commits/{commit_sha}/enrichments",
+    summary="List commit enrichments",
+    responses={404: {"description": "Repository or commit not found"}},
+)
+async def list_commit_enrichments(
+    repo_id: str,  # noqa: ARG001
+    commit_sha: str,
+    server_factory: ServerFactoryDep,
+) -> EnrichmentListResponse:
+    """List all enrichments for a specific commit."""
+    enrichment_v2_repository = server_factory.enrichment_v2_repository()
+    enrichments = await enrichment_v2_repository.enrichments_for_entity_type(
+        entity_type="git_commit",
+        entity_ids=[commit_sha],
+    )
+
+    return EnrichmentListResponse(
+        data=[
+            EnrichmentData(
+                type="enrichment",
+                id=str(enrichment.id),
+                attributes=EnrichmentAttributes(
+                    type=enrichment.type,
+                    subtype=enrichment.subtype,
+                    content=enrichment.content,
+                    created_at=enrichment.created_at,
+                    updated_at=enrichment.updated_at,
+                ),
+            )
+            for enrichment in enrichments
+        ]
+    )
+
+
+@router.delete(
+    "/{repo_id}/commits/{commit_sha}/enrichments/{enrichment_id}",
+    summary="Delete commit enrichment",
+    responses={404: {"description": "Enrichment not found"}},
+    status_code=204,
+)
+async def delete_commit_enrichment(
+    repo_id: str,  # noqa: ARG001
+    commit_sha: str,  # noqa: ARG001
+    enrichment_id: int,
+    server_factory: ServerFactoryDep,
+) -> None:
+    """Delete a specific enrichment for a commit."""
+    enrichment_v2_repository = server_factory.enrichment_v2_repository()
+    deleted = await enrichment_v2_repository.delete_enrichment(enrichment_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Enrichment not found")

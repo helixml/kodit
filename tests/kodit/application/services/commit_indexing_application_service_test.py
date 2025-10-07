@@ -27,10 +27,16 @@ from kodit.domain.services.git_repository_service import (
     GitRepositoryScanner,
     RepositoryCloner,
 )
+from kodit.domain.services.physical_architecture_service import (
+    PhysicalArchitectureService,
+)
 from kodit.domain.value_objects import Enrichment, EnrichmentType
 from kodit.infrastructure.slicing.slicer import Slicer
 from kodit.infrastructure.sqlalchemy.embedding_repository import (
     create_embedding_repository,
+)
+from kodit.infrastructure.sqlalchemy.enrichment_v2_repository import (
+    EnrichmentV2Repository,
 )
 from kodit.infrastructure.sqlalchemy.git_branch_repository import (
     create_git_branch_repository,
@@ -80,6 +86,7 @@ async def commit_indexing_service(
     )
     git_tag_repository = create_git_tag_repository(session_factory=session_factory)
     embedding_repository = create_embedding_repository(session_factory=session_factory)
+    enrichment_v2_repository = EnrichmentV2Repository(session_factory=session_factory)
 
     return CommitIndexingApplicationService(
         snippet_v2_repository=snippet_v2_repository,
@@ -98,6 +105,9 @@ async def commit_indexing_service(
         text_search_service=AsyncMock(spec=EmbeddingDomainService),
         enrichment_service=AsyncMock(spec=EnrichmentDomainService),
         embedding_repository=embedding_repository,
+        architecture_service=AsyncMock(spec=PhysicalArchitectureService),
+        enrichment_v2_repository=enrichment_v2_repository,
+        enricher_service=AsyncMock(),
     )
 
 
@@ -182,6 +192,27 @@ async def test_delete_repository_with_data_succeeds(
     )
     assert len(saved_snippets) == 1
 
+    # Create an enrichment for the commit
+    from kodit.domain.enrichments.architecture.physical.physical import (
+        PhysicalArchitectureEnrichment,
+    )
+
+    test_enrichment = PhysicalArchitectureEnrichment(
+        entity_id=commit.commit_sha,
+        content="test content",
+    )
+    await commit_indexing_service.enrichment_v2_repository.bulk_save_enrichments(
+        [test_enrichment]
+    )
+
+    # Verify enrichment was created
+    enrichment_repo = commit_indexing_service.enrichment_v2_repository
+    enrichments = await enrichment_repo.enrichments_for_entity_type(
+        entity_type="git_commit",
+        entity_ids=[commit.commit_sha],
+    )
+    assert len(enrichments) == 1
+
     # Delete the repository
     success = await commit_indexing_service.delete_git_repository(repo.id)
     assert success is True
@@ -189,6 +220,13 @@ async def test_delete_repository_with_data_succeeds(
     # Verify the repository was actually deleted
     with pytest.raises(ValueError, match="not found"):
         await commit_indexing_service.repo_repository.get_by_id(repo.id)
+
+    # Verify enrichments were deleted
+    enrichments_after = await enrichment_repo.enrichments_for_entity_type(
+        entity_type="git_commit",
+        entity_ids=[commit.commit_sha],
+    )
+    assert len(enrichments_after) == 0
 
 
 @pytest.mark.asyncio
@@ -199,3 +237,5 @@ async def test_delete_nonexistent_repository_raises_error(
     # Try to delete a repository that doesn't exist - should raise ValueError
     with pytest.raises(ValueError, match="not found"):
         await commit_indexing_service.delete_git_repository(99999)
+
+

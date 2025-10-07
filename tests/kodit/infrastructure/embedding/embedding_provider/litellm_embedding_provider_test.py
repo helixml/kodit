@@ -22,7 +22,7 @@ class TestLiteLLMEmbeddingProvider:
         assert provider.endpoint.model is None
         assert provider.endpoint.api_key is None
         assert provider.endpoint.base_url is None
-        assert provider.endpoint.timeout is None
+        assert provider.endpoint.timeout == 60
         assert provider.endpoint.extra_params is None
         assert provider.log is not None
 
@@ -90,7 +90,7 @@ class TestLiteLLMEmbeddingProvider:
         mock_aembedding.assert_called_once_with(
             model="text-embedding-3-small",
             input=["python programming"],
-            timeout=None,
+            timeout=60,
         )
 
     @pytest.mark.asyncio
@@ -139,7 +139,7 @@ class TestLiteLLMEmbeddingProvider:
                 "javascript development",
                 "java enterprise",
             ],
-            timeout=None,
+            timeout=60,
         )
 
     @pytest.mark.asyncio
@@ -167,7 +167,7 @@ class TestLiteLLMEmbeddingProvider:
         mock_aembedding.assert_called_once_with(
             model="text-embedding-3-small",
             input=["test"],
-            timeout=None,
+            timeout=60,
             api_base="https://custom.api.com",
         )
 
@@ -194,7 +194,7 @@ class TestLiteLLMEmbeddingProvider:
         mock_aembedding.assert_called_once_with(
             model="text-embedding-3-small",
             input=["test"],
-            timeout=None,
+            timeout=60,
             api_key="sk-test-key-123",
         )
 
@@ -222,7 +222,7 @@ class TestLiteLLMEmbeddingProvider:
         mock_aembedding.assert_called_once_with(
             model="text-embedding-3-small",
             input=["test"],
-            timeout=None,
+            timeout=60,
             temperature=0.5,
             max_tokens=100,
         )
@@ -327,7 +327,7 @@ class TestLiteLLMEmbeddingProvider:
         mock_aembedding.assert_called_once_with(
             model="claude-3-haiku-20240307",
             input=["test text"],
-            timeout=None,
+            timeout=60,
         )
 
     @pytest.mark.asyncio
