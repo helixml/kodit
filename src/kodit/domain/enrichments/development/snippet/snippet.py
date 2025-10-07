@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from kodit.domain.enrichment.development.development import DevelopmentEnrichment
+from kodit.domain.enrichments.development.development import DevelopmentEnrichment
 
 ENRICHMENT_SUBTYPE_SNIPPET = "snippet"
 

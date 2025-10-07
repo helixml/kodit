@@ -6,7 +6,7 @@ import structlog
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.enrichment.enrichment import EnrichmentV2
+from kodit.domain.enrichments.enrichment import EnrichmentV2
 from kodit.infrastructure.mappers.enrichment_mapper import EnrichmentMapper
 from kodit.infrastructure.sqlalchemy import entities as db_entities
 from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork

@@ -3,7 +3,7 @@
 from abc import ABC
 from dataclasses import dataclass
 
-from kodit.domain.enrichment.enrichment import CommitEnrichment
+from kodit.domain.enrichments.enrichment import CommitEnrichment
 
 ENRICHMENT_TYPE_DEVELOPMENT = "development"
 

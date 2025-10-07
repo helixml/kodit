@@ -8,10 +8,10 @@ from pydantic import AnyUrl
 
 from kodit.application.services.queue_service import QueueService
 from kodit.application.services.reporting import ProgressTracker
-from kodit.domain.enrichment.architecture.physical.physical import (
+from kodit.domain.enrichments.architecture.physical.physical import (
     PhysicalArchitectureEnrichment,
 )
-from kodit.domain.enrichment.enricher import Enricher
+from kodit.domain.enrichments.enricher import Enricher
 from kodit.domain.entities import Task
 from kodit.domain.entities.git import GitFile, GitRepo, SnippetV2
 from kodit.domain.factories.git_repo_factory import GitRepoFactory

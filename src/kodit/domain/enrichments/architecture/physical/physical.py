@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from kodit.domain.enrichment.architecture.architecture import ArchitectureEnrichment
+from kodit.domain.enrichments.architecture.architecture import ArchitectureEnrichment
 
 ENRICHMENT_SUBTYPE_PHYSICAL = "physical"
 

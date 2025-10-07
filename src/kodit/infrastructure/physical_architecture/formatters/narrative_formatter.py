@@ -2,7 +2,7 @@
 
 import re
 
-from kodit.domain.enrichment.architecture.physical.discovery_notes import (
+from kodit.domain.enrichments.architecture.physical.discovery_notes import (
     ArchitectureDiscoveryNotes,
 )
 

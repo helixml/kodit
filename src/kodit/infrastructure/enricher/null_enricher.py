@@ -4,7 +4,7 @@ from collections.abc import AsyncGenerator
 
 import structlog
 
-from kodit.domain.enrichment.enricher import Enricher
+from kodit.domain.enrichments.enricher import Enricher
 from kodit.domain.value_objects import (
     GenericEnrichmentRequest,
     GenericEnrichmentResponse,

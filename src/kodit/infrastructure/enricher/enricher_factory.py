@@ -1,7 +1,7 @@
 """Enricher factory for creating generic enricher domain services."""
 
 from kodit.config import AppContext, Endpoint
-from kodit.domain.enrichment.enricher import Enricher
+from kodit.domain.enrichments.enricher import Enricher
 from kodit.infrastructure.enricher.litellm_enricher import LiteLLMEnricher
 from kodit.infrastructure.enricher.local_enricher import LocalEnricher
 from kodit.infrastructure.enricher.null_enricher import NullEnricher

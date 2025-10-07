@@ -8,7 +8,7 @@ from typing import TypedDict
 from sqlalchemy import delete, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.enrichment.development.snippet.snippet import SnippetEnrichment
+from kodit.domain.enrichments.development.snippet.snippet import SnippetEnrichment
 from kodit.domain.entities.git import SnippetV2
 from kodit.domain.protocols import SnippetRepositoryV2
 from kodit.domain.value_objects import MultiSearchRequest

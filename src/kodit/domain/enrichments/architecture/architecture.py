@@ -3,7 +3,7 @@
 from abc import ABC
 from dataclasses import dataclass
 
-from kodit.domain.enrichment.enrichment import (
+from kodit.domain.enrichments.enrichment import (
     CommitEnrichment,
 )
 

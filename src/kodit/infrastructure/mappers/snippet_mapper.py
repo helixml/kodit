@@ -1,8 +1,8 @@
 """Mapping between domain Git entities and SQLAlchemy entities."""
 
 import kodit.domain.entities.git as domain_git_entities
-from kodit.domain.enrichment.development.snippet.snippet import SnippetEnrichment
-from kodit.domain.enrichment.enrichment import EnrichmentV2
+from kodit.domain.enrichments.development.snippet.snippet import SnippetEnrichment
+from kodit.domain.enrichments.enrichment import EnrichmentV2
 from kodit.domain.value_objects import Enrichment, EnrichmentType
 from kodit.infrastructure.sqlalchemy import entities as db_entities
 

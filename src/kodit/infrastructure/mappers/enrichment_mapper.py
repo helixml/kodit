@@ -1,18 +1,18 @@
 """Enrichment mapper."""
 
-from kodit.domain.enrichment.architecture.architecture import (
+from kodit.domain.enrichments.architecture.architecture import (
     ENRICHMENT_TYPE_ARCHITECTURE,
 )
-from kodit.domain.enrichment.architecture.physical.physical import (
+from kodit.domain.enrichments.architecture.physical.physical import (
     ENRICHMENT_SUBTYPE_PHYSICAL,
     PhysicalArchitectureEnrichment,
 )
-from kodit.domain.enrichment.development.development import ENRICHMENT_TYPE_DEVELOPMENT
-from kodit.domain.enrichment.development.snippet.snippet import (
+from kodit.domain.enrichments.development.development import ENRICHMENT_TYPE_DEVELOPMENT
+from kodit.domain.enrichments.development.snippet.snippet import (
     ENRICHMENT_SUBTYPE_SNIPPET,
     SnippetEnrichment,
 )
-from kodit.domain.enrichment.enrichment import EnrichmentV2
+from kodit.domain.enrichments.enrichment import EnrichmentV2
 from kodit.infrastructure.sqlalchemy import entities as db_entities
 
 

@@ -15,10 +15,10 @@ from kodit.application.services.queue_service import QueueService
 from kodit.application.services.reporting import ProgressTracker
 from kodit.application.services.sync_scheduler import SyncSchedulerService
 from kodit.config import AppContext
-from kodit.domain.enrichment.architecture.physical.formatter import (
+from kodit.domain.enrichments.architecture.physical.formatter import (
     PhysicalArchitectureFormatter,
 )
-from kodit.domain.enrichment.enricher import Enricher
+from kodit.domain.enrichments.enricher import Enricher
 from kodit.domain.protocols import (
     FusionService,
     GitAdapter,
