@@ -12,6 +12,9 @@ from kodit.domain.enrichments.architecture.physical.physical import (
     PhysicalArchitectureEnrichment,
 )
 from kodit.domain.enrichments.enricher import Enricher
+from kodit.domain.enrichments.request import (
+    EnrichmentRequest as GenericEnrichmentRequest,
+)
 from kodit.domain.entities import Task
 from kodit.domain.entities.git import GitFile, GitRepo, SnippetV2
 from kodit.domain.factories.git_repo_factory import GitRepoFactory
@@ -41,7 +44,6 @@ from kodit.domain.value_objects import (
     EnrichmentIndexRequest,
     EnrichmentRequest,
     EnrichmentType,
-    GenericEnrichmentRequest,
     IndexRequest,
     LanguageMapping,
     PrescribedOperations,

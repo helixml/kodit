@@ -2,7 +2,7 @@
 
 import pytest
 
-from kodit.domain.value_objects import GenericEnrichmentRequest
+from kodit.domain.enrichments.request import EnrichmentRequest
 from kodit.infrastructure.enricher.null_enricher import NullEnricher
 
 
@@ -12,12 +12,12 @@ async def test_null_enricher_returns_empty_content() -> None:
     enricher = NullEnricher()
 
     requests = [
-        GenericEnrichmentRequest(
+        EnrichmentRequest(
             id="req1",
             text="Analyze this code",
             system_prompt="You are a code analyzer",
         ),
-        GenericEnrichmentRequest(
+        EnrichmentRequest(
             id="req2",
             text="Another request",
             system_prompt="You are helpful",

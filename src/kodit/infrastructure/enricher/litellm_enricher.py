@@ -11,10 +11,8 @@ from litellm import acompletion
 
 from kodit.config import Endpoint
 from kodit.domain.enrichments.enricher import Enricher
-from kodit.domain.value_objects import (
-    GenericEnrichmentRequest,
-    GenericEnrichmentResponse,
-)
+from kodit.domain.enrichments.request import EnrichmentRequest
+from kodit.domain.enrichments.response import EnrichmentResponse
 from kodit.infrastructure.enrichment.utils import clean_thinking_tags
 
 DEFAULT_NUM_PARALLEL_TASKS = 20
@@ -94,8 +92,8 @@ class LiteLLMEnricher(Enricher):
             raise
 
     async def enrich(
-        self, requests: list[GenericEnrichmentRequest]
-    ) -> AsyncGenerator[GenericEnrichmentResponse, None]:
+        self, requests: list[EnrichmentRequest]
+    ) -> AsyncGenerator[EnrichmentResponse, None]:
         """Enrich a list of requests using LiteLLM.
 
         Args:
@@ -112,11 +110,11 @@ class LiteLLMEnricher(Enricher):
         sem = asyncio.Semaphore(self.num_parallel_tasks)
 
         async def process_request(
-            request: GenericEnrichmentRequest,
-        ) -> GenericEnrichmentResponse:
+            request: EnrichmentRequest,
+        ) -> EnrichmentResponse:
             async with sem:
                 if not request.text:
-                    return GenericEnrichmentResponse(
+                    return EnrichmentResponse(
                         id=request.id,
                         text="",
                     )
@@ -134,7 +132,7 @@ class LiteLLMEnricher(Enricher):
                     .get("content", "")
                 )
                 cleaned_content = clean_thinking_tags(content or "")
-                return GenericEnrichmentResponse(
+                return EnrichmentResponse(
                     id=request.id,
                     text=cleaned_content,
                 )

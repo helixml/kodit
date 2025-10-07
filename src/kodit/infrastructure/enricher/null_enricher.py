@@ -5,10 +5,8 @@ from collections.abc import AsyncGenerator
 import structlog
 
 from kodit.domain.enrichments.enricher import Enricher
-from kodit.domain.value_objects import (
-    GenericEnrichmentRequest,
-    GenericEnrichmentResponse,
-)
+from kodit.domain.enrichments.request import EnrichmentRequest
+from kodit.domain.enrichments.response import EnrichmentResponse
 
 
 class NullEnricher(Enricher):
@@ -19,8 +17,8 @@ class NullEnricher(Enricher):
         self.log = structlog.get_logger(__name__)
 
     async def enrich(
-        self, requests: list[GenericEnrichmentRequest]
-    ) -> AsyncGenerator[GenericEnrichmentResponse, None]:
+        self, requests: list[EnrichmentRequest]
+    ) -> AsyncGenerator[EnrichmentResponse, None]:
         """Return empty responses for all requests.
 
         Args:
@@ -32,7 +30,7 @@ class NullEnricher(Enricher):
         """
         self.log.info("NullEnricher: returning empty responses", count=len(requests))
         for request in requests:
-            yield GenericEnrichmentResponse(
+            yield EnrichmentResponse(
                 id=request.id,
                 text="",
             )

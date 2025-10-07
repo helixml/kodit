@@ -9,10 +9,8 @@ import structlog
 import tiktoken
 
 from kodit.domain.enrichments.enricher import Enricher
-from kodit.domain.value_objects import (
-    GenericEnrichmentRequest,
-    GenericEnrichmentResponse,
-)
+from kodit.domain.enrichments.request import EnrichmentRequest
+from kodit.domain.enrichments.response import EnrichmentResponse
 from kodit.infrastructure.enrichment.utils import clean_thinking_tags
 
 DEFAULT_ENRICHER_MODEL = "Qwen/Qwen3-0.6B"
@@ -42,8 +40,8 @@ class LocalEnricher(Enricher):
         self.encoding = tiktoken.encoding_for_model("text-embedding-3-small")
 
     async def enrich(
-        self, requests: list[GenericEnrichmentRequest]
-    ) -> AsyncGenerator[GenericEnrichmentResponse, None]:
+        self, requests: list[EnrichmentRequest]
+    ) -> AsyncGenerator[EnrichmentResponse, None]:
         """Enrich a list of requests using local model.
 
         Args:
@@ -120,7 +118,7 @@ class LocalEnricher(Enricher):
 
             content = await asyncio.to_thread(process_prompt, prompt)
             cleaned_content = clean_thinking_tags(content)
-            yield GenericEnrichmentResponse(
+            yield EnrichmentResponse(
                 id=prompt["id"],
                 text=cleaned_content,
             )

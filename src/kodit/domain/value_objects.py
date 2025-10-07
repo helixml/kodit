@@ -363,23 +363,6 @@ class EnrichmentResponse:
 
 
 @dataclass
-class GenericEnrichmentRequest:
-    """Domain model for generic enrichment request with custom prompt."""
-
-    id: str
-    text: str
-    system_prompt: str
-
-
-@dataclass
-class GenericEnrichmentResponse:
-    """Domain model for generic enrichment response."""
-
-    id: str
-    text: str
-
-
-@dataclass
 class EnrichmentIndexRequest:
     """Domain model for enrichment index request."""
 
