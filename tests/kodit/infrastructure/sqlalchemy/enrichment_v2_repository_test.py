@@ -63,7 +63,7 @@ async def test_bulk_save_and_get_enrichments(
         assert enrichment_count == 4
         assert association_count == 4
 
-    retrieved_snippets = await enrichment_repository.get_enrichments(
+    retrieved_snippets = await enrichment_repository.enrichments_for_entity_type(
         entity_type="snippet_v2",
         entity_ids=["snippet_sha_1", "snippet_sha_2"],
     )
@@ -73,7 +73,7 @@ async def test_bulk_save_and_get_enrichments(
     assert "This is a helper function for parsing JSON" in contents
     assert "This function validates user input" in contents
 
-    retrieved_commits = await enrichment_repository.get_enrichments(
+    retrieved_commits = await enrichment_repository.enrichments_for_entity_type(
         entity_type="git_commit",
         entity_ids=["commit_sha_1", "commit_sha_2"],
     )
@@ -131,13 +131,13 @@ async def test_bulk_delete_enrichments(
         assert enrichment_count == 1
         assert association_count == 1
 
-    remaining = await enrichment_repository.get_enrichments(
+    remaining = await enrichment_repository.enrichments_for_entity_type(
         entity_type="snippet_v2",
         entity_ids=["snippet_sha_1", "snippet_sha_2"],
     )
     assert len(remaining) == 0
 
-    remaining_commits = await enrichment_repository.get_enrichments(
+    remaining_commits = await enrichment_repository.enrichments_for_entity_type(
         entity_type="git_commit",
         entity_ids=["commit_sha_1"],
     )
@@ -148,7 +148,7 @@ async def test_get_enrichments_with_empty_entity_ids(
     enrichment_repository: EnrichmentV2Repository,
 ) -> None:
     """Test that getting enrichments with empty entity IDs returns empty list."""
-    result = await enrichment_repository.get_enrichments(
+    result = await enrichment_repository.enrichments_for_entity_type(
         entity_type="snippet_v2",
         entity_ids=[],
     )
@@ -176,7 +176,7 @@ async def test_get_enrichments_for_nonexistent_entities(
     enrichment_repository: EnrichmentV2Repository,
 ) -> None:
     """Test that getting enrichments for non-existent entities returns empty list."""
-    result = await enrichment_repository.get_enrichments(
+    result = await enrichment_repository.enrichments_for_entity_type(
         entity_type="snippet_v2",
         entity_ids=["nonexistent_sha"],
     )
@@ -217,14 +217,14 @@ async def test_get_enrichments_filters_by_entity_type(
 
     await enrichment_repository.bulk_save_enrichments(enrichments)
 
-    snippet_results = await enrichment_repository.get_enrichments(
+    snippet_results = await enrichment_repository.enrichments_for_entity_type(
         entity_type="snippet_v2",
         entity_ids=["snippet_sha_1", "commit_sha_1"],
     )
     assert len(snippet_results) == 1
     assert isinstance(snippet_results[0], SnippetEnrichment)
 
-    commit_results = await enrichment_repository.get_enrichments(
+    commit_results = await enrichment_repository.enrichments_for_entity_type(
         entity_type="git_commit",
         entity_ids=["snippet_sha_1", "commit_sha_1"],
     )

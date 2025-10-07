@@ -24,7 +24,7 @@ class EnrichmentV2Repository:
         self.mapper = EnrichmentMapper()
         self.log = structlog.get_logger(__name__)
 
-    async def get_enrichments(
+    async def enrichments_for_entity_type(
         self,
         entity_type: str,
         entity_ids: list[str],
@@ -45,6 +45,7 @@ class EnrichmentV2Repository:
                     db_entities.EnrichmentAssociation.entity_id.in_(entity_ids),
                 )
             )
+
             result = await session.execute(stmt)
             rows = result.all()
 

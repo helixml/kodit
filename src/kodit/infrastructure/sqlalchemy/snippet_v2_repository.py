@@ -467,7 +467,7 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
         db_files_list = list(db_files)
 
         # Get enrichments for this snippet
-        db_enrichments = await self._enrichment_repo.get_enrichments(
+        db_enrichments = await self._enrichment_repo.enrichments_for_entity_type(
             entity_type="snippet_v2",
             entity_ids=[db_snippet.sha],
         )

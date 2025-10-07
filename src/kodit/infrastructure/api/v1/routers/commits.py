@@ -288,7 +288,7 @@ async def list_commit_enrichments(
 ) -> EnrichmentListResponse:
     """List all enrichments for a specific commit."""
     enrichment_v2_repository = server_factory.enrichment_v2_repository()
-    enrichments = await enrichment_v2_repository.get_enrichments(
+    enrichments = await enrichment_v2_repository.enrichments_for_entity_type(
         entity_type="git_commit",
         entity_ids=[commit_sha],
     )

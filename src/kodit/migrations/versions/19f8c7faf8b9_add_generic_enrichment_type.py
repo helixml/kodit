@@ -12,6 +12,11 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
+from kodit.domain.enrichments.development.development import ENRICHMENT_TYPE_DEVELOPMENT
+from kodit.domain.enrichments.development.snippet.snippet import (
+    ENRICHMENT_SUBTYPE_SNIPPET,
+)
+
 
 # revision identifiers, used by Alembic.
 revision: str = "19f8c7faf8b9"
@@ -115,15 +120,14 @@ def upgrade() -> None:
         ).fetchall()
 
         for old_enrichment in old_enrichments:
-            # Insert into enrichments_v2 with type='snippet', subtype=None
             result = connection.execute(
                 sa.text(
                     "INSERT INTO enrichments_v2 (type, subtype, content, created_at, updated_at) "
                     "VALUES (:type, :subtype, :content, :created_at, :updated_at)"
                 ),
                 {
-                    "type": "snippet",
-                    "subtype": None,
+                    "type": ENRICHMENT_TYPE_DEVELOPMENT,
+                    "subtype": ENRICHMENT_SUBTYPE_SNIPPET,
                     "content": old_enrichment[1],
                     "created_at": old_enrichment[2],
                     "updated_at": old_enrichment[3],

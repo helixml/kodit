@@ -562,7 +562,8 @@ class CommitIndexingApplicationService:
             await step.set_total(3)
 
             # Check if architecture enrichment already exists for this commit
-            existing_enrichments = await self.enrichment_v2_repository.get_enrichments(
+            enrichment_repo = self.enrichment_v2_repository
+            existing_enrichments = await enrichment_repo.enrichments_for_entity_type(
                 entity_type="git_commit",
                 entity_ids=[commit_sha],
             )

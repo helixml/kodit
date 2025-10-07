@@ -206,11 +206,10 @@ async def test_delete_repository_with_data_succeeds(
     )
 
     # Verify enrichment was created
-    enrichments = (
-        await commit_indexing_service.enrichment_v2_repository.get_enrichments(
-            entity_type="git_commit",
-            entity_ids=[commit.commit_sha],
-        )
+    enrichment_repo = commit_indexing_service.enrichment_v2_repository
+    enrichments = await enrichment_repo.enrichments_for_entity_type(
+        entity_type="git_commit",
+        entity_ids=[commit.commit_sha],
     )
     assert len(enrichments) == 1
 
@@ -223,11 +222,9 @@ async def test_delete_repository_with_data_succeeds(
         await commit_indexing_service.repo_repository.get_by_id(repo.id)
 
     # Verify enrichments were deleted
-    enrichments_after = (
-        await commit_indexing_service.enrichment_v2_repository.get_enrichments(
-            entity_type="git_commit",
-            entity_ids=[commit.commit_sha],
-        )
+    enrichments_after = await enrichment_repo.enrichments_for_entity_type(
+        entity_type="git_commit",
+        entity_ids=[commit.commit_sha],
     )
     assert len(enrichments_after) == 0
 
