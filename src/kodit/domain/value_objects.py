@@ -347,29 +347,6 @@ class EmbeddingResponse:
 
 
 @dataclass
-class EnrichmentRequest:
-    """Domain model for enrichment request."""
-
-    snippet_id: str
-    text: str
-
-
-@dataclass
-class EnrichmentResponse:
-    """Domain model for enrichment response."""
-
-    snippet_id: str
-    text: str
-
-
-@dataclass
-class EnrichmentIndexRequest:
-    """Domain model for enrichment index request."""
-
-    requests: list[EnrichmentRequest]
-
-
-@dataclass
 class IndexView:
     """Domain model for index information."""
 

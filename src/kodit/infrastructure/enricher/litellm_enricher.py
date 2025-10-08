@@ -13,7 +13,7 @@ from kodit.config import Endpoint
 from kodit.domain.enrichments.enricher import Enricher
 from kodit.domain.enrichments.request import EnrichmentRequest
 from kodit.domain.enrichments.response import EnrichmentResponse
-from kodit.infrastructure.enrichment.utils import clean_thinking_tags
+from kodit.infrastructure.enricher.utils import clean_thinking_tags
 
 DEFAULT_NUM_PARALLEL_TASKS = 20
 

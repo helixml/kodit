@@ -1,6 +1,7 @@
 """Create a big object that contains all the application services."""
 
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,7 +32,6 @@ from kodit.domain.protocols import (
 )
 from kodit.domain.services.bm25_service import BM25DomainService, BM25Repository
 from kodit.domain.services.embedding_service import EmbeddingDomainService
-from kodit.domain.services.enrichment_service import EnrichmentDomainService
 from kodit.domain.services.git_repository_service import (
     GitRepositoryScanner,
     RepositoryCloner,
@@ -49,9 +49,6 @@ from kodit.infrastructure.embedding.embedding_factory import (
 )
 from kodit.infrastructure.enricher.enricher_factory import (
     enricher_domain_service_factory,
-)
-from kodit.infrastructure.enrichment.enrichment_factory import (
-    enrichment_domain_service_factory,
 )
 
 # InMemoryGitTagRepository removed - now handled by InMemoryGitRepoRepository
@@ -84,6 +81,9 @@ from kodit.infrastructure.sqlalchemy.task_status_repository import (
     create_task_status_repository,
 )
 from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
+
+if TYPE_CHECKING:
+    from kodit.domain.services.enrichment_service import EnrichmentDomainService
 
 
 class ServerFactory:
@@ -232,7 +232,6 @@ class ServerFactory:
                     bm25_service=self.bm25_service(),
                     code_search_service=self.code_search_service(),
                     text_search_service=self.text_search_service(),
-                    enrichment_service=self.enrichment_service(),
                     embedding_repository=self.embedding_repository(),
                     architecture_service=self.architecture_service(),
                     enrichment_v2_repository=self.enrichment_v2_repository(),
@@ -286,14 +285,6 @@ class ServerFactory:
                 session_factory=self.session_factory
             )
         return self._snippet_v2_repository
-
-    def enrichment_service(self) -> EnrichmentDomainService:
-        """Create a EnrichmentDomainService instance."""
-        if not self._enrichment_service:
-            self._enrichment_service = enrichment_domain_service_factory(
-                self.app_context
-            )
-        return self._enrichment_service
 
     def enricher(self) -> Enricher:
         """Create a EnricherDomainService instance."""

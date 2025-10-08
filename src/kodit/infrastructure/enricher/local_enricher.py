@@ -11,7 +11,7 @@ import tiktoken
 from kodit.domain.enrichments.enricher import Enricher
 from kodit.domain.enrichments.request import EnrichmentRequest
 from kodit.domain.enrichments.response import EnrichmentResponse
-from kodit.infrastructure.enrichment.utils import clean_thinking_tags
+from kodit.infrastructure.enricher.utils import clean_thinking_tags
 
 DEFAULT_ENRICHER_MODEL = "Qwen/Qwen3-0.6B"
 DEFAULT_CONTEXT_WINDOW_SIZE = 2048

@@ -12,13 +12,12 @@ from typing import Any
 import pytest
 
 from kodit.config import Endpoint
-from kodit.domain.value_objects import EmbeddingRequest, EnrichmentRequest
+from kodit.domain.enrichments.request import EnrichmentRequest
+from kodit.domain.value_objects import EmbeddingRequest
 from kodit.infrastructure.embedding.embedding_providers.litellm_embedding_provider import (  # noqa: E501
     LiteLLMEmbeddingProvider,
 )
-from kodit.infrastructure.enrichment.litellm_enrichment_provider import (
-    LiteLLMEnrichmentProvider,
-)
+from kodit.infrastructure.enricher.litellm_enricher import LiteLLMEnricher
 
 
 class UnixSocketHTTPServer(HTTPServer):
@@ -173,7 +172,7 @@ async def test_litellm_providers_initialization() -> None:
         base_url="http://localhost/v1",
         model="gpt-4o-mini",
     )
-    enrichment_provider = LiteLLMEnrichmentProvider(endpoint=enrichment_endpoint)
+    enrichment_provider = LiteLLMEnricher(endpoint=enrichment_endpoint)
 
     # Verify initialization
     assert enrichment_provider.socket_path == "/tmp/test.sock"
@@ -226,9 +225,7 @@ async def test_litellm_providers_with_unix_socket_full() -> None:
                 base_url="http://localhost/v1",
                 model="gpt-4o-mini",
             )
-            enrichment_provider = LiteLLMEnrichmentProvider(
-                endpoint=enrichment_endpoint
-            )
+            enrichment_provider = LiteLLMEnricher(endpoint=enrichment_endpoint)
 
             # Test embeddings
             embedding_requests = [
@@ -250,7 +247,9 @@ async def test_litellm_providers_with_unix_socket_full() -> None:
             # Test enrichments
             enrichment_requests = [
                 EnrichmentRequest(
-                    snippet_id="1", text="def calculate_sum(a, b): return a + b"
+                    id="1",
+                    text="def calculate_sum(a, b): return a + b",
+                    system_prompt="",
                 ),
             ]
 
@@ -261,7 +260,7 @@ async def test_litellm_providers_with_unix_socket_full() -> None:
 
             # Verify enrichment results
             assert len(enrichment_results) == 1
-            assert enrichment_results[0].snippet_id == 1
+            assert enrichment_results[0].id == "1"
             assert "This code snippet" in enrichment_results[0].text
 
             # Close the clients
