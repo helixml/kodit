@@ -22,7 +22,6 @@ from kodit.domain.entities.git import (
 from kodit.domain.factories.git_repo_factory import GitRepoFactory
 from kodit.domain.services.bm25_service import BM25DomainService
 from kodit.domain.services.embedding_service import EmbeddingDomainService
-from kodit.domain.services.enrichment_service import EnrichmentDomainService
 from kodit.domain.services.git_repository_service import (
     GitRepositoryScanner,
     RepositoryCloner,
@@ -103,7 +102,6 @@ async def commit_indexing_service(
         bm25_service=AsyncMock(spec=BM25DomainService),
         code_search_service=AsyncMock(spec=EmbeddingDomainService),
         text_search_service=AsyncMock(spec=EmbeddingDomainService),
-        enrichment_service=AsyncMock(spec=EnrichmentDomainService),
         embedding_repository=embedding_repository,
         architecture_service=AsyncMock(spec=PhysicalArchitectureService),
         enrichment_v2_repository=enrichment_v2_repository,
@@ -237,5 +235,3 @@ async def test_delete_nonexistent_repository_raises_error(
     # Try to delete a repository that doesn't exist - should raise ValueError
     with pytest.raises(ValueError, match="not found"):
         await commit_indexing_service.delete_git_repository(99999)
-
-

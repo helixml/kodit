@@ -14,12 +14,8 @@ from kodit.application.factories.server_factory import ServerFactory
 from kodit.application.services.indexing_worker_service import IndexingWorkerService
 from kodit.application.services.sync_scheduler import SyncSchedulerService
 from kodit.config import AppContext
-from kodit.domain.value_objects import (
-    Document,
-    EnrichmentIndexRequest,
-    EnrichmentRequest,
-    IndexRequest,
-)
+from kodit.domain.enrichments.request import EnrichmentRequest
+from kodit.domain.value_objects import Document, IndexRequest
 from kodit.infrastructure.api.v1.routers.commits import router as commits_router
 from kodit.infrastructure.api.v1.routers.queue import router as queue_router
 from kodit.infrastructure.api.v1.routers.repositories import (
@@ -71,12 +67,14 @@ async def app_lifespan(_: FastAPI) -> AsyncIterator[AppLifespanState]:
         raise ValueError("Embedding service is not accessible") from e
     try:
         await anext(
-            _server_factory.enrichment_service().enrich_documents(
-                EnrichmentIndexRequest(
-                    requests=[
-                        EnrichmentRequest(snippet_id="1", text="def hello(): pass")
-                    ]
-                )
+            _server_factory.enricher().enrich(
+                [
+                    EnrichmentRequest(
+                        id="1",
+                        text="def hello(): pass",
+                        system_prompt="Explain this code",
+                    )
+                ]
             )
         )
     except Exception as e:

@@ -27,7 +27,6 @@ from kodit.domain.protocols import (
 )
 from kodit.domain.services.bm25_service import BM25DomainService
 from kodit.domain.services.embedding_service import EmbeddingDomainService
-from kodit.domain.services.enrichment_service import EnrichmentDomainService
 from kodit.domain.services.git_repository_service import (
     GitRepositoryScanner,
     RepositoryCloner,
@@ -41,8 +40,6 @@ from kodit.domain.value_objects import (
     DeleteRequest,
     Document,
     Enrichment,
-    EnrichmentIndexRequest,
-    EnrichmentRequest,
     EnrichmentType,
     IndexRequest,
     LanguageMapping,
@@ -59,6 +56,11 @@ from kodit.infrastructure.sqlalchemy.enrichment_v2_repository import (
     EnrichmentV2Repository,
 )
 from kodit.infrastructure.sqlalchemy.entities import EmbeddingType
+
+SUMMARIZATION_SYSTEM_PROMPT = """
+You are a professional software developer. You will be given a snippet of code.
+Please provide a concise explanation of the code.
+"""
 
 
 class CommitIndexingApplicationService:
@@ -80,7 +82,6 @@ class CommitIndexingApplicationService:
         bm25_service: BM25DomainService,
         code_search_service: EmbeddingDomainService,
         text_search_service: EmbeddingDomainService,
-        enrichment_service: EnrichmentDomainService,
         embedding_repository: SqlAlchemyEmbeddingRepository,
         architecture_service: PhysicalArchitectureService,
         enrichment_v2_repository: EnrichmentV2Repository,
@@ -110,7 +111,6 @@ class CommitIndexingApplicationService:
         self.bm25_service = bm25_service
         self.code_search_service = code_search_service
         self.text_search_service = text_search_service
-        self.enrichment_service = enrichment_service
         self.embedding_repository = embedding_repository
         self.architecture_service = architecture_service
         self.enrichment_v2_repository = enrichment_v2_repository
@@ -480,18 +480,18 @@ class CommitIndexingApplicationService:
                 if snippet.id
             }
 
-            enrichment_request = EnrichmentIndexRequest(
-                requests=[
-                    EnrichmentRequest(snippet_id=snippet_id, text=snippet.content)
-                    for snippet_id, snippet in snippet_map.items()
-                ]
-            )
+            enrichment_requests = [
+                GenericEnrichmentRequest(
+                    id=snippet_id,
+                    text=snippet.content,
+                    system_prompt=SUMMARIZATION_SYSTEM_PROMPT,
+                )
+                for snippet_id, snippet in snippet_map.items()
+            ]
 
             processed = 0
-            async for result in self.enrichment_service.enrich_documents(
-                enrichment_request
-            ):
-                snippet = snippet_map[result.snippet_id]
+            async for result in self.enricher_service.enrich(enrichment_requests):
+                snippet = snippet_map[result.id]
                 snippet.enrichments.append(
                     Enrichment(type=EnrichmentType.SUMMARIZATION, content=result.text)
                 )
