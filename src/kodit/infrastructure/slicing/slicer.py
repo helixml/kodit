@@ -8,14 +8,19 @@ from collections import defaultdict
 from collections.abc import Generator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import Any
 
 import structlog
 from tree_sitter import Node, Parser, Tree
-from tree_sitter_language_pack import get_language
 
 from kodit.domain.entities.git import GitFile, SnippetV2
 from kodit.domain.value_objects import LanguageMapping
+from kodit.infrastructure.slicing.ast_analyzer import (
+    ASTAnalyzer,
+    FunctionDefinition,
+    LanguageConfig,
+    ParsedFile,
+)
 
 
 @dataclass
@@ -43,105 +48,6 @@ class AnalyzerState:
     )
 
 
-class LanguageConfig:
-    """Language-specific configuration."""
-
-    CONFIGS: ClassVar[dict[str, dict[str, Any]]] = {
-        "python": {
-            "function_nodes": ["function_definition"],
-            "method_nodes": [],
-            "call_node": "call",
-            "import_nodes": ["import_statement", "import_from_statement"],
-            "extension": ".py",
-            "name_field": None,  # Use identifier child
-        },
-        "java": {
-            "function_nodes": ["method_declaration"],
-            "method_nodes": [],
-            "call_node": "method_invocation",
-            "import_nodes": ["import_declaration"],
-            "extension": ".java",
-            "name_field": None,
-        },
-        "c": {
-            "function_nodes": ["function_definition"],
-            "method_nodes": [],
-            "call_node": "call_expression",
-            "import_nodes": ["preproc_include"],
-            "extension": ".c",
-            "name_field": "declarator",
-        },
-        "cpp": {
-            "function_nodes": ["function_definition"],
-            "method_nodes": [],
-            "call_node": "call_expression",
-            "import_nodes": ["preproc_include", "using_declaration"],
-            "extension": ".cpp",
-            "name_field": "declarator",
-        },
-        "rust": {
-            "function_nodes": ["function_item"],
-            "method_nodes": [],
-            "call_node": "call_expression",
-            "import_nodes": ["use_declaration", "extern_crate_declaration"],
-            "extension": ".rs",
-            "name_field": "name",
-        },
-        "go": {
-            "function_nodes": ["function_declaration"],
-            "method_nodes": ["method_declaration"],
-            "call_node": "call_expression",
-            "import_nodes": ["import_declaration"],
-            "extension": ".go",
-            "name_field": None,
-        },
-        "javascript": {
-            "function_nodes": [
-                "function_declaration",
-                "function_expression",
-                "arrow_function",
-            ],
-            "method_nodes": [],
-            "call_node": "call_expression",
-            "import_nodes": ["import_statement", "import_declaration"],
-            "extension": ".js",
-            "name_field": None,
-        },
-        "csharp": {
-            "function_nodes": ["method_declaration"],
-            "method_nodes": ["constructor_declaration"],
-            "call_node": "invocation_expression",
-            "import_nodes": ["using_directive"],
-            "extension": ".cs",
-            "name_field": None,
-        },
-        "html": {
-            "function_nodes": ["script_element", "style_element"],
-            "method_nodes": ["element"],  # Elements with id/class attributes
-            "call_node": "attribute",
-            "import_nodes": ["script_element", "element"],  # script and link elements
-            "extension": ".html",
-            "name_field": None,
-        },
-        "css": {
-            "function_nodes": ["rule_set", "keyframes_statement"],
-            "method_nodes": ["media_statement"],
-            "call_node": "call_expression",
-            "import_nodes": ["import_statement"],
-            "extension": ".css",
-            "name_field": None,
-        },
-    }
-
-    # Aliases
-    CONFIGS["c++"] = CONFIGS["cpp"]
-    CONFIGS["typescript"] = CONFIGS["javascript"]
-    CONFIGS["ts"] = CONFIGS["javascript"]
-    CONFIGS["js"] = CONFIGS["javascript"]
-    CONFIGS["c#"] = CONFIGS["csharp"]
-    CONFIGS["cs"] = CONFIGS["csharp"]
-
-
 class Slicer:
     """Slicer that extracts code snippets from files."""
 
@@ -149,7 +55,7 @@ class Slicer:
         """Initialize an empty slicer."""
         self.log = structlog.get_logger(__name__)
 
-    def extract_snippets_from_git_files(  # noqa: C901
+    def extract_snippets_from_git_files(
         self, files: list[GitFile], language: str = "python"
     ) -> list[SnippetV2]:
         """Extract code snippets from a list of files.
@@ -171,24 +77,15 @@ class Slicer:
 
         language = language.lower()
 
-        # Get language configuration
-        if language not in LanguageConfig.CONFIGS:
-            self.log.debug("Skipping", language=language)
+        # Initialize ASTAnalyzer
+        try:
+            analyzer = ASTAnalyzer(language)
+        except ValueError:
+            self.log.debug("Skipping unsupported language", language=language)
             return []
 
-        config = LanguageConfig.CONFIGS[language]
-
-        # Initialize tree-sitter
-        tree_sitter_name = self._get_tree_sitter_language_name(language)
-        try:
-            ts_language = get_language(tree_sitter_name)  # type: ignore[arg-type]
-            parser = Parser(ts_language)
-        except Exception as e:
-            raise RuntimeError(f"Failed to load {language} parser: {e}") from e
-
-        # Create mapping from Paths to File objects and extract paths
+        # Validate files
         path_to_file_map: dict[Path, GitFile] = {}
-        file_paths: list[Path] = []
         for file in files:
             file_path = Path(file.path)
 
@@ -201,30 +98,26 @@ class Slicer:
                 raise FileNotFoundError(f"File not found: {file_path}")
 
             path_to_file_map[file_path] = file
-            file_paths.append(file_path)
 
-        # Initialize state
-        state = AnalyzerState(parser=parser)
-        state.files = file_paths
-        file_contents: dict[Path, str] = {}
+        # Parse files and extract definitions using ASTAnalyzer
+        parsed_files = analyzer.parse_files(files)
+        if not parsed_files:
+            return []
 
-        # Parse all files
-        for file_path in file_paths:
-            try:
-                with file_path.open("rb") as f:
-                    source_code = f.read()
-                tree = state.parser.parse(source_code)
-                state.asts[file_path] = tree
-            except OSError:
-                # Skip files that can't be parsed
-                continue
+        functions, _, _ = analyzer.extract_definitions(
+            parsed_files, include_private=True
+        )
 
-        # Build indexes
-        self._build_definition_and_import_indexes(state, config, language)
+        # Build state from ASTAnalyzer results
+        state = self._build_state_from_ast_analyzer(parsed_files, functions)
+        config = LanguageConfig.CONFIGS[language]
+
+        # Build call graph and snippets (Slicer-specific logic)
         self._build_call_graph(state, config)
         self._build_reverse_call_graph(state)
 
         # Extract snippets for all functions
+        file_contents: dict[Path, str] = {}
         snippets: list[SnippetV2] = []
         for qualified_name in state.def_index:
             snippet_content = self._get_snippet(
@@ -254,55 +147,35 @@ class Slicer:
             # Extension not supported, so it doesn't match any language
             return False
 
-    def _get_tree_sitter_language_name(self, language: str) -> str:
-        """Map user language names to tree-sitter language names."""
-        mapping = {
-            "c++": "cpp",
-            "c": "c",
-            "cpp": "cpp",
-            "java": "java",
-            "rust": "rust",
-            "python": "python",
-            "go": "go",
-            "javascript": "javascript",
-            "typescript": "typescript",
-            "js": "javascript",
-            "ts": "typescript",
-            "csharp": "csharp",
-            "c#": "csharp",
-            "cs": "csharp",
-            "html": "html",
-            "css": "css",
-        }
-        return mapping.get(language, language)
+    def _build_state_from_ast_analyzer(
+        self,
+        parsed_files: list["ParsedFile"],
+        functions: list["FunctionDefinition"],
+    ) -> AnalyzerState:
+        """Build AnalyzerState from ASTAnalyzer results."""
+        # Create a dummy parser (not used for new parsing)
+        from tree_sitter_language_pack import get_language
 
-    def _build_definition_and_import_indexes(
-        self, state: AnalyzerState, config: dict[str, Any], language: str
-    ) -> None:
-        """Build definition and import indexes."""
-        for file_path, tree in state.asts.items():
-            # Build definition index
-            for node in self._walk_tree(tree.root_node):
-                if self._is_function_definition(node, config):
-                    qualified_name = self._qualify_name(
-                        node, file_path, config, language
-                    )
-                    if qualified_name:
-                        span = (node.start_byte, node.end_byte)
-                        state.def_index[qualified_name] = FunctionInfo(
-                            file=file_path,
-                            node=node,
-                            span=span,
-                            qualified_name=qualified_name,
-                        )
+        ts_language = get_language("python")
+        parser = Parser(ts_language)
 
-            # Build import map
-            file_imports = {}
-            for node in self._walk_tree(tree.root_node):
-                if self._is_import_statement(node, config):
-                    imports = self._extract_imports(node)
-                    file_imports.update(imports)
-            state.imports[file_path] = file_imports
+        state = AnalyzerState(parser=parser)
+
+        # Populate files and ASTs from ParsedFile objects
+        for parsed in parsed_files:
+            state.files.append(parsed.path)
+            state.asts[parsed.path] = parsed.tree
+
+        # Populate def_index from FunctionDefinition objects
+        for func_def in functions:
+            state.def_index[func_def.qualified_name] = FunctionInfo(
+                file=func_def.file,
+                node=func_def.node,
+                span=func_def.span,
+                qualified_name=func_def.qualified_name,
+            )
+
+        return state
 
     def _build_call_graph(self, state: AnalyzerState, config: dict[str, Any]) -> None:
         """Build call graph from function definitions."""
@@ -337,214 +210,6 @@ class Slicer:
 
             # Add children to queue
             queue.extend(current.children)
-
-    def _is_function_definition(self, node: Node, config: dict[str, Any]) -> bool:
-        """Check if node is a function definition."""
-        return node.type in (config["function_nodes"] + config["method_nodes"])
-
-    def _is_import_statement(self, node: Node, config: dict[str, Any]) -> bool:
-        """Check if node is an import statement."""
-        return node.type in config["import_nodes"]
-
-    def _extract_function_name(
-        self, node: Node, config: dict[str, Any], language: str
-    ) -> str | None:
-        """Extract function name from a function definition node."""
-        if language == "html":
-            return self._extract_html_element_name(node)
-        if language == "css":
-            return self._extract_css_rule_name(node)
-        if language == "go" and node.type == "method_declaration":
-            return self._extract_go_method_name(node)
-        if language in ["c", "cpp"] and config["name_field"]:
-            return self._extract_c_cpp_function_name(node, config)
-        if language == "rust" and config["name_field"]:
-            return self._extract_rust_function_name(node, config)
-        return self._extract_default_function_name(node)
-
-    def _extract_go_method_name(self, node: Node) -> str | None:
-        """Extract method name from Go method declaration."""
-        for child in node.children:
-            if child.type == "field_identifier" and child.text is not None:
-                return child.text.decode("utf-8")
-        return None
-
-    def _extract_c_cpp_function_name(
-        self, node: Node, config: dict[str, Any]
-    ) -> str | None:
-        """Extract function name from C/C++ function definition."""
-        declarator = node.child_by_field_name(config["name_field"])
-        if not declarator:
-            return None
-
-        if declarator.type == "function_declarator":
-            for child in declarator.children:
-                if child.type == "identifier" and child.text is not None:
-                    return child.text.decode("utf-8")
-        elif declarator.type == "identifier" and declarator.text is not None:
-            return declarator.text.decode("utf-8")
-        return None
-
-    def _extract_rust_function_name(
-        self, node: Node, config: dict[str, Any]
-    ) -> str | None:
-        """Extract function name from Rust function definition."""
-        name_node = node.child_by_field_name(config["name_field"])
-        if name_node and name_node.type == "identifier" and name_node.text is not None:
-            return name_node.text.decode("utf-8")
-        return None
-
-    def _extract_html_element_name(self, node: Node) -> str | None:
-        """Extract meaningful name from HTML element."""
-        if node.type == "script_element":
-            return "script"
-        if node.type == "style_element":
-            return "style"
-        if node.type == "element":
-            return self._extract_html_element_info(node)
-        return None
-
-    def _extract_html_element_info(self, node: Node) -> str | None:
-        """Extract element info with ID or class."""
-        for child in node.children:
-            if child.type == "start_tag":
-                tag_name = self._get_tag_name(child)
-                element_id = self._get_element_id(child)
-                class_name = self._get_element_class(child)
-
-                if element_id:
-                    return f"{tag_name or 'element'}#{element_id}"
-                if class_name:
-                    return f"{tag_name or 'element'}.{class_name}"
-                if tag_name:
-                    return tag_name
-        return None
-
-    def _get_tag_name(self, start_tag: Node) -> str | None:
-        """Get tag name from start_tag node."""
-        for child in start_tag.children:
-            if child.type == "tag_name" and child.text:
-                try:
-                    return child.text.decode("utf-8")
-                except UnicodeDecodeError:
-                    return None
-        return None
-
-    def _get_element_id(self, start_tag: Node) -> str | None:
-        """Get element ID from start_tag node."""
-        return self._get_attribute_value(start_tag, "id")
-
-    def _get_element_class(self, start_tag: Node) -> str | None:
-        """Get first class name from start_tag node."""
-        class_value = self._get_attribute_value(start_tag, "class")
-        return class_value.split()[0] if class_value else None
-
-    def _get_attribute_value(self, start_tag: Node, attr_name: str) -> str | None:
-        """Get attribute value from start_tag node."""
-        for child in start_tag.children:
-            if child.type == "attribute":
-                name = self._get_attr_name(child)
-                if name == attr_name:
-                    return self._get_attr_value(child)
-        return None
-
-    def _get_attr_name(self, attr_node: Node) -> str | None:
-        """Get attribute name."""
-        for child in attr_node.children:
-            if child.type == "attribute_name" and child.text:
-                try:
-                    return child.text.decode("utf-8")
-                except UnicodeDecodeError:
-                    return None
-        return None
-
-    def _get_attr_value(self, attr_node: Node) -> str | None:
-        """Get attribute value."""
-        for child in attr_node.children:
-            if child.type == "quoted_attribute_value":
-                for val_child in child.children:
-                    if val_child.type == "attribute_value" and val_child.text:
-                        try:
-                            return val_child.text.decode("utf-8")
-                        except UnicodeDecodeError:
-                            return None
-        return None
-
-    def _extract_css_rule_name(self, node: Node) -> str | None:
-        """Extract meaningful name from CSS rule."""
-        if node.type == "rule_set":
-            return self._extract_css_selector(node)
-        if node.type == "keyframes_statement":
-            return self._extract_keyframes_name(node)
-        if node.type == "media_statement":
-            return "@media"
-        return None
-
-    def _extract_css_selector(self, rule_node: Node) -> str | None:
-        """Extract CSS selector from rule_set."""
-        for child in rule_node.children:
-            if child.type == "selectors":
-                selector_parts = []
-                for selector_child in child.children:
-                    part = self._get_selector_part(selector_child)
-                    if part:
-                        selector_parts.append(part)
-                if selector_parts:
-                    return "".join(selector_parts[:2])  # First couple selectors
-        return None
-
-    def _get_selector_part(self, selector_node: Node) -> str | None:
-        """Get a single selector part."""
-        if selector_node.type == "class_selector":
-            return self._extract_class_selector(selector_node)
-        if selector_node.type == "id_selector":
-            return self._extract_id_selector(selector_node)
-        if selector_node.type == "type_selector" and selector_node.text:
-            return selector_node.text.decode("utf-8")
-        return None
-
-    def _extract_class_selector(self, node: Node) -> str | None:
-        """Extract class selector name."""
-        for child in node.children:
-            if child.type == "class_name":
-                for name_child in child.children:
-                    if name_child.type == "identifier" and name_child.text:
-                        return f".{name_child.text.decode('utf-8')}"
-        return None
-
-    def _extract_id_selector(self, node: Node) -> str | None:
-        """Extract ID selector name."""
-        for child in node.children:
-            if child.type == "id_name":
-                for name_child in child.children:
-                    if name_child.type == "identifier" and name_child.text:
-                        return f"#{name_child.text.decode('utf-8')}"
-        return None
-
-    def _extract_keyframes_name(self, node: Node) -> str | None:
-        """Extract keyframes animation name."""
-        for child in node.children:
-            if child.type == "keyframes_name" and child.text:
-                return f"@keyframes-{child.text.decode('utf-8')}"
-        return None
-
-    def _extract_default_function_name(self, node: Node) -> str | None:
-        """Extract function name using default identifier search."""
-        for child in node.children:
-            if child.type == "identifier" and child.text is not None:
-                return child.text.decode("utf-8")
-        return None
-
-    def _qualify_name(
-        self, node: Node, file_path: Path, config: dict[str, Any], language: str
-    ) -> str | None:
-        """Create qualified name for a function node."""
-        function_name = self._extract_function_name(node, config, language)
-        if not function_name:
-            return None
-
-        module_name = file_path.stem
-        return f"{module_name}.{function_name}"
 
     def _get_file_content(self, file_path: Path, file_contents: dict[Path, str]) -> str:
         """Get cached file content."""
