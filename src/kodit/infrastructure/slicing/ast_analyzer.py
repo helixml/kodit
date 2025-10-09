@@ -6,13 +6,112 @@ This module provides language-agnostic AST parsing and analysis using tree-sitte
 from collections.abc import Generator
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, ClassVar
 
 import structlog
 from tree_sitter import Node, Parser, Tree
 from tree_sitter_language_pack import get_language
 
 from kodit.domain.entities.git import GitFile
-from kodit.infrastructure.slicing.slicer import LanguageConfig
+
+
+class LanguageConfig:
+    """Language-specific configuration."""
+
+    CONFIGS: ClassVar[dict[str, dict[str, Any]]] = {
+        "python": {
+            "function_nodes": ["function_definition"],
+            "method_nodes": [],
+            "call_node": "call",
+            "import_nodes": ["import_statement", "import_from_statement"],
+            "extension": ".py",
+            "name_field": None,  # Use identifier child
+        },
+        "java": {
+            "function_nodes": ["method_declaration"],
+            "method_nodes": [],
+            "call_node": "method_invocation",
+            "import_nodes": ["import_declaration"],
+            "extension": ".java",
+            "name_field": None,
+        },
+        "c": {
+            "function_nodes": ["function_definition"],
+            "method_nodes": [],
+            "call_node": "call_expression",
+            "import_nodes": ["preproc_include"],
+            "extension": ".c",
+            "name_field": "declarator",
+        },
+        "cpp": {
+            "function_nodes": ["function_definition"],
+            "method_nodes": [],
+            "call_node": "call_expression",
+            "import_nodes": ["preproc_include", "using_declaration"],
+            "extension": ".cpp",
+            "name_field": "declarator",
+        },
+        "rust": {
+            "function_nodes": ["function_item"],
+            "method_nodes": [],
+            "call_node": "call_expression",
+            "import_nodes": ["use_declaration", "extern_crate_declaration"],
+            "extension": ".rs",
+            "name_field": "name",
+        },
+        "go": {
+            "function_nodes": ["function_declaration"],
+            "method_nodes": ["method_declaration"],
+            "call_node": "call_expression",
+            "import_nodes": ["import_declaration"],
+            "extension": ".go",
+            "name_field": None,
+        },
+        "javascript": {
+            "function_nodes": [
+                "function_declaration",
+                "function_expression",
+                "arrow_function",
+            ],
+            "method_nodes": [],
+            "call_node": "call_expression",
+            "import_nodes": ["import_statement", "import_declaration"],
+            "extension": ".js",
+            "name_field": None,
+        },
+        "csharp": {
+            "function_nodes": ["method_declaration"],
+            "method_nodes": ["constructor_declaration"],
+            "call_node": "invocation_expression",
+            "import_nodes": ["using_directive"],
+            "extension": ".cs",
+            "name_field": None,
+        },
+        "html": {
+            "function_nodes": ["script_element", "style_element"],
+            "method_nodes": ["element"],  # Elements with id/class attributes
+            "call_node": "attribute",
+            "import_nodes": ["script_element", "element"],  # script and link elements
+            "extension": ".html",
+            "name_field": None,
+        },
+        "css": {
+            "function_nodes": ["rule_set", "keyframes_statement"],
+            "method_nodes": ["media_statement"],
+            "call_node": "call_expression",
+            "import_nodes": ["import_statement"],
+            "extension": ".css",
+            "name_field": None,
+        },
+    }
+
+    # Aliases
+    CONFIGS["c++"] = CONFIGS["cpp"]
+    CONFIGS["typescript"] = CONFIGS["javascript"]
+    CONFIGS["ts"] = CONFIGS["javascript"]
+    CONFIGS["js"] = CONFIGS["javascript"]
+    CONFIGS["c#"] = CONFIGS["csharp"]
+    CONFIGS["cs"] = CONFIGS["csharp"]
 
 
 @dataclass
@@ -144,9 +243,15 @@ class ASTAnalyzer:
         types = []
 
         for parsed in parsed_files:
-            functions.extend(self._extract_functions(parsed, include_private))
-            classes.extend(self._extract_classes(parsed, include_private))
-            types.extend(self._extract_types(parsed, include_private))
+            functions.extend(
+                self._extract_functions(parsed, include_private=include_private)
+            )
+            classes.extend(
+                self._extract_classes(parsed, include_private=include_private)
+            )
+            types.extend(
+                self._extract_types(parsed, include_private=include_private)
+            )
 
         return functions, classes, types
 
@@ -164,10 +269,18 @@ class ASTAnalyzer:
             constants = []
 
             for parsed in module_files:
-                functions.extend(self._extract_functions(parsed, include_private))
-                classes.extend(self._extract_classes(parsed, include_private))
-                types.extend(self._extract_types(parsed, include_private))
-                constants.extend(self._extract_constants(parsed, include_private))
+                functions.extend(
+                    self._extract_functions(parsed, include_private=include_private)
+                )
+                classes.extend(
+                    self._extract_classes(parsed, include_private=include_private)
+                )
+                types.extend(
+                    self._extract_types(parsed, include_private=include_private)
+                )
+                constants.extend(
+                    self._extract_constants(parsed, include_private=include_private)
+                )
 
             module_doc = self._extract_module_docstring(module_files)
 
@@ -410,7 +523,7 @@ class ASTAnalyzer:
         return f"{module_name}.{function_name}"
 
     def _extract_functions(
-        self, parsed: ParsedFile, include_private: bool
+        self, parsed: ParsedFile, *, include_private: bool
     ) -> list[FunctionDefinition]:
         """Extract function definitions from a parsed file."""
         functions = []
@@ -453,21 +566,24 @@ class ASTAnalyzer:
         return functions
 
     def _extract_classes(
-        self, parsed: ParsedFile, include_private: bool
+        self, parsed: ParsedFile, *, include_private: bool
     ) -> list[ClassDefinition]:
         """Extract class definitions with their methods."""
+        _ = parsed, include_private  # Mark as intentionally unused for now
         return []
 
     def _extract_types(
-        self, parsed: ParsedFile, include_private: bool
+        self, parsed: ParsedFile, *, include_private: bool
     ) -> list[TypeDefinition]:
         """Extract type definitions (enums, interfaces, type aliases, structs)."""
+        _ = parsed, include_private  # Mark as intentionally unused for now
         return []
 
     def _extract_constants(
-        self, parsed: ParsedFile, include_private: bool
+        self, parsed: ParsedFile, *, include_private: bool
     ) -> list[tuple[str, Node]]:
         """Extract public constants."""
+        _ = parsed, include_private  # Mark as intentionally unused for now
         return []
 
     def _group_by_module(
@@ -486,10 +602,12 @@ class ASTAnalyzer:
         self, module_files: list[ParsedFile]
     ) -> str | None:
         """Extract module-level documentation."""
+        _ = module_files  # Mark as intentionally unused for now
         return None
 
     def _is_public(self, node: Node, name: str) -> bool:
         """Determine if a definition is public based on language conventions."""
+        _ = node  # Mark as intentionally unused for now
         if self.language == "python":
             return not name.startswith("_")
         if self.language == "go":
@@ -498,16 +616,20 @@ class ASTAnalyzer:
 
     def _extract_docstring(self, node: Node) -> str | None:
         """Extract documentation comment for a definition."""
+        _ = node  # Mark as intentionally unused for now
         return None
 
     def _extract_parameters(self, node: Node) -> list[str]:
         """Extract parameter names from a function definition."""
+        _ = node  # Mark as intentionally unused for now
         return []
 
     def _extract_return_type(self, node: Node) -> str | None:
         """Extract return type from a function definition."""
+        _ = node  # Mark as intentionally unused for now
         return None
 
     def _is_method(self, node: Node) -> bool:
         """Check if a function is a method (inside a class)."""
+        _ = node  # Mark as intentionally unused for now
         return False

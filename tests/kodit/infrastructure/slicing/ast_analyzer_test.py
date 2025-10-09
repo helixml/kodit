@@ -1,7 +1,9 @@
 """Tests for ASTAnalyzer."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
+
+import pytest
 
 from kodit.domain.entities.git import GitFile
 from kodit.infrastructure.slicing.ast_analyzer import ASTAnalyzer
@@ -16,11 +18,8 @@ def test_ast_analyzer_initialization() -> None:
 
 def test_ast_analyzer_unsupported_language() -> None:
     """Test that ASTAnalyzer raises error for unsupported language."""
-    try:
+    with pytest.raises(ValueError, match="Unsupported language"):
         ASTAnalyzer("invalid_lang")
-        raise AssertionError("Should have raised ValueError")
-    except ValueError as e:
-        assert "Unsupported language" in str(e)
 
 
 def test_parse_files_with_python_file(tmp_path: Path) -> None:
@@ -32,7 +31,7 @@ def test_parse_files_with_python_file(tmp_path: Path) -> None:
     # Create GitFile entity
     git_file = GitFile(
         path=str(test_file),
-        created_at=datetime(2024, 1, 1),
+        created_at=datetime(2024, 1, 1, tzinfo=UTC),
         blob_sha="test123",
         mime_type="text/x-python",
         size=100,
@@ -66,7 +65,7 @@ def public_func():
 
     git_file = GitFile(
         path=str(test_file),
-        created_at=datetime(2024, 1, 1),
+        created_at=datetime(2024, 1, 1, tzinfo=UTC),
         blob_sha="test123",
         mime_type="text/x-python",
         size=100,
@@ -100,7 +99,7 @@ def _private_func():
 
     git_file = GitFile(
         path=str(test_file),
-        created_at=datetime(2024, 1, 1),
+        created_at=datetime(2024, 1, 1, tzinfo=UTC),
         blob_sha="test123",
         mime_type="text/x-python",
         size=100,
