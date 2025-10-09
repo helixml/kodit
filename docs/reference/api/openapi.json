@@ -2102,7 +2102,8 @@
           "kodit.commit.create_code_embeddings",
           "kodit.commit.create_summary_enrichment",
           "kodit.commit.create_summary_embeddings",
-          "kodit.commit.create_architecture_enrichment"
+          "kodit.commit.create_architecture_enrichment",
+          "kodit.commit.create_public_api_docs"
         ],
         "title": "TaskOperation",
         "description": "Task operation."

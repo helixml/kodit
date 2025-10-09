@@ -15,6 +15,8 @@ from kodit.domain.enrichments.enricher import Enricher
 from kodit.domain.enrichments.request import (
     EnrichmentRequest as GenericEnrichmentRequest,
 )
+from kodit.domain.enrichments.usage.api_docs import ENRICHMENT_SUBTYPE_API_DOCS
+from kodit.domain.enrichments.usage.usage import ENRICHMENT_TYPE_USAGE
 from kodit.domain.entities import Task
 from kodit.domain.entities.git import GitFile, GitRepo, SnippetV2
 from kodit.domain.factories.git_repo_factory import GitRepoFactory
@@ -48,6 +50,7 @@ from kodit.domain.value_objects import (
     TaskOperation,
     TrackableType,
 )
+from kodit.infrastructure.slicing.api_doc_extractor import APIDocExtractor
 from kodit.infrastructure.slicing.slicer import Slicer
 from kodit.infrastructure.sqlalchemy.embedding_repository import (
     SqlAlchemyEmbeddingRepository,
@@ -176,6 +179,8 @@ class CommitIndexingApplicationService:
                 await self.process_summary_embeddings(repository_id, commit_sha)
             elif task.type == TaskOperation.CREATE_ARCHITECTURE_ENRICHMENT_FOR_COMMIT:
                 await self.process_architecture_discovery(repository_id, commit_sha)
+            elif task.type == TaskOperation.CREATE_PUBLIC_API_DOCS_FOR_COMMIT:
+                await self.process_api_docs(repository_id, commit_sha)
             else:
                 raise ValueError(f"Unknown task type: {task.type}")
         else:
@@ -615,6 +620,63 @@ class CommitIndexingApplicationService:
             )
 
             await step.set_current(3, "Architecture enrichment completed")
+
+    async def process_api_docs(self, repository_id: int, commit_sha: str) -> None:
+        """Handle API_DOCS task - generate API documentation."""
+        async with self.operation.create_child(
+            TaskOperation.CREATE_PUBLIC_API_DOCS_FOR_COMMIT,
+            trackable_type=TrackableType.KODIT_REPOSITORY,
+            trackable_id=repository_id,
+        ) as step:
+            # Check if API docs already exist for this commit
+            existing_enrichments = (
+                await self.enrichment_v2_repository.enrichments_for_entity_type(
+                    entity_type="git_commit",
+                    entity_ids=[commit_sha],
+                )
+            )
+
+            has_api_docs = any(
+                e.type == ENRICHMENT_TYPE_USAGE
+                and e.subtype == ENRICHMENT_SUBTYPE_API_DOCS
+                for e in existing_enrichments
+            )
+
+            if has_api_docs:
+                await step.skip("API docs already exist for commit")
+                return
+
+            commit = await self.git_commit_repository.get_by_sha(commit_sha)
+
+            # Group files by language
+            lang_files_map: dict[str, list[GitFile]] = defaultdict(list)
+            for file in commit.files:
+                try:
+                    lang = LanguageMapping.get_language_for_extension(file.extension)
+                except ValueError:
+                    continue
+                lang_files_map[lang].append(file)
+
+            all_enrichments = []
+            extractor = APIDocExtractor()
+
+            await step.set_total(len(lang_files_map))
+            for i, (lang, lang_files) in enumerate(lang_files_map.items()):
+                await step.set_current(i, f"Extracting API docs for {lang}")
+                enrichments = extractor.extract_api_docs(
+                    lang_files, lang, include_private=False
+                )
+                all_enrichments.extend(enrichments)
+
+            # Save all enrichments
+            if all_enrichments:
+                # Set entity_id to commit_sha for all enrichments
+                for enrichment in all_enrichments:
+                    enrichment.entity_id = commit_sha
+
+                await self.enrichment_v2_repository.bulk_save_enrichments(
+                    all_enrichments
+                )
 
     async def _new_snippets_for_type(
         self, all_snippets: list[SnippetV2], embedding_type: EmbeddingType

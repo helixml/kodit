@@ -262,7 +262,7 @@ class ASTAnalyzer:
         modules = self._group_by_module(parsed_files)
 
         result = []
-        for module_path, module_files in modules.items():
+        for module_files in modules.values():
             functions = []
             classes = []
             types = []
@@ -283,6 +283,9 @@ class ASTAnalyzer:
                 )
 
             module_doc = self._extract_module_docstring(module_files)
+
+            # Extract the actual module path from the file using Tree-sitter
+            module_path = self._extract_module_path(module_files[0])
 
             result.append(
                 ModuleDefinition(
@@ -589,14 +592,59 @@ class ASTAnalyzer:
     def _group_by_module(
         self, parsed_files: list[ParsedFile]
     ) -> dict[str, list[ParsedFile]]:
-        """Group files by module based on language conventions."""
+        """Create one module per file.
+
+        Each file becomes its own module with a unique key.
+        The module_path is extracted separately for display purposes.
+        """
         modules: dict[str, list[ParsedFile]] = {}
-        for parsed in parsed_files:
-            module_path = parsed.path.stem
-            if module_path not in modules:
-                modules[module_path] = []
-            modules[module_path].append(parsed)
+        for idx, parsed in enumerate(parsed_files):
+            # Use file path + index as unique key to prevent collisions
+            # The actual module_path for display is extracted later
+            unique_key = f"{parsed.path}#{idx}"
+            modules[unique_key] = [parsed]
         return modules
+
+    def _extract_module_path(self, parsed: ParsedFile) -> str:
+        """Extract module/package path based on language conventions.
+
+        Uses Tree-sitter to parse package declarations from source code.
+        For languages without explicit package declarations (like Python),
+        falls back to using the filename stem.
+        """
+        if self.language == "go":
+            return self._extract_go_package_name(parsed)
+        if self.language == "java":
+            return self._extract_java_package_name(parsed)
+        # Default: use file stem (no package info in AST)
+        return parsed.path.stem
+
+    def _extract_go_package_name(self, parsed: ParsedFile) -> str:
+        """Extract Go package name from package declaration."""
+        root = parsed.tree.root_node
+        for child in root.children:
+            if child.type == "package_clause":
+                for package_child in child.children:
+                    if (
+                        package_child.type == "package_identifier"
+                        and package_child.text
+                    ):
+                        return package_child.text.decode("utf-8")
+        # Fallback to file stem
+        return parsed.path.stem
+
+    def _extract_java_package_name(self, parsed: ParsedFile) -> str:
+        """Extract Java package name from package declaration."""
+        root = parsed.tree.root_node
+        for child in root.children:
+            if child.type == "package_declaration":
+                for package_child in child.children:
+                    if package_child.type == "scoped_identifier" and package_child.text:
+                        return package_child.text.decode("utf-8")
+                    if package_child.type == "identifier" and package_child.text:
+                        return package_child.text.decode("utf-8")
+        # Fallback to file stem
+        return parsed.path.stem
 
     def _extract_module_docstring(
         self, module_files: list[ParsedFile]

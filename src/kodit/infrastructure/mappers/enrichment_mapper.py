@@ -13,6 +13,11 @@ from kodit.domain.enrichments.development.snippet.snippet import (
     SnippetEnrichment,
 )
 from kodit.domain.enrichments.enrichment import EnrichmentV2
+from kodit.domain.enrichments.usage.api_docs import (
+    ENRICHMENT_SUBTYPE_API_DOCS,
+    APIDocEnrichment,
+)
+from kodit.domain.enrichments.usage.usage import ENRICHMENT_TYPE_USAGE
 from kodit.infrastructure.sqlalchemy import entities as db_entities
 
 
@@ -44,6 +49,17 @@ class EnrichmentMapper:
             and db_enrichment.subtype == ENRICHMENT_SUBTYPE_SNIPPET_SUMMARY
         ):
             return SnippetEnrichment(
+                id=db_enrichment.id,
+                entity_id=entity_id,
+                content=db_enrichment.content,
+                created_at=db_enrichment.created_at,
+                updated_at=db_enrichment.updated_at,
+            )
+        if (
+            db_enrichment.type == ENRICHMENT_TYPE_USAGE
+            and db_enrichment.subtype == ENRICHMENT_SUBTYPE_API_DOCS
+        ):
+            return APIDocEnrichment(
                 id=db_enrichment.id,
                 entity_id=entity_id,
                 content=db_enrichment.content,
