@@ -2,19 +2,29 @@
 
 ## Overview
 
-This document describes the refactoring of the existing `Slicer` class to extract common AST parsing and analysis logic into a reusable `ASTAnalyzer` component. This refactoring will enable future features (like API documentation extraction) to leverage the same parsing infrastructure while maintaining clean separation of concerns.
+This document describes the refactoring of the existing `Slicer` class to extract common AST parsing and analysis logic into a reusable `ASTAnalyzer` component. The Slicer currently uses tree-sitter for multi-language parsing, and this refactoring will make that infrastructure reusable for features like API documentation extraction and module hierarchy analysis while maintaining clean separation of concerns.
 
 ## Motivation
 
 The current `Slicer` class (`src/kodit/infrastructure/slicing/slicer.py`) performs multiple responsibilities:
 1. **Parsing**: Parse files with tree-sitter, build AST trees
-2. **Definition extraction**: Find functions, classes, and types in the AST
-3. **Call graph analysis**: Build function call relationships
+2. **Definition extraction**: Walk AST using tree-sitter queries to find functions, classes, and types
+3. **Call graph analysis**: Build function call relationships by traversing AST nodes
 4. **Snippet generation**: Create code snippets with dependencies
 
+**Current Implementation:**
+
+The Slicer uses tree-sitter for language-agnostic parsing across Python, Go, Java, C/C++, Rust, JavaScript/TypeScript, C#, HTML, and CSS. It traverses ASTs using:
+
+- `_walk_tree()`: Queue-based AST traversal that yields all nodes (src/kodit/infrastructure/slicing/slicer.py:321)
+- `child_by_field_name()`: Named field access for extracting specific parts of definitions
+- `LanguageConfig.CONFIGS`: Language-specific node type mappings (e.g., `function_nodes`, `method_nodes`, `call_node`)
+- Pattern matching on node types to identify definitions, calls, and imports
+
 **Problems:**
-- Parsing logic is tightly coupled with snippet generation
-- Cannot reuse parsing infrastructure for other use cases (e.g., API documentation)
+
+- Parsing and AST traversal logic is tightly coupled with snippet generation
+- Cannot reuse parsing infrastructure for other use cases (e.g., API documentation, module hierarchy extraction)
 - Adding new languages requires modifying the large Slicer class
 - Testing parsing separately from snippet logic is difficult
 
@@ -24,10 +34,62 @@ Extract parsing and definition extraction (items 1-2) into a shared `ASTAnalyzer
 ## Goals
 
 1. **Extract reusable parsing infrastructure** - Create `ASTAnalyzer` that can be used by multiple consumers
-2. **Maintain backward compatibility** - Existing snippet extraction must continue to work without changes
-3. **Improve testability** - Enable testing parsing logic independently from snippet generation
-4. **Enable future features** - Provide foundation for API documentation and other AST-based features
+2. **Support multiple use cases** - Enable API documentation extraction, module hierarchy analysis, and future AST-based features
+3. **Maintain backward compatibility** - Existing snippet extraction must continue to work without changes
+4. **Improve testability** - Enable testing parsing logic independently from snippet generation
 5. **Preserve language support** - All currently supported languages must continue to work
+6. **Reuse existing code** - Prefer Extract Method and Extract Class refactorings from Slicer over writing new implementations
+
+## Use Cases
+
+The refactored `ASTAnalyzer` will enable multiple use cases beyond snippet generation:
+
+### 1. API Documentation Extraction (Primary)
+
+Extract public API signatures from library code to provide AI assistants with searchable interface documentation:
+
+- **Input**: Library source files (e.g., Python package, Go module)
+- **Output**: Module-level enrichments with public functions, classes, types, and their signatures
+- **Usage**: `extract_module_definitions(parsed_files, include_private=False)`
+- **Consumer**: New `APIDocExtractor` service
+
+### 2. Module Hierarchy Extraction (Secondary)
+
+Analyze project structure by extracting module organization and relationships:
+
+- **Input**: All source files in a project
+- **Output**: Tree structure showing packages/modules, their public exports, and hierarchical relationships
+- **Use cases**:
+  - Project structure visualization and navigation
+  - Identifying public API surface area
+  - Understanding module dependencies and import relationships
+  - Generating architecture diagrams from code structure
+  - Helping AI assistants understand codebase organization
+- **Usage**: `extract_module_definitions()` to get module hierarchy with exports
+- **Example output**: For a Python package `mylib/` with `processor.py`, `models.py`, and `utils/helpers.py`:
+  ```
+  mylib/
+    ├── processor (public: process_data, DataProcessor)
+    ├── models (public: User, Order, BaseModel)
+    └── utils/
+        └── helpers (public: format_output, validate_input)
+  ```
+
+### 3. Code Snippet Generation (Existing)
+
+Current use case - generate code snippets with dependencies:
+
+- **Input**: Source files to analyze
+- **Output**: Snippets containing functions with their call dependencies
+- **Usage**: `extract_definitions(parsed_files, include_private=True)`
+- **Consumer**: Existing `Slicer` class
+
+### 4. Future Use Cases (Enabled by Refactoring)
+
+- **Code quality analysis**: Detect unused public APIs, identify large classes
+- **Refactoring assistance**: Find all references to a definition across modules
+- **Symbol navigation**: Build indexes for IDE-like "go to definition" features
+- **Documentation completeness**: Check which public APIs lack docstrings
 
 ## Non-Goals
 
@@ -35,6 +97,7 @@ Extract parsing and definition extraction (items 1-2) into a shared `ASTAnalyzer
 - Adding new languages (can be done after refactoring)
 - Modifying the existing `LanguageConfig` structure
 - Changes to public APIs or domain entities
+- Implementing tree-sitter query language (continue using node traversal and type matching)
 
 ## Design
 
@@ -166,7 +229,8 @@ class ASTAnalyzer:
 
     Parses files with tree-sitter and extracts structured information about
     definitions (functions, classes, types). Used by both Slicer (for code
-    snippets) and other consumers (e.g., API documentation extraction).
+    snippets) and other consumers (e.g., API documentation extraction, module
+    hierarchy analysis).
 
     Responsibilities:
     - Parse files into AST trees
@@ -180,6 +244,13 @@ class ASTAnalyzer:
     - Dependency tracking
     - Snippet generation
     - Output formatting
+
+    Implementation strategy:
+    - Extract methods from existing Slicer code using Martin Fowler refactorings
+    - Reuse _walk_tree() (slicer.py:321), _extract_function_name() (slicer.py:349),
+      and _is_function_definition() (slicer.py:341)
+    - Preserve existing LanguageConfig structure (slicer.py:46-143)
+    - No new tree-sitter query language - continue using imperative node traversal
     """
 
     def __init__(self, language: str):
@@ -319,13 +390,16 @@ class ASTAnalyzer:
     ) -> dict[str, list[ParsedFile]]:
         """Group files by module based on language conventions.
 
-        Language-specific grouping:
-        - Python: one file = one module, use file path as module path
-        - Go: files with same package = one module, use package path
-        - Java/C#: files with same namespace = one module
-        - TypeScript/JavaScript: one file = one module
-        - Rust: handle mod.rs and submodules
+        Uses tree-sitter to extract module/package declarations:
+        - Python: one file = one module, derive from file path
+        - Go: parse package declarations (package statement), group by package name
+        - Java/C#: parse package/namespace declarations, group by namespace
+        - TypeScript/JavaScript: one file = one module, handle export statements
+        - Rust: parse mod declarations, handle mod.rs hierarchy
         - C/C++: one header = one module
+
+        For languages like Go and Java, this walks the AST to find package/namespace
+        declaration nodes using tree-sitter node type checks.
         """
         # Implementation depends on language
         pass
@@ -336,8 +410,18 @@ class ASTAnalyzer:
         """Extract function definitions from a parsed file.
 
         Walks the AST and finds nodes matching function_nodes or method_nodes
-        from LanguageConfig. Extracts name, parameters, docstring, and determines
-        visibility.
+        from LanguageConfig. Uses tree-sitter node traversal and field access:
+        - _walk_tree() to iterate over all nodes (extracted from slicer.py:321)
+        - node.type checks against config["function_nodes"] (slicer.py:341)
+        - child_by_field_name() for language-specific field extraction
+        - Pattern matching on node types to identify parameters, return types
+
+        Implementation approach:
+        - Extract Method refactoring on Slicer._build_definition_and_import_indexes()
+          (slicer.py:279-305)
+        - Reuse Slicer._extract_function_name() (slicer.py:349) and language-specific
+          extractors (_extract_go_method_name, _extract_c_cpp_function_name, etc.)
+        - Reuse Slicer._qualify_name() (slicer.py:538) for building qualified names
         """
         pass
 
@@ -380,26 +464,34 @@ class ASTAnalyzer:
     def _is_public(self, node: Node, name: str) -> bool:
         """Determine if a definition is public based on language conventions.
 
-        Language-specific rules:
+        Language-specific visibility rules:
         - Python: no leading underscore, or in __all__
         - Go: capitalized first letter
-        - Java/C#: public/protected modifiers
-        - TypeScript/JavaScript: exported
-        - Rust: pub modifier
-        - C/C++: in header file (not static)
+        - Java/C#: check for public/protected modifiers via child nodes
+        - TypeScript/JavaScript: check for export keyword via parent/sibling nodes
+        - Rust: check for pub modifier via child nodes
+        - C/C++: assume public (slicer currently doesn't filter C/C++)
+
+        Implementation: Walk node children and check for modifier keywords based
+        on language. For Python and Go, use simple name pattern matching.
         """
         pass
 
     def _extract_docstring(self, node: Node) -> str | None:
         """Extract documentation comment for a definition.
 
+        Uses tree-sitter node traversal to find documentation:
+        - Walks children to find comment or string_literal nodes
+        - Checks node positions relative to definition (before or after)
+        - Filters by comment type (line vs block, doc vs regular)
+
         Language-specific formats:
-        - Python: docstrings (strings immediately after def/class)
-        - Go: comments immediately before declaration
-        - Java: Javadoc comments
-        - TypeScript: JSDoc comments
-        - Rust: doc comments (///)
-        - C/C++: Doxygen comments
+        - Python: string_literal immediately after def/class (first statement)
+        - Go: comment nodes immediately before declaration
+        - Java: Javadoc comments (/** */) before declaration
+        - TypeScript: JSDoc comments (/** */) before declaration
+        - Rust: doc comment nodes (///) before declaration
+        - C/C++: Doxygen-style comments before declaration
         """
         pass
 
@@ -427,9 +519,22 @@ class ASTAnalyzer:
     def _walk_tree(self, node: Node) -> Generator[Node, None, None]:
         """Walk the AST tree, yielding all nodes.
 
-        Reuse the existing implementation from Slicer.
+        Uses queue-based traversal to avoid recursion issues.
+        This method will be extracted from Slicer._walk_tree() using
+        the Extract Method refactoring.
         """
-        pass
+        queue = [node]
+        visited: set[int] = set()
+
+        while queue:
+            current = queue.pop(0)
+            node_id = id(current)
+            if node_id in visited:
+                continue
+            visited.add(node_id)
+
+            yield current
+            queue.extend(current.children)
 ```
 
 ### Refactored Slicer
@@ -584,26 +689,33 @@ class Slicer:
 
 ### Phase 2: Implement ASTAnalyzer Core
 - [ ] Implement `ASTAnalyzer.__init__` (language initialization)
-- [ ] Implement `parse_files()` method
-- [ ] Implement `_get_tree_sitter_name()` helper
-- [ ] Implement `_walk_tree()` helper (move from Slicer)
+- [ ] Implement `parse_files()` method (extract from Slicer.extract_snippets_from_git_files)
+- [ ] Implement `_get_tree_sitter_name()` helper (extract from Slicer)
+- [ ] Implement `_walk_tree()` helper (extract from Slicer using Extract Method refactoring)
 - [ ] Add tests for parsing
 
 ### Phase 3: Implement Definition Extraction
-- [ ] Implement `_extract_functions()` for Python
-- [ ] Implement `_extract_classes()` for Python
-- [ ] Implement `_extract_types()` for Python
-- [ ] Implement `_is_public()` for Python
-- [ ] Implement `_extract_docstring()` for Python
+- [ ] Implement `_extract_functions()` by extracting logic from Slicer._build_definition_and_import_indexes (slicer.py:279-305)
+- [ ] Move Slicer._extract_function_name() and related methods to ASTAnalyzer using Move Method refactoring
+- [ ] Implement `_extract_classes()` using tree-sitter node type checks for class definitions
+- [ ] Implement `_extract_types()` for enum, interface, struct definitions
+- [ ] Implement `_is_public()` with language-specific visibility rules
+- [ ] Implement `_extract_docstring()` by walking AST for documentation nodes
 - [ ] Implement `extract_definitions()` public method
-- [ ] Add tests for Python definition extraction
+- [ ] Add tests for all supported languages (Python, Go, Java, C/C++, Rust, JS/TS, C#)
 
 ### Phase 4: Implement Module Grouping
-- [ ] Implement `_group_by_module()` for Python (one file = one module)
-- [ ] Implement `_extract_constants()` for Python
-- [ ] Implement `_extract_module_docstring()` for Python
+- [ ] Implement `_group_by_module()` with language-specific grouping logic:
+  - Python: one file = one module (derive from file path)
+  - Go: parse package declarations and group by package name
+  - Java/C#: parse namespace declarations
+  - TypeScript/JavaScript: one file = one module
+  - Rust: parse mod declarations
+  - C/C++: one header file = one module
+- [ ] Implement `_extract_constants()` for module-level constants
+- [ ] Implement `_extract_module_docstring()` for module documentation
 - [ ] Implement `extract_module_definitions()` public method
-- [ ] Add tests for module extraction
+- [ ] Add tests for module hierarchy extraction across languages
 
 ### Phase 5: Refactor Slicer
 - [ ] Update Slicer to use ASTAnalyzer for parsing
@@ -612,12 +724,12 @@ class Slicer:
 - [ ] Ensure all existing Slicer tests pass
 - [ ] Run integration tests for snippet extraction
 
-### Phase 6: Add More Languages
-- [ ] Implement definition extraction for Go
-- [ ] Implement definition extraction for TypeScript
-- [ ] Implement definition extraction for Java
-- [ ] Add language-specific tests
-- [ ] Ensure all existing language tests pass
+### Phase 6: Extend Language Support
+- [ ] Verify ASTAnalyzer works for all existing languages (Python, Go, Java, C/C++, Rust, JS/TS, C#, HTML, CSS)
+- [ ] Add language-specific definition extraction where needed (classes, types, constants)
+- [ ] Implement language-specific module grouping (Go packages, Java namespaces, etc.)
+- [ ] Add comprehensive tests for each language
+- [ ] Ensure all existing Slicer language tests pass
 
 ### Phase 7: Documentation and Cleanup
 - [ ] Add docstrings to all ASTAnalyzer methods
@@ -677,18 +789,73 @@ class Slicer:
 | Language-specific edge cases | Thorough testing per language, incremental approach |
 | Increased complexity | Clear separation of concerns, good documentation |
 
+## Tree-Sitter Usage Patterns
+
+The `ASTAnalyzer` uses tree-sitter's Python bindings to parse and traverse ASTs across all supported languages (Python, Go, Java, C/C++, Rust, JavaScript/TypeScript, C#, HTML, CSS). Key patterns used:
+
+### Parsing
+```python
+parser = Parser(get_language("python"))
+tree = parser.parse(source_bytes)
+```
+
+### AST Traversal
+```python
+# Queue-based traversal (existing pattern from Slicer)
+for node in self._walk_tree(tree.root_node):
+    if node.type == "function_definition":
+        # Process function node
+```
+
+### Node Inspection
+```python
+# Check node type
+if node.type in config["function_nodes"]:
+
+# Access named fields (language-specific)
+name_node = node.child_by_field_name("name")
+params_node = node.child_by_field_name("parameters")
+
+# Iterate children
+for child in node.children:
+    if child.type == "identifier":
+        name = child.text.decode("utf-8")
+
+# Get source location
+start_byte, end_byte = node.start_byte, node.end_byte
+```
+
+### Pattern Matching
+```python
+# Language-agnostic pattern using LanguageConfig
+if node.type in config["function_nodes"] + config["method_nodes"]:
+    # Extract function regardless of language
+```
+
+**Note**: We do NOT use tree-sitter's query language (S-expressions). Instead, we use imperative node traversal and pattern matching, as this approach:
+- Works with the existing LanguageConfig structure (slicer.py:46-143)
+- Is easier to debug and test
+- Provides more control over extraction logic
+- Matches the current implementation patterns in Slicer
+- Allows reuse of existing code through standard refactoring techniques
+
 ## Future Enhancements (Not in Scope)
 
 After this refactoring is complete, ASTAnalyzer will enable:
-- API documentation extraction (separate design doc)
-- Code quality analysis
-- Automated refactoring tools
-- Symbol navigation features
-- Other AST-based features
+
+- **API documentation extraction** (see [api-docs-enrichment.md](./api-docs-enrichment.md)) - Extract public API signatures from library code for AI assistant search
+- **Module hierarchy extraction** - Visualize project structure, understand module organization, identify public API surface
+- **Code quality analysis** - Detect unused public APIs, overly complex functions, missing documentation
+- **Automated refactoring tools** - Find all references to a definition, rename symbols across files
+- **Symbol navigation features** - Build indexes for IDE-like "go to definition" and "find references"
+- **Dependency analysis** - Understand import relationships and module coupling
+- **Other AST-based features** - Any feature requiring structured code analysis across languages
 
 ## References
 
-- Existing Slicer implementation: `src/kodit/infrastructure/slicing/slicer.py`
-- LanguageConfig: `src/kodit/infrastructure/slicing/slicer.py:46-143`
-- Tree-sitter documentation: https://tree-sitter.github.io/tree-sitter/
-- API documentation design: `docs/design/api-docs-enrichment.md`
+- **Existing Slicer implementation**: `src/kodit/infrastructure/slicing/slicer.py`
+  - Key methods to extract/reuse: `_walk_tree()` (line 321), `_extract_function_name()` (line 349), `_build_definition_and_import_indexes()` (line 279)
+- **LanguageConfig**: `src/kodit/infrastructure/slicing/slicer.py:46-143` - Multi-language configuration for all 9 supported languages
+- **Tree-sitter documentation**: <https://tree-sitter.github.io/tree-sitter/> - Parser library documentation
+- **API documentation design**: `docs/design/api-docs-enrichment.md` - Primary use case for this refactoring
+- **Martin Fowler's Refactoring Catalog**: Reference for Extract Method, Move Method, Extract Class refactorings
