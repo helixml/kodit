@@ -287,6 +287,9 @@ async def list_commit_enrichments(
     server_factory: ServerFactoryDep,
 ) -> EnrichmentListResponse:
     """List all enrichments for a specific commit."""
+    # TODO(Phil): Should use repo too, it's confusing to the user when they specify the
+    # wrong commit and another repo. It's like they are seeing results from the other
+    # repo.
     enrichment_v2_repository = server_factory.enrichment_v2_repository()
     enrichments = await enrichment_v2_repository.enrichments_for_entity_type(
         entity_type="git_commit",
@@ -308,6 +311,25 @@ async def list_commit_enrichments(
             )
             for enrichment in enrichments
         ]
+    )
+
+
+@router.delete(
+    "/{repo_id}/commits/{commit_sha}/enrichments",
+    summary="Delete all commit enrichments",
+    responses={404: {"description": "Commit not found"}},
+    status_code=204,
+)
+async def delete_all_commit_enrichments(
+    repo_id: str,  # noqa: ARG001
+    commit_sha: str,
+    server_factory: ServerFactoryDep,
+) -> None:
+    """Delete all enrichments for a specific commit."""
+    enrichment_v2_repository = server_factory.enrichment_v2_repository()
+    await enrichment_v2_repository.bulk_delete_enrichments(
+        entity_type="git_commit",
+        entity_ids=[commit_sha],
     )
 
 

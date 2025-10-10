@@ -17,6 +17,20 @@ from kodit.infrastructure.slicing.ast_analyzer import (
 class APIDocExtractor:
     """Extract API documentation from code files."""
 
+    # Languages that should have API docs generated
+    SUPPORTED_LANGUAGES = frozenset(
+        {
+            "c",
+            "cpp",
+            "csharp",
+            "go",
+            "java",
+            "javascript",
+            "python",
+            "rust",
+        }
+    )
+
     def __init__(self) -> None:
         """Initialize the API doc extractor."""
         self.log = structlog.get_logger(__name__)
@@ -30,6 +44,13 @@ class APIDocExtractor:
     ) -> list[APIDocEnrichment]:
         """Extract API documentation enrichments from files."""
         if not files:
+            return []
+
+        # Filter out languages that shouldn't have API docs
+        if language not in self.SUPPORTED_LANGUAGES:
+            self.log.debug(
+                "Language not supported for API docs", language=language
+            )
             return []
 
         try:
@@ -120,7 +141,7 @@ class APIDocExtractor:
         # Source Files
         lines.append("## Source Files")
         lines.append("")
-        lines.extend(f"- {parsed.path.name}" for parsed in module.files)
+        lines.extend(f"- {parsed.git_file.path}" for parsed in module.files)
         lines.append("")
 
         return "\n".join(lines)
@@ -293,18 +314,37 @@ class APIDocExtractor:
             return "<source unavailable>"
 
     def _extract_signature_only(self, source: str) -> str:
-        """Extract just the signature from a definition."""
+        """Extract just the signature from a definition.
+
+        This removes function bodies and only keeps the declaration/signature.
+        """
         lines = source.split("\n")
         signature_lines = []
 
-        # For Python, stop at the first line with a colon
         for line in lines:
+            # Stop at the first line that ends a signature
             signature_lines.append(line)
+
+            # Check for end of signature markers
+            stripped = line.strip()
+
+            # Python: colon ends signature (unless inside brackets)
             if ":" in line:
-                # Keep going if the colon is inside brackets (for type hints)
                 open_parens = line.count("(") - line.count(")")
                 open_brackets = line.count("[") - line.count("]")
-                if open_parens == 0 and open_brackets == 0:
+                open_braces = line.count("{") - line.count("}")
+                if open_parens == 0 and open_brackets == 0 and open_braces == 0:
                     break
+
+            # Go/Java/C/C++/Rust/JS: opening brace often starts body
+            if stripped.endswith("{"):
+                # Remove the opening brace for cleaner signatures
+                signature_lines[-1] = line.rstrip("{").rstrip()
+                break
+
+            # Go: if signature ends without brace on same line
+            if stripped.endswith(")") and not any(c in line for c in ["{", ":"]):
+                # Might be complete - check if next line exists
+                continue
 
         return "\n".join(signature_lines)

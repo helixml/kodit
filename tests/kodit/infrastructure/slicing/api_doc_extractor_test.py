@@ -18,9 +18,7 @@ class TestAPIDocExtractor:
             ("c", ".c"),
             ("cpp", ".cpp"),
             ("csharp", ".cs"),
-            ("css", ".css"),
             ("go", ".go"),
-            ("html", ".html"),
             ("java", ".java"),
             ("javascript", ".js"),
             ("python", ".py"),
@@ -105,8 +103,8 @@ def test_extract_api_docs_filters_private_python() -> None:
     # Should not include private functions (those starting with _)
     # But this depends on what's actually in utils.py
     # Just verify the format is correct
-    # Package name is just the filename stem (Python has no package declaration in AST)
-    assert "# package utils" in content
+    # The package name will be "python.utils" (last 2 path components)
+    assert "# package python.utils" in content
 
 
 def test_extract_api_docs_empty_result() -> None:

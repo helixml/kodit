@@ -610,17 +610,19 @@ class ASTAnalyzer:
 
         Uses Tree-sitter to parse package declarations from source code.
         For languages without explicit package declarations (like Python),
-        falls back to using the filename stem.
+        uses the file path structure to build a fully qualified module path.
         """
         if self.language == "go":
-            return self._extract_go_package_name(parsed)
+            return self._extract_go_package_path(parsed)
         if self.language == "java":
             return self._extract_java_package_name(parsed)
-        # Default: use file stem (no package info in AST)
-        return parsed.path.stem
+        if self.language == "python":
+            return self._extract_python_module_path(parsed)
+        # Default: use file path without extension
+        return self._extract_path_based_module(parsed)
 
     def _extract_go_package_name(self, parsed: ParsedFile) -> str:
-        """Extract Go package name from package declaration."""
+        """Extract Go package name (last component) from package declaration."""
         root = parsed.tree.root_node
         for child in root.children:
             if child.type == "package_clause":
@@ -632,6 +634,86 @@ class ASTAnalyzer:
                         return package_child.text.decode("utf-8")
         # Fallback to file stem
         return parsed.path.stem
+
+    def _extract_go_package_path(self, parsed: ParsedFile) -> str:
+        """Extract full Go package path using directory structure.
+
+        Go packages are identified by their import path, which is
+        typically the directory path. The package name is the last component.
+        """
+        # Get package name from source
+        package_name = self._extract_go_package_name(parsed)
+
+        # Build path from directory structure
+        file_path = Path(parsed.git_file.path)
+        clean_path = self._clean_path_for_module(file_path)
+        dir_path = clean_path.parent
+
+        # Convert to Go-style import path (use / separator)
+        if str(dir_path) != ".":
+            return f"{str(dir_path).replace('\\', '/')}/{package_name}"
+        return package_name
+
+    def _extract_python_module_path(self, parsed: ParsedFile) -> str:
+        """Extract Python module path from file path structure.
+
+        Python modules are identified by their file path, with / replaced by dots.
+        Attempts to extract a clean relative path by removing common prefixes.
+        """
+        file_path = Path(parsed.git_file.path)
+
+        # Try to make it relative and clean
+        clean_path = self._clean_path_for_module(file_path)
+
+        # Remove extension and convert to module path
+        module_parts = list(clean_path.parts[:-1])  # Get directory parts
+        module_parts.append(clean_path.stem)  # Add filename without extension
+
+        # Filter out empty parts and convert to dotted notation
+        module_path = ".".join(p for p in module_parts if p and p != ".")
+        return module_path if module_path else clean_path.stem
+
+    def _extract_path_based_module(self, parsed: ParsedFile) -> str:
+        """Extract module path based on file path for languages without declarations."""
+        file_path = Path(parsed.git_file.path)
+
+        # Try to make it relative and clean
+        clean_path = self._clean_path_for_module(file_path)
+
+        # Remove extension and convert to module path
+        module_parts = list(clean_path.parts[:-1])  # Get directory parts
+        module_parts.append(clean_path.stem)  # Add filename without extension
+
+        # Filter out empty parts and convert to dotted notation
+        module_path = ".".join(p for p in module_parts if p and p != ".")
+        return module_path if module_path else clean_path.stem
+
+    def _clean_path_for_module(self, file_path: Path) -> Path:
+        """Clean a file path to extract a reasonable module path.
+
+        Attempts to remove common repository root indicators like 'src',
+        'lib', project directories, etc. to get a clean module path.
+        """
+        parts = list(file_path.parts)
+
+        # If it's already relative, just return it
+        if not file_path.is_absolute():
+            return file_path
+
+        # Try to find common source root markers
+        common_roots = {"src", "lib", "pkg", "internal", "app"}
+        for i, part in enumerate(parts):
+            if part in common_roots:
+                # Return path from this point forward
+                return Path(*parts[i + 1 :]) if i + 1 < len(parts) else file_path
+
+        # If no common root found, try to remove everything up to the last
+        # directory that looks like a project name (contains no special chars)
+        # For now, just return the file name and immediate parent if absolute
+        if len(parts) >= 2:
+            return Path(*parts[-2:])
+
+        return file_path
 
     def _extract_java_package_name(self, parsed: ParsedFile) -> str:
         """Extract Java package name from package declaration."""
