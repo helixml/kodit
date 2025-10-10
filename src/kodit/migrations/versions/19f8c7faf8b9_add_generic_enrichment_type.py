@@ -120,22 +120,44 @@ def upgrade() -> None:
         ).fetchall()
 
         for old_enrichment in old_enrichments:
-            result = connection.execute(
-                sa.text(
-                    "INSERT INTO enrichments_v2 (type, subtype, content, created_at, updated_at) "
-                    "VALUES (:type, :subtype, :content, :created_at, :updated_at)"
-                ),
-                {
-                    "type": ENRICHMENT_TYPE_DEVELOPMENT,
-                    "subtype": ENRICHMENT_SUBTYPE_SNIPPET_SUMMARY,
-                    "content": old_enrichment[1],
-                    "created_at": old_enrichment[2],
-                    "updated_at": old_enrichment[3],
-                },
-            )
+            # Check if database supports RETURNING (PostgreSQL) or use lastrowid (SQLite)
+            dialect_name = connection.dialect.name
 
-            # Get the new enrichment ID
-            new_enrichment_id = result.lastrowid
+            if dialect_name == "postgresql":
+                result = connection.execute(
+                    sa.text(
+                        "INSERT INTO enrichments_v2 (type, subtype, content, created_at, updated_at) "
+                        "VALUES (:type, :subtype, :content, :created_at, :updated_at) "
+                        "RETURNING id"
+                    ),
+                    {
+                        "type": ENRICHMENT_TYPE_DEVELOPMENT,
+                        "subtype": ENRICHMENT_SUBTYPE_SNIPPET_SUMMARY,
+                        "content": old_enrichment[1],
+                        "created_at": old_enrichment[2],
+                        "updated_at": old_enrichment[3],
+                    },
+                )
+                row = result.fetchone()
+                if row is None:
+                    raise RuntimeError("Failed to insert enrichment")
+                new_enrichment_id = row[0]
+            else:
+                # SQLite and other databases
+                result = connection.execute(
+                    sa.text(
+                        "INSERT INTO enrichments_v2 (type, subtype, content, created_at, updated_at) "
+                        "VALUES (:type, :subtype, :content, :created_at, :updated_at)"
+                    ),
+                    {
+                        "type": ENRICHMENT_TYPE_DEVELOPMENT,
+                        "subtype": ENRICHMENT_SUBTYPE_SNIPPET_SUMMARY,
+                        "content": old_enrichment[1],
+                        "created_at": old_enrichment[2],
+                        "updated_at": old_enrichment[3],
+                    },
+                )
+                new_enrichment_id = result.lastrowid
 
             # Insert association (snippet_v2 is the entity type for snippets)
             connection.execute(
