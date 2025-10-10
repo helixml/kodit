@@ -1,0 +1,1 @@
+"""Usage enrichment domain entities."""

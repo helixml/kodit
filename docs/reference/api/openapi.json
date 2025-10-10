@@ -592,6 +592,56 @@
             "description": "Repository or commit not found"
           }
         }
+      },
+      "delete": {
+        "tags": [
+          "commits"
+        ],
+        "summary": "Delete all commit enrichments",
+        "description": "Delete all enrichments for a specific commit.",
+        "operationId": "delete_all_commit_enrichments_api_v1_repositories__repo_id__commits__commit_sha__enrichments_delete",
+        "security": [
+          {
+            "Header (X-API-KEY)": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "repo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Repo Id"
+            }
+          },
+          {
+            "name": "commit_sha",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Commit Sha"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "500": {
+            "description": "Internal server error"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Invalid request"
+          },
+          "404": {
+            "description": "Commit not found"
+          }
+        }
       }
     },
     "/api/v1/repositories/{repo_id}/commits/{commit_sha}/enrichments/{enrichment_id}": {
@@ -2102,7 +2152,8 @@
           "kodit.commit.create_code_embeddings",
           "kodit.commit.create_summary_enrichment",
           "kodit.commit.create_summary_embeddings",
-          "kodit.commit.create_architecture_enrichment"
+          "kodit.commit.create_architecture_enrichment",
+          "kodit.commit.create_public_api_docs"
         ],
         "title": "TaskOperation",
         "description": "Task operation."

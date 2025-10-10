@@ -297,6 +297,31 @@ List all enrichments for a specific commit.
 
 - 404: Repository or commit not found
 
+### DELETE /api/v1/repositories/{repo_id}/commits/{commit_sha}/enrichments
+
+Delete all enrichments for a specific commit.
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| repo_id | string | True |  |
+| commit_sha | string | True |  |
+
+
+#### Responses
+
+- 204: Successful Response
+
+- 500: Internal server error
+
+- 401: Unauthorized
+
+- 422: Invalid request
+
+- 404: Commit not found
+
 ### DELETE /api/v1/repositories/{repo_id}/commits/{commit_sha}/enrichments/{enrichment_id}
 
 Delete a specific enrichment for a commit.
