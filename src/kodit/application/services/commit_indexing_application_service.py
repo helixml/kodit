@@ -646,6 +646,12 @@ class CommitIndexingApplicationService:
                 await step.skip("API docs already exist for commit")
                 return
 
+            # Get repository for metadata
+            repo = await self.repo_repository.get_by_id(repository_id)
+            if not repo:
+                raise ValueError(f"Repository {repository_id} not found")
+            str(repo.sanitized_remote_uri)
+
             commit = await self.git_commit_repository.get_by_sha(commit_sha)
 
             # Group files by language
@@ -664,7 +670,10 @@ class CommitIndexingApplicationService:
             for i, (lang, lang_files) in enumerate(lang_files_map.items()):
                 await step.set_current(i, f"Extracting API docs for {lang}")
                 enrichments = extractor.extract_api_docs(
-                    lang_files, lang, include_private=False, commit_sha=commit_sha
+                    lang_files,
+                    lang,
+                    commit_sha,
+                    include_private=False,
                 )
                 all_enrichments.extend(enrichments)
 

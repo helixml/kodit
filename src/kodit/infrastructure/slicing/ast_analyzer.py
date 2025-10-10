@@ -572,8 +572,134 @@ class ASTAnalyzer:
         self, parsed: ParsedFile, *, include_private: bool
     ) -> list[ClassDefinition]:
         """Extract class definitions with their methods."""
-        _ = parsed, include_private  # Mark as intentionally unused for now
+        if self.language == "python":
+            return self._extract_python_classes(parsed, include_private=include_private)
+        # For other languages, not yet implemented
         return []
+
+    def _extract_python_classes(
+        self, parsed: ParsedFile, *, include_private: bool
+    ) -> list[ClassDefinition]:
+        """Extract Python class definitions."""
+        classes = []
+
+        for node in self._walk_tree(parsed.tree.root_node):
+            if node.type == "class_definition":
+                # Extract class name
+                class_name = None
+                for child in node.children:
+                    if child.type == "identifier" and child.text:
+                        class_name = child.text.decode("utf-8")
+                        break
+
+                if not class_name:
+                    continue
+
+                # Check if public
+                is_public = self._is_public(node, class_name)
+                if not include_private and not is_public:
+                    continue
+
+                # Extract docstring
+                docstring = self._extract_docstring(node)
+
+                # Extract methods (functions defined inside the class)
+                methods = self._extract_class_methods(node, parsed, include_private)
+
+                # Extract base classes
+                base_classes = self._extract_base_classes(node)
+
+                qualified_name = f"{parsed.path.stem}.{class_name}"
+                span = (node.start_byte, node.end_byte)
+
+                classes.append(
+                    ClassDefinition(
+                        file=parsed.path,
+                        node=node,
+                        span=span,
+                        qualified_name=qualified_name,
+                        simple_name=class_name,
+                        is_public=is_public,
+                        docstring=docstring,
+                        methods=methods,
+                        base_classes=base_classes,
+                    )
+                )
+
+        return classes
+
+    def _extract_class_methods(  # noqa: C901
+        self, class_node: Node, parsed: ParsedFile, include_private: bool  # noqa: FBT001
+    ) -> list[FunctionDefinition]:
+        """Extract methods from a class definition."""
+        methods = []
+
+        # Find the block (class body)
+        for child in class_node.children:
+            if child.type == "block":
+                # Look for function_definition nodes in the block
+                for block_child in child.children:
+                    if block_child.type == "function_definition":
+                        method_name = None
+                        for func_child in block_child.children:
+                            if func_child.type == "identifier" and func_child.text:
+                                method_name = func_child.text.decode("utf-8")
+                                break
+
+                        if not method_name:
+                            continue
+
+                        # Check if public
+                        is_public = self._is_public(block_child, method_name)
+                        if not include_private and not is_public:
+                            continue
+
+                        # Extract docstring
+                        docstring = self._extract_docstring(block_child)
+
+                        # Get class name for qualified name
+                        class_name = None
+                        for class_child in class_node.children:
+                            if class_child.type == "identifier" and class_child.text:
+                                class_name = class_child.text.decode("utf-8")
+                                break
+
+                        qualified_name = (
+                            f"{parsed.path.stem}.{class_name}.{method_name}"
+                        )
+                        span = (block_child.start_byte, block_child.end_byte)
+
+                        methods.append(
+                            FunctionDefinition(
+                                file=parsed.path,
+                                node=block_child,
+                                span=span,
+                                qualified_name=qualified_name,
+                                simple_name=method_name,
+                                is_public=is_public,
+                                is_method=True,
+                                docstring=docstring,
+                                parameters=[],
+                                return_type=None,
+                            )
+                        )
+
+        return methods
+
+    def _extract_base_classes(self, class_node: Node) -> list[str]:
+        """Extract base class names from a class definition."""
+        base_classes: list[str] = []
+
+        # Look for argument_list (the inheritance list in Python)
+        for child in class_node.children:
+            if child.type == "argument_list":
+                base_classes.extend(
+                    arg_child.text.decode("utf-8")
+                    for arg_child in child.children
+                    if arg_child.type == "identifier" and arg_child.text
+                )
+
+        return base_classes
 
     def _extract_types(
         self, parsed: ParsedFile, *, include_private: bool
@@ -761,18 +887,34 @@ class ASTAnalyzer:
 
         Python modules are identified by their file path, with / replaced by dots.
         Attempts to extract a clean relative path by removing common prefixes.
+        __init__.py files represent the parent directory as a module.
         """
         file_path = Path(parsed.git_file.path)
 
         # Try to make it relative and clean
         clean_path = self._clean_path_for_module(file_path)
 
-        # Remove extension and convert to module path
-        module_parts = list(clean_path.parts[:-1])  # Get directory parts
-        module_parts.append(clean_path.stem)  # Add filename without extension
+        # For __init__.py, the module is just the directory name
+        if clean_path.name == "__init__.py":
+            # Just directory parts, no filename
+            module_parts = list(clean_path.parts[:-1])
+        else:
+            # For regular files, include filename
+            module_parts = list(clean_path.parts[:-1])  # Get directory parts
+            module_parts.append(clean_path.stem)  # Add filename without extension
 
         # Filter out empty parts and convert to dotted notation
         module_path = ".".join(p for p in module_parts if p and p != ".")
+
+        # For top-level __init__.py where clean path has no parent directory,
+        # use the actual parent directory name from the full path
+        if not module_path and clean_path.name == "__init__.py":
+            # Get the parent directory from the original file path
+            parent_dir = file_path.parent.name
+            if parent_dir and parent_dir != ".":
+                return parent_dir
+            return ""
+
         return module_path if module_path else clean_path.stem
 
     def _extract_path_based_module(self, parsed: ParsedFile) -> str:
@@ -861,7 +1003,15 @@ class ASTAnalyzer:
         self, module_files: list[ParsedFile]
     ) -> str | None:
         """Extract module-level documentation."""
-        _ = module_files  # Mark as intentionally unused for now
+        if self.language == "python":
+            # For Python, extract docstring from __init__.py or first file
+            for parsed in module_files:
+                if parsed.path.name == "__init__.py":
+                    # Extract module docstring from __init__.py
+                    return self._extract_python_docstring(parsed.tree.root_node)
+            # If no __init__.py, try first file
+            if module_files:
+                return self._extract_python_docstring(module_files[0].tree.root_node)
         return None
 
     def _is_public(self, node: Node, name: str) -> bool:
@@ -877,7 +1027,61 @@ class ASTAnalyzer:
         """Extract documentation comment for a definition."""
         if self.language == "go":
             return self._extract_go_function_comment(node)
+        if self.language == "python":
+            return self._extract_python_docstring(node)
         # For other languages, not yet implemented
+        return None
+
+    def _extract_python_docstring(self, node: Node) -> str | None:  # noqa: C901
+        """Extract Python docstring from function, class, or module.
+
+        Python docstrings are string literals that appear as the first statement
+        in a function, class, or module body.
+        """
+        # Look for a block (function body, class body, or module)
+        body_node = None
+
+        if node.type in {"function_definition", "class_definition"}:
+            # Find the block child
+            for child in node.children:
+                if child.type == "block":
+                    body_node = child
+                    break
+        elif node.type == "module":
+            # Module node is already the body
+            body_node = node
+
+        if not body_node:
+            return None
+
+        # Look for the first expression_statement containing a string
+        for child in body_node.children:
+            if child.type == "expression_statement":
+                # Check if it contains a string node
+                for expr_child in child.children:
+                    if expr_child.type == "string" and expr_child.text:
+                        # Extract and clean the docstring
+                        docstring_bytes = expr_child.text
+                        try:
+                            docstring_text = docstring_bytes.decode("utf-8")
+                            # Remove triple quotes and extra whitespace
+                            docstring_text = docstring_text.strip()
+                            # Remove leading/trailing quotes
+                            for quote in ['"""', "'''", '"', "'"]:
+                                starts = docstring_text.startswith(quote)
+                                ends = docstring_text.endswith(quote)
+                                if starts and ends:
+                                    quote_len = len(quote)
+                                    docstring_text = docstring_text[
+                                        quote_len:-quote_len
+                                    ]
+                                    break
+                            return docstring_text.strip()
+                        except UnicodeDecodeError:
+                            return None
+                # Found expression_statement but no string - stop looking
+                break
+
         return None
 
     def _extract_go_function_comment(self, func_node: Node) -> str | None:

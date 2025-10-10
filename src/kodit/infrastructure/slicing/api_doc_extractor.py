@@ -39,9 +39,8 @@ class APIDocExtractor:
         self,
         files: list[GitFile],
         language: str,
-        *,
+        commit_sha: str,
         include_private: bool = False,
-        commit_sha: str | None = None,
     ) -> list[APIDocEnrichment]:
         """Extract API documentation enrichments from files.
 
@@ -50,8 +49,8 @@ class APIDocExtractor:
         Args:
             files: List of Git files to extract API docs from
             language: Programming language of the files
+            commit_sha: Git commit SHA to use as entity_id
             include_private: Whether to include private functions/classes
-            commit_sha: Git commit SHA to use as entity_id (recommended)
 
         """
         if not files:
@@ -72,11 +71,13 @@ class APIDocExtractor:
             self.log.debug("Unsupported language", language=language)
             return []
 
-        # Filter modules with content and exclude test modules
+        # Filter modules: must have content, not be tests, and have module_path
         modules_with_content = [
             m
             for m in modules
-            if self._has_content(m) and not self._is_test_module(m)
+            if self._has_content(m)
+            and not self._is_test_module(m)
+            and m.module_path  # Exclude modules with empty module_path
         ]
 
         if not modules_with_content:
@@ -87,26 +88,26 @@ class APIDocExtractor:
 
         # Generate single markdown document for all modules
         markdown_content = self._generate_combined_markdown(
-            merged_modules, language
-        )
-
-        # Use commit_sha if provided, otherwise fall back to first file's blob_sha
-        entity_id = (
-            commit_sha if commit_sha else (files[0].blob_sha if files else "unknown")
+            merged_modules,
+            language,
         )
 
         enrichment = APIDocEnrichment(
-            entity_id=entity_id,
-            module_path=language,  # Use language as the top-level identifier
+            entity_id=commit_sha,
+            language=language,
             content=markdown_content,
         )
 
         return [enrichment]
 
     def _has_content(self, module: ModuleDefinition) -> bool:
-        """Check if module has any API elements."""
+        """Check if module has any API elements or documentation."""
         return bool(
-            module.functions or module.classes or module.types or module.constants
+            module.functions
+            or module.classes
+            or module.types
+            or module.constants
+            or module.module_docstring
         )
 
     def _is_test_module(self, module: ModuleDefinition) -> bool:
@@ -247,7 +248,9 @@ class APIDocExtractor:
         return True
 
     def _generate_combined_markdown(
-        self, modules: list[ModuleDefinition], language: str
+        self,
+        modules: list[ModuleDefinition],
+        language: str,
     ) -> str:
         """Generate Godoc-style markdown for all modules combined.
 
@@ -256,21 +259,8 @@ class APIDocExtractor:
         """
         lines = []
 
-        # Header - use language as the package name
-        lines.append(f"# API Documentation: {language}")
-        lines.append("")
-
-        # Overview
-        lines.append("## Overview")
-        lines.append("")
-        lines.append(
-            f"This document provides API documentation for all {language} modules "
-            "in this codebase."
-        )
-        lines.append("")
-
         # Generate index of all modules
-        lines.append("## Index")
+        lines.append(f"## {language} Index")
         lines.append("")
         lines.extend(
             f"- [{module.module_path}](#{self._anchor(module.module_path)})"
@@ -309,7 +299,6 @@ class APIDocExtractor:
 
         # Strip leading/trailing hyphens
         return anchor.strip("-")
-
 
     def _generate_module_section(self, module: ModuleDefinition) -> list[str]:
         """Generate markdown section for a single module."""
@@ -383,10 +372,19 @@ class APIDocExtractor:
 
     def _format_source_files_section(self, module: ModuleDefinition) -> list[str]:
         """Format source files section for a module."""
+        from pathlib import Path
+
         lines = ["### Source Files", ""]
+        # Filter out __init__.py files as they're implementation details
+        # The module itself represents the package
+        non_init_files = [
+            parsed
+            for parsed in module.files
+            if Path(parsed.git_file.path).name != "__init__.py"
+        ]
         lines.extend(
             f"- `{parsed.git_file.path}`"
-            for parsed in sorted(module.files, key=lambda f: f.git_file.path)
+            for parsed in sorted(non_init_files, key=lambda f: f.git_file.path)
         )
         lines.append("")
         return lines
@@ -581,7 +579,7 @@ class APIDocExtractor:
         lines = [f"### type {cls.simple_name}", ""]
 
         # Class signature
-        parsed_file = self._find_parsed_file(module, cls.node)
+        parsed_file = self._find_parsed_file_for_class(module, cls)
         if parsed_file:
             signature = self._extract_source(parsed_file, cls.node)
             lines.append("```")
@@ -719,6 +717,25 @@ class APIDocExtractor:
         )
         return None
 
+    def _find_parsed_file_for_class(
+        self, module: ModuleDefinition, cls: ClassDefinition
+    ) -> ParsedFile | None:
+        """Find the parsed file containing a class definition."""
+        # Match by file path from ClassDefinition
+        for parsed in module.files:
+            if parsed.path == cls.file:
+                return parsed
+
+        # Fallback: if we can't find by file path, this is an error condition
+        # Log a warning and return None to make the error visible
+        self.log.warning(
+            "Could not find parsed file for class",
+            module_path=module.module_path,
+            class_file=str(cls.file),
+            file_count=len(module.files),
+        )
+        return None
+
     def _find_parsed_file(
         self, module: ModuleDefinition, node: object
     ) -> ParsedFile | None:
@@ -768,9 +785,7 @@ class APIDocExtractor:
         # Check if this is a Go type definition
         # (starts with type name followed by struct/interface)
         first_line = lines[0].strip() if lines else ""
-        is_go_type = any(
-            keyword in first_line for keyword in [" struct", " interface"]
-        )
+        is_go_type = any(keyword in first_line for keyword in [" struct", " interface"])
 
         if is_go_type:
             # For Go types, include the full definition including the body

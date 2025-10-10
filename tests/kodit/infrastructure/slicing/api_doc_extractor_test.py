@@ -13,7 +13,7 @@ from kodit.infrastructure.slicing.api_doc_extractor import APIDocExtractor
 class TestAPIDocExtractor:
     """Test the APIDocExtractor functionality."""
 
-    LanguageAssertions: ClassVar[dict[str, list[str]]] = {
+    PositiveLanguageAssertions: ClassVar[dict[str, list[str]]] = {
         "go": [
             "## api/pkg/controller",
             "func (fs *FileStore) GetFileList(filter string) ([]*File, error)",
@@ -25,19 +25,27 @@ class TestAPIDocExtractor:
         ],
         "python": [
             "submodule_func",
+            "Submodule provides submodules",
+            "A point in 2D space.",
+        ],
+    }
+
+    NegativeLanguageAssertions: ClassVar[dict[str, list[str]]] = {
+        "python": [
+            "__init__",
         ],
     }
 
     @pytest.mark.parametrize(
         ("language", "extension"),
         [
+            ("python", ".py"),
             ("go", ".go"),
             ("c", ".c"),
             ("cpp", ".cpp"),
             ("csharp", ".cs"),
             ("java", ".java"),
             ("javascript", ".js"),
-            ("python", ".py"),
             ("rust", ".rs"),
         ],
     )
@@ -64,12 +72,21 @@ class TestAPIDocExtractor:
         ]
 
         extractor = APIDocExtractor()
-        enrichments = extractor.extract_api_docs(git_files, language)
+        enrichments = extractor.extract_api_docs(
+            git_files,
+            language,
+            commit_sha="abc123def456",
+        )
 
-        if language in self.LanguageAssertions:
-            for assertion in self.LanguageAssertions[language]:
+        if language in self.PositiveLanguageAssertions:
+            for assertion in self.PositiveLanguageAssertions[language]:
                 assert assertion in enrichments[0].content, (
                     f"Assertion {assertion} not found in {enrichments[0].content}"
+                )
+        if language in self.NegativeLanguageAssertions:
+            for assertion in self.NegativeLanguageAssertions[language]:
+                assert assertion not in enrichments[0].content, (
+                    f"Assertion {assertion} found in {enrichments[0].content}"
                 )
 
         # Should generate exactly one enrichment per language
@@ -79,22 +96,17 @@ class TestAPIDocExtractor:
         content = enrichment.content
 
         # Check combined API doc format
-        assert content.startswith("# API Documentation: ")
         assert enrichment.type == "usage"
         assert enrichment.subtype == "api_docs"
-        assert enrichment.module_path == language
-
-        # Should have Overview and Index sections
-        assert "## Overview" in content
-        assert "## Index" in content
+        assert enrichment.language == language
 
         # Should have at least one module section
         # Module sections are now ## headers (not package headers)
         module_sections = [
             line for line in content.split("\n") if line.startswith("## ")
         ]
-        # At least Overview, Index, and one module
-        assert len(module_sections) >= 3
+        # At least Index, and one module
+        assert len(module_sections) >= 2
 
         # Should have at least one subsection (Functions, Types, or Constants)
         has_subsections = (
@@ -108,38 +120,8 @@ class TestAPIDocExtractor:
         assert "### Source Files" in content
 
 
-def test_extract_api_docs_filters_private_python() -> None:
-    """Test that private functions are filtered out in Python."""
-    data_dir = Path(__file__).parent / "data" / "python"
-    test_file = data_dir / "utils.py"
-
-    if not test_file.exists():
-        pytest.skip("utils.py not found in test data")
-
-    git_file = GitFile(
-        created_at=datetime.now(tz=UTC),
-        blob_sha="test123",
-        path=str(test_file),
-        mime_type="text/x-python",
-        size=test_file.stat().st_size,
-        extension=".py",
-    )
-
-    extractor = APIDocExtractor()
-    enrichments = extractor.extract_api_docs([git_file], "python")
-
-    assert len(enrichments) == 1
-    content = enrichments[0].content
-
-    # Should use combined format
-    assert content.startswith("# API Documentation: python")
-
-    # Should have a module section for utils
-    assert "## utils" in content
-
-
 def test_extract_api_docs_empty_result() -> None:
-    """Test that empty files return no enrichments."""
+    """Test that files with only docstrings generate enrichments."""
     data_dir = Path(__file__).parent / "data" / "python"
     test_file = data_dir / "__init__.py"
 
@@ -156,10 +138,14 @@ def test_extract_api_docs_empty_result() -> None:
     )
 
     extractor = APIDocExtractor()
-    enrichments = extractor.extract_api_docs([git_file], "python")
+    enrichments = extractor.extract_api_docs(
+        [git_file],
+        "python",
+        commit_sha="test123456",
+    )
 
-    # __init__.py files are often empty, so might have no enrichments
-    # This is fine - just testing the behavior
-    # Note: Now returns empty list if no content, not a list with empty enrichment
+    # __init__.py has a module docstring, so should generate an enrichment
+    # Module docstrings are considered content worth documenting
     assert isinstance(enrichments, list)
-    assert len(enrichments) == 0
+    assert len(enrichments) == 1
+    assert "Python example project for testing" in enrichments[0].content

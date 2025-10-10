@@ -11,7 +11,7 @@ ENRICHMENT_SUBTYPE_API_DOCS = "api_docs"
 class APIDocEnrichment(UsageEnrichment):
     """API documentation enrichment for a module."""
 
-    module_path: str = ""
+    language: str = ""
 
     @property
     def subtype(self) -> str | None:
