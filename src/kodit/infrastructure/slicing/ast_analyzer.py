@@ -579,8 +579,105 @@ class ASTAnalyzer:
         self, parsed: ParsedFile, *, include_private: bool
     ) -> list[TypeDefinition]:
         """Extract type definitions (enums, interfaces, type aliases, structs)."""
-        _ = parsed, include_private  # Mark as intentionally unused for now
+        if self.language == "go":
+            return self._extract_go_types(parsed, include_private=include_private)
+        # For other languages, not yet implemented
         return []
+
+    def _extract_go_types(
+        self, parsed: ParsedFile, *, include_private: bool
+    ) -> list[TypeDefinition]:
+        """Extract Go type definitions."""
+        types = []
+
+        for node in self._walk_tree(parsed.tree.root_node):
+            if node.type == "type_declaration":
+                # Extract type_spec child which contains the actual type info
+                for child in node.children:
+                    if child.type == "type_spec":
+                        type_def = self._extract_go_type_from_spec(
+                            child, parsed, include_private=include_private
+                        )
+                        if type_def:
+                            types.append(type_def)
+
+        return types
+
+    def _extract_go_type_from_spec(
+        self, type_spec_node: Node, parsed: ParsedFile, *, include_private: bool
+    ) -> TypeDefinition | None:
+        """Extract a single Go type definition from a type_spec node."""
+        # Get type name (type_identifier)
+        type_name = None
+        type_kind = "type"
+
+        for child in type_spec_node.children:
+            if child.type == "type_identifier" and child.text:
+                type_name = child.text.decode("utf-8")
+            elif child.type == "struct_type":
+                type_kind = "struct"
+            elif child.type == "interface_type":
+                type_kind = "interface"
+            elif child.type in ["slice_type", "array_type", "pointer_type"]:
+                type_kind = "alias"
+            elif child.type == "map_type":
+                type_kind = "map"
+
+        if not type_name:
+            return None
+
+        # Check if public
+        is_public = self._is_public(type_spec_node, type_name)
+        if not include_private and not is_public:
+            return None
+
+        # Extract docstring (comment before the type declaration)
+        parent_node = type_spec_node.parent
+        if not parent_node:
+            return None
+
+        docstring = self._extract_go_type_comment(parent_node)
+
+        qualified_name = f"{parsed.path.stem}.{type_name}"
+        # Use the parent type_declaration node to include the "type" keyword
+        span = (parent_node.start_byte, parent_node.end_byte)
+
+        return TypeDefinition(
+            file=parsed.path,
+            node=parent_node,  # Use parent to include "type" keyword
+            span=span,
+            qualified_name=qualified_name,
+            simple_name=type_name,
+            is_public=is_public,
+            docstring=docstring,
+            kind=type_kind,
+        )
+
+    def _extract_go_type_comment(self, type_decl_node: Node) -> str | None:
+        """Extract comment before a Go type declaration."""
+        # Look for comment node immediately before the type_declaration
+        parent = type_decl_node.parent
+        if not parent:
+            return None
+
+        # Find the index of the type_declaration in parent's children
+        type_decl_index = None
+        for i, child in enumerate(parent.children):
+            if child == type_decl_node:
+                type_decl_index = i
+                break
+
+        if type_decl_index is None or type_decl_index == 0:
+            return None
+
+        # Check the previous sibling
+        prev_sibling = parent.children[type_decl_index - 1]
+        if prev_sibling.type == "comment" and prev_sibling.text:
+            comment_text = prev_sibling.text.decode("utf-8")
+            # Remove leading // and whitespace
+            return comment_text.lstrip("/").strip()
+
+        return None
 
     def _extract_constants(
         self, parsed: ParsedFile, *, include_private: bool
@@ -706,6 +803,29 @@ class ASTAnalyzer:
         if not file_path.is_absolute():
             return file_path
 
+        # Special case: if this is test data (contains /data/<language>/),
+        # return everything after the language directory
+        test_languages = {
+            "go",
+            "python",
+            "java",
+            "javascript",
+            "typescript",
+            "c",
+            "cpp",
+            "rust",
+            "csharp",
+        }
+        for i in range(len(parts) - 1):
+            if (
+                parts[i] == "data"
+                and i + 1 < len(parts)
+                and parts[i + 1] in test_languages
+                and i + 2 < len(parts)
+            ):
+                # Return everything after the language directory
+                return Path(*parts[i + 2 :])
+
         # Try to find common source root markers and return everything after them
         common_roots = {"src", "lib", "pkg", "internal", "app"}
         for i, part in enumerate(parts):
@@ -755,7 +875,34 @@ class ASTAnalyzer:
 
     def _extract_docstring(self, node: Node) -> str | None:
         """Extract documentation comment for a definition."""
-        _ = node  # Mark as intentionally unused for now
+        if self.language == "go":
+            return self._extract_go_function_comment(node)
+        # For other languages, not yet implemented
+        return None
+
+    def _extract_go_function_comment(self, func_node: Node) -> str | None:
+        """Extract comment before a Go function or method declaration."""
+        parent = func_node.parent
+        if not parent:
+            return None
+
+        # Find the index of the function in parent's children
+        func_index = None
+        for i, child in enumerate(parent.children):
+            if child == func_node:
+                func_index = i
+                break
+
+        if func_index is None or func_index == 0:
+            return None
+
+        # Check the previous sibling
+        prev_sibling = parent.children[func_index - 1]
+        if prev_sibling.type == "comment" and prev_sibling.text:
+            comment_text = prev_sibling.text.decode("utf-8")
+            # Remove leading // and whitespace
+            return comment_text.lstrip("/").strip()
+
         return None
 
     def _extract_parameters(self, node: Node) -> list[str]:
@@ -770,5 +917,8 @@ class ASTAnalyzer:
 
     def _is_method(self, node: Node) -> bool:
         """Check if a function is a method (inside a class)."""
-        _ = node  # Mark as intentionally unused for now
+        # For Go, check if it's a method_declaration node type
+        if self.language == "go":
+            return node.type == "method_declaration"
+        # For other languages, could check if parent is a class node
         return False

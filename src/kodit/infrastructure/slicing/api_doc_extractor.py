@@ -72,15 +72,22 @@ class APIDocExtractor:
             self.log.debug("Unsupported language", language=language)
             return []
 
-        # Filter modules with content
-        modules_with_content = [m for m in modules if self._has_content(m)]
+        # Filter modules with content and exclude test modules
+        modules_with_content = [
+            m
+            for m in modules
+            if self._has_content(m) and not self._is_test_module(m)
+        ]
 
         if not modules_with_content:
             return []
 
+        # Merge modules with the same module_path
+        merged_modules = self._merge_modules(modules_with_content)
+
         # Generate single markdown document for all modules
         markdown_content = self._generate_combined_markdown(
-            modules_with_content, language
+            merged_modules, language
         )
 
         # Use commit_sha if provided, otherwise fall back to first file's blob_sha
@@ -100,6 +107,118 @@ class APIDocExtractor:
         """Check if module has any API elements."""
         return bool(
             module.functions or module.classes or module.types or module.constants
+        )
+
+    def _is_test_module(self, module: ModuleDefinition) -> bool:
+        """Check if a module appears to be a test module.
+
+        Detects test modules based on common patterns:
+        - Module path contains 'test', 'tests', or '__tests__' directory
+        - Files with '_test' suffix (e.g., foo_test.go)
+        - Files with 'test_' prefix (e.g., test_foo.py)
+        - Files with '.test.' or '.spec.' in name (e.g., foo.test.js)
+        - Files with '_mocks' in name
+        """
+        from pathlib import Path
+
+        # Check module_path for test directories
+        module_path_lower = module.module_path.lower()
+        module_path_parts = module_path_lower.split("/")
+
+        # Check if any part of the module path is a test directory
+        if any(part in ["test", "tests", "__tests__"] for part in module_path_parts):
+            return True
+
+        # Check all files in the module for test file name patterns
+        for parsed_file in module.files:
+            file_path = Path(parsed_file.git_file.path)
+            filename = file_path.name.lower()
+
+            # Check for test file name patterns
+            # Use more specific patterns to avoid false positives
+            if (
+                filename.endswith(("_test.go", "_test.py"))
+                or filename.startswith("test_")
+                or ".test." in filename
+                or ".spec." in filename
+                or "_mocks." in filename
+                or "_mock." in filename
+            ):
+                return True
+
+        return False
+
+    def _merge_modules(self, modules: list[ModuleDefinition]) -> list[ModuleDefinition]:
+        """Merge modules with the same module_path.
+
+        This is particularly important for Go where multiple files belong to
+        the same package/module.
+        """
+        from collections import defaultdict
+
+        # Group modules by module_path
+        modules_by_path: dict[str, list[ModuleDefinition]] = defaultdict(list)
+        for module in modules:
+            modules_by_path[module.module_path].append(module)
+
+        # Merge modules with same path
+        merged: list[ModuleDefinition] = []
+        for module_path, module_group in modules_by_path.items():
+            if len(module_group) == 1:
+                # No merging needed
+                merged.append(module_group[0])
+            else:
+                # Merge all modules in this group
+                merged_module = self._merge_module_group(module_path, module_group)
+                merged.append(merged_module)
+
+        return merged
+
+    def _merge_module_group(
+        self, module_path: str, module_group: list[ModuleDefinition]
+    ) -> ModuleDefinition:
+        """Merge a group of modules with the same path into a single module."""
+        # Collect all files
+        all_files = []
+        for mod in module_group:
+            all_files.extend(mod.files)
+
+        # Collect all functions
+        all_functions = []
+        for mod in module_group:
+            all_functions.extend(mod.functions)
+
+        # Collect all classes
+        all_classes = []
+        for mod in module_group:
+            all_classes.extend(mod.classes)
+
+        # Collect all types
+        all_types = []
+        for mod in module_group:
+            all_types.extend(mod.types)
+
+        # Collect all constants
+        all_constants = []
+        for mod in module_group:
+            all_constants.extend(mod.constants)
+
+        # Find first non-empty docstring
+        module_docstring = ""
+        for mod in module_group:
+            if mod.module_docstring:
+                module_docstring = mod.module_docstring
+                break
+
+        # Create merged module
+        return ModuleDefinition(
+            module_path=module_path,
+            module_docstring=module_docstring,
+            files=all_files,
+            functions=all_functions,
+            classes=all_classes,
+            types=all_types,
+            constants=all_constants,
         )
 
     def _is_valid_function_name(self, name: str) -> bool:
@@ -166,8 +285,31 @@ class APIDocExtractor:
         return "\n".join(lines)
 
     def _anchor(self, text: str) -> str:
-        """Generate markdown anchor from text."""
-        return text.lower().replace(".", "").replace("/", "").replace("_", "-")
+        """Generate markdown anchor from text.
+
+        Follows GitHub-flavored markdown heading ID generation:
+        - Convert to lowercase
+        - Replace spaces with hyphens
+        - Remove punctuation except hyphens and underscores
+        - Replace slashes and dots with hyphens
+        """
+        import re
+
+        # Convert to lowercase
+        anchor = text.lower()
+
+        # Replace slashes and dots with hyphens
+        anchor = anchor.replace("/", "-").replace(".", "-")
+
+        # Remove any characters that aren't alphanumeric, hyphens, or underscores
+        anchor = re.sub(r"[^a-z0-9\-_]", "", anchor)
+
+        # Replace multiple consecutive hyphens with a single hyphen
+        anchor = re.sub(r"-+", "-", anchor)
+
+        # Strip leading/trailing hyphens
+        return anchor.strip("-")
+
 
     def _generate_module_section(self, module: ModuleDefinition) -> list[str]:
         """Generate markdown section for a single module."""
@@ -180,10 +322,10 @@ class APIDocExtractor:
             lines.append(module.module_docstring)
             lines.append("")
 
-        # Add subsections
+        # Add subsections in godoc order: constants, types, functions
         lines.extend(self._format_constants_section(module))
-        lines.extend(self._format_functions_section(module))
         lines.extend(self._format_types_section(module))
+        lines.extend(self._format_functions_section(module))
         lines.extend(self._format_source_files_section(module))
 
         return lines
@@ -253,10 +395,20 @@ class APIDocExtractor:
         self, func: FunctionDefinition, module: ModuleDefinition
     ) -> list[str]:
         """Format a standalone function."""
-        lines = [f"#### {func.simple_name}", ""]
+        # For Go methods, extract receiver type for godoc-style heading
+        parsed_file = self._find_parsed_file_for_function(module, func)
+        if parsed_file and func.is_method:
+            receiver_type = self._extract_go_receiver_type(func.node, parsed_file)
+            if receiver_type:
+                heading = f"#### func ({receiver_type}) {func.simple_name}"
+            else:
+                heading = f"#### {func.simple_name}"
+        else:
+            heading = f"#### {func.simple_name}"
+
+        lines = [heading, ""]
 
         # Signature
-        parsed_file = self._find_parsed_file(module, func.node)
         if parsed_file:
             signature = self._extract_source(parsed_file, func.node)
             lines.append("```")
@@ -387,7 +539,7 @@ class APIDocExtractor:
         lines = [f"### func {func.simple_name}", ""]
 
         # Signature
-        parsed_file = self._find_parsed_file(module, func.node)
+        parsed_file = self._find_parsed_file_for_function(module, func)
         if parsed_file:
             signature = self._extract_source(parsed_file, func.node)
             lines.append("```")
@@ -404,10 +556,10 @@ class APIDocExtractor:
 
     def _format_type(self, typ: TypeDefinition, module: ModuleDefinition) -> list[str]:
         """Format a type in Go-Doc style."""
-        lines = [f"### type {typ.simple_name}", ""]
+        lines = [f"#### type {typ.simple_name}", ""]
 
         # Signature
-        parsed_file = self._find_parsed_file(module, typ.node)
+        parsed_file = self._find_parsed_file_for_type(module, typ)
         if parsed_file:
             signature = self._extract_source(parsed_file, typ.node)
             lines.append("```")
@@ -462,7 +614,7 @@ class APIDocExtractor:
         lines = [f"#### func ({cls.simple_name}) {method.simple_name}", ""]
 
         # Method signature
-        parsed_file = self._find_parsed_file(module, method.node)
+        parsed_file = self._find_parsed_file_for_function(module, method)
         if parsed_file:
             signature = self._extract_source(parsed_file, method.node)
             lines.append("```")
@@ -477,17 +629,121 @@ class APIDocExtractor:
 
         return lines
 
+    def _extract_go_receiver_type(
+        self, node: object, parsed_file: ParsedFile
+    ) -> str | None:
+        """Extract Go receiver type from method declaration.
+
+        Returns the receiver type in godoc format.
+        Strips the parameter name, keeping only the type.
+        """
+        node_type = getattr(node, "type", None)
+        if not node_type or node_type != "method_declaration":
+            return None
+
+        # Find the parameter_list that represents the receiver
+        for child in node.children:  # type: ignore[attr-defined]
+            if child.type == "parameter_list":
+                # This is the receiver parameter
+                for param_child in child.children:
+                    if param_child.type == "parameter_declaration":
+                        # Extract the type from the parameter
+                        return self._extract_go_type_from_param(
+                            param_child, parsed_file
+                        )
+                # If we found the parameter_list but no parameter, break
+                break
+
+        return None
+
+    def _extract_go_type_from_param(
+        self, param_node: object, parsed_file: ParsedFile
+    ) -> str | None:
+        """Extract type from Go parameter declaration node."""
+        # Look for type children: pointer_type or type_identifier
+        for child in param_node.children:  # type: ignore[attr-defined]
+            if child.type == "pointer_type" and hasattr(child, "start_byte"):
+                # Extract the type being pointed to
+                start = child.start_byte
+                end = child.end_byte
+                type_bytes = parsed_file.source_code[start:end]
+                try:
+                    return type_bytes.decode("utf-8")
+                except UnicodeDecodeError:
+                    return None
+            if (
+                child.type == "type_identifier"
+                and hasattr(child, "text")
+                and child.text
+            ):
+                # Direct type identifier
+                return child.text.decode("utf-8")
+
+        return None
+
+    def _find_parsed_file_for_function(
+        self, module: ModuleDefinition, func: FunctionDefinition
+    ) -> ParsedFile | None:
+        """Find the parsed file containing a function definition."""
+        # Match by file path from FunctionDefinition
+        for parsed in module.files:
+            if parsed.path == func.file:
+                return parsed
+
+        # Fallback: if we can't find by file path, this is an error condition
+        # Log a warning and return None to make the error visible
+        self.log.warning(
+            "Could not find parsed file for function",
+            module_path=module.module_path,
+            function_file=str(func.file),
+            file_count=len(module.files),
+        )
+        return None
+
+    def _find_parsed_file_for_type(
+        self, module: ModuleDefinition, typ: TypeDefinition
+    ) -> ParsedFile | None:
+        """Find the parsed file containing a type definition."""
+        # Match by file path from TypeDefinition
+        for parsed in module.files:
+            if parsed.path == typ.file:
+                return parsed
+
+        # Fallback: if we can't find by file path, this is an error condition
+        # Log a warning and return None to make the error visible
+        self.log.warning(
+            "Could not find parsed file for type",
+            module_path=module.module_path,
+            type_file=str(typ.file),
+            file_count=len(module.files),
+        )
+        return None
+
     def _find_parsed_file(
         self, module: ModuleDefinition, node: object
     ) -> ParsedFile | None:
         """Find the parsed file containing a given node."""
-        for parsed in module.files:
-            if hasattr(node, "tree") and node.tree == parsed.tree:  # type: ignore[attr-defined]
-                return parsed
-        return module.files[0] if module.files else None
+        # First try to match by tree reference
+        if hasattr(node, "tree"):
+            node_tree = node.tree  # type: ignore[attr-defined]
+            for parsed in module.files:
+                if parsed.tree == node_tree:
+                    return parsed
 
-    def _extract_source(self, parsed_file: ParsedFile, node: object) -> str:
+        # Fallback: if we can't find by tree, this is an error condition
+        # Log a warning and return None to make the error visible
+        self.log.warning(
+            "Could not find parsed file for node",
+            module_path=module.module_path,
+            file_count=len(module.files),
+        )
+        return None
+
+    def _extract_source(self, parsed_file: ParsedFile | None, node: object) -> str:
         """Extract source code for a node."""
+        if not parsed_file:
+            return "<source unavailable>"
+
         if not hasattr(node, "start_byte") or not hasattr(node, "end_byte"):
             return "<source unavailable>"
 
@@ -505,8 +761,35 @@ class APIDocExtractor:
         """Extract just the signature from a definition.
 
         This removes function bodies and only keeps the declaration/signature.
+        For Go types (structs, interfaces), includes the full definition.
         """
         lines = source.split("\n")
+
+        # Check if this is a Go type definition
+        # (starts with type name followed by struct/interface)
+        first_line = lines[0].strip() if lines else ""
+        is_go_type = any(
+            keyword in first_line for keyword in [" struct", " interface"]
+        )
+
+        if is_go_type:
+            # For Go types, include the full definition including the body
+            # Find the matching closing brace
+            brace_count = 0
+            signature_lines = []
+
+            for line in lines:
+                signature_lines.append(line)
+                # Count braces to find the end of the type definition
+                brace_count += line.count("{") - line.count("}")
+
+                # If we've closed all braces, we're done
+                if brace_count == 0 and "{" in "".join(signature_lines):
+                    break
+
+            return "\n".join(signature_lines)
+
+        # For functions, extract just the signature
         signature_lines = []
 
         for line in lines:

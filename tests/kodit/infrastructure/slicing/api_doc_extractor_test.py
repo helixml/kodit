@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 
@@ -12,13 +13,28 @@ from kodit.infrastructure.slicing.api_doc_extractor import APIDocExtractor
 class TestAPIDocExtractor:
     """Test the APIDocExtractor functionality."""
 
+    LanguageAssertions: ClassVar[dict[str, list[str]]] = {
+        "go": [
+            "## api/pkg/controller",
+            "func (fs *FileStore) GetFileList(filter string) ([]*File, error)",
+            """type File struct {
+	Path string
+}""",
+            "File structure",
+            "GetFile returns a file by path",
+        ],
+        "python": [
+            "submodule_func",
+        ],
+    }
+
     @pytest.mark.parametrize(
         ("language", "extension"),
         [
+            ("go", ".go"),
             ("c", ".c"),
             ("cpp", ".cpp"),
             ("csharp", ".cs"),
-            ("go", ".go"),
             ("java", ".java"),
             ("javascript", ".js"),
             ("python", ".py"),
@@ -49,6 +65,12 @@ class TestAPIDocExtractor:
 
         extractor = APIDocExtractor()
         enrichments = extractor.extract_api_docs(git_files, language)
+
+        if language in self.LanguageAssertions:
+            for assertion in self.LanguageAssertions[language]:
+                assert assertion in enrichments[0].content, (
+                    f"Assertion {assertion} not found in {enrichments[0].content}"
+                )
 
         # Should generate exactly one enrichment per language
         assert len(enrichments) == 1
@@ -85,10 +107,6 @@ class TestAPIDocExtractor:
         # Should have source files subsection
         assert "### Source Files" in content
 
-        if language == "python":
-            # Should find submodule_func from the submodule
-            assert "submodule_func" in content
-
 
 def test_extract_api_docs_filters_private_python() -> None:
     """Test that private functions are filtered out in Python."""
@@ -117,7 +135,7 @@ def test_extract_api_docs_filters_private_python() -> None:
     assert content.startswith("# API Documentation: python")
 
     # Should have a module section for utils
-    assert "## python.utils" in content or "## slicing.data.python.utils" in content
+    assert "## utils" in content
 
 
 def test_extract_api_docs_empty_result() -> None:
