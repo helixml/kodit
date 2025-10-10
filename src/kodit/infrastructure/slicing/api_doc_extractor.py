@@ -40,7 +40,7 @@ class APIDocExtractor:
         files: list[GitFile],
         language: str,
         commit_sha: str,
-        include_private: bool = False,
+        include_private: bool = False,  # noqa: FBT001, FBT002
     ) -> list[APIDocEnrichment]:
         """Extract API documentation enrichments from files.
 
