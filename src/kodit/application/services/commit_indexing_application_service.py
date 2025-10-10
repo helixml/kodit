@@ -664,16 +664,12 @@ class CommitIndexingApplicationService:
             for i, (lang, lang_files) in enumerate(lang_files_map.items()):
                 await step.set_current(i, f"Extracting API docs for {lang}")
                 enrichments = extractor.extract_api_docs(
-                    lang_files, lang, include_private=False
+                    lang_files, lang, include_private=False, commit_sha=commit_sha
                 )
                 all_enrichments.extend(enrichments)
 
             # Save all enrichments
             if all_enrichments:
-                # Set entity_id to commit_sha for all enrichments
-                for enrichment in all_enrichments:
-                    enrichment.entity_id = commit_sha
-
                 await self.enrichment_v2_repository.bulk_save_enrichments(
                     all_enrichments
                 )

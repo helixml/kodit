@@ -50,31 +50,44 @@ class TestAPIDocExtractor:
         extractor = APIDocExtractor()
         enrichments = extractor.extract_api_docs(git_files, language)
 
-        # Should generate at least one enrichment for files with public APIs
-        assert len(enrichments) > 0
+        # Should generate exactly one enrichment per language
+        assert len(enrichments) == 1
 
-        for enrichment in enrichments:
-            content = enrichment.content
+        enrichment = enrichments[0]
+        content = enrichment.content
 
-            # Check Go-Doc style format
-            assert content.startswith("# package ")
-            assert enrichment.type == "usage"
-            assert enrichment.subtype == "api_docs"
+        # Check combined API doc format
+        assert content.startswith("# API Documentation: ")
+        assert enrichment.type == "usage"
+        assert enrichment.subtype == "api_docs"
+        assert enrichment.module_path == language
 
-            # Should have at least one section (Functions, Types, or Constants)
-            has_sections = (
-                "## Functions" in content
-                or "## Types" in content
-                or "## Constants" in content
-            )
-            assert has_sections, f"No API sections found in {enrichment.module_path}"
+        # Should have Overview and Index sections
+        assert "## Overview" in content
+        assert "## Index" in content
 
-            # Should have source files section
-            assert "## Source Files" in content
+        # Should have at least one module section
+        # Module sections are now ## headers (not package headers)
+        module_sections = [
+            line for line in content.split("\n") if line.startswith("## ")
+        ]
+        # At least Overview, Index, and one module
+        assert len(module_sections) >= 3
+
+        # Should have at least one subsection (Functions, Types, or Constants)
+        has_subsections = (
+            "### Functions" in content
+            or "### Types" in content
+            or "### Constants" in content
+        )
+        assert has_subsections, f"No API subsections found for {language}"
+
+        # Should have source files subsection
+        assert "### Source Files" in content
 
         if language == "python":
             # Should find submodule_func from the submodule
-            assert any("submodule_func" in e.content for e in enrichments)
+            assert "submodule_func" in content
 
 
 def test_extract_api_docs_filters_private_python() -> None:
@@ -100,11 +113,11 @@ def test_extract_api_docs_filters_private_python() -> None:
     assert len(enrichments) == 1
     content = enrichments[0].content
 
-    # Should not include private functions (those starting with _)
-    # But this depends on what's actually in utils.py
-    # Just verify the format is correct
-    # The package name will be "python.utils" (last 2 path components)
-    assert "# package python.utils" in content
+    # Should use combined format
+    assert content.startswith("# API Documentation: python")
+
+    # Should have a module section for utils
+    assert "## python.utils" in content or "## slicing.data.python.utils" in content
 
 
 def test_extract_api_docs_empty_result() -> None:
@@ -129,4 +142,6 @@ def test_extract_api_docs_empty_result() -> None:
 
     # __init__.py files are often empty, so might have no enrichments
     # This is fine - just testing the behavior
+    # Note: Now returns empty list if no content, not a list with empty enrichment
     assert isinstance(enrichments, list)
+    assert len(enrichments) == 0

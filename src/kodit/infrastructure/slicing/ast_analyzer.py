@@ -651,7 +651,12 @@ class ASTAnalyzer:
 
         # Convert to Go-style import path (use / separator)
         if str(dir_path) != ".":
-            return f"{str(dir_path).replace('\\', '/')}/{package_name}"
+            dir_str = str(dir_path).replace("\\", "/")
+            # Check if package name is already the last component of the path
+            # to avoid duplication like "agent/agent"
+            if dir_str.endswith("/" + package_name) or dir_str == package_name:
+                return dir_str
+            return f"{dir_str}/{package_name}"
         return package_name
 
     def _extract_python_module_path(self, parsed: ParsedFile) -> str:
@@ -692,7 +697,8 @@ class ASTAnalyzer:
         """Clean a file path to extract a reasonable module path.
 
         Attempts to remove common repository root indicators like 'src',
-        'lib', project directories, etc. to get a clean module path.
+        'lib', project directories, etc. to get a clean module path that
+        represents the full import path a user would use.
         """
         parts = list(file_path.parts)
 
@@ -700,16 +706,19 @@ class ASTAnalyzer:
         if not file_path.is_absolute():
             return file_path
 
-        # Try to find common source root markers
+        # Try to find common source root markers and return everything after them
         common_roots = {"src", "lib", "pkg", "internal", "app"}
         for i, part in enumerate(parts):
             if part in common_roots:
-                # Return path from this point forward
-                return Path(*parts[i + 1 :]) if i + 1 < len(parts) else file_path
+                # Return path from this point forward (after the root marker)
+                if i + 1 < len(parts):
+                    return Path(*parts[i + 1 :])
+                return file_path
 
-        # If no common root found, try to remove everything up to the last
-        # directory that looks like a project name (contains no special chars)
-        # For now, just return the file name and immediate parent if absolute
+        # If no common root found, look for go.mod, package.json, pyproject.toml
+        # and return the path relative to that directory
+        # For now, return everything after the last "src-like" directory
+        # or just the filename if nothing found
         if len(parts) >= 2:
             return Path(*parts[-2:])
 

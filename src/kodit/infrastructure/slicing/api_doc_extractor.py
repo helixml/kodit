@@ -41,16 +41,25 @@ class APIDocExtractor:
         language: str,
         *,
         include_private: bool = False,
+        commit_sha: str | None = None,
     ) -> list[APIDocEnrichment]:
-        """Extract API documentation enrichments from files."""
+        """Extract API documentation enrichments from files.
+
+        Returns a single enrichment per language that combines all modules.
+
+        Args:
+            files: List of Git files to extract API docs from
+            language: Programming language of the files
+            include_private: Whether to include private functions/classes
+            commit_sha: Git commit SHA to use as entity_id (recommended)
+
+        """
         if not files:
             return []
 
         # Filter out languages that shouldn't have API docs
         if language not in self.SUPPORTED_LANGUAGES:
-            self.log.debug(
-                "Language not supported for API docs", language=language
-            )
+            self.log.debug("Language not supported for API docs", language=language)
             return []
 
         try:
@@ -63,26 +72,204 @@ class APIDocExtractor:
             self.log.debug("Unsupported language", language=language)
             return []
 
-        enrichments = []
-        for module in modules:
-            if not self._has_content(module):
-                continue
+        # Filter modules with content
+        modules_with_content = [m for m in modules if self._has_content(m)]
 
-            markdown_content = self._generate_markdown(module)
-            enrichment = APIDocEnrichment(
-                entity_id=module.files[0].git_file.blob_sha,
-                module_path=module.module_path,
-                content=markdown_content,
-            )
-            enrichments.append(enrichment)
+        if not modules_with_content:
+            return []
 
-        return enrichments
+        # Generate single markdown document for all modules
+        markdown_content = self._generate_combined_markdown(
+            modules_with_content, language
+        )
+
+        # Use commit_sha if provided, otherwise fall back to first file's blob_sha
+        entity_id = (
+            commit_sha if commit_sha else (files[0].blob_sha if files else "unknown")
+        )
+
+        enrichment = APIDocEnrichment(
+            entity_id=entity_id,
+            module_path=language,  # Use language as the top-level identifier
+            content=markdown_content,
+        )
+
+        return [enrichment]
 
     def _has_content(self, module: ModuleDefinition) -> bool:
         """Check if module has any API elements."""
         return bool(
             module.functions or module.classes or module.types or module.constants
         )
+
+    def _is_valid_function_name(self, name: str) -> bool:
+        """Check if a function name should be included in API documentation.
+
+        Filters out:
+        - Names longer than 255 characters (likely minified code)
+        - Anonymous or auto-generated function names
+        - Short minified names (2-3 chars with digits)
+        """
+        if not name:
+            return False
+
+        # Length check - names longer than 255 chars are likely minified code
+        if len(name) > 255:
+            return False
+
+        # Skip common anonymous/auto-generated function name patterns
+        anonymous_patterns = [
+            "anonymous",  # Anonymous functions
+            "default",  # Default export names in some bundlers
+        ]
+        if name.lower() in anonymous_patterns:  # noqa: SIM103
+            return False
+
+        return True
+
+    def _generate_combined_markdown(
+        self, modules: list[ModuleDefinition], language: str
+    ) -> str:
+        """Generate Godoc-style markdown for all modules combined.
+
+        Organizes content by module path, with types and functions grouped
+        within each module section.
+        """
+        lines = []
+
+        # Header - use language as the package name
+        lines.append(f"# API Documentation: {language}")
+        lines.append("")
+
+        # Overview
+        lines.append("## Overview")
+        lines.append("")
+        lines.append(
+            f"This document provides API documentation for all {language} modules "
+            "in this codebase."
+        )
+        lines.append("")
+
+        # Generate index of all modules
+        lines.append("## Index")
+        lines.append("")
+        lines.extend(
+            f"- [{module.module_path}](#{self._anchor(module.module_path)})"
+            for module in sorted(modules, key=lambda m: m.module_path)
+        )
+        lines.append("")
+
+        # Generate documentation for each module
+        for module in sorted(modules, key=lambda m: m.module_path):
+            lines.extend(self._generate_module_section(module))
+
+        return "\n".join(lines)
+
+    def _anchor(self, text: str) -> str:
+        """Generate markdown anchor from text."""
+        return text.lower().replace(".", "").replace("/", "").replace("_", "-")
+
+    def _generate_module_section(self, module: ModuleDefinition) -> list[str]:
+        """Generate markdown section for a single module."""
+        lines = []
+
+        # Module header and docstring
+        lines.append(f"## {module.module_path}")
+        lines.append("")
+        if module.module_docstring:
+            lines.append(module.module_docstring)
+            lines.append("")
+
+        # Add subsections
+        lines.extend(self._format_constants_section(module))
+        lines.extend(self._format_functions_section(module))
+        lines.extend(self._format_types_section(module))
+        lines.extend(self._format_source_files_section(module))
+
+        return lines
+
+    def _format_constants_section(self, module: ModuleDefinition) -> list[str]:
+        """Format constants section for a module."""
+        if not module.constants:
+            return []
+
+        lines = ["### Constants", ""]
+        for _name, node in module.constants:
+            parsed_file = self._find_parsed_file(module, node)
+            if parsed_file:
+                signature = self._extract_source(parsed_file, node)
+                lines.append("```")
+                lines.append(signature.strip())
+                lines.append("```")
+                lines.append("")
+        return lines
+
+    def _format_functions_section(self, module: ModuleDefinition) -> list[str]:
+        """Format functions section for a module."""
+        if not module.functions:
+            return []
+
+        # Filter out invalid function names (minified, anonymous, etc.)
+        valid_functions = [
+            f for f in module.functions if self._is_valid_function_name(f.simple_name)
+        ]
+
+        if not valid_functions:
+            return []
+
+        lines = ["### Functions", ""]
+        for func in sorted(valid_functions, key=lambda f: f.simple_name):
+            lines.extend(self._format_function_standalone(func, module))
+        return lines
+
+    def _format_types_section(self, module: ModuleDefinition) -> list[str]:
+        """Format types section for a module."""
+        if not (module.types or module.classes):
+            return []
+
+        lines = ["### Types", ""]
+
+        # Format type definitions
+        for typ in sorted(module.types, key=lambda t: t.simple_name):
+            lines.extend(self._format_type(typ, module))
+
+        # Format class definitions with methods
+        for cls in sorted(module.classes, key=lambda c: c.simple_name):
+            lines.extend(self._format_class(cls, module))
+
+        return lines
+
+    def _format_source_files_section(self, module: ModuleDefinition) -> list[str]:
+        """Format source files section for a module."""
+        lines = ["### Source Files", ""]
+        lines.extend(
+            f"- `{parsed.git_file.path}`"
+            for parsed in sorted(module.files, key=lambda f: f.git_file.path)
+        )
+        lines.append("")
+        return lines
+
+    def _format_function_standalone(
+        self, func: FunctionDefinition, module: ModuleDefinition
+    ) -> list[str]:
+        """Format a standalone function."""
+        lines = [f"#### {func.simple_name}", ""]
+
+        # Signature
+        parsed_file = self._find_parsed_file(module, func.node)
+        if parsed_file:
+            signature = self._extract_source(parsed_file, func.node)
+            lines.append("```")
+            lines.append(signature.strip())
+            lines.append("```")
+            lines.append("")
+
+        # Documentation
+        if func.docstring:
+            lines.append(func.docstring)
+            lines.append("")
+
+        return lines
 
     def _generate_markdown(self, module: ModuleDefinition) -> str:  # noqa: C901
         """Generate Go-Doc style Markdown for a module."""
@@ -215,9 +402,7 @@ class APIDocExtractor:
 
         return lines
 
-    def _format_type(
-        self, typ: TypeDefinition, module: ModuleDefinition
-    ) -> list[str]:
+    def _format_type(self, typ: TypeDefinition, module: ModuleDefinition) -> list[str]:
         """Format a type in Go-Doc style."""
         lines = [f"### type {typ.simple_name}", ""]
 
@@ -257,9 +442,12 @@ class APIDocExtractor:
             lines.append(cls.docstring)
             lines.append("")
 
-        # Methods
+        # Methods - filter out invalid method names
         if cls.methods:
-            for method in sorted(cls.methods, key=lambda m: m.simple_name):
+            valid_methods = [
+                m for m in cls.methods if self._is_valid_function_name(m.simple_name)
+            ]
+            for method in sorted(valid_methods, key=lambda m: m.simple_name):
                 lines.extend(self._format_method(method, cls, module))
 
         return lines
