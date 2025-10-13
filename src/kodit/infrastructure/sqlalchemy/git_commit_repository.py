@@ -77,11 +77,17 @@ class SqlAlchemyGitCommitRepository(GitCommitRepository):
 
             commit_shas = [commit.commit_sha for commit in db_commits]
 
-            # Get all files for these commits
-            files_stmt = select(db_entities.GitCommitFile).where(
-                db_entities.GitCommitFile.commit_sha.in_(commit_shas)
-            )
-            db_files = (await session.scalars(files_stmt)).all()
+            # Get all files for these commits in chunks
+            # to avoid parameter limits
+            db_files: list[db_entities.GitCommitFile] = []
+            chunk_size = 1000
+            for i in range(0, len(commit_shas), chunk_size):
+                chunk = commit_shas[i : i + chunk_size]
+                files_stmt = select(db_entities.GitCommitFile).where(
+                    db_entities.GitCommitFile.commit_sha.in_(chunk)
+                )
+                chunk_files = (await session.scalars(files_stmt)).all()
+                db_files.extend(chunk_files)
 
             # Group files by commit SHA
             files_by_commit: dict[str, list[GitFile]] = {}
@@ -149,13 +155,16 @@ class SqlAlchemyGitCommitRepository(GitCommitRepository):
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             commit_shas = [commit.commit_sha for commit in commits]
 
-            # Get existing commits in bulk
-            existing_commits_stmt = select(db_entities.GitCommit.commit_sha).where(
-                db_entities.GitCommit.commit_sha.in_(commit_shas)
-            )
-            existing_commit_shas = set(
-                (await session.scalars(existing_commits_stmt)).all()
-            )
+            # Get existing commits in bulk (chunked to avoid parameter limits)
+            existing_commit_shas: set[str] = set()
+            chunk_size = 1000
+            for i in range(0, len(commit_shas), chunk_size):
+                chunk = commit_shas[i : i + chunk_size]
+                existing_commits_stmt = select(db_entities.GitCommit.commit_sha).where(
+                    db_entities.GitCommit.commit_sha.in_(chunk)
+                )
+                chunk_existing = (await session.scalars(existing_commits_stmt)).all()
+                existing_commit_shas.update(chunk_existing)
 
             # Prepare new commits for bulk insert
             new_commits_data = []
@@ -176,8 +185,8 @@ class SqlAlchemyGitCommitRepository(GitCommitRepository):
             if new_commits_data:
                 chunk_size = 1000  # Conservative chunk size for parameter limits
                 for i in range(0, len(new_commits_data), chunk_size):
-                    chunk = new_commits_data[i : i + chunk_size]
-                    stmt = insert(db_entities.GitCommit).values(chunk)
+                    data_chunk = new_commits_data[i : i + chunk_size]
+                    stmt = insert(db_entities.GitCommit).values(data_chunk)
                     await session.execute(stmt)
 
                 # Bulk save files for new commits

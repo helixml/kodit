@@ -219,28 +219,38 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
         if db_tracking_branch_entity:
             referenced_commit_shas.add(db_tracking_branch_entity.head_commit_sha)
 
-        # Load only the referenced commits
+        # Load only the referenced commits in chunks to avoid parameter limits
         referenced_commits = []
         referenced_files = []
         if referenced_commit_shas:
-            referenced_commits = list(
-                (
-                    await session.scalars(
-                        select(db_entities.GitCommit).where(
-                            db_entities.GitCommit.commit_sha.in_(referenced_commit_shas)
+            commit_shas_list = list(referenced_commit_shas)
+            chunk_size = 1000
+
+            for i in range(0, len(commit_shas_list), chunk_size):
+                chunk = commit_shas_list[i : i + chunk_size]
+                chunk_commits = list(
+                    (
+                        await session.scalars(
+                            select(db_entities.GitCommit).where(
+                                db_entities.GitCommit.commit_sha.in_(chunk)
+                            )
                         )
-                    )
-                ).all()
-            )
-            referenced_files = list(
-                (
-                    await session.scalars(
-                        select(db_entities.GitCommitFile).where(
-                            db_entities.GitCommitFile.commit_sha.in_(referenced_commit_shas)
+                    ).all()
+                )
+                referenced_commits.extend(chunk_commits)
+
+            for i in range(0, len(commit_shas_list), chunk_size):
+                chunk = commit_shas_list[i : i + chunk_size]
+                chunk_files = list(
+                    (
+                        await session.scalars(
+                            select(db_entities.GitCommitFile).where(
+                                db_entities.GitCommitFile.commit_sha.in_(chunk)
+                            )
                         )
-                    )
-                ).all()
-            )
+                    ).all()
+                )
+                referenced_files.extend(chunk_files)
 
         return self._mapper.to_domain_git_repo(
             db_repo=db_repo,

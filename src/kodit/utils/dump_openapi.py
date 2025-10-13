@@ -20,10 +20,11 @@ if __name__ == "__main__":
     app = import_from_string(args.app)
     openapi = app.openapi()
 
-    # A regex that maches semver only (nothing after the final minor version)
     git_tag = openapi["info"]["version"]
     if not git_tag:
         raise ValueError(f"Invalid version: {openapi['info']}")
+    # Strip any rcxxx suffix
+    git_tag = git_tag.split("rc")[0]
     openapi["info"]["version"] = git_tag
 
     output_json_file = Path(args.out_dir) / "openapi.json"
