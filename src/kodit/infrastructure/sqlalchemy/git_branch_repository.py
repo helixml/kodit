@@ -98,17 +98,28 @@ class SqlAlchemyGitBranchRepository(GitBranchRepository):
 
             commit_shas = [branch.head_commit_sha for branch in db_branches]
 
-            # Get all head commits for these branches
-            commits_stmt = select(db_entities.GitCommit).where(
-                db_entities.GitCommit.commit_sha.in_(commit_shas)
-            )
-            db_commits = (await session.scalars(commits_stmt)).all()
+            # Get all head commits for these branches in chunks
+            # to avoid parameter limits
+            db_commits: list[db_entities.GitCommit] = []
+            chunk_size = 1000
+            for i in range(0, len(commit_shas), chunk_size):
+                chunk = commit_shas[i : i + chunk_size]
+                commits_stmt = select(db_entities.GitCommit).where(
+                    db_entities.GitCommit.commit_sha.in_(chunk)
+                )
+                chunk_commits = (await session.scalars(commits_stmt)).all()
+                db_commits.extend(chunk_commits)
 
-            # Get all files for these commits
-            files_stmt = select(db_entities.GitCommitFile).where(
-                db_entities.GitCommitFile.commit_sha.in_(commit_shas)
-            )
-            db_files = (await session.scalars(files_stmt)).all()
+            # Get all files for these commits in chunks
+            # to avoid parameter limits
+            db_files: list[db_entities.GitCommitFile] = []
+            for i in range(0, len(commit_shas), chunk_size):
+                chunk = commit_shas[i : i + chunk_size]
+                files_stmt = select(db_entities.GitCommitFile).where(
+                    db_entities.GitCommitFile.commit_sha.in_(chunk)
+                )
+                chunk_files = (await session.scalars(files_stmt)).all()
+                db_files.extend(chunk_files)
 
             # Group files by commit SHA
             from kodit.domain.entities.git import GitFile
