@@ -1034,6 +1034,108 @@
           }
         }
       }
+    },
+    "/api/v1/repositories/{repo_id}/enrichments": {
+      "get": {
+        "tags": [
+          "repositories"
+        ],
+        "summary": "List latest repository enrichments",
+        "description": "List the most recent enrichments for a repository.\n\nQuery parameters:\n- ref_type: Type of reference (branch, tag, or commit_sha). Defaults to \"branch\".\n- ref_name: Name of the reference. For branches, defaults to the tracking branch.\n- enrichment_type: Optional filter for specific enrichment type.\n- limit: Maximum number of enrichments to return. Defaults to 10.",
+        "operationId": "list_repository_enrichments_api_v1_repositories__repo_id__enrichments_get",
+        "security": [
+          {
+            "Header (X-API-KEY)": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "repo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Repo Id"
+            }
+          },
+          {
+            "name": "ref_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "branch",
+              "title": "Ref Type"
+            }
+          },
+          {
+            "name": "ref_name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ref Name"
+            }
+          },
+          {
+            "name": "enrichment_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Enrichment Type"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 10,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnrichmentListResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Invalid request"
+          },
+          "404": {
+            "description": "Repository not found"
+          }
+        }
+      }
     }
   },
   "components": {
