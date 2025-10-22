@@ -516,6 +516,42 @@ Get a specific tag for a repository.
 
 - 404: Repository or tag not found
 
+### GET /api/v1/repositories/{repo_id}/enrichments
+
+List the most recent enrichments for a repository.
+
+Query parameters:
+- ref_type: Type of reference (branch, tag, or commit_sha). Defaults to "branch".
+- ref_name: Name of the reference. For branches, defaults to the tracking branch.
+- enrichment_type: Optional filter for specific enrichment type.
+- limit: Maximum number of enrichments to return. Defaults to 10.
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| repo_id | string | True |  |
+| ref_type | string | False |  |
+| ref_name |  | False |  |
+| enrichment_type |  | False |  |
+| limit | integer | False |  |
+
+
+#### Responses
+
+- 200: Successful Response
+
+[EnrichmentListResponse](#enrichmentlistresponse)
+
+- 500: Internal server error
+
+- 401: Unauthorized
+
+- 422: Invalid request
+
+- 404: Repository not found
+
 ## Components
 
 
