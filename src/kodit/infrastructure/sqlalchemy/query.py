@@ -6,7 +6,6 @@ from enum import Enum
 from typing import Any
 
 from sqlalchemy import Select
-from sqlalchemy.sql import operators
 
 
 class Query(ABC):
@@ -42,8 +41,30 @@ class FilterCriteria:
     def apply(self, model_type: type, stmt: Select) -> Select:
         """Apply filter to statement."""
         column = getattr(model_type, self.field)
-        op_func = getattr(operators, self.operator.value)
-        return stmt.where(op_func(column, self.value))
+
+        # Use column comparison methods instead of operators module
+        condition = None
+        match self.operator:
+            case FilterOperator.EQ:
+                condition = column == self.value
+            case FilterOperator.NE:
+                condition = column != self.value
+            case FilterOperator.GT:
+                condition = column > self.value
+            case FilterOperator.GTE:
+                condition = column >= self.value
+            case FilterOperator.LT:
+                condition = column < self.value
+            case FilterOperator.LTE:
+                condition = column <= self.value
+            case FilterOperator.IN:
+                condition = column.in_(self.value)
+            case FilterOperator.LIKE:
+                condition = column.like(self.value)
+            case FilterOperator.ILIKE:
+                condition = column.ilike(self.value)
+
+        return stmt.where(condition)
 
 
 @dataclass

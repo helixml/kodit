@@ -37,44 +37,6 @@ class TestSqlAlchemyEmbeddingRepository:
         mock_session.add.assert_called_once_with(embedding)
 
     @pytest.mark.asyncio
-    async def test_get_embedding_by_snippet_id_and_type_found(self) -> None:
-        """Test getting an embedding that exists."""
-        mock_session_factory = MagicMock()
-        mock_session = AsyncMock()
-        mock_session_factory.return_value = mock_session
-
-        mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = MagicMock()
-        mock_session.execute = AsyncMock(return_value=mock_result)
-
-        repository = SqlAlchemyEmbeddingRepository(session_factory=mock_session_factory)
-
-        result = await repository.get_embedding_by_snippet_id_and_type(
-            1, EmbeddingType.CODE
-        )
-
-        assert result is not None
-
-    @pytest.mark.asyncio
-    async def test_get_embedding_by_snippet_id_and_type_not_found(self) -> None:
-        """Test getting an embedding that doesn't exist."""
-        mock_session_factory = MagicMock()
-        mock_session = AsyncMock()
-        mock_session_factory.return_value = mock_session
-
-        mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = None
-        mock_session.execute = AsyncMock(return_value=mock_result)
-
-        repository = SqlAlchemyEmbeddingRepository(session_factory=mock_session_factory)
-
-        result = await repository.get_embedding_by_snippet_id_and_type(
-            1, EmbeddingType.CODE
-        )
-
-        assert result is None
-
-    @pytest.mark.asyncio
     async def test_list_semantic_results_empty_database(self) -> None:
         """Test semantic search with empty database."""
         mock_session_factory = MagicMock()
@@ -422,51 +384,239 @@ class TestSqlAlchemyEmbeddingRepository:
         assert results[0] == ("1", [0.1, 0.2, 0.3])
         assert results[1] == ("2", [0.4, 0.5, 0.6])
 
-    @pytest.mark.asyncio
-    async def test_get_embeddings_by_snippet_ids(self) -> None:
-        """Test getting embeddings by multiple snippet IDs."""
-        mock_session_factory = MagicMock()
-        mock_session = AsyncMock()
-        mock_session_factory.return_value = mock_session
 
-        # Mock embeddings
-        embedding1 = MagicMock()
-        embedding1.snippet_id = "snippet1"
+class TestSqlAlchemyEmbeddingRepositoryIntegration:
+    """Integration tests using real database."""
+
+    @pytest.mark.asyncio
+    async def test_create_and_get_embedding(
+        self, session_factory  # noqa: ANN001
+    ) -> None:
+        """Test creating and retrieving an embedding."""
+        repository = SqlAlchemyEmbeddingRepository(session_factory=session_factory)
+
+        embedding = Embedding()
+        embedding.snippet_id = "1"
+        embedding.type = EmbeddingType.CODE
+        embedding.embedding = [0.1, 0.2, 0.3]
+
+        await repository.create_embedding(embedding)
+
+        result = await repository.get_embedding_by_snippet_id_and_type(
+            1, EmbeddingType.CODE
+        )
+
+        assert result is not None
+        assert result.snippet_id == "1"
+        assert result.type == EmbeddingType.CODE
+        assert result.embedding == [0.1, 0.2, 0.3]
+
+    @pytest.mark.asyncio
+    async def test_list_embeddings_by_type(
+        self, session_factory  # noqa: ANN001
+    ) -> None:
+        """Test listing embeddings by type."""
+        repository = SqlAlchemyEmbeddingRepository(session_factory=session_factory)
+
+        embedding1 = Embedding()
+        embedding1.snippet_id = "snippet_1"
         embedding1.type = EmbeddingType.CODE
         embedding1.embedding = [0.1, 0.2, 0.3]
 
-        embedding2 = MagicMock()
-        embedding2.snippet_id = "snippet2"
+        embedding2 = Embedding()
+        embedding2.snippet_id = "snippet_2"
+        embedding2.type = EmbeddingType.CODE
+        embedding2.embedding = [0.4, 0.5, 0.6]
+
+        embedding3 = Embedding()
+        embedding3.snippet_id = "snippet_3"
+        embedding3.type = EmbeddingType.TEXT
+        embedding3.embedding = [0.7, 0.8, 0.9]
+
+        await repository.create_embedding(embedding1)
+        await repository.create_embedding(embedding2)
+        await repository.create_embedding(embedding3)
+
+        code_embeddings = await repository.list_embeddings_by_type(EmbeddingType.CODE)
+
+        assert len(code_embeddings) == 2
+        snippet_ids = {e.snippet_id for e in code_embeddings}
+        assert snippet_ids == {"snippet_1", "snippet_2"}
+
+    @pytest.mark.asyncio
+    async def test_semantic_search_basic(
+        self, session_factory  # noqa: ANN001
+    ) -> None:
+        """Test basic semantic search with cosine similarity."""
+        repository = SqlAlchemyEmbeddingRepository(session_factory=session_factory)
+
+        embedding1 = Embedding()
+        embedding1.snippet_id = "snippet_1"
+        embedding1.type = EmbeddingType.CODE
+        embedding1.embedding = [1.0, 0.0, 0.0]
+
+        embedding2 = Embedding()
+        embedding2.snippet_id = "snippet_2"
+        embedding2.type = EmbeddingType.CODE
+        embedding2.embedding = [0.0, 1.0, 0.0]
+
+        embedding3 = Embedding()
+        embedding3.snippet_id = "snippet_3"
+        embedding3.type = EmbeddingType.CODE
+        embedding3.embedding = [0.0, 0.0, 1.0]
+
+        await repository.create_embedding(embedding1)
+        await repository.create_embedding(embedding2)
+        await repository.create_embedding(embedding3)
+
+        query_embedding = [1.0, 0.0, 0.0]
+        results = await repository.list_semantic_results(
+            EmbeddingType.CODE, query_embedding, top_k=3
+        )
+
+        assert len(results) == 3
+        assert results[0][0] == "snippet_1"
+        assert results[0][1] == pytest.approx(1.0, abs=1e-6)
+
+    @pytest.mark.asyncio
+    async def test_delete_embeddings_by_snippet_id(
+        self, session_factory  # noqa: ANN001
+    ) -> None:
+        """Test deleting all embeddings for a snippet."""
+        repository = SqlAlchemyEmbeddingRepository(session_factory=session_factory)
+
+        embedding1 = Embedding()
+        embedding1.snippet_id = "snippet_to_delete"
+        embedding1.type = EmbeddingType.CODE
+        embedding1.embedding = [0.1, 0.2, 0.3]
+
+        embedding2 = Embedding()
+        embedding2.snippet_id = "snippet_to_delete"
         embedding2.type = EmbeddingType.TEXT
         embedding2.embedding = [0.4, 0.5, 0.6]
 
-        mock_result = MagicMock()
-        mock_result.scalars.return_value = [embedding1, embedding2]
-        mock_session.execute = AsyncMock(return_value=mock_result)
+        embedding3 = Embedding()
+        embedding3.snippet_id = "snippet_to_keep"
+        embedding3.type = EmbeddingType.CODE
+        embedding3.embedding = [0.7, 0.8, 0.9]
 
-        repository = SqlAlchemyEmbeddingRepository(session_factory=mock_session_factory)
+        await repository.create_embedding(embedding1)
+        await repository.create_embedding(embedding2)
+        await repository.create_embedding(embedding3)
 
-        results = await repository.get_embeddings_by_snippet_ids(
-            ["snippet1", "snippet2"]
+        await repository.delete_embeddings_by_snippet_id("snippet_to_delete")
+
+        # Note: get_embedding_by_snippet_id_and_type uses int, not str
+        # Using list method to verify deletion instead
+        all_embeddings = await repository.list_embeddings_by_type(EmbeddingType.CODE)
+        deleted_count = sum(
+            1 for e in all_embeddings if e.snippet_id == "snippet_to_delete"
+        )
+        assert deleted_count == 0
+
+        kept_count = sum(1 for e in all_embeddings if e.snippet_id == "snippet_to_keep")
+        assert kept_count == 1
+
+    @pytest.mark.asyncio
+    async def test_list_embeddings_by_snippet_ids_and_type(
+        self, session_factory  # noqa: ANN001
+    ) -> None:
+        """Test getting embeddings for multiple snippet IDs."""
+        repository = SqlAlchemyEmbeddingRepository(session_factory=session_factory)
+
+        embedding1 = Embedding()
+        embedding1.snippet_id = "snippet_1"
+        embedding1.type = EmbeddingType.CODE
+        embedding1.embedding = [0.1, 0.2, 0.3]
+
+        embedding2 = Embedding()
+        embedding2.snippet_id = "snippet_2"
+        embedding2.type = EmbeddingType.CODE
+        embedding2.embedding = [0.4, 0.5, 0.6]
+
+        embedding3 = Embedding()
+        embedding3.snippet_id = "snippet_3"
+        embedding3.type = EmbeddingType.TEXT
+        embedding3.embedding = [0.7, 0.8, 0.9]
+
+        await repository.create_embedding(embedding1)
+        await repository.create_embedding(embedding2)
+        await repository.create_embedding(embedding3)
+
+        results = await repository.list_embeddings_by_snippet_ids_and_type(
+            ["snippet_1", "snippet_2"], EmbeddingType.CODE
         )
 
         assert len(results) == 2
-        assert results[0] == embedding1
-        assert results[1] == embedding2
+        snippet_ids = {e.snippet_id for e in results}
+        assert snippet_ids == {"snippet_1", "snippet_2"}
 
     @pytest.mark.asyncio
-    async def test_get_embeddings_by_snippet_ids_empty_list(self) -> None:
-        """Test getting embeddings with empty snippet ID list."""
-        mock_session_factory = MagicMock()
-        mock_session = AsyncMock()
-        mock_session_factory.return_value = mock_session
+    async def test_get_embeddings_by_snippet_ids(
+        self, session_factory  # noqa: ANN001
+    ) -> None:
+        """Test getting all embeddings for snippet IDs regardless of type."""
+        repository = SqlAlchemyEmbeddingRepository(session_factory=session_factory)
 
-        mock_result = MagicMock()
-        mock_result.scalars.return_value = []
-        mock_session.execute = AsyncMock(return_value=mock_result)
+        embedding1 = Embedding()
+        embedding1.snippet_id = "snippet_1"
+        embedding1.type = EmbeddingType.CODE
+        embedding1.embedding = [0.1, 0.2, 0.3]
 
-        repository = SqlAlchemyEmbeddingRepository(session_factory=mock_session_factory)
+        embedding2 = Embedding()
+        embedding2.snippet_id = "snippet_1"
+        embedding2.type = EmbeddingType.TEXT
+        embedding2.embedding = [0.4, 0.5, 0.6]
 
-        results = await repository.get_embeddings_by_snippet_ids([])
+        embedding3 = Embedding()
+        embedding3.snippet_id = "snippet_2"
+        embedding3.type = EmbeddingType.CODE
+        embedding3.embedding = [0.7, 0.8, 0.9]
 
-        assert len(results) == 0
+        await repository.create_embedding(embedding1)
+        await repository.create_embedding(embedding2)
+        await repository.create_embedding(embedding3)
+
+        results = await repository.get_embeddings_by_snippet_ids(["snippet_1"])
+
+        assert len(results) == 2
+        types = {e.type for e in results}
+        assert types == {EmbeddingType.CODE, EmbeddingType.TEXT}
+
+    @pytest.mark.asyncio
+    async def test_semantic_search_with_snippet_id_filter(
+        self, session_factory  # noqa: ANN001
+    ) -> None:
+        """Test semantic search filtered by snippet IDs."""
+        repository = SqlAlchemyEmbeddingRepository(session_factory=session_factory)
+
+        embedding1 = Embedding()
+        embedding1.snippet_id = "snippet_1"
+        embedding1.type = EmbeddingType.CODE
+        embedding1.embedding = [1.0, 0.0, 0.0]
+
+        embedding2 = Embedding()
+        embedding2.snippet_id = "snippet_2"
+        embedding2.type = EmbeddingType.CODE
+        embedding2.embedding = [1.0, 0.0, 0.0]
+
+        embedding3 = Embedding()
+        embedding3.snippet_id = "snippet_3"
+        embedding3.type = EmbeddingType.CODE
+        embedding3.embedding = [1.0, 0.0, 0.0]
+
+        await repository.create_embedding(embedding1)
+        await repository.create_embedding(embedding2)
+        await repository.create_embedding(embedding3)
+
+        query_embedding = [1.0, 0.0, 0.0]
+        results = await repository.list_semantic_results(
+            EmbeddingType.CODE,
+            query_embedding,
+            top_k=10,
+            snippet_ids=["snippet_1", "snippet_2"],
+        )
+
+        assert len(results) == 2
+        snippet_ids = {r[0] for r in results}
+        assert snippet_ids == {"snippet_1", "snippet_2"}
