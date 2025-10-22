@@ -13,6 +13,9 @@ from kodit.application.services.code_search_application_service import (
 from kodit.application.services.commit_indexing_application_service import (
     CommitIndexingApplicationService,
 )
+from kodit.application.services.enrichment_query_service import (
+    EnrichmentQueryService,
+)
 from kodit.application.services.queue_service import QueueService
 from kodit.config import AppContext
 from kodit.domain.protocols import (
@@ -154,4 +157,16 @@ async def get_code_search_app_service(
 
 CodeSearchAppServiceDep = Annotated[
     CodeSearchApplicationService, Depends(get_code_search_app_service)
+]
+
+
+async def get_enrichment_query_service(
+    server_factory: ServerFactoryDep,
+) -> EnrichmentQueryService:
+    """Get enrichment query service dependency."""
+    return server_factory.enrichment_query_service()
+
+
+EnrichmentQueryServiceDep = Annotated[
+    EnrichmentQueryService, Depends(get_enrichment_query_service)
 ]

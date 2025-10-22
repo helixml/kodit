@@ -2,14 +2,21 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from kodit.domain.tracking.trackable import Trackable, TrackableReferenceType
 from kodit.infrastructure.api.middleware.auth import api_key_auth
 from kodit.infrastructure.api.v1.dependencies import (
     CommitIndexingAppServiceDep,
+    EnrichmentQueryServiceDep,
     GitBranchRepositoryDep,
     GitCommitRepositoryDep,
     GitRepositoryDep,
     GitTagRepositoryDep,
     TaskStatusQueryServiceDep,
+)
+from kodit.infrastructure.api.v1.schemas.enrichment import (
+    EnrichmentAttributes,
+    EnrichmentData,
+    EnrichmentListResponse,
 )
 from kodit.infrastructure.api.v1.schemas.repository import (
     RepositoryBranchData,
@@ -257,6 +264,98 @@ async def get_repository_tag(
             ),
         )
     )
+
+
+@router.get(
+    "/{repo_id}/enrichments",
+    summary="List latest repository enrichments",
+    responses={404: {"description": "Repository not found"}},
+)
+async def list_repository_enrichments(  # noqa: PLR0913
+    repo_id: str,
+    git_repository: GitRepositoryDep,
+    enrichment_query_service: EnrichmentQueryServiceDep,
+    ref_type: str = "branch",
+    ref_name: str | None = None,
+    enrichment_type: str | None = None,
+    limit: int = 10,
+) -> EnrichmentListResponse:
+    """List the most recent enrichments for a repository.
+
+    Query parameters:
+    - ref_type: Type of reference (branch, tag, or commit_sha). Defaults to "branch".
+    - ref_name: Name of the reference. For branches, defaults to the tracking branch.
+    - enrichment_type: Optional filter for specific enrichment type.
+    - limit: Maximum number of enrichments to return. Defaults to 10.
+    """
+    # Get repository
+    repo = await git_repository.get_by_id(int(repo_id))
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repository not found")
+
+    # Determine the reference to track
+    if ref_name is None:
+        if ref_type == "branch":
+            # Default to tracking branch
+            if not repo.tracking_branch:
+                raise HTTPException(
+                    status_code=400, detail="No tracking branch configured"
+                )
+            ref_name = repo.tracking_branch.name
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="ref_name is required for tag and commit_sha references",
+            )
+
+    # Parse ref_type
+    try:
+        trackable_type = TrackableReferenceType(ref_type)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid ref_type: {ref_type}. Must be branch, tag, or commit_sha",
+        ) from None
+
+    # Create trackable
+    trackable = Trackable(
+        type=trackable_type, identifier=ref_name, repo_id=int(repo_id)
+    )
+
+    # Find the latest enriched commit
+    enriched_commit = await enrichment_query_service.find_latest_enriched_commit(
+        trackable=trackable,
+        enrichment_type=enrichment_type,
+        max_commits_to_check=limit * 10,  # Check more commits to find enriched ones
+    )
+
+    # If no enriched commit found, return empty list
+    if not enriched_commit:
+        return EnrichmentListResponse(data=[])
+
+    # Get enrichments for the commit
+    enrichments = await enrichment_query_service.get_enrichments_for_commit(
+        commit_sha=enriched_commit,
+        enrichment_type=enrichment_type,
+    )
+
+    # Map enrichments to API response format
+    enrichment_data = [
+        EnrichmentData(
+            type="enrichment",
+            id=str(enrichment.id) if enrichment.id else "0",
+            attributes=EnrichmentAttributes(
+                type=enrichment.type,
+                subtype=enrichment.subtype,
+                content=enrichment.content,
+                created_at=enrichment.created_at,
+                updated_at=enrichment.updated_at,
+            ),
+        )
+        for enrichment in enrichments
+    ]
+
+    return EnrichmentListResponse(data=enrichment_data)
 
 
 @router.delete(

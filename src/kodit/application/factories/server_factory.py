@@ -12,6 +12,9 @@ from kodit.application.services.code_search_application_service import (
 from kodit.application.services.commit_indexing_application_service import (
     CommitIndexingApplicationService,
 )
+from kodit.application.services.enrichment_query_service import (
+    EnrichmentQueryService,
+)
 from kodit.application.services.queue_service import QueueService
 from kodit.application.services.reporting import ProgressTracker
 from kodit.application.services.sync_scheduler import SyncSchedulerService
@@ -39,6 +42,7 @@ from kodit.domain.services.git_repository_service import (
 from kodit.domain.services.physical_architecture_service import (
     PhysicalArchitectureService,
 )
+from kodit.domain.tracking.resolution_service import TrackableResolutionService
 from kodit.infrastructure.bm25.local_bm25_repository import LocalBM25Repository
 from kodit.infrastructure.bm25.vectorchord_bm25_repository import (
     VectorChordBM25Repository,
@@ -127,6 +131,8 @@ class ServerFactory:
         self._architecture_service: PhysicalArchitectureService | None = None
         self._enrichment_v2_repository: EnrichmentV2Repository | None = None
         self._architecture_formatter: PhysicalArchitectureFormatter | None = None
+        self._trackable_resolution_service: TrackableResolutionService | None = None
+        self._enrichment_query_service: EnrichmentQueryService | None = None
 
     def architecture_formatter(self) -> PhysicalArchitectureFormatter:
         """Create a PhysicalArchitectureFormatter instance."""
@@ -351,3 +357,22 @@ class ServerFactory:
                 session_factory=self.session_factory
             )
         return self._git_tag_repository
+
+    def trackable_resolution_service(self) -> TrackableResolutionService:
+        """Create a TrackableResolutionService instance."""
+        if not self._trackable_resolution_service:
+            self._trackable_resolution_service = TrackableResolutionService(
+                commit_repo=self.git_commit_repository(),
+                branch_repo=self.git_branch_repository(),
+                tag_repo=self.git_tag_repository(),
+            )
+        return self._trackable_resolution_service
+
+    def enrichment_query_service(self) -> EnrichmentQueryService:
+        """Create a EnrichmentQueryService instance."""
+        if not self._enrichment_query_service:
+            self._enrichment_query_service = EnrichmentQueryService(
+                trackable_resolution=self.trackable_resolution_service(),
+                enrichment_repo=self.enrichment_v2_repository(),
+            )
+        return self._enrichment_query_service
