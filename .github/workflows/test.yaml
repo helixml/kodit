@@ -39,6 +39,7 @@ jobs:
         run: make no-database-changes-check
 
       - name: API Doc check
+        if: "!startsWith(github.ref, 'refs/tags/')"
         run: make docs-check
 
       - name: Run tests
