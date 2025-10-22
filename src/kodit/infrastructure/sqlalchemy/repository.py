@@ -61,9 +61,11 @@ class SqlAlchemyRepository(ABC, Generic[DomainEntityType, DatabaseEntityType]):
             await session.flush()
             return entity
 
-    @abstractmethod
     async def exists(self, entity_id: Any) -> bool:
         """Check if entity exists by primary key."""
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
+            db_entity = await session.get(self.db_entity_type, entity_id)
+            return db_entity is not None
 
     async def remove(self, entity: DomainEntityType) -> None:
         """Remove entity."""
