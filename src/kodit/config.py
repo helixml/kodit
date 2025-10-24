@@ -70,6 +70,18 @@ class Endpoint(BaseModel):
         default=60,
         description="Request timeout in seconds",
     )
+    max_retries: int = Field(
+        default=5,
+        description="Maximum number of retries for the endpoint",
+    )
+    initial_delay: float = Field(
+        default=2.0,
+        description="Initial delay in seconds for the endpoint",
+    )
+    backoff_factor: float = Field(
+        default=2.0,
+        description="Backoff factor for the endpoint",
+    )
     extra_params: dict[str, Any] | None = Field(
         default=None,
         description="Extra provider-specific non-secret parameters for LiteLLM",
