@@ -10,6 +10,7 @@ from kodit.domain import entities as domain_entities
 from kodit.domain.protocols import TaskStatusRepository
 from kodit.infrastructure.mappers.task_status_mapper import TaskStatusMapper
 from kodit.infrastructure.sqlalchemy import entities as db_entities
+from kodit.infrastructure.sqlalchemy.repository import SqlAlchemyRepository
 from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 
 
@@ -20,7 +21,9 @@ def create_task_status_repository(
     return SqlAlchemyTaskStatusRepository(session_factory=session_factory)
 
 
-class SqlAlchemyTaskStatusRepository(TaskStatusRepository):
+class SqlAlchemyTaskStatusRepository(
+    SqlAlchemyRepository[domain_entities.TaskStatus, db_entities.TaskStatus]
+):
     """Repository for persisting TaskStatus entities."""
 
     def __init__(self, session_factory: Callable[[], AsyncSession]) -> None:
@@ -29,7 +32,7 @@ class SqlAlchemyTaskStatusRepository(TaskStatusRepository):
         self.mapper = TaskStatusMapper()
         self.log = structlog.get_logger(__name__)
 
-    async def save(self, status: domain_entities.TaskStatus) -> None:
+    async def save(self, status: domain_entities.TaskStatus, **kwargs: Any) -> None:
         """Save a TaskStatus to database."""
         # If this task has a parent, ensure the parent exists in the database first
         if status.parent is not None:

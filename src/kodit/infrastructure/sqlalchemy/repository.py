@@ -36,9 +36,7 @@ class SqlAlchemyRepository(ABC, Generic[DomainEntityType, DatabaseEntityType]):
         """Map database entity to domain entity."""
 
     @abstractmethod
-    def to_db(
-        self, domain_entity: DomainEntityType, **kwargs: Any
-    ) -> DatabaseEntityType:
+    def to_db(self, domain_entity: DomainEntityType) -> DatabaseEntityType:
         """Map domain entity to database entity."""
 
     def _update_db_entity(
@@ -68,7 +66,7 @@ class SqlAlchemyRepository(ABC, Generic[DomainEntityType, DatabaseEntityType]):
             db_entities = (await session.scalars(stmt)).all()
             return [self.to_domain(db) for db in db_entities]
 
-    async def save(self, entity: DomainEntityType, **kwargs: Any) -> DomainEntityType:
+    async def save(self, entity: DomainEntityType) -> DomainEntityType:
         """Save entity (create new or update existing)."""
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             entity_id = self._get_id(entity)
@@ -76,18 +74,18 @@ class SqlAlchemyRepository(ABC, Generic[DomainEntityType, DatabaseEntityType]):
 
             if existing_db_entity:
                 # Update existing entity
-                new_db_entity = self.to_db(entity, **kwargs)
+                new_db_entity = self.to_db(entity)
                 self._update_db_entity(existing_db_entity, new_db_entity)
             else:
                 # Create new entity
-                db_entity = self.to_db(entity, **kwargs)
+                db_entity = self.to_db(entity)
                 session.add(db_entity)
 
             await session.flush()
             return entity
 
     async def save_bulk(
-        self, entities: list[DomainEntityType], **kwargs: Any
+        self, entities: list[DomainEntityType]
     ) -> list[DomainEntityType]:
         """Save multiple entities in bulk (create new or update existing)."""
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
@@ -106,7 +104,7 @@ class SqlAlchemyRepository(ABC, Generic[DomainEntityType, DatabaseEntityType]):
                 new_entities = []
                 for entity in chunk:
                     entity_id = self._get_id(entity)
-                    new_db_entity = self.to_db(entity, **kwargs)
+                    new_db_entity = self.to_db(entity)
 
                     if entity_id in existing_entities:
                         # Update existing entity

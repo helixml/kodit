@@ -32,7 +32,7 @@ class SqlAlchemyEmbeddingRepository(SqlAlchemyRepository[Embedding, Embedding]):
         """Map database entity to domain entity."""
         return db_entity
 
-    def to_db(self, domain_entity: Embedding, **_kwargs: Any) -> Embedding:
+    def to_db(self, domain_entity: Embedding) -> Embedding:
         """Map domain entity to database entity."""
         return domain_entity
 
