@@ -22,6 +22,10 @@ class SqlAlchemyRepository(ABC, Generic[DomainEntityType, DatabaseEntityType]):
         self.session_factory = session_factory
         self._chunk_size = 1000
 
+    @abstractmethod
+    def _get_id(self, entity: DomainEntityType) -> Any:
+        """Extract ID from domain entity."""
+
     @property
     @abstractmethod
     def db_entity_type(self) -> type[DatabaseEntityType]:
@@ -74,9 +78,27 @@ class SqlAlchemyRepository(ABC, Generic[DomainEntityType, DatabaseEntityType]):
             if db_entity:
                 await session.delete(db_entity)
 
-    @abstractmethod
-    def _get_id(self, entity: DomainEntityType) -> Any:
-        """Extract ID from domain entity."""
+    async def bulk_add(
+        self, entities: list[DomainEntityType], **kwargs: Any
+    ) -> list[DomainEntityType]:
+        """Add multiple entities in bulk using chunking."""
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
+            for chunk in self._chunked(entities):
+                db_entities = [self.to_db(entity, **kwargs) for entity in chunk]
+                session.add_all(db_entities)
+                await session.flush()
+            return entities
+
+    async def bulk_delete(self, entities: list[DomainEntityType]) -> None:
+        """Remove multiple entities in bulk using chunking."""
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
+            for chunk in self._chunked(entities):
+                entity_ids = [self._get_id(entity) for entity in chunk]
+                for entity_id in entity_ids:
+                    db_entity = await session.get(self.db_entity_type, entity_id)
+                    if db_entity:
+                        await session.delete(db_entity)
+                await session.flush()
 
     def _chunked(
         self, items: list[DomainEntityType], chunk_size: int | None = None
