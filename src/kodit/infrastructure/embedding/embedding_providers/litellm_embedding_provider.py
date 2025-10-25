@@ -90,7 +90,7 @@ class LiteLLMEmbeddingProvider(EmbeddingProvider):
         async for result in process_items_concurrently(
             batched_data,
             _process_batch,
-            self.endpoint.num_parallel_tasks or 10,
+            self.endpoint.num_parallel_tasks,
         ):
             yield result
 

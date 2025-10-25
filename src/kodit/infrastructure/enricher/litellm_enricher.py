@@ -14,8 +14,6 @@ from kodit.infrastructure.providers.async_batch_processor import (
 )
 from kodit.infrastructure.providers.litellm_provider import LiteLLMProvider
 
-DEFAULT_NUM_PARALLEL_TASKS = 20
-
 
 class LiteLLMEnricher(Enricher):
     """LiteLLM enricher that supports 100+ providers."""
@@ -31,10 +29,8 @@ class LiteLLMEnricher(Enricher):
 
         """
         self.log = structlog.get_logger(__name__)
-        self.num_parallel_tasks = (
-            endpoint.num_parallel_tasks or DEFAULT_NUM_PARALLEL_TASKS
-        )
         self.provider: LiteLLMProvider = LiteLLMProvider(endpoint)
+        self.endpoint = endpoint
 
     async def enrich(
         self, requests: list[EnrichmentRequest]
@@ -69,9 +65,7 @@ class LiteLLMEnricher(Enricher):
             ]
             response = await self.provider.chat_completion(messages)
             content = (
-                response.get("choices", [{}])[0]
-                .get("message", {})
-                .get("content", "")
+                response.get("choices", [{}])[0].get("message", {}).get("content", "")
             )
             cleaned_content = clean_thinking_tags(content or "")
             return EnrichmentResponse(
@@ -80,7 +74,7 @@ class LiteLLMEnricher(Enricher):
             )
 
         async for result in process_items_concurrently(
-            requests, process_request, self.num_parallel_tasks
+            requests, process_request, self.endpoint.num_parallel_tasks
         ):
             yield result
 

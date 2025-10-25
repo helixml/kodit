@@ -62,7 +62,7 @@ class TestLiteLLMEmbeddingProvider:
         provider = LiteLLMEmbeddingProvider(endpoint)
 
         # Mock the provider's embedding method
-        provider.provider.embedding = AsyncMock(
+        provider.provider.embedding = AsyncMock(  # type: ignore[method-assign]
             return_value={"data": [{"embedding": [0.1, 0.2, 0.3, 0.4, 0.5] * 300}]}
         )
 
@@ -87,7 +87,7 @@ class TestLiteLLMEmbeddingProvider:
         provider = LiteLLMEmbeddingProvider(endpoint)
 
         # Mock the provider's embedding method
-        provider.provider.embedding = AsyncMock(
+        provider.provider.embedding = AsyncMock(  # type: ignore[method-assign]
             return_value={
                 "data": [
                     {"embedding": [0.1, 0.2, 0.3] * 500},  # 1500 dims
@@ -131,7 +131,7 @@ class TestLiteLLMEmbeddingProvider:
         provider = LiteLLMEmbeddingProvider(endpoint)
 
         # Mock the provider's embedding method
-        provider.provider.embedding = AsyncMock(
+        provider.provider.embedding = AsyncMock(  # type: ignore[method-assign]
             return_value={"data": [{"embedding": [0.1] * 1500}]}
         )
 
@@ -151,7 +151,7 @@ class TestLiteLLMEmbeddingProvider:
         provider = LiteLLMEmbeddingProvider(endpoint)
 
         # Mock the provider's embedding method
-        provider.provider.embedding = AsyncMock(
+        provider.provider.embedding = AsyncMock(  # type: ignore[method-assign]
             return_value={"data": [{"embedding": [0.1] * 1500}]}
         )
 
@@ -172,7 +172,7 @@ class TestLiteLLMEmbeddingProvider:
         provider = LiteLLMEmbeddingProvider(endpoint)
 
         # Mock the provider's embedding method
-        provider.provider.embedding = AsyncMock(
+        provider.provider.embedding = AsyncMock(  # type: ignore[method-assign]
             return_value={"data": [{"embedding": [0.1] * 1500}]}
         )
 
@@ -197,7 +197,7 @@ class TestLiteLLMEmbeddingProvider:
                 "data": [{"embedding": [0.1] * 1500} for _ in range(len(texts))]
             }
 
-        provider.provider.embedding = AsyncMock(side_effect=mock_embedding_func)
+        provider.provider.embedding = AsyncMock(side_effect=mock_embedding_func)  # type: ignore[method-assign]
 
         # Create more than batch_size requests (batch_size = 10)
         requests = [
@@ -221,7 +221,7 @@ class TestLiteLLMEmbeddingProvider:
         provider = LiteLLMEmbeddingProvider(endpoint)
 
         # Mock the provider's embedding method to raise an error
-        provider.provider.embedding = AsyncMock(
+        provider.provider.embedding = AsyncMock(  # type: ignore[method-assign]
             side_effect=Exception("LiteLLM API Error")
         )
 
@@ -239,7 +239,7 @@ class TestLiteLLMEmbeddingProvider:
         provider = LiteLLMEmbeddingProvider(endpoint)
 
         # Mock response that doesn't have model_dump method (dict response)
-        provider.provider.embedding = AsyncMock(
+        provider.provider.embedding = AsyncMock(  # type: ignore[method-assign]
             return_value={"data": [{"embedding": [0.1] * 1500}]}
         )
 
@@ -260,7 +260,7 @@ class TestLiteLLMEmbeddingProvider:
         provider = LiteLLMEmbeddingProvider(endpoint)
 
         # Mock the provider's embedding method
-        provider.provider.embedding = AsyncMock(
+        provider.provider.embedding = AsyncMock(  # type: ignore[method-assign]
             return_value={"data": [{"embedding": [0.1] * 1500}]}
         )
 
