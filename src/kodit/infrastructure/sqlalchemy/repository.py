@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator
 from typing import Any, Generic, TypeVar
 
-from sqlalchemy import select
+from sqlalchemy import inspect, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.infrastructure.sqlalchemy.query import Query
@@ -41,6 +41,17 @@ class SqlAlchemyRepository(ABC, Generic[DomainEntityType, DatabaseEntityType]):
     ) -> DatabaseEntityType:
         """Map domain entity to database entity."""
 
+    def _update_db_entity(
+        self, existing: DatabaseEntityType, new: DatabaseEntityType
+    ) -> None:
+        """Update existing database entity with values from new entity."""
+        mapper = inspect(type(existing))
+        if mapper is None:
+            return
+        for column in mapper.columns:
+            if not column.primary_key:
+                setattr(existing, column.key, getattr(new, column.key))
+
     async def get(self, entity_id: Any) -> DomainEntityType:
         """Get entity by primary key."""
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
@@ -58,21 +69,57 @@ class SqlAlchemyRepository(ABC, Generic[DomainEntityType, DatabaseEntityType]):
             return [self.to_domain(db) for db in db_entities]
 
     async def save(self, entity: DomainEntityType, **kwargs: Any) -> DomainEntityType:
-        """Add new entity."""
+        """Save entity (create new or update existing)."""
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
-            db_entity = self.to_db(entity, **kwargs)
-            session.add(db_entity)
+            entity_id = self._get_id(entity)
+            existing_db_entity = await session.get(self.db_entity_type, entity_id)
+
+            if existing_db_entity:
+                # Update existing entity
+                new_db_entity = self.to_db(entity, **kwargs)
+                self._update_db_entity(existing_db_entity, new_db_entity)
+            else:
+                # Create new entity
+                db_entity = self.to_db(entity, **kwargs)
+                session.add(db_entity)
+
             await session.flush()
             return entity
 
     async def save_bulk(
         self, entities: list[DomainEntityType], **kwargs: Any
     ) -> list[DomainEntityType]:
-        """Add multiple entities in bulk using chunking."""
+        """Save multiple entities in bulk (create new or update existing)."""
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             for chunk in self._chunked(entities):
-                db_entities = [self.to_db(entity, **kwargs) for entity in chunk]
-                session.add_all(db_entities)
+                # Get IDs for all entities in chunk
+                entity_ids = [self._get_id(entity) for entity in chunk]
+
+                # Fetch all existing entities in one query
+                existing_entities = {}
+                for entity_id in entity_ids:
+                    existing = await session.get(self.db_entity_type, entity_id)
+                    if existing:
+                        existing_entities[entity_id] = existing
+
+                # Process each entity
+                new_entities = []
+                for entity in chunk:
+                    entity_id = self._get_id(entity)
+                    new_db_entity = self.to_db(entity, **kwargs)
+
+                    if entity_id in existing_entities:
+                        # Update existing entity
+                        existing = existing_entities[entity_id]
+                        self._update_db_entity(existing, new_db_entity)
+                    else:
+                        # Collect new entities to add
+                        new_entities.append(new_db_entity)
+
+                # Add all new entities at once
+                if new_entities:
+                    session.add_all(new_entities)
+
                 await session.flush()
             return entities
 
