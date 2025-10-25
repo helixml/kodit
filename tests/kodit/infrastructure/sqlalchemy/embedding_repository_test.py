@@ -20,6 +20,8 @@ class TestSqlAlchemyEmbeddingRepository:
         mock_session_factory = MagicMock()
         mock_session = AsyncMock()
         mock_session.add = MagicMock()  # add() is sync
+        mock_session.get = AsyncMock(return_value=None)  # No existing entity
+        mock_session.flush = AsyncMock()  # flush() is async
         mock_session.commit = AsyncMock()  # commit() is async
         mock_session.close = AsyncMock()   # close() is async
         mock_session_factory.return_value = mock_session
@@ -34,7 +36,12 @@ class TestSqlAlchemyEmbeddingRepository:
         await repository.create_embedding(embedding)
 
         # Verify the embedding was added
-        mock_session.add.assert_called_once_with(embedding)
+        # (not the exact same object due to to_db mapping)
+        assert mock_session.add.call_count == 1
+        # Verify get was called to check for existing entity
+        mock_session.get.assert_called_once()
+        # Verify flush was called
+        mock_session.flush.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_list_semantic_results_empty_database(self) -> None:

@@ -59,7 +59,7 @@ class SqlAlchemyTaskStatusRepository(
     async def save(self, entity: domain_entities.TaskStatus) -> None:
         """Save a TaskStatus to database."""
         # Recursively convert parents to a list of domain entities, parents first
-        parents = []
+        parents: list[domain_entities.TaskStatus] = []
         current = entity
         while current.parent is not None:
             parents.insert(0, current.parent)
