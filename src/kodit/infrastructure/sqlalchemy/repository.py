@@ -57,7 +57,7 @@ class SqlAlchemyRepository(ABC, Generic[DomainEntityType, DatabaseEntityType]):
             db_entities = (await session.scalars(stmt)).all()
             return [self.to_domain(db) for db in db_entities]
 
-    async def add(self, entity: DomainEntityType, **kwargs: Any) -> DomainEntityType:
+    async def save(self, entity: DomainEntityType, **kwargs: Any) -> DomainEntityType:
         """Add new entity."""
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             db_entity = self.to_db(entity, **kwargs)
@@ -65,20 +65,7 @@ class SqlAlchemyRepository(ABC, Generic[DomainEntityType, DatabaseEntityType]):
             await session.flush()
             return entity
 
-    async def exists(self, entity_id: Any) -> bool:
-        """Check if entity exists by primary key."""
-        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
-            db_entity = await session.get(self.db_entity_type, entity_id)
-            return db_entity is not None
-
-    async def remove(self, entity: DomainEntityType) -> None:
-        """Remove entity."""
-        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
-            db_entity = await session.get(self.db_entity_type, self._get_id(entity))
-            if db_entity:
-                await session.delete(db_entity)
-
-    async def bulk_add(
+    async def save_bulk(
         self, entities: list[DomainEntityType], **kwargs: Any
     ) -> list[DomainEntityType]:
         """Add multiple entities in bulk using chunking."""
@@ -89,7 +76,20 @@ class SqlAlchemyRepository(ABC, Generic[DomainEntityType, DatabaseEntityType]):
                 await session.flush()
             return entities
 
-    async def bulk_delete(self, entities: list[DomainEntityType]) -> None:
+    async def exists(self, entity_id: Any) -> bool:
+        """Check if entity exists by primary key."""
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
+            db_entity = await session.get(self.db_entity_type, entity_id)
+            return db_entity is not None
+
+    async def delete(self, entity: DomainEntityType) -> None:
+        """Remove entity."""
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
+            db_entity = await session.get(self.db_entity_type, self._get_id(entity))
+            if db_entity:
+                await session.delete(db_entity)
+
+    async def delete_bulk(self, entities: list[DomainEntityType]) -> None:
         """Remove multiple entities in bulk using chunking."""
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             for chunk in self._chunked(entities):

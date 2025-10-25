@@ -42,7 +42,7 @@ class SqlAlchemyEmbeddingRepository(SqlAlchemyRepository[Embedding, Embedding]):
 
     async def create_embedding(self, embedding: Embedding) -> None:
         """Create a new embedding record in the database."""
-        await self.add(embedding)
+        await self.save(embedding)
 
     async def get_embedding_by_snippet_id_and_type(
         self, snippet_id: int, embedding_type: EmbeddingType
@@ -68,7 +68,7 @@ class SqlAlchemyEmbeddingRepository(SqlAlchemyRepository[Embedding, Embedding]):
         query = QueryBuilder().filter("snippet_id", FilterOperator.EQ, snippet_id)
         embeddings = await self.find(query)
         for embedding in embeddings:
-            await self.remove(embedding)
+            await self.delete(embedding)
 
     async def list_embeddings_by_snippet_ids_and_type(
         self, snippet_ids: list[str], embedding_type: EmbeddingType
