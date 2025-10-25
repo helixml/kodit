@@ -90,11 +90,7 @@ class TestSave:
         """Verifies repository can persist a new entity."""
         entity = TestEntity(id=1, name="test", value=42)
 
-        saved_entity = await repository.save(entity)
-
-        assert saved_entity.id == entity.id
-        assert saved_entity.name == entity.name
-        assert saved_entity.value == entity.value
+        await repository.save(entity)
 
         # Verify it was actually saved
         retrieved_entity = await repository.get(1)
