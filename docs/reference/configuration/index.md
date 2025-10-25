@@ -24,6 +24,9 @@ Global context for the kodit project. Provides a shared state for the app.
 | `EMBEDDING_ENDPOINT_NUM_PARALLEL_TASKS` | int | `10` | Number of parallel tasks to use for the endpoint |
 | `EMBEDDING_ENDPOINT_SOCKET_PATH` | `str | None` | `None` | Unix socket path for local communication (e.g., /tmp/openai.sock) |
 | `EMBEDDING_ENDPOINT_TIMEOUT` | float | `60` | Request timeout in seconds |
+| `EMBEDDING_ENDPOINT_MAX_RETRIES` | int | `5` | Maximum number of retries for the endpoint |
+| `EMBEDDING_ENDPOINT_INITIAL_DELAY` | float | `2.0` | Initial delay in seconds for the endpoint |
+| `EMBEDDING_ENDPOINT_BACKOFF_FACTOR` | float | `2.0` | Backoff factor for the endpoint |
 | `EMBEDDING_ENDPOINT_EXTRA_PARAMS` | `dict | None` | `None` | Extra provider-specific non-secret parameters for LiteLLM |
 | `EMBEDDING_ENDPOINT_MAX_TOKENS` | int | `8000` | Conservative token limit for the embedding model |
 | `ENRICHMENT_ENDPOINT` | `Endpoint | None` | `None` | Endpoint to use for enrichment. |
@@ -33,6 +36,9 @@ Global context for the kodit project. Provides a shared state for the app.
 | `ENRICHMENT_ENDPOINT_NUM_PARALLEL_TASKS` | int | `10` | Number of parallel tasks to use for the endpoint |
 | `ENRICHMENT_ENDPOINT_SOCKET_PATH` | `str | None` | `None` | Unix socket path for local communication (e.g., /tmp/openai.sock) |
 | `ENRICHMENT_ENDPOINT_TIMEOUT` | float | `60` | Request timeout in seconds |
+| `ENRICHMENT_ENDPOINT_MAX_RETRIES` | int | `5` | Maximum number of retries for the endpoint |
+| `ENRICHMENT_ENDPOINT_INITIAL_DELAY` | float | `2.0` | Initial delay in seconds for the endpoint |
+| `ENRICHMENT_ENDPOINT_BACKOFF_FACTOR` | float | `2.0` | Backoff factor for the endpoint |
 | `ENRICHMENT_ENDPOINT_EXTRA_PARAMS` | `dict | None` | `None` | Extra provider-specific non-secret parameters for LiteLLM |
 | `ENRICHMENT_ENDPOINT_MAX_TOKENS` | int | `8000` | Conservative token limit for the embedding model |
 | `DEFAULT_SEARCH` | Search | `provider='sqlite'` |  |

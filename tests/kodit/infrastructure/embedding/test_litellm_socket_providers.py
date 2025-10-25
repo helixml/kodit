@@ -175,10 +175,10 @@ async def test_litellm_providers_initialization() -> None:
     enrichment_provider = LiteLLMEnricher(endpoint=enrichment_endpoint)
 
     # Verify initialization
-    assert enrichment_provider.socket_path == "/tmp/test.sock"
-    assert enrichment_provider.base_url == "http://localhost/v1"
-    assert enrichment_provider.model_name == "gpt-4o-mini"
-    assert enrichment_provider.api_key == "test-key"
+    assert enrichment_provider.provider.endpoint.socket_path == "/tmp/test.sock"
+    assert enrichment_provider.provider.endpoint.base_url == "http://localhost/v1"
+    assert enrichment_provider.provider.endpoint.model == "gpt-4o-mini"
+    assert enrichment_provider.provider.endpoint.api_key == "test-key"
 
     # Close providers (they may not have active connections yet)
     await embedding_provider.close()
