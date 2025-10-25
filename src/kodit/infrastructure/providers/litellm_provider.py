@@ -5,6 +5,7 @@ import functools
 from collections.abc import Callable, Coroutine
 from typing import Any
 
+import httpx
 import litellm
 import structlog
 from litellm import acompletion, aembedding
@@ -94,6 +95,20 @@ class LiteLLMProvider:
     def __init__(self, endpoint: Endpoint) -> None:
         """Initialize the LiteLLM provider."""
         self.endpoint = endpoint
+        self._setup_litellm_client()
+
+    def _setup_litellm_client(self) -> None:
+        """Set up LiteLLM with custom HTTPX client for Unix socket support."""
+        if self.endpoint.socket_path:
+            # Create HTTPX client with Unix socket transport
+            transport = httpx.AsyncHTTPTransport(uds=self.endpoint.socket_path)
+            unix_client = httpx.AsyncClient(
+                transport=transport,
+                base_url="http://localhost",  # Base URL for Unix socket
+                timeout=self.endpoint.timeout,
+            )
+            # Set as LiteLLM's async client session
+            litellm.aclient_session = unix_client
 
     def _populate_base_kwargs(self) -> dict[str, Any]:
         """Populate base kwargs common to all API calls."""
@@ -129,4 +144,11 @@ class LiteLLMProvider:
         return response.model_dump()
 
     async def close(self) -> None:
-        """Close the provider - litellm handles its own connection cleanup."""
+        """Close the provider and cleanup HTTPX client if using Unix sockets."""
+        if (
+            self.endpoint.socket_path
+            and hasattr(litellm, "aclient_session")
+            and litellm.aclient_session
+        ):
+            await litellm.aclient_session.aclose()
+            litellm.aclient_session = None
