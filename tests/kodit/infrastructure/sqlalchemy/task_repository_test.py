@@ -67,8 +67,8 @@ async def test_remove_task(
     await repository.save(task)
     await repository.delete(task)
 
-    loaded = await repository.get(task.id)
-    assert loaded is None
+    exists = await repository.exists(task.id)
+    assert not exists
 
 
 async def test_update_task(

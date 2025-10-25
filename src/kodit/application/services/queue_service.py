@@ -31,16 +31,12 @@ class QueueService:
 
     async def enqueue_task(self, task: Task) -> None:
         """Queue a task in the database."""
-        # See if task already exists
-        db_task = await self.task_repository.get(task.id)
-        if db_task:
-            # Task already exists, update priority
-            db_task.priority = task.priority
-            await self.task_repository.save(db_task)
+        # Check if task already exists
+        exists = await self.task_repository.exists(task.id)
+        await self.task_repository.save(task)
+        if exists:
             self.log.info("Task updated", task_id=task.id, task_type=task.type)
         else:
-            # Otherwise, add task
-            await self.task_repository.save(task)
             self.log.info(
                 "Task queued",
                 task_id=task.id,
@@ -79,4 +75,7 @@ class QueueService:
 
     async def get_task(self, task_id: str) -> Task | None:
         """Get a specific task by ID."""
-        return await self.task_repository.get(task_id)
+        try:
+            return await self.task_repository.get(task_id)
+        except ValueError:
+            return None

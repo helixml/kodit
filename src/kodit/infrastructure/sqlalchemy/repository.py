@@ -46,8 +46,10 @@ class SqlAlchemyRepository(ABC, Generic[DomainEntityType, DatabaseEntityType]):
         mapper = inspect(type(existing))
         if mapper is None:
             return
+        # Skip auto-managed columns
+        skip_columns = {"created_at", "updated_at", "id"}
         for column in mapper.columns:
-            if not column.primary_key:
+            if not column.primary_key and column.key not in skip_columns:
                 setattr(existing, column.key, getattr(new, column.key))
 
     async def get(self, entity_id: Any) -> DomainEntityType:
@@ -66,7 +68,7 @@ class SqlAlchemyRepository(ABC, Generic[DomainEntityType, DatabaseEntityType]):
             db_entities = (await session.scalars(stmt)).all()
             return [self.to_domain(db) for db in db_entities]
 
-    async def save(self, entity: DomainEntityType) -> None:
+    async def save(self, entity: DomainEntityType) -> DomainEntityType:
         """Save entity (create new or update existing)."""
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             entity_id = self._get_id(entity)
@@ -76,16 +78,22 @@ class SqlAlchemyRepository(ABC, Generic[DomainEntityType, DatabaseEntityType]):
                 # Update existing entity
                 new_db_entity = self.to_db(entity)
                 self._update_db_entity(existing_db_entity, new_db_entity)
+                db_entity = existing_db_entity
             else:
                 # Create new entity
                 db_entity = self.to_db(entity)
                 session.add(db_entity)
 
             await session.flush()
+            return self.to_domain(db_entity)
 
-    async def save_bulk(self, entities: list[DomainEntityType]) -> None:
+    async def save_bulk(
+        self, entities: list[DomainEntityType]
+    ) -> list[DomainEntityType]:
         """Save multiple entities in bulk (create new or update existing)."""
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
+            all_saved_db_entities = []
+
             for chunk in self._chunked(entities):
                 # Get IDs for all entities in chunk
                 entity_ids = [self._get_id(entity) for entity in chunk]
@@ -99,6 +107,7 @@ class SqlAlchemyRepository(ABC, Generic[DomainEntityType, DatabaseEntityType]):
 
                 # Process each entity
                 new_entities = []
+                chunk_db_entities = []
                 for entity in chunk:
                     entity_id = self._get_id(entity)
                     new_db_entity = self.to_db(entity)
@@ -107,15 +116,20 @@ class SqlAlchemyRepository(ABC, Generic[DomainEntityType, DatabaseEntityType]):
                         # Update existing entity
                         existing = existing_entities[entity_id]
                         self._update_db_entity(existing, new_db_entity)
+                        chunk_db_entities.append(existing)
                     else:
                         # Collect new entities to add
                         new_entities.append(new_db_entity)
+                        chunk_db_entities.append(new_db_entity)
 
                 # Add all new entities at once
                 if new_entities:
                     session.add_all(new_entities)
 
                 await session.flush()
+                all_saved_db_entities.extend(chunk_db_entities)
+
+            return [self.to_domain(db) for db in all_saved_db_entities]
 
     async def exists(self, entity_id: Any) -> bool:
         """Check if entity exists by primary key."""
