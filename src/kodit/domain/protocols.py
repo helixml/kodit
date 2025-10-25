@@ -67,7 +67,7 @@ class ReportingModule(Protocol):
 class TaskStatusRepository(Protocol):
     """Repository interface for persisting progress state only."""
 
-    async def save(self, status: TaskStatus) -> None:
+    async def save(self, entity: TaskStatus) -> None:
         """Save a progress state."""
         ...
 
@@ -77,7 +77,7 @@ class TaskStatusRepository(Protocol):
         """Load progress states with IDs and parent IDs from database."""
         ...
 
-    async def delete(self, status: TaskStatus) -> None:
+    async def delete(self, entity: TaskStatus) -> None:
         """Delete a progress state."""
         ...
 

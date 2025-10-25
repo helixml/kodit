@@ -1,9 +1,10 @@
 """Task repository for the task queue."""
 
 from collections.abc import Callable
+from typing import Any, override
 
 import structlog
-from sqlalchemy import delete, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.domain import entities as domain_entities
@@ -22,7 +23,8 @@ def create_task_status_repository(
 
 
 class SqlAlchemyTaskStatusRepository(
-    SqlAlchemyRepository[domain_entities.TaskStatus, db_entities.TaskStatus]
+    SqlAlchemyRepository[domain_entities.TaskStatus, db_entities.TaskStatus],
+    TaskStatusRepository,
 ):
     """Repository for persisting TaskStatus entities."""
 
@@ -32,43 +34,41 @@ class SqlAlchemyTaskStatusRepository(
         self.mapper = TaskStatusMapper()
         self.log = structlog.get_logger(__name__)
 
-    async def save(self, status: domain_entities.TaskStatus, **kwargs: Any) -> None:
+    @property
+    def db_entity_type(self) -> type[db_entities.TaskStatus]:
+        """The SQLAlchemy model type."""
+        return db_entities.TaskStatus
+
+    def _get_id(self, entity: domain_entities.TaskStatus) -> Any:
+        """Extract ID from domain entity."""
+        return entity.id
+
+    def to_domain(
+        self, db_entity: db_entities.TaskStatus
+    ) -> domain_entities.TaskStatus:
+        """Map database entity to domain entity."""
+        return self.mapper.to_domain_task_status(db_entity)
+
+    def to_db(
+        self, domain_entity: domain_entities.TaskStatus
+    ) -> db_entities.TaskStatus:
+        """Map domain entity to database entity."""
+        return self.mapper.from_domain_task_status(domain_entity)
+
+    @override
+    async def save(self, entity: domain_entities.TaskStatus) -> None:
         """Save a TaskStatus to database."""
-        # If this task has a parent, ensure the parent exists in the database first
-        if status.parent is not None:
-            async with SqlAlchemyUnitOfWork(self.session_factory) as session:
-                parent_stmt = select(db_entities.TaskStatus).where(
-                    db_entities.TaskStatus.id == status.parent.id,
-                )
-                parent_result = await session.execute(parent_stmt)
-                existing_parent = parent_result.scalar_one_or_none()
+        # Recursively convert parents to a list of domain entities, parents first
+        parents = []
+        current = entity
+        while current.parent is not None:
+            parents.insert(0, current.parent)
+            current = current.parent
 
-            if not existing_parent:
-                # Recursively save the parent first
-                await self.save(status.parent)
+        # Add current entity to the end of the list
+        parents.append(entity)
 
-        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
-            # Convert domain entity to database entity
-            db_status = self.mapper.from_domain_task_status(status)
-            stmt = select(db_entities.TaskStatus).where(
-                db_entities.TaskStatus.id == db_status.id,
-            )
-            result = await session.execute(stmt)
-            existing = result.scalar_one_or_none()
-
-            if not existing:
-                session.add(db_status)
-            else:
-                # Update existing record with new values
-                existing.operation = db_status.operation
-                existing.state = db_status.state
-                existing.error = db_status.error
-                existing.total = db_status.total
-                existing.current = db_status.current
-                existing.updated_at = db_status.updated_at
-                existing.parent = db_status.parent
-                existing.trackable_id = db_status.trackable_id
-                existing.trackable_type = db_status.trackable_type
+        await self.save_bulk(parents)
 
     async def load_with_hierarchy(
         self, trackable_type: str, trackable_id: int
@@ -84,11 +84,3 @@ class SqlAlchemyTaskStatusRepository(
 
             # Use mapper to convert and reconstruct hierarchy
             return self.mapper.to_domain_task_status_with_hierarchy(db_statuses)
-
-    async def delete(self, status: domain_entities.TaskStatus) -> None:
-        """Delete a TaskStatus."""
-        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
-            stmt = delete(db_entities.TaskStatus).where(
-                db_entities.TaskStatus.id == status.id,
-            )
-            await session.execute(stmt)
