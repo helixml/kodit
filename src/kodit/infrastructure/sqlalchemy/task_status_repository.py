@@ -3,7 +3,6 @@
 from collections.abc import Callable
 from typing import Any, override
 
-import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,12 +27,6 @@ class SqlAlchemyTaskStatusRepository(
 ):
     """Repository for persisting TaskStatus entities."""
 
-    def __init__(self, session_factory: Callable[[], AsyncSession]) -> None:
-        """Initialize the repository."""
-        self.session_factory = session_factory
-        self.mapper = TaskStatusMapper()
-        self.log = structlog.get_logger(__name__)
-
     @property
     def db_entity_type(self) -> type[db_entities.TaskStatus]:
         """The SQLAlchemy model type."""
@@ -47,13 +40,13 @@ class SqlAlchemyTaskStatusRepository(
         self, db_entity: db_entities.TaskStatus
     ) -> domain_entities.TaskStatus:
         """Map database entity to domain entity."""
-        return self.mapper.to_domain_task_status(db_entity)
+        return TaskStatusMapper().to_domain_task_status(db_entity)
 
     def to_db(
         self, domain_entity: domain_entities.TaskStatus
     ) -> db_entities.TaskStatus:
         """Map domain entity to database entity."""
-        return self.mapper.from_domain_task_status(domain_entity)
+        return TaskStatusMapper().from_domain_task_status(domain_entity)
 
     @override
     async def save(self, entity: domain_entities.TaskStatus) -> None:
@@ -83,4 +76,4 @@ class SqlAlchemyTaskStatusRepository(
             db_statuses = list(result.scalars().all())
 
             # Use mapper to convert and reconstruct hierarchy
-            return self.mapper.to_domain_task_status_with_hierarchy(db_statuses)
+            return TaskStatusMapper().to_domain_task_status_with_hierarchy(db_statuses)
