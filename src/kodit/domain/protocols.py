@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Protocol, TypeVar
 
 from pydantic import AnyUrl
 
@@ -21,39 +21,37 @@ from kodit.domain.value_objects import (
     FusionRequest,
     FusionResult,
     MultiSearchRequest,
-    TaskOperation,
 )
+from kodit.infrastructure.sqlalchemy.query import Query
+
+T = TypeVar("T")
 
 
-class TaskRepository(Protocol):
+class Repository[T](Protocol):
+    """Abstract base classes for repositories."""
+
+    async def get(self, entity_id: Any) -> T: ...
+
+    async def find(self, query: Query) -> list[T]: ...
+
+    async def save(self, entity: T) -> None: ...
+
+    async def save_bulk(self, entities: list[T]) -> None: ...
+
+    async def exists(self, entity_id: Any) -> bool: ...
+
+    async def delete(self, entity: T) -> None: ...
+
+    async def delete_bulk(self, entities: list[T]) -> None:
+        """Remove multiple entities in bulk using chunking."""
+        ...
+
+
+class TaskRepository(Repository[Task], Protocol):
     """Repository interface for Task entities."""
-
-    async def add(
-        self,
-        task: Task,
-    ) -> None:
-        """Add a task."""
-        ...
-
-    async def get(self, task_id: str) -> Task | None:
-        """Get a task by ID."""
-        ...
 
     async def next(self) -> Task | None:
         """Take a task for processing."""
-        ...
-
-    async def remove(self, task: Task) -> None:
-        """Remove a task."""
-        ...
-
-    async def update(self, task: Task) -> None:
-        """Update a task."""
-        ...
-
-    async def list(self, task_operation: TaskOperation | None = None) -> list[Task]:
-        """List tasks with optional status filter."""
-        ...
 
 
 class ReportingModule(Protocol):
