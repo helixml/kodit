@@ -66,7 +66,7 @@ class SqlAlchemyRepository(ABC, Generic[DomainEntityType, DatabaseEntityType]):
             db_entities = (await session.scalars(stmt)).all()
             return [self.to_domain(db) for db in db_entities]
 
-    async def save(self, entity: DomainEntityType) -> DomainEntityType:
+    async def save(self, entity: DomainEntityType) -> None:
         """Save entity (create new or update existing)."""
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             entity_id = self._get_id(entity)
@@ -82,11 +82,8 @@ class SqlAlchemyRepository(ABC, Generic[DomainEntityType, DatabaseEntityType]):
                 session.add(db_entity)
 
             await session.flush()
-            return entity
 
-    async def save_bulk(
-        self, entities: list[DomainEntityType]
-    ) -> list[DomainEntityType]:
+    async def save_bulk(self, entities: list[DomainEntityType]) -> None:
         """Save multiple entities in bulk (create new or update existing)."""
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             for chunk in self._chunked(entities):
@@ -119,7 +116,6 @@ class SqlAlchemyRepository(ABC, Generic[DomainEntityType, DatabaseEntityType]):
                     session.add_all(new_entities)
 
                 await session.flush()
-            return entities
 
     async def exists(self, entity_id: Any) -> bool:
         """Check if entity exists by primary key."""
