@@ -61,7 +61,7 @@ class GitTag(BaseModel):
     updated_at: datetime | None = None  # Is populated by repository
     repo_id: int | None = None
     name: str  # e.g., "v1.0.0", "release-2023"
-    target_commit: GitCommit  # The commit this tag points to
+    target_commit_sha: str
 
     @property
     def id(self) -> str:

@@ -39,17 +39,17 @@ async def repo_with_tags(
             created_at=datetime.now(UTC),
             repo_id=saved_repo.id,
             name="v1.0.0",
-            target_commit=sample_git_commit,
+            target_commit_sha=sample_git_commit.commit_sha,
         ),
         GitTag(
             created_at=datetime.now(UTC),
             repo_id=saved_repo.id,
             name="v1.1.0",
-            target_commit=sample_git_commit,
+            target_commit_sha=sample_git_commit.commit_sha,
         ),
     ]
 
-    await tag_repository.save_bulk(tags, saved_repo.id)
+    await tag_repository.save_bulk(tags)
     return saved_repo, tags
 
 
@@ -93,7 +93,7 @@ class TestTagDeletion:
 
             assert remaining_tags == 0
             assert remaining_commits == 1  # Commits should remain
-            assert remaining_repos == 1    # Repos should remain
+            assert remaining_repos == 1  # Repos should remain
 
     async def test_handles_nonexistent_repo(
         self,
@@ -126,9 +126,9 @@ async def test_save_and_get_tags(
         created_at=datetime.now(UTC),
         repo_id=saved_repo.id,
         name="v1.0.0",
-        target_commit=sample_git_commit,
+        target_commit_sha=sample_git_commit.commit_sha,
     )
-    await tag_repository.save_bulk([tag], saved_repo.id)
+    await tag_repository.save(tag)
 
     # Retrieve tags
     retrieved_tags = await tag_repository.get_by_repo_id(saved_repo.id)
@@ -158,18 +158,18 @@ async def test_save_multiple_tags(
             created_at=datetime.now(UTC),
             repo_id=saved_repo.id,
             name="v1.0.0",
-            target_commit=sample_git_commit,
+            target_commit_sha=sample_git_commit.commit_sha,
         ),
         GitTag(
             created_at=datetime.now(UTC),
             repo_id=saved_repo.id,
             name="v2.0.0",
-            target_commit=sample_git_commit,
+            target_commit_sha=sample_git_commit.commit_sha,
         ),
     ]
 
     # Save all tags
-    await tag_repository.save_bulk(tags, saved_repo.id)
+    await tag_repository.save_bulk(tags)
 
     # Retrieve and verify
     retrieved_tags = await tag_repository.get_by_repo_id(saved_repo.id)

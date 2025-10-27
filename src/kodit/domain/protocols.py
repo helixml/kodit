@@ -129,7 +129,7 @@ class GitBranchRepository(Repository[GitBranch]):
         """Delete all branches for a repository."""
 
 
-class GitTagRepository(ABC):
+class GitTagRepository(Repository[GitTag]):
     """Repository for Git tags."""
 
     @abstractmethod
@@ -141,24 +141,8 @@ class GitTagRepository(ABC):
         """Get all tags for a repository."""
 
     @abstractmethod
-    async def save(self, tag: GitTag, repo_id: int) -> GitTag:
-        """Save a tag to a repository."""
-
-    @abstractmethod
-    async def save_bulk(self, tags: list[GitTag], repo_id: int) -> None:
-        """Bulk save tags to a repository."""
-
-    @abstractmethod
-    async def exists(self, tag_name: str, repo_id: int) -> bool:
-        """Check if a tag exists."""
-
-    @abstractmethod
     async def delete_by_repo_id(self, repo_id: int) -> None:
         """Delete all tags for a repository."""
-
-    @abstractmethod
-    async def count_by_repo_id(self, repo_id: int) -> int:
-        """Count the number of tags for a repository."""
 
 
 class GitRepoRepository(ABC):
