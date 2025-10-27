@@ -22,6 +22,9 @@ def create_task_repository(
     return SqlAlchemyTaskRepository(session_factory=session_factory)
 
 
+# TODO(Phil): Stop using dedup_key as the primary key. Add some DDD to this instead.
+
+
 class SqlAlchemyTaskRepository(
     SqlAlchemyRepository[domain_entities.Task, db_entities.Task], TaskRepository
 ):

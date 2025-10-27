@@ -13,6 +13,7 @@ from kodit.domain.entities import (
 from kodit.domain.entities.git import (
     GitBranch,
     GitCommit,
+    GitFile,
     GitRepo,
     GitTag,
     SnippetV2,
@@ -74,46 +75,26 @@ class ReportingModule(Protocol):
         ...
 
 
-class TaskStatusRepository(Protocol):
+class TaskStatusRepository(Repository[TaskStatus]):
     """Repository interface for persisting progress state only."""
 
-    async def save(self, entity: TaskStatus) -> None:
-        """Save a progress state."""
-        ...
-
+    @abstractmethod
     async def load_with_hierarchy(
         self, trackable_type: str, trackable_id: int
     ) -> list[TaskStatus]:
         """Load progress states with IDs and parent IDs from database."""
-        ...
-
-    async def delete(self, entity: TaskStatus) -> None:
-        """Delete a progress state."""
-        ...
-
-
-class GitCommitRepository(ABC):
-    """Repository for Git commits."""
 
     @abstractmethod
-    async def get_by_sha(self, commit_sha: str) -> GitCommit:
-        """Get a commit by its SHA."""
+    async def delete(self, entity: TaskStatus) -> None:
+        """Delete a progress state."""
+
+
+class GitCommitRepository(Repository[GitCommit]):
+    """Repository for Git commits."""
 
     @abstractmethod
     async def get_by_repo_id(self, repo_id: int) -> list[GitCommit]:
         """Get all commits for a repository."""
-
-    @abstractmethod
-    async def save(self, commit: GitCommit, repo_id: int) -> GitCommit:
-        """Save a commit to a repository."""
-
-    @abstractmethod
-    async def save_bulk(self, commits: list[GitCommit], repo_id: int) -> None:
-        """Bulk save commits to a repository."""
-
-    @abstractmethod
-    async def exists(self, commit_sha: str) -> bool:
-        """Check if a commit exists."""
 
     @abstractmethod
     async def delete_by_repo_id(self, repo_id: int) -> None:
@@ -122,6 +103,14 @@ class GitCommitRepository(ABC):
     @abstractmethod
     async def count_by_repo_id(self, repo_id: int) -> int:
         """Count the number of commits for a repository."""
+
+
+class GitFileRepository(Repository[GitFile]):
+    """Repository for Git files."""
+
+    @abstractmethod
+    async def delete_by_commit_sha(self, commit_sha: str) -> None:
+        """Delete all files for a commit."""
 
 
 class GitBranchRepository(ABC):

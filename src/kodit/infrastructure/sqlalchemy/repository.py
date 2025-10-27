@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator
 from typing import Any, Generic, TypeVar
 
-from sqlalchemy import inspect, select
+from sqlalchemy import func, inspect, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.infrastructure.sqlalchemy.query import Query
@@ -67,6 +67,14 @@ class SqlAlchemyRepository(ABC, Generic[DomainEntityType, DatabaseEntityType]):
             stmt = query.apply(stmt, self.db_entity_type)
             db_entities = (await session.scalars(stmt)).all()
             return [self.to_domain(db) for db in db_entities]
+
+    async def count(self, query: Query) -> int:
+        """Count the number of entities matching query."""
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
+            stmt = select(self.db_entity_type).with_only_columns(func.count())
+            stmt = query.apply(stmt, self.db_entity_type)
+            result = await session.scalar(stmt)
+            return result or 0
 
     async def save(self, entity: DomainEntityType) -> DomainEntityType:
         """Save entity (create new or update existing)."""

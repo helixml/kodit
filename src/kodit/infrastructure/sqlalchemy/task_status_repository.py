@@ -49,7 +49,9 @@ class SqlAlchemyTaskStatusRepository(
         return TaskStatusMapper().from_domain_task_status(domain_entity)
 
     @override
-    async def save(self, entity: domain_entities.TaskStatus) -> None:
+    async def save(
+        self, entity: domain_entities.TaskStatus
+    ) -> domain_entities.TaskStatus:
         """Save a TaskStatus to database."""
         # Recursively convert parents to a list of domain entities, parents first
         parents: list[domain_entities.TaskStatus] = []
@@ -62,6 +64,7 @@ class SqlAlchemyTaskStatusRepository(
         parents.append(entity)
 
         await self.save_bulk(parents)
+        return entity
 
     async def load_with_hierarchy(
         self, trackable_type: str, trackable_id: int

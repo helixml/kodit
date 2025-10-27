@@ -28,6 +28,7 @@ class GitMapper:
                 domain_git_entities.GitFile(
                     created_at=file.created_at,
                     blob_sha=file.blob_sha,
+                    commit_sha=file.commit_sha,
                     path=file.path,
                     mime_type=file.mime_type,
                     size=file.size,
@@ -41,6 +42,7 @@ class GitMapper:
                 created_at=db_commit.created_at,
                 updated_at=db_commit.updated_at,
                 commit_sha=db_commit.commit_sha,
+                repo_id=db_commit.repo_id,
                 date=db_commit.date,
                 message=db_commit.message,
                 parent_commit_sha=db_commit.parent_commit_sha,

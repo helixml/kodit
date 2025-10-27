@@ -89,7 +89,7 @@ async def get_repository_commit(
     """Get a specific commit for a repository."""
     try:
         # Get the specific commit directly from commit repository
-        commit = await git_commit_repository.get_by_sha(commit_sha)
+        commit = await git_commit_repository.get(commit_sha)
     except ValueError as e:
         raise HTTPException(status_code=404, detail="Commit not found") from e
 
@@ -117,7 +117,7 @@ async def list_commit_files(
     """List all files in a specific commit."""
     try:
         # Get the specific commit directly from commit repository
-        commit = await git_commit_repository.get_by_sha(commit_sha)
+        commit = await git_commit_repository.get(commit_sha)
     except ValueError as e:
         raise HTTPException(status_code=404, detail="Commit not found") from e
 
@@ -153,7 +153,7 @@ async def get_commit_file(
     """Get a specific file from a commit."""
     try:
         # Get the specific commit directly from commit repository
-        commit = await git_commit_repository.get_by_sha(commit_sha)
+        commit = await git_commit_repository.get(commit_sha)
     except ValueError as e:
         raise HTTPException(status_code=404, detail="Commit not found") from e
 

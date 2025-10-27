@@ -23,6 +23,7 @@ from kodit.domain.factories.git_repo_factory import GitRepoFactory
 from kodit.domain.protocols import (
     GitBranchRepository,
     GitCommitRepository,
+    GitFileRepository,
     GitRepoRepository,
     GitTagRepository,
     SnippetRepositoryV2,
@@ -74,6 +75,7 @@ class CommitIndexingApplicationService:
         snippet_v2_repository: SnippetRepositoryV2,
         repo_repository: GitRepoRepository,
         git_commit_repository: GitCommitRepository,
+        git_file_repository: GitFileRepository,
         git_branch_repository: GitBranchRepository,
         git_tag_repository: GitTagRepository,
         operation: ProgressTracker,
@@ -103,6 +105,7 @@ class CommitIndexingApplicationService:
         self.snippet_repository = snippet_v2_repository
         self.repo_repository = repo_repository
         self.git_commit_repository = git_commit_repository
+        self.git_file_repository = git_file_repository
         self.git_branch_repository = git_branch_repository
         self.git_tag_repository = git_tag_repository
         self.operation = operation
@@ -204,40 +207,44 @@ class CommitIndexingApplicationService:
             trackable_type=TrackableType.KODIT_REPOSITORY,
             trackable_id=repository_id,
         ) as step:
-            await step.set_total(6)
+            await step.set_total(7)
             repo = await self.repo_repository.get_by_id(repository_id)
             if not repo.cloned_path:
                 raise ValueError(f"Repository {repository_id} has never been cloned")
 
             # Scan the repository to get all metadata
             await step.set_current(0, "Scanning repository")
-            scan_result = await self.scanner.scan_repository(repo.cloned_path)
+            scan_result = await self.scanner.scan_repository(
+                repo.cloned_path, repository_id
+            )
 
             # Update repo with scan result (this sets num_commits, num_branches, etc.)
             await step.set_current(1, "Updating repository with scan result")
             repo.update_with_scan_result(scan_result)
             await self.repo_repository.save(repo)
 
-            # Save commits, branches, and tags to their dedicated repositories
-            await step.set_current(2, "Saving commits")
-            if scan_result.all_commits:
-                await self.git_commit_repository.save_bulk(
-                    scan_result.all_commits, repository_id
-                )
+            await step.set_current(2, "Saving files")
+            all_files = [
+                file for commit in scan_result.all_commits for file in commit.files
+            ]
+            await self.git_file_repository.save_bulk(all_files)
 
-            await step.set_current(3, "Saving branches")
+            await step.set_current(3, "Saving commits")
+            await self.git_commit_repository.save_bulk(scan_result.all_commits)
+
+            await step.set_current(4, "Saving branches")
             if scan_result.branches:
                 await self.git_branch_repository.save_bulk(
                     scan_result.branches, repository_id
                 )
 
-            await step.set_current(4, "Saving tags")
+            await step.set_current(5, "Saving tags")
             if scan_result.all_tags:
                 await self.git_tag_repository.save_bulk(
                     scan_result.all_tags, repository_id
                 )
 
-            await step.set_current(5, "Enqueuing commit indexing tasks")
+            await step.set_current(6, "Enqueuing commit indexing tasks")
             if not repo.tracking_branch:
                 raise ValueError(f"Repository {repository_id} has no tracking branch")
             commit_sha = repo.tracking_branch.head_commit.commit_sha
@@ -297,7 +304,8 @@ class CommitIndexingApplicationService:
                     entity_ids=commit_shas,
                 )
 
-            # Step 4: Delete snippet associations for all commits
+            # Step 4: Delete snippet associations and files for all commits
+            # This must happen before deleting git_commit_files due to FK constraints
             for commit_sha in commit_shas:
                 await self.snippet_repository.delete_snippets_for_commit(commit_sha)
 
@@ -307,10 +315,14 @@ class CommitIndexingApplicationService:
             # Step 6: Delete tags (they reference commits via target_commit_sha)
             await self.git_tag_repository.delete_by_repo_id(repository_id)
 
-            # Step 7: Delete commits and their files
+            # Step 7: Delete files (must be before deleting commits due to FK)
+            for commit_sha in commit_shas:
+                await self.git_file_repository.delete_by_commit_sha(commit_sha)
+
+            # Step 8: Delete commits
             await self.git_commit_repository.delete_by_repo_id(repository_id)
 
-            # Step 8: Finally delete the repository
+            # Step 9: Finally delete the repository
             await self.repo_repository.delete(repo.sanitized_remote_uri)
 
     async def process_snippets_for_commit(
@@ -327,7 +339,7 @@ class CommitIndexingApplicationService:
                 await step.skip("All snippets already extracted for commit")
                 return
 
-            commit = await self.git_commit_repository.get_by_sha(commit_sha)
+            commit = await self.git_commit_repository.get(commit_sha)
 
             # Load files on demand for snippet extraction (performance optimization)
             # Instead of using commit.files (which may be empty), load files directly
@@ -350,6 +362,7 @@ class CommitIndexingApplicationService:
                 absolute_path = str(repo.cloned_path / file_data["path"])
 
                 git_file = GitFile(
+                    commit_sha=commit.commit_sha,
                     created_at=file_data.get("created_at", commit.date),
                     blob_sha=file_data["blob_sha"],
                     path=absolute_path,  # Use absolute path for file reading
@@ -652,7 +665,7 @@ class CommitIndexingApplicationService:
                 raise ValueError(f"Repository {repository_id} not found")
             str(repo.sanitized_remote_uri)
 
-            commit = await self.git_commit_repository.get_by_sha(commit_sha)
+            commit = await self.git_commit_repository.get(commit_sha)
 
             # Group files by language
             lang_files_map: dict[str, list[GitFile]] = defaultdict(list)

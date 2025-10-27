@@ -16,6 +16,7 @@ class GitFile(BaseModel):
 
     created_at: datetime
     blob_sha: str
+    commit_sha: str
     path: str
     mime_type: str
     size: int
@@ -40,6 +41,7 @@ class GitCommit(BaseModel):
     created_at: datetime | None = None  # Is populated by repository
     updated_at: datetime | None = None  # Is populated by repository
     commit_sha: str
+    repo_id: int  # Repository this commit belongs to
     date: datetime
     message: str
     parent_commit_sha: str | None = None  # The first commit in the repo is None

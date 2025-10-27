@@ -55,6 +55,7 @@ class SqlAlchemyGitTagRepository(GitTagRepository):
             for db_file in db_files:
                 domain_file = GitFile(
                     blob_sha=db_file.blob_sha,
+                    commit_sha=db_file.commit_sha,
                     path=db_file.path,
                     mime_type=db_file.mime_type,
                     size=db_file.size,
@@ -65,6 +66,7 @@ class SqlAlchemyGitTagRepository(GitTagRepository):
 
             target_commit = GitCommit(
                 commit_sha=db_commit.commit_sha,
+                repo_id=db_commit.repo_id,
                 date=db_commit.date,
                 message=db_commit.message,
                 parent_commit_sha=db_commit.parent_commit_sha,
@@ -127,6 +129,7 @@ class SqlAlchemyGitTagRepository(GitTagRepository):
 
                 domain_file = GitFile(
                     blob_sha=db_file.blob_sha,
+                    commit_sha=db_file.commit_sha,
                     path=db_file.path,
                     mime_type=db_file.mime_type,
                     size=db_file.size,
@@ -148,6 +151,7 @@ class SqlAlchemyGitTagRepository(GitTagRepository):
                 commit_files = files_by_commit.get(db_tag.target_commit_sha, [])
                 target_commit = GitCommit(
                     commit_sha=db_commit.commit_sha,
+                    repo_id=db_commit.repo_id,
                     date=db_commit.date,
                     message=db_commit.message,
                     parent_commit_sha=db_commit.parent_commit_sha,
@@ -175,9 +179,7 @@ class SqlAlchemyGitTagRepository(GitTagRepository):
             tag.repo_id = repo_id
 
             # Check if tag already exists
-            existing_tag = await session.get(
-                db_entities.GitTag, (repo_id, tag.name)
-            )
+            existing_tag = await session.get(db_entities.GitTag, (repo_id, tag.name))
 
             if existing_tag:
                 # Update existing tag
@@ -261,8 +263,10 @@ class SqlAlchemyGitTagRepository(GitTagRepository):
     async def count_by_repo_id(self, repo_id: int) -> int:
         """Count the number of tags for a repository."""
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
-            stmt = select(func.count()).select_from(db_entities.GitTag).where(
-                db_entities.GitTag.repo_id == repo_id
+            stmt = (
+                select(func.count())
+                .select_from(db_entities.GitTag)
+                .where(db_entities.GitTag.repo_id == repo_id)
             )
             result = await session.scalar(stmt)
             return result or 0

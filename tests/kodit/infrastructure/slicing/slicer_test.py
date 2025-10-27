@@ -38,6 +38,7 @@ class TestSlicer:
             GitFile(
                 created_at=datetime.now(tz=UTC),
                 blob_sha=f"sha_{f.name}",
+                commit_sha="test_commit",
                 path=str(f),
                 mime_type="text/plain",
                 size=f.stat().st_size,

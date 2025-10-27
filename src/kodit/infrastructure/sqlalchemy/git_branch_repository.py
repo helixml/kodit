@@ -57,6 +57,7 @@ class SqlAlchemyGitBranchRepository(GitBranchRepository):
             for db_file in db_files:
                 domain_file = GitFile(
                     blob_sha=db_file.blob_sha,
+                    commit_sha=db_file.commit_sha,
                     path=db_file.path,
                     mime_type=db_file.mime_type,
                     size=db_file.size,
@@ -67,6 +68,7 @@ class SqlAlchemyGitBranchRepository(GitBranchRepository):
 
             head_commit = GitCommit(
                 commit_sha=db_commit.commit_sha,
+                repo_id=db_commit.repo_id,
                 date=db_commit.date,
                 message=db_commit.message,
                 parent_commit_sha=db_commit.parent_commit_sha,
@@ -131,6 +133,7 @@ class SqlAlchemyGitBranchRepository(GitBranchRepository):
 
                 domain_file = GitFile(
                     blob_sha=db_file.blob_sha,
+                    commit_sha=db_file.commit_sha,
                     path=db_file.path,
                     mime_type=db_file.mime_type,
                     size=db_file.size,
@@ -152,6 +155,7 @@ class SqlAlchemyGitBranchRepository(GitBranchRepository):
                 commit_files = files_by_commit.get(db_branch.head_commit_sha, [])
                 head_commit = GitCommit(
                     commit_sha=db_commit.commit_sha,
+                    repo_id=db_commit.repo_id,
                     date=db_commit.date,
                     message=db_commit.message,
                     parent_commit_sha=db_commit.parent_commit_sha,
@@ -267,8 +271,10 @@ class SqlAlchemyGitBranchRepository(GitBranchRepository):
     async def count_by_repo_id(self, repo_id: int) -> int:
         """Count the number of branches for a repository."""
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
-            stmt = select(func.count()).select_from(db_entities.GitBranch).where(
-                db_entities.GitBranch.repo_id == repo_id
+            stmt = (
+                select(func.count())
+                .select_from(db_entities.GitBranch)
+                .where(db_entities.GitBranch.repo_id == repo_id)
             )
             result = await session.scalar(stmt)
             return result or 0

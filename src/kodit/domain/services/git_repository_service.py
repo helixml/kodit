@@ -44,7 +44,9 @@ class GitRepositoryScanner:
         self._log = structlog.getLogger(__name__)
         self.git_adapter = git_adapter
 
-    async def scan_repository(self, cloned_path: Path) -> RepositoryScanResult:
+    async def scan_repository(
+        self, cloned_path: Path, repo_id: int | None = None
+    ) -> RepositoryScanResult:
         """Scan repository and return immutable result data."""
         self._log.info(f"Starting repository scan at: {cloned_path}")
 
@@ -58,7 +60,7 @@ class GitRepositoryScanner:
 
         # Process branches efficiently using bulk commit data
         branches, commit_cache = await self._process_branches_bulk(
-            cloned_path, branch_data, all_commits_data
+            cloned_path, branch_data, all_commits_data, repo_id
         )
         self._log.info(f"Found {len(branches)} branches")
         tags = await self._process_tags(cloned_path, commit_cache)
@@ -112,6 +114,7 @@ class GitRepositoryScanner:
         cloned_path: Path,
         branch_data: list[dict],
         all_commits_data: dict[str, dict[str, Any]],
+        repo_id: int | None = None,
     ) -> tuple[list[GitBranch], dict[str, GitCommit]]:
         """Process branches efficiently using bulk commit data."""
         branches = []
@@ -124,7 +127,9 @@ class GitRepositoryScanner:
         self._log.info(f"Processing {len(all_commits_data)} commits (metadata only)")
 
         for commit_sha, commit_data in all_commits_data.items():
-            git_commit = self._create_lightweight_git_commit(commit_data, current_time)
+            git_commit = self._create_lightweight_git_commit(
+                commit_data, current_time, repo_id
+            )
             if git_commit:
                 commit_cache[commit_sha] = git_commit
 
@@ -159,14 +164,14 @@ class GitRepositoryScanner:
         return branches, commit_cache
 
     async def _create_git_commit_from_data(
-        self, cloned_path: Path, commit_data: dict[str, Any]
+        self, cloned_path: Path, commit_data: dict[str, Any], repo_id: int | None = None
     ) -> GitCommit | None:
         """Create GitCommit from pre-fetched commit data."""
         commit_sha = commit_data["sha"]
 
         # Get files for this commit
         files_data = await self.git_adapter.get_commit_files(cloned_path, commit_sha)
-        files = self._create_git_files(cloned_path, files_data)
+        files = self._create_git_files(cloned_path, files_data, commit_sha)
         author = self._format_author_from_data(commit_data)
 
         # Cache datetime creation
@@ -175,6 +180,7 @@ class GitRepositoryScanner:
         return GitCommit(
             created_at=created_at,
             commit_sha=commit_sha,
+            repo_id=repo_id or 0,  # Use 0 as default if not provided
             date=commit_data["date"],
             message=commit_data["message"],
             parent_commit_sha=commit_data["parent_sha"],
@@ -191,7 +197,7 @@ class GitRepositoryScanner:
         return author_name or "Unknown"
 
     def _create_lightweight_git_commit(
-        self, commit_data: dict[str, Any], created_at: datetime
+        self, commit_data: dict[str, Any], created_at: datetime, repo_id: int | None
     ) -> GitCommit | None:
         """Create a GitCommit without expensive file data fetching."""
         try:
@@ -203,6 +209,7 @@ class GitRepositoryScanner:
             return GitCommit(
                 created_at=created_at,
                 commit_sha=commit_sha,
+                repo_id=repo_id or 0,  # Use 0 as default if not provided
                 date=commit_data["date"],
                 message=commit_data["message"],
                 parent_commit_sha=commit_data["parent_sha"],
@@ -285,18 +292,19 @@ class GitRepositoryScanner:
         return head_commit
 
     async def _create_git_commit(
-        self, cloned_path: Path, commit_data: dict
+        self, cloned_path: Path, commit_data: dict, repo_id: int | None = None
     ) -> GitCommit | None:
         """Create GitCommit from commit data."""
         commit_sha = commit_data["sha"]
 
         files_data = await self.git_adapter.get_commit_files(cloned_path, commit_sha)
-        files = self._create_git_files(cloned_path, files_data)
+        files = self._create_git_files(cloned_path, files_data, commit_sha)
         author = self._format_author(commit_data)
 
         return GitCommit(
             created_at=datetime.now(UTC),
             commit_sha=commit_sha,
+            repo_id=repo_id or 0,  # Use 0 as default if not provided
             date=commit_data["date"],
             message=commit_data["message"],
             parent_commit_sha=commit_data["parent_sha"],
@@ -305,7 +313,7 @@ class GitRepositoryScanner:
         )
 
     def _create_git_files(
-        self, cloned_path: Path, files_data: list[dict]
+        self, cloned_path: Path, files_data: list[dict], commit_sha: str
     ) -> list[GitFile]:
         """Create GitFile entities from files data."""
         # Cache expensive path operations
@@ -320,6 +328,7 @@ class GitRepositoryScanner:
 
             result.append(GitFile(
                 blob_sha=f["blob_sha"],
+                commit_sha=commit_sha,
                 path=full_path,
                 mime_type=f.get("mime_type", "application/octet-stream"),
                 size=f["size"],

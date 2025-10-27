@@ -17,7 +17,7 @@ from kodit.infrastructure.sqlalchemy.repository import SqlAlchemyRepository
 
 
 @dataclass
-class TestEntity:
+class MockEntity:
     """Simple domain entity for testing."""
 
     id: int
@@ -25,7 +25,7 @@ class TestEntity:
     value: int
 
 
-class TestDbEntity(Base):
+class MockDbEntity(Base):
     """Database entity for testing."""
 
     __tablename__ = "test_entities"
@@ -35,29 +35,29 @@ class TestDbEntity(Base):
     value: Mapped[int] = mapped_column(Integer, nullable=False)
 
 
-class TestRepository(SqlAlchemyRepository[TestEntity, TestDbEntity]):
+class MockRepository(SqlAlchemyRepository[MockEntity, MockDbEntity]):
     """Concrete repository implementation for testing."""
 
     @property
-    def db_entity_type(self) -> type[TestDbEntity]:
+    def db_entity_type(self) -> type[MockDbEntity]:
         """Return the database entity type."""
-        return TestDbEntity
+        return MockDbEntity
 
-    def _get_id(self, entity: TestEntity) -> Any:
+    def _get_id(self, entity: MockEntity) -> Any:
         """Extract ID from domain entity."""
         return entity.id
 
-    def to_domain(self, db_entity: TestDbEntity) -> TestEntity:
+    def to_domain(self, db_entity: MockDbEntity) -> MockEntity:
         """Map database entity to domain entity."""
-        return TestEntity(
+        return MockEntity(
             id=db_entity.id,
             name=db_entity.name,
             value=db_entity.value,
         )
 
-    def to_db(self, domain_entity: TestEntity) -> TestDbEntity:
+    def to_db(self, domain_entity: MockEntity) -> MockDbEntity:
         """Map domain entity to database entity."""
-        return TestDbEntity(
+        return MockDbEntity(
             id=domain_entity.id,
             name=domain_entity.name,
             value=domain_entity.value,
@@ -68,16 +68,16 @@ class TestRepository(SqlAlchemyRepository[TestEntity, TestDbEntity]):
 async def create_test_table(engine: AsyncEngine) -> None:
     """Create the test table in the database."""
     async with engine.begin() as conn:
-        await conn.run_sync(TestDbEntity.metadata.create_all)
+        await conn.run_sync(MockDbEntity.metadata.create_all)
 
 
 @pytest.fixture
 def repository(
     session_factory: Callable[[], AsyncSession],
     create_test_table: None,  # noqa: ARG001
-) -> TestRepository:
+) -> MockRepository:
     """Create a repository with a session factory."""
-    return TestRepository(session_factory)
+    return MockRepository(session_factory)
 
 
 class TestSave:
@@ -85,10 +85,10 @@ class TestSave:
 
     async def test_saves_new_entity(
         self,
-        repository: TestRepository,
+        repository: MockRepository,
     ) -> None:
         """Verifies repository can persist a new entity."""
-        entity = TestEntity(id=1, name="test", value=42)
+        entity = MockEntity(id=1, name="test", value=42)
 
         await repository.save(entity)
 
@@ -100,11 +100,11 @@ class TestSave:
 
     async def test_updates_existing_entity(
         self,
-        repository: TestRepository,
+        repository: MockRepository,
     ) -> None:
         """Verifies repository updates an existing entity instead of duplicates."""
         # Create initial entity
-        entity = TestEntity(id=1, name="original", value=10)
+        entity = MockEntity(id=1, name="original", value=10)
         await repository.save(entity)
 
         # Verify initial state
@@ -113,7 +113,7 @@ class TestSave:
         assert retrieved.value == 10
 
         # Update the same entity
-        updated_entity = TestEntity(id=1, name="updated", value=20)
+        updated_entity = MockEntity(id=1, name="updated", value=20)
         await repository.save(updated_entity)
 
         # Verify the entity was updated, not duplicated
@@ -129,15 +129,15 @@ class TestSave:
 
     async def test_updates_only_non_primary_key_fields(
         self,
-        repository: TestRepository,
+        repository: MockRepository,
     ) -> None:
         """Verifies that updates only affect non-primary key columns."""
         # Create initial entity
-        entity = TestEntity(id=1, name="test", value=100)
+        entity = MockEntity(id=1, name="test", value=100)
         await repository.save(entity)
 
         # Update with same ID but different values
-        updated = TestEntity(id=1, name="changed", value=200)
+        updated = MockEntity(id=1, name="changed", value=200)
         await repository.save(updated)
 
         # Verify the update
@@ -152,13 +152,13 @@ class TestSaveBulk:
 
     async def test_saves_multiple_new_entities(
         self,
-        repository: TestRepository,
+        repository: MockRepository,
     ) -> None:
         """Verifies repository can persist multiple new entities at once."""
         entities = [
-            TestEntity(id=1, name="first", value=10),
-            TestEntity(id=2, name="second", value=20),
-            TestEntity(id=3, name="third", value=30),
+            MockEntity(id=1, name="first", value=10),
+            MockEntity(id=2, name="second", value=20),
+            MockEntity(id=3, name="third", value=30),
         ]
 
         await repository.save_bulk(entities)
@@ -178,20 +178,20 @@ class TestSaveBulk:
 
     async def test_updates_existing_entities_in_bulk(
         self,
-        repository: TestRepository,
+        repository: MockRepository,
     ) -> None:
         """Verifies repository updates existing entities in bulk."""
         # Create initial entities
         initial = [
-            TestEntity(id=1, name="first", value=10),
-            TestEntity(id=2, name="second", value=20),
+            MockEntity(id=1, name="first", value=10),
+            MockEntity(id=2, name="second", value=20),
         ]
         await repository.save_bulk(initial)
 
         # Update the same entities
         updated = [
-            TestEntity(id=1, name="updated_first", value=100),
-            TestEntity(id=2, name="updated_second", value=200),
+            MockEntity(id=1, name="updated_first", value=100),
+            MockEntity(id=2, name="updated_second", value=200),
         ]
         await repository.save_bulk(updated)
 
@@ -210,18 +210,18 @@ class TestSaveBulk:
 
     async def test_handles_mixed_new_and_existing_entities(
         self,
-        repository: TestRepository,
+        repository: MockRepository,
     ) -> None:
         """Verifies repository can handle both new and existing entities in one call."""
         # Create one existing entity
-        existing = TestEntity(id=1, name="existing", value=10)
+        existing = MockEntity(id=1, name="existing", value=10)
         await repository.save(existing)
 
         # Mix of update and new entities
         mixed = [
-            TestEntity(id=1, name="updated", value=100),  # Update existing
-            TestEntity(id=2, name="new_one", value=20),  # New
-            TestEntity(id=3, name="new_two", value=30),  # New
+            MockEntity(id=1, name="updated", value=100),  # Update existing
+            MockEntity(id=2, name="new_one", value=20),  # New
+            MockEntity(id=3, name="new_two", value=30),  # New
         ]
         await repository.save_bulk(mixed)
 
@@ -242,7 +242,7 @@ class TestSaveBulk:
 
     async def test_handles_empty_list(
         self,
-        repository: TestRepository,
+        repository: MockRepository,
     ) -> None:
         """Verifies repository handles empty entity lists gracefully."""
         await repository.save_bulk([])
@@ -257,11 +257,11 @@ class TestDelete:
 
     async def test_deletes_existing_entity(
         self,
-        repository: TestRepository,
+        repository: MockRepository,
     ) -> None:
         """Verifies repository can delete an existing entity."""
         # Create entity
-        entity = TestEntity(id=1, name="to_delete", value=42)
+        entity = MockEntity(id=1, name="to_delete", value=42)
         await repository.save(entity)
 
         # Verify it exists
@@ -275,10 +275,10 @@ class TestDelete:
 
     async def test_deletes_nonexistent_entity_gracefully(
         self,
-        repository: TestRepository,
+        repository: MockRepository,
     ) -> None:
         """Verifies deletion of non-existent entity doesn't cause error."""
-        entity = TestEntity(id=999, name="nonexistent", value=0)
+        entity = MockEntity(id=999, name="nonexistent", value=0)
 
         # Should not raise an error
         await repository.delete(entity)
@@ -288,14 +288,14 @@ class TestDelete:
 
     async def test_deletes_correct_entity_when_multiple_exist(
         self,
-        repository: TestRepository,
+        repository: MockRepository,
     ) -> None:
         """Verifies only the specified entity is deleted."""
         # Create multiple entities
         entities = [
-            TestEntity(id=1, name="keep", value=10),
-            TestEntity(id=2, name="delete_me", value=20),
-            TestEntity(id=3, name="keep_too", value=30),
+            MockEntity(id=1, name="keep", value=10),
+            MockEntity(id=2, name="delete_me", value=20),
+            MockEntity(id=3, name="keep_too", value=30),
         ]
         await repository.save_bulk(entities)
 
@@ -318,14 +318,14 @@ class TestDeleteBulk:
 
     async def test_deletes_multiple_entities(
         self,
-        repository: TestRepository,
+        repository: MockRepository,
     ) -> None:
         """Verifies repository can delete multiple entities at once."""
         # Create entities
         entities = [
-            TestEntity(id=1, name="first", value=10),
-            TestEntity(id=2, name="second", value=20),
-            TestEntity(id=3, name="third", value=30),
+            MockEntity(id=1, name="first", value=10),
+            MockEntity(id=2, name="second", value=20),
+            MockEntity(id=3, name="third", value=30),
         ]
         await repository.save_bulk(entities)
 
@@ -343,15 +343,15 @@ class TestDeleteBulk:
 
     async def test_deletes_subset_of_entities(
         self,
-        repository: TestRepository,
+        repository: MockRepository,
     ) -> None:
         """Verifies bulk deletion of a subset of entities."""
         # Create entities
         all_entities = [
-            TestEntity(id=1, name="keep", value=10),
-            TestEntity(id=2, name="delete", value=20),
-            TestEntity(id=3, name="delete_too", value=30),
-            TestEntity(id=4, name="keep_too", value=40),
+            MockEntity(id=1, name="keep", value=10),
+            MockEntity(id=2, name="delete", value=20),
+            MockEntity(id=3, name="delete_too", value=30),
+            MockEntity(id=4, name="keep_too", value=40),
         ]
         await repository.save_bulk(all_entities)
 
@@ -371,11 +371,11 @@ class TestDeleteBulk:
 
     async def test_handles_empty_delete_list(
         self,
-        repository: TestRepository,
+        repository: MockRepository,
     ) -> None:
         """Verifies bulk deletion handles empty lists gracefully."""
         # Create an entity
-        entity = TestEntity(id=1, name="survivor", value=10)
+        entity = MockEntity(id=1, name="survivor", value=10)
         await repository.save(entity)
 
         # Delete empty list
@@ -386,12 +386,12 @@ class TestDeleteBulk:
 
     async def test_handles_nonexistent_entities_in_bulk_delete(
         self,
-        repository: TestRepository,
+        repository: MockRepository,
     ) -> None:
         """Verifies bulk deletion handles non-existent entities gracefully."""
         entities = [
-            TestEntity(id=1, name="nonexistent", value=10),
-            TestEntity(id=2, name="also_nonexistent", value=20),
+            MockEntity(id=1, name="nonexistent", value=10),
+            MockEntity(id=2, name="also_nonexistent", value=20),
         ]
 
         # Should not raise an error
@@ -407,14 +407,14 @@ class TestFind:
 
     async def test_finds_all_entities_with_empty_query(
         self,
-        repository: TestRepository,
+        repository: MockRepository,
     ) -> None:
         """Verifies find returns all entities when given empty query."""
         # Create entities
         entities = [
-            TestEntity(id=1, name="first", value=10),
-            TestEntity(id=2, name="second", value=20),
-            TestEntity(id=3, name="third", value=30),
+            MockEntity(id=1, name="first", value=10),
+            MockEntity(id=2, name="second", value=20),
+            MockEntity(id=3, name="third", value=30),
         ]
         await repository.save_bulk(entities)
 
@@ -428,14 +428,14 @@ class TestFind:
 
     async def test_finds_entities_with_filters(
         self,
-        repository: TestRepository,
+        repository: MockRepository,
     ) -> None:
         """Verifies find applies query filters correctly."""
         # Create entities with different values
         entities = [
-            TestEntity(id=1, name="match", value=100),
-            TestEntity(id=2, name="no_match", value=50),
-            TestEntity(id=3, name="match", value=100),
+            MockEntity(id=1, name="match", value=100),
+            MockEntity(id=2, name="no_match", value=50),
+            MockEntity(id=3, name="match", value=100),
         ]
         await repository.save_bulk(entities)
 
@@ -449,11 +449,11 @@ class TestFind:
 
     async def test_finds_entities_with_limit(
         self,
-        repository: TestRepository,
+        repository: MockRepository,
     ) -> None:
         """Verifies find respects limit in query."""
         # Create many entities
-        entities = [TestEntity(id=i, name=f"entity_{i}", value=i) for i in range(1, 11)]
+        entities = [MockEntity(id=i, name=f"entity_{i}", value=i) for i in range(1, 11)]
         await repository.save_bulk(entities)
 
         # Query with limit
@@ -464,11 +464,11 @@ class TestFind:
 
     async def test_returns_empty_list_when_no_matches(
         self,
-        repository: TestRepository,
+        repository: MockRepository,
     ) -> None:
         """Verifies find returns empty list when no entities match."""
         # Create entities
-        entities = [TestEntity(id=1, name="test", value=10)]
+        entities = [MockEntity(id=1, name="test", value=10)]
         await repository.save_bulk(entities)
 
         # Query that won't match
@@ -479,7 +479,7 @@ class TestFind:
 
     async def test_returns_empty_list_when_table_empty(
         self,
-        repository: TestRepository,
+        repository: MockRepository,
     ) -> None:
         """Verifies find returns empty list when table is empty."""
         query = QueryBuilder()
@@ -493,27 +493,27 @@ class TestExists:
 
     async def test_returns_true_for_existing_entity(
         self,
-        repository: TestRepository,
+        repository: MockRepository,
     ) -> None:
         """Verifies exists returns True for existing entity."""
-        entity = TestEntity(id=1, name="test", value=42)
+        entity = MockEntity(id=1, name="test", value=42)
         await repository.save(entity)
 
         assert await repository.exists(1)
 
     async def test_returns_false_for_nonexistent_entity(
         self,
-        repository: TestRepository,
+        repository: MockRepository,
     ) -> None:
         """Verifies exists returns False for non-existent entity."""
         assert not await repository.exists(999)
 
     async def test_returns_false_after_deletion(
         self,
-        repository: TestRepository,
+        repository: MockRepository,
     ) -> None:
         """Verifies exists returns False after entity is deleted."""
-        entity = TestEntity(id=1, name="test", value=42)
+        entity = MockEntity(id=1, name="test", value=42)
         await repository.save(entity)
 
         assert await repository.exists(1)
@@ -521,3 +521,33 @@ class TestExists:
         await repository.delete(entity)
 
         assert not await repository.exists(1)
+
+
+class TestCount:
+    """Tests for the count method."""
+
+    async def test_returns_correct_count(
+        self,
+        repository: MockRepository,
+    ) -> None:
+        """Verifies count returns the correct number of entities."""
+        entities = [MockEntity(id=1, name="test", value=42)]
+        await repository.save_bulk(entities)
+        assert await repository.count(QueryBuilder()) == 1
+
+    async def test_with_query(
+        self,
+        repository: MockRepository,
+    ) -> None:
+        """Verifies count returns the correct number of entities with a query."""
+        entities = [
+            MockEntity(id=1, name="test", value=42),
+            MockEntity(id=2, name="test2", value=31),
+        ]
+        await repository.save_bulk(entities)
+        assert (
+            await repository.count(
+                QueryBuilder().filter("value", FilterOperator.EQ, 42)
+            )
+            == 1
+        )

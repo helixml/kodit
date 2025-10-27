@@ -111,6 +111,7 @@ class TestGitMapper:
         domain_file = domain_git_entities.GitFile(
             created_at=now,
             blob_sha="file_sha_456",
+            commit_sha="commit_sha_123",
             path="hello.py",
             mime_type="text/x-python",
             size=50,
@@ -142,6 +143,7 @@ class TestGitMapper:
         domain_file = domain_git_entities.GitFile(
             created_at=now,
             blob_sha="file_sha_789",
+            commit_sha="commit_sha_123",
             path="test.js",
             mime_type="text/javascript",
             size=100,

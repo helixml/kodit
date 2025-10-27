@@ -212,6 +212,7 @@ def test_git_repo_factory_create_from_scan() -> None:
         name="main",
         head_commit=GitCommit(
             commit_sha="abc123",
+            repo_id=1,
             date=datetime.now(UTC),
             message="Test commit",
             parent_commit_sha="",
@@ -249,6 +250,7 @@ def test_git_repo_factory_prefers_main_branch() -> None:
 
     commit = GitCommit(
         commit_sha="abc123",
+        repo_id=1,
         date=datetime.now(UTC),
         message="Test commit",
         parent_commit_sha="",

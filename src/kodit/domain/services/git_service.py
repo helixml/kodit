@@ -254,6 +254,7 @@ class GitService:
 
         return GitCommit(
             commit_sha=commit.hexsha,
+            repo_id=0,  # GitService doesn't have repo context, use placeholder
             date=commit_date,
             message=str(commit.message).strip(),
             parent_commit_sha=parent_sha,
@@ -283,6 +284,7 @@ class GitService:
                         file_entity = GitFile(
                             created_at=datetime.now(UTC),
                             blob_sha=blob.hexsha,
+                            commit_sha=commit.hexsha,
                             path=str(Path(repo.working_dir) / file_path),
                             mime_type="application/octet-stream",  # Default
                             size=blob.size,

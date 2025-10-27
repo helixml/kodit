@@ -30,6 +30,7 @@ class SnippetMapper:
             domain_git_entities.GitFile(
                 created_at=file.created_at,
                 blob_sha=file.blob_sha,
+                commit_sha=file.commit_sha,
                 path=file.path,
                 mime_type=file.mime_type,
                 size=file.size,

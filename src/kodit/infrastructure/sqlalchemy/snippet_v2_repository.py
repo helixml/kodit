@@ -61,7 +61,7 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
             await self._bulk_save_snippets(session, snippets)
             await self._bulk_create_commit_associations(session, commit_sha, snippets)
             await self._bulk_create_file_associations(session, commit_sha, snippets)
-            await self._bulk_update_enrichments(session, snippets)
+            await self._bulk_update_enrichments(snippets)
 
     async def _bulk_save_snippets(
         self, session: AsyncSession, snippets: list[SnippetV2]
@@ -107,7 +107,7 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
             db_entities.CommitSnippetV2.snippet_sha
         ).where(
             db_entities.CommitSnippetV2.commit_sha == commit_sha,
-            db_entities.CommitSnippetV2.snippet_sha.in_(snippet_shas)
+            db_entities.CommitSnippetV2.snippet_sha.in_(snippet_shas),
         )
         existing_association_shas = set(
             (await session.scalars(existing_associations_stmt)).all()
@@ -151,11 +151,10 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
 
         # Get existing files in bulk
         existing_files_stmt = select(
-            db_entities.GitCommitFile.path,
-            db_entities.GitCommitFile.blob_sha
+            db_entities.GitCommitFile.path, db_entities.GitCommitFile.blob_sha
         ).where(
             db_entities.GitCommitFile.commit_sha == commit_sha,
-            db_entities.GitCommitFile.path.in_(list(file_paths))
+            db_entities.GitCommitFile.path.in_(list(file_paths)),
         )
         existing_files_result = await session.execute(existing_files_stmt)
         existing_files_map: dict[str, str] = {
@@ -165,11 +164,10 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
         # Get existing snippet-file associations to avoid duplicates
         snippet_shas = [snippet.sha for snippet in snippets]
         existing_snippet_files_stmt = select(
-            db_entities.SnippetV2File.snippet_sha,
-            db_entities.SnippetV2File.file_path
+            db_entities.SnippetV2File.snippet_sha, db_entities.SnippetV2File.file_path
         ).where(
             db_entities.SnippetV2File.commit_sha == commit_sha,
-            db_entities.SnippetV2File.snippet_sha.in_(snippet_shas)
+            db_entities.SnippetV2File.snippet_sha.in_(snippet_shas),
         )
         existing_snippet_files = set(await session.execute(existing_snippet_files_stmt))
 
@@ -183,29 +181,35 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
                 if association_key not in existing_snippet_files:
                     if file.path in existing_files_map:
                         # GitCommitFile exists, use its blob_sha
-                        new_file_associations.append({
-                            "snippet_sha": snippet.sha,
-                            "blob_sha": existing_files_map[file.path],
-                            "commit_sha": commit_sha,
-                            "file_path": file.path,
-                        })
+                        new_file_associations.append(
+                            {
+                                "snippet_sha": snippet.sha,
+                                "blob_sha": existing_files_map[file.path],
+                                "commit_sha": commit_sha,
+                                "file_path": file.path,
+                            }
+                        )
                     else:
                         # GitCommitFile doesn't exist - create it and the association
-                        missing_git_files.append({
-                            "commit_sha": commit_sha,
-                            "path": file.path,
-                            "blob_sha": file.blob_sha,
-                            "mime_type": file.mime_type,
-                            "size": file.size,
-                            "extension": file.extension,
-                            "created_at": file.created_at,
-                        })
-                        new_file_associations.append({
-                            "snippet_sha": snippet.sha,
-                            "blob_sha": file.blob_sha,
-                            "commit_sha": commit_sha,
-                            "file_path": file.path,
-                        })
+                        missing_git_files.append(
+                            {
+                                "commit_sha": commit_sha,
+                                "path": file.path,
+                                "blob_sha": file.blob_sha,
+                                "mime_type": file.mime_type,
+                                "size": file.size,
+                                "extension": file.extension,
+                                "created_at": file.created_at,
+                            }
+                        )
+                        new_file_associations.append(
+                            {
+                                "snippet_sha": snippet.sha,
+                                "blob_sha": file.blob_sha,
+                                "commit_sha": commit_sha,
+                                "file_path": file.path,
+                            }
+                        )
                         # Add to map so subsequent snippets can find it
                         existing_files_map[file.path] = file.blob_sha
 
@@ -233,7 +237,8 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
                 await session.execute(stmt)
 
     async def _bulk_update_enrichments(
-        self, session: AsyncSession, snippets: list[SnippetV2]  # noqa: ARG002
+        self,
+        snippets: list[SnippetV2],
     ) -> None:
         """Bulk update enrichments for snippets using new enrichment_v2."""
         # Collect all enrichments from snippets using list comprehension
@@ -338,6 +343,13 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
     async def delete_snippets_for_commit(self, commit_sha: str) -> None:
         """Delete all snippet associations for a commit."""
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
+            # First delete snippet-file associations (they reference commit files)
+            stmt = delete(db_entities.SnippetV2File).where(
+                db_entities.SnippetV2File.commit_sha == commit_sha
+            )
+            await session.execute(stmt)
+
+            # Then delete the commit-snippet associations
             # Note: We only delete the commit-snippet associations,
             # not the snippets themselves as they might be used by other commits
             stmt = delete(db_entities.CommitSnippetV2).where(

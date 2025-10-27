@@ -84,6 +84,7 @@ def sample_snippet(sample_git_file: db_entities.GitCommitFile) -> SnippetV2:
     domain_file = GitFile(
         created_at=datetime.now(UTC),
         blob_sha=sample_git_file.blob_sha,
+        commit_sha=sample_git_file.commit_sha,
         path=sample_git_file.path,
         mime_type=sample_git_file.mime_type,
         size=sample_git_file.size,
@@ -174,6 +175,7 @@ class TestSaveSnippets:
         new_file = GitFile(
             created_at=datetime.now(UTC),
             blob_sha="new_file_blob_sha",
+            commit_sha=test_git_commit.commit_sha,
             path="src/new_file.py",
             mime_type="text/x-python",
             size=512,
@@ -332,6 +334,7 @@ class TestGetSnippetsForCommit:
         domain_file = GitFile(
             created_at=datetime.now(UTC),
             blob_sha="missing_blob_sha",
+            commit_sha="test_commit",
             path="src/missing.py",
             mime_type="text/x-python",
             size=100,
@@ -446,6 +449,7 @@ class TestDeleteSnippetsForCommit:
         domain_file = GitFile(
             created_at=datetime.now(UTC),
             blob_sha=sample_git_file.blob_sha,
+            commit_sha=sample_git_file.commit_sha,
             path=sample_git_file.path,
             mime_type=sample_git_file.mime_type,
             size=sample_git_file.size,

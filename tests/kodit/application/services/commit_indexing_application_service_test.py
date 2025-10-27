@@ -43,6 +43,9 @@ from kodit.infrastructure.sqlalchemy.git_branch_repository import (
 from kodit.infrastructure.sqlalchemy.git_commit_repository import (
     create_git_commit_repository,
 )
+from kodit.infrastructure.sqlalchemy.git_file_repository import (
+    create_git_file_repository,
+)
 from kodit.infrastructure.sqlalchemy.git_repository import create_git_repo_repository
 from kodit.infrastructure.sqlalchemy.git_tag_repository import (
     create_git_tag_repository,
@@ -83,6 +86,7 @@ async def commit_indexing_service(
     git_branch_repository = create_git_branch_repository(
         session_factory=session_factory
     )
+    git_file_repository = create_git_file_repository(session_factory=session_factory)
     git_tag_repository = create_git_tag_repository(session_factory=session_factory)
     embedding_repository = create_embedding_repository(session_factory=session_factory)
     enrichment_v2_repository = EnrichmentV2Repository(session_factory=session_factory)
@@ -106,6 +110,7 @@ async def commit_indexing_service(
         architecture_service=AsyncMock(spec=PhysicalArchitectureService),
         enrichment_v2_repository=enrichment_v2_repository,
         enricher_service=AsyncMock(),
+        git_file_repository=git_file_repository,
     )
 
 
@@ -124,18 +129,20 @@ async def create_test_repository_with_data(
     # Create and save a commit
     commit = GitCommit(
         commit_sha="abc123def456",
+        repo_id=repo.id,
         date=datetime.now(UTC),
         message="Test commit",
         parent_commit_sha=None,
         author="test@example.com",
         files=[],
     )
-    await service.git_commit_repository.save_bulk([commit], repo.id)
+    await service.git_commit_repository.save_bulk([commit])
 
     # Create test file for snippets
     test_file = GitFile(
         created_at=datetime.now(UTC),
         blob_sha="file1sha",
+        commit_sha="abc123def456",
         path="test.py",
         mime_type="text/x-python",
         size=100,
@@ -178,7 +185,7 @@ async def test_delete_repository_with_data_succeeds(
     repo_exists = await commit_indexing_service.repo_repository.get_by_id(repo.id)
     assert repo_exists is not None
 
-    saved_commit = await commit_indexing_service.git_commit_repository.get_by_sha(
+    saved_commit = await commit_indexing_service.git_commit_repository.get(
         commit.commit_sha
     )
     assert saved_commit is not None

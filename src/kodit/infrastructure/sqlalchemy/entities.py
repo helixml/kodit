@@ -19,7 +19,7 @@ from sqlalchemy import (
 )
 from sqlalchemy import Enum as SQLAlchemyEnum
 from sqlalchemy.ext.asyncio import AsyncAttrs
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.types import JSON
 
 
@@ -252,6 +252,10 @@ class GitCommit(Base):
     message: Mapped[str] = mapped_column(UnicodeText)
     parent_commit_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
     author: Mapped[str] = mapped_column(String(255), index=True)
+
+    files: Mapped[list["GitCommitFile"]] = relationship(
+        "GitCommitFile", lazy="select", foreign_keys="[GitCommitFile.commit_sha]"
+    )
 
     def __init__(  # noqa: PLR0913
         self,

@@ -120,6 +120,7 @@ def sample_git_file() -> GitFile:
     return GitFile(
         created_at=datetime.now(UTC),
         blob_sha="file_sha_123",
+        commit_sha="commit_sha_456",
         path="src/main.py",
         mime_type="text/x-python",
         size=1024,
@@ -133,6 +134,7 @@ def sample_git_commit(sample_git_file: GitFile) -> GitCommit:
     return GitCommit(
         created_at=datetime.now(UTC),
         commit_sha="commit_sha_456",
+        repo_id=1,
         date=datetime.now(UTC),
         message="Test commit",
         parent_commit_sha=None,

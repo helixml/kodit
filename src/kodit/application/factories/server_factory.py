@@ -28,6 +28,7 @@ from kodit.domain.protocols import (
     GitAdapter,
     GitBranchRepository,
     GitCommitRepository,
+    GitFileRepository,
     GitRepoRepository,
     GitTagRepository,
     SnippetRepositoryV2,
@@ -73,6 +74,9 @@ from kodit.infrastructure.sqlalchemy.git_branch_repository import (
 )
 from kodit.infrastructure.sqlalchemy.git_commit_repository import (
     create_git_commit_repository,
+)
+from kodit.infrastructure.sqlalchemy.git_file_repository import (
+    create_git_file_repository,
 )
 from kodit.infrastructure.sqlalchemy.git_repository import create_git_repo_repository
 from kodit.infrastructure.sqlalchemy.git_tag_repository import (
@@ -126,6 +130,7 @@ class ServerFactory:
             None
         )
         self._git_commit_repository: GitCommitRepository | None = None
+        self._git_file_repository: GitFileRepository | None = None
         self._git_branch_repository: GitBranchRepository | None = None
         self._git_tag_repository: GitTagRepository | None = None
         self._architecture_service: PhysicalArchitectureService | None = None
@@ -227,6 +232,7 @@ class ServerFactory:
                     snippet_v2_repository=self.snippet_v2_repository(),
                     repo_repository=self.repo_repository(),
                     git_commit_repository=self.git_commit_repository(),
+                    git_file_repository=self.git_file_repository(),
                     git_branch_repository=self.git_branch_repository(),
                     git_tag_repository=self.git_tag_repository(),
                     operation=self.operation(),
@@ -283,6 +289,14 @@ class ServerFactory:
                 self.git_adapter(), self.app_context.get_clone_dir()
             )
         return self._cloner
+
+    def git_file_repository(self) -> GitFileRepository:
+        """Create a GitFileRepository instance."""
+        if not self._git_file_repository:
+            self._git_file_repository = create_git_file_repository(
+                session_factory=self.session_factory
+            )
+        return self._git_file_repository
 
     def snippet_v2_repository(self) -> SnippetRepositoryV2:
         """Create a SnippetRepositoryV2 instance."""

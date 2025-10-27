@@ -31,7 +31,7 @@ async def repo_with_branches(
     # Save repository and commit
     saved_repo = await repo_repository.save(sample_git_repo)
     assert saved_repo.id is not None
-    await commit_repository.save_bulk([sample_git_commit], saved_repo.id)
+    await commit_repository.save_bulk([sample_git_commit])
 
     # Create branches
     branches = [
@@ -123,7 +123,7 @@ async def test_save_and_get_branches(
     # Save repository and commit
     saved_repo = await repo_repository.save(sample_git_repo)
     assert saved_repo.id is not None
-    await commit_repository.save_bulk([sample_git_commit], saved_repo.id)
+    await commit_repository.save_bulk([sample_git_commit])
 
     # Create and save branch
     branch = GitBranch(
@@ -154,7 +154,7 @@ async def test_save_multiple_branches(
     # Save repository and commit
     saved_repo = await repo_repository.save(sample_git_repo)
     assert saved_repo.id is not None
-    await commit_repository.save_bulk([sample_git_commit], saved_repo.id)
+    await commit_repository.save_bulk([sample_git_commit])
 
     # Create multiple branches
     branches = [
