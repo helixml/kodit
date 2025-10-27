@@ -81,11 +81,11 @@ class GitTag(BaseModel):
 class GitBranch(BaseModel):
     """Branch domain entity."""
 
-    repo_id: int | None = None  # primary key
-    name: str  # primary key
+    repo_id: int
+    name: str
     created_at: datetime | None = None  # Is populated by repository
     updated_at: datetime | None = None  # Is populated by repository
-    head_commit: GitCommit
+    head_commit_sha: str
 
 
 @dataclass(frozen=True)

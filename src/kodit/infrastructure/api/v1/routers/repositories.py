@@ -7,7 +7,6 @@ from kodit.infrastructure.api.middleware.auth import api_key_auth
 from kodit.infrastructure.api.v1.dependencies import (
     CommitIndexingAppServiceDep,
     EnrichmentQueryServiceDep,
-    GitBranchRepositoryDep,
     GitCommitRepositoryDep,
     GitRepositoryDep,
     GitTagRepositoryDep,
@@ -96,7 +95,6 @@ async def get_repository(
     repo_id: str,
     git_repository: GitRepositoryDep,
     git_commit_repository: GitCommitRepositoryDep,
-    git_branch_repository: GitBranchRepositoryDep,
 ) -> RepositoryDetailsResponse:
     """Get repository details including branches and recent commits."""
     repo = await git_repository.get_by_id(int(repo_id))
@@ -128,7 +126,7 @@ async def get_repository(
     commit_count = await git_commit_repository.count_by_repo_id(int(repo_id))
 
     # Get branches for the repository using the branch repository
-    repo_branches = await git_branch_repository.get_by_repo_id(int(repo_id))
+    repo_branches = await repo.branches
 
     # Get commit counts for all branches using the commit repository
     branch_data = []

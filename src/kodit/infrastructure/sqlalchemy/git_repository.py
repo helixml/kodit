@@ -79,9 +79,8 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
             await self._save_tracking_branch(session, repo)
 
             await session.flush()
-            return repo
 
-
+            return await self._load_complete_repo(session, db_repo)
 
     async def _save_tracking_branch(self, session: AsyncSession, repo: GitRepo) -> None:
         """Save tracking branch if it doesn't exist."""
@@ -97,7 +96,6 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
                 name=repo.tracking_branch.name,
             )
             session.add(db_tracking_branch)
-
 
     async def get_by_id(self, repo_id: int) -> GitRepo:
         """Get repository by ID with all associated data."""
@@ -182,7 +180,6 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
             await session.execute(del_stmt)
             return True
 
-
     async def _load_complete_repo(
         self, session: AsyncSession, db_repo: db_entities.GitRepo
     ) -> GitRepo:
@@ -259,4 +256,5 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
             db_tags=all_tags,
             db_commit_files=referenced_files,
             db_tracking_branch=tracking_branch,
+            session_factory=self.session_factory,
         )

@@ -210,6 +210,9 @@ class GitRepo(Base, CommonMixin):
     num_commits: Mapped[int] = mapped_column(Integer, default=0)
     num_branches: Mapped[int] = mapped_column(Integer, default=0)
     num_tags: Mapped[int] = mapped_column(Integer, default=0)
+    branches: Mapped[list["GitBranch"]] = relationship(
+        "GitBranch", lazy="select", foreign_keys="[GitBranch.repo_id]"
+    )
 
     def __init__(  # noqa: PLR0913
         self,
@@ -297,7 +300,12 @@ class GitBranch(Base):
 
     __table_args__ = (UniqueConstraint("repo_id", "name", name="uix_repo_branch"),)
 
-    def __init__(self, repo_id: int, name: str, head_commit_sha: str) -> None:
+    def __init__(
+        self,
+        repo_id: int,
+        name: str,
+        head_commit_sha: str,
+    ) -> None:
         """Initialize Git branch."""
         super().__init__()
         self.repo_id = repo_id

@@ -113,7 +113,7 @@ class GitFileRepository(Repository[GitFile]):
         """Delete all files for a commit."""
 
 
-class GitBranchRepository(ABC):
+class GitBranchRepository(Repository[GitBranch]):
     """Repository for Git branches."""
 
     @abstractmethod
@@ -125,24 +125,8 @@ class GitBranchRepository(ABC):
         """Get all branches for a repository."""
 
     @abstractmethod
-    async def save(self, branch: GitBranch, repo_id: int) -> GitBranch:
-        """Save a branch to a repository."""
-
-    @abstractmethod
-    async def save_bulk(self, branches: list[GitBranch], repo_id: int) -> None:
-        """Bulk save branches to a repository."""
-
-    @abstractmethod
-    async def exists(self, branch_name: str, repo_id: int) -> bool:
-        """Check if a branch exists."""
-
-    @abstractmethod
     async def delete_by_repo_id(self, repo_id: int) -> None:
         """Delete all branches for a repository."""
-
-    @abstractmethod
-    async def count_by_repo_id(self, repo_id: int) -> int:
-        """Count the number of branches for a repository."""
 
 
 class GitTagRepository(ABC):

@@ -1,9 +1,11 @@
 """Mapping between domain Git entities and SQLAlchemy entities."""
 
 from collections import defaultdict
+from collections.abc import Callable
 from pathlib import Path
 
 from pydantic import AnyUrl
+from sqlalchemy.ext.asyncio import AsyncSession
 
 import kodit.domain.entities.git as domain_git_entities
 from kodit.infrastructure.sqlalchemy import entities as db_entities
@@ -71,7 +73,7 @@ class GitMapper:
                 name=db_branch.name,
                 created_at=db_branch.created_at,
                 updated_at=db_branch.updated_at,
-                head_commit=commit_map[db_branch.head_commit_sha],
+                head_commit_sha=db_branch.head_commit_sha,
             )
             domain_branches.append(domain_branch)
         return domain_branches
@@ -121,7 +123,7 @@ class GitMapper:
             name=db_tracking_branch_entity.name,
             created_at=db_tracking_branch_entity.created_at,
             updated_at=db_tracking_branch_entity.updated_at,
-            head_commit=commit_map[db_tracking_branch_entity.head_commit_sha],
+            head_commit_sha=db_tracking_branch_entity.head_commit_sha,
         )
 
     def to_domain_git_repo(  # noqa: PLR0913
@@ -132,15 +134,14 @@ class GitMapper:
         db_tags: list[db_entities.GitTag],
         db_commit_files: list[db_entities.GitCommitFile],
         db_tracking_branch: db_entities.GitTrackingBranch | None,
+        session_factory: Callable[[], AsyncSession],
     ) -> domain_git_entities.GitRepo:
         """Convert SQLAlchemy GitRepo to domain GitRepo."""
         # Build commits needed for tags and tracking branch
         domain_commits = self.to_domain_commits(
             db_commits=db_commits, db_commit_files=db_commit_files
         )
-        self.to_domain_tags(
-            db_tags=db_tags, domain_commits=domain_commits
-        )
+        self.to_domain_tags(db_tags=db_tags, domain_commits=domain_commits)
         tracking_branch = self.to_domain_tracking_branch(
             db_tracking_branch=db_tracking_branch,
             db_tracking_branch_entity=db_tracking_branch_entity,
