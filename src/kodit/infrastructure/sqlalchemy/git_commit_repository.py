@@ -8,6 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from kodit.domain.entities.git import GitCommit
 from kodit.domain.protocols import GitCommitRepository
 from kodit.infrastructure.sqlalchemy import entities as db_entities
+from kodit.infrastructure.sqlalchemy.git_file_repository import (
+    SqlAlchemyGitFileRepository,
+)
 from kodit.infrastructure.sqlalchemy.query import FilterOperator, QueryBuilder
 from kodit.infrastructure.sqlalchemy.repository import SqlAlchemyRepository
 
@@ -38,21 +41,23 @@ class SqlAlchemyGitCommitRepository(
         """Extract ID from domain entity."""
         return entity.commit_sha
 
-    def to_domain(self, db_entity: db_entities.GitCommit) -> GitCommit:
+    @staticmethod
+    def to_domain(db_entity: db_entities.GitCommit) -> GitCommit:
         """Map database entity to domain entity."""
-        # This is a placeholder - we need files, which requires a separate query
-        # The actual conversion happens in get_by_sha and get_by_repo_id
         return GitCommit(
             commit_sha=db_entity.commit_sha,
             repo_id=db_entity.repo_id,
             date=db_entity.date,
             message=db_entity.message,
             parent_commit_sha=db_entity.parent_commit_sha,
-            files=[],
+            files=[
+                SqlAlchemyGitFileRepository.to_domain(file) for file in db_entity.files
+            ],
             author=db_entity.author,
         )
 
-    def to_db(self, domain_entity: GitCommit) -> db_entities.GitCommit:
+    @staticmethod
+    def to_db(domain_entity: GitCommit) -> db_entities.GitCommit:
         """Map domain entity to database entity."""
         return db_entities.GitCommit(
             commit_sha=domain_entity.commit_sha,
@@ -61,6 +66,9 @@ class SqlAlchemyGitCommitRepository(
             parent_commit_sha=domain_entity.parent_commit_sha,
             author=domain_entity.author,
             repo_id=domain_entity.repo_id,
+            files=[
+                SqlAlchemyGitFileRepository.to_db(file) for file in domain_entity.files
+            ],
         )
 
     async def get_by_repo_id(self, repo_id: int) -> list[GitCommit]:

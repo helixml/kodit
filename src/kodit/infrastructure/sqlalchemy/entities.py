@@ -255,9 +255,11 @@ class GitCommit(Base):
     message: Mapped[str] = mapped_column(UnicodeText)
     parent_commit_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
     author: Mapped[str] = mapped_column(String(255), index=True)
-
     files: Mapped[list["GitCommitFile"]] = relationship(
-        "GitCommitFile", lazy="select", foreign_keys="[GitCommitFile.commit_sha]"
+        "GitCommitFile",
+        lazy="selectin",
+        foreign_keys="[GitCommitFile.commit_sha]",
+        cascade="all, delete-orphan",
     )
 
     def __init__(  # noqa: PLR0913
@@ -268,6 +270,7 @@ class GitCommit(Base):
         message: str,
         parent_commit_sha: str | None,
         author: str,
+        files: list["GitCommitFile"],
     ) -> None:
         """Initialize Git commit."""
         super().__init__()
@@ -277,6 +280,7 @@ class GitCommit(Base):
         self.message = message
         self.parent_commit_sha = parent_commit_sha
         self.author = author
+        self.files = files
 
 
 class GitBranch(Base):
@@ -424,6 +428,22 @@ class SnippetV2(Base):
     )
     content: Mapped[str] = mapped_column(UnicodeText)
     extension: Mapped[str] = mapped_column(String(255), index=True)
+    enrichments: Mapped[list["EnrichmentV2"]] = relationship(
+        "EnrichmentV2",
+        secondary="enrichment_associations",
+        lazy="select",
+        primaryjoin="SnippetV2.sha == foreign(EnrichmentAssociation.entity_id)",
+        secondaryjoin="EnrichmentV2.id == foreign(EnrichmentAssociation.enrichment_id)",
+        viewonly=True,
+    )
+    derives_from: Mapped[list["GitCommitFile"]] = relationship(
+        "GitCommitFile",
+        secondary="snippet_v2_files",
+        lazy="select",
+        primaryjoin="SnippetV2.sha == foreign(SnippetV2File.snippet_sha)",
+        secondaryjoin="and_(GitCommitFile.commit_sha == foreign(SnippetV2File.commit_sha), GitCommitFile.path == foreign(SnippetV2File.file_path))",
+        viewonly=True,
+    )
 
     def __init__(
         self,

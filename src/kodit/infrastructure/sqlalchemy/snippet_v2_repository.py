@@ -13,6 +13,7 @@ from kodit.domain.protocols import SnippetRepositoryV2
 from kodit.domain.value_objects import MultiSearchRequest
 from kodit.infrastructure.mappers.snippet_mapper import SnippetMapper
 from kodit.infrastructure.sqlalchemy import entities as db_entities
+from kodit.infrastructure.sqlalchemy.repository import SqlAlchemyRepository
 from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 
 
@@ -35,16 +36,27 @@ def create_snippet_v2_repository(
     return SqlAlchemySnippetRepositoryV2(session_factory=session_factory)
 
 
-class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
+class SqlAlchemySnippetRepositoryV2(
+    SqlAlchemyRepository[SnippetV2, db_entities.SnippetV2], SnippetRepositoryV2
+):
     """SQLAlchemy implementation of SnippetRepositoryV2."""
 
-    def __init__(self, session_factory: Callable[[], AsyncSession]) -> None:
-        """Initialize the repository."""
-        self.session_factory = session_factory
+    def _get_id(self, entity: SnippetV2) -> str | None:
+        """Extract ID from domain entity."""
+        return entity.sha
 
     @property
-    def _mapper(self) -> SnippetMapper:
-        return SnippetMapper()
+    def db_entity_type(self) -> type[db_entities.SnippetV2]:
+        """The SQLAlchemy model type."""
+        return db_entities.SnippetV2
+
+    def to_domain(self, db_entity: db_entities.SnippetV2) -> SnippetV2:
+        """Map database entity to domain entity."""
+        return SnippetMapper().to_domain_snippet_v2(db_entity)
+
+    def to_db(self, domain_entity: SnippetV2) -> db_entities.SnippetV2:
+        """Map domain entity to database entity."""
+        return SnippetMapper().to_db_snippet_v2(domain_entity)
 
     async def save_snippets(self, commit_sha: str, snippets: list[SnippetV2]) -> None:
         """Batch save snippets for a commit."""

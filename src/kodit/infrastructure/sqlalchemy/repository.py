@@ -31,12 +31,14 @@ class SqlAlchemyRepository(ABC, Generic[DomainEntityType, DatabaseEntityType]):
     def db_entity_type(self) -> type[DatabaseEntityType]:
         """The SQLAlchemy model type."""
 
+    @staticmethod
     @abstractmethod
-    def to_domain(self, db_entity: DatabaseEntityType) -> DomainEntityType:
+    def to_domain(db_entity: DatabaseEntityType) -> DomainEntityType:
         """Map database entity to domain entity."""
 
+    @staticmethod
     @abstractmethod
-    def to_db(self, domain_entity: DomainEntityType) -> DatabaseEntityType:
+    def to_db(domain_entity: DomainEntityType) -> DatabaseEntityType:
         """Map domain entity to database entity."""
 
     def _update_db_entity(

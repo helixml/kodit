@@ -37,7 +37,8 @@ class SqlAlchemyGitFileRepository(
         """Extract ID from domain entity."""
         return (entity.commit_sha, entity.path)
 
-    def to_domain(self, db_entity: db_entities.GitCommitFile) -> GitFile:
+    @staticmethod
+    def to_domain(db_entity: db_entities.GitCommitFile) -> GitFile:
         """Map database entity to domain entity."""
         return GitFile(
             commit_sha=db_entity.commit_sha,
@@ -49,7 +50,8 @@ class SqlAlchemyGitFileRepository(
             extension=db_entity.extension,
         )
 
-    def to_db(self, domain_entity: GitFile) -> db_entities.GitCommitFile:
+    @staticmethod
+    def to_db(domain_entity: GitFile) -> db_entities.GitCommitFile:
         """Map domain entity to database entity."""
         return db_entities.GitCommitFile(
             commit_sha=domain_entity.commit_sha,
