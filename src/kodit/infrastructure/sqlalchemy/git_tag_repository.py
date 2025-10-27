@@ -34,7 +34,8 @@ class SqlAlchemyGitTagRepository(
         """The SQLAlchemy model type."""
         return db_entities.GitTag
 
-    def to_domain(self, db_entity: db_entities.GitTag) -> GitTag:
+    @staticmethod
+    def to_domain(db_entity: db_entities.GitTag) -> GitTag:
         """Map a SQLAlchemy GitTag to a domain GitTag."""
         return GitTag(
             created_at=db_entity.created_at,
@@ -44,7 +45,8 @@ class SqlAlchemyGitTagRepository(
             target_commit_sha=db_entity.target_commit_sha,
         )
 
-    def to_db(self, domain_entity: GitTag) -> db_entities.GitTag:
+    @staticmethod
+    def to_db(domain_entity: GitTag) -> db_entities.GitTag:
         """Map a domain GitTag to a SQLAlchemy GitTag."""
         if domain_entity.repo_id is None:
             raise ValueError("Repository ID is required")
@@ -68,13 +70,12 @@ class SqlAlchemyGitTagRepository(
 
     async def get_by_repo_id(self, repo_id: int) -> list[GitTag]:
         """Get all tags for a repository."""
-        query = QueryBuilder().filter("repo_id", FilterOperator.EQ, repo_id)
-        return await self.find(query)
+        return await self.find(
+            QueryBuilder().filter("repo_id", FilterOperator.EQ, repo_id)
+        )
 
     async def delete_by_repo_id(self, repo_id: int) -> None:
         """Delete all tags for a repository."""
-        query = QueryBuilder().filter("repo_id", FilterOperator.EQ, repo_id)
-        tags = await self.find(query)
-        if not tags:
-            return
-        await self.delete_bulk(tags)
+        await self.delete_by_query(
+            QueryBuilder().filter("repo_id", FilterOperator.EQ, repo_id)
+        )

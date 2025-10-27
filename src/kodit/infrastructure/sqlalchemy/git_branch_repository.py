@@ -38,7 +38,8 @@ class SqlAlchemyGitBranchRepository(
         """Get the type of the database entity."""
         return db_entities.GitBranch
 
-    def to_domain(self, db_entity: db_entities.GitBranch) -> GitBranch:
+    @staticmethod
+    def to_domain(db_entity: db_entities.GitBranch) -> GitBranch:
         """Map database entity to domain entity."""
         return GitBranch(
             repo_id=db_entity.repo_id,
@@ -48,7 +49,8 @@ class SqlAlchemyGitBranchRepository(
             updated_at=db_entity.updated_at,
         )
 
-    def to_db(self, domain_entity: GitBranch) -> db_entities.GitBranch:
+    @staticmethod
+    def to_db(domain_entity: GitBranch) -> db_entities.GitBranch:
         """Map domain entity to database entity."""
         return db_entities.GitBranch(
             repo_id=domain_entity.repo_id,
@@ -75,7 +77,6 @@ class SqlAlchemyGitBranchRepository(
 
     async def delete_by_repo_id(self, repo_id: int) -> None:
         """Delete all branches for a repository."""
-        query = QueryBuilder().filter("repo_id", FilterOperator.EQ, repo_id)
-        branches = await self.find(query)
-        if branches:
-            await self.delete_bulk(branches)
+        await self.delete_by_query(
+            QueryBuilder().filter("repo_id", FilterOperator.EQ, repo_id)
+        )

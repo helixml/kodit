@@ -47,7 +47,8 @@ class MockRepository(SqlAlchemyRepository[MockEntity, MockDbEntity]):
         """Extract ID from domain entity."""
         return entity.id
 
-    def to_domain(self, db_entity: MockDbEntity) -> MockEntity:
+    @staticmethod
+    def to_domain(db_entity: MockDbEntity) -> MockEntity:
         """Map database entity to domain entity."""
         return MockEntity(
             id=db_entity.id,
@@ -55,7 +56,8 @@ class MockRepository(SqlAlchemyRepository[MockEntity, MockDbEntity]):
             value=db_entity.value,
         )
 
-    def to_db(self, domain_entity: MockEntity) -> MockDbEntity:
+    @staticmethod
+    def to_db(domain_entity: MockEntity) -> MockDbEntity:
         """Map domain entity to database entity."""
         return MockDbEntity(
             id=domain_entity.id,
@@ -312,94 +314,25 @@ class TestDelete:
         remaining = await repository.find(query)
         assert len(remaining) == 2
 
-
-class TestDeleteBulk:
-    """Tests for the delete_bulk method."""
-
-    async def test_deletes_multiple_entities(
+    async def test_delete_by_query_removes_matching_entities(
         self,
         repository: MockRepository,
     ) -> None:
-        """Verifies repository can delete multiple entities at once."""
-        # Create entities
-        entities = [
-            MockEntity(id=1, name="first", value=10),
-            MockEntity(id=2, name="second", value=20),
-            MockEntity(id=3, name="third", value=30),
-        ]
-        await repository.save_bulk(entities)
+        """Verifies delete_by_query removes all entities matching the query."""
+        await repository.save_bulk(
+            [
+                MockEntity(id=1, name="keep", value=10),
+                MockEntity(id=2, name="remove", value=20),
+                MockEntity(id=3, name="remove", value=30),
+            ]
+        )
 
-        # Delete all
-        await repository.delete_bulk(entities)
+        await repository.delete_by_query(
+            QueryBuilder().filter("name", FilterOperator.EQ, "remove")
+        )
 
-        # Verify all are gone
-        assert not await repository.exists(1)
-        assert not await repository.exists(2)
-        assert not await repository.exists(3)
-
-        query = QueryBuilder()
-        remaining = await repository.find(query)
-        assert len(remaining) == 0
-
-    async def test_deletes_subset_of_entities(
-        self,
-        repository: MockRepository,
-    ) -> None:
-        """Verifies bulk deletion of a subset of entities."""
-        # Create entities
-        all_entities = [
-            MockEntity(id=1, name="keep", value=10),
-            MockEntity(id=2, name="delete", value=20),
-            MockEntity(id=3, name="delete_too", value=30),
-            MockEntity(id=4, name="keep_too", value=40),
-        ]
-        await repository.save_bulk(all_entities)
-
-        # Delete only middle two
-        to_delete = [all_entities[1], all_entities[2]]
-        await repository.delete_bulk(to_delete)
-
-        # Verify correct entities were deleted
+        assert len(await repository.find(QueryBuilder())) == 1
         assert await repository.exists(1)
-        assert not await repository.exists(2)
-        assert not await repository.exists(3)
-        assert await repository.exists(4)
-
-        query = QueryBuilder()
-        remaining = await repository.find(query)
-        assert len(remaining) == 2
-
-    async def test_handles_empty_delete_list(
-        self,
-        repository: MockRepository,
-    ) -> None:
-        """Verifies bulk deletion handles empty lists gracefully."""
-        # Create an entity
-        entity = MockEntity(id=1, name="survivor", value=10)
-        await repository.save(entity)
-
-        # Delete empty list
-        await repository.delete_bulk([])
-
-        # Verify entity still exists
-        assert await repository.exists(1)
-
-    async def test_handles_nonexistent_entities_in_bulk_delete(
-        self,
-        repository: MockRepository,
-    ) -> None:
-        """Verifies bulk deletion handles non-existent entities gracefully."""
-        entities = [
-            MockEntity(id=1, name="nonexistent", value=10),
-            MockEntity(id=2, name="also_nonexistent", value=20),
-        ]
-
-        # Should not raise an error
-        await repository.delete_bulk(entities)
-
-        # Verify they still don't exist
-        assert not await repository.exists(1)
-        assert not await repository.exists(2)
 
 
 class TestFind:

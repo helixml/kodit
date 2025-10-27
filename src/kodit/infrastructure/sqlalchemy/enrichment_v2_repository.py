@@ -2,7 +2,6 @@
 
 from collections.abc import Callable
 
-import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.domain.enrichments.enrichment import EnrichmentV2
@@ -24,15 +23,6 @@ class SQLAlchemyEnrichmentV2Repository(
 ):
     """Repository for managing enrichments and their associations."""
 
-    def __init__(
-        self,
-        session_factory: Callable[[], AsyncSession],
-    ) -> None:
-        """Initialize the repository."""
-        self.session_factory = session_factory
-        self.mapper = EnrichmentMapper()
-        self.log = structlog.get_logger(__name__)
-
     def _get_id(self, entity: EnrichmentV2) -> int | None:
         """Extract ID from domain entity."""
         return entity.id
@@ -42,11 +32,13 @@ class SQLAlchemyEnrichmentV2Repository(
         """The SQLAlchemy model type."""
         return db_entities.EnrichmentV2
 
-    def to_domain(self, db_entity: db_entities.EnrichmentV2) -> EnrichmentV2:
+    @staticmethod
+    def to_domain(db_entity: db_entities.EnrichmentV2) -> EnrichmentV2:
         """Map database entity to domain entity."""
-        return self.mapper.to_domain(db_entity, "", "")
+        return EnrichmentMapper.to_domain(db_entity, "", "")
 
-    def to_db(self, domain_entity: EnrichmentV2) -> db_entities.EnrichmentV2:
+    @staticmethod
+    def to_db(domain_entity: EnrichmentV2) -> db_entities.EnrichmentV2:
         """Map domain entity to database entity."""
         return db_entities.EnrichmentV2(
             type=domain_entity.type,

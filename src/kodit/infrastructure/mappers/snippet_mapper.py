@@ -10,8 +10,8 @@ from kodit.infrastructure.sqlalchemy import entities as db_entities
 class SnippetMapper:
     """Mapper for converting between domain Git entities and database entities."""
 
+    @staticmethod
     def to_domain_snippet_v2(
-        self,
         db_snippet: db_entities.SnippetV2,
         db_files: list[db_entities.GitCommitFile],
         db_enrichments: list[EnrichmentV2],
@@ -49,8 +49,9 @@ class SnippetMapper:
             extension=db_snippet.extension,
         )
 
+    @staticmethod
     def from_domain_snippet_v2(
-        self, domain_snippet: domain_git_entities.SnippetV2
+        domain_snippet: domain_git_entities.SnippetV2,
     ) -> db_entities.SnippetV2:
         """Convert domain SnippetV2 to SQLAlchemy SnippetV2."""
         return db_entities.SnippetV2(

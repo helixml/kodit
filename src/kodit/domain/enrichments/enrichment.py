@@ -46,3 +46,4 @@ class EnrichmentAssociation:
     enrichment_id: int
     entity_type: str
     entity_id: str
+    id: int | None = None

@@ -44,6 +44,7 @@ class TestGitMapper:
             message="Initial commit",
             parent_commit_sha="parent_sha_789",
             author="Test Author",
+            files=[],
         )
         db_commit.created_at = now
         db_commit.updated_at = now
@@ -273,6 +274,7 @@ class TestGitMapper:
             message="Test commit",
             parent_commit_sha=None,
             author="Author",
+            files=[],
         )
         db_commit.created_at = now
         db_commit.updated_at = now

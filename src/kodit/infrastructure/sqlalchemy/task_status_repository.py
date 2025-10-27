@@ -36,17 +36,19 @@ class SqlAlchemyTaskStatusRepository(
         """Extract ID from domain entity."""
         return entity.id
 
+    @staticmethod
     def to_domain(
-        self, db_entity: db_entities.TaskStatus
+        db_entity: db_entities.TaskStatus,
     ) -> domain_entities.TaskStatus:
         """Map database entity to domain entity."""
-        return TaskStatusMapper().to_domain_task_status(db_entity)
+        return TaskStatusMapper.to_domain_task_status(db_entity)
 
+    @staticmethod
     def to_db(
-        self, domain_entity: domain_entities.TaskStatus
+        domain_entity: domain_entities.TaskStatus,
     ) -> db_entities.TaskStatus:
         """Map domain entity to database entity."""
-        return TaskStatusMapper().from_domain_task_status(domain_entity)
+        return TaskStatusMapper.from_domain_task_status(domain_entity)
 
     @override
     async def save(
@@ -79,4 +81,4 @@ class SqlAlchemyTaskStatusRepository(
             db_statuses = list(result.scalars().all())
 
             # Use mapper to convert and reconstruct hierarchy
-            return TaskStatusMapper().to_domain_task_status_with_hierarchy(db_statuses)
+            return TaskStatusMapper.to_domain_task_status_with_hierarchy(db_statuses)

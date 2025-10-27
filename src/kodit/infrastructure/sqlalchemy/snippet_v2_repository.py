@@ -50,13 +50,15 @@ class SqlAlchemySnippetRepositoryV2(
         """The SQLAlchemy model type."""
         return db_entities.SnippetV2
 
-    def to_domain(self, db_entity: db_entities.SnippetV2) -> SnippetV2:
+    @staticmethod
+    def to_domain(db_entity: db_entities.SnippetV2) -> SnippetV2:
         """Map database entity to domain entity."""
-        return SnippetMapper().to_domain_snippet_v2(db_entity)
+        return SnippetMapper.to_domain_snippet_v2(db_entity, [], [])
 
-    def to_db(self, domain_entity: SnippetV2) -> db_entities.SnippetV2:
+    @staticmethod
+    def to_db(domain_entity: SnippetV2) -> db_entities.SnippetV2:
         """Map domain entity to database entity."""
-        return SnippetMapper().to_db_snippet_v2(domain_entity)
+        return SnippetMapper.from_domain_snippet_v2(domain_entity)
 
     async def save_snippets(self, commit_sha: str, snippets: list[SnippetV2]) -> None:
         """Batch save snippets for a commit."""
@@ -248,7 +250,7 @@ class SqlAlchemySnippetRepositoryV2(
         """Get or create a SnippetV2 in the database."""
         db_snippet = await session.get(db_entities.SnippetV2, domain_snippet.sha)
         if not db_snippet:
-            db_snippet = self._mapper.from_domain_snippet_v2(domain_snippet)
+            db_snippet = SnippetMapper.from_domain_snippet_v2(domain_snippet)
             session.add(db_snippet)
             await session.flush()
 
@@ -414,9 +416,9 @@ class SqlAlchemySnippetRepositoryV2(
             db_snippets = result.all()
 
             return [
-                self._mapper.to_domain_snippet_v2(
+                SnippetMapper.to_domain_snippet_v2(
                     db_snippet=snippet,
-                    derives_from=git_file,
+                    db_files=[git_file],
                     db_enrichments=[],
                 )
                 for snippet, git_commit, git_file, git_repo in db_snippets
@@ -458,7 +460,7 @@ class SqlAlchemySnippetRepositoryV2(
         )
         db_files_list = list(db_files)
 
-        return self._mapper.to_domain_snippet_v2(
+        return SnippetMapper.to_domain_snippet_v2(
             db_snippet=db_snippet,
             db_files=db_files_list,
             db_enrichments=[],

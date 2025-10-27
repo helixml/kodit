@@ -38,6 +38,7 @@ from kodit.infrastructure.api.v1.schemas.task_status import (
     TaskStatusData,
     TaskStatusListResponse,
 )
+from kodit.infrastructure.sqlalchemy.query import FilterOperator, QueryBuilder
 
 router = APIRouter(
     prefix="/api/v1/repositories",
@@ -104,7 +105,9 @@ async def get_repository(
         raise HTTPException(status_code=404, detail="Repository not found")
 
     # Get all commits for this repository from the commit repository
-    repo_commits = await git_commit_repository.get_by_repo_id(int(repo_id))
+    repo_commits = await git_commit_repository.find(
+        QueryBuilder().filter("repo_id", FilterOperator.EQ, int(repo_id))
+    )
     commits_by_sha = {commit.commit_sha: commit for commit in repo_commits}
 
     # Get recent commits from the tracking branch's head commit
@@ -126,10 +129,14 @@ async def get_repository(
                     break
 
     # Get commit count for the repository using the commit repository
-    commit_count = await git_commit_repository.count_by_repo_id(int(repo_id))
+    commit_count = await git_commit_repository.count(
+        QueryBuilder().filter("repo_id", FilterOperator.EQ, int(repo_id))
+    )
 
     # Get branches for the repository using the branch repository
-    repo_branches = await git_branch_repository.get_by_repo_id(int(repo_id))
+    repo_branches = await git_branch_repository.find(
+        QueryBuilder().filter("repo_id", FilterOperator.EQ, int(repo_id))
+    )
 
     # Get commit counts for all branches using the commit repository
     branch_data = []

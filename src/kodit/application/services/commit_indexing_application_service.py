@@ -272,7 +272,9 @@ class CommitIndexingApplicationService:
                 raise ValueError(f"Repository {repository_id} not found")
 
             # Get all commit SHAs for this repository first (needed for cleanup)
-            commits = await self.git_commit_repository.get_by_repo_id(repository_id)
+            commits = await self.git_commit_repository.find(
+                QueryBuilder().filter("repo_id", FilterOperator.EQ, repository_id)
+            )
             commit_shas = [commit.commit_sha for commit in commits]
 
             # Step 1: Get all snippet IDs that are associated with these commits FIRST
@@ -309,7 +311,7 @@ class CommitIndexingApplicationService:
                         .filter("entity_id", FilterOperator.IN, commit_shas)
                     )
                 )
-                enrichments = await self.enrichment_v2_repository.find(
+                await self.enrichment_v2_repository.delete_by_query(
                     QueryBuilder().filter(
                         "id",
                         FilterOperator.IN,
@@ -318,10 +320,6 @@ class CommitIndexingApplicationService:
                             for association in existing_enrichment_associations
                         ],
                     )
-                )
-                await self.enrichment_v2_repository.delete_bulk(enrichments)
-                await self.enrichment_association_repository.delete_bulk(
-                    existing_enrichment_associations
                 )
 
             # Step 4: Delete snippet associations and files for all commits
@@ -340,7 +338,9 @@ class CommitIndexingApplicationService:
                 await self.git_file_repository.delete_by_commit_sha(commit_sha)
 
             # Step 8: Delete commits
-            await self.git_commit_repository.delete_by_repo_id(repository_id)
+            await self.git_commit_repository.delete_by_query(
+                QueryBuilder().filter("repo_id", FilterOperator.EQ, repository_id)
+            )
 
             # Step 9: Finally delete the repository
             await self.repo_repository.delete(repo.sanitized_remote_uri)

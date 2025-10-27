@@ -28,11 +28,13 @@ class SqlAlchemyEmbeddingRepository(SqlAlchemyRepository[Embedding, Embedding]):
         """The SQLAlchemy model type."""
         return Embedding
 
-    def to_domain(self, db_entity: Embedding) -> Embedding:
+    @staticmethod
+    def to_domain(db_entity: Embedding) -> Embedding:
         """Map database entity to domain entity."""
         return db_entity
 
-    def to_db(self, domain_entity: Embedding) -> Embedding:
+    @staticmethod
+    def to_db(domain_entity: Embedding) -> Embedding:
         """Map domain entity to database entity."""
         return domain_entity
 

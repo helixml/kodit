@@ -56,8 +56,12 @@ class Repository[T](Protocol):
         """Remove entity."""
         ...
 
-    async def delete_bulk(self, entities: list[T]) -> None:
-        """Remove multiple entities in bulk using chunking."""
+    async def delete_by_query(self, query: Query) -> None:
+        """Remove entities by query."""
+        ...
+
+    async def count(self, query: Query) -> int:
+        """Count the number of entities matching query."""
         ...
 
 
@@ -92,18 +96,6 @@ class TaskStatusRepository(Repository[TaskStatus]):
 
 class GitCommitRepository(Repository[GitCommit]):
     """Repository for Git commits."""
-
-    @abstractmethod
-    async def get_by_repo_id(self, repo_id: int) -> list[GitCommit]:
-        """Get all commits for a repository."""
-
-    @abstractmethod
-    async def delete_by_repo_id(self, repo_id: int) -> None:
-        """Delete all commits for a repository."""
-
-    @abstractmethod
-    async def count_by_repo_id(self, repo_id: int) -> int:
-        """Count the number of commits for a repository."""
 
 
 class GitFileRepository(Repository[GitFile]):

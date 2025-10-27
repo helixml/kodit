@@ -65,8 +65,6 @@ class SqlAlchemyGitFileRepository(
 
     async def delete_by_commit_sha(self, commit_sha: str) -> None:
         """Delete all files for a repository."""
-        query = QueryBuilder().filter("commit_sha", FilterOperator.EQ, commit_sha)
-        files = await self.find(query)
-        if not files:
-            return
-        await self.delete_bulk(files)
+        await self.delete_by_query(
+            QueryBuilder().filter("commit_sha", FilterOperator.EQ, commit_sha)
+        )

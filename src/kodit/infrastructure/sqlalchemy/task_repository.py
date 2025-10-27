@@ -44,13 +44,15 @@ class SqlAlchemyTaskRepository(
         """Extract ID from domain entity."""
         return entity.id
 
-    def to_domain(self, db_entity: db_entities.Task) -> domain_entities.Task:
+    @staticmethod
+    def to_domain(db_entity: db_entities.Task) -> domain_entities.Task:
         """Map database entity to domain entity."""
-        return TaskMapper().to_domain_task(db_entity)
+        return TaskMapper.to_domain_task(db_entity)
 
-    def to_db(self, domain_entity: domain_entities.Task) -> db_entities.Task:
+    @staticmethod
+    def to_db(domain_entity: domain_entities.Task) -> db_entities.Task:
         """Map domain entity to database entity."""
-        return TaskMapper().from_domain_task(domain_entity)
+        return TaskMapper.from_domain_task(domain_entity)
 
     async def get(self, entity_id: Any) -> domain_entities.Task:
         """Get entity by dedup_key."""

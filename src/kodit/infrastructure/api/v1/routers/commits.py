@@ -55,7 +55,9 @@ async def list_repository_commits(
     """List all commits for a repository."""
     try:
         # Get all commits for the repository directly from commit repository
-        commits = await git_commit_repository.get_by_repo_id(int(repo_id))
+        commits = await git_commit_repository.find(
+            QueryBuilder().filter("repo_id", FilterOperator.EQ, int(repo_id))
+        )
     except ValueError as e:
         raise HTTPException(status_code=404, detail="Repository not found") from e
 
@@ -329,12 +331,11 @@ async def delete_all_commit_enrichments(
 ) -> None:
     """Delete all enrichments for a specific commit."""
     enrichment_v2_repository = server_factory.enrichment_v2_repository()
-    enrichments = await enrichment_v2_repository.find(
+    await enrichment_v2_repository.delete_by_query(
         QueryBuilder()
         .filter("entity_type", FilterOperator.EQ, "git_commit")
         .filter("entity_id", FilterOperator.EQ, commit_sha)
     )
-    await enrichment_v2_repository.delete_bulk(enrichments)
 
 
 @router.delete(

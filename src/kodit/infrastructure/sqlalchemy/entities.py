@@ -441,7 +441,7 @@ class SnippetV2(Base):
         secondary="snippet_v2_files",
         lazy="select",
         primaryjoin="SnippetV2.sha == foreign(SnippetV2File.snippet_sha)",
-        secondaryjoin="and_(GitCommitFile.commit_sha == foreign(SnippetV2File.commit_sha), GitCommitFile.path == foreign(SnippetV2File.file_path))",
+        secondaryjoin="and_(GitCommitFile.commit_sha == foreign(SnippetV2File.commit_sha), GitCommitFile.path == foreign(SnippetV2File.file_path))",  # noqa: E501
         viewonly=True,
     )
 

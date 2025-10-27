@@ -104,7 +104,7 @@ class SqlAlchemyRepository(ABC, Generic[DomainEntityType, DatabaseEntityType]):
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             all_saved_db_entities = []
 
-            for chunk in self._chunked(entities):
+            for chunk in self._chunked_domain(entities):
                 # Get IDs for all entities in chunk
                 entity_ids = [self._get_id(entity) for entity in chunk]
 
@@ -154,20 +154,34 @@ class SqlAlchemyRepository(ABC, Generic[DomainEntityType, DatabaseEntityType]):
             if db_entity:
                 await session.delete(db_entity)
 
-    async def delete_bulk(self, entities: list[DomainEntityType]) -> None:
-        """Remove multiple entities in bulk using chunking."""
+    async def delete_by_query(self, query: Query) -> None:
+        """Remove entities by query."""
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
-            for chunk in self._chunked(entities):
-                entity_ids = [self._get_id(entity) for entity in chunk]
-                for entity_id in entity_ids:
-                    db_entity = await session.get(self.db_entity_type, entity_id)
-                    if db_entity:
-                        await session.delete(db_entity)
-                await session.flush()
+            stmt = select(self.db_entity_type)
+            stmt = query.apply(stmt, self.db_entity_type)
+            db_entities = list((await session.scalars(stmt)).all())
+            if not db_entities:
+                return
+            for chunk in self._chunked_db(db_entities):
+                for db_entity in chunk:
+                    await session.delete(db_entity)
+            await session.flush()
 
-    def _chunked(
-        self, items: list[DomainEntityType], chunk_size: int | None = None
+    def _chunked_domain(
+        self,
+        items: list[DomainEntityType],
+        chunk_size: int | None = None,
     ) -> Generator[list[DomainEntityType], None, None]:
+        """Yield chunks of items."""
+        chunk_size = chunk_size or self._chunk_size
+        for i in range(0, len(items), chunk_size):
+            yield items[i : i + chunk_size]
+
+    def _chunked_db(
+        self,
+        items: list[DatabaseEntityType],
+        chunk_size: int | None = None,
+    ) -> Generator[list[DatabaseEntityType], None, None]:
         """Yield chunks of items."""
         chunk_size = chunk_size or self._chunk_size
         for i in range(0, len(items), chunk_size):

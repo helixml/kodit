@@ -11,7 +11,6 @@ from kodit.infrastructure.sqlalchemy import entities as db_entities
 from kodit.infrastructure.sqlalchemy.git_file_repository import (
     SqlAlchemyGitFileRepository,
 )
-from kodit.infrastructure.sqlalchemy.query import FilterOperator, QueryBuilder
 from kodit.infrastructure.sqlalchemy.repository import SqlAlchemyRepository
 
 
@@ -26,11 +25,6 @@ class SqlAlchemyGitCommitRepository(
     SqlAlchemyRepository[GitCommit, db_entities.GitCommit], GitCommitRepository
 ):
     """SQLAlchemy implementation of GitCommitRepository."""
-
-    def __init__(self, session_factory: Callable[[], AsyncSession]) -> None:
-        """Initialize the repository."""
-        super().__init__(session_factory)
-        self.session_factory = session_factory
 
     @property
     def db_entity_type(self) -> type[db_entities.GitCommit]:
@@ -70,28 +64,3 @@ class SqlAlchemyGitCommitRepository(
                 SqlAlchemyGitFileRepository.to_db(file) for file in domain_entity.files
             ],
         )
-
-    async def get_by_repo_id(self, repo_id: int) -> list[GitCommit]:
-        """Get all commits for a repository without files.
-
-        Files are lazy-loaded via the SQLAlchemy relationship, so they won't
-        be queried unless explicitly accessed.
-        """
-        query = QueryBuilder().filter("repo_id", FilterOperator.EQ, repo_id)
-        return await self.find(query)
-
-    async def delete_by_repo_id(self, repo_id: int) -> None:
-        """Delete all commits for a repository."""
-        # Find all commits for this repo
-        query = QueryBuilder().filter("repo_id", FilterOperator.EQ, repo_id)
-        commits = await self.find(query)
-
-        if not commits:
-            return
-
-        await self.delete_bulk(commits)
-
-    async def count_by_repo_id(self, repo_id: int) -> int:
-        """Count the number of commits for a repository."""
-        query = QueryBuilder().filter("repo_id", FilterOperator.EQ, repo_id)
-        return await self.count(query)
