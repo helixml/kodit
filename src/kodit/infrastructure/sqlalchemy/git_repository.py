@@ -1,15 +1,15 @@
 """SQLAlchemy implementation of GitRepoRepository."""
 
 from collections.abc import Callable
+from typing import Any, override
 
 from pydantic import AnyUrl
-from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.entities.git import GitRepo
+from kodit.domain.entities.git import GitBranch, GitRepo
 from kodit.domain.protocols import GitRepoRepository
-from kodit.infrastructure.mappers.git_mapper import GitMapper
 from kodit.infrastructure.sqlalchemy import entities as db_entities
+from kodit.infrastructure.sqlalchemy.repository import SqlAlchemyRepository
 from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 
 
@@ -20,240 +20,97 @@ def create_git_repo_repository(
     return SqlAlchemyGitRepoRepository(session_factory=session_factory)
 
 
-class SqlAlchemyGitRepoRepository(GitRepoRepository):
-    """SQLAlchemy implementation of GitRepoRepository.
+class SqlAlchemyGitRepoRepository(
+    SqlAlchemyRepository[GitRepo, db_entities.GitRepo], GitRepoRepository
+):
+    """SQLAlchemy implementation of GitRepoRepository."""
 
-    This repository manages the GitRepo aggregate, including:
-    - GitRepo entity
-    - GitBranch entities
-    - GitTag entities
-
-    Note: Commits are now managed by the separate GitCommitRepository.
-    """
-
-    def __init__(self, session_factory: Callable[[], AsyncSession]) -> None:
-        """Initialize the repository."""
-        self.session_factory = session_factory
+    def _get_id(self, entity: GitRepo) -> Any:
+        return entity.id
 
     @property
-    def _mapper(self) -> GitMapper:
-        return GitMapper()
+    def db_entity_type(self) -> type[db_entities.GitRepo]:
+        """The SQLAlchemy model type."""
+        return db_entities.GitRepo
 
-    async def save(self, repo: GitRepo) -> GitRepo:
-        """Save or update a repository with all its branches, commits, and tags."""
+    @override
+    async def save(self, entity: GitRepo) -> GitRepo:
+        """Save entity (create new or update existing)."""
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
-            # 1. Save or update the GitRepo entity
-            # Check if repo exists by URI (for new repos from domain)
-            existing_repo_stmt = select(db_entities.GitRepo).where(
-                db_entities.GitRepo.sanitized_remote_uri
-                == str(repo.sanitized_remote_uri)
-            )
-            existing_repo = await session.scalar(existing_repo_stmt)
+            entity_id = self._get_id(entity)
+            existing_db_entity = await session.get(self.db_entity_type, entity_id)
 
-            if existing_repo:
-                # Update existing repo found by URI
-                existing_repo.remote_uri = str(repo.remote_uri)
-                existing_repo.cloned_path = repo.cloned_path
-                existing_repo.last_scanned_at = repo.last_scanned_at
-                existing_repo.num_commits = repo.num_commits
-                existing_repo.num_branches = repo.num_branches
-                existing_repo.num_tags = repo.num_tags
-                db_repo = existing_repo
-                repo.id = existing_repo.id  # Set the domain ID
+            if existing_db_entity:
+                # Update existing entity
+                new_db_entity = self.to_db(entity)
+                self._update_db_entity(existing_db_entity, new_db_entity)
+                db_entity = existing_db_entity
             else:
-                # Create new repo
-                db_repo = db_entities.GitRepo(
-                    sanitized_remote_uri=str(repo.sanitized_remote_uri),
-                    remote_uri=str(repo.remote_uri),
-                    cloned_path=repo.cloned_path,
-                    last_scanned_at=repo.last_scanned_at,
-                    num_commits=repo.num_commits,
-                    num_branches=repo.num_branches,
-                    num_tags=repo.num_tags,
-                )
-                session.add(db_repo)
-                await session.flush()  # Get the new ID
-                repo.id = db_repo.id  # Set the domain ID
-
-            # 2. Save tracking branch
-            await self._save_tracking_branch(session, repo)
+                # Create new entity
+                db_entity = self.to_db(entity)
+                session.add(db_entity)
 
             await session.flush()
+            # Explicitly load relationships before calling to_domain
+            await db_entity.awaitable_attrs.branches
+            await db_entity.awaitable_attrs.tracking_branch
+            return self.to_domain(db_entity)
 
-            return await self._load_complete_repo(session, db_repo)
-
-    async def _save_tracking_branch(self, session: AsyncSession, repo: GitRepo) -> None:
-        """Save tracking branch if it doesn't exist."""
-        if not repo.tracking_branch:
-            return
-
-        existing_tracking_branch = await session.get(
-            db_entities.GitTrackingBranch, [repo.id, repo.tracking_branch.name]
-        )
-        if not existing_tracking_branch and repo.id is not None:
-            db_tracking_branch = db_entities.GitTrackingBranch(
-                repo_id=repo.id,
-                name=repo.tracking_branch.name,
+    @staticmethod
+    def to_domain(db_entity: db_entities.GitRepo) -> GitRepo:
+        """Map database entity to domain entity."""
+        branches = [
+            GitBranch(
+                repo_id=db_entity.id,
+                name=branch.name,
+                head_commit_sha=branch.head_commit_sha,
+                created_at=branch.created_at,
+                updated_at=branch.updated_at,
             )
-            session.add(db_tracking_branch)
-
-    async def get_by_id(self, repo_id: int) -> GitRepo:
-        """Get repository by ID with all associated data."""
-        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
-            db_repo = await session.get(db_entities.GitRepo, repo_id)
-            if not db_repo:
-                raise ValueError(f"Repository with ID {repo_id} not found")
-
-            return await self._load_complete_repo(session, db_repo)
-
-    async def get_by_uri(self, sanitized_uri: AnyUrl) -> GitRepo:
-        """Get repository by sanitized URI with all associated data."""
-        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
-            stmt = select(db_entities.GitRepo).where(
-                db_entities.GitRepo.sanitized_remote_uri == str(sanitized_uri)
+            for branch in db_entity.branches
+        ]
+        tracking_branch = None
+        if db_entity.tracking_branch:
+            branch = next(
+                (b for b in branches if b.name == db_entity.tracking_branch.name),
+                None,
             )
-            db_repo = await session.scalar(stmt)
-            if not db_repo:
-                raise ValueError(f"Repository with URI {sanitized_uri} not found")
-
-            return await self._load_complete_repo(session, db_repo)
-
-    async def get_by_commit(self, commit_sha: str) -> GitRepo:
-        """Get repository by commit SHA with all associated data."""
-        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
-            # Find the commit first
-            stmt = select(db_entities.GitCommit).where(
-                db_entities.GitCommit.commit_sha == commit_sha
-            )
-            db_commit = await session.scalar(stmt)
-            if not db_commit:
-                raise ValueError(f"Commit with SHA {commit_sha} not found")
-
-            # Get the repo
-            db_repo = await session.get(db_entities.GitRepo, db_commit.repo_id)
-            if not db_repo:
-                raise ValueError(f"Repository with commit SHA {commit_sha} not found")
-
-            return await self._load_complete_repo(session, db_repo)
-
-    async def get_all(self) -> list[GitRepo]:
-        """Get all repositories."""
-        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
-            stmt = select(db_entities.GitRepo)
-            db_repos = (await session.scalars(stmt)).all()
-
-            repos = []
-            for db_repo in db_repos:
-                repo = await self._load_complete_repo(session, db_repo)
-                repos.append(repo)
-
-            return repos
-
-    async def delete(self, sanitized_uri: AnyUrl) -> bool:
-        """Delete only the repository entity itself.
-
-        According to DDD principles, this repository should only delete
-        the GitRepo entity it directly controls. Related entities (commits,
-        branches, tags, snippets) should be deleted by their respective
-        repositories before calling this method.
-        """
-        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
-            # Find the repo
-            stmt = select(db_entities.GitRepo).where(
-                db_entities.GitRepo.sanitized_remote_uri == str(sanitized_uri)
-            )
-            db_repo = await session.scalar(stmt)
-            if not db_repo:
-                return False
-
-            # Delete tracking branches first (they reference the repo)
-            del_tracking_branches_stmt = delete(db_entities.GitTrackingBranch).where(
-                db_entities.GitTrackingBranch.repo_id == db_repo.id
-            )
-            await session.execute(del_tracking_branches_stmt)
-
-            # Delete only the repo entity itself
-            # Foreign key constraints will prevent deletion if related entities exist
-            del_stmt = delete(db_entities.GitRepo).where(
-                db_entities.GitRepo.id == db_repo.id
-            )
-            await session.execute(del_stmt)
-            return True
-
-    async def _load_complete_repo(
-        self, session: AsyncSession, db_repo: db_entities.GitRepo
-    ) -> GitRepo:
-        """Load a complete repo with all its associations."""
-        all_tags = list(
-            (
-                await session.scalars(
-                    select(db_entities.GitTag).where(
-                        db_entities.GitTag.repo_id == db_repo.id
-                    )
+            if branch:
+                tracking_branch = GitBranch(
+                    repo_id=db_entity.id,
+                    name=db_entity.tracking_branch.name,
+                    head_commit_sha=branch.head_commit_sha,
+                    created_at=branch.created_at,
+                    updated_at=branch.updated_at,
                 )
-            ).all()
-        )
-        tracking_branch = await session.scalar(
-            select(db_entities.GitTrackingBranch).where(
-                db_entities.GitTrackingBranch.repo_id == db_repo.id
-            )
+        return GitRepo(
+            id=db_entity.id,
+            sanitized_remote_uri=AnyUrl(db_entity.sanitized_remote_uri),
+            remote_uri=AnyUrl(db_entity.remote_uri),
+            cloned_path=db_entity.cloned_path,
+            last_scanned_at=db_entity.last_scanned_at,
+            num_commits=db_entity.num_commits,
+            num_branches=db_entity.num_branches,
+            num_tags=db_entity.num_tags,
+            tracking_branch=tracking_branch,
         )
 
-        # Get tracking branch from branches table if needed
-        db_tracking_branch_entity = None
-        if tracking_branch:
-            db_tracking_branch_entity = await session.scalar(
-                select(db_entities.GitBranch).where(
-                    db_entities.GitBranch.repo_id == db_repo.id,
-                    db_entities.GitBranch.name == tracking_branch.name,
-                )
+    @staticmethod
+    def to_db(domain_entity: GitRepo) -> db_entities.GitRepo:
+        """Map domain entity to database entity."""
+        tracking_branch = None
+        if domain_entity.tracking_branch:
+            tracking_branch = db_entities.GitTrackingBranch(
+                repo_id=domain_entity.id,
+                name=domain_entity.tracking_branch.name,
             )
-
-        # Get only commits needed for tags and tracking branch
-        referenced_commit_shas = set()
-        for tag in all_tags:
-            referenced_commit_shas.add(tag.target_commit_sha)
-        if db_tracking_branch_entity:
-            referenced_commit_shas.add(db_tracking_branch_entity.head_commit_sha)
-
-        # Load only the referenced commits in chunks to avoid parameter limits
-        referenced_commits = []
-        referenced_files = []
-        if referenced_commit_shas:
-            commit_shas_list = list(referenced_commit_shas)
-            chunk_size = 1000
-
-            for i in range(0, len(commit_shas_list), chunk_size):
-                chunk = commit_shas_list[i : i + chunk_size]
-                chunk_commits = list(
-                    (
-                        await session.scalars(
-                            select(db_entities.GitCommit).where(
-                                db_entities.GitCommit.commit_sha.in_(chunk)
-                            )
-                        )
-                    ).all()
-                )
-                referenced_commits.extend(chunk_commits)
-
-            for i in range(0, len(commit_shas_list), chunk_size):
-                chunk = commit_shas_list[i : i + chunk_size]
-                chunk_files = list(
-                    (
-                        await session.scalars(
-                            select(db_entities.GitCommitFile).where(
-                                db_entities.GitCommitFile.commit_sha.in_(chunk)
-                            )
-                        )
-                    ).all()
-                )
-                referenced_files.extend(chunk_files)
-
-        return self._mapper.to_domain_git_repo(
-            db_repo=db_repo,
-            db_tracking_branch_entity=db_tracking_branch_entity,
-            db_commits=referenced_commits,
-            db_tags=all_tags,
-            db_commit_files=referenced_files,
-            db_tracking_branch=tracking_branch,
+        return db_entities.GitRepo(
+            sanitized_remote_uri=str(domain_entity.sanitized_remote_uri),
+            remote_uri=str(domain_entity.remote_uri),
+            cloned_path=domain_entity.cloned_path,
+            last_scanned_at=domain_entity.last_scanned_at,
+            num_commits=domain_entity.num_commits,
+            num_branches=domain_entity.num_branches,
+            num_tags=domain_entity.num_tags,
+            tracking_branch=tracking_branch,
         )

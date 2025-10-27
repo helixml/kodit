@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.domain.entities.git import GitRepo
 from kodit.infrastructure.sqlalchemy.git_repository import SqlAlchemyGitRepoRepository
+from kodit.infrastructure.sqlalchemy.query import FilterOperator, QueryBuilder
 
 
 async def test_save_and_get_repository(
@@ -23,7 +24,7 @@ async def test_save_and_get_repository(
     assert saved_repo.sanitized_remote_uri == sample_git_repo.sanitized_remote_uri
 
     # Retrieve repository
-    retrieved_repo = await repository.get_by_id(saved_repo.id)
+    retrieved_repo = await repository.get(saved_repo.id)
     assert retrieved_repo is not None
     assert retrieved_repo.id == saved_repo.id
     assert retrieved_repo.sanitized_remote_uri == sample_git_repo.sanitized_remote_uri
@@ -41,9 +42,15 @@ async def test_get_by_uri(
     assert saved_repo.id is not None
 
     # Retrieve by URI
-    retrieved_repo = await repository.get_by_uri(sample_git_repo.sanitized_remote_uri)
-    assert retrieved_repo is not None
-    assert retrieved_repo.id == saved_repo.id
+    retrieved_repo = await repository.find(
+        QueryBuilder().filter(
+            "sanitized_remote_uri",
+            FilterOperator.EQ,
+            sample_git_repo.sanitized_remote_uri,
+        )
+    )
+    assert len(retrieved_repo) == 1
+    assert retrieved_repo[0].id == saved_repo.id
 
 
 async def test_get_all_repositories(
@@ -70,7 +77,7 @@ async def test_get_all_repositories(
     await repository.save(repo2)
 
     # Retrieve all repositories
-    all_repos = await repository.get_all()
+    all_repos = await repository.find(QueryBuilder())
     assert len(all_repos) >= 2  # May have other repos from other tests
 
     # Check that our repos are in the list
@@ -91,42 +98,8 @@ async def test_delete_repository(
     assert saved_repo.id is not None
 
     # Delete repository
-    success = await repository.delete(sample_git_repo.sanitized_remote_uri)
-    assert success is True
+    await repository.delete(saved_repo)
 
     # Verify repository is gone
     with pytest.raises(ValueError, match="not found"):
-        await repository.get_by_id(saved_repo.id)
-
-
-async def test_delete_nonexistent_repository(
-    session_factory: Callable[[], AsyncSession],
-) -> None:
-    """Test deleting a repository that doesn't exist."""
-    repository = SqlAlchemyGitRepoRepository(session_factory)
-
-    # Try to delete non-existent repository
-    success = await repository.delete(AnyUrl("https://github.com/test/nonexistent"))
-    assert success is False
-
-
-async def test_get_nonexistent_repository_by_id(
-    session_factory: Callable[[], AsyncSession],
-) -> None:
-    """Test retrieving a repository that doesn't exist by ID."""
-    repository = SqlAlchemyGitRepoRepository(session_factory)
-
-    # Try to get non-existent repository
-    with pytest.raises(ValueError, match="not found"):
-        await repository.get_by_id(99999)
-
-
-async def test_get_nonexistent_repository_by_uri(
-    session_factory: Callable[[], AsyncSession],
-) -> None:
-    """Test retrieving a repository that doesn't exist by URI."""
-    repository = SqlAlchemyGitRepoRepository(session_factory)
-
-    # Try to get non-existent repository - should raise ValueError
-    with pytest.raises(ValueError, match="not found"):
-        await repository.get_by_uri(AnyUrl("https://github.com/test/nonexistent"))
+        await repository.get(saved_repo.id)

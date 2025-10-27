@@ -4,8 +4,6 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Protocol, TypeVar
 
-from pydantic import AnyUrl
-
 from kodit.domain.enrichments.enrichment import EnrichmentAssociation, EnrichmentV2
 from kodit.domain.entities import (
     Task,
@@ -138,43 +136,8 @@ class GitTagRepository(Repository[GitTag]):
         """Delete all tags for a repository."""
 
 
-class GitRepoRepository(ABC):
-    """Repository pattern for GitRepo aggregate.
-
-    GitRepo is the aggregate root that owns branches, commits, and tags.
-    This repository handles persistence of the entire aggregate.
-    """
-
-    @abstractmethod
-    async def save(self, repo: GitRepo) -> GitRepo:
-        """Save or update a repository with all its branches, commits, and tags.
-
-        This method persists the entire aggregate:
-        - The GitRepo entity itself
-        - All associated branches
-        - All associated commits
-        - All associated tags
-        """
-
-    @abstractmethod
-    async def get_by_id(self, repo_id: int) -> GitRepo:
-        """Get repository by ID with all associated data."""
-
-    @abstractmethod
-    async def get_by_uri(self, sanitized_uri: AnyUrl) -> GitRepo:
-        """Get repository by sanitized URI with all associated data."""
-
-    @abstractmethod
-    async def get_by_commit(self, commit_sha: str) -> GitRepo:
-        """Get repository by commit SHA with all associated data."""
-
-    @abstractmethod
-    async def get_all(self) -> list[GitRepo]:
-        """Get all repositories."""
-
-    @abstractmethod
-    async def delete(self, sanitized_uri: AnyUrl) -> bool:
-        """Delete a repository."""
+class GitRepoRepository(Repository[GitRepo]):
+    """Repository pattern for GitRepo aggregate."""
 
 
 class GitAdapter(ABC):

@@ -143,7 +143,7 @@ class CommitIndexingApplicationService:
 
     async def delete_git_repository(self, repo_id: int) -> bool:
         """Delete a Git repository by ID."""
-        repo = await self.repo_repository.get_by_id(repo_id)
+        repo = await self.repo_repository.get(repo_id)
         if not repo:
             return False
 
@@ -199,7 +199,7 @@ class CommitIndexingApplicationService:
             trackable_type=TrackableType.KODIT_REPOSITORY,
             trackable_id=repository_id,
         ):
-            repo = await self.repo_repository.get_by_id(repository_id)
+            repo = await self.repo_repository.get(repository_id)
             repo.cloned_path = await self.cloner.clone_repository(repo.remote_uri)
             await self.repo_repository.save(repo)
 
@@ -211,7 +211,7 @@ class CommitIndexingApplicationService:
             trackable_id=repository_id,
         ) as step:
             await step.set_total(7)
-            repo = await self.repo_repository.get_by_id(repository_id)
+            repo = await self.repo_repository.get(repository_id)
             if not repo.cloned_path:
                 raise ValueError(f"Repository {repository_id} has never been cloned")
 
@@ -267,7 +267,7 @@ class CommitIndexingApplicationService:
             trackable_type=TrackableType.KODIT_REPOSITORY,
             trackable_id=repository_id,
         ):
-            repo = await self.repo_repository.get_by_id(repository_id)
+            repo = await self.repo_repository.get(repository_id)
             if not repo:
                 raise ValueError(f"Repository {repository_id} not found")
 
@@ -343,7 +343,8 @@ class CommitIndexingApplicationService:
             )
 
             # Step 9: Finally delete the repository
-            await self.repo_repository.delete(repo.sanitized_remote_uri)
+            if repo.id:
+                await self.repo_repository.delete(repo)
 
     async def process_snippets_for_commit(
         self, repository_id: int, commit_sha: str
@@ -363,7 +364,7 @@ class CommitIndexingApplicationService:
 
             # Load files on demand for snippet extraction (performance optimization)
             # Instead of using commit.files (which may be empty), load files directly
-            repo = await self.repo_repository.get_by_id(repository_id)
+            repo = await self.repo_repository.get(repository_id)
             if not repo.cloned_path:
                 raise ValueError(f"Repository {repository_id} has never been cloned")
 
@@ -629,7 +630,7 @@ class CommitIndexingApplicationService:
                 return
 
             # Get repository path
-            repo = await self.repo_repository.get_by_id(repository_id)
+            repo = await self.repo_repository.get(repository_id)
             if not repo.cloned_path:
                 raise ValueError(f"Repository {repository_id} has never been cloned")
 
@@ -715,7 +716,7 @@ class CommitIndexingApplicationService:
                 return
 
             # Get repository for metadata
-            repo = await self.repo_repository.get_by_id(repository_id)
+            repo = await self.repo_repository.get(repository_id)
             if not repo:
                 raise ValueError(f"Repository {repository_id} not found")
             str(repo.sanitized_remote_uri)

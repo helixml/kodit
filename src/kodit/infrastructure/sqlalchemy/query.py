@@ -38,31 +38,36 @@ class FilterCriteria:
     operator: FilterOperator
     value: Any
 
-    def apply(self, model_type: type, stmt: Select) -> Select:
+    def apply(self, model_type: type, stmt: Select) -> Select:  # noqa: C901
         """Apply filter to statement."""
         column = getattr(model_type, self.field)
+
+        # Convert AnyUrl to string for SQLAlchemy comparison
+        value = self.value
+        if hasattr(value, "__str__") and type(value).__module__ == "pydantic.networks":
+            value = str(value)
 
         # Use column comparison methods instead of operators module
         condition = None
         match self.operator:
             case FilterOperator.EQ:
-                condition = column == self.value
+                condition = column == value
             case FilterOperator.NE:
-                condition = column != self.value
+                condition = column != value
             case FilterOperator.GT:
-                condition = column > self.value
+                condition = column > value
             case FilterOperator.GTE:
-                condition = column >= self.value
+                condition = column >= value
             case FilterOperator.LT:
-                condition = column < self.value
+                condition = column < value
             case FilterOperator.LTE:
-                condition = column <= self.value
+                condition = column <= value
             case FilterOperator.IN:
-                condition = column.in_(self.value)
+                condition = column.in_(value)
             case FilterOperator.LIKE:
-                condition = column.like(self.value)
+                condition = column.like(value)
             case FilterOperator.ILIKE:
-                condition = column.ilike(self.value)
+                condition = column.ilike(value)
 
         return stmt.where(condition)
 

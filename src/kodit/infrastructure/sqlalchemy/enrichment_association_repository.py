@@ -49,6 +49,9 @@ class SQLAlchemyEnrichmentAssociationRepository(
         domain_entity: EnrichmentAssociation,
     ) -> db_entities.EnrichmentAssociation:
         """Map domain entity to database entity."""
+        from datetime import UTC, datetime
+
+        now = datetime.now(UTC)
         db_entity = db_entities.EnrichmentAssociation(
             enrichment_id=domain_entity.enrichment_id,
             entity_type=domain_entity.entity_type,
@@ -56,4 +59,7 @@ class SQLAlchemyEnrichmentAssociationRepository(
         )
         if domain_entity.id is not None:
             db_entity.id = domain_entity.id
+        # Always set timestamps since domain entity doesn't track them
+        db_entity.created_at = now
+        db_entity.updated_at = now
         return db_entity

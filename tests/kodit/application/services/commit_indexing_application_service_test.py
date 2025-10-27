@@ -13,6 +13,10 @@ from kodit.application.services.commit_indexing_application_service import (
 )
 from kodit.application.services.queue_service import QueueService
 from kodit.application.services.reporting import ProgressTracker
+from kodit.domain.enrichments.architecture.physical.physical import (
+    PhysicalArchitectureEnrichment,
+)
+from kodit.domain.enrichments.enrichment import EnrichmentAssociation
 from kodit.domain.entities.git import (
     GitCommit,
     GitFile,
@@ -191,7 +195,7 @@ async def test_delete_repository_with_data_succeeds(
 
     # Verify the data was created successfully
     assert repo.id is not None
-    repo_exists = await commit_indexing_service.repo_repository.get_by_id(repo.id)
+    repo_exists = await commit_indexing_service.repo_repository.get(repo.id)
     assert repo_exists is not None
 
     saved_commit = await commit_indexing_service.git_commit_repository.get(
@@ -205,12 +209,6 @@ async def test_delete_repository_with_data_succeeds(
         )
     )
     assert len(saved_snippets) == 1
-
-    # Create an enrichment for the commit using the new paradigm
-    from kodit.domain.enrichments.architecture.physical.physical import (
-        PhysicalArchitectureEnrichment,
-    )
-    from kodit.domain.enrichments.enrichment import EnrichmentAssociation
 
     test_enrichment = PhysicalArchitectureEnrichment(
         entity_id=commit.commit_sha,
@@ -245,7 +243,7 @@ async def test_delete_repository_with_data_succeeds(
 
     # Verify the repository was actually deleted
     with pytest.raises(ValueError, match="not found"):
-        await commit_indexing_service.repo_repository.get_by_id(repo.id)
+        await commit_indexing_service.repo_repository.get(repo.id)
 
     # Verify enrichment associations were deleted
     assoc_repo = commit_indexing_service.enrichment_association_repository

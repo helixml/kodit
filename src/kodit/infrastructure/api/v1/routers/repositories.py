@@ -61,7 +61,7 @@ async def list_repositories(
     git_repository: GitRepositoryDep,
 ) -> RepositoryListResponse:
     """List all cloned repositories."""
-    repos = await git_repository.get_all()
+    repos = await git_repository.find(QueryBuilder())
     return RepositoryListResponse(
         data=[RepositoryData.from_git_repo(repo) for repo in repos]
     )
@@ -100,7 +100,7 @@ async def get_repository(
     git_branch_repository: GitBranchRepositoryDep,
 ) -> RepositoryDetailsResponse:
     """Get repository details including branches and recent commits."""
-    repo = await git_repository.get_by_id(int(repo_id))
+    repo = await git_repository.get(int(repo_id))
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
 
@@ -216,7 +216,7 @@ async def list_repository_tags(
     git_tag_repository: GitTagRepositoryDep,
 ) -> TagListResponse:
     """List all tags for a repository."""
-    repo = await git_repository.get_by_id(int(repo_id))
+    repo = await git_repository.get(int(repo_id))
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
 
@@ -251,7 +251,7 @@ async def get_repository_tag(
     git_tag_repository: GitTagRepositoryDep,
 ) -> TagResponse:
     """Get a specific tag for a repository."""
-    repo = await git_repository.get_by_id(int(repo_id))
+    repo = await git_repository.get(int(repo_id))
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
 
@@ -297,7 +297,7 @@ async def list_repository_enrichments(  # noqa: PLR0913
     - limit: Maximum number of enrichments to return. Defaults to 10.
     """
     # Get repository
-    repo = await git_repository.get_by_id(int(repo_id))
+    repo = await git_repository.get(int(repo_id))
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
 

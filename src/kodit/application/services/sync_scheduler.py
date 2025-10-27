@@ -11,6 +11,7 @@ from kodit.domain.value_objects import (
     PrescribedOperations,
     QueuePriority,
 )
+from kodit.infrastructure.sqlalchemy.query import QueryBuilder
 
 
 class SyncSchedulerService:
@@ -68,7 +69,7 @@ class SyncSchedulerService:
         self.log.info("Starting sync operation")
 
         # Sync each index - queue all 5 tasks with priority ordering
-        for repo in await self.repo_repository.get_all():
+        for repo in await self.repo_repository.find(QueryBuilder()):
             await self.queue_service.enqueue_tasks(
                 tasks=PrescribedOperations.SYNC_REPOSITORY,
                 base_priority=QueuePriority.BACKGROUND,

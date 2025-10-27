@@ -211,7 +211,10 @@ class GitRepo(Base, CommonMixin):
     num_branches: Mapped[int] = mapped_column(Integer, default=0)
     num_tags: Mapped[int] = mapped_column(Integer, default=0)
     branches: Mapped[list["GitBranch"]] = relationship(
-        "GitBranch", lazy="select", foreign_keys="[GitBranch.repo_id]"
+        "GitBranch", lazy="selectin", foreign_keys="[GitBranch.repo_id]"
+    )
+    tracking_branch: Mapped["GitTrackingBranch | None"] = relationship(
+        "GitTrackingBranch", lazy="selectin", foreign_keys="[GitTrackingBranch.repo_id]"
     )
 
     def __init__(  # noqa: PLR0913
@@ -223,8 +226,12 @@ class GitRepo(Base, CommonMixin):
         num_commits: int = 0,
         num_branches: int = 0,
         num_tags: int = 0,
+        branches: list["GitBranch"] | None = None,
+        tracking_branch: "GitTrackingBranch | None" = None,
     ) -> None:
         """Initialize Git repository."""
+        if branches is None:
+            branches = []
         super().__init__()
         self.sanitized_remote_uri = sanitized_remote_uri
         self.remote_uri = remote_uri
@@ -233,6 +240,9 @@ class GitRepo(Base, CommonMixin):
         self.num_commits = num_commits
         self.num_branches = num_branches
         self.num_tags = num_tags
+        self.branches = branches
+        if tracking_branch:
+            self.tracking_branch = tracking_branch
 
 
 class GitCommit(Base):
@@ -334,12 +344,6 @@ class GitTrackingBranch(Base):
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
     )
-
-    def __init__(self, repo_id: int, name: str) -> None:
-        """Initialize Git tracking branch."""
-        super().__init__()
-        self.repo_id = repo_id
-        self.name = name
 
 
 class GitTag(Base):
@@ -564,6 +568,19 @@ class EnrichmentV2(Base, CommonMixin):
     type: Mapped[str] = mapped_column(String, nullable=False, index=True)
     subtype: Mapped[str] = mapped_column(String, nullable=False, index=True)
     content: Mapped[str] = mapped_column(UnicodeText, nullable=False)
+    enrichment: Mapped["EnrichmentAssociation"] = relationship(
+        "EnrichmentAssociation",
+        lazy="selectin",
+        foreign_keys="[EnrichmentAssociation.enrichment_id]",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    enrichment_association: Mapped["EnrichmentAssociation | None"] = relationship(
+        "EnrichmentAssociation",
+        lazy="selectin",
+        foreign_keys="[EnrichmentAssociation.enrichment_id]",
+        viewonly=True,
+    )
 
     __table_args__ = (Index("idx_type_subtype", "type", "subtype"),)
 
