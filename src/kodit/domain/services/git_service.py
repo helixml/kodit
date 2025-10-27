@@ -182,7 +182,13 @@ class GitService:
             try:
                 # Get head commit for this branch
                 head_commit = self._convert_commit(repo, branch.commit)
-                branches.append(GitBranch(name=branch.name, head_commit=head_commit))
+                branches.append(
+                    GitBranch(
+                        name=branch.name,
+                        head_commit_sha=head_commit.commit_sha,
+                        repo_id=0,  # No repo context yet, use placeholder
+                    )
+                )
             except Exception:  # noqa: BLE001, S112
                 # Skip branches that can't be accessed
                 continue
@@ -210,7 +216,7 @@ class GitService:
     def _get_all_tags(self, repo: Repo) -> list[GitTag]:
         """Get all tags in the repository."""
         all_commits = self._get_all_commits(repo)
-        all_commits_map = {commit.commit_sha: commit for commit in all_commits}
+        {commit.commit_sha: commit for commit in all_commits}
         tags = []
         try:
             for tag_ref in repo.tags:
@@ -221,7 +227,7 @@ class GitService:
                     tag = GitTag(
                         created_at=datetime.now(UTC),
                         name=tag_ref.name,
-                        target_commit=all_commits_map[target_commit.hexsha],
+                        target_commit_sha=target_commit.hexsha,
                     )
                     tags.append(tag)
                 except Exception:  # noqa: BLE001, S112

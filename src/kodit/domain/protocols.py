@@ -6,6 +6,7 @@ from typing import Any, Protocol, TypeVar
 
 from pydantic import AnyUrl
 
+from kodit.domain.enrichments.enrichment import EnrichmentAssociation, EnrichmentV2
 from kodit.domain.entities import (
     Task,
     TaskStatus,
@@ -290,3 +291,11 @@ class FusionService(ABC):
         self, rankings: list[list[FusionRequest]], k: float = 60
     ) -> list[FusionResult]:
         """Perform reciprocal rank fusion on search results."""
+
+
+class EnrichmentV2Repository(Repository[EnrichmentV2]):
+    """Repository for enrichment operations."""
+
+
+class EnrichmentAssociationRepository(Repository[EnrichmentAssociation]):
+    """Repository for enrichment association operations."""

@@ -35,6 +35,7 @@ from kodit.infrastructure.api.v1.schemas.snippet import (
     SnippetData,
     SnippetListResponse,
 )
+from kodit.infrastructure.sqlalchemy.query import FilterOperator, QueryBuilder
 
 router = APIRouter(
     prefix="/api/v1/repositories",
@@ -291,9 +292,10 @@ async def list_commit_enrichments(
     # wrong commit and another repo. It's like they are seeing results from the other
     # repo.
     enrichment_v2_repository = server_factory.enrichment_v2_repository()
-    enrichments = await enrichment_v2_repository.enrichments_for_entity_type(
-        entity_type="git_commit",
-        entity_ids=[commit_sha],
+    enrichments = await enrichment_v2_repository.find(
+        QueryBuilder()
+        .filter("entity_type", FilterOperator.EQ, "git_commit")
+        .filter("entity_id", FilterOperator.EQ, commit_sha)
     )
 
     return EnrichmentListResponse(
@@ -327,10 +329,12 @@ async def delete_all_commit_enrichments(
 ) -> None:
     """Delete all enrichments for a specific commit."""
     enrichment_v2_repository = server_factory.enrichment_v2_repository()
-    await enrichment_v2_repository.bulk_delete_enrichments(
-        entity_type="git_commit",
-        entity_ids=[commit_sha],
+    enrichments = await enrichment_v2_repository.find(
+        QueryBuilder()
+        .filter("entity_type", FilterOperator.EQ, "git_commit")
+        .filter("entity_id", FilterOperator.EQ, commit_sha)
     )
+    await enrichment_v2_repository.delete_bulk(enrichments)
 
 
 @router.delete(
@@ -341,12 +345,18 @@ async def delete_all_commit_enrichments(
 )
 async def delete_commit_enrichment(
     repo_id: str,  # noqa: ARG001
-    commit_sha: str,  # noqa: ARG001
+    commit_sha: str,
     enrichment_id: int,
     server_factory: ServerFactoryDep,
 ) -> None:
     """Delete a specific enrichment for a commit."""
-    enrichment_v2_repository = server_factory.enrichment_v2_repository()
-    deleted = await enrichment_v2_repository.delete_enrichment(enrichment_id)
-    if not deleted:
-        raise HTTPException(status_code=404, detail="Enrichment not found")
+    try:
+        enrichment_v2_repository = server_factory.enrichment_v2_repository()
+        enrichment = await enrichment_v2_repository.get(enrichment_id)
+        if enrichment.entity_id != commit_sha:
+            raise HTTPException(
+                status_code=404, detail="Enrichment not found for this commit"
+            )
+        await enrichment_v2_repository.delete(enrichment)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail="Enrichment not found") from e

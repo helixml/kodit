@@ -8,15 +8,11 @@ from typing import TypedDict
 from sqlalchemy import delete, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.enrichments.development.snippet.snippet import SnippetEnrichment
 from kodit.domain.entities.git import SnippetV2
 from kodit.domain.protocols import SnippetRepositoryV2
 from kodit.domain.value_objects import MultiSearchRequest
 from kodit.infrastructure.mappers.snippet_mapper import SnippetMapper
 from kodit.infrastructure.sqlalchemy import entities as db_entities
-from kodit.infrastructure.sqlalchemy.enrichment_v2_repository import (
-    EnrichmentV2Repository,
-)
 from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 
 
@@ -45,7 +41,6 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
     def __init__(self, session_factory: Callable[[], AsyncSession]) -> None:
         """Initialize the repository."""
         self.session_factory = session_factory
-        self._enrichment_repo = EnrichmentV2Repository(session_factory)
 
     @property
     def _mapper(self) -> SnippetMapper:
@@ -61,7 +56,6 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
             await self._bulk_save_snippets(session, snippets)
             await self._bulk_create_commit_associations(session, commit_sha, snippets)
             await self._bulk_create_file_associations(session, commit_sha, snippets)
-            await self._bulk_update_enrichments(snippets)
 
     async def _bulk_save_snippets(
         self, session: AsyncSession, snippets: list[SnippetV2]
@@ -235,32 +229,6 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
                 chunk = new_file_associations[i : i + chunk_size]
                 stmt = insert(db_entities.SnippetV2File).values(chunk)
                 await session.execute(stmt)
-
-    async def _bulk_update_enrichments(
-        self,
-        snippets: list[SnippetV2],
-    ) -> None:
-        """Bulk update enrichments for snippets using new enrichment_v2."""
-        # Collect all enrichments from snippets using list comprehension
-        snippet_enrichments = [
-            SnippetEnrichment(
-                entity_id=snippet.sha,
-                content=enrichment.content,
-            )
-            for snippet in snippets
-            for enrichment in snippet.enrichments
-        ]
-
-        if snippet_enrichments:
-            # First delete existing enrichments for these snippets
-            snippet_shas = [snippet.sha for snippet in snippets]
-            await self._enrichment_repo.bulk_delete_enrichments(
-                entity_type="snippet_v2",
-                entity_ids=snippet_shas,
-            )
-
-            # Then save the new enrichments
-            await self._enrichment_repo.bulk_save_enrichments(snippet_enrichments)
 
     async def _get_or_create_raw_snippet(
         self, session: AsyncSession, commit_sha: str, domain_snippet: SnippetV2
@@ -478,14 +446,8 @@ class SqlAlchemySnippetRepositoryV2(SnippetRepositoryV2):
         )
         db_files_list = list(db_files)
 
-        # Get enrichments for this snippet
-        db_enrichments = await self._enrichment_repo.enrichments_for_entity_type(
-            entity_type="snippet_v2",
-            entity_ids=[db_snippet.sha],
-        )
-
         return self._mapper.to_domain_snippet_v2(
             db_snippet=db_snippet,
             db_files=db_files_list,
-            db_enrichments=db_enrichments,
+            db_enrichments=[],
         )

@@ -3,11 +3,10 @@
 import structlog
 
 from kodit.domain.enrichments.enrichment import EnrichmentV2
+from kodit.domain.protocols import EnrichmentV2Repository
 from kodit.domain.tracking.resolution_service import TrackableResolutionService
 from kodit.domain.tracking.trackable import Trackable
-from kodit.infrastructure.sqlalchemy.enrichment_v2_repository import (
-    EnrichmentV2Repository,
-)
+from kodit.infrastructure.sqlalchemy.query import FilterOperator, QueryBuilder
 
 
 class EnrichmentQueryService:
@@ -52,9 +51,10 @@ class EnrichmentQueryService:
             return None
 
         # Check which commits have enrichments
-        enrichments = await self.enrichment_repo.enrichments_for_entity_type(
-            entity_type="git_commit",
-            entity_ids=candidate_commits,
+        enrichments = await self.enrichment_repo.find(
+            QueryBuilder()
+            .filter("entity_type", FilterOperator.EQ, "git_commit")
+            .filter("entity_id", FilterOperator.IN, candidate_commits)
         )
 
         # Filter by type if specified
@@ -83,9 +83,10 @@ class EnrichmentQueryService:
             List of enrichments for the commit
 
         """
-        enrichments = await self.enrichment_repo.enrichments_for_entity_type(
-            entity_type="git_commit",
-            entity_ids=[commit_sha],
+        enrichments = await self.enrichment_repo.find(
+            QueryBuilder()
+            .filter("entity_type", FilterOperator.EQ, "git_commit")
+            .filter("entity_id", FilterOperator.EQ, commit_sha)
         )
 
         # Filter by type if specified

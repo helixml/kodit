@@ -7,6 +7,7 @@ from kodit.infrastructure.api.middleware.auth import api_key_auth
 from kodit.infrastructure.api.v1.dependencies import (
     CommitIndexingAppServiceDep,
     EnrichmentQueryServiceDep,
+    GitBranchRepositoryDep,
     GitCommitRepositoryDep,
     GitRepositoryDep,
     GitTagRepositoryDep,
@@ -95,6 +96,7 @@ async def get_repository(
     repo_id: str,
     git_repository: GitRepositoryDep,
     git_commit_repository: GitCommitRepositoryDep,
+    git_branch_repository: GitBranchRepositoryDep,
 ) -> RepositoryDetailsResponse:
     """Get repository details including branches and recent commits."""
     repo = await git_repository.get_by_id(int(repo_id))
@@ -107,26 +109,27 @@ async def get_repository(
 
     # Get recent commits from the tracking branch's head commit
     recent_commits = []
-    if repo.tracking_branch and repo.tracking_branch.head_commit:
+    if repo.tracking_branch and repo.tracking_branch.head_commit_sha:
         # For simplicity, just show the head commit and traverse back if needed
-        current_commit = repo.tracking_branch.head_commit
-        recent_commits = [current_commit]
+        current_commit = commits_by_sha.get(repo.tracking_branch.head_commit_sha)
+        if current_commit:
+            recent_commits = [current_commit]
 
-        # Traverse parent commits for more recent commits (up to 10)
-        current_sha = current_commit.parent_commit_sha
-        while current_sha and len(recent_commits) < 10:
-            parent_commit = commits_by_sha.get(current_sha)
-            if parent_commit:
-                recent_commits.append(parent_commit)
-                current_sha = parent_commit.parent_commit_sha
-            else:
-                break
+            # Traverse parent commits for more recent commits (up to 10)
+            current_sha = current_commit.parent_commit_sha
+            while current_sha and len(recent_commits) < 10:
+                parent_commit = commits_by_sha.get(current_sha)
+                if parent_commit:
+                    recent_commits.append(parent_commit)
+                    current_sha = parent_commit.parent_commit_sha
+                else:
+                    break
 
     # Get commit count for the repository using the commit repository
     commit_count = await git_commit_repository.count_by_repo_id(int(repo_id))
 
     # Get branches for the repository using the branch repository
-    repo_branches = await repo.branches
+    repo_branches = await git_branch_repository.get_by_repo_id(int(repo_id))
 
     # Get commit counts for all branches using the commit repository
     branch_data = []
@@ -220,7 +223,7 @@ async def list_repository_tags(
                 id=tag.id,
                 attributes=TagAttributes(
                     name=tag.name,
-                    target_commit_sha=tag.target_commit.commit_sha,
+                    target_commit_sha=tag.target_commit_sha,
                     is_version_tag=tag.is_version_tag,
                 ),
             )
@@ -257,7 +260,7 @@ async def get_repository_tag(
             id=tag.id,
             attributes=TagAttributes(
                 name=tag.name,
-                target_commit_sha=tag.target_commit.commit_sha,
+                target_commit_sha=tag.target_commit_sha,
                 is_version_tag=tag.is_version_tag,
             ),
         )

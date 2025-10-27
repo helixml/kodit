@@ -37,3 +37,12 @@ class CommitEnrichment(EnrichmentV2, ABC):
     def entity_type_key(self) -> str:
         """Return the entity type key this enrichment is for."""
         return "git_commit"
+
+
+@dataclass
+class EnrichmentAssociation:
+    """Association between an enrichment and an entity."""
+
+    enrichment_id: int
+    entity_type: str
+    entity_id: str

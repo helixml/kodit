@@ -1,11 +1,9 @@
 """Mapping between domain Git entities and SQLAlchemy entities."""
 
 from collections import defaultdict
-from collections.abc import Callable
 from pathlib import Path
 
 from pydantic import AnyUrl
-from sqlalchemy.ext.asyncio import AsyncSession
 
 import kodit.domain.entities.git as domain_git_entities
 from kodit.infrastructure.sqlalchemy import entities as db_entities
@@ -96,7 +94,7 @@ class GitMapper:
                 updated_at=db_tag.updated_at,
                 repo_id=db_tag.repo_id,
                 name=db_tag.name,
-                target_commit=commit_map[db_tag.target_commit_sha],
+                target_commit_sha=db_tag.target_commit_sha,
             )
             domain_tags.append(domain_tag)
         return domain_tags
@@ -134,7 +132,6 @@ class GitMapper:
         db_tags: list[db_entities.GitTag],
         db_commit_files: list[db_entities.GitCommitFile],
         db_tracking_branch: db_entities.GitTrackingBranch | None,
-        session_factory: Callable[[], AsyncSession],
     ) -> domain_git_entities.GitRepo:
         """Convert SQLAlchemy GitRepo to domain GitRepo."""
         # Build commits needed for tags and tracking branch

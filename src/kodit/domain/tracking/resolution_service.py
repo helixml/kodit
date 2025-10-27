@@ -49,12 +49,12 @@ class TrackableResolutionService:
             trackable.identifier, trackable.repo_id
         )
         # Walk commit history from head_commit backwards
-        return await self._walk_commit_history(branch.head_commit.commit_sha, limit)
+        return await self._walk_commit_history(branch.head_commit_sha, limit)
 
     async def _resolve_tag(self, trackable: Trackable, limit: int) -> list[str]:
         """Get commits from tag target backwards through history."""
         tag = await self.tag_repo.get_by_name(trackable.identifier, trackable.repo_id)
-        return await self._walk_commit_history(tag.target_commit.commit_sha, limit)
+        return await self._walk_commit_history(tag.target_commit_sha, limit)
 
     async def _walk_commit_history(self, start_sha: str, limit: int) -> list[str]:
         """Walk commit history backwards from start_sha."""

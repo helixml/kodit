@@ -1,0 +1,53 @@
+"""Enrichment association repository."""
+
+from collections.abc import Callable
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from kodit.domain.enrichments.enrichment import EnrichmentAssociation
+from kodit.domain.protocols import EnrichmentAssociationRepository
+from kodit.infrastructure.sqlalchemy import entities as db_entities
+from kodit.infrastructure.sqlalchemy.repository import SqlAlchemyRepository
+
+
+def create_enrichment_association_repository(
+    session_factory: Callable[[], AsyncSession],
+) -> EnrichmentAssociationRepository:
+    """Create a enrichment association repository."""
+    return SQLAlchemyEnrichmentAssociationRepository(session_factory=session_factory)
+
+
+class SQLAlchemyEnrichmentAssociationRepository(
+    SqlAlchemyRepository[EnrichmentAssociation, db_entities.EnrichmentAssociation],
+    EnrichmentAssociationRepository,
+):
+    """Repository for managing enrichment associations."""
+
+    def _get_id(self, entity: EnrichmentAssociation) -> tuple[int, str, str]:
+        """Get the ID of an enrichment association."""
+        return (entity.enrichment_id, entity.entity_type, entity.entity_id)
+
+    @property
+    def db_entity_type(self) -> type[db_entities.EnrichmentAssociation]:
+        """The SQLAlchemy model type."""
+        return db_entities.EnrichmentAssociation
+
+    def to_domain(
+        self, db_entity: db_entities.EnrichmentAssociation
+    ) -> EnrichmentAssociation:
+        """Map database entity to domain entity."""
+        return EnrichmentAssociation(
+            enrichment_id=db_entity.enrichment_id,
+            entity_type=db_entity.entity_type,
+            entity_id=db_entity.entity_id,
+        )
+
+    def to_db(
+        self, domain_entity: EnrichmentAssociation
+    ) -> db_entities.EnrichmentAssociation:
+        """Map domain entity to database entity."""
+        return db_entities.EnrichmentAssociation(
+            enrichment_id=domain_entity.enrichment_id,
+            entity_type=domain_entity.entity_type,
+            entity_id=domain_entity.entity_id,
+        )

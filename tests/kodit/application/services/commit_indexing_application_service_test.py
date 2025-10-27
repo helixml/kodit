@@ -34,8 +34,11 @@ from kodit.infrastructure.slicing.slicer import Slicer
 from kodit.infrastructure.sqlalchemy.embedding_repository import (
     create_embedding_repository,
 )
+from kodit.infrastructure.sqlalchemy.enrichment_association_repository import (
+    create_enrichment_association_repository,
+)
 from kodit.infrastructure.sqlalchemy.enrichment_v2_repository import (
-    EnrichmentV2Repository,
+    create_enrichment_v2_repository,
 )
 from kodit.infrastructure.sqlalchemy.git_branch_repository import (
     create_git_branch_repository,
@@ -89,7 +92,12 @@ async def commit_indexing_service(
     git_file_repository = create_git_file_repository(session_factory=session_factory)
     git_tag_repository = create_git_tag_repository(session_factory=session_factory)
     embedding_repository = create_embedding_repository(session_factory=session_factory)
-    enrichment_v2_repository = EnrichmentV2Repository(session_factory=session_factory)
+    enrichment_v2_repository = create_enrichment_v2_repository(
+        session_factory=session_factory
+    )
+    enrichment_association_repository = create_enrichment_association_repository(
+        session_factory=session_factory
+    )
 
     return CommitIndexingApplicationService(
         snippet_v2_repository=snippet_v2_repository,
@@ -109,6 +117,7 @@ async def commit_indexing_service(
         embedding_repository=embedding_repository,
         architecture_service=AsyncMock(spec=PhysicalArchitectureService),
         enrichment_v2_repository=enrichment_v2_repository,
+        enrichment_association_repository=enrichment_association_repository,
         enricher_service=AsyncMock(),
         git_file_repository=git_file_repository,
     )
@@ -197,26 +206,38 @@ async def test_delete_repository_with_data_succeeds(
     )
     assert len(saved_snippets) == 1
 
-    # Create an enrichment for the commit
+    # Create an enrichment for the commit using the new paradigm
     from kodit.domain.enrichments.architecture.physical.physical import (
         PhysicalArchitectureEnrichment,
     )
+    from kodit.domain.enrichments.enrichment import EnrichmentAssociation
 
     test_enrichment = PhysicalArchitectureEnrichment(
         entity_id=commit.commit_sha,
         content="test content",
     )
-    await commit_indexing_service.enrichment_v2_repository.bulk_save_enrichments(
-        [test_enrichment]
+    # Save enrichment first
+    saved_enrichment = await commit_indexing_service.enrichment_v2_repository.save(
+        test_enrichment
+    )
+    # Then create association
+    await commit_indexing_service.enrichment_association_repository.save(
+        EnrichmentAssociation(
+            enrichment_id=saved_enrichment.id,  # type: ignore[arg-type]
+            entity_type="git_commit",
+            entity_id=commit.commit_sha,
+        )
     )
 
-    # Verify enrichment was created
-    enrichment_repo = commit_indexing_service.enrichment_v2_repository
-    enrichments = await enrichment_repo.enrichments_for_entity_type(
-        entity_type="git_commit",
-        entity_ids=[commit.commit_sha],
+    # Verify enrichment association was created
+    from kodit.infrastructure.sqlalchemy.query import FilterOperator, QueryBuilder
+
+    associations = await commit_indexing_service.enrichment_association_repository.find(
+        QueryBuilder()
+        .filter("entity_type", FilterOperator.EQ, "git_commit")
+        .filter("entity_id", FilterOperator.EQ, commit.commit_sha)
     )
-    assert len(enrichments) == 1
+    assert len(associations) == 1
 
     # Delete the repository
     success = await commit_indexing_service.delete_git_repository(repo.id)
@@ -226,12 +247,14 @@ async def test_delete_repository_with_data_succeeds(
     with pytest.raises(ValueError, match="not found"):
         await commit_indexing_service.repo_repository.get_by_id(repo.id)
 
-    # Verify enrichments were deleted
-    enrichments_after = await enrichment_repo.enrichments_for_entity_type(
-        entity_type="git_commit",
-        entity_ids=[commit.commit_sha],
+    # Verify enrichment associations were deleted
+    assoc_repo = commit_indexing_service.enrichment_association_repository
+    associations_after = await assoc_repo.find(
+        QueryBuilder()
+        .filter("entity_type", FilterOperator.EQ, "git_commit")
+        .filter("entity_id", FilterOperator.EQ, commit.commit_sha)
     )
-    assert len(enrichments_after) == 0
+    assert len(associations_after) == 0
 
 
 @pytest.mark.asyncio

@@ -12,6 +12,7 @@ from kodit.domain.enrichments.architecture.physical.physical import (
     PhysicalArchitectureEnrichment,
 )
 from kodit.domain.enrichments.enricher import Enricher
+from kodit.domain.enrichments.enrichment import EnrichmentAssociation
 from kodit.domain.enrichments.request import (
     EnrichmentRequest as GenericEnrichmentRequest,
 )
@@ -21,6 +22,8 @@ from kodit.domain.entities import Task
 from kodit.domain.entities.git import GitFile, GitRepo, SnippetV2
 from kodit.domain.factories.git_repo_factory import GitRepoFactory
 from kodit.domain.protocols import (
+    EnrichmentAssociationRepository,
+    EnrichmentV2Repository,
     GitBranchRepository,
     GitCommitRepository,
     GitFileRepository,
@@ -56,10 +59,8 @@ from kodit.infrastructure.slicing.slicer import Slicer
 from kodit.infrastructure.sqlalchemy.embedding_repository import (
     SqlAlchemyEmbeddingRepository,
 )
-from kodit.infrastructure.sqlalchemy.enrichment_v2_repository import (
-    EnrichmentV2Repository,
-)
 from kodit.infrastructure.sqlalchemy.entities import EmbeddingType
+from kodit.infrastructure.sqlalchemy.query import FilterOperator, QueryBuilder
 
 SUMMARIZATION_SYSTEM_PROMPT = """
 You are a professional software developer. You will be given a snippet of code.
@@ -89,8 +90,9 @@ class CommitIndexingApplicationService:
         text_search_service: EmbeddingDomainService,
         embedding_repository: SqlAlchemyEmbeddingRepository,
         architecture_service: PhysicalArchitectureService,
-        enrichment_v2_repository: EnrichmentV2Repository,
         enricher_service: Enricher,
+        enrichment_v2_repository: EnrichmentV2Repository,
+        enrichment_association_repository: EnrichmentAssociationRepository,
     ) -> None:
         """Initialize the commit indexing application service.
 
@@ -120,6 +122,7 @@ class CommitIndexingApplicationService:
         self.embedding_repository = embedding_repository
         self.architecture_service = architecture_service
         self.enrichment_v2_repository = enrichment_v2_repository
+        self.enrichment_association_repository = enrichment_association_repository
         self.enricher_service = enricher_service
         self._log = structlog.get_logger(__name__)
 
@@ -235,19 +238,19 @@ class CommitIndexingApplicationService:
             await step.set_current(4, "Saving branches")
             if scan_result.branches:
                 await self.git_branch_repository.save_bulk(
-                    scan_result.branches, repository_id
+                    scan_result.branches,
                 )
 
             await step.set_current(5, "Saving tags")
             if scan_result.all_tags:
                 await self.git_tag_repository.save_bulk(
-                    scan_result.all_tags, repository_id
+                    scan_result.all_tags,
                 )
 
             await step.set_current(6, "Enqueuing commit indexing tasks")
             if not repo.tracking_branch:
                 raise ValueError(f"Repository {repository_id} has no tracking branch")
-            commit_sha = repo.tracking_branch.head_commit.commit_sha
+            commit_sha = repo.tracking_branch.head_commit_sha
             if not commit_sha:
                 raise ValueError(f"Repository {repository_id} has no head commit")
 
@@ -299,9 +302,26 @@ class CommitIndexingApplicationService:
 
             # Step 3: Delete enrichments for all commits
             if commit_shas:
-                await self.enrichment_v2_repository.bulk_delete_enrichments(
-                    entity_type="git_commit",
-                    entity_ids=commit_shas,
+                existing_enrichment_associations = (
+                    await self.enrichment_association_repository.find(
+                        QueryBuilder()
+                        .filter("entity_type", FilterOperator.EQ, "git_commit")
+                        .filter("entity_id", FilterOperator.IN, commit_shas)
+                    )
+                )
+                enrichments = await self.enrichment_v2_repository.find(
+                    QueryBuilder().filter(
+                        "id",
+                        FilterOperator.IN,
+                        [
+                            association.enrichment_id
+                            for association in existing_enrichment_associations
+                        ],
+                    )
+                )
+                await self.enrichment_v2_repository.delete_bulk(enrichments)
+                await self.enrichment_association_repository.delete_bulk(
+                    existing_enrichment_associations
                 )
 
             # Step 4: Delete snippet associations and files for all commits
@@ -580,10 +600,23 @@ class CommitIndexingApplicationService:
             await step.set_total(3)
 
             # Check if architecture enrichment already exists for this commit
-            enrichment_repo = self.enrichment_v2_repository
-            existing_enrichments = await enrichment_repo.enrichments_for_entity_type(
-                entity_type="git_commit",
-                entity_ids=[commit_sha],
+            existing_enrichment_associations = (
+                await self.enrichment_association_repository.find(
+                    QueryBuilder()
+                    .filter("entity_type", FilterOperator.EQ, "git_commit")
+                    .filter("entity_id", FilterOperator.EQ, commit_sha)
+                )
+            )
+
+            existing_enrichments = await self.enrichment_v2_repository.find(
+                QueryBuilder().filter(
+                    "id",
+                    FilterOperator.IN,
+                    [
+                        association.enrichment_id
+                        for association in existing_enrichment_associations
+                    ],
+                )
             )
 
             # Check if architecture enrichment already exists
@@ -623,13 +656,22 @@ class CommitIndexingApplicationService:
                 enriched_content = response.text
 
             # Create and save architecture enrichment with enriched content
-            architecture_enrichment = PhysicalArchitectureEnrichment(
-                entity_id=commit_sha,
-                content=enriched_content,
+            enrichment = await self.enrichment_v2_repository.save(
+                PhysicalArchitectureEnrichment(
+                    entity_id=commit_sha,
+                    content=enriched_content,
+                )
             )
-
-            await self.enrichment_v2_repository.bulk_save_enrichments(
-                [architecture_enrichment]
+            if not enrichment or not enrichment.id:
+                raise ValueError(
+                    f"Failed to save architecture enrichment for commit {commit_sha}"
+                )
+            await self.enrichment_association_repository.save(
+                EnrichmentAssociation(
+                    enrichment_id=enrichment.id,  # type: ignore[arg-type]
+                    entity_type="git_commit",
+                    entity_id=commit_sha,
+                )
             )
 
             await step.set_current(3, "Architecture enrichment completed")
@@ -642,10 +684,23 @@ class CommitIndexingApplicationService:
             trackable_id=repository_id,
         ) as step:
             # Check if API docs already exist for this commit
-            existing_enrichments = (
-                await self.enrichment_v2_repository.enrichments_for_entity_type(
-                    entity_type="git_commit",
-                    entity_ids=[commit_sha],
+            # Check if architecture enrichment already exists for this commit
+            existing_enrichment_associations = (
+                await self.enrichment_association_repository.find(
+                    QueryBuilder()
+                    .filter("entity_type", FilterOperator.EQ, "git_commit")
+                    .filter("entity_id", FilterOperator.EQ, commit_sha)
+                )
+            )
+
+            existing_enrichments = await self.enrichment_v2_repository.find(
+                QueryBuilder().filter(
+                    "id",
+                    FilterOperator.IN,
+                    [
+                        association.enrichment_id
+                        for association in existing_enrichment_associations
+                    ],
                 )
             )
 
@@ -692,8 +747,19 @@ class CommitIndexingApplicationService:
 
             # Save all enrichments
             if all_enrichments:
-                await self.enrichment_v2_repository.bulk_save_enrichments(
-                    all_enrichments
+                saved_enrichments = await self.enrichment_v2_repository.save_bulk(
+                    all_enrichments  # type: ignore[arg-type]
+                )
+                await self.enrichment_association_repository.save_bulk(
+                    [
+                        EnrichmentAssociation(
+                            enrichment_id=enrichment.id,  # type: ignore[arg-type]
+                            entity_type="git_commit",
+                            entity_id=commit_sha,
+                        )
+                        for enrichment in saved_enrichments
+                        if enrichment.id is not None
+                    ]
                 )
 
     async def _new_snippets_for_type(

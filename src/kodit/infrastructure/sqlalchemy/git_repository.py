@@ -256,5 +256,4 @@ class SqlAlchemyGitRepoRepository(GitRepoRepository):
             db_tags=all_tags,
             db_commit_files=referenced_files,
             db_tracking_branch=tracking_branch,
-            session_factory=self.session_factory,
         )
