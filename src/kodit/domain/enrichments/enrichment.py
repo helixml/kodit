@@ -9,7 +9,6 @@ from datetime import datetime
 class EnrichmentV2(ABC):
     """Generic enrichment that can be attached to any entity."""
 
-    entity_id: str
     content: str = ""
     id: int | None = None
     created_at: datetime | None = None
@@ -47,3 +46,11 @@ class EnrichmentAssociation:
     entity_type: str
     entity_id: str
     id: int | None = None
+
+
+@dataclass
+class SnippetSummaryAssociation:
+    """Association between a snippet and a summary enrichment."""
+
+    snippet_summary: EnrichmentAssociation
+    snippet: EnrichmentAssociation

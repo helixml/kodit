@@ -187,13 +187,18 @@ async def get_commit_file(
 )
 async def list_commit_snippets(
     repo_id: str,
-    commit_sha: str,
-    server_factory: ServerFactoryDep,
+    commit_sha: str,  # noqa: ARG001
+    server_factory: ServerFactoryDep,  # noqa: ARG001
 ) -> SnippetListResponse:
     """List all snippets in a specific commit."""
     _ = repo_id  # Required by FastAPI route path but not used in function
-    snippet_repository = server_factory.snippet_v2_repository()
-    snippets = await snippet_repository.get_snippets_for_commit(commit_sha)
+    # TODO(phil): Reimplement using enrichment_v2_repository
+    # and enrichment_association_repository to query snippets
+    raise HTTPException(
+        status_code=501,
+        detail="Endpoint needs refactoring for enrichment-based architecture",
+    )
+    snippets = []  # type: ignore[unreachable]
 
     return SnippetListResponse(
         data=[
@@ -239,7 +244,7 @@ async def list_commit_snippets(
 )
 async def list_commit_embeddings(
     repo_id: str,
-    commit_sha: str,
+    commit_sha: str,  # noqa: ARG001
     server_factory: ServerFactoryDep,
     full: Annotated[  # noqa: FBT002
         bool,
@@ -250,8 +255,13 @@ async def list_commit_embeddings(
 ) -> EmbeddingListResponse:
     """List all embeddings for snippets in a specific commit."""
     _ = repo_id  # Required by FastAPI route path but not used in function
-    snippet_repository = server_factory.snippet_v2_repository()
-    snippets = await snippet_repository.get_snippets_for_commit(commit_sha)
+    # TODO(phil): Reimplement using enrichment_v2_repository
+    # and enrichment_association_repository to query snippets
+    raise HTTPException(
+        status_code=501,
+        detail="Endpoint needs refactoring for enrichment-based architecture",
+    )
+    snippets = []  # type: ignore[unreachable]
 
     if not snippets:
         return EmbeddingListResponse(data=[])

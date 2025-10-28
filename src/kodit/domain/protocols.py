@@ -254,3 +254,15 @@ class EnrichmentV2Repository(Repository[EnrichmentV2]):
 
 class EnrichmentAssociationRepository(Repository[EnrichmentAssociation]):
     """Repository for enrichment association operations."""
+
+    @abstractmethod
+    async def get_snippet_associations_for_summary_enrichments(
+        self, summary_enrichment_ids: list[int]
+    ) -> list[EnrichmentAssociation]:
+        """Get the snippet associations for the given summary enrichments."""
+
+    @abstractmethod
+    async def get_enrichment_associations_for_commit(
+        self, commit_sha: str
+    ) -> list[EnrichmentAssociation]:
+        """Get the snippet associations for the given commit."""

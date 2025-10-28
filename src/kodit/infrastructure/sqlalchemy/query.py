@@ -7,6 +7,8 @@ from typing import Any
 
 from sqlalchemy import Select
 
+from kodit.infrastructure.sqlalchemy import entities as db_entities
+
 
 class Query(ABC):
     """Base query/specification object for encapsulating query logic."""
@@ -138,3 +140,88 @@ class QueryBuilder(Query):
             stmt = self._pagination.apply(stmt)
 
         return stmt
+
+
+class EnrichmentAssociationQueryBuilder(QueryBuilder):
+    """Query builder for enrichment association entities."""
+
+    @staticmethod
+    def for_enrichment_association(
+        entity_type: str,
+        entity_id: str,
+    ) -> QueryBuilder:
+        """Build a query for a specific enrichment association."""
+        return EnrichmentAssociationQueryBuilder.for_enrichment_associations(
+            entity_type,
+            [entity_id],
+        )
+
+    @staticmethod
+    def for_enrichment_associations(
+        entity_type: str, entity_ids: list[str]
+    ) -> QueryBuilder:
+        """Build a query for enrichment associations by entity type and IDs."""
+        return (
+            QueryBuilder()
+            .filter(
+                db_entities.EnrichmentAssociation.entity_type.key,
+                FilterOperator.EQ,
+                entity_type,
+            )
+            .filter(
+                db_entities.EnrichmentAssociation.entity_id.key,
+                FilterOperator.IN,
+                entity_ids,
+            )
+        )
+
+    @staticmethod
+    def for_enrichment_associations_by_enrichment_ids(
+        entity_type: str,
+        enrichment_ids: list[int],
+    ) -> QueryBuilder:
+        """Build a query for enrichment associations by enrichment IDs."""
+        return (
+            QueryBuilder()
+            .filter(
+                db_entities.EnrichmentAssociation.entity_type.key,
+                FilterOperator.EQ,
+                entity_type,
+            )
+            .filter(
+                db_entities.EnrichmentAssociation.enrichment_id.key,
+                FilterOperator.IN,
+                enrichment_ids,
+            )
+        )
+
+    @staticmethod
+    def associations_pointing_to_these_enrichments(
+        enrichment_ids: list[int],
+    ) -> QueryBuilder:
+        """Build a query for enrichment associations pointing to these enrichments."""
+        return EnrichmentAssociationQueryBuilder.for_enrichment_associations_by_enrichment_ids(
+            entity_type=db_entities.EnrichmentV2.__tablename__,
+            enrichment_ids=enrichment_ids,
+        )
+
+
+class EnrichmentQueryBuilder(QueryBuilder):
+    """Query builder for enrichment entities."""
+
+    @staticmethod
+    def for_enrichment(enrichment_type: str, enrichment_subtype: str) -> QueryBuilder:
+        """Build a query for a specific enrichment."""
+        return (
+            QueryBuilder()
+            .filter(
+                "type",
+                FilterOperator.EQ,
+                enrichment_type,
+            )
+            .filter(
+                "subtype",
+                FilterOperator.EQ,
+                enrichment_subtype,
+            )
+        )

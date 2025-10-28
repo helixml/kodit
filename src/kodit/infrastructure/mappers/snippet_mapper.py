@@ -1,7 +1,9 @@
 """Mapping between domain Git entities and SQLAlchemy entities."""
 
 import kodit.domain.entities.git as domain_git_entities
-from kodit.domain.enrichments.development.snippet.snippet import SnippetEnrichment
+from kodit.domain.enrichments.development.snippet.snippet import (
+    SnippetEnrichmentSummary,
+)
 from kodit.domain.enrichments.enrichment import EnrichmentV2
 from kodit.domain.value_objects import Enrichment, EnrichmentType
 from kodit.infrastructure.sqlalchemy import entities as db_entities
@@ -64,10 +66,10 @@ class SnippetMapper:
         self,
         snippet_sha: str,
         enrichments: list[Enrichment],
-    ) -> list[SnippetEnrichment]:
+    ) -> list[SnippetEnrichmentSummary]:
         """Convert domain enrichments to SnippetEnrichment entities."""
         return [
-            SnippetEnrichment(
+            SnippetEnrichmentSummary(
                 entity_id=snippet_sha,
                 content=enrichment.content,
             )

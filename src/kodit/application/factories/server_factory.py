@@ -87,9 +87,6 @@ from kodit.infrastructure.sqlalchemy.git_repository import create_git_repo_repos
 from kodit.infrastructure.sqlalchemy.git_tag_repository import (
     create_git_tag_repository,
 )
-from kodit.infrastructure.sqlalchemy.snippet_v2_repository import (
-    create_snippet_v2_repository,
-)
 from kodit.infrastructure.sqlalchemy.task_status_repository import (
     create_task_status_repository,
 )
@@ -248,7 +245,6 @@ class ServerFactory:
         """Create a CommitIndexingApplicationService instance."""
         if not self._commit_indexing_application_service:
             self._commit_indexing_application_service = CommitIndexingApplicationService(  # noqa: E501
-                snippet_v2_repository=self.snippet_v2_repository(),
                 repo_repository=self.repo_repository(),
                 git_commit_repository=self.git_commit_repository(),
                 git_file_repository=self.git_file_repository(),
@@ -257,7 +253,6 @@ class ServerFactory:
                 operation=self.operation(),
                 scanner=self.scanner(),
                 cloner=self.cloner(),
-                snippet_repository=self.snippet_v2_repository(),
                 slicer=self.slicer(),
                 queue=self.queue_service(),
                 bm25_service=self.bm25_service(),
@@ -317,14 +312,6 @@ class ServerFactory:
             )
         return self._git_file_repository
 
-    def snippet_v2_repository(self) -> SnippetRepositoryV2:
-        """Create a SnippetRepositoryV2 instance."""
-        if not self._snippet_v2_repository:
-            self._snippet_v2_repository = create_snippet_v2_repository(
-                session_factory=self.session_factory
-            )
-        return self._snippet_v2_repository
-
     def enricher(self) -> Enricher:
         """Create a EnricherDomainService instance."""
         if not self._enricher_service:
@@ -362,8 +349,9 @@ class ServerFactory:
                 code_search_service=self.code_search_service(),
                 text_search_service=self.text_search_service(),
                 progress_tracker=self.operation(),
-                snippet_repository=self.snippet_v2_repository(),
                 fusion_service=self.fusion_service(),
+                enrichment_v2_repository=self.enrichment_v2_repository(),
+                enrichment_association_repository=self.enrichment_association_repository(),
             )
         return self._code_search_application_service
 

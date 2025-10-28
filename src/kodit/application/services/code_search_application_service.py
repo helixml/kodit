@@ -6,7 +6,11 @@ import structlog
 
 from kodit.application.services.reporting import ProgressTracker
 from kodit.domain.entities.git import SnippetV2
-from kodit.domain.protocols import FusionService, SnippetRepositoryV2
+from kodit.domain.protocols import (
+    EnrichmentAssociationRepository,
+    EnrichmentV2Repository,
+    FusionService,
+)
 from kodit.domain.services.bm25_service import BM25DomainService
 from kodit.domain.services.embedding_service import EmbeddingDomainService
 from kodit.domain.value_objects import (
@@ -14,6 +18,11 @@ from kodit.domain.value_objects import (
     MultiSearchRequest,
     SearchRequest,
     SearchResult,
+)
+from kodit.infrastructure.sqlalchemy import entities as db_entities
+from kodit.infrastructure.sqlalchemy.query import (
+    FilterOperator,
+    QueryBuilder,
 )
 from kodit.log import log_event
 
@@ -53,16 +62,18 @@ class CodeSearchApplicationService:
         code_search_service: EmbeddingDomainService,
         text_search_service: EmbeddingDomainService,
         progress_tracker: ProgressTracker,
-        snippet_repository: SnippetRepositoryV2,
         fusion_service: FusionService,
+        enrichment_v2_repository: "EnrichmentV2Repository",
+        enrichment_association_repository: EnrichmentAssociationRepository,
     ) -> None:
         """Initialize the code search application service."""
         self.bm25_service = bm25_service
         self.code_search_service = code_search_service
         self.text_search_service = text_search_service
         self.progress_tracker = progress_tracker
-        self.snippet_repository = snippet_repository
         self.fusion_service = fusion_service
+        self.enrichment_v2_repository = enrichment_v2_repository
+        self.enrichment_association_repository = enrichment_association_repository
         self.log = structlog.get_logger(__name__)
 
     async def search(self, request: MultiSearchRequest) -> list[MultiSearchResult]:
@@ -115,8 +126,19 @@ class CodeSearchApplicationService:
                     snippet_ids=filtered_snippet_ids,
                 )
             )
+            summary_enrichment_associations = await self.enrichment_association_repository.get_snippet_associations_for_summary_enrichments(
+                [int(x.snippet_id) for x in query_results]
+            )
             fusion_list.append(
-                [FusionRequest(id=x.snippet_id, score=x.score) for x in query_results]
+                [
+                    FusionRequest(
+                        id=str(summary_enrichment_association.enrichment_id),
+                        score=query_result.score,
+                    )
+                    for query_result, summary_enrichment_association in zip(
+                        query_results, summary_enrichment_associations, strict=False
+                    )
+                ]
             )
 
         if len(fusion_list) == 0:
@@ -131,14 +153,60 @@ class CodeSearchApplicationService:
         # Keep only top_k results
         final_results = final_results[: request.top_k]
 
-        # Get snippet details
-        ids = [x.id for x in final_results]
-        search_results = await self.snippet_repository.get_by_ids(ids)
-        search_results.sort(key=lambda x: ids.index(x.id))
+        # Get enrichment details
+        enrichment_ids = [int(x.id) for x in final_results]
+
+        self.log.info(
+            "found enrichments",
+            len_enrichments=len(enrichment_ids),
+        )
+        final_enrichments = await self.enrichment_v2_repository.find(
+            QueryBuilder().filter(
+                db_entities.EnrichmentV2.id.key,
+                FilterOperator.IN,
+                enrichment_ids,
+            )
+        )
+
+        self.log.info(
+            "final enrichments",
+            len_final_enrichments=len(final_enrichments),
+        )
+
+        # Convert enrichments to SnippetV2 domain objects
+        # Map enrichment ID to snippet for correct ordering
+        enrichment_id_to_snippet: dict[int, SnippetV2] = {}
+        for enrichment in final_enrichments:
+            if not enrichment.id:
+                raise ValueError(f"Enrichment {enrichment} has no ID")
+            # Create a SnippetV2 from the enrichment
+            snippet = SnippetV2(
+                sha=str(enrichment.id),  # The snippet SHA
+                content=enrichment.content,  # The code content
+                extension="",  # Not available in enrichment
+                derives_from=[],  # Not available in enrichment
+                created_at=enrichment.created_at,
+                updated_at=enrichment.updated_at,
+                enrichments=[],  # Could fetch summaries if needed
+            )
+            enrichment_id_to_snippet[enrichment.id] = snippet
+
+        # Sort by the original fusion ranking order
+        snippets = [
+            enrichment_id_to_snippet[eid]
+            for eid in enrichment_ids
+            if eid in enrichment_id_to_snippet
+        ]
+
         return [
             MultiSearchResult(
                 snippet=snippet,
-                original_scores=[x.score for x in final_results if x.id == snippet.id],
+                original_scores=[
+                    x.score
+                    for x in final_results
+                    if int(x.id) in enrichment_id_to_snippet
+                    and enrichment_id_to_snippet[int(x.id)].sha == snippet.sha
+                ],
             )
-            for snippet in search_results
+            for snippet in snippets
         ]

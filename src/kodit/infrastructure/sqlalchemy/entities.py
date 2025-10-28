@@ -568,19 +568,6 @@ class EnrichmentV2(Base, CommonMixin):
     type: Mapped[str] = mapped_column(String, nullable=False, index=True)
     subtype: Mapped[str] = mapped_column(String, nullable=False, index=True)
     content: Mapped[str] = mapped_column(UnicodeText, nullable=False)
-    enrichment: Mapped["EnrichmentAssociation"] = relationship(
-        "EnrichmentAssociation",
-        lazy="selectin",
-        foreign_keys="[EnrichmentAssociation.enrichment_id]",
-        cascade="all, delete-orphan",
-        passive_deletes=True,
-    )
-    enrichment_association: Mapped["EnrichmentAssociation | None"] = relationship(
-        "EnrichmentAssociation",
-        lazy="selectin",
-        foreign_keys="[EnrichmentAssociation.enrichment_id]",
-        viewonly=True,
-    )
 
     __table_args__ = (Index("idx_type_subtype", "type", "subtype"),)
 

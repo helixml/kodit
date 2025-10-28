@@ -57,9 +57,6 @@ from kodit.infrastructure.sqlalchemy.git_repository import create_git_repo_repos
 from kodit.infrastructure.sqlalchemy.git_tag_repository import (
     create_git_tag_repository,
 )
-from kodit.infrastructure.sqlalchemy.snippet_v2_repository import (
-    create_snippet_v2_repository,
-)
 
 
 @pytest.fixture
@@ -83,9 +80,6 @@ async def commit_indexing_service(
 ) -> CommitIndexingApplicationService:
     """Create a CommitIndexingApplicationService instance for testing."""
     queue_service = QueueService(session_factory=session_factory)
-    snippet_v2_repository = create_snippet_v2_repository(
-        session_factory=session_factory
-    )
     repo_repository = create_git_repo_repository(session_factory=session_factory)
     git_commit_repository = create_git_commit_repository(
         session_factory=session_factory
@@ -104,15 +98,14 @@ async def commit_indexing_service(
     )
 
     return CommitIndexingApplicationService(
-        snippet_v2_repository=snippet_v2_repository,
         repo_repository=repo_repository,
         git_commit_repository=git_commit_repository,
         git_branch_repository=git_branch_repository,
         git_tag_repository=git_tag_repository,
+        git_file_repository=git_file_repository,
         operation=mock_progress_tracker,
         scanner=AsyncMock(spec=GitRepositoryScanner),
         cloner=MagicMock(spec=RepositoryCloner),
-        snippet_repository=snippet_v2_repository,
         slicer=MagicMock(spec=Slicer),
         queue=queue_service,
         bm25_service=AsyncMock(spec=BM25DomainService),
@@ -123,7 +116,6 @@ async def commit_indexing_service(
         enrichment_v2_repository=enrichment_v2_repository,
         enrichment_association_repository=enrichment_association_repository,
         enricher_service=AsyncMock(),
-        git_file_repository=git_file_repository,
     )
 
 
@@ -177,9 +169,8 @@ async def create_test_repository_with_data(
         ),
     ]
 
-    # Save snippets and associate them with the commit
-    await service.snippet_repository.save_snippets(commit.commit_sha, snippets)
-
+    # Note: Snippets are now stored as enrichments, not directly saved
+    # This test helper creates the structure but enrichments would be created separately
     return repo, commit, snippets
 
 
@@ -203,12 +194,8 @@ async def test_delete_repository_with_data_succeeds(
     )
     assert saved_commit is not None
 
-    saved_snippets = (
-        await commit_indexing_service.snippet_repository.get_snippets_for_commit(
-            commit.commit_sha
-        )
-    )
-    assert len(saved_snippets) == 1
+    # Note: Snippet verification would now be done through enrichment_v2_repository
+    # For now, we just verify commit was saved
 
     test_enrichment = PhysicalArchitectureEnrichment(
         entity_id=commit.commit_sha,
