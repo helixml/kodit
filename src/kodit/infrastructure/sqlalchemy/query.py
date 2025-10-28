@@ -176,7 +176,7 @@ class EnrichmentAssociationQueryBuilder(QueryBuilder):
         )
 
     @staticmethod
-    def for_enrichment_associations_by_enrichment_ids(
+    def type_and_ids(
         entity_type: str,
         enrichment_ids: list[int],
     ) -> QueryBuilder:
@@ -200,7 +200,7 @@ class EnrichmentAssociationQueryBuilder(QueryBuilder):
         enrichment_ids: list[int],
     ) -> QueryBuilder:
         """Build a query for enrichment associations pointing to these enrichments."""
-        return EnrichmentAssociationQueryBuilder.for_enrichment_associations_by_enrichment_ids(
+        return EnrichmentAssociationQueryBuilder.type_and_ids(
             entity_type=db_entities.EnrichmentV2.__tablename__,
             enrichment_ids=enrichment_ids,
         )

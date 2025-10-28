@@ -126,8 +126,10 @@ class CodeSearchApplicationService:
                     snippet_ids=filtered_snippet_ids,
                 )
             )
-            summary_enrichment_associations = await self.enrichment_association_repository.get_snippet_associations_for_summary_enrichments(
-                [int(x.snippet_id) for x in query_results]
+            summary_enrichment_associations = (
+                await self.enrichment_association_repository.associations_for_summaries(
+                    [int(x.snippet_id) for x in query_results]
+                )
             )
             fusion_list.append(
                 [

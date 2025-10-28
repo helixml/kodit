@@ -789,8 +789,10 @@ class CommitIndexingApplicationService:
 
     # TODO(phil): this should probably be a separate application service
     async def _snippets_for_commit(self, commit_sha: str) -> list[EnrichmentV2]:
-        existing_enrichment_associations = await self.enrichment_association_repository.get_enrichment_associations_for_commit(
-            commit_sha=commit_sha,
+        existing_associations = (
+            await self.enrichment_association_repository.associations_for_commit(
+                commit_sha=commit_sha,
+            )
         )
         existing_enrichments = await self.enrichment_v2_repository.find(
             EnrichmentQueryBuilder.for_enrichment(
@@ -799,22 +801,21 @@ class CommitIndexingApplicationService:
             ).filter(
                 "id",
                 FilterOperator.IN,
-                [
-                    association.enrichment_id
-                    for association in existing_enrichment_associations
-                ],
+                [association.enrichment_id for association in existing_associations],
             )
         )
         self._log.info(
-            f"Found {len(existing_enrichment_associations)} enrichment associations and "
+            f"Found {len(existing_associations)} enrichment associations and "
             f"{len(existing_enrichments)} snippets for commit {commit_sha}"
         )
         return existing_enrichments
 
     async def _api_docs_for_commit(self, commit_sha: str) -> list[EnrichmentV2]:
         """Get the API docs for the given commit."""
-        existing_enrichment_associations = await self.enrichment_association_repository.get_enrichment_associations_for_commit(
-            commit_sha=commit_sha,
+        existing_enrichment_associations = (
+            await self.enrichment_association_repository.associations_for_commit(
+                commit_sha=commit_sha,
+            )
         )
 
         return await self.enrichment_v2_repository.find(
@@ -843,8 +844,10 @@ class CommitIndexingApplicationService:
         self, commit_sha: str
     ) -> list[EnrichmentV2]:
         """Get the architecture docs for the given commit."""
-        existing_enrichment_associations = await self.enrichment_association_repository.get_enrichment_associations_for_commit(
-            commit_sha=commit_sha,
+        existing_enrichment_associations = (
+            await self.enrichment_association_repository.associations_for_commit(
+                commit_sha=commit_sha,
+            )
         )
 
         return await self.enrichment_v2_repository.find(
@@ -873,8 +876,10 @@ class CommitIndexingApplicationService:
         self, commit_sha: str
     ) -> list[EnrichmentV2]:
         """Get the summary enrichments for the given commit."""
-        existing_enrichment_associations = await self.enrichment_association_repository.get_enrichment_associations_for_commit(
-            commit_sha=commit_sha,
+        existing_enrichment_associations = (
+            await self.enrichment_association_repository.associations_for_commit(
+                commit_sha=commit_sha,
+            )
         )
         return await self.enrichment_v2_repository.find(
             QueryBuilder()
