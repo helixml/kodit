@@ -747,9 +747,8 @@ class CommitIndexingApplicationService:
             for i, (lang, lang_files) in enumerate(lang_files_map.items()):
                 await step.set_current(i, f"Extracting API docs for {lang}")
                 enrichments = extractor.extract_api_docs(
-                    lang_files,
-                    lang,
-                    commit_sha,
+                    files=lang_files,
+                    language=lang,
                     include_private=False,
                 )
                 all_enrichments.extend(enrichments)

@@ -198,7 +198,6 @@ async def test_delete_repository_with_data_succeeds(
     # For now, we just verify commit was saved
 
     test_enrichment = PhysicalArchitectureEnrichment(
-        entity_id=commit.commit_sha,
         content="test content",
     )
     # Save enrichment first

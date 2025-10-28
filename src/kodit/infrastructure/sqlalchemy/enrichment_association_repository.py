@@ -79,7 +79,7 @@ class SQLAlchemyEnrichmentAssociationRepository(
 
     # A method to return all snippet summary enrichment associations along with the
     # parent snippet association
-    async def get_snippet_associations_for_summary_enrichments(
+    async def associations_for_summaries(
         self, summary_enrichment_ids: list[int]
     ) -> list[EnrichmentAssociation]:
         """Get the snippet associations for the given summary enrichments."""
@@ -123,7 +123,7 @@ class SQLAlchemyEnrichmentAssociationRepository(
         )
         return snippet_associations
 
-    async def get_enrichment_associations_for_commit(
+    async def associations_for_commit(
         self, commit_sha: str
     ) -> list[EnrichmentAssociation]:
         """Get the snippet associations for the given commit."""

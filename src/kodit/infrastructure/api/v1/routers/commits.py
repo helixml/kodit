@@ -356,7 +356,7 @@ async def delete_all_commit_enrichments(
 )
 async def delete_commit_enrichment(
     repo_id: str,  # noqa: ARG001
-    commit_sha: str,
+    commit_sha: str,  # noqa: ARG001
     enrichment_id: int,
     server_factory: ServerFactoryDep,
 ) -> None:
@@ -364,10 +364,6 @@ async def delete_commit_enrichment(
     try:
         enrichment_v2_repository = server_factory.enrichment_v2_repository()
         enrichment = await enrichment_v2_repository.get(enrichment_id)
-        if enrichment.entity_id != commit_sha:
-            raise HTTPException(
-                status_code=404, detail="Enrichment not found for this commit"
-            )
         await enrichment_v2_repository.delete(enrichment)
     except ValueError as e:
         raise HTTPException(status_code=404, detail="Enrichment not found") from e

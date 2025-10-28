@@ -395,5 +395,6 @@ class ServerFactory:
             self._enrichment_query_service = EnrichmentQueryService(
                 trackable_resolution=self.trackable_resolution_service(),
                 enrichment_repo=self.enrichment_v2_repository(),
+                enrichment_association_repository=self.enrichment_association_repository(),
             )
         return self._enrichment_query_service
