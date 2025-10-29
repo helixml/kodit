@@ -1,7 +1,7 @@
 """Domain services for embedding operations."""
 
 from abc import ABC, abstractmethod
-from collections.abc import AsyncGenerator, Sequence
+from collections.abc import AsyncGenerator
 
 from kodit.domain.value_objects import (
     EmbeddingRequest,
@@ -34,7 +34,7 @@ class VectorSearchRepository(ABC):
         """Index documents for vector search."""
 
     @abstractmethod
-    async def search(self, request: SearchRequest) -> Sequence[SearchResult]:
+    async def search(self, request: SearchRequest) -> list[SearchResult]:
         """Search documents using vector similarity."""
 
     @abstractmethod
@@ -101,19 +101,8 @@ class EmbeddingDomainService:
         ):
             yield result
 
-    async def search(self, request: SearchRequest) -> Sequence[SearchResult]:
-        """Search documents using domain business rules.
-
-        Args:
-            request: The search request
-
-        Returns:
-            Sequence of search results
-
-        Raises:
-            ValueError: If the request is invalid
-
-        """
+    async def search(self, request: SearchRequest) -> list[SearchResult]:
+        """Search documents using domain business rules."""
         # Domain logic: validate request
         if not request.query or not request.query.strip():
             raise ValueError("Search query cannot be empty")

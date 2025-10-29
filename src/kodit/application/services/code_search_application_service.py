@@ -123,10 +123,10 @@ class CodeSearchApplicationService:
                     snippet_ids=filtered_snippet_ids,
                 )
             )
-            summary_results = set(summary_results)
+            summary_results_dedup = set(summary_results)
 
             # Get the snippet enrichment IDs that these summaries point to
-            summary_ids = [int(x.snippet_id) for x in summary_results]
+            summary_ids = [int(x.snippet_id) for x in summary_results_dedup]
             summary_enrichments = (
                 await self.enrichment_query_service.get_enrichments_by_ids(summary_ids)
             )
@@ -140,7 +140,7 @@ class CodeSearchApplicationService:
                 [
                     FusionRequest(id=str(snippet.id), score=result.score)
                     for result, snippet in zip(
-                        summary_results, snippet_enrichments, strict=True
+                        summary_results_dedup, snippet_enrichments, strict=True
                     )
                 ]
             )
