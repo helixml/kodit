@@ -104,6 +104,11 @@ async def get_repository(
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
 
+    # Get branches for the repository using the branch repository
+    repo_branches = await git_branch_repository.find(
+        QueryBuilder().filter("repo_id", FilterOperator.EQ, int(repo_id))
+    )
+
     # Get all commits for this repository from the commit repository
     repo_commits = await git_commit_repository.find(
         QueryBuilder().filter("repo_id", FilterOperator.EQ, int(repo_id))
@@ -112,9 +117,13 @@ async def get_repository(
 
     # Get recent commits from the tracking branch's head commit
     recent_commits = []
-    if repo.tracking_branch and repo.tracking_branch.head_commit_sha:
+    # Get the tracking branch from the branch repository
+    tracking_branch = next(
+        (b for b in repo_branches if b.name == repo.tracking_config.name), None
+    )
+    if tracking_branch and tracking_branch.head_commit_sha:
         # For simplicity, just show the head commit and traverse back if needed
-        current_commit = commits_by_sha.get(repo.tracking_branch.head_commit_sha)
+        current_commit = commits_by_sha.get(tracking_branch.head_commit_sha)
         if current_commit:
             recent_commits = [current_commit]
 
@@ -133,11 +142,6 @@ async def get_repository(
         QueryBuilder().filter("repo_id", FilterOperator.EQ, int(repo_id))
     )
 
-    # Get branches for the repository using the branch repository
-    repo_branches = await git_branch_repository.find(
-        QueryBuilder().filter("repo_id", FilterOperator.EQ, int(repo_id))
-    )
-
     # Get commit counts for all branches using the commit repository
     branch_data = []
     for branch in repo_branches:
@@ -148,9 +152,7 @@ async def get_repository(
         branch_data.append(
             RepositoryBranchData(
                 name=branch.name,
-                is_default=branch.name == repo.tracking_branch.name
-                if repo.tracking_branch
-                else False,
+                is_default=branch.name == repo.tracking_config.name,
                 commit_count=branch_commit_count,
             )
         )
@@ -305,11 +307,7 @@ async def list_repository_enrichments(  # noqa: PLR0913
     if ref_name is None:
         if ref_type == "branch":
             # Default to tracking branch
-            if not repo.tracking_branch:
-                raise HTTPException(
-                    status_code=400, detail="No tracking branch configured"
-                )
-            ref_name = repo.tracking_branch.name
+            ref_name = repo.tracking_config.name
         else:
             raise HTTPException(
                 status_code=400,

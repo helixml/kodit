@@ -6,7 +6,7 @@ from pathlib import Path
 from pydantic import AnyUrl
 
 from kodit.domain.entities import WorkingCopy
-from kodit.domain.entities.git import GitBranch, GitRepo
+from kodit.domain.entities.git import GitRepo, TrackingConfig, TrackingType
 
 
 class GitRepoFactory:
@@ -29,13 +29,27 @@ class GitRepoFactory:
         sanitized_remote_uri: AnyUrl,
         remote_uri: AnyUrl,
         cloned_path: Path | None = None,
-        tracking_branch: GitBranch | None = None,
+        tracking_config: TrackingConfig | None = None,
         last_scanned_at: datetime | None = None,
         num_commits: int = 0,
         num_branches: int = 0,
         num_tags: int = 0,
     ) -> GitRepo:
         """Create a GitRepo from individual components."""
+        if tracking_config is not None:
+            return GitRepo(
+                id=repo_id,
+                created_at=created_at,
+                updated_at=updated_at,
+                sanitized_remote_uri=sanitized_remote_uri,
+                remote_uri=remote_uri,
+                cloned_path=cloned_path,
+                tracking_config=tracking_config,
+                last_scanned_at=last_scanned_at,
+                num_commits=num_commits,
+                num_branches=num_branches,
+                num_tags=num_tags,
+            )
         return GitRepo(
             id=repo_id,
             created_at=created_at,
@@ -43,7 +57,6 @@ class GitRepoFactory:
             sanitized_remote_uri=sanitized_remote_uri,
             remote_uri=remote_uri,
             cloned_path=cloned_path,
-            tracking_branch=tracking_branch,
             last_scanned_at=last_scanned_at,
             num_commits=num_commits,
             num_branches=num_branches,
@@ -56,7 +69,7 @@ class GitRepoFactory:
         remote_uri: AnyUrl,
         sanitized_remote_uri: AnyUrl,
         repo_path: Path,
-        tracking_branch: GitBranch | None = None,
+        tracking_branch_name: str,
         last_scanned_at: datetime | None = None,
         num_commits: int = 0,
         num_branches: int = 0,
@@ -67,7 +80,9 @@ class GitRepoFactory:
             id=None,  # Let repository assign database ID
             sanitized_remote_uri=sanitized_remote_uri,
             remote_uri=remote_uri,
-            tracking_branch=tracking_branch,
+            tracking_config=TrackingConfig(
+                type=TrackingType.BRANCH, name=tracking_branch_name
+            ),
             cloned_path=repo_path,
             last_scanned_at=last_scanned_at,
             num_commits=num_commits,

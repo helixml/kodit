@@ -120,22 +120,22 @@ class GitService:
         # Get current branch as tracking branch
         try:
             current_branch = repo.active_branch
-            tracking_branch = next(
-                (b for b in branches if b.name == current_branch.name),
-                branches[0] if branches else None,
+            tracking_branch_name = next(
+                (b.name for b in branches if b.name == current_branch.name),
+                branches[0].name if branches else None,
             )
         except (AttributeError, TypeError):
             # Handle detached HEAD state or other branch access issues
-            tracking_branch = branches[0] if branches else None
+            tracking_branch_name = branches[0].name if branches else None
 
-        if tracking_branch is None:
+        if tracking_branch_name is None:
             raise ValueError("No branches found in repository")
 
         return GitRepoFactory.create_from_path_scan(
             remote_uri=remote_uri,
             sanitized_remote_uri=sanitized_remote_uri,
             repo_path=repo_path,
-            tracking_branch=tracking_branch,
+            tracking_branch_name=tracking_branch_name,
             last_scanned_at=datetime.now(UTC),
             num_commits=num_commits,
             num_branches=len(branches),

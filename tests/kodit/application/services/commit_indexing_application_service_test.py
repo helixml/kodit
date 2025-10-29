@@ -33,7 +33,7 @@ from kodit.domain.services.git_repository_service import (
 from kodit.domain.services.physical_architecture_service import (
     PhysicalArchitectureService,
 )
-from kodit.domain.value_objects import Enrichment, EnrichmentType
+from kodit.domain.value_objects import Enrichment
 from kodit.infrastructure.slicing.slicer import Slicer
 from kodit.infrastructure.sqlalchemy.embedding_repository import (
     create_embedding_repository,
@@ -116,6 +116,7 @@ async def commit_indexing_service(
         enrichment_v2_repository=enrichment_v2_repository,
         enrichment_association_repository=enrichment_association_repository,
         enricher_service=AsyncMock(),
+        enrichment_query_service=AsyncMock(),
     )
 
 
@@ -162,9 +163,7 @@ async def create_test_repository_with_data(
             content="def hello():\n    print('Hello')",
             extension="py",
             enrichments=[
-                Enrichment(
-                    type=EnrichmentType.SUMMARIZATION, content="A simple hello function"
-                )
+                Enrichment(type="summarization", content="A simple hello function")
             ],
         ),
     ]

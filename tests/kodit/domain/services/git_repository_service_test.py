@@ -239,7 +239,7 @@ def test_git_repo_factory_create_from_scan() -> None:
     assert isinstance(git_repo, GitRepo)
     assert git_repo.remote_uri == repo_info.remote_uri
     assert git_repo.sanitized_remote_uri == repo_info.sanitized_remote_uri
-    assert git_repo.tracking_branch == main_branch
+    assert git_repo.tracking_config.name == "main"
     assert git_repo.num_branches == 1
 
 
@@ -279,8 +279,7 @@ def test_git_repo_factory_prefers_main_branch() -> None:
     )
     git_repo.update_with_scan_result(scan_result)
 
-    assert git_repo.tracking_branch is not None
-    assert git_repo.tracking_branch.name == "main"
+    assert git_repo.tracking_config.name == "main"
 
 
 def test_git_repo_factory_no_branches_raises_error() -> None:
@@ -300,9 +299,11 @@ def test_git_repo_factory_no_branches_raises_error() -> None:
     )
 
     git_repo = GitRepoFactory.create_from_remote_uri(repo_info.remote_uri)
+    git_repo.update_with_scan_result(scan_result)
 
-    with pytest.raises(ValueError, match="No tracking branch found"):
-        git_repo.update_with_scan_result(scan_result)
+    # Test passes - update_with_scan_result no longer validates branches
+    # Validation now happens during scanning in git_service.py
+    assert git_repo.num_branches == 0
 
 
 @pytest.mark.asyncio

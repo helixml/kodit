@@ -67,7 +67,6 @@ async def test_get_all_repositories(
         created_at=sample_git_repo.created_at,
         sanitized_remote_uri=AnyUrl("https://github.com/test/repo2"),
         remote_uri=AnyUrl("https://github.com/test/repo2.git"),
-        tracking_branch=None,
         num_commits=1,
         num_branches=1,
         num_tags=1,
