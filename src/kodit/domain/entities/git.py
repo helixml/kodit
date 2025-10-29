@@ -2,13 +2,32 @@
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from enum import StrEnum
 from hashlib import sha256
 from pathlib import Path
 
-from pydantic import AnyUrl, BaseModel
+from pydantic import AnyUrl, BaseModel, Field
 
 from kodit.domain.value_objects import Enrichment, IndexStatus
 from kodit.utils.path_utils import repo_id_from_uri
+
+
+class TrackingType(StrEnum):
+    """Tracking type."""
+
+    BRANCH = "branch"
+    TAG = "tag"
+    COMMIT_SHA = "commit_sha"
+
+
+DEFAULT_TRACKING_BRANCH = "main"
+
+
+class TrackingConfig(BaseModel, frozen=True):
+    """Tracking configuration for a repository."""
+
+    type: str = Field(..., description="The type of tracking to use.")
+    name: str = Field(..., description="The name of the tracking to use.")
 
 
 class GitFile(BaseModel):
@@ -110,11 +129,13 @@ class GitRepo(BaseModel):
 
     # The following may be empty when initially created
     cloned_path: Path | None = None
-    tracking_branch: GitBranch | None = None
     last_scanned_at: datetime | None = None
     num_commits: int = 0  # Total number of commits in this repository
     num_branches: int = 0  # Total number of branches in this repository
     num_tags: int = 0  # Total number of tags in this repository
+    tracking_config: TrackingConfig = TrackingConfig(
+        type=TrackingType.BRANCH, name=DEFAULT_TRACKING_BRANCH
+    )
 
     @staticmethod
     def create_id(sanitized_remote_uri: AnyUrl) -> str:
@@ -123,24 +144,6 @@ class GitRepo(BaseModel):
 
     def update_with_scan_result(self, scan_result: RepositoryScanResult) -> None:
         """Update the GitRepo with a scan result."""
-        # Determine tracking branch (prefer main, then master, then first available)
-        if not self.tracking_branch:
-            tracking_branch = None
-            for preferred_name in ["main", "master"]:
-                tracking_branch = next(
-                    (b for b in scan_result.branches if b.name == preferred_name), None
-                )
-                if tracking_branch:
-                    break
-
-            if not tracking_branch and scan_result.branches:
-                tracking_branch = scan_result.branches[0]
-
-            if not tracking_branch:
-                raise ValueError("No tracking branch found")
-
-            self.tracking_branch = tracking_branch
-
         self.last_scanned_at = datetime.now(UTC)
         self.num_commits = len(scan_result.all_commits)
         self.num_branches = len(scan_result.branches)

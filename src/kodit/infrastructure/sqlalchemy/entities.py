@@ -210,39 +210,32 @@ class GitRepo(Base, CommonMixin):
     num_commits: Mapped[int] = mapped_column(Integer, default=0)
     num_branches: Mapped[int] = mapped_column(Integer, default=0)
     num_tags: Mapped[int] = mapped_column(Integer, default=0)
-    branches: Mapped[list["GitBranch"]] = relationship(
-        "GitBranch", lazy="selectin", foreign_keys="[GitBranch.repo_id]"
-    )
-    tracking_branch: Mapped["GitTrackingBranch | None"] = relationship(
-        "GitTrackingBranch", lazy="selectin", foreign_keys="[GitTrackingBranch.repo_id]"
-    )
+    tracking_type: Mapped[str] = mapped_column(String(255), index=True)
+    tracking_name: Mapped[str] = mapped_column(String(255), index=True)
 
     def __init__(  # noqa: PLR0913
         self,
         sanitized_remote_uri: str,
         remote_uri: str,
+        tracking_type: str,
+        tracking_name: str,
         cloned_path: Path | None,
         last_scanned_at: datetime | None = None,
         num_commits: int = 0,
         num_branches: int = 0,
         num_tags: int = 0,
-        branches: list["GitBranch"] | None = None,
-        tracking_branch: "GitTrackingBranch | None" = None,
     ) -> None:
         """Initialize Git repository."""
-        if branches is None:
-            branches = []
         super().__init__()
         self.sanitized_remote_uri = sanitized_remote_uri
         self.remote_uri = remote_uri
+        self.tracking_type = tracking_type
+        self.tracking_name = tracking_name
         self.cloned_path = cloned_path
         self.last_scanned_at = last_scanned_at
         self.num_commits = num_commits
         self.num_branches = num_branches
         self.num_tags = num_tags
-        self.branches = branches
-        if tracking_branch:
-            self.tracking_branch = tracking_branch
 
 
 class GitCommit(Base):
@@ -325,25 +318,6 @@ class GitBranch(Base):
         self.repo_id = repo_id
         self.name = name
         self.head_commit_sha = head_commit_sha
-
-
-class GitTrackingBranch(Base):
-    """Git tracking branch model."""
-
-    __tablename__ = "git_tracking_branches"
-    repo_id: Mapped[int] = mapped_column(
-        ForeignKey("git_repos.id"), index=True, primary_key=True
-    )
-    name: Mapped[str] = mapped_column(String(255), index=True, primary_key=True)
-    created_at: Mapped[datetime] = mapped_column(
-        TZDateTime, nullable=False, default=lambda: datetime.now(UTC)
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        TZDateTime,
-        nullable=False,
-        default=lambda: datetime.now(UTC),
-        onupdate=lambda: datetime.now(UTC),
-    )
 
 
 class GitTag(Base):

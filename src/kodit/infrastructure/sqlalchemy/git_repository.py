@@ -6,7 +6,7 @@ from typing import Any, override
 from pydantic import AnyUrl
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kodit.domain.entities.git import GitBranch, GitRepo
+from kodit.domain.entities.git import GitRepo, TrackingConfig, TrackingType
 from kodit.domain.protocols import GitRepoRepository
 from kodit.infrastructure.sqlalchemy import entities as db_entities
 from kodit.infrastructure.sqlalchemy.repository import SqlAlchemyRepository
@@ -51,38 +51,11 @@ class SqlAlchemyGitRepoRepository(
                 session.add(db_entity)
 
             await session.flush()
-            # Explicitly load relationships before calling to_domain
-            await db_entity.awaitable_attrs.branches
-            await db_entity.awaitable_attrs.tracking_branch
             return self.to_domain(db_entity)
 
     @staticmethod
     def to_domain(db_entity: db_entities.GitRepo) -> GitRepo:
         """Map database entity to domain entity."""
-        branches = [
-            GitBranch(
-                repo_id=db_entity.id,
-                name=branch.name,
-                head_commit_sha=branch.head_commit_sha,
-                created_at=branch.created_at,
-                updated_at=branch.updated_at,
-            )
-            for branch in db_entity.branches
-        ]
-        tracking_branch = None
-        if db_entity.tracking_branch:
-            branch = next(
-                (b for b in branches if b.name == db_entity.tracking_branch.name),
-                None,
-            )
-            if branch:
-                tracking_branch = GitBranch(
-                    repo_id=db_entity.id,
-                    name=db_entity.tracking_branch.name,
-                    head_commit_sha=branch.head_commit_sha,
-                    created_at=branch.created_at,
-                    updated_at=branch.updated_at,
-                )
         return GitRepo(
             id=db_entity.id,
             sanitized_remote_uri=AnyUrl(db_entity.sanitized_remote_uri),
@@ -92,18 +65,15 @@ class SqlAlchemyGitRepoRepository(
             num_commits=db_entity.num_commits,
             num_branches=db_entity.num_branches,
             num_tags=db_entity.num_tags,
-            tracking_branch=tracking_branch,
+            tracking_config=TrackingConfig(
+                type=TrackingType(db_entity.tracking_type),
+                name=db_entity.tracking_name,
+            ),
         )
 
     @staticmethod
     def to_db(domain_entity: GitRepo) -> db_entities.GitRepo:
         """Map domain entity to database entity."""
-        tracking_branch = None
-        if domain_entity.tracking_branch:
-            tracking_branch = db_entities.GitTrackingBranch(
-                repo_id=domain_entity.id,
-                name=domain_entity.tracking_branch.name,
-            )
         return db_entities.GitRepo(
             sanitized_remote_uri=str(domain_entity.sanitized_remote_uri),
             remote_uri=str(domain_entity.remote_uri),
@@ -112,5 +82,6 @@ class SqlAlchemyGitRepoRepository(
             num_commits=domain_entity.num_commits,
             num_branches=domain_entity.num_branches,
             num_tags=domain_entity.num_tags,
-            tracking_branch=tracking_branch,
+            tracking_type=domain_entity.tracking_config.type,
+            tracking_name=domain_entity.tracking_config.name,
         )

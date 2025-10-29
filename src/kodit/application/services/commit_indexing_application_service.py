@@ -27,7 +27,7 @@ from kodit.domain.enrichments.request import (
     EnrichmentRequest as GenericEnrichmentRequest,
 )
 from kodit.domain.entities import Task
-from kodit.domain.entities.git import GitFile, GitRepo, SnippetV2
+from kodit.domain.entities.git import GitFile, GitRepo, SnippetV2, TrackingType
 from kodit.domain.factories.git_repo_factory import GitRepoFactory
 from kodit.domain.protocols import (
     EnrichmentAssociationRepository,
@@ -247,11 +247,22 @@ class CommitIndexingApplicationService:
                 )
 
             await step.set_current(6, "Enqueuing commit indexing tasks")
-            if not repo.tracking_branch:
+            if not repo.tracking_config.name:
                 raise ValueError(f"Repository {repository_id} has no tracking branch")
-            commit_sha = repo.tracking_branch.head_commit_sha
-            if not commit_sha:
-                raise ValueError(f"Repository {repository_id} has no head commit")
+            if repo.tracking_config.type == TrackingType.BRANCH.value:
+                branch = await self.git_branch_repository.get_by_name(
+                    repo.tracking_config.name, repository_id
+                )
+                commit_sha = branch.head_commit_sha
+            elif repo.tracking_config.type == TrackingType.TAG.value:
+                tag = await self.git_tag_repository.get_by_name(
+                    repo.tracking_config.name, repository_id
+                )
+                commit_sha = tag.target_commit_sha
+            elif repo.tracking_config.type == TrackingType.COMMIT_SHA.value:
+                commit_sha = repo.tracking_config.name
+            else:
+                raise ValueError(f"Unknown tracking type: {repo.tracking_config.type}")
 
             await self.queue.enqueue_tasks(
                 tasks=PrescribedOperations.INDEX_COMMIT,
@@ -267,9 +278,7 @@ class CommitIndexingApplicationService:
         all_snippet_enrichment_ids = []
         for commit_sha in commit_shas:
             snippet_enrichments = (
-                await self.enrichment_query_service.get_snippets_for_commit(
-                    commit_sha
-                )
+                await self.enrichment_query_service.get_snippets_for_commit(commit_sha)
             )
             enrichment_ids = [
                 enrichment.id for enrichment in snippet_enrichments if enrichment.id
@@ -525,14 +534,12 @@ class CommitIndexingApplicationService:
             trackable_type=TrackableType.KODIT_REPOSITORY,
             trackable_id=repository_id,
         ) as step:
-            if await self.enrichment_query_service.has_summaries_for_commit(
-                commit_sha
-            ):
+            if await self.enrichment_query_service.has_summaries_for_commit(commit_sha):
                 await step.skip("Summary enrichments already exist for commit")
                 return
 
-            all_snippets = (
-                await self.enrichment_query_service.get_snippets_for_commit(commit_sha)
+            all_snippets = await self.enrichment_query_service.get_snippets_for_commit(
+                commit_sha
             )
             if not all_snippets:
                 await step.skip("No snippets to enrich")
@@ -780,5 +787,3 @@ class CommitIndexingApplicationService:
         return [
             s for s in all_snippets if s.id not in existing_embeddings_by_snippet_id
         ]
-
-
