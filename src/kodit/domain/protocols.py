@@ -261,10 +261,6 @@ class EnrichmentV2Repository(Repository[EnrichmentV2]):
         """Get enrichments for a commit, optionally filtered by type/subtype."""
 
     @abstractmethod
-    async def get_by_ids(self, enrichment_ids: list[int]) -> list[EnrichmentV2]:
-        """Get enrichments by their IDs."""
-
-    @abstractmethod
     async def get_pointing_to_enrichments(
         self, target_enrichment_ids: list[int]
     ) -> dict[int, list[EnrichmentV2]]:

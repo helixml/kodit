@@ -10,7 +10,7 @@ from kodit.domain.enrichments.enrichment import (
 ENRICHMENT_TYPE_ARCHITECTURE = "architecture"
 
 
-@dataclass
+@dataclass(frozen=True)
 class ArchitectureEnrichment(CommitEnrichment, ABC):
     """Enrichment containing physical architecture discovery for a commit."""
 

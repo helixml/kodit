@@ -3,10 +3,12 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import Any, Self
 
 from sqlalchemy import Select
 
+from kodit.domain.enrichments.enrichment import EnrichmentV2
+from kodit.infrastructure.api.v1.query_params import PaginationParams
 from kodit.infrastructure.sqlalchemy import entities as db_entities
 
 
@@ -108,7 +110,7 @@ class QueryBuilder(Query):
     DEFAULT_LIMIT = 10
     DEFAULT_OFFSET = 0
     DEFAULT_SORT_FIELD = "created_at"
-    DEFAULT_SORT_DESCENDING = True
+    DEFAULT_SORT_DESCENDING = False
 
     def __init__(self) -> None:
         """Initialize query builder."""
@@ -118,21 +120,21 @@ class QueryBuilder(Query):
             limit=self.DEFAULT_LIMIT, offset=self.DEFAULT_OFFSET
         )
 
-    def filter(
-        self, field: str, operator: FilterOperator, value: Any
-    ) -> "QueryBuilder":
+    def filter(self, field: str, operator: FilterOperator, value: Any) -> Self:
         """Add a filter criterion."""
         self._filters.append(FilterCriteria(field, operator, value))
         return self
 
-    def sort(self, field: str, *, descending: bool = False) -> "QueryBuilder":
+    def sort(self, field: str, *, descending: bool = False) -> Self:
         """Add a sort criterion."""
         self._sorts.append(SortCriteria(field, descending))
         return self
 
-    def paginate(self, limit: int, offset: int = 0) -> "QueryBuilder":
+    def paginate(self, pagination: PaginationParams) -> Self:
         """Add pagination."""
-        self._pagination = PaginationCriteria(limit, offset)
+        self._pagination = PaginationCriteria(
+            limit=pagination.limit, offset=pagination.offset
+        )
         return self
 
     def apply(self, stmt: Select, model_type: type) -> Select:
@@ -158,6 +160,37 @@ class QueryBuilder(Query):
 
 class EnrichmentAssociationQueryBuilder(QueryBuilder):
     """Query builder for enrichment association entities."""
+
+    def for_ids(self, enrichment_ids: list[int]) -> Self:
+        """Build a query for enrichments by their IDs."""
+        self.filter(
+            db_entities.EnrichmentAssociation.id.key,
+            FilterOperator.IN,
+            enrichment_ids,
+        )
+        return self
+
+    def for_enrichments(self, enrichments: list[EnrichmentV2]) -> Self:
+        """Build a query for enrichment associations by entity IDs."""
+        self.filter(
+            db_entities.EnrichmentAssociation.enrichment_id.key,
+            FilterOperator.IN,
+            [enrichment.id for enrichment in enrichments if enrichment.id is not None],
+        )
+        return self
+
+    def for_enrichment_type(self) -> Self:
+        """Build a query for enrichment types."""
+        return self.for_entity_type(db_entities.EnrichmentV2.__tablename__)
+
+    def for_entity_type(self, entity_type: str) -> Self:
+        """Build a query for enrichment associations by entity type."""
+        self.filter(
+            db_entities.EnrichmentAssociation.entity_type.key,
+            FilterOperator.EQ,
+            entity_type,
+        )
+        return self
 
     @staticmethod
     def for_enrichment_association(
@@ -219,23 +252,60 @@ class EnrichmentAssociationQueryBuilder(QueryBuilder):
             enrichment_ids=enrichment_ids,
         )
 
+    def for_commit(self, commit_sha: str) -> Self:
+        """Build a query for enrichment associations for a commit."""
+        self.filter(
+            db_entities.EnrichmentAssociation.entity_type.key,
+            FilterOperator.EQ,
+            db_entities.GitCommit.__tablename__,
+        )
+        self.filter(
+            db_entities.EnrichmentAssociation.entity_id.key,
+            FilterOperator.EQ,
+            commit_sha,
+        )
+        return self
+
 
 class EnrichmentQueryBuilder(QueryBuilder):
     """Query builder for enrichment entities."""
 
-    @staticmethod
-    def for_enrichment(enrichment_type: str, enrichment_subtype: str) -> QueryBuilder:
-        """Build a query for a specific enrichment."""
-        return (
-            QueryBuilder()
-            .filter(
-                "type",
-                FilterOperator.EQ,
-                enrichment_type,
-            )
-            .filter(
-                "subtype",
-                FilterOperator.EQ,
-                enrichment_subtype,
-            )
+    def for_ids(self, enrichment_ids: list[int]) -> Self:
+        """Build a query for enrichments by their IDs."""
+        self.filter(
+            db_entities.EnrichmentV2.id.key,
+            FilterOperator.IN,
+            enrichment_ids,
         )
+        return self
+
+    def for_type(self, enrichment_type: str) -> Self:
+        """Build a query for enrichments by their type."""
+        self.filter(
+            db_entities.EnrichmentV2.type.key,
+            FilterOperator.EQ,
+            enrichment_type,
+        )
+        return self
+
+    def for_subtype(self, enrichment_subtype: str) -> Self:
+        """Build a query for enrichments by their subtype."""
+        self.filter(
+            db_entities.EnrichmentV2.subtype.key,
+            FilterOperator.EQ,
+            enrichment_subtype,
+        )
+        return self
+
+
+class GitFileQueryBuilder(QueryBuilder):
+    """Query builder for git file entities."""
+
+    def for_commit_sha(self, commit_sha: str) -> Self:
+        """Build a query for git files by their commit SHA."""
+        self.filter(
+            db_entities.GitCommitFile.commit_sha.key,
+            FilterOperator.EQ,
+            commit_sha,
+        )
+        return self

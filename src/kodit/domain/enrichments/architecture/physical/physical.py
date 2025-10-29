@@ -7,7 +7,7 @@ from kodit.domain.enrichments.architecture.architecture import ArchitectureEnric
 ENRICHMENT_SUBTYPE_PHYSICAL = "physical"
 
 
-@dataclass
+@dataclass(frozen=True)
 class PhysicalArchitectureEnrichment(ArchitectureEnrichment):
     """Enrichment containing physical architecture discovery for a commit."""
 

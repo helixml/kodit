@@ -340,7 +340,7 @@ async def list_repository_enrichments(  # noqa: PLR0913
         return EnrichmentListResponse(data=[])
 
     # Get enrichments for the commit
-    enrichments = await enrichment_query_service.get_enrichments_for_commit(
+    enrichments = await enrichment_query_service.all_enrichments_for_commit(
         commit_sha=enriched_commit,
         enrichment_type=enrichment_type,
     )

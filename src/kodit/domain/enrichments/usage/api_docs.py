@@ -7,7 +7,7 @@ from kodit.domain.enrichments.usage.usage import UsageEnrichment
 ENRICHMENT_SUBTYPE_API_DOCS = "api_docs"
 
 
-@dataclass
+@dataclass(frozen=True)
 class APIDocEnrichment(UsageEnrichment):
     """API documentation enrichment for a module."""
 

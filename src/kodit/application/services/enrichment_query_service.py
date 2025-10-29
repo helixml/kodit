@@ -22,6 +22,12 @@ from kodit.domain.protocols import (
 )
 from kodit.domain.tracking.resolution_service import TrackableResolutionService
 from kodit.domain.tracking.trackable import Trackable
+from kodit.infrastructure.api.v1.query_params import PaginationParams
+from kodit.infrastructure.sqlalchemy import entities as db_entities
+from kodit.infrastructure.sqlalchemy.query import (
+    EnrichmentAssociationQueryBuilder,
+    EnrichmentQueryBuilder,
+)
 
 
 class EnrichmentQueryService:
@@ -38,6 +44,17 @@ class EnrichmentQueryService:
         self.enrichment_repo = enrichment_repo
         self.enrichment_association_repository = enrichment_association_repository
         self.log = structlog.get_logger(__name__)
+
+    async def associations_for_commit(
+        self, commit_sha: str
+    ) -> list[EnrichmentAssociation]:
+        """Get enrichments for a commit."""
+        return await self.enrichment_association_repository.find(
+            EnrichmentAssociationQueryBuilder.for_enrichment_associations(
+                entity_type=db_entities.GitCommit.__tablename__,
+                entity_ids=[commit_sha],
+            )
+        )
 
     async def find_latest_enriched_commit(
         self,
@@ -64,15 +81,35 @@ class EnrichmentQueryService:
 
         return None
 
-    async def get_enrichments_for_commit(
+    async def all_enrichments_for_commit(
         self,
         commit_sha: str,
+        pagination: PaginationParams,
         enrichment_type: str | None = None,
-    ) -> list[EnrichmentV2]:
+    ) -> dict[EnrichmentV2, list[EnrichmentAssociation]]:
         """Get all enrichments for a specific commit."""
-        return await self.enrichment_repo.get_for_commit(
-            commit_sha, enrichment_type=enrichment_type
+        associations = await self.enrichment_association_repository.find(
+            EnrichmentAssociationQueryBuilder().for_commit(commit_sha)
         )
+        enrichment_ids = [association.enrichment_id for association in associations]
+        query = EnrichmentQueryBuilder().for_ids(enrichment_ids).paginate(pagination)
+        if enrichment_type:
+            query = query.for_type(enrichment_type)
+        enrichments = await self.enrichment_repo.find(query)
+        # Find all other associations for these enrichments
+        other_associations = await self.enrichment_association_repository.find(
+            EnrichmentAssociationQueryBuilder().for_enrichments(enrichments)
+        )
+        all_associations = set(associations + other_associations)
+        return {
+            enrichment: [
+                association
+                for association in all_associations
+                if association.enrichment_id == enrichment.id
+                or association.entity_id == str(enrichment.id)
+            ]
+            for enrichment in enrichments
+        }
 
     async def get_snippets_for_commit(self, commit_sha: str) -> list[EnrichmentV2]:
         """Get snippet enrichments for a commit."""

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 
-@dataclass
+@dataclass(frozen=True)
 class EnrichmentV2(ABC):
     """Generic enrichment that can be attached to any entity."""
 
@@ -29,7 +29,7 @@ class EnrichmentV2(ABC):
         """Return the entity type key this enrichment is for."""
 
 
-@dataclass
+@dataclass(frozen=True)
 class CommitEnrichment(EnrichmentV2, ABC):
     """Enrichment specific to commits."""
 
@@ -38,7 +38,7 @@ class CommitEnrichment(EnrichmentV2, ABC):
         return "git_commit"
 
 
-@dataclass
+@dataclass(frozen=True)
 class EnrichmentAssociation:
     """Association between an enrichment and an entity."""
 

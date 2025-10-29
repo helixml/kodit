@@ -8,7 +8,7 @@ ENRICHMENT_SUBTYPE_SNIPPET_SUMMARY = "snippet_summary"
 ENRICHMENT_SUBTYPE_SNIPPET = "snippet"
 
 
-@dataclass
+@dataclass(frozen=True)
 class SnippetEnrichmentSummary(DevelopmentEnrichment):
     """Enrichment specific to code snippets."""
 
@@ -18,7 +18,7 @@ class SnippetEnrichmentSummary(DevelopmentEnrichment):
         return ENRICHMENT_SUBTYPE_SNIPPET_SUMMARY
 
 
-@dataclass
+@dataclass(frozen=True)
 class SnippetEnrichment(DevelopmentEnrichment):
     """Enrichment specific to code snippets."""
 

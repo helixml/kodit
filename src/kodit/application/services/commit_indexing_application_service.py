@@ -229,7 +229,8 @@ class CommitIndexingApplicationService:
             all_files = [
                 file for commit in scan_result.all_commits for file in commit.files
             ]
-            await self.git_file_repository.save_bulk(all_files)
+            git_files = await self.git_file_repository.save_bulk(all_files)
+            self._log.info("saved_git_files", git_files=git_files)
 
             await step.set_current(3, "Saving commits")
             await self.git_commit_repository.save_bulk(scan_result.all_commits)
@@ -575,6 +576,13 @@ class CommitIndexingApplicationService:
                         enrichment_id=db_summary.id,
                         entity_type=db_entities.EnrichmentV2.__tablename__,
                         entity_id=str(snippet.id),
+                    )
+                )
+                await self.enrichment_association_repository.save(
+                    EnrichmentAssociation(
+                        enrichment_id=db_summary.id,
+                        entity_type=db_entities.GitCommit.__tablename__,
+                        entity_id=commit_sha,
                     )
                 )
                 processed += 1

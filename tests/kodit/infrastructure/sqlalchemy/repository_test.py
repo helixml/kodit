@@ -9,6 +9,7 @@ from sqlalchemy import Integer, String
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
 
+from kodit.infrastructure.api.v1.query_params import PaginationParams
 from kodit.infrastructure.sqlalchemy.entities import Base
 from kodit.infrastructure.sqlalchemy.query import FilterOperator, QueryBuilder
 from kodit.infrastructure.sqlalchemy.repository import SqlAlchemyRepository
@@ -390,7 +391,7 @@ class TestFind:
         await repository.save_bulk(entities)
 
         # Query with limit
-        query = QueryBuilder().paginate(limit=5)
+        query = QueryBuilder().paginate(PaginationParams(page_size=5))
         found = await repository.find(query)
 
         assert len(found) == 5

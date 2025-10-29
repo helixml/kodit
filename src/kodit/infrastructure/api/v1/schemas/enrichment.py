@@ -15,12 +15,26 @@ class EnrichmentAttributes(BaseModel):
     updated_at: datetime | None
 
 
+class EnrichmentAssociationData(BaseModel):
+    """Enrichment association data for JSON-API spec."""
+
+    id: str
+    type: str
+
+
+class EnrichmentRelationships(BaseModel):
+    """Enrichment relationships for JSON-API spec."""
+
+    associations: list[EnrichmentAssociationData] | None = None
+
+
 class EnrichmentData(BaseModel):
     """Enrichment data following JSON-API spec."""
 
     type: str = "enrichment"
     id: str
     attributes: EnrichmentAttributes
+    relationships: EnrichmentRelationships | None = None
 
 
 class EnrichmentListResponse(BaseModel):

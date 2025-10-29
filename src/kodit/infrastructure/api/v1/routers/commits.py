@@ -4,9 +4,11 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from kodit.domain.entities.git import GitFile
 from kodit.infrastructure.api.middleware.auth import api_key_auth
 from kodit.infrastructure.api.v1.dependencies import (
     GitCommitRepositoryDep,
+    GitFileRepositoryDep,
     ServerFactoryDep,
 )
 from kodit.infrastructure.api.v1.query_params import PaginationParamsDep
@@ -24,9 +26,11 @@ from kodit.infrastructure.api.v1.schemas.commit import (
     FileResponse,
 )
 from kodit.infrastructure.api.v1.schemas.enrichment import (
+    EnrichmentAssociationData,
     EnrichmentAttributes,
     EnrichmentData,
     EnrichmentListResponse,
+    EnrichmentRelationships,
 )
 from kodit.infrastructure.api.v1.schemas.snippet import (
     EnrichmentSchema,
@@ -36,7 +40,11 @@ from kodit.infrastructure.api.v1.schemas.snippet import (
     SnippetData,
     SnippetListResponse,
 )
-from kodit.infrastructure.sqlalchemy.query import FilterOperator, QueryBuilder
+from kodit.infrastructure.sqlalchemy.query import (
+    FilterOperator,
+    GitFileQueryBuilder,
+    QueryBuilder,
+)
 
 router = APIRouter(
     prefix="/api/v1/repositories",
@@ -61,9 +69,7 @@ async def list_repository_commits(
         commits = await git_commit_repository.find(
             QueryBuilder()
             .filter("repo_id", FilterOperator.EQ, int(repo_id))
-            .paginate(
-                limit=pagination_params.page_size, offset=pagination_params.offset
-            )
+            .paginate(pagination_params)
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail="Repository not found") from e
@@ -122,19 +128,17 @@ async def get_repository_commit(
 async def list_commit_files(
     repo_id: str,  # noqa: ARG001
     commit_sha: str,
-    git_commit_repository: GitCommitRepositoryDep,
+    git_file_repository: GitFileRepositoryDep,
+    pagination: PaginationParamsDep,
 ) -> FileListResponse:
     """List all files in a specific commit."""
-    try:
-        # Get the specific commit directly from commit repository
-        commit = await git_commit_repository.get(commit_sha)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail="Commit not found") from e
-
+    files = await git_file_repository.find(
+        GitFileQueryBuilder().for_commit_sha(commit_sha).paginate(pagination)
+    )
     return FileListResponse(
         data=[
             FileData(
-                type="file",
+                type=GitFile.__name__,
                 id=file.blob_sha,
                 attributes=FileAttributes(
                     blob_sha=file.blob_sha,
@@ -144,7 +148,7 @@ async def list_commit_files(
                     extension=file.extension,
                 ),
             )
-            for file in commit.files
+            for file in files
         ]
     )
 
@@ -306,13 +310,18 @@ async def list_commit_enrichments(
     commit_sha: str,
     server_factory: ServerFactoryDep,
     pagination_params: PaginationParamsDep,
+    enrichment_type: str | None = None,
 ) -> EnrichmentListResponse:
     """List all enrichments for a specific commit."""
     # TODO(Phil): Should use repo too, it's confusing to the user when they specify the
     # wrong commit and another repo. It's like they are seeing results from the other
     # repo.
     enrichment_query_service = server_factory.enrichment_query_service()
-    enrichments = await enrichment_query_service.get_enrichments_for_commit(commit_sha)
+    enrichments = await enrichment_query_service.all_enrichments_for_commit(
+        commit_sha=commit_sha,
+        pagination=pagination_params,
+        enrichment_type=enrichment_type,
+    )
 
     return EnrichmentListResponse(
         data=[
@@ -326,8 +335,17 @@ async def list_commit_enrichments(
                     created_at=enrichment.created_at,
                     updated_at=enrichment.updated_at,
                 ),
+                relationships=EnrichmentRelationships(
+                    associations=[
+                        EnrichmentAssociationData(
+                            id=association.entity_id,
+                            type=association.entity_type,
+                        )
+                        for association in associations
+                    ],
+                ),
             )
-            for enrichment in enrichments
+            for enrichment, associations in enrichments.items()
         ]
     )
 

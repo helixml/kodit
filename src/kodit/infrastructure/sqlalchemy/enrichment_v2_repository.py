@@ -26,6 +26,9 @@ from kodit.domain.enrichments.usage.api_docs import (
 from kodit.domain.enrichments.usage.usage import ENRICHMENT_TYPE_USAGE
 from kodit.domain.protocols import EnrichmentV2Repository
 from kodit.infrastructure.sqlalchemy import entities as db_entities
+from kodit.infrastructure.sqlalchemy.enrichment_association_repository import (
+    SQLAlchemyEnrichmentAssociationRepository,
+)
 from kodit.infrastructure.sqlalchemy.repository import SqlAlchemyRepository
 from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 
@@ -145,13 +148,7 @@ class SQLAlchemyEnrichmentV2Repository(
 
         # Get associations for this commit
         async with SqlAlchemyUnitOfWork(self.session_factory):
-            from kodit.infrastructure.sqlalchemy.enrichment_association_repository import (  # noqa: E501
-                SQLAlchemyEnrichmentAssociationRepository,
-            )
-
-            assoc_repo = SQLAlchemyEnrichmentAssociationRepository(
-                self.session_factory
-            )
+            assoc_repo = SQLAlchemyEnrichmentAssociationRepository(self.session_factory)
             associations = await assoc_repo.associations_for_commit(commit_sha)
 
             if not associations:
@@ -177,24 +174,6 @@ class SQLAlchemyEnrichmentV2Repository(
                 )
 
             return await self.find(query)
-
-    async def get_by_ids(self, enrichment_ids: list[int]) -> list[EnrichmentV2]:
-        """Get enrichments by their IDs."""
-        if not enrichment_ids:
-            return []
-
-        from kodit.infrastructure.sqlalchemy.query import (
-            FilterOperator,
-            QueryBuilder,
-        )
-
-        return await self.find(
-            QueryBuilder().filter(
-                db_entities.EnrichmentV2.id.key,
-                FilterOperator.IN,
-                enrichment_ids,
-            )
-        )
 
     async def get_pointing_to_enrichments(
         self, target_enrichment_ids: list[int]
