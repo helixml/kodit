@@ -38,8 +38,8 @@ class TestSqlAlchemyEmbeddingRepository:
         # Verify the embedding was added
         # (not the exact same object due to to_db mapping)
         assert mock_session.add.call_count == 1
-        # Verify get was called to check for existing entity
-        mock_session.get.assert_called_once()
+        # Verify get was NOT called since the entity has no ID (None)
+        mock_session.get.assert_not_called()
         # Verify flush was called
         mock_session.flush.assert_called_once()
 

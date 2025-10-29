@@ -89,7 +89,12 @@ class SqlAlchemyRepository(ABC, Generic[DomainEntityType, DatabaseEntityType]):
         """Save entity (create new or update existing)."""
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             entity_id = self._get_id(entity)
-            existing_db_entity = await session.get(self.db_entity_type, entity_id)
+            # Skip session.get if entity_id is None (new entity not yet persisted)
+            existing_db_entity = (
+                await session.get(self.db_entity_type, entity_id)
+                if entity_id is not None
+                else None
+            )
 
             if existing_db_entity:
                 # Update existing entity
@@ -118,6 +123,9 @@ class SqlAlchemyRepository(ABC, Generic[DomainEntityType, DatabaseEntityType]):
                 # Fetch all existing entities in one query
                 existing_entities = {}
                 for entity_id in entity_ids:
+                    # Skip None IDs (new entities not yet persisted)
+                    if entity_id is None:
+                        continue
                     existing = await session.get(self.db_entity_type, entity_id)
                     if existing:
                         existing_entities[entity_id] = existing

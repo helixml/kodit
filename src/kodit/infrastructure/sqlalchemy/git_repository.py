@@ -38,7 +38,12 @@ class SqlAlchemyGitRepoRepository(
         """Save entity (create new or update existing)."""
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             entity_id = self._get_id(entity)
-            existing_db_entity = await session.get(self.db_entity_type, entity_id)
+            # Skip session.get if entity_id is None (new entity not yet persisted)
+            existing_db_entity = (
+                await session.get(self.db_entity_type, entity_id)
+                if entity_id is not None
+                else None
+            )
 
             if existing_db_entity:
                 # Update existing entity
