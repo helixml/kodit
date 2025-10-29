@@ -1,6 +1,8 @@
 """Repository management router for the REST API."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from kodit.domain.tracking.trackable import Trackable, TrackableReferenceType
 from kodit.infrastructure.api.middleware.auth import api_key_auth
@@ -13,6 +15,7 @@ from kodit.infrastructure.api.v1.dependencies import (
     GitTagRepositoryDep,
     TaskStatusQueryServiceDep,
 )
+from kodit.infrastructure.api.v1.query_params import PaginationParamsDep
 from kodit.infrastructure.api.v1.schemas.enrichment import (
     EnrichmentAttributes,
     EnrichmentData,
@@ -285,10 +288,16 @@ async def list_repository_enrichments(  # noqa: PLR0913
     repo_id: str,
     git_repository: GitRepositoryDep,
     enrichment_query_service: EnrichmentQueryServiceDep,
+    pagination: PaginationParamsDep,
     ref_type: str = "branch",
     ref_name: str | None = None,
     enrichment_type: str | None = None,
-    limit: int = 10,
+    max_commits_to_check: Annotated[
+        int,
+        Query(
+            description="Number of recent commits to search for recent enriched commits"
+        ),
+    ] = 10,
 ) -> EnrichmentListResponse:
     """List the most recent enrichments for a repository.
 
@@ -332,7 +341,7 @@ async def list_repository_enrichments(  # noqa: PLR0913
     enriched_commit = await enrichment_query_service.find_latest_enriched_commit(
         trackable=trackable,
         enrichment_type=enrichment_type,
-        max_commits_to_check=limit * 10,  # Check more commits to find enriched ones
+        max_commits_to_check=max_commits_to_check,
     )
 
     # If no enriched commit found, return empty list
@@ -343,6 +352,7 @@ async def list_repository_enrichments(  # noqa: PLR0913
     enrichments = await enrichment_query_service.all_enrichments_for_commit(
         commit_sha=enriched_commit,
         enrichment_type=enrichment_type,
+        pagination=pagination,
     )
 
     # Map enrichments to API response format

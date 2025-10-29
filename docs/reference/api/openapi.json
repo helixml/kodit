@@ -197,6 +197,33 @@
               "type": "string",
               "title": "Repo Id"
             }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page number, starting from 1",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number, starting from 1"
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Items per page",
+              "default": 20,
+              "title": "Page Size"
+            },
+            "description": "Items per page"
           }
         ],
         "responses": {
@@ -312,6 +339,33 @@
               "type": "string",
               "title": "Commit Sha"
             }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page number, starting from 1",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number, starting from 1"
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Items per page",
+              "default": 20,
+              "title": "Page Size"
+            },
+            "description": "Items per page"
           }
         ],
         "responses": {
@@ -566,6 +620,49 @@
               "type": "string",
               "title": "Commit Sha"
             }
+          },
+          {
+            "name": "enrichment_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Enrichment Type"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page number, starting from 1",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number, starting from 1"
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Items per page",
+              "default": 20,
+              "title": "Page Size"
+            },
+            "description": "Items per page"
           }
         ],
         "responses": {
@@ -1101,14 +1198,43 @@
             }
           },
           {
-            "name": "limit",
+            "name": "max_commits_to_check",
             "in": "query",
             "required": false,
             "schema": {
               "type": "integer",
+              "description": "Number of recent commits to search for recent enriched commits",
               "default": 10,
-              "title": "Limit"
-            }
+              "title": "Max Commits To Check"
+            },
+            "description": "Number of recent commits to search for recent enriched commits"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page number, starting from 1",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number, starting from 1"
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Items per page",
+              "default": 20,
+              "title": "Page Size"
+            },
+            "description": "Items per page"
           }
         ],
         "responses": {
@@ -1295,6 +1421,25 @@
         "title": "EmbeddingListResponse",
         "description": "Embedding list response following JSON-API spec."
       },
+      "EnrichmentAssociationData": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "type"
+        ],
+        "title": "EnrichmentAssociationData",
+        "description": "Enrichment association data for JSON-API spec."
+      },
       "EnrichmentAttributes": {
         "properties": {
           "type": {
@@ -1365,6 +1510,16 @@
           },
           "attributes": {
             "$ref": "#/components/schemas/EnrichmentAttributes"
+          },
+          "relationships": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EnrichmentRelationships"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -1391,6 +1546,27 @@
         ],
         "title": "EnrichmentListResponse",
         "description": "Enrichment list response following JSON-API spec."
+      },
+      "EnrichmentRelationships": {
+        "properties": {
+          "associations": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/EnrichmentAssociationData"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Associations"
+          }
+        },
+        "type": "object",
+        "title": "EnrichmentRelationships",
+        "description": "Enrichment relationships for JSON-API spec."
       },
       "EnrichmentSchema": {
         "properties": {

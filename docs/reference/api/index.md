@@ -121,6 +121,8 @@ List all commits for a repository.
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | repo_id | string | True |  |
+| page | integer | False | Page number, starting from 1 |
+| page_size | integer | False | Items per page |
 
 
 #### Responses
@@ -173,6 +175,8 @@ List all files in a specific commit.
 |------|------|----------|-------------|
 | repo_id | string | True |  |
 | commit_sha | string | True |  |
+| page | integer | False | Page number, starting from 1 |
+| page_size | integer | False | Items per page |
 
 
 #### Responses
@@ -281,6 +285,9 @@ List all enrichments for a specific commit.
 |------|------|----------|-------------|
 | repo_id | string | True |  |
 | commit_sha | string | True |  |
+| enrichment_type |  | False |  |
+| page | integer | False | Page number, starting from 1 |
+| page_size | integer | False | Items per page |
 
 
 #### Responses
@@ -535,7 +542,9 @@ Query parameters:
 | ref_type | string | False |  |
 | ref_name |  | False |  |
 | enrichment_type |  | False |  |
-| limit | integer | False |  |
+| max_commits_to_check | integer | False | Number of recent commits to search for recent enriched commits |
+| page | integer | False | Page number, starting from 1 |
+| page_size | integer | False | Items per page |
 
 
 #### Responses
@@ -643,6 +652,18 @@ Embedding list response following JSON-API spec.
 | data | array |  |
 
 
+### EnrichmentAssociationData
+
+
+Enrichment association data for JSON-API spec.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| id | string |  |
+| type | string |  |
+
+
 ### EnrichmentAttributes
 
 
@@ -669,6 +690,7 @@ Enrichment data following JSON-API spec.
 | type | string |  |
 | id | string |  |
 | attributes |  |  |
+| relationships |  |  |
 
 
 ### EnrichmentListResponse
@@ -680,6 +702,17 @@ Enrichment list response following JSON-API spec.
 | Field | Type | Description |
 |-------|------|-------------|
 | data | array |  |
+
+
+### EnrichmentRelationships
+
+
+Enrichment relationships for JSON-API spec.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| associations |  |  |
 
 
 ### EnrichmentSchema

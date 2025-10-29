@@ -157,7 +157,9 @@ class EnrichmentQueryService:
         self, enrichment_ids: list[int]
     ) -> list[EnrichmentV2]:
         """Get enrichments by their IDs."""
-        return await self.enrichment_repo.get_by_ids(enrichment_ids)
+        return await self.enrichment_repo.find(
+            EnrichmentQueryBuilder().for_ids(enrichment_ids=enrichment_ids)
+        )
 
     async def has_snippets_for_commit(self, commit_sha: str) -> bool:
         """Check if a commit has snippet enrichments."""
@@ -207,6 +209,32 @@ class EnrichmentQueryService:
         self, target_enrichment_ids: list[int]
     ) -> dict[int, list[EnrichmentV2]]:
         """Get enrichments that point to the given enrichments, grouped by target."""
-        return await self.enrichment_repo.get_pointing_to_enrichments(
-            target_enrichment_ids
+        # Get associations pointing to these enrichments
+        associations = (
+            await self.enrichment_association_repository.pointing_to_enrichments(
+                target_enrichment_ids
+            )
         )
+
+        if not associations:
+            return {eid: [] for eid in target_enrichment_ids}
+
+        # Get the enrichments referenced by these associations
+        enrichment_ids = [a.enrichment_id for a in associations]
+        enrichments = await self.enrichment_repo.find(
+            EnrichmentQueryBuilder().for_ids(enrichment_ids=enrichment_ids)
+        )
+
+        # Create lookup map
+        enrichment_map = {e.id: e for e in enrichments if e.id is not None}
+
+        # Group by target enrichment ID
+        result: dict[int, list[EnrichmentV2]] = {
+            eid: [] for eid in target_enrichment_ids
+        }
+        for association in associations:
+            target_id = int(association.entity_id)
+            if target_id in result and association.enrichment_id in enrichment_map:
+                result[target_id].append(enrichment_map[association.enrichment_id])
+
+        return result
