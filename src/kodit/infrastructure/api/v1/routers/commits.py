@@ -303,12 +303,8 @@ async def list_commit_enrichments(
     # TODO(Phil): Should use repo too, it's confusing to the user when they specify the
     # wrong commit and another repo. It's like they are seeing results from the other
     # repo.
-    enrichment_v2_repository = server_factory.enrichment_v2_repository()
-    enrichments = await enrichment_v2_repository.find(
-        QueryBuilder()
-        .filter("entity_type", FilterOperator.EQ, "git_commit")
-        .filter("entity_id", FilterOperator.EQ, commit_sha)
-    )
+    enrichment_query_service = server_factory.enrichment_query_service()
+    enrichments = await enrichment_query_service.get_enrichments_for_commit(commit_sha)
 
     return EnrichmentListResponse(
         data=[

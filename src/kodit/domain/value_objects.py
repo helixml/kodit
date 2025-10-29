@@ -25,18 +25,11 @@ class SnippetContentType(StrEnum):
     SUMMARY = "summary"
 
 
-class EnrichmentType(StrEnum):
-    """Type of enrichment."""
-
-    UNKNOWN = "unknown"
-    SUMMARIZATION = "summarization"
-
-
 @dataclass(frozen=True)
 class Enrichment:
     """Enrichment domain value object."""
 
-    type: EnrichmentType
+    type: str
     content: str
 
 

@@ -2,23 +2,22 @@
 
 from collections import defaultdict
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import structlog
 from pydantic import AnyUrl
 
 from kodit.application.services.queue_service import QueueService
 from kodit.application.services.reporting import ProgressTracker
-from kodit.domain.enrichments.architecture.architecture import (
-    ENRICHMENT_TYPE_ARCHITECTURE,
-)
+
+if TYPE_CHECKING:
+    from kodit.application.services.enrichment_query_service import (
+        EnrichmentQueryService,
+    )
 from kodit.domain.enrichments.architecture.physical.physical import (
-    ENRICHMENT_SUBTYPE_PHYSICAL,
     PhysicalArchitectureEnrichment,
 )
-from kodit.domain.enrichments.development.development import ENRICHMENT_TYPE_DEVELOPMENT
 from kodit.domain.enrichments.development.snippet.snippet import (
-    ENRICHMENT_SUBTYPE_SNIPPET,
-    ENRICHMENT_SUBTYPE_SNIPPET_SUMMARY,
     SnippetEnrichment,
     SnippetEnrichmentSummary,
 )
@@ -27,8 +26,6 @@ from kodit.domain.enrichments.enrichment import EnrichmentAssociation, Enrichmen
 from kodit.domain.enrichments.request import (
     EnrichmentRequest as GenericEnrichmentRequest,
 )
-from kodit.domain.enrichments.usage.api_docs import ENRICHMENT_SUBTYPE_API_DOCS
-from kodit.domain.enrichments.usage.usage import ENRICHMENT_TYPE_USAGE
 from kodit.domain.entities import Task
 from kodit.domain.entities.git import GitFile, GitRepo, SnippetV2
 from kodit.domain.factories.git_repo_factory import GitRepoFactory
@@ -71,7 +68,6 @@ from kodit.infrastructure.sqlalchemy.embedding_repository import (
 from kodit.infrastructure.sqlalchemy.entities import EmbeddingType
 from kodit.infrastructure.sqlalchemy.query import (
     EnrichmentAssociationQueryBuilder,
-    EnrichmentQueryBuilder,
     FilterOperator,
     QueryBuilder,
 )
@@ -105,17 +101,9 @@ class CommitIndexingApplicationService:
         enricher_service: Enricher,
         enrichment_v2_repository: EnrichmentV2Repository,
         enrichment_association_repository: EnrichmentAssociationRepository,
+        enrichment_query_service: "EnrichmentQueryService",
     ) -> None:
-        """Initialize the commit indexing application service.
-
-        Args:
-            commit_index_repository: Repository for commit index data.
-            snippet_v2_repository: Repository for snippet data.
-            repo_repository: Repository for Git repository data.
-            domain_indexer: Domain service for indexing operations.
-            operation: Progress tracker for reporting operations.
-
-        """
+        """Initialize the commit indexing application service."""
         self.repo_repository = repo_repository
         self.git_commit_repository = git_commit_repository
         self.git_file_repository = git_file_repository
@@ -134,6 +122,7 @@ class CommitIndexingApplicationService:
         self.enrichment_v2_repository = enrichment_v2_repository
         self.enrichment_association_repository = enrichment_association_repository
         self.enricher_service = enricher_service
+        self.enrichment_query_service = enrichment_query_service
         self._log = structlog.get_logger(__name__)
 
     async def create_git_repository(self, remote_uri: AnyUrl) -> GitRepo:
@@ -277,7 +266,11 @@ class CommitIndexingApplicationService:
         # Get all snippet enrichment IDs for these commits
         all_snippet_enrichment_ids = []
         for commit_sha in commit_shas:
-            snippet_enrichments = await self._snippets_for_commit(commit_sha)
+            snippet_enrichments = (
+                await self.enrichment_query_service.get_snippets_for_commit(
+                    commit_sha
+                )
+            )
             enrichment_ids = [
                 enrichment.id for enrichment in snippet_enrichments if enrichment.id
             ]
@@ -376,8 +369,7 @@ class CommitIndexingApplicationService:
             trackable_id=repository_id,
         ) as step:
             # Find existing snippet enrichments for this commit
-            existing_enrichments = await self._snippets_for_commit(commit_sha)
-            if existing_enrichments:
+            if await self.enrichment_query_service.has_snippets_for_commit(commit_sha):
                 await step.skip("Snippets already extracted for commit")
                 return
 
@@ -480,7 +472,9 @@ class CommitIndexingApplicationService:
             trackable_type=TrackableType.KODIT_REPOSITORY,
             trackable_id=repository_id,
         ):
-            existing_enrichments = await self._snippets_for_commit(commit_sha)
+            existing_enrichments = (
+                await self.enrichment_query_service.get_snippets_for_commit(commit_sha)
+            )
             await self.bm25_service.index_documents(
                 IndexRequest(
                     documents=[
@@ -500,7 +494,9 @@ class CommitIndexingApplicationService:
             trackable_type=TrackableType.KODIT_REPOSITORY,
             trackable_id=repository_id,
         ) as step:
-            existing_enrichments = await self._snippets_for_commit(commit_sha)
+            existing_enrichments = (
+                await self.enrichment_query_service.get_snippets_for_commit(commit_sha)
+            )
 
             new_snippets = await self._new_snippets_for_type(
                 existing_enrichments, EmbeddingType.CODE
@@ -529,14 +525,15 @@ class CommitIndexingApplicationService:
             trackable_type=TrackableType.KODIT_REPOSITORY,
             trackable_id=repository_id,
         ) as step:
-            existing_summary_enrichments = await self._summary_enrichments_for_commit(
+            if await self.enrichment_query_service.has_summaries_for_commit(
                 commit_sha
-            )
-            if existing_summary_enrichments:
+            ):
                 await step.skip("Summary enrichments already exist for commit")
                 return
 
-            all_snippets = await self._snippets_for_commit(commit_sha)
+            all_snippets = (
+                await self.enrichment_query_service.get_snippets_for_commit(commit_sha)
+            )
             if not all_snippets:
                 await step.skip("No snippets to enrich")
                 return
@@ -586,7 +583,9 @@ class CommitIndexingApplicationService:
             trackable_id=repository_id,
         ) as step:
             # Get all snippet enrichments for this commit
-            all_snippet_enrichments = await self._snippets_for_commit(commit_sha)
+            all_snippet_enrichments = (
+                await self.enrichment_query_service.get_snippets_for_commit(commit_sha)
+            )
             if not all_snippet_enrichments:
                 await step.skip("No snippets to create summary embeddings")
                 return
@@ -654,11 +653,9 @@ class CommitIndexingApplicationService:
             await step.set_total(3)
 
             # Check if architecture enrichment already exists for this commit
-            existing_architecture_docs = await self._architecture_docs_for_commit(
+            if await self.enrichment_query_service.has_architecture_for_commit(
                 commit_sha
-            )
-
-            if existing_architecture_docs:
+            ):
                 await step.skip("Architecture enrichment already exists for commit")
                 return
 
@@ -717,9 +714,7 @@ class CommitIndexingApplicationService:
             trackable_id=repository_id,
         ) as step:
             # Check if API docs already exist for this commit
-            existing_api_docs = await self._api_docs_for_commit(commit_sha)
-
-            if existing_api_docs:
+            if await self.enrichment_query_service.has_api_docs_for_commit(commit_sha):
                 await step.skip("API docs already exist for commit")
                 return
 
@@ -786,118 +781,4 @@ class CommitIndexingApplicationService:
             s for s in all_snippets if s.id not in existing_embeddings_by_snippet_id
         ]
 
-    # TODO(phil): this should probably be a separate application service
-    async def _snippets_for_commit(self, commit_sha: str) -> list[EnrichmentV2]:
-        existing_associations = (
-            await self.enrichment_association_repository.associations_for_commit(
-                commit_sha=commit_sha,
-            )
-        )
-        existing_enrichments = await self.enrichment_v2_repository.find(
-            EnrichmentQueryBuilder.for_enrichment(
-                enrichment_type=ENRICHMENT_TYPE_DEVELOPMENT,
-                enrichment_subtype=ENRICHMENT_SUBTYPE_SNIPPET,
-            ).filter(
-                "id",
-                FilterOperator.IN,
-                [association.enrichment_id for association in existing_associations],
-            )
-        )
-        self._log.info(
-            f"Found {len(existing_associations)} enrichment associations and "
-            f"{len(existing_enrichments)} snippets for commit {commit_sha}"
-        )
-        return existing_enrichments
 
-    async def _api_docs_for_commit(self, commit_sha: str) -> list[EnrichmentV2]:
-        """Get the API docs for the given commit."""
-        existing_enrichment_associations = (
-            await self.enrichment_association_repository.associations_for_commit(
-                commit_sha=commit_sha,
-            )
-        )
-
-        return await self.enrichment_v2_repository.find(
-            QueryBuilder()
-            .filter(
-                "id",
-                FilterOperator.IN,
-                [
-                    association.enrichment_id
-                    for association in existing_enrichment_associations
-                ],
-            )
-            .filter(
-                db_entities.EnrichmentV2.type.key,
-                FilterOperator.EQ,
-                ENRICHMENT_TYPE_USAGE,
-            )
-            .filter(
-                db_entities.EnrichmentV2.subtype.key,
-                FilterOperator.EQ,
-                ENRICHMENT_SUBTYPE_API_DOCS,
-            )
-        )
-
-    async def _architecture_docs_for_commit(
-        self, commit_sha: str
-    ) -> list[EnrichmentV2]:
-        """Get the architecture docs for the given commit."""
-        existing_enrichment_associations = (
-            await self.enrichment_association_repository.associations_for_commit(
-                commit_sha=commit_sha,
-            )
-        )
-
-        return await self.enrichment_v2_repository.find(
-            QueryBuilder()
-            .filter(
-                "id",
-                FilterOperator.IN,
-                [
-                    association.enrichment_id
-                    for association in existing_enrichment_associations
-                ],
-            )
-            .filter(
-                db_entities.EnrichmentV2.type.key,
-                FilterOperator.EQ,
-                ENRICHMENT_TYPE_ARCHITECTURE,
-            )
-            .filter(
-                db_entities.EnrichmentV2.subtype.key,
-                FilterOperator.EQ,
-                ENRICHMENT_SUBTYPE_PHYSICAL,
-            )
-        )
-
-    async def _summary_enrichments_for_commit(
-        self, commit_sha: str
-    ) -> list[EnrichmentV2]:
-        """Get the summary enrichments for the given commit."""
-        existing_enrichment_associations = (
-            await self.enrichment_association_repository.associations_for_commit(
-                commit_sha=commit_sha,
-            )
-        )
-        return await self.enrichment_v2_repository.find(
-            QueryBuilder()
-            .filter(
-                "id",
-                FilterOperator.IN,
-                [
-                    association.enrichment_id
-                    for association in existing_enrichment_associations
-                ],
-            )
-            .filter(
-                db_entities.EnrichmentV2.type.key,
-                FilterOperator.EQ,
-                ENRICHMENT_TYPE_DEVELOPMENT,
-            )
-            .filter(
-                db_entities.EnrichmentV2.subtype.key,
-                FilterOperator.EQ,
-                ENRICHMENT_SUBTYPE_SNIPPET_SUMMARY,
-            )
-        )

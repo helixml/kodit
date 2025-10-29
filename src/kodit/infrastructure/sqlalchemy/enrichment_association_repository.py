@@ -133,3 +133,62 @@ class SQLAlchemyEnrichmentAssociationRepository(
                 entity_ids=[commit_sha],
             )
         )
+
+    async def for_enrichments(
+        self, enrichment_ids: list[int]
+    ) -> list[EnrichmentAssociation]:
+        """Get associations where enrichment_id is in the given list."""
+        return await self.find(
+            QueryBuilder().filter(
+                db_entities.EnrichmentAssociation.enrichment_id.key,
+                FilterOperator.IN,
+                enrichment_ids,
+            )
+        )
+
+    async def pointing_to_enrichments(
+        self, enrichment_ids: list[int]
+    ) -> list[EnrichmentAssociation]:
+        """Get associations pointing to enrichments (entity_type=enrichment)."""
+        return await self.find(
+            QueryBuilder()
+            .filter(
+                db_entities.EnrichmentAssociation.entity_id.key,
+                FilterOperator.IN,
+                enrichment_ids,
+            )
+            .filter(
+                db_entities.EnrichmentAssociation.entity_type.key,
+                FilterOperator.EQ,
+                db_entities.EnrichmentV2.__tablename__,
+            )
+        )
+
+    async def snippet_ids_for_summaries(
+        self, summary_enrichment_ids: list[int]
+    ) -> list[int]:
+        """Get snippet enrichment IDs for summary enrichments, preserving order."""
+        if not summary_enrichment_ids:
+            return []
+
+        # Get associations where enrichment_id points to these summaries
+        associations = await self.find(
+            QueryBuilder().filter(
+                db_entities.EnrichmentAssociation.enrichment_id.key,
+                FilterOperator.IN,
+                summary_enrichment_ids,
+            )
+        )
+
+        # Create a lookup map: summary_enrichment_id -> snippet_enrichment_id
+        summary_to_snippet: dict[int, int] = {
+            association.enrichment_id: int(association.entity_id)
+            for association in associations
+        }
+
+        # Return snippet IDs in the same order as input summary IDs
+        return [
+            summary_to_snippet[summary_id]
+            for summary_id in summary_enrichment_ids
+            if summary_id in summary_to_snippet
+        ]

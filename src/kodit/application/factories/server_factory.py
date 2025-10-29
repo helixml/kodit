@@ -263,6 +263,7 @@ class ServerFactory:
                 enrichment_v2_repository=self.enrichment_v2_repository(),
                 enricher_service=self.enricher(),
                 enrichment_association_repository=self.enrichment_association_repository(),
+                enrichment_query_service=self.enrichment_query_service(),
             )
 
         return self._commit_indexing_application_service
@@ -350,8 +351,7 @@ class ServerFactory:
                 text_search_service=self.text_search_service(),
                 progress_tracker=self.operation(),
                 fusion_service=self.fusion_service(),
-                enrichment_v2_repository=self.enrichment_v2_repository(),
-                enrichment_association_repository=self.enrichment_association_repository(),
+                enrichment_query_service=self.enrichment_query_service(),
             )
         return self._code_search_application_service
 

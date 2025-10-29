@@ -251,6 +251,25 @@ class FusionService(ABC):
 class EnrichmentV2Repository(Repository[EnrichmentV2]):
     """Repository for enrichment operations."""
 
+    @abstractmethod
+    async def get_for_commit(
+        self,
+        commit_sha: str,
+        enrichment_type: str | None = None,
+        enrichment_subtype: str | None = None,
+    ) -> list[EnrichmentV2]:
+        """Get enrichments for a commit, optionally filtered by type/subtype."""
+
+    @abstractmethod
+    async def get_by_ids(self, enrichment_ids: list[int]) -> list[EnrichmentV2]:
+        """Get enrichments by their IDs."""
+
+    @abstractmethod
+    async def get_pointing_to_enrichments(
+        self, target_enrichment_ids: list[int]
+    ) -> dict[int, list[EnrichmentV2]]:
+        """Get enrichments that point to the given enrichments, grouped by target."""
+
 
 class EnrichmentAssociationRepository(Repository[EnrichmentAssociation]):
     """Repository for enrichment association operations."""
@@ -266,3 +285,21 @@ class EnrichmentAssociationRepository(Repository[EnrichmentAssociation]):
         self, commit_sha: str
     ) -> list[EnrichmentAssociation]:
         """Get the snippet associations for the given commit."""
+
+    @abstractmethod
+    async def for_enrichments(
+        self, enrichment_ids: list[int]
+    ) -> list[EnrichmentAssociation]:
+        """Get associations where enrichment_id is in the given list."""
+
+    @abstractmethod
+    async def pointing_to_enrichments(
+        self, enrichment_ids: list[int]
+    ) -> list[EnrichmentAssociation]:
+        """Get associations pointing to enrichments (entity_type=enrichment)."""
+
+    @abstractmethod
+    async def snippet_ids_for_summaries(
+        self, summary_enrichment_ids: list[int]
+    ) -> list[int]:
+        """Get snippet enrichment IDs for summary enrichments, preserving order."""

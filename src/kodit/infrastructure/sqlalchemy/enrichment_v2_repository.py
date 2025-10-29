@@ -130,3 +130,104 @@ class SQLAlchemyEnrichmentV2Repository(
         raise ValueError(
             f"Unknown enrichment type: {db_entity.type}/{db_entity.subtype}"
         )
+
+    async def get_for_commit(
+        self,
+        commit_sha: str,
+        enrichment_type: str | None = None,
+        enrichment_subtype: str | None = None,
+    ) -> list[EnrichmentV2]:
+        """Get enrichments for a commit, optionally filtered by type/subtype."""
+        from kodit.infrastructure.sqlalchemy.query import (
+            FilterOperator,
+            QueryBuilder,
+        )
+
+        # Get associations for this commit
+        async with SqlAlchemyUnitOfWork(self.session_factory):
+            from kodit.infrastructure.sqlalchemy.enrichment_association_repository import (  # noqa: E501
+                SQLAlchemyEnrichmentAssociationRepository,
+            )
+
+            assoc_repo = SQLAlchemyEnrichmentAssociationRepository(
+                self.session_factory
+            )
+            associations = await assoc_repo.associations_for_commit(commit_sha)
+
+            if not associations:
+                return []
+
+            # Build query for enrichments
+            query = QueryBuilder().filter(
+                "id", FilterOperator.IN, [a.enrichment_id for a in associations]
+            )
+
+            # Add type/subtype filters if specified
+            if enrichment_type:
+                query = query.filter(
+                    db_entities.EnrichmentV2.type.key,
+                    FilterOperator.EQ,
+                    enrichment_type,
+                )
+            if enrichment_subtype:
+                query = query.filter(
+                    db_entities.EnrichmentV2.subtype.key,
+                    FilterOperator.EQ,
+                    enrichment_subtype,
+                )
+
+            return await self.find(query)
+
+    async def get_by_ids(self, enrichment_ids: list[int]) -> list[EnrichmentV2]:
+        """Get enrichments by their IDs."""
+        if not enrichment_ids:
+            return []
+
+        from kodit.infrastructure.sqlalchemy.query import (
+            FilterOperator,
+            QueryBuilder,
+        )
+
+        return await self.find(
+            QueryBuilder().filter(
+                db_entities.EnrichmentV2.id.key,
+                FilterOperator.IN,
+                enrichment_ids,
+            )
+        )
+
+    async def get_pointing_to_enrichments(
+        self, target_enrichment_ids: list[int]
+    ) -> dict[int, list[EnrichmentV2]]:
+        """Get enrichments that point to the given enrichments, grouped by target."""
+        if not target_enrichment_ids:
+            return {}
+
+        from kodit.infrastructure.sqlalchemy.enrichment_association_repository import (
+            SQLAlchemyEnrichmentAssociationRepository,
+        )
+
+        # Get associations pointing to these enrichments
+        assoc_repo = SQLAlchemyEnrichmentAssociationRepository(self.session_factory)
+        associations = await assoc_repo.pointing_to_enrichments(target_enrichment_ids)
+
+        if not associations:
+            return {eid: [] for eid in target_enrichment_ids}
+
+        # Get the enrichments referenced by these associations
+        enrichment_ids = [a.enrichment_id for a in associations]
+        enrichments = await self.get_by_ids(enrichment_ids)
+
+        # Create lookup map
+        enrichment_map = {e.id: e for e in enrichments if e.id is not None}
+
+        # Group by target enrichment ID
+        result: dict[int, list[EnrichmentV2]] = {
+            eid: [] for eid in target_enrichment_ids
+        }
+        for association in associations:
+            target_id = int(association.entity_id)
+            if target_id in result and association.enrichment_id in enrichment_map:
+                result[target_id].append(enrichment_map[association.enrichment_id])
+
+        return result
