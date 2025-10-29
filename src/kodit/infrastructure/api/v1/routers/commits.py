@@ -9,6 +9,7 @@ from kodit.infrastructure.api.v1.dependencies import (
     GitCommitRepositoryDep,
     ServerFactoryDep,
 )
+from kodit.infrastructure.api.v1.query_params import PaginationParamsDep
 from kodit.infrastructure.api.v1.schemas.commit import (
     CommitAttributes,
     CommitData,
@@ -50,13 +51,19 @@ router = APIRouter(
 
 @router.get("/{repo_id}/commits", summary="List repository commits")
 async def list_repository_commits(
-    repo_id: str, git_commit_repository: GitCommitRepositoryDep
+    repo_id: str,
+    git_commit_repository: GitCommitRepositoryDep,
+    pagination_params: PaginationParamsDep,
 ) -> CommitListResponse:
     """List all commits for a repository."""
     try:
         # Get all commits for the repository directly from commit repository
         commits = await git_commit_repository.find(
-            QueryBuilder().filter("repo_id", FilterOperator.EQ, int(repo_id))
+            QueryBuilder()
+            .filter("repo_id", FilterOperator.EQ, int(repo_id))
+            .paginate(
+                limit=pagination_params.page_size, offset=pagination_params.offset
+            )
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail="Repository not found") from e
@@ -298,6 +305,7 @@ async def list_commit_enrichments(
     repo_id: str,  # noqa: ARG001
     commit_sha: str,
     server_factory: ServerFactoryDep,
+    pagination_params: PaginationParamsDep,
 ) -> EnrichmentListResponse:
     """List all enrichments for a specific commit."""
     # TODO(Phil): Should use repo too, it's confusing to the user when they specify the

@@ -105,11 +105,18 @@ class PaginationCriteria:
 class QueryBuilder(Query):
     """Composable query builder for constructing database queries."""
 
+    DEFAULT_LIMIT = 10
+    DEFAULT_OFFSET = 0
+    DEFAULT_SORT_FIELD = "created_at"
+    DEFAULT_SORT_DESCENDING = True
+
     def __init__(self) -> None:
         """Initialize query builder."""
         self._filters: list[FilterCriteria] = []
         self._sorts: list[SortCriteria] = []
-        self._pagination: PaginationCriteria | None = None
+        self._pagination: PaginationCriteria = PaginationCriteria(
+            limit=self.DEFAULT_LIMIT, offset=self.DEFAULT_OFFSET
+        )
 
     def filter(
         self, field: str, operator: FilterOperator, value: Any
@@ -123,7 +130,7 @@ class QueryBuilder(Query):
         self._sorts.append(SortCriteria(field, descending))
         return self
 
-    def paginate(self, limit: int | None = None, *, offset: int = 0) -> "QueryBuilder":
+    def paginate(self, limit: int, offset: int = 0) -> "QueryBuilder":
         """Add pagination."""
         self._pagination = PaginationCriteria(limit, offset)
         return self
@@ -133,6 +140,13 @@ class QueryBuilder(Query):
         for filter_criteria in self._filters:
             stmt = filter_criteria.apply(model_type, stmt)
 
+        if not self._sorts:
+            self._sorts = [
+                SortCriteria(
+                    field=self.DEFAULT_SORT_FIELD,
+                    descending=self.DEFAULT_SORT_DESCENDING,
+                )
+            ]
         for sort_criteria in self._sorts:
             stmt = sort_criteria.apply(model_type, stmt)
 
