@@ -226,12 +226,12 @@ class CommitIndexingApplicationService:
             repo.update_with_scan_result(scan_result)
             await self.repo_repository.save(repo)
 
-            await step.set_current(2, "Saving files")
+            await step.set_current(2, "Saving commits")
+            await self.git_commit_repository.save_bulk(scan_result.all_commits)
+
+            await step.set_current(3, "Saving files")
             git_files = await self.git_file_repository.save_bulk(scan_result.all_files)
             self._log.info("saved_git_files", git_files=git_files)
-
-            await step.set_current(3, "Saving commits")
-            await self.git_commit_repository.save_bulk(scan_result.all_commits)
 
             await step.set_current(4, "Saving branches")
             if scan_result.branches:

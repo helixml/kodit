@@ -10,8 +10,12 @@ class PaginationParams:
 
     def __init__(
         self,
-        page: int = Query(1, ge=1, description="Page number, starting from 1"),
-        page_size: int = Query(20, ge=1, le=100, description="Items per page"),
+        page: Annotated[
+            int, Query(ge=1, description="Page number, starting from 1")
+        ] = 1,
+        page_size: Annotated[
+            int, Query(ge=1, le=100, description="Items per page")
+        ] = 20,
     ) -> None:
         """Initialize pagination parameters."""
         self.page = page
