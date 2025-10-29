@@ -171,6 +171,8 @@ def main() -> None:  # noqa: PLR0915
 
                 client.get(f"{commit_url}/snippets").raise_for_status()
                 log.info("Retrieved snippets", commit_sha=commit_sha)
+                client.get(f"{commit_url}/enrichments").raise_for_status()
+                log.info("Retrieved enrichments", commit_sha=commit_sha)
                 client.get(f"{commit_url}/embeddings?full=false").raise_for_status()
                 log.info("Retrieved embeddings", commit_sha=commit_sha)
 

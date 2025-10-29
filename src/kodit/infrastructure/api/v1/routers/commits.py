@@ -3,7 +3,12 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import RedirectResponse
 
+from kodit.domain.enrichments.development.development import ENRICHMENT_TYPE_DEVELOPMENT
+from kodit.domain.enrichments.development.snippet.snippet import (
+    ENRICHMENT_SUBTYPE_SNIPPET,
+)
 from kodit.domain.entities.git import GitFile
 from kodit.infrastructure.api.middleware.auth import api_key_auth
 from kodit.infrastructure.api.v1.dependencies import (
@@ -31,14 +36,6 @@ from kodit.infrastructure.api.v1.schemas.enrichment import (
     EnrichmentData,
     EnrichmentListResponse,
     EnrichmentRelationships,
-)
-from kodit.infrastructure.api.v1.schemas.snippet import (
-    EnrichmentSchema,
-    GitFileSchema,
-    SnippetAttributes,
-    SnippetContentSchema,
-    SnippetData,
-    SnippetListResponse,
 )
 from kodit.infrastructure.sqlalchemy.query import (
     FilterOperator,
@@ -195,51 +192,11 @@ async def get_commit_file(
 )
 async def list_commit_snippets(
     repo_id: str,
-    commit_sha: str,  # noqa: ARG001
-    server_factory: ServerFactoryDep,  # noqa: ARG001
-) -> SnippetListResponse:
+    commit_sha: str,
+) -> RedirectResponse:
     """List all snippets in a specific commit."""
-    _ = repo_id  # Required by FastAPI route path but not used in function
-    # TODO(phil): Reimplement using enrichment_v2_repository
-    # and enrichment_association_repository to query snippets
-    raise HTTPException(
-        status_code=501,
-        detail="Endpoint needs refactoring for enrichment-based architecture",
-    )
-    snippets = []  # type: ignore[unreachable]
-
-    return SnippetListResponse(
-        data=[
-            SnippetData(
-                type="snippet",
-                id=snippet.sha,
-                attributes=SnippetAttributes(
-                    created_at=snippet.created_at,
-                    updated_at=snippet.updated_at,
-                    derives_from=[
-                        GitFileSchema(
-                            blob_sha=file.blob_sha,
-                            path=file.path,
-                            mime_type=file.mime_type,
-                            size=file.size,
-                        )
-                        for file in snippet.derives_from
-                    ],
-                    content=SnippetContentSchema(
-                        value=snippet.content,
-                        language=snippet.extension,
-                    ),
-                    enrichments=[
-                        EnrichmentSchema(
-                            type=enrichment.type.value,
-                            content=enrichment.content,
-                        )
-                        for enrichment in snippet.enrichments
-                    ],
-                ),
-            )
-            for snippet in snippets
-        ]
+    return RedirectResponse(
+        url=f"/api/v1/repositories/{repo_id}/commits/{commit_sha}/enrichments?enrichment_type={ENRICHMENT_TYPE_DEVELOPMENT}&enrichment_subtype={ENRICHMENT_SUBTYPE_SNIPPET}"
     )
 
 
