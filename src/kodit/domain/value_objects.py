@@ -156,7 +156,7 @@ class DocumentSearchResult:
     score: float
 
 
-@dataclass
+@dataclass(frozen=True)
 class SearchResult:
     """Generic search result model."""
 

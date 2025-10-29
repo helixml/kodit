@@ -197,12 +197,33 @@ class EnrichmentQueryService:
             enrichment_ids
         )
 
-    async def snippet_ids_for_summary_enrichments(
-        self, summary_enrichment_ids: list[int]
-    ) -> list[int]:
+    async def snippets_for_summary_enrichments(
+        self, summary_enrichments: list[EnrichmentV2]
+    ) -> list[EnrichmentV2]:
         """Get snippet enrichment IDs for summary enrichments, preserving order."""
-        return await self.enrichment_association_repository.snippet_ids_for_summaries(
-            summary_enrichment_ids
+        if not summary_enrichments:
+            return []
+
+        # Get associations where enrichment_id points to these summaries
+        associations = await self.enrichment_association_repository.find(
+            EnrichmentAssociationQueryBuilder()
+            .for_enrichments(summary_enrichments)
+            .for_enrichment_type()
+        )
+
+        snippet_enrichments = await self.enrichment_repo.find(
+            EnrichmentQueryBuilder().for_ids(
+                enrichment_ids=[
+                    int(association.entity_id) for association in associations
+                ]
+            )
+        )
+
+        # Re-Sort snippet enrichments to be in the same order as the associations
+        original_snippet_ids = [association.entity_id for association in associations]
+        return sorted(
+            snippet_enrichments,
+            key=lambda x: original_snippet_ids.index(str(x.id)),
         )
 
     async def get_enrichments_pointing_to_enrichments(

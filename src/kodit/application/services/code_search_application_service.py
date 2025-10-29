@@ -123,20 +123,24 @@ class CodeSearchApplicationService:
                     snippet_ids=filtered_snippet_ids,
                 )
             )
+            summary_results = set(summary_results)
 
             # Get the snippet enrichment IDs that these summaries point to
             summary_ids = [int(x.snippet_id) for x in summary_results]
-            snippet_enrichment_ids = (
-                await self.enrichment_query_service.snippet_ids_for_summary_enrichments(
-                    summary_ids
+            summary_enrichments = (
+                await self.enrichment_query_service.get_enrichments_by_ids(summary_ids)
+            )
+            snippet_enrichments = (
+                await self.enrichment_query_service.snippets_for_summary_enrichments(
+                    summary_enrichments
                 )
             )
 
             fusion_list.append(
                 [
-                    FusionRequest(id=str(snippet_id), score=result.score)
-                    for result, snippet_id in zip(
-                        summary_results, snippet_enrichment_ids, strict=True
+                    FusionRequest(id=str(snippet.id), score=result.score)
+                    for result, snippet in zip(
+                        summary_results, snippet_enrichments, strict=True
                     )
                 ]
             )
@@ -182,9 +186,7 @@ class CodeSearchApplicationService:
         for enrichment in final_enrichments:
             # Get extra enrichments for this enrichment (only if ID is not None)
             enrichment_extras = (
-                extra_enrichments[enrichment.id]
-                if enrichment.id is not None
-                else []
+                extra_enrichments[enrichment.id] if enrichment.id is not None else []
             )
             enrichment_id_to_snippet[enrichment.id] = SnippetV2(
                 sha=str(enrichment.id),  # The snippet SHA
