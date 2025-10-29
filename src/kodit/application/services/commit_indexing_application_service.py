@@ -279,7 +279,9 @@ class CommitIndexingApplicationService:
         all_snippet_enrichment_ids = []
         for commit_sha in commit_shas:
             snippet_enrichments = (
-                await self.enrichment_query_service.get_snippets_for_commit(commit_sha)
+                await self.enrichment_query_service.get_all_snippets_for_commit(
+                    commit_sha
+                )
             )
             enrichment_ids = [
                 enrichment.id for enrichment in snippet_enrichments if enrichment.id
@@ -483,7 +485,9 @@ class CommitIndexingApplicationService:
             trackable_id=repository_id,
         ):
             existing_enrichments = (
-                await self.enrichment_query_service.get_snippets_for_commit(commit_sha)
+                await self.enrichment_query_service.get_all_snippets_for_commit(
+                    commit_sha
+                )
             )
             await self.bm25_service.index_documents(
                 IndexRequest(
@@ -505,7 +509,9 @@ class CommitIndexingApplicationService:
             trackable_id=repository_id,
         ) as step:
             existing_enrichments = (
-                await self.enrichment_query_service.get_snippets_for_commit(commit_sha)
+                await self.enrichment_query_service.get_all_snippets_for_commit(
+                    commit_sha
+                )
             )
 
             new_snippets = await self._new_snippets_for_type(
@@ -539,8 +545,10 @@ class CommitIndexingApplicationService:
                 await step.skip("Summary enrichments already exist for commit")
                 return
 
-            all_snippets = await self.enrichment_query_service.get_snippets_for_commit(
-                commit_sha
+            all_snippets = (
+                await self.enrichment_query_service.get_all_snippets_for_commit(
+                    commit_sha
+                )
             )
             if not all_snippets:
                 await step.skip("No snippets to enrich")
@@ -599,7 +607,9 @@ class CommitIndexingApplicationService:
         ) as step:
             # Get all snippet enrichments for this commit
             all_snippet_enrichments = (
-                await self.enrichment_query_service.get_snippets_for_commit(commit_sha)
+                await self.enrichment_query_service.get_all_snippets_for_commit(
+                    commit_sha
+                )
             )
             if not all_snippet_enrichments:
                 await step.skip("No snippets to create summary embeddings")

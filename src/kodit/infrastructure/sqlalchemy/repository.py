@@ -74,7 +74,14 @@ class SqlAlchemyRepository(ABC, Generic[DomainEntityType, DatabaseEntityType]):
         """Count the number of entities matching query."""
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             stmt = select(self.db_entity_type).with_only_columns(func.count())
-            stmt = query.apply(stmt, self.db_entity_type)
+            # For count queries, only apply filters, not sorting or pagination
+            from kodit.infrastructure.sqlalchemy.query import QueryBuilder
+
+            if isinstance(query, QueryBuilder):
+                # Apply only filters, skip sorting and pagination for count queries
+                stmt = query.apply_filters_only(stmt, self.db_entity_type)
+            else:
+                stmt = query.apply(stmt, self.db_entity_type)
             result = await session.scalar(stmt)
             return result or 0
 

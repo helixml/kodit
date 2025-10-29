@@ -73,8 +73,10 @@ class EnrichmentQueryService:
 
         # Check which commits have enrichments
         for commit_sha in candidate_commits:
-            enrichments = await self.enrichment_repo.get_for_commit(
-                commit_sha, enrichment_type=enrichment_type
+            enrichments = await self.all_enrichments_for_commit(
+                commit_sha=commit_sha,
+                pagination=PaginationParams(page_size=1),
+                enrichment_type=enrichment_type,
             )
             if enrichments:
                 return commit_sha
@@ -86,6 +88,7 @@ class EnrichmentQueryService:
         commit_sha: str,
         pagination: PaginationParams,
         enrichment_type: str | None = None,
+        enrichment_subtype: str | None = None,
     ) -> dict[EnrichmentV2, list[EnrichmentAssociation]]:
         """Get all enrichments for a specific commit."""
         associations = await self.enrichment_association_repository.find(
@@ -95,6 +98,8 @@ class EnrichmentQueryService:
         query = EnrichmentQueryBuilder().for_ids(enrichment_ids).paginate(pagination)
         if enrichment_type:
             query = query.for_type(enrichment_type)
+        if enrichment_subtype:
+            query = query.for_subtype(enrichment_subtype)
         enrichments = await self.enrichment_repo.find(query)
         # Find all other associations for these enrichments
         other_associations = await self.enrichment_association_repository.find(
@@ -111,12 +116,15 @@ class EnrichmentQueryService:
             for enrichment in enrichments
         }
 
-    async def get_snippets_for_commit(self, commit_sha: str) -> list[EnrichmentV2]:
+    async def get_all_snippets_for_commit(self, commit_sha: str) -> list[EnrichmentV2]:
         """Get snippet enrichments for a commit."""
-        return await self.enrichment_repo.get_for_commit(
-            commit_sha,
-            enrichment_type=ENRICHMENT_TYPE_DEVELOPMENT,
-            enrichment_subtype=ENRICHMENT_SUBTYPE_SNIPPET,
+        return list(
+            await self.all_enrichments_for_commit(
+                commit_sha=commit_sha,
+                pagination=PaginationParams(page_size=32000),
+                enrichment_type=ENRICHMENT_TYPE_DEVELOPMENT,
+                enrichment_subtype=ENRICHMENT_SUBTYPE_SNIPPET,
+            )
         )
 
     async def get_summaries_for_commit(self, commit_sha: str) -> list[EnrichmentV2]:
@@ -163,7 +171,7 @@ class EnrichmentQueryService:
 
     async def has_snippets_for_commit(self, commit_sha: str) -> bool:
         """Check if a commit has snippet enrichments."""
-        snippets = await self.get_snippets_for_commit(commit_sha)
+        snippets = await self.get_all_snippets_for_commit(commit_sha)
         return len(snippets) > 0
 
     async def has_summaries_for_commit(self, commit_sha: str) -> bool:
@@ -186,14 +194,6 @@ class EnrichmentQueryService:
     ) -> list[EnrichmentAssociation]:
         """Get enrichment associations for given enrichment IDs."""
         return await self.enrichment_association_repository.for_enrichments(
-            enrichment_ids
-        )
-
-    async def associations_pointing_to_enrichments(
-        self, enrichment_ids: list[int]
-    ) -> list[EnrichmentAssociation]:
-        """Get enrichment associations for given enrichment IDs."""
-        return await self.enrichment_association_repository.pointing_to_enrichments(
             enrichment_ids
         )
 
@@ -231,9 +231,11 @@ class EnrichmentQueryService:
     ) -> dict[int, list[EnrichmentV2]]:
         """Get enrichments that point to the given enrichments, grouped by target."""
         # Get associations pointing to these enrichments
-        associations = (
-            await self.enrichment_association_repository.pointing_to_enrichments(
-                target_enrichment_ids
+        associations = await self.enrichment_association_repository.find(
+            EnrichmentAssociationQueryBuilder()
+            .for_enrichment_type()
+            .for_entity_ids(
+                [str(enrichment_id) for enrichment_id in target_enrichment_ids]
             )
         )
 

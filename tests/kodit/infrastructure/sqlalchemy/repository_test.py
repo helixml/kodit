@@ -2,10 +2,11 @@
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
-from sqlalchemy import Integer, String
+from sqlalchemy import DateTime, Integer, String
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -34,6 +35,9 @@ class MockDbEntity(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     value: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=lambda: datetime.now(UTC)
+    )
 
 
 class MockRepository(SqlAlchemyRepository[MockEntity, MockDbEntity]):
@@ -71,6 +75,8 @@ class MockRepository(SqlAlchemyRepository[MockEntity, MockDbEntity]):
 async def create_test_table(engine: AsyncEngine) -> None:
     """Create the test table in the database."""
     async with engine.begin() as conn:
+        # Drop and recreate to ensure fresh schema
+        await conn.run_sync(MockDbEntity.metadata.drop_all)
         await conn.run_sync(MockDbEntity.metadata.create_all)
 
 
@@ -391,7 +397,7 @@ class TestFind:
         await repository.save_bulk(entities)
 
         # Query with limit
-        query = QueryBuilder().paginate(PaginationParams(page_size=5))
+        query = QueryBuilder().paginate(PaginationParams(page=1, page_size=5))
         found = await repository.find(query)
 
         assert len(found) == 5

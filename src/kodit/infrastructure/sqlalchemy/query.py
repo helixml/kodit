@@ -137,6 +137,12 @@ class QueryBuilder(Query):
         )
         return self
 
+    def apply_filters_only(self, stmt: Select, model_type: type) -> Select:
+        """Apply only filter criteria to the statement."""
+        for filter_criteria in self._filters:
+            stmt = filter_criteria.apply(model_type, stmt)
+        return stmt
+
     def apply(self, stmt: Select, model_type: type) -> Select:
         """Apply all criteria to the statement."""
         for filter_criteria in self._filters:
@@ -189,6 +195,15 @@ class EnrichmentAssociationQueryBuilder(QueryBuilder):
             db_entities.EnrichmentAssociation.entity_type.key,
             FilterOperator.EQ,
             entity_type,
+        )
+        return self
+
+    def for_entity_ids(self, entity_ids: list[str]) -> Self:
+        """Build a query for enrichment associations by entity IDs."""
+        self.filter(
+            db_entities.EnrichmentAssociation.entity_id.key,
+            FilterOperator.IN,
+            entity_ids,
         )
         return self
 

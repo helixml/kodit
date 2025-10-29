@@ -146,24 +146,6 @@ class SQLAlchemyEnrichmentAssociationRepository(
             )
         )
 
-    async def pointing_to_enrichments(
-        self, enrichment_ids: list[int]
-    ) -> list[EnrichmentAssociation]:
-        """Get associations pointing to enrichments (entity_type=enrichment)."""
-        return await self.find(
-            QueryBuilder()
-            .filter(
-                db_entities.EnrichmentAssociation.entity_id.key,
-                FilterOperator.IN,
-                enrichment_ids,
-            )
-            .filter(
-                db_entities.EnrichmentAssociation.entity_type.key,
-                FilterOperator.EQ,
-                db_entities.EnrichmentV2.__tablename__,
-            )
-        )
-
     async def snippet_ids_for_summaries(
         self, summary_enrichment_ids: list[int]
     ) -> list[int]:

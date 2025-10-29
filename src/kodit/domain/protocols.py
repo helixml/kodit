@@ -283,12 +283,6 @@ class EnrichmentAssociationRepository(Repository[EnrichmentAssociation]):
         """Get associations where enrichment_id is in the given list."""
 
     @abstractmethod
-    async def pointing_to_enrichments(
-        self, enrichment_ids: list[int]
-    ) -> list[EnrichmentAssociation]:
-        """Get associations pointing to enrichments (entity_type=enrichment)."""
-
-    @abstractmethod
     async def snippet_ids_for_summaries(
         self, summary_enrichment_ids: list[int]
     ) -> list[int]:
