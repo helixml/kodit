@@ -248,7 +248,7 @@ class GitService:
         parent_sha = commit.parents[0].hexsha if commit.parents else ""
 
         # Get files changed in this commit
-        files = self._get_commit_files(repo, commit)
+        self._get_commit_files(repo, commit)
 
         # Format author string from name and email
         author_name = str(commit.author.name) if commit.author.name else ""
@@ -264,7 +264,6 @@ class GitService:
             date=commit_date,
             message=str(commit.message).strip(),
             parent_commit_sha=parent_sha,
-            files=files,
             author=author,
         )
 

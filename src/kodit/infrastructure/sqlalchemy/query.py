@@ -324,3 +324,12 @@ class GitFileQueryBuilder(QueryBuilder):
             commit_sha,
         )
         return self
+
+    def for_blob_sha(self, blob_sha: str) -> Self:
+        """Build a query for git files by their blob SHA."""
+        self.filter(
+            db_entities.GitCommitFile.blob_sha.key,
+            FilterOperator.EQ,
+            blob_sha,
+        )
+        return self

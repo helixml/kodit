@@ -69,6 +69,7 @@ from kodit.infrastructure.sqlalchemy.entities import EmbeddingType
 from kodit.infrastructure.sqlalchemy.query import (
     EnrichmentAssociationQueryBuilder,
     FilterOperator,
+    GitFileQueryBuilder,
     QueryBuilder,
 )
 
@@ -226,10 +227,7 @@ class CommitIndexingApplicationService:
             await self.repo_repository.save(repo)
 
             await step.set_current(2, "Saving files")
-            all_files = [
-                file for commit in scan_result.all_commits for file in commit.files
-            ]
-            git_files = await self.git_file_repository.save_bulk(all_files)
+            git_files = await self.git_file_repository.save_bulk(scan_result.all_files)
             self._log.info("saved_git_files", git_files=git_files)
 
             await step.set_current(3, "Saving commits")
@@ -749,11 +747,16 @@ class CommitIndexingApplicationService:
                 raise ValueError(f"Repository {repository_id} not found")
             str(repo.sanitized_remote_uri)
 
-            commit = await self.git_commit_repository.get(commit_sha)
+            files = await self.git_file_repository.find(
+                GitFileQueryBuilder().for_commit_sha(commit_sha)
+            )
+            if not files:
+                await step.skip("No files to extract API docs from")
+                return
 
             # Group files by language
             lang_files_map: dict[str, list[GitFile]] = defaultdict(list)
-            for file in commit.files:
+            for file in files:
                 try:
                     lang = LanguageMapping.get_language_for_extension(file.extension)
                 except ValueError:

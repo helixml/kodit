@@ -8,9 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from kodit.domain.entities.git import GitCommit
 from kodit.domain.protocols import GitCommitRepository
 from kodit.infrastructure.sqlalchemy import entities as db_entities
-from kodit.infrastructure.sqlalchemy.git_file_repository import (
-    SqlAlchemyGitFileRepository,
-)
 from kodit.infrastructure.sqlalchemy.repository import SqlAlchemyRepository
 
 
@@ -44,9 +41,6 @@ class SqlAlchemyGitCommitRepository(
             date=db_entity.date,
             message=db_entity.message,
             parent_commit_sha=db_entity.parent_commit_sha,
-            files=[
-                SqlAlchemyGitFileRepository.to_domain(file) for file in db_entity.files
-            ],
             author=db_entity.author,
         )
 
@@ -60,7 +54,4 @@ class SqlAlchemyGitCommitRepository(
             parent_commit_sha=domain_entity.parent_commit_sha,
             author=domain_entity.author,
             repo_id=domain_entity.repo_id,
-            files=[
-                SqlAlchemyGitFileRepository.to_db(file) for file in domain_entity.files
-            ],
         )

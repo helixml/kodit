@@ -258,12 +258,6 @@ class GitCommit(Base):
     message: Mapped[str] = mapped_column(UnicodeText)
     parent_commit_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
     author: Mapped[str] = mapped_column(String(255), index=True)
-    files: Mapped[list["GitCommitFile"]] = relationship(
-        "GitCommitFile",
-        lazy="selectin",
-        foreign_keys="[GitCommitFile.commit_sha]",
-        cascade="all, delete-orphan",
-    )
 
     def __init__(  # noqa: PLR0913
         self,
@@ -273,7 +267,6 @@ class GitCommit(Base):
         message: str,
         parent_commit_sha: str | None,
         author: str,
-        files: list["GitCommitFile"],
     ) -> None:
         """Initialize Git commit."""
         super().__init__()
@@ -283,7 +276,6 @@ class GitCommit(Base):
         self.message = message
         self.parent_commit_sha = parent_commit_sha
         self.author = author
-        self.files = files
 
 
 class GitBranch(Base):

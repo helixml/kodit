@@ -64,7 +64,6 @@ class GitCommit(BaseModel):
     date: datetime
     message: str
     parent_commit_sha: str | None = None  # The first commit in the repo is None
-    files: list[GitFile]
     author: str
 
     @property
@@ -113,6 +112,7 @@ class RepositoryScanResult:
 
     branches: list[GitBranch]
     all_commits: list[GitCommit]
+    all_files: list[GitFile]
     all_tags: list[GitTag]
     scan_timestamp: datetime
     total_files_across_commits: int

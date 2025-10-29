@@ -37,7 +37,6 @@ async def test_save_and_get_file(
         date=datetime.now(UTC),
         message="Test commit",
         parent_commit_sha=None,
-        files=[],
         author="test@example.com",
     )
     await commit_repository.save_bulk([commit])
@@ -95,7 +94,6 @@ async def test_save_bulk_and_find(
         date=datetime.now(UTC),
         message="Test commit",
         parent_commit_sha=None,
-        files=[],
         author="test@example.com",
     )
     await commit_repository.save_bulk([commit])

@@ -124,8 +124,7 @@ async def test_git_repository_scanner_scan_repository(
     assert len(result.branches) == 2
     assert len(result.all_commits) == 2
     assert len(result.all_tags) == 1
-    # Files loaded on-demand for performance optimization
-    assert result.total_files_across_commits == 0
+    assert result.total_files_across_commits == 2
 
     # Verify branches
     branch_names = {branch.name for branch in result.branches}
@@ -220,7 +219,6 @@ def test_git_repo_factory_create_from_scan() -> None:
         date=datetime.now(UTC),
         message="Test commit",
         parent_commit_sha="",
-        files=[],
         author="Test Author <test@example.com>",
     )
 
@@ -230,6 +228,7 @@ def test_git_repo_factory_create_from_scan() -> None:
         all_tags=[],
         scan_timestamp=datetime.now(UTC),
         total_files_across_commits=0,
+        all_files=[],
     )
 
     # Create GitRepo
@@ -257,7 +256,6 @@ def test_git_repo_factory_prefers_main_branch() -> None:
         date=datetime.now(UTC),
         message="Test commit",
         parent_commit_sha="",
-        files=[],
         author="Test Author <test@example.com>",
     )
 
@@ -276,6 +274,7 @@ def test_git_repo_factory_prefers_main_branch() -> None:
         all_tags=[],
         scan_timestamp=datetime.now(UTC),
         total_files_across_commits=0,
+        all_files=[],
     )
     git_repo.update_with_scan_result(scan_result)
 
@@ -296,6 +295,7 @@ def test_git_repo_factory_no_branches_raises_error() -> None:
         all_tags=[],
         scan_timestamp=datetime.now(UTC),
         total_files_across_commits=0,
+        all_files=[],
     )
 
     git_repo = GitRepoFactory.create_from_remote_uri(repo_info.remote_uri)

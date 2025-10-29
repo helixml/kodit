@@ -140,7 +140,6 @@ async def create_test_repository_with_data(
         message="Test commit",
         parent_commit_sha=None,
         author="test@example.com",
-        files=[],
     )
     await service.git_commit_repository.save_bulk([commit])
 

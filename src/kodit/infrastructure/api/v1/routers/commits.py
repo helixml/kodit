@@ -162,20 +162,17 @@ async def get_commit_file(
     repo_id: str,  # noqa: ARG001
     commit_sha: str,
     blob_sha: str,
-    git_commit_repository: GitCommitRepositoryDep,
+    git_file_repository: GitFileRepositoryDep,
 ) -> FileResponse:
     """Get a specific file from a commit."""
-    try:
-        # Get the specific commit directly from commit repository
-        commit = await git_commit_repository.get(commit_sha)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail="Commit not found") from e
-
-    # Find the specific file
-    file = next((f for f in commit.files if f.blob_sha == blob_sha), None)
-    if not file:
+    files = await git_file_repository.find(
+        GitFileQueryBuilder().for_commit_sha(commit_sha).for_blob_sha(blob_sha)
+    )
+    if not files:
         raise HTTPException(status_code=404, detail="File not found")
-
+    if len(files) > 1:
+        raise HTTPException(status_code=422, detail="Multiple files found")
+    file = files[0]
     return FileResponse(
         data=FileData(
             type="file",
