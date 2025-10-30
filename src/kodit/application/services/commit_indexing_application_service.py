@@ -126,17 +126,17 @@ Create a Mermaid Entity Relationship Diagram showing:
 Example format:
 ```mermaid
 erDiagram
-    User ||--o{ Order : places
-    User {
+    User ||--o{{ Order : places
+    User {{
         int id PK
         string email
         string name
-    }
-    Order {
+    }}
+    Order {{
         int id PK
         int user_id FK
         datetime created_at
-    }
+    }}
 ```
 
 If specific field details aren't available, show just the entity boxes and
