@@ -543,7 +543,10 @@ class GitPythonAdapter(GitAdapter):
 
                 # If this is the first commit (no parents), show diff against empty tree
                 if not commit.parents:
-                    first_diff = commit.diff(None, create_patch=True)[0]
+                    diffs = commit.diff(None, create_patch=True)
+                    if not diffs:
+                        return ""
+                    first_diff = diffs[0]
                     diff_bytes = first_diff.diff
                     if isinstance(diff_bytes, bytes):
                         return diff_bytes.decode("utf-8")
