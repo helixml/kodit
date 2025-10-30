@@ -251,30 +251,9 @@ class FusionService(ABC):
 class EnrichmentV2Repository(Repository[EnrichmentV2]):
     """Repository for enrichment operations."""
 
-    @abstractmethod
-    async def get_for_commit(
-        self,
-        commit_sha: str,
-        enrichment_type: str | None = None,
-        enrichment_subtype: str | None = None,
-    ) -> list[EnrichmentV2]:
-        """Get enrichments for a commit, optionally filtered by type/subtype."""
-
 
 class EnrichmentAssociationRepository(Repository[EnrichmentAssociation]):
     """Repository for enrichment association operations."""
-
-    @abstractmethod
-    async def associations_for_summaries(
-        self, summary_enrichment_ids: list[int]
-    ) -> list[EnrichmentAssociation]:
-        """Get the snippet associations for the given summary enrichments."""
-
-    @abstractmethod
-    async def associations_for_commit(
-        self, commit_sha: str
-    ) -> list[EnrichmentAssociation]:
-        """Get the snippet associations for the given commit."""
 
     @abstractmethod
     async def snippet_ids_for_summaries(

@@ -129,17 +129,39 @@ class EnrichmentQueryService:
 
     async def get_summaries_for_commit(self, commit_sha: str) -> list[EnrichmentV2]:
         """Get summary enrichments for a commit."""
-        return await self.enrichment_repo.get_for_commit(
+        return await self.get_for_commit(
             commit_sha,
             enrichment_type=ENRICHMENT_TYPE_DEVELOPMENT,
             enrichment_subtype=ENRICHMENT_SUBTYPE_SNIPPET_SUMMARY,
         )
 
+    async def get_for_commit(
+        self,
+        commit_sha: str,
+        enrichment_type: str | None = None,
+        enrichment_subtype: str | None = None,
+    ) -> list[EnrichmentV2]:
+        """Get enrichments for a commit."""
+        # Find associations pointing to this commit
+        all_associations = await self.enrichment_association_repository.find(
+            EnrichmentAssociationQueryBuilder().for_commit(commit_sha)
+        )
+        query = EnrichmentQueryBuilder().for_ids(
+            enrichment_ids=[
+                int(association.entity_id) for association in all_associations
+            ]
+        )
+        if enrichment_type:
+            query = query.for_type(enrichment_type)
+        if enrichment_subtype:
+            query = query.for_subtype(enrichment_subtype)
+        return await self.enrichment_repo.find(query)
+
     async def get_architecture_docs_for_commit(
         self, commit_sha: str
     ) -> list[EnrichmentV2]:
         """Get architecture documentation enrichments for a commit."""
-        return await self.enrichment_repo.get_for_commit(
+        return await self.get_for_commit(
             commit_sha,
             enrichment_type=ENRICHMENT_TYPE_ARCHITECTURE,
             enrichment_subtype=ENRICHMENT_SUBTYPE_PHYSICAL,
@@ -147,18 +169,10 @@ class EnrichmentQueryService:
 
     async def get_api_docs_for_commit(self, commit_sha: str) -> list[EnrichmentV2]:
         """Get API documentation enrichments for a commit."""
-        return await self.enrichment_repo.get_for_commit(
+        return await self.get_for_commit(
             commit_sha,
             enrichment_type=ENRICHMENT_TYPE_USAGE,
             enrichment_subtype=ENRICHMENT_SUBTYPE_API_DOCS,
-        )
-
-    async def get_summaries_for_snippets(
-        self, snippet_ids: list[int]
-    ) -> list[EnrichmentAssociation]:
-        """Get summary enrichment associations for given snippet enrichments."""
-        return await self.enrichment_association_repository.associations_for_summaries(
-            snippet_ids
         )
 
     async def get_enrichment_entities_from_associations(

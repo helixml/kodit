@@ -26,9 +26,6 @@ from kodit.domain.enrichments.usage.api_docs import (
 from kodit.domain.enrichments.usage.usage import ENRICHMENT_TYPE_USAGE
 from kodit.domain.protocols import EnrichmentV2Repository
 from kodit.infrastructure.sqlalchemy import entities as db_entities
-from kodit.infrastructure.sqlalchemy.enrichment_association_repository import (
-    SQLAlchemyEnrichmentAssociationRepository,
-)
 from kodit.infrastructure.sqlalchemy.repository import SqlAlchemyRepository
 from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 
@@ -138,44 +135,3 @@ class SQLAlchemyEnrichmentV2Repository(
         raise ValueError(
             f"Unknown enrichment type: {db_entity.type}/{db_entity.subtype}"
         )
-
-    async def get_for_commit(
-        self,
-        commit_sha: str,
-        enrichment_type: str | None = None,
-        enrichment_subtype: str | None = None,
-    ) -> list[EnrichmentV2]:
-        """Get enrichments for a commit, optionally filtered by type/subtype."""
-        from kodit.infrastructure.sqlalchemy.query import (
-            FilterOperator,
-            QueryBuilder,
-        )
-
-        # Get associations for this commit
-        async with SqlAlchemyUnitOfWork(self.session_factory):
-            assoc_repo = SQLAlchemyEnrichmentAssociationRepository(self.session_factory)
-            associations = await assoc_repo.associations_for_commit(commit_sha)
-
-            if not associations:
-                return []
-
-            # Build query for enrichments
-            query = QueryBuilder().filter(
-                "id", FilterOperator.IN, [a.enrichment_id for a in associations]
-            )
-
-            # Add type/subtype filters if specified
-            if enrichment_type:
-                query = query.filter(
-                    db_entities.EnrichmentV2.type.key,
-                    FilterOperator.EQ,
-                    enrichment_type,
-                )
-            if enrichment_subtype:
-                query = query.filter(
-                    db_entities.EnrichmentV2.subtype.key,
-                    FilterOperator.EQ,
-                    enrichment_subtype,
-                )
-
-            return await self.find(query)
