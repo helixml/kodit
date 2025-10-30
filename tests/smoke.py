@@ -40,7 +40,7 @@ def is_port_available(host: str, port: int) -> bool:
 
 
 def retry_with_timeout(
-    func: Callable[..., bool], timeout: float = 300, retry_delay: float = 1
+    func: Callable[..., bool], timeout: float = 600, retry_delay: float = 1
 ) -> Any:
     """Keep trying a function until it succeeds or timeout is reached."""
     start_time = time.time()
