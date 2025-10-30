@@ -2,13 +2,14 @@
 
 import re
 from pathlib import Path
+from typing import ClassVar
 
 
 class DatabaseSchemaDetector:
     """Detects database schemas from various sources in a repository."""
 
     # File patterns to look for
-    MIGRATION_PATTERNS = [
+    MIGRATION_PATTERNS: ClassVar[list[str]] = [
         "**/migrations/**/*.sql",
         "**/migrations/**/*.py",
         "**/migrate/**/*.sql",
@@ -19,7 +20,7 @@ class DatabaseSchemaDetector:
         "**/flyway/**/*.sql",
     ]
 
-    SQL_FILE_PATTERNS = [
+    SQL_FILE_PATTERNS: ClassVar[list[str]] = [
         "**/*.sql",
         "**/schema/**/*.sql",
         "**/schemas/**/*.sql",
@@ -27,7 +28,7 @@ class DatabaseSchemaDetector:
         "**/db/**/*.sql",
     ]
 
-    ORM_MODEL_PATTERNS = [
+    ORM_MODEL_PATTERNS: ClassVar[list[str]] = [
         "**/models/**/*.py",  # SQLAlchemy, Django
         "**/models/**/*.go",  # GORM
         "**/entities/**/*.py",  # SQLAlchemy
@@ -58,7 +59,7 @@ class DatabaseSchemaDetector:
 
     async def discover_schemas(self, repo_path: Path) -> str:
         """Discover database schemas and generate a structured report."""
-        findings = {
+        findings: dict[str, set[str] | list[str] | list[dict] | None] = {
             "tables": set(),
             "migration_files": [],
             "sql_files": [],
@@ -129,7 +130,7 @@ class DatabaseSchemaDetector:
 
     async def _extract_orm_models(self, file_path: Path) -> list[str]:
         """Extract ORM model names from model files."""
-        models = []
+        models: list[str] = []
 
         try:
             content = file_path.read_text(encoding="utf-8", errors="ignore")
@@ -137,25 +138,31 @@ class DatabaseSchemaDetector:
 
             if suffix == ".py":
                 # SQLAlchemy or Django models
-                for match in self.SQLALCHEMY_MODEL_PATTERN.finditer(content):
-                    models.append(match.group(1))
+                models.extend(
+                    match.group(1)
+                    for match in self.SQLALCHEMY_MODEL_PATTERN.finditer(content)
+                )
 
             elif suffix == ".go":
                 # GORM models
-                for match in self.GORM_MODEL_PATTERN.finditer(content):
-                    models.append(match.group(1))
+                models.extend(
+                    match.group(1)
+                    for match in self.GORM_MODEL_PATTERN.finditer(content)
+                )
 
             elif suffix in [".ts", ".js"]:
                 # TypeORM entities
-                for match in self.TYPEORM_ENTITY_PATTERN.finditer(content):
-                    models.append(match.group(1))
+                models.extend(
+                    match.group(1)
+                    for match in self.TYPEORM_ENTITY_PATTERN.finditer(content)
+                )
 
         except (OSError, UnicodeDecodeError):
             pass
 
         return models
 
-    def _generate_report(self, findings: dict) -> str:
+    def _generate_report(self, findings: dict) -> str:  # noqa: PLR0915, C901, PLR0912
         """Generate a structured report of database schema findings."""
         lines = []
 
@@ -163,7 +170,13 @@ class DatabaseSchemaDetector:
         lines.append("# Database Schema Discovery Report")
         lines.append("")
 
-        if not findings["tables"] and not findings["migration_files"] and not findings["sql_files"] and not findings["orm_models"]:
+        has_findings = (
+            findings["tables"]
+            or findings["migration_files"]
+            or findings["sql_files"]
+            or findings["orm_models"]
+        )
+        if not has_findings:
             lines.append("No database schemas detected in this repository.")
             return "\n".join(lines)
 
@@ -171,17 +184,19 @@ class DatabaseSchemaDetector:
         if findings["tables"]:
             lines.append(f"## Detected Tables/Entities ({len(findings['tables'])})")
             lines.append("")
-            for table in sorted(findings["tables"]):
-                lines.append(f"- {table}")
+            lines.extend(f"- {table}" for table in sorted(findings["tables"]))
             lines.append("")
 
         # Migration files
         if findings["migration_files"]:
             lines.append(f"## Migration Files ({len(findings['migration_files'])})")
             lines.append("")
-            lines.append("Database migrations detected, suggesting schema evolution over time:")
-            for mig_file in findings["migration_files"][:10]:  # Limit to first 10
-                lines.append(f"- {mig_file}")
+            lines.append(
+                "Database migrations detected, suggesting schema evolution over time:"
+            )
+            lines.extend(
+                f"- {mig_file}" for mig_file in findings["migration_files"][:10]
+            )
             if len(findings["migration_files"]) > 10:
                 lines.append(f"- ... and {len(findings['migration_files']) - 10} more")
             lines.append("")
@@ -190,8 +205,7 @@ class DatabaseSchemaDetector:
         if findings["sql_files"]:
             lines.append(f"## SQL Schema Files ({len(findings['sql_files'])})")
             lines.append("")
-            for sql_file in findings["sql_files"][:10]:  # Limit to first 10
-                lines.append(f"- {sql_file}")
+            lines.extend(f"- {sql_file}" for sql_file in findings["sql_files"][:10])
             if len(findings["sql_files"]) > 10:
                 lines.append(f"- ... and {len(findings['sql_files']) - 10} more")
             lines.append("")
@@ -200,9 +214,12 @@ class DatabaseSchemaDetector:
         if findings["orm_models"]:
             lines.append(f"## ORM Models ({len(findings['orm_models'])} files)")
             lines.append("")
-            lines.append("ORM models detected, suggesting an object-relational mapping approach:")
+            lines.append(
+                "ORM models detected, suggesting object-relational mapping:"
+            )
             for orm_info in findings["orm_models"][:10]:  # Limit to first 10
-                lines.append(f"- {orm_info['file']}: {', '.join(orm_info['models'][:5])}")
+                model_names = ", ".join(orm_info["models"][:5])
+                lines.append(f"- {orm_info['file']}: {model_names}")
                 if len(orm_info["models"]) > 5:
                     lines.append(f"  (and {len(orm_info['models']) - 5} more models)")
             if len(findings["orm_models"]) > 10:
@@ -213,27 +230,39 @@ class DatabaseSchemaDetector:
         lines.append("## Inferred Information")
         lines.append("")
 
-        if "alembic" in str(findings.get("migration_files", [])):
+        mig_files_str = str(findings.get("migration_files", []))
+        mig_files = findings.get("migration_files", [])
+
+        if "alembic" in mig_files_str:
             lines.append("- Migration framework: Alembic (Python/SQLAlchemy)")
-        elif "django" in str(findings.get("migration_files", [])) or any("migrations" in f and f.endswith(".py") for f in findings.get("migration_files", [])):
+        elif "django" in mig_files_str or any(
+            "migrations" in f and f.endswith(".py") for f in mig_files
+        ):
             lines.append("- Migration framework: Django Migrations")
-        elif any(".go" in f for f in findings.get("migration_files", [])):
-            lines.append("- Migration framework: Go-based migrations (possibly golang-migrate)")
-        elif "flyway" in str(findings.get("migration_files", [])):
+        elif any(".go" in f for f in mig_files):
+            lines.append(
+                "- Migration framework: Go-based migrations (golang-migrate)"
+            )
+        elif "flyway" in mig_files_str:
             lines.append("- Migration framework: Flyway")
-        elif "liquibase" in str(findings.get("migration_files", [])):
+        elif "liquibase" in mig_files_str:
             lines.append("- Migration framework: Liquibase")
 
         if findings["orm_models"]:
-            py_models = sum(1 for m in findings["orm_models"] if m["file"].endswith(".py"))
-            go_models = sum(1 for m in findings["orm_models"] if m["file"].endswith(".go"))
-            ts_models = sum(1 for m in findings["orm_models"] if m["file"].endswith((".ts", ".js")))
+            orm_models = findings["orm_models"]
+            py_models = sum(1 for m in orm_models if m["file"].endswith(".py"))
+            go_models = sum(1 for m in orm_models if m["file"].endswith(".go"))
+            ts_models = sum(
+                1 for m in orm_models if m["file"].endswith((".ts", ".js"))
+            )
 
             if py_models > 0:
                 lines.append("- ORM: Python (likely SQLAlchemy or Django ORM)")
             if go_models > 0:
                 lines.append("- ORM: Go (likely GORM)")
             if ts_models > 0:
-                lines.append("- ORM: TypeScript/JavaScript (likely TypeORM or Sequelize)")
+                lines.append(
+                    "- ORM: TypeScript/JavaScript (likely TypeORM or Sequelize)"
+                )
 
         return "\n".join(lines)

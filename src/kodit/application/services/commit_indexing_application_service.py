@@ -101,7 +101,8 @@ You are an expert database architect and documentation specialist.
 Your task is to create clear, visual documentation of database schemas.
 """
 
-DATABASE_SCHEMA_TASK_PROMPT = """You will be provided with a database schema discovery report.
+DATABASE_SCHEMA_TASK_PROMPT = """
+You will be provided with a database schema discovery report.
 Please create comprehensive database schema documentation.
 
 <schema_report>
@@ -138,18 +139,21 @@ erDiagram
     }
 ```
 
-If specific field details aren't available, show just the entity boxes and relationships.
+If specific field details aren't available, show just the entity boxes and
+relationships.
 
 ## Key Observations
 
 Answer these questions in 1-2 sentences each:
-1. What is the primary data model pattern (e.g., user-centric, event-sourced, multi-tenant)?
+1. What is the primary data model pattern (e.g., user-centric,
+   event-sourced, multi-tenant)?
 2. What migration strategy is being used?
 3. Are there any notable database design patterns or concerns?
 
 ## Rules:
 - Be concise and focus on the high-level structure
-- Infer reasonable relationships from table names when explicit information isn't available
+- Infer reasonable relationships from table names when explicit information
+  isn't available
 - If no database schema is found, state that clearly
 - Keep entity descriptions to 10 words or less
 """
