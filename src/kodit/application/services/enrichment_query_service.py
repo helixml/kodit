@@ -5,6 +5,9 @@ import structlog
 from kodit.domain.enrichments.architecture.architecture import (
     ENRICHMENT_TYPE_ARCHITECTURE,
 )
+from kodit.domain.enrichments.architecture.database_schema.database_schema import (
+    ENRICHMENT_SUBTYPE_DATABASE_SCHEMA,
+)
 from kodit.domain.enrichments.architecture.physical.physical import (
     ENRICHMENT_SUBTYPE_PHYSICAL,
 )
@@ -233,6 +236,21 @@ class EnrichmentQueryService:
         """Check if a commit has commit description enrichments."""
         commit_descriptions = await self.get_commit_description_for_commit(commit_sha)
         return len(commit_descriptions) > 0
+
+    async def get_database_schema_for_commit(
+        self, commit_sha: str
+    ) -> list[EnrichmentV2]:
+        """Get database schema enrichments for a commit."""
+        return await self.get_enrichments_for_commit(
+            commit_sha,
+            enrichment_type=ENRICHMENT_TYPE_ARCHITECTURE,
+            enrichment_subtype=ENRICHMENT_SUBTYPE_DATABASE_SCHEMA,
+        )
+
+    async def has_database_schema_for_commit(self, commit_sha: str) -> bool:
+        """Check if a commit has database schema enrichments."""
+        database_schemas = await self.get_database_schema_for_commit(commit_sha)
+        return len(database_schemas) > 0
 
     async def associations_for_enrichments(
         self, enrichments: list[EnrichmentV2]

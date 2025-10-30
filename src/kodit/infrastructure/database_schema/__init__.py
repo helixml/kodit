@@ -1,0 +1,1 @@
+"""Database schema detection infrastructure."""

@@ -50,6 +50,9 @@ from kodit.infrastructure.bm25.vectorchord_bm25_repository import (
     VectorChordBM25Repository,
 )
 from kodit.infrastructure.cloning.git.git_python_adaptor import GitPythonAdapter
+from kodit.infrastructure.database_schema.database_schema_detector import (
+    DatabaseSchemaDetector,
+)
 from kodit.infrastructure.embedding.embedding_factory import (
     embedding_domain_service_factory,
 )
@@ -255,6 +258,7 @@ class ServerFactory:
                 text_search_service=self.text_search_service(),
                 embedding_repository=self.embedding_repository(),
                 architecture_service=self.architecture_service(),
+                database_schema_detector=DatabaseSchemaDetector(),
                 enrichment_v2_repository=self.enrichment_v2_repository(),
                 enricher_service=self.enricher(),
                 enrichment_association_repository=self.enrichment_association_repository(),
