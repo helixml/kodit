@@ -124,47 +124,21 @@ class CodeSearchApplicationService:
                 )
             )
 
-            # Get the snippet enrichment IDs that these summaries point to
-            summary_ids = [int(x.snippet_id) for x in summary_results]
-            summary_enrichments = (
-                await self.enrichment_query_service.get_enrichments_by_ids(summary_ids)
-            )
-
-            # Create a mapping from summary ID to enrichment for lookup
-            {e.id: e for e in summary_enrichments}
-
-            # Get all snippet enrichments in one call
-            all_snippet_enrichments = (
-                await self.enrichment_query_service.snippets_for_summary_enrichments(
-                    summary_enrichments
+            summary_to_snippet_map = (
+                await self.enrichment_query_service.summary_to_snippet_map(
+                    summary_ids=[int(x.snippet_id) for x in summary_results]
                 )
             )
-
-            # Create a mapping from summary ID to snippet enrichment
-            # First get associations to know which snippet belongs to which summary
-            associations = (
-                await self.enrichment_query_service.associations_for_enrichment(
-                    [e.id for e in summary_enrichments if e.id is not None]
-                )
-            )
-            # Only include associations pointing to enrichments (not commits)
-            summary_to_snippet_map = {
-                assoc.enrichment_id: int(assoc.entity_id) for assoc in associations
-            }
-            snippet_map = {s.id: s for s in all_snippet_enrichments}
 
             # Build fusion list in the correct order
-            fusion_items = []
-            for result in summary_results:
-                summary_id = int(result.snippet_id)
-                if summary_id in summary_to_snippet_map:
-                    snippet_id = summary_to_snippet_map[summary_id]
-                    if snippet_id in snippet_map:
-                        snippet = snippet_map[snippet_id]
-                        fusion_items.append(
-                            FusionRequest(id=str(snippet.id), score=result.score)
-                        )
-
+            fusion_items = [
+                FusionRequest(
+                    id=str(summary_to_snippet_map[int(result.snippet_id)]),
+                    score=result.score,
+                )
+                for result in summary_results
+                if int(result.snippet_id) in summary_to_snippet_map
+            ]
             fusion_list.append(fusion_items)
 
         if len(fusion_list) == 0:

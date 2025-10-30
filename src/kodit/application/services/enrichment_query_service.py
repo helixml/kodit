@@ -161,6 +161,18 @@ class EnrichmentQueryService:
             snippet_ids
         )
 
+    async def get_enrichment_entities_from_associations(
+        self, associations: list[EnrichmentAssociation]
+    ) -> list[EnrichmentV2]:
+        """Get enrichments by their associations."""
+        return await self.enrichment_repo.find(
+            EnrichmentQueryBuilder().for_ids(
+                enrichment_ids=[
+                    int(association.entity_id) for association in associations
+                ]
+            )
+        )
+
     async def get_enrichments_by_ids(
         self, enrichment_ids: list[int]
     ) -> list[EnrichmentV2]:
@@ -189,13 +201,13 @@ class EnrichmentQueryService:
         api_docs = await self.get_api_docs_for_commit(commit_sha)
         return len(api_docs) > 0
 
-    async def associations_for_enrichment(
-        self, enrichment_ids: list[int]
+    async def associations_for_enrichments(
+        self, enrichments: list[EnrichmentV2]
     ) -> list[EnrichmentAssociation]:
         """Get enrichment associations for given enrichment IDs."""
         return await self.enrichment_association_repository.find(
             EnrichmentAssociationQueryBuilder()
-            .for_enrichment_ids(enrichment_ids)
+            .for_enrichments(enrichments)
             .for_enrichment_type()
         )
 
@@ -223,13 +235,16 @@ class EnrichmentQueryService:
             .for_enrichment_type()
         )
 
-        snippet_enrichments = await self.enrichment_repo.find(
+        all_enrichments = await self.enrichment_repo.find(
             EnrichmentQueryBuilder().for_ids(
                 enrichment_ids=[
                     int(association.entity_id) for association in associations
                 ]
             )
         )
+        snippet_enrichments = [
+            e for e in all_enrichments if e.subtype == ENRICHMENT_SUBTYPE_SNIPPET
+        ]
 
         # Re-Sort snippet enrichments to be in the same order as the associations
         original_snippet_ids = [association.entity_id for association in associations]
@@ -273,3 +288,25 @@ class EnrichmentQueryService:
                 result[target_id].append(enrichment_map[association.enrichment_id])
 
         return result
+
+    async def summary_to_snippet_map(self, summary_ids: list[int]) -> dict[int, int]:
+        """Get a map of summary IDs to snippet IDs."""
+        # Get the snippet enrichment IDs that these summaries point to
+        summary_enrichments = await self.get_enrichments_by_ids(summary_ids)
+
+        # Get all the associations for these summary enrichments
+        all_associations = await self.associations_for_enrichments(summary_enrichments)
+
+        # Get all enrichments for these summary associations
+        all_snippet_enrichments = await self.get_enrichment_entities_from_associations(
+            all_associations
+        )
+        snippet_type_map = {e.id: e.subtype for e in all_snippet_enrichments}
+
+        # Create a lookup map from summary ID to snippet ID, via the associations,
+        # filtering out any snippets that are not summary enrichments
+        return {
+            assoc.enrichment_id: int(assoc.entity_id)
+            for assoc in all_associations
+            if snippet_type_map[int(assoc.entity_id)] == ENRICHMENT_SUBTYPE_SNIPPET
+        }
