@@ -21,6 +21,7 @@ from kodit.config import AppContext
 from kodit.domain.protocols import (
     GitBranchRepository,
     GitCommitRepository,
+    GitFileRepository,
     GitRepoRepository,
     GitTagRepository,
 )
@@ -131,9 +132,7 @@ async def get_git_tag_repository(
     return server_factory.git_tag_repository()
 
 
-GitTagRepositoryDep = Annotated[
-    GitTagRepository, Depends(get_git_tag_repository)
-]
+GitTagRepositoryDep = Annotated[GitTagRepository, Depends(get_git_tag_repository)]
 
 
 async def get_commit_indexing_app_service(
@@ -170,3 +169,13 @@ async def get_enrichment_query_service(
 EnrichmentQueryServiceDep = Annotated[
     EnrichmentQueryService, Depends(get_enrichment_query_service)
 ]
+
+
+async def get_git_file_repository(
+    server_factory: ServerFactoryDep,
+) -> GitFileRepository:
+    """Get git file repository dependency."""
+    return server_factory.git_file_repository()
+
+
+GitFileRepositoryDep = Annotated[GitFileRepository, Depends(get_git_file_repository)]

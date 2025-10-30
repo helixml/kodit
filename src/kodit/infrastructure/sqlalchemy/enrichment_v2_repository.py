@@ -1,118 +1,137 @@
 """EnrichmentV2 repository."""
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 
-import structlog
-from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from kodit.domain.enrichments.architecture.architecture import (
+    ENRICHMENT_TYPE_ARCHITECTURE,
+)
+from kodit.domain.enrichments.architecture.physical.physical import (
+    ENRICHMENT_SUBTYPE_PHYSICAL,
+    PhysicalArchitectureEnrichment,
+)
+from kodit.domain.enrichments.development.development import ENRICHMENT_TYPE_DEVELOPMENT
+from kodit.domain.enrichments.development.snippet.snippet import (
+    ENRICHMENT_SUBTYPE_SNIPPET,
+    ENRICHMENT_SUBTYPE_SNIPPET_SUMMARY,
+    SnippetEnrichment,
+    SnippetEnrichmentSummary,
+)
 from kodit.domain.enrichments.enrichment import EnrichmentV2
-from kodit.infrastructure.mappers.enrichment_mapper import EnrichmentMapper
+from kodit.domain.enrichments.usage.api_docs import (
+    ENRICHMENT_SUBTYPE_API_DOCS,
+    APIDocEnrichment,
+)
+from kodit.domain.enrichments.usage.usage import ENRICHMENT_TYPE_USAGE
+from kodit.domain.protocols import EnrichmentV2Repository
 from kodit.infrastructure.sqlalchemy import entities as db_entities
+from kodit.infrastructure.sqlalchemy.repository import SqlAlchemyRepository
 from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 
 
-class EnrichmentV2Repository:
+def create_enrichment_v2_repository(
+    session_factory: Callable[[], AsyncSession],
+) -> EnrichmentV2Repository:
+    """Create a enrichment v2 repository."""
+    return SQLAlchemyEnrichmentV2Repository(session_factory=session_factory)
+
+
+class SQLAlchemyEnrichmentV2Repository(
+    SqlAlchemyRepository[EnrichmentV2, db_entities.EnrichmentV2], EnrichmentV2Repository
+):
     """Repository for managing enrichments and their associations."""
 
-    def __init__(
-        self,
-        session_factory: Callable[[], AsyncSession],
-    ) -> None:
-        """Initialize the repository."""
-        self.session_factory = session_factory
-        self.mapper = EnrichmentMapper()
-        self.log = structlog.get_logger(__name__)
+    def _get_id(self, entity: EnrichmentV2) -> int | None:
+        """Extract ID from domain entity."""
+        return entity.id
 
-    async def enrichments_for_entity_type(
-        self,
-        entity_type: str,
-        entity_ids: list[str],
-    ) -> list[EnrichmentV2]:
-        """Get all enrichments for multiple entities of the same type."""
-        if not entity_ids:
-            return []
+    @property
+    def db_entity_type(self) -> type[db_entities.EnrichmentV2]:
+        """The SQLAlchemy model type."""
+        return db_entities.EnrichmentV2
 
+    async def save(self, entity: EnrichmentV2) -> EnrichmentV2:
+        """Save entity (create new or update existing)."""
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
-            stmt = (
-                select(
-                    db_entities.EnrichmentV2,
-                    db_entities.EnrichmentAssociation.entity_id,
-                )
-                .join(db_entities.EnrichmentAssociation)
-                .where(
-                    db_entities.EnrichmentAssociation.entity_type == entity_type,
-                    db_entities.EnrichmentAssociation.entity_id.in_(entity_ids),
-                )
+            entity_id = self._get_id(entity)
+            # Skip session.get if entity_id is None (new entity not yet persisted)
+            existing_db_entity = (
+                await session.get(self.db_entity_type, entity_id)
+                if entity_id is not None
+                else None
             )
 
-            result = await session.execute(stmt)
-            rows = result.all()
-
-            return [
-                self.mapper.to_domain(db_enrichment, entity_type, entity_id)
-                for db_enrichment, entity_id in rows
-            ]
-
-    async def bulk_save_enrichments(
-        self,
-        enrichments: Sequence[EnrichmentV2],
-    ) -> None:
-        """Bulk save enrichments with their associations."""
-        if not enrichments:
-            return
-
-        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
-            enrichment_records = []
-            for enrichment in enrichments:
-                db_enrichment = db_entities.EnrichmentV2(
-                    type=enrichment.type,
-                    subtype=enrichment.subtype,
-                    content=enrichment.content,
-                )
-                session.add(db_enrichment)
-                enrichment_records.append((enrichment, db_enrichment))
+            if existing_db_entity:
+                # Update existing entity
+                new_db_entity = self.to_db(entity)
+                self._update_db_entity(existing_db_entity, new_db_entity)
+                db_entity = existing_db_entity
+            else:
+                # Create new entity
+                db_entity = self.to_db(entity)
+                session.add(db_entity)
 
             await session.flush()
+            return self.to_domain(db_entity)
 
-            for enrichment, db_enrichment in enrichment_records:
-                db_association = db_entities.EnrichmentAssociation(
-                    enrichment_id=db_enrichment.id,
-                    entity_type=enrichment.entity_type_key(),
-                    entity_id=enrichment.entity_id,
-                )
-                session.add(db_association)
+    @staticmethod
+    def to_db(domain_entity: EnrichmentV2) -> db_entities.EnrichmentV2:
+        """Convert domain enrichment to database entity."""
+        enrichment = db_entities.EnrichmentV2(
+            type=domain_entity.type,
+            subtype=domain_entity.subtype,
+            content=domain_entity.content,
+        )
+        if domain_entity.id is not None:
+            enrichment.id = domain_entity.id
+        return enrichment
 
-    async def bulk_delete_enrichments(
-        self,
-        entity_type: str,
-        entity_ids: list[str],
-    ) -> None:
-        """Bulk delete enrichments for multiple entities of the same type."""
-        if not entity_ids:
-            return
-
-        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
-            stmt = select(db_entities.EnrichmentAssociation.enrichment_id).where(
-                db_entities.EnrichmentAssociation.entity_type == entity_type,
-                db_entities.EnrichmentAssociation.entity_id.in_(entity_ids),
+    @staticmethod
+    def to_domain(db_entity: db_entities.EnrichmentV2) -> EnrichmentV2:
+        """Convert database enrichment to domain entity."""
+        # Use the stored type and subtype to determine the correct domain class
+        if (
+            db_entity.type == ENRICHMENT_TYPE_DEVELOPMENT
+            and db_entity.subtype == ENRICHMENT_SUBTYPE_SNIPPET_SUMMARY
+        ):
+            return SnippetEnrichmentSummary(
+                id=db_entity.id,
+                content=db_entity.content,
+                created_at=db_entity.created_at,
+                updated_at=db_entity.updated_at,
             )
-            result = await session.execute(stmt)
-            enrichment_ids = result.scalars().all()
-
-            if enrichment_ids:
-                await session.execute(
-                    delete(db_entities.EnrichmentV2).where(
-                        db_entities.EnrichmentV2.id.in_(enrichment_ids)
-                    )
-                )
-
-    async def delete_enrichment(self, enrichment_id: int) -> bool:
-        """Delete a specific enrichment by ID."""
-        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
-            result = await session.execute(
-                delete(db_entities.EnrichmentV2).where(
-                    db_entities.EnrichmentV2.id == enrichment_id
-                )
+        if (
+            db_entity.type == ENRICHMENT_TYPE_DEVELOPMENT
+            and db_entity.subtype == ENRICHMENT_SUBTYPE_SNIPPET
+        ):
+            return SnippetEnrichment(
+                id=db_entity.id,
+                content=db_entity.content,
+                created_at=db_entity.created_at,
+                updated_at=db_entity.updated_at,
             )
-            return result.rowcount > 0
+        if (
+            db_entity.type == ENRICHMENT_TYPE_USAGE
+            and db_entity.subtype == ENRICHMENT_SUBTYPE_API_DOCS
+        ):
+            return APIDocEnrichment(
+                id=db_entity.id,
+                content=db_entity.content,
+                created_at=db_entity.created_at,
+                updated_at=db_entity.updated_at,
+            )
+        if (
+            db_entity.type == ENRICHMENT_TYPE_ARCHITECTURE
+            and db_entity.subtype == ENRICHMENT_SUBTYPE_PHYSICAL
+        ):
+            return PhysicalArchitectureEnrichment(
+                id=db_entity.id,
+                content=db_entity.content,
+                created_at=db_entity.created_at,
+                updated_at=db_entity.updated_at,
+            )
+
+        raise ValueError(
+            f"Unknown enrichment type: {db_entity.type}/{db_entity.subtype}"
+        )

@@ -1,0 +1,203 @@
+"""Abstract base classes for repositories."""
+
+from abc import ABC, abstractmethod
+from collections.abc import Callable, Generator
+from typing import Any, Generic, TypeVar
+
+from sqlalchemy import func, inspect, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from kodit.infrastructure.sqlalchemy.query import Query
+from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
+
+DomainEntityType = TypeVar("DomainEntityType")
+DatabaseEntityType = TypeVar("DatabaseEntityType")
+
+
+class SqlAlchemyRepository(ABC, Generic[DomainEntityType, DatabaseEntityType]):
+    """Base repository with common SQLAlchemy patterns."""
+
+    def __init__(self, session_factory: Callable[[], AsyncSession]) -> None:
+        """Initialize the repository."""
+        self.session_factory = session_factory
+        self._chunk_size = 1000
+
+    @abstractmethod
+    def _get_id(self, entity: DomainEntityType) -> Any:
+        """Extract ID from domain entity."""
+
+    @property
+    @abstractmethod
+    def db_entity_type(self) -> type[DatabaseEntityType]:
+        """The SQLAlchemy model type."""
+
+    @staticmethod
+    @abstractmethod
+    def to_domain(db_entity: DatabaseEntityType) -> DomainEntityType:
+        """Map database entity to domain entity."""
+
+    @staticmethod
+    @abstractmethod
+    def to_db(domain_entity: DomainEntityType) -> DatabaseEntityType:
+        """Map domain entity to database entity."""
+
+    def _update_db_entity(
+        self, existing: DatabaseEntityType, new: DatabaseEntityType
+    ) -> None:
+        """Update existing database entity with values from new entity."""
+        mapper = inspect(type(existing))
+        if mapper is None:
+            return
+        # Skip auto-managed columns
+        skip_columns = {"created_at", "updated_at", "id"}
+        for column in mapper.columns:
+            if not column.primary_key and column.key not in skip_columns:
+                setattr(existing, column.key, getattr(new, column.key))
+
+    async def get(self, entity_id: Any) -> DomainEntityType:
+        """Get entity by primary key."""
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
+            db_entity = await session.get(self.db_entity_type, entity_id)
+            if not db_entity:
+                raise ValueError(f"Entity with id {entity_id} not found")
+            return self.to_domain(db_entity)
+
+    async def find(self, query: Query) -> list[DomainEntityType]:
+        """Find all entities matching query."""
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
+            stmt = select(self.db_entity_type)
+            stmt = query.apply(stmt, self.db_entity_type)
+            db_entities = (await session.scalars(stmt)).all()
+            return [self.to_domain(db) for db in db_entities]
+
+    async def count(self, query: Query) -> int:
+        """Count the number of entities matching query."""
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
+            stmt = select(self.db_entity_type).with_only_columns(func.count())
+            # For count queries, only apply filters, not sorting or pagination
+            from kodit.infrastructure.sqlalchemy.query import QueryBuilder
+
+            if isinstance(query, QueryBuilder):
+                # Apply only filters, skip sorting and pagination for count queries
+                stmt = query.apply_filters_only(stmt, self.db_entity_type)
+            else:
+                stmt = query.apply(stmt, self.db_entity_type)
+            result = await session.scalar(stmt)
+            return result or 0
+
+    async def save(self, entity: DomainEntityType) -> DomainEntityType:
+        """Save entity (create new or update existing)."""
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
+            entity_id = self._get_id(entity)
+            # Skip session.get if entity_id is None (new entity not yet persisted)
+            existing_db_entity = (
+                await session.get(self.db_entity_type, entity_id)
+                if entity_id is not None
+                else None
+            )
+
+            if existing_db_entity:
+                # Update existing entity
+                new_db_entity = self.to_db(entity)
+                self._update_db_entity(existing_db_entity, new_db_entity)
+                db_entity = existing_db_entity
+            else:
+                # Create new entity
+                db_entity = self.to_db(entity)
+                session.add(db_entity)
+
+            await session.flush()
+            return self.to_domain(db_entity)
+
+    async def save_bulk(
+        self, entities: list[DomainEntityType]
+    ) -> list[DomainEntityType]:
+        """Save multiple entities in bulk (create new or update existing)."""
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
+            all_saved_db_entities = []
+
+            for chunk in self._chunked_domain(entities):
+                # Get IDs for all entities in chunk
+                entity_ids = [self._get_id(entity) for entity in chunk]
+
+                # Fetch all existing entities in one query
+                existing_entities = {}
+                for entity_id in entity_ids:
+                    # Skip None IDs (new entities not yet persisted)
+                    if entity_id is None:
+                        continue
+                    existing = await session.get(self.db_entity_type, entity_id)
+                    if existing:
+                        existing_entities[entity_id] = existing
+
+                # Process each entity
+                new_entities = []
+                chunk_db_entities = []
+                for entity in chunk:
+                    entity_id = self._get_id(entity)
+                    new_db_entity = self.to_db(entity)
+
+                    if entity_id in existing_entities:
+                        # Update existing entity
+                        existing = existing_entities[entity_id]
+                        self._update_db_entity(existing, new_db_entity)
+                        chunk_db_entities.append(existing)
+                    else:
+                        # Collect new entities to add
+                        new_entities.append(new_db_entity)
+                        chunk_db_entities.append(new_db_entity)
+
+                # Add all new entities at once
+                if new_entities:
+                    session.add_all(new_entities)
+
+                await session.flush()
+                all_saved_db_entities.extend(chunk_db_entities)
+
+            return [self.to_domain(db) for db in all_saved_db_entities]
+
+    async def exists(self, entity_id: Any) -> bool:
+        """Check if entity exists by primary key."""
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
+            db_entity = await session.get(self.db_entity_type, entity_id)
+            return db_entity is not None
+
+    async def delete(self, entity: DomainEntityType) -> None:
+        """Remove entity."""
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
+            db_entity = await session.get(self.db_entity_type, self._get_id(entity))
+            if db_entity:
+                await session.delete(db_entity)
+
+    async def delete_by_query(self, query: Query) -> None:
+        """Remove entities by query."""
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
+            stmt = select(self.db_entity_type)
+            stmt = query.apply(stmt, self.db_entity_type)
+            db_entities = list((await session.scalars(stmt)).all())
+            if not db_entities:
+                return
+            for chunk in self._chunked_db(db_entities):
+                for db_entity in chunk:
+                    await session.delete(db_entity)
+            await session.flush()
+
+    def _chunked_domain(
+        self,
+        items: list[DomainEntityType],
+        chunk_size: int | None = None,
+    ) -> Generator[list[DomainEntityType], None, None]:
+        """Yield chunks of items."""
+        chunk_size = chunk_size or self._chunk_size
+        for i in range(0, len(items), chunk_size):
+            yield items[i : i + chunk_size]
+
+    def _chunked_db(
+        self,
+        items: list[DatabaseEntityType],
+        chunk_size: int | None = None,
+    ) -> Generator[list[DatabaseEntityType], None, None]:
+        """Yield chunks of items."""
+        chunk_size = chunk_size or self._chunk_size
+        for i in range(0, len(items), chunk_size):
+            yield items[i : i + chunk_size]

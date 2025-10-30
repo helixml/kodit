@@ -4,12 +4,14 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
 
+# TODO(Phil): db stuff should not exist in the domain layer, create a mapper for this.
+from kodit.infrastructure.sqlalchemy import entities as db_entities
 
-@dataclass
+
+@dataclass(frozen=True)
 class EnrichmentV2(ABC):
     """Generic enrichment that can be attached to any entity."""
 
-    entity_id: str
     content: str = ""
     id: int | None = None
     created_at: datetime | None = None
@@ -30,10 +32,35 @@ class EnrichmentV2(ABC):
         """Return the entity type key this enrichment is for."""
 
 
-@dataclass
+@dataclass(frozen=True)
 class CommitEnrichment(EnrichmentV2, ABC):
     """Enrichment specific to commits."""
 
     def entity_type_key(self) -> str:
         """Return the entity type key this enrichment is for."""
-        return "git_commit"
+        return db_entities.GitCommit.__tablename__
+
+
+@dataclass(frozen=True)
+class EnrichmentAssociation:
+    """Association between an enrichment and an entity."""
+
+    enrichment_id: int
+    entity_id: str
+    entity_type: str
+    id: int | None = None
+
+
+@dataclass(frozen=True)
+class CommitEnrichmentAssociation(EnrichmentAssociation):
+    """Association between a commit and an enrichment."""
+
+    entity_type: str = db_entities.GitCommit.__tablename__
+
+
+@dataclass
+class SnippetSummaryAssociation:
+    """Association between a snippet and a summary enrichment."""
+
+    snippet_summary: EnrichmentAssociation
+    snippet: EnrichmentAssociation

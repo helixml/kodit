@@ -1,7 +1,7 @@
 """Domain services for embedding operations."""
 
 from abc import ABC, abstractmethod
-from collections.abc import AsyncGenerator, Sequence
+from collections.abc import AsyncGenerator
 
 from kodit.domain.value_objects import (
     EmbeddingRequest,
@@ -34,7 +34,7 @@ class VectorSearchRepository(ABC):
         """Index documents for vector search."""
 
     @abstractmethod
-    async def search(self, request: SearchRequest) -> Sequence[SearchResult]:
+    async def search(self, request: SearchRequest) -> list[SearchResult]:
         """Search documents using vector similarity."""
 
     @abstractmethod
@@ -101,19 +101,8 @@ class EmbeddingDomainService:
         ):
             yield result
 
-    async def search(self, request: SearchRequest) -> Sequence[SearchResult]:
-        """Search documents using domain business rules.
-
-        Args:
-            request: The search request
-
-        Returns:
-            Sequence of search results
-
-        Raises:
-            ValueError: If the request is invalid
-
-        """
+    async def search(self, request: SearchRequest) -> list[SearchResult]:
+        """Search documents using domain business rules."""
         # Domain logic: validate request
         if not request.query or not request.query.strip():
             raise ValueError("Search query cannot be empty")
@@ -127,7 +116,16 @@ class EmbeddingDomainService:
             query=normalized_query, top_k=request.top_k, snippet_ids=request.snippet_ids
         )
 
-        return await self.vector_search_repository.search(normalized_request)
+        results = await self.vector_search_repository.search(normalized_request)
+
+        # Deduplicate results while preserving order and scores
+        seen_ids: set[str] = set()
+        unique_results: list[SearchResult] = []
+        for result in results:
+            if result.snippet_id not in seen_ids:
+                seen_ids.add(result.snippet_id)
+                unique_results.append(result)
+        return unique_results
 
     async def has_embedding(
         self, snippet_id: int, embedding_type: EmbeddingType

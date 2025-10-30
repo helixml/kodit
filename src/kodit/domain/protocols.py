@@ -2,10 +2,9 @@
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Protocol, TypeVar
 
-from pydantic import AnyUrl
-
+from kodit.domain.enrichments.enrichment import EnrichmentAssociation, EnrichmentV2
 from kodit.domain.entities import (
     Task,
     TaskStatus,
@@ -13,6 +12,7 @@ from kodit.domain.entities import (
 from kodit.domain.entities.git import (
     GitBranch,
     GitCommit,
+    GitFile,
     GitRepo,
     GitTag,
     SnippetV2,
@@ -21,39 +21,53 @@ from kodit.domain.value_objects import (
     FusionRequest,
     FusionResult,
     MultiSearchRequest,
-    TaskOperation,
 )
+from kodit.infrastructure.sqlalchemy.query import Query
+
+T = TypeVar("T")
 
 
-class TaskRepository(Protocol):
+class Repository[T](Protocol):
+    """Abstract base classes for repositories."""
+
+    async def get(self, entity_id: Any) -> T:
+        """Get entity by primary key."""
+        ...
+
+    async def find(self, query: Query) -> list[T]:
+        """Find all entities matching query."""
+        ...
+
+    async def save(self, entity: T) -> T:
+        """Save entity (create new or update existing)."""
+        ...
+
+    async def save_bulk(self, entities: list[T]) -> list[T]:
+        """Save multiple entities in bulk (create new or update existing)."""
+        ...
+
+    async def exists(self, entity_id: Any) -> bool:
+        """Check if entity exists by primary key."""
+        ...
+
+    async def delete(self, entity: T) -> None:
+        """Remove entity."""
+        ...
+
+    async def delete_by_query(self, query: Query) -> None:
+        """Remove entities by query."""
+        ...
+
+    async def count(self, query: Query) -> int:
+        """Count the number of entities matching query."""
+        ...
+
+
+class TaskRepository(Repository[Task], Protocol):
     """Repository interface for Task entities."""
-
-    async def add(
-        self,
-        task: Task,
-    ) -> None:
-        """Add a task."""
-        ...
-
-    async def get(self, task_id: str) -> Task | None:
-        """Get a task by ID."""
-        ...
 
     async def next(self) -> Task | None:
         """Take a task for processing."""
-        ...
-
-    async def remove(self, task: Task) -> None:
-        """Remove a task."""
-        ...
-
-    async def update(self, task: Task) -> None:
-        """Update a task."""
-        ...
-
-    async def list(self, task_operation: TaskOperation | None = None) -> list[Task]:
-        """List tasks with optional status filter."""
-        ...
 
 
 class ReportingModule(Protocol):
@@ -64,57 +78,33 @@ class ReportingModule(Protocol):
         ...
 
 
-class TaskStatusRepository(Protocol):
+class TaskStatusRepository(Repository[TaskStatus]):
     """Repository interface for persisting progress state only."""
 
-    async def save(self, status: TaskStatus) -> None:
-        """Save a progress state."""
-        ...
-
+    @abstractmethod
     async def load_with_hierarchy(
         self, trackable_type: str, trackable_id: int
     ) -> list[TaskStatus]:
         """Load progress states with IDs and parent IDs from database."""
-        ...
 
-    async def delete(self, status: TaskStatus) -> None:
+    @abstractmethod
+    async def delete(self, entity: TaskStatus) -> None:
         """Delete a progress state."""
-        ...
 
 
-class GitCommitRepository(ABC):
+class GitCommitRepository(Repository[GitCommit]):
     """Repository for Git commits."""
 
-    @abstractmethod
-    async def get_by_sha(self, commit_sha: str) -> GitCommit:
-        """Get a commit by its SHA."""
+
+class GitFileRepository(Repository[GitFile]):
+    """Repository for Git files."""
 
     @abstractmethod
-    async def get_by_repo_id(self, repo_id: int) -> list[GitCommit]:
-        """Get all commits for a repository."""
-
-    @abstractmethod
-    async def save(self, commit: GitCommit, repo_id: int) -> GitCommit:
-        """Save a commit to a repository."""
-
-    @abstractmethod
-    async def save_bulk(self, commits: list[GitCommit], repo_id: int) -> None:
-        """Bulk save commits to a repository."""
-
-    @abstractmethod
-    async def exists(self, commit_sha: str) -> bool:
-        """Check if a commit exists."""
-
-    @abstractmethod
-    async def delete_by_repo_id(self, repo_id: int) -> None:
-        """Delete all commits for a repository."""
-
-    @abstractmethod
-    async def count_by_repo_id(self, repo_id: int) -> int:
-        """Count the number of commits for a repository."""
+    async def delete_by_commit_sha(self, commit_sha: str) -> None:
+        """Delete all files for a commit."""
 
 
-class GitBranchRepository(ABC):
+class GitBranchRepository(Repository[GitBranch]):
     """Repository for Git branches."""
 
     @abstractmethod
@@ -126,27 +116,11 @@ class GitBranchRepository(ABC):
         """Get all branches for a repository."""
 
     @abstractmethod
-    async def save(self, branch: GitBranch, repo_id: int) -> GitBranch:
-        """Save a branch to a repository."""
-
-    @abstractmethod
-    async def save_bulk(self, branches: list[GitBranch], repo_id: int) -> None:
-        """Bulk save branches to a repository."""
-
-    @abstractmethod
-    async def exists(self, branch_name: str, repo_id: int) -> bool:
-        """Check if a branch exists."""
-
-    @abstractmethod
     async def delete_by_repo_id(self, repo_id: int) -> None:
         """Delete all branches for a repository."""
 
-    @abstractmethod
-    async def count_by_repo_id(self, repo_id: int) -> int:
-        """Count the number of branches for a repository."""
 
-
-class GitTagRepository(ABC):
+class GitTagRepository(Repository[GitTag]):
     """Repository for Git tags."""
 
     @abstractmethod
@@ -158,63 +132,12 @@ class GitTagRepository(ABC):
         """Get all tags for a repository."""
 
     @abstractmethod
-    async def save(self, tag: GitTag, repo_id: int) -> GitTag:
-        """Save a tag to a repository."""
-
-    @abstractmethod
-    async def save_bulk(self, tags: list[GitTag], repo_id: int) -> None:
-        """Bulk save tags to a repository."""
-
-    @abstractmethod
-    async def exists(self, tag_name: str, repo_id: int) -> bool:
-        """Check if a tag exists."""
-
-    @abstractmethod
     async def delete_by_repo_id(self, repo_id: int) -> None:
         """Delete all tags for a repository."""
 
-    @abstractmethod
-    async def count_by_repo_id(self, repo_id: int) -> int:
-        """Count the number of tags for a repository."""
 
-
-class GitRepoRepository(ABC):
-    """Repository pattern for GitRepo aggregate.
-
-    GitRepo is the aggregate root that owns branches, commits, and tags.
-    This repository handles persistence of the entire aggregate.
-    """
-
-    @abstractmethod
-    async def save(self, repo: GitRepo) -> GitRepo:
-        """Save or update a repository with all its branches, commits, and tags.
-
-        This method persists the entire aggregate:
-        - The GitRepo entity itself
-        - All associated branches
-        - All associated commits
-        - All associated tags
-        """
-
-    @abstractmethod
-    async def get_by_id(self, repo_id: int) -> GitRepo:
-        """Get repository by ID with all associated data."""
-
-    @abstractmethod
-    async def get_by_uri(self, sanitized_uri: AnyUrl) -> GitRepo:
-        """Get repository by sanitized URI with all associated data."""
-
-    @abstractmethod
-    async def get_by_commit(self, commit_sha: str) -> GitRepo:
-        """Get repository by commit SHA with all associated data."""
-
-    @abstractmethod
-    async def get_all(self) -> list[GitRepo]:
-        """Get all repositories."""
-
-    @abstractmethod
-    async def delete(self, sanitized_uri: AnyUrl) -> bool:
-        """Delete a repository."""
+class GitRepoRepository(Repository[GitRepo]):
+    """Repository pattern for GitRepo aggregate."""
 
 
 class GitAdapter(ABC):
@@ -323,3 +246,11 @@ class FusionService(ABC):
         self, rankings: list[list[FusionRequest]], k: float = 60
     ) -> list[FusionResult]:
         """Perform reciprocal rank fusion on search results."""
+
+
+class EnrichmentV2Repository(Repository[EnrichmentV2]):
+    """Repository for enrichment operations."""
+
+
+class EnrichmentAssociationRepository(Repository[EnrichmentAssociation]):
+    """Repository for enrichment association operations."""

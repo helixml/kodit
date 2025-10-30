@@ -75,7 +75,7 @@ class IndexingWorkerService:
                 if task:
                     await self._process_task(task)
                     # Only remove the task if it was processed successfully
-                    await self.task_repository.remove(task)
+                    await self.task_repository.delete(task)
                     continue
 
                 # If no task, sleep for a bit

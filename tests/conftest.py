@@ -112,14 +112,13 @@ def unit_of_work(session_factory: Callable[[], AsyncSession]) -> SqlAlchemyUnitO
 # Shared fixtures for deletion tests
 
 
-
-
 @pytest.fixture
 def sample_git_file() -> GitFile:
     """Create a sample git file for deletion tests."""
     return GitFile(
         created_at=datetime.now(UTC),
         blob_sha="file_sha_123",
+        commit_sha="commit_sha_456",
         path="src/main.py",
         mime_type="text/x-python",
         size=1024,
@@ -128,15 +127,15 @@ def sample_git_file() -> GitFile:
 
 
 @pytest.fixture
-def sample_git_commit(sample_git_file: GitFile) -> GitCommit:
+def sample_git_commit() -> GitCommit:
     """Create a sample git commit for deletion tests."""
     return GitCommit(
         created_at=datetime.now(UTC),
         commit_sha="commit_sha_456",
+        repo_id=1,
         date=datetime.now(UTC),
         message="Test commit",
         parent_commit_sha=None,
-        files=[sample_git_file],
         author="test@example.com",
     )
 
@@ -149,7 +148,6 @@ def sample_git_repo() -> GitRepo:
         created_at=datetime.now(UTC),
         sanitized_remote_uri=AnyUrl("https://github.com/test/repo"),
         remote_uri=AnyUrl("https://github.com/test/repo.git"),
-        tracking_branch=None,
         num_commits=1,
         num_branches=1,
         num_tags=1,

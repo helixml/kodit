@@ -12,7 +12,7 @@ look at the [hosted version](https://kodit.helix.ml/docs).
 This is the REST API for the Kodit server. Please refer to the
 [Kodit documentation](https://docs.helix.ml/kodit/) for more information.
     
-Current version: 0.5.3
+Current version: 0.5.5
 
 ## Authentication
 
@@ -121,6 +121,8 @@ List all commits for a repository.
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | repo_id | string | True |  |
+| page | integer | False | Page number, starting from 1 |
+| page_size | integer | False | Items per page |
 
 
 #### Responses
@@ -173,6 +175,8 @@ List all files in a specific commit.
 |------|------|----------|-------------|
 | repo_id | string | True |  |
 | commit_sha | string | True |  |
+| page | integer | False | Page number, starting from 1 |
+| page_size | integer | False | Items per page |
 
 
 #### Responses
@@ -232,8 +236,6 @@ List all snippets in a specific commit.
 
 - 200: Successful Response
 
-[SnippetListResponse](#snippetlistresponse)
-
 - 500: Internal server error
 
 - 401: Unauthorized
@@ -281,6 +283,9 @@ List all enrichments for a specific commit.
 |------|------|----------|-------------|
 | repo_id | string | True |  |
 | commit_sha | string | True |  |
+| enrichment_type |  | False |  |
+| page | integer | False | Page number, starting from 1 |
+| page_size | integer | False | Items per page |
 
 
 #### Responses
@@ -535,7 +540,9 @@ Query parameters:
 | ref_type | string | False |  |
 | ref_name |  | False |  |
 | enrichment_type |  | False |  |
-| limit | integer | False |  |
+| max_commits_to_check | integer | False | Number of recent commits to search for recent enriched commits |
+| page | integer | False | Page number, starting from 1 |
+| page_size | integer | False | Items per page |
 
 
 #### Responses
@@ -643,6 +650,18 @@ Embedding list response following JSON-API spec.
 | data | array |  |
 
 
+### EnrichmentAssociationData
+
+
+Enrichment association data for JSON-API spec.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| id | string |  |
+| type | string |  |
+
+
 ### EnrichmentAttributes
 
 
@@ -669,6 +688,7 @@ Enrichment data following JSON-API spec.
 | type | string |  |
 | id | string |  |
 | attributes |  |  |
+| relationships |  |  |
 
 
 ### EnrichmentListResponse
@@ -680,6 +700,17 @@ Enrichment list response following JSON-API spec.
 | Field | Type | Description |
 |-------|------|-------------|
 | data | array |  |
+
+
+### EnrichmentRelationships
+
+
+Enrichment relationships for JSON-API spec.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| associations |  |  |
 
 
 ### EnrichmentSchema
@@ -960,6 +991,22 @@ JSON:API response for search results.
 | data | array |  |
 
 
+### SnippetAttributes
+
+
+Snippet attributes for JSON:API responses.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| created_at |  |  |
+| updated_at |  |  |
+| derives_from | array |  |
+| content |  |  |
+| enrichments | array |  |
+| original_scores | array |  |
+
+
 ### SnippetContentSchema
 
 
@@ -972,15 +1019,17 @@ Snippet content schema following JSON-API spec.
 | language | string |  |
 
 
-### SnippetListResponse
+### SnippetData
 
 
-Snippet list response following JSON-API spec.
+Snippet data for JSON:API responses.
 
 
 | Field | Type | Description |
 |-------|------|-------------|
-| data | array |  |
+| type | string |  |
+| id | string |  |
+| attributes |  |  |
 
 
 ### TagAttributes
@@ -1141,60 +1190,3 @@ JSON:API response for task status list.
 | loc | array |  |
 | msg | string |  |
 | type | string |  |
-
-
-### kodit__infrastructure__api__v1__schemas__search__SnippetAttributes
-
-
-Snippet attributes for JSON:API responses.
-
-
-| Field | Type | Description |
-|-------|------|-------------|
-| created_at |  |  |
-| updated_at |  |  |
-| derives_from | array |  |
-| content |  |  |
-| enrichments | array |  |
-| original_scores | array |  |
-
-
-### kodit__infrastructure__api__v1__schemas__search__SnippetData
-
-
-Snippet data for JSON:API responses.
-
-
-| Field | Type | Description |
-|-------|------|-------------|
-| type | string |  |
-| id | string |  |
-| attributes |  |  |
-
-
-### kodit__infrastructure__api__v1__schemas__snippet__SnippetAttributes
-
-
-Snippet attributes following JSON-API spec.
-
-
-| Field | Type | Description |
-|-------|------|-------------|
-| created_at |  |  |
-| updated_at |  |  |
-| derives_from | array |  |
-| content |  |  |
-| enrichments | array |  |
-
-
-### kodit__infrastructure__api__v1__schemas__snippet__SnippetData
-
-
-Snippet data following JSON-API spec.
-
-
-| Field | Type | Description |
-|-------|------|-------------|
-| type | string |  |
-| id | string |  |
-| attributes |  |  |

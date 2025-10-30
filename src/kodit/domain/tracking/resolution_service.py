@@ -43,30 +43,20 @@ class TrackableResolutionService:
         # COMMIT_SHA
         return [trackable.identifier]
 
-    async def _resolve_branch(
-        self, trackable: Trackable, limit: int
-    ) -> list[str]:
+    async def _resolve_branch(self, trackable: Trackable, limit: int) -> list[str]:
         """Get commits from branch HEAD backwards through history."""
         branch = await self.branch_repo.get_by_name(
             trackable.identifier, trackable.repo_id
         )
         # Walk commit history from head_commit backwards
-        return await self._walk_commit_history(
-            branch.head_commit.commit_sha, limit
-        )
+        return await self._walk_commit_history(branch.head_commit_sha, limit)
 
     async def _resolve_tag(self, trackable: Trackable, limit: int) -> list[str]:
         """Get commits from tag target backwards through history."""
-        tag = await self.tag_repo.get_by_name(
-            trackable.identifier, trackable.repo_id
-        )
-        return await self._walk_commit_history(
-            tag.target_commit.commit_sha, limit
-        )
+        tag = await self.tag_repo.get_by_name(trackable.identifier, trackable.repo_id)
+        return await self._walk_commit_history(tag.target_commit_sha, limit)
 
-    async def _walk_commit_history(
-        self, start_sha: str, limit: int
-    ) -> list[str]:
+    async def _walk_commit_history(self, start_sha: str, limit: int) -> list[str]:
         """Walk commit history backwards from start_sha."""
         result = []
         current_sha: str | None = start_sha
@@ -75,7 +65,7 @@ class TrackableResolutionService:
             if not current_sha:
                 break
             result.append(current_sha)
-            commit = await self.commit_repo.get_by_sha(current_sha)
+            commit = await self.commit_repo.get(current_sha)
             current_sha = commit.parent_commit_sha or None
 
         return result

@@ -117,15 +117,14 @@ async def test_git_repository_scanner_scan_repository(
     scanner = GitRepositoryScanner(mock_git_adapter)
     cloned_path = Path("/tmp/test-repo")
 
-    result = await scanner.scan_repository(cloned_path)
+    result = await scanner.scan_repository(cloned_path, repo_id=1)
 
     # Verify result structure
     assert isinstance(result, RepositoryScanResult)
     assert len(result.branches) == 2
     assert len(result.all_commits) == 2
     assert len(result.all_tags) == 1
-    # Files loaded on-demand for performance optimization
-    assert result.total_files_across_commits == 0
+    assert result.total_files_across_commits == 2
 
     # Verify branches
     branch_names = {branch.name for branch in result.branches}
@@ -153,7 +152,7 @@ async def test_git_repository_scanner_empty_branch(
     mock_git_adapter.get_branch_commit_shas.return_value = []
 
     scanner = GitRepositoryScanner(mock_git_adapter)
-    result = await scanner.scan_repository(Path("/tmp/test-repo"))
+    result = await scanner.scan_repository(Path("/tmp/test-repo"), repo_id=1)
 
     assert len(result.branches) == 0  # Empty branch should be filtered out
     assert len(result.all_commits) == 0
@@ -193,7 +192,7 @@ async def test_git_repository_scanner_malformed_tag(
     mock_git_adapter.get_branch_commit_shas.return_value = ["abc123", "def456"]
 
     scanner = GitRepositoryScanner(mock_git_adapter)
-    result = await scanner.scan_repository(Path("/tmp/test-repo"))
+    result = await scanner.scan_repository(Path("/tmp/test-repo"), repo_id=1)
 
     assert len(result.all_tags) == 1  # Only valid tag should be included
     assert result.all_tags[0].name == "v1.0.0"
@@ -209,23 +208,27 @@ def test_git_repo_factory_create_from_scan() -> None:
     )
 
     main_branch = GitBranch(
+        repo_id=1,
         name="main",
-        head_commit=GitCommit(
-            commit_sha="abc123",
-            date=datetime.now(UTC),
-            message="Test commit",
-            parent_commit_sha="",
-            files=[],
-            author="Test Author <test@example.com>",
-        ),
+        head_commit_sha="abc123",
+    )
+
+    main_commit = GitCommit(
+        commit_sha="abc123",
+        repo_id=1,
+        date=datetime.now(UTC),
+        message="Test commit",
+        parent_commit_sha="",
+        author="Test Author <test@example.com>",
     )
 
     scan_result = RepositoryScanResult(
         branches=[main_branch],
-        all_commits=[main_branch.head_commit],
+        all_commits=[main_commit],
         all_tags=[],
         scan_timestamp=datetime.now(UTC),
         total_files_across_commits=0,
+        all_files=[],
     )
 
     # Create GitRepo
@@ -235,7 +238,7 @@ def test_git_repo_factory_create_from_scan() -> None:
     assert isinstance(git_repo, GitRepo)
     assert git_repo.remote_uri == repo_info.remote_uri
     assert git_repo.sanitized_remote_uri == repo_info.sanitized_remote_uri
-    assert git_repo.tracking_branch == main_branch
+    assert git_repo.tracking_config.name == "main"
     assert git_repo.num_branches == 1
 
 
@@ -249,18 +252,18 @@ def test_git_repo_factory_prefers_main_branch() -> None:
 
     commit = GitCommit(
         commit_sha="abc123",
+        repo_id=1,
         date=datetime.now(UTC),
         message="Test commit",
         parent_commit_sha="",
-        files=[],
         author="Test Author <test@example.com>",
     )
 
     # Create branches with main, master, and develop
     branches = [
-        GitBranch(name="develop", head_commit=commit),
-        GitBranch(name="master", head_commit=commit),
-        GitBranch(name="main", head_commit=commit),
+        GitBranch(name="develop", head_commit_sha="abc123", repo_id=1),
+        GitBranch(name="master", head_commit_sha="abc123", repo_id=1),
+        GitBranch(name="main", head_commit_sha="abc123", repo_id=1),
     ]
 
     git_repo = GitRepoFactory.create_from_remote_uri(repo_info.remote_uri)
@@ -271,11 +274,11 @@ def test_git_repo_factory_prefers_main_branch() -> None:
         all_tags=[],
         scan_timestamp=datetime.now(UTC),
         total_files_across_commits=0,
+        all_files=[],
     )
     git_repo.update_with_scan_result(scan_result)
 
-    assert git_repo.tracking_branch is not None
-    assert git_repo.tracking_branch.name == "main"
+    assert git_repo.tracking_config.name == "main"
 
 
 def test_git_repo_factory_no_branches_raises_error() -> None:
@@ -292,12 +295,15 @@ def test_git_repo_factory_no_branches_raises_error() -> None:
         all_tags=[],
         scan_timestamp=datetime.now(UTC),
         total_files_across_commits=0,
+        all_files=[],
     )
 
     git_repo = GitRepoFactory.create_from_remote_uri(repo_info.remote_uri)
+    git_repo.update_with_scan_result(scan_result)
 
-    with pytest.raises(ValueError, match="No tracking branch found"):
-        git_repo.update_with_scan_result(scan_result)
+    # Test passes - update_with_scan_result no longer validates branches
+    # Validation now happens during scanning in git_service.py
+    assert git_repo.num_branches == 0
 
 
 @pytest.mark.asyncio

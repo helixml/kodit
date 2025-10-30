@@ -8,7 +8,7 @@ from kodit.domain.enrichments.enrichment import CommitEnrichment
 ENRICHMENT_TYPE_DEVELOPMENT = "development"
 
 
-@dataclass
+@dataclass(frozen=True)
 class DevelopmentEnrichment(CommitEnrichment, ABC):
     """Enrichment containing development discovery for a commit."""
 

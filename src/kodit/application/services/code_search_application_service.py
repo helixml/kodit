@@ -1,21 +1,28 @@
 """Service for searching the indexes."""
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import structlog
 
 from kodit.application.services.reporting import ProgressTracker
 from kodit.domain.entities.git import SnippetV2
-from kodit.domain.protocols import FusionService, SnippetRepositoryV2
+from kodit.domain.protocols import FusionService
 from kodit.domain.services.bm25_service import BM25DomainService
 from kodit.domain.services.embedding_service import EmbeddingDomainService
 from kodit.domain.value_objects import (
+    Enrichment,
     FusionRequest,
     MultiSearchRequest,
     SearchRequest,
     SearchResult,
 )
 from kodit.log import log_event
+
+if TYPE_CHECKING:
+    from kodit.application.services.enrichment_query_service import (
+        EnrichmentQueryService,
+    )
 
 
 @dataclass
@@ -53,16 +60,16 @@ class CodeSearchApplicationService:
         code_search_service: EmbeddingDomainService,
         text_search_service: EmbeddingDomainService,
         progress_tracker: ProgressTracker,
-        snippet_repository: SnippetRepositoryV2,
         fusion_service: FusionService,
+        enrichment_query_service: "EnrichmentQueryService",
     ) -> None:
         """Initialize the code search application service."""
         self.bm25_service = bm25_service
         self.code_search_service = code_search_service
         self.text_search_service = text_search_service
         self.progress_tracker = progress_tracker
-        self.snippet_repository = snippet_repository
         self.fusion_service = fusion_service
+        self.enrichment_query_service = enrichment_query_service
         self.log = structlog.get_logger(__name__)
 
     async def search(self, request: MultiSearchRequest) -> list[MultiSearchResult]:
@@ -108,16 +115,31 @@ class CodeSearchApplicationService:
 
         # Semantic text search
         if request.text_query:
-            query_results = await self.text_search_service.search(
+            # These contain a pointer to the enrichment ID that represents the summary
+            summary_results = await self.text_search_service.search(
                 SearchRequest(
                     query=request.text_query,
                     top_k=request.top_k,
                     snippet_ids=filtered_snippet_ids,
                 )
             )
-            fusion_list.append(
-                [FusionRequest(id=x.snippet_id, score=x.score) for x in query_results]
+
+            summary_to_snippet_map = (
+                await self.enrichment_query_service.summary_to_snippet_map(
+                    summary_ids=[int(x.snippet_id) for x in summary_results]
+                )
             )
+
+            # Build fusion list in the correct order
+            fusion_items = [
+                FusionRequest(
+                    id=str(summary_to_snippet_map[int(result.snippet_id)]),
+                    score=result.score,
+                )
+                for result in summary_results
+                if int(result.snippet_id) in summary_to_snippet_map
+            ]
+            fusion_list.append(fusion_items)
 
         if len(fusion_list) == 0:
             return []
@@ -131,14 +153,69 @@ class CodeSearchApplicationService:
         # Keep only top_k results
         final_results = final_results[: request.top_k]
 
-        # Get snippet details
-        ids = [x.id for x in final_results]
-        search_results = await self.snippet_repository.get_by_ids(ids)
-        search_results.sort(key=lambda x: ids.index(x.id))
+        # Get enrichment details
+        enrichment_ids = [int(x.id) for x in final_results]
+
+        self.log.info(
+            "found enrichments",
+            len_enrichments=len(enrichment_ids),
+        )
+        final_enrichments = await self.enrichment_query_service.get_enrichments_by_ids(
+            enrichment_ids
+        )
+
+        # Get enrichments pointing to these enrichments
+        extra_enrichments = (
+            await self.enrichment_query_service.get_enrichments_pointing_to_enrichments(
+                enrichment_ids
+            )
+        )
+
+        self.log.info(
+            "final enrichments",
+            len_final_enrichments=len(final_enrichments),
+        )
+
+        # Convert enrichments to SnippetV2 domain objects
+        # Map enrichment ID to snippet for correct ordering
+        enrichment_id_to_snippet: dict[int | None, SnippetV2] = {}
+        for enrichment in final_enrichments:
+            # Get extra enrichments for this enrichment (only if ID is not None)
+            enrichment_extras = (
+                extra_enrichments[enrichment.id] if enrichment.id is not None else []
+            )
+            enrichment_id_to_snippet[enrichment.id] = SnippetV2(
+                sha=str(enrichment.id),  # The snippet SHA
+                content=enrichment.content,  # The code content
+                extension="",  # Not available in enrichment
+                derives_from=[],  # Not available in enrichment
+                created_at=enrichment.created_at,
+                updated_at=enrichment.updated_at,
+                enrichments=[
+                    Enrichment(
+                        type=enrichment.subtype or enrichment.type,
+                        content=enrichment.content,
+                    )
+                    for enrichment in enrichment_extras
+                ],
+            )
+
+        # Sort by the original fusion ranking order
+        snippets = [
+            enrichment_id_to_snippet[eid]
+            for eid in enrichment_ids
+            if eid in enrichment_id_to_snippet
+        ]
+
         return [
             MultiSearchResult(
                 snippet=snippet,
-                original_scores=[x.score for x in final_results if x.id == snippet.id],
+                original_scores=[
+                    x.score
+                    for x in final_results
+                    if int(x.id) in enrichment_id_to_snippet
+                    and enrichment_id_to_snippet[int(x.id)].sha == snippet.sha
+                ],
             )
-            for snippet in search_results
+            for snippet in snippets
         ]

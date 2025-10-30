@@ -120,22 +120,22 @@ class GitService:
         # Get current branch as tracking branch
         try:
             current_branch = repo.active_branch
-            tracking_branch = next(
-                (b for b in branches if b.name == current_branch.name),
-                branches[0] if branches else None,
+            tracking_branch_name = next(
+                (b.name for b in branches if b.name == current_branch.name),
+                branches[0].name if branches else None,
             )
         except (AttributeError, TypeError):
             # Handle detached HEAD state or other branch access issues
-            tracking_branch = branches[0] if branches else None
+            tracking_branch_name = branches[0].name if branches else None
 
-        if tracking_branch is None:
+        if tracking_branch_name is None:
             raise ValueError("No branches found in repository")
 
         return GitRepoFactory.create_from_path_scan(
             remote_uri=remote_uri,
             sanitized_remote_uri=sanitized_remote_uri,
             repo_path=repo_path,
-            tracking_branch=tracking_branch,
+            tracking_branch_name=tracking_branch_name,
             last_scanned_at=datetime.now(UTC),
             num_commits=num_commits,
             num_branches=len(branches),
@@ -182,7 +182,13 @@ class GitService:
             try:
                 # Get head commit for this branch
                 head_commit = self._convert_commit(repo, branch.commit)
-                branches.append(GitBranch(name=branch.name, head_commit=head_commit))
+                branches.append(
+                    GitBranch(
+                        name=branch.name,
+                        head_commit_sha=head_commit.commit_sha,
+                        repo_id=0,  # No repo context yet, use placeholder
+                    )
+                )
             except Exception:  # noqa: BLE001, S112
                 # Skip branches that can't be accessed
                 continue
@@ -210,7 +216,7 @@ class GitService:
     def _get_all_tags(self, repo: Repo) -> list[GitTag]:
         """Get all tags in the repository."""
         all_commits = self._get_all_commits(repo)
-        all_commits_map = {commit.commit_sha: commit for commit in all_commits}
+        {commit.commit_sha: commit for commit in all_commits}
         tags = []
         try:
             for tag_ref in repo.tags:
@@ -221,7 +227,7 @@ class GitService:
                     tag = GitTag(
                         created_at=datetime.now(UTC),
                         name=tag_ref.name,
-                        target_commit=all_commits_map[target_commit.hexsha],
+                        target_commit_sha=target_commit.hexsha,
                     )
                     tags.append(tag)
                 except Exception:  # noqa: BLE001, S112
@@ -242,7 +248,7 @@ class GitService:
         parent_sha = commit.parents[0].hexsha if commit.parents else ""
 
         # Get files changed in this commit
-        files = self._get_commit_files(repo, commit)
+        self._get_commit_files(repo, commit)
 
         # Format author string from name and email
         author_name = str(commit.author.name) if commit.author.name else ""
@@ -254,10 +260,10 @@ class GitService:
 
         return GitCommit(
             commit_sha=commit.hexsha,
+            repo_id=0,  # GitService doesn't have repo context, use placeholder
             date=commit_date,
             message=str(commit.message).strip(),
             parent_commit_sha=parent_sha,
-            files=files,
             author=author,
         )
 
@@ -283,6 +289,7 @@ class GitService:
                         file_entity = GitFile(
                             created_at=datetime.now(UTC),
                             blob_sha=blob.hexsha,
+                            commit_sha=commit.hexsha,
                             path=str(Path(repo.working_dir) / file_path),
                             mime_type="application/octet-stream",  # Default
                             size=blob.size,

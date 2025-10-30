@@ -2,13 +2,32 @@
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from enum import StrEnum
 from hashlib import sha256
 from pathlib import Path
 
-from pydantic import AnyUrl, BaseModel
+from pydantic import AnyUrl, BaseModel, Field
 
 from kodit.domain.value_objects import Enrichment, IndexStatus
 from kodit.utils.path_utils import repo_id_from_uri
+
+
+class TrackingType(StrEnum):
+    """Tracking type."""
+
+    BRANCH = "branch"
+    TAG = "tag"
+    COMMIT_SHA = "commit_sha"
+
+
+DEFAULT_TRACKING_BRANCH = "main"
+
+
+class TrackingConfig(BaseModel, frozen=True):
+    """Tracking configuration for a repository."""
+
+    type: str = Field(..., description="The type of tracking to use.")
+    name: str = Field(..., description="The name of the tracking to use.")
 
 
 class GitFile(BaseModel):
@@ -16,6 +35,7 @@ class GitFile(BaseModel):
 
     created_at: datetime
     blob_sha: str
+    commit_sha: str
     path: str
     mime_type: str
     size: int
@@ -40,10 +60,10 @@ class GitCommit(BaseModel):
     created_at: datetime | None = None  # Is populated by repository
     updated_at: datetime | None = None  # Is populated by repository
     commit_sha: str
+    repo_id: int  # Repository this commit belongs to
     date: datetime
     message: str
     parent_commit_sha: str | None = None  # The first commit in the repo is None
-    files: list[GitFile]
     author: str
 
     @property
@@ -59,7 +79,7 @@ class GitTag(BaseModel):
     updated_at: datetime | None = None  # Is populated by repository
     repo_id: int | None = None
     name: str  # e.g., "v1.0.0", "release-2023"
-    target_commit: GitCommit  # The commit this tag points to
+    target_commit_sha: str
 
     @property
     def id(self) -> str:
@@ -79,11 +99,11 @@ class GitTag(BaseModel):
 class GitBranch(BaseModel):
     """Branch domain entity."""
 
-    repo_id: int | None = None  # primary key
-    name: str  # primary key
+    repo_id: int
+    name: str
     created_at: datetime | None = None  # Is populated by repository
     updated_at: datetime | None = None  # Is populated by repository
-    head_commit: GitCommit
+    head_commit_sha: str
 
 
 @dataclass(frozen=True)
@@ -92,6 +112,7 @@ class RepositoryScanResult:
 
     branches: list[GitBranch]
     all_commits: list[GitCommit]
+    all_files: list[GitFile]
     all_tags: list[GitTag]
     scan_timestamp: datetime
     total_files_across_commits: int
@@ -108,11 +129,13 @@ class GitRepo(BaseModel):
 
     # The following may be empty when initially created
     cloned_path: Path | None = None
-    tracking_branch: GitBranch | None = None
     last_scanned_at: datetime | None = None
     num_commits: int = 0  # Total number of commits in this repository
     num_branches: int = 0  # Total number of branches in this repository
     num_tags: int = 0  # Total number of tags in this repository
+    tracking_config: TrackingConfig = TrackingConfig(
+        type=TrackingType.BRANCH, name=DEFAULT_TRACKING_BRANCH
+    )
 
     @staticmethod
     def create_id(sanitized_remote_uri: AnyUrl) -> str:
@@ -121,24 +144,6 @@ class GitRepo(BaseModel):
 
     def update_with_scan_result(self, scan_result: RepositoryScanResult) -> None:
         """Update the GitRepo with a scan result."""
-        # Determine tracking branch (prefer main, then master, then first available)
-        if not self.tracking_branch:
-            tracking_branch = None
-            for preferred_name in ["main", "master"]:
-                tracking_branch = next(
-                    (b for b in scan_result.branches if b.name == preferred_name), None
-                )
-                if tracking_branch:
-                    break
-
-            if not tracking_branch and scan_result.branches:
-                tracking_branch = scan_result.branches[0]
-
-            if not tracking_branch:
-                raise ValueError("No tracking branch found")
-
-            self.tracking_branch = tracking_branch
-
         self.last_scanned_at = datetime.now(UTC)
         self.num_commits = len(scan_result.all_commits)
         self.num_branches = len(scan_result.branches)

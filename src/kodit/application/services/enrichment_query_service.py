@@ -2,29 +2,59 @@
 
 import structlog
 
-from kodit.domain.enrichments.enrichment import EnrichmentV2
+from kodit.domain.enrichments.architecture.architecture import (
+    ENRICHMENT_TYPE_ARCHITECTURE,
+)
+from kodit.domain.enrichments.architecture.physical.physical import (
+    ENRICHMENT_SUBTYPE_PHYSICAL,
+)
+from kodit.domain.enrichments.development.development import ENRICHMENT_TYPE_DEVELOPMENT
+from kodit.domain.enrichments.development.snippet.snippet import (
+    ENRICHMENT_SUBTYPE_SNIPPET,
+    ENRICHMENT_SUBTYPE_SNIPPET_SUMMARY,
+)
+from kodit.domain.enrichments.enrichment import EnrichmentAssociation, EnrichmentV2
+from kodit.domain.enrichments.usage.api_docs import ENRICHMENT_SUBTYPE_API_DOCS
+from kodit.domain.enrichments.usage.usage import ENRICHMENT_TYPE_USAGE
+from kodit.domain.protocols import (
+    EnrichmentAssociationRepository,
+    EnrichmentV2Repository,
+)
 from kodit.domain.tracking.resolution_service import TrackableResolutionService
 from kodit.domain.tracking.trackable import Trackable
-from kodit.infrastructure.sqlalchemy.enrichment_v2_repository import (
-    EnrichmentV2Repository,
+from kodit.infrastructure.api.v1.query_params import PaginationParams
+from kodit.infrastructure.sqlalchemy import entities as db_entities
+from kodit.infrastructure.sqlalchemy.query import (
+    EnrichmentAssociationQueryBuilder,
+    EnrichmentQueryBuilder,
 )
 
 
 class EnrichmentQueryService:
-    """Finds the latest commit with enrichments for a trackable.
-
-    Orchestrates domain services and repositories to fulfill the use case.
-    """
+    """Service for querying enrichments."""
 
     def __init__(
         self,
         trackable_resolution: TrackableResolutionService,
         enrichment_repo: EnrichmentV2Repository,
+        enrichment_association_repository: EnrichmentAssociationRepository,
     ) -> None:
         """Initialize the enrichment query service."""
         self.trackable_resolution = trackable_resolution
         self.enrichment_repo = enrichment_repo
+        self.enrichment_association_repository = enrichment_association_repository
         self.log = structlog.get_logger(__name__)
+
+    async def associations_for_commit(
+        self, commit_sha: str
+    ) -> list[EnrichmentAssociation]:
+        """Get enrichments for a commit."""
+        return await self.enrichment_association_repository.find(
+            EnrichmentAssociationQueryBuilder.for_enrichment_associations(
+                entity_type=db_entities.GitCommit.__tablename__,
+                entity_ids=[commit_sha],
+            )
+        )
 
     async def find_latest_enriched_commit(
         self,
@@ -32,17 +62,7 @@ class EnrichmentQueryService:
         enrichment_type: str | None = None,
         max_commits_to_check: int = 100,
     ) -> str | None:
-        """Find the most recent commit with enrichments.
-
-        Args:
-            trackable: What to track (branch, tag, or commit)
-            enrichment_type: Optional filter for specific enrichment type
-            max_commits_to_check: How far back in history to search
-
-        Returns:
-            Commit SHA of the most recent commit with enrichments, or None
-
-        """
+        """Find the most recent commit with enrichments."""
         # Get candidate commits from the trackable
         candidate_commits = await self.trackable_resolution.resolve_to_commits(
             trackable, max_commits_to_check
@@ -52,44 +72,255 @@ class EnrichmentQueryService:
             return None
 
         # Check which commits have enrichments
-        enrichments = await self.enrichment_repo.enrichments_for_entity_type(
-            entity_type="git_commit",
-            entity_ids=candidate_commits,
-        )
-
-        # Filter by type if specified
-        if enrichment_type:
-            enrichments = [e for e in enrichments if e.type == enrichment_type]
-
-        # Find the first commit (newest) that has enrichments
         for commit_sha in candidate_commits:
-            if any(e.entity_id == commit_sha for e in enrichments):
+            enrichments = await self.all_enrichments_for_commit(
+                commit_sha=commit_sha,
+                pagination=PaginationParams(page_size=1),
+                enrichment_type=enrichment_type,
+            )
+            if enrichments:
                 return commit_sha
 
         return None
+
+    async def all_enrichments_for_commit(
+        self,
+        commit_sha: str,
+        pagination: PaginationParams,
+        enrichment_type: str | None = None,
+        enrichment_subtype: str | None = None,
+    ) -> dict[EnrichmentV2, list[EnrichmentAssociation]]:
+        """Get all enrichments for a specific commit."""
+        associations = await self.enrichment_association_repository.find(
+            EnrichmentAssociationQueryBuilder().for_commit(commit_sha)
+        )
+        enrichment_ids = [association.enrichment_id for association in associations]
+        query = EnrichmentQueryBuilder().for_ids(enrichment_ids).paginate(pagination)
+        if enrichment_type:
+            query = query.for_type(enrichment_type)
+        if enrichment_subtype:
+            query = query.for_subtype(enrichment_subtype)
+        enrichments = await self.enrichment_repo.find(query)
+        # Find all other associations for these enrichments
+        other_associations = await self.enrichment_association_repository.find(
+            EnrichmentAssociationQueryBuilder().for_enrichments(enrichments)
+        )
+        all_associations = set(associations + other_associations)
+        return {
+            enrichment: [
+                association
+                for association in all_associations
+                if association.enrichment_id == enrichment.id
+                or association.entity_id == str(enrichment.id)
+            ]
+            for enrichment in enrichments
+        }
+
+    async def get_all_snippets_for_commit(self, commit_sha: str) -> list[EnrichmentV2]:
+        """Get snippet enrichments for a commit."""
+        return list(
+            await self.all_enrichments_for_commit(
+                commit_sha=commit_sha,
+                pagination=PaginationParams(page_size=32000),
+                enrichment_type=ENRICHMENT_TYPE_DEVELOPMENT,
+                enrichment_subtype=ENRICHMENT_SUBTYPE_SNIPPET,
+            )
+        )
+
+    async def get_summaries_for_commit(self, commit_sha: str) -> list[EnrichmentV2]:
+        """Get summary enrichments for a commit."""
+        return await self.get_enrichments_for_commit(
+            commit_sha,
+            enrichment_type=ENRICHMENT_TYPE_DEVELOPMENT,
+            enrichment_subtype=ENRICHMENT_SUBTYPE_SNIPPET_SUMMARY,
+        )
 
     async def get_enrichments_for_commit(
         self,
         commit_sha: str,
         enrichment_type: str | None = None,
+        enrichment_subtype: str | None = None,
     ) -> list[EnrichmentV2]:
-        """Get all enrichments for a specific commit.
+        """Get enrichments for a commit."""
+        # Find associations pointing to this commit
+        all_associations = await self.enrichment_association_repository.find(
+            EnrichmentAssociationQueryBuilder().for_commit(commit_sha)
+        )
+        query = EnrichmentQueryBuilder().for_ids(
+            enrichment_ids=[
+                int(association.enrichment_id) for association in all_associations
+            ]
+        )
+        if enrichment_type:
+            query = query.for_type(enrichment_type)
+        if enrichment_subtype:
+            query = query.for_subtype(enrichment_subtype)
+        return await self.enrichment_repo.find(query)
 
-        Args:
-            commit_sha: The commit SHA to get enrichments for
-            enrichment_type: Optional filter for specific enrichment type
-
-        Returns:
-            List of enrichments for the commit
-
-        """
-        enrichments = await self.enrichment_repo.enrichments_for_entity_type(
-            entity_type="git_commit",
-            entity_ids=[commit_sha],
+    async def get_architecture_docs_for_commit(
+        self, commit_sha: str
+    ) -> list[EnrichmentV2]:
+        """Get architecture documentation enrichments for a commit."""
+        return await self.get_enrichments_for_commit(
+            commit_sha,
+            enrichment_type=ENRICHMENT_TYPE_ARCHITECTURE,
+            enrichment_subtype=ENRICHMENT_SUBTYPE_PHYSICAL,
         )
 
-        # Filter by type if specified
-        if enrichment_type:
-            enrichments = [e for e in enrichments if e.type == enrichment_type]
+    async def get_api_docs_for_commit(self, commit_sha: str) -> list[EnrichmentV2]:
+        """Get API documentation enrichments for a commit."""
+        return await self.get_enrichments_for_commit(
+            commit_sha,
+            enrichment_type=ENRICHMENT_TYPE_USAGE,
+            enrichment_subtype=ENRICHMENT_SUBTYPE_API_DOCS,
+        )
 
-        return enrichments
+    async def get_enrichment_entities_from_associations(
+        self, associations: list[EnrichmentAssociation]
+    ) -> list[EnrichmentV2]:
+        """Get enrichments by their associations."""
+        return await self.enrichment_repo.find(
+            EnrichmentQueryBuilder().for_ids(
+                enrichment_ids=[
+                    int(association.entity_id) for association in associations
+                ]
+            )
+        )
+
+    async def get_enrichments_by_ids(
+        self, enrichment_ids: list[int]
+    ) -> list[EnrichmentV2]:
+        """Get enrichments by their IDs."""
+        return await self.enrichment_repo.find(
+            EnrichmentQueryBuilder().for_ids(enrichment_ids=enrichment_ids)
+        )
+
+    async def has_snippets_for_commit(self, commit_sha: str) -> bool:
+        """Check if a commit has snippet enrichments."""
+        snippets = await self.get_all_snippets_for_commit(commit_sha)
+        return len(snippets) > 0
+
+    async def has_summaries_for_commit(self, commit_sha: str) -> bool:
+        """Check if a commit has summary enrichments."""
+        summaries = await self.get_summaries_for_commit(commit_sha)
+        return len(summaries) > 0
+
+    async def has_architecture_for_commit(self, commit_sha: str) -> bool:
+        """Check if a commit has architecture enrichments."""
+        architecture_docs = await self.get_architecture_docs_for_commit(commit_sha)
+        return len(architecture_docs) > 0
+
+    async def has_api_docs_for_commit(self, commit_sha: str) -> bool:
+        """Check if a commit has API documentation enrichments."""
+        api_docs = await self.get_api_docs_for_commit(commit_sha)
+        return len(api_docs) > 0
+
+    async def associations_for_enrichments(
+        self, enrichments: list[EnrichmentV2]
+    ) -> list[EnrichmentAssociation]:
+        """Get enrichment associations for given enrichment IDs."""
+        return await self.enrichment_association_repository.find(
+            EnrichmentAssociationQueryBuilder()
+            .for_enrichments(enrichments)
+            .for_enrichment_type()
+        )
+
+    async def snippet_associations_from_enrichments(
+        self, enrichments: list[EnrichmentV2]
+    ) -> list[EnrichmentAssociation]:
+        """Get snippet enrichment associations for given enrichments."""
+        return await self.enrichment_association_repository.find(
+            EnrichmentAssociationQueryBuilder()
+            .for_enrichments(enrichments)
+            .for_enrichment_type()
+        )
+
+    async def snippets_for_summary_enrichments(
+        self, summary_enrichments: list[EnrichmentV2]
+    ) -> list[EnrichmentV2]:
+        """Get snippet enrichment IDs for summary enrichments, preserving order."""
+        if not summary_enrichments:
+            return []
+
+        # Get associations where enrichment_id points to these summaries
+        associations = await self.enrichment_association_repository.find(
+            EnrichmentAssociationQueryBuilder()
+            .for_enrichments(summary_enrichments)
+            .for_enrichment_type()
+        )
+
+        all_enrichments = await self.enrichment_repo.find(
+            EnrichmentQueryBuilder().for_ids(
+                enrichment_ids=[
+                    int(association.entity_id) for association in associations
+                ]
+            )
+        )
+        snippet_enrichments = [
+            e for e in all_enrichments if e.subtype == ENRICHMENT_SUBTYPE_SNIPPET
+        ]
+
+        # Re-Sort snippet enrichments to be in the same order as the associations
+        original_snippet_ids = [association.entity_id for association in associations]
+        return sorted(
+            snippet_enrichments,
+            key=lambda x: original_snippet_ids.index(str(x.id)),
+        )
+
+    async def get_enrichments_pointing_to_enrichments(
+        self, target_enrichment_ids: list[int]
+    ) -> dict[int, list[EnrichmentV2]]:
+        """Get enrichments that point to the given enrichments, grouped by target."""
+        # Get associations pointing to these enrichments
+        associations = await self.enrichment_association_repository.find(
+            EnrichmentAssociationQueryBuilder()
+            .for_enrichment_type()
+            .for_entity_ids(
+                [str(enrichment_id) for enrichment_id in target_enrichment_ids]
+            )
+        )
+
+        if not associations:
+            return {eid: [] for eid in target_enrichment_ids}
+
+        # Get the enrichments referenced by these associations
+        enrichment_ids = [a.enrichment_id for a in associations]
+        enrichments = await self.enrichment_repo.find(
+            EnrichmentQueryBuilder().for_ids(enrichment_ids=enrichment_ids)
+        )
+
+        # Create lookup map
+        enrichment_map = {e.id: e for e in enrichments if e.id is not None}
+
+        # Group by target enrichment ID
+        result: dict[int, list[EnrichmentV2]] = {
+            eid: [] for eid in target_enrichment_ids
+        }
+        for association in associations:
+            target_id = int(association.entity_id)
+            if target_id in result and association.enrichment_id in enrichment_map:
+                result[target_id].append(enrichment_map[association.enrichment_id])
+
+        return result
+
+    async def summary_to_snippet_map(self, summary_ids: list[int]) -> dict[int, int]:
+        """Get a map of summary IDs to snippet IDs."""
+        # Get the snippet enrichment IDs that these summaries point to
+        summary_enrichments = await self.get_enrichments_by_ids(summary_ids)
+
+        # Get all the associations for these summary enrichments
+        all_associations = await self.associations_for_enrichments(summary_enrichments)
+
+        # Get all enrichments for these summary associations
+        all_snippet_enrichments = await self.get_enrichment_entities_from_associations(
+            all_associations
+        )
+        snippet_type_map = {e.id: e.subtype for e in all_snippet_enrichments}
+
+        # Create a lookup map from summary ID to snippet ID, via the associations,
+        # filtering out any snippets that are not summary enrichments
+        return {
+            assoc.enrichment_id: int(assoc.entity_id)
+            for assoc in all_associations
+            if snippet_type_map[int(assoc.entity_id)] == ENRICHMENT_SUBTYPE_SNIPPET
+        }

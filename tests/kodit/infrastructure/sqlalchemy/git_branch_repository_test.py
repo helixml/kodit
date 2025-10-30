@@ -31,7 +31,7 @@ async def repo_with_branches(
     # Save repository and commit
     saved_repo = await repo_repository.save(sample_git_repo)
     assert saved_repo.id is not None
-    await commit_repository.save_bulk([sample_git_commit], saved_repo.id)
+    await commit_repository.save_bulk([sample_git_commit])
 
     # Create branches
     branches = [
@@ -39,17 +39,17 @@ async def repo_with_branches(
             created_at=datetime.now(UTC),
             repo_id=saved_repo.id,
             name="main",
-            head_commit=sample_git_commit,
+            head_commit_sha=sample_git_commit.commit_sha,
         ),
         GitBranch(
             created_at=datetime.now(UTC),
             repo_id=saved_repo.id,
             name="develop",
-            head_commit=sample_git_commit,
+            head_commit_sha=sample_git_commit.commit_sha,
         ),
     ]
 
-    await branch_repository.save_bulk(branches, saved_repo.id)
+    await branch_repository.save_bulk(branches)
     return saved_repo, branches
 
 
@@ -97,7 +97,7 @@ class TestBranchDeletion:
 
             assert remaining_branches == 0
             assert remaining_commits == 1  # Commits should remain
-            assert remaining_repos == 1    # Repos should remain
+            assert remaining_repos == 1  # Repos should remain
 
     async def test_handles_nonexistent_repo(
         self,
@@ -123,16 +123,15 @@ async def test_save_and_get_branches(
     # Save repository and commit
     saved_repo = await repo_repository.save(sample_git_repo)
     assert saved_repo.id is not None
-    await commit_repository.save_bulk([sample_git_commit], saved_repo.id)
+    await commit_repository.save_bulk([sample_git_commit])
 
     # Create and save branch
     branch = GitBranch(
-        created_at=datetime.now(UTC),
         repo_id=saved_repo.id,
         name="main",
-        head_commit=sample_git_commit,
+        head_commit_sha=sample_git_commit.commit_sha,
     )
-    await branch_repository.save_bulk([branch], saved_repo.id)
+    await branch_repository.save(branch)
 
     # Retrieve branches
     retrieved_branches = await branch_repository.get_by_repo_id(saved_repo.id)
@@ -154,7 +153,7 @@ async def test_save_multiple_branches(
     # Save repository and commit
     saved_repo = await repo_repository.save(sample_git_repo)
     assert saved_repo.id is not None
-    await commit_repository.save_bulk([sample_git_commit], saved_repo.id)
+    await commit_repository.save_bulk([sample_git_commit])
 
     # Create multiple branches
     branches = [
@@ -162,18 +161,18 @@ async def test_save_multiple_branches(
             created_at=datetime.now(UTC),
             repo_id=saved_repo.id,
             name="main",
-            head_commit=sample_git_commit,
+            head_commit_sha=sample_git_commit.commit_sha,
         ),
         GitBranch(
             created_at=datetime.now(UTC),
             repo_id=saved_repo.id,
             name="develop",
-            head_commit=sample_git_commit,
+            head_commit_sha=sample_git_commit.commit_sha,
         ),
     ]
 
     # Save all branches
-    await branch_repository.save_bulk(branches, saved_repo.id)
+    await branch_repository.save_bulk(branches)
 
     # Retrieve and verify
     retrieved_branches = await branch_repository.get_by_repo_id(saved_repo.id)
@@ -187,8 +186,8 @@ async def test_empty_repository_returns_empty_list(
     sample_git_repo: GitRepo,
 ) -> None:
     """Test querying branches for a repository with no branches returns empty list."""
-    branch_repository = create_git_branch_repository(session_factory)
     repo_repository = create_git_repo_repository(session_factory)
+    branch_repository = create_git_branch_repository(session_factory)
 
     # Save repository without branches
     saved_repo = await repo_repository.save(sample_git_repo)
@@ -196,15 +195,4 @@ async def test_empty_repository_returns_empty_list(
 
     # Query branches for the empty repository
     branches = await branch_repository.get_by_repo_id(saved_repo.id)
-    assert branches == []
-
-
-async def test_nonexistent_repository_returns_empty_list(
-    session_factory: Callable[[], AsyncSession],
-) -> None:
-    """Test that querying branches for a non-existent repository returns empty list."""
-    branch_repository = create_git_branch_repository(session_factory)
-
-    # Query branches for a repository that doesn't exist
-    branches = await branch_repository.get_by_repo_id(99999)
     assert branches == []

@@ -78,7 +78,7 @@ async def search_snippets(
                     ),
                     enrichments=[
                         EnrichmentSchema(
-                            type=enrichment.type.value,
+                            type=enrichment.type,
                             content=enrichment.content,
                         )
                         for enrichment in result.snippet.enrichments

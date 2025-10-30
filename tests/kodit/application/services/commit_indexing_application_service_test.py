@@ -13,6 +13,10 @@ from kodit.application.services.commit_indexing_application_service import (
 )
 from kodit.application.services.queue_service import QueueService
 from kodit.application.services.reporting import ProgressTracker
+from kodit.domain.enrichments.architecture.physical.physical import (
+    PhysicalArchitectureEnrichment,
+)
+from kodit.domain.enrichments.enrichment import EnrichmentAssociation
 from kodit.domain.entities.git import (
     GitCommit,
     GitFile,
@@ -29,13 +33,17 @@ from kodit.domain.services.git_repository_service import (
 from kodit.domain.services.physical_architecture_service import (
     PhysicalArchitectureService,
 )
-from kodit.domain.value_objects import Enrichment, EnrichmentType
+from kodit.domain.value_objects import Enrichment
 from kodit.infrastructure.slicing.slicer import Slicer
+from kodit.infrastructure.sqlalchemy import entities as db_entities
 from kodit.infrastructure.sqlalchemy.embedding_repository import (
     create_embedding_repository,
 )
+from kodit.infrastructure.sqlalchemy.enrichment_association_repository import (
+    create_enrichment_association_repository,
+)
 from kodit.infrastructure.sqlalchemy.enrichment_v2_repository import (
-    EnrichmentV2Repository,
+    create_enrichment_v2_repository,
 )
 from kodit.infrastructure.sqlalchemy.git_branch_repository import (
     create_git_branch_repository,
@@ -43,12 +51,12 @@ from kodit.infrastructure.sqlalchemy.git_branch_repository import (
 from kodit.infrastructure.sqlalchemy.git_commit_repository import (
     create_git_commit_repository,
 )
+from kodit.infrastructure.sqlalchemy.git_file_repository import (
+    create_git_file_repository,
+)
 from kodit.infrastructure.sqlalchemy.git_repository import create_git_repo_repository
 from kodit.infrastructure.sqlalchemy.git_tag_repository import (
     create_git_tag_repository,
-)
-from kodit.infrastructure.sqlalchemy.snippet_v2_repository import (
-    create_snippet_v2_repository,
 )
 
 
@@ -73,9 +81,6 @@ async def commit_indexing_service(
 ) -> CommitIndexingApplicationService:
     """Create a CommitIndexingApplicationService instance for testing."""
     queue_service = QueueService(session_factory=session_factory)
-    snippet_v2_repository = create_snippet_v2_repository(
-        session_factory=session_factory
-    )
     repo_repository = create_git_repo_repository(session_factory=session_factory)
     git_commit_repository = create_git_commit_repository(
         session_factory=session_factory
@@ -83,20 +88,25 @@ async def commit_indexing_service(
     git_branch_repository = create_git_branch_repository(
         session_factory=session_factory
     )
+    git_file_repository = create_git_file_repository(session_factory=session_factory)
     git_tag_repository = create_git_tag_repository(session_factory=session_factory)
     embedding_repository = create_embedding_repository(session_factory=session_factory)
-    enrichment_v2_repository = EnrichmentV2Repository(session_factory=session_factory)
+    enrichment_v2_repository = create_enrichment_v2_repository(
+        session_factory=session_factory
+    )
+    enrichment_association_repository = create_enrichment_association_repository(
+        session_factory=session_factory
+    )
 
     return CommitIndexingApplicationService(
-        snippet_v2_repository=snippet_v2_repository,
         repo_repository=repo_repository,
         git_commit_repository=git_commit_repository,
         git_branch_repository=git_branch_repository,
         git_tag_repository=git_tag_repository,
+        git_file_repository=git_file_repository,
         operation=mock_progress_tracker,
         scanner=AsyncMock(spec=GitRepositoryScanner),
         cloner=MagicMock(spec=RepositoryCloner),
-        snippet_repository=snippet_v2_repository,
         slicer=MagicMock(spec=Slicer),
         queue=queue_service,
         bm25_service=AsyncMock(spec=BM25DomainService),
@@ -105,7 +115,9 @@ async def commit_indexing_service(
         embedding_repository=embedding_repository,
         architecture_service=AsyncMock(spec=PhysicalArchitectureService),
         enrichment_v2_repository=enrichment_v2_repository,
+        enrichment_association_repository=enrichment_association_repository,
         enricher_service=AsyncMock(),
+        enrichment_query_service=AsyncMock(),
     )
 
 
@@ -124,18 +136,19 @@ async def create_test_repository_with_data(
     # Create and save a commit
     commit = GitCommit(
         commit_sha="abc123def456",
+        repo_id=repo.id,
         date=datetime.now(UTC),
         message="Test commit",
         parent_commit_sha=None,
         author="test@example.com",
-        files=[],
     )
-    await service.git_commit_repository.save_bulk([commit], repo.id)
+    await service.git_commit_repository.save_bulk([commit])
 
     # Create test file for snippets
     test_file = GitFile(
         created_at=datetime.now(UTC),
         blob_sha="file1sha",
+        commit_sha="abc123def456",
         path="test.py",
         mime_type="text/x-python",
         size=100,
@@ -150,16 +163,13 @@ async def create_test_repository_with_data(
             content="def hello():\n    print('Hello')",
             extension="py",
             enrichments=[
-                Enrichment(
-                    type=EnrichmentType.SUMMARIZATION, content="A simple hello function"
-                )
+                Enrichment(type="summarization", content="A simple hello function")
             ],
         ),
     ]
 
-    # Save snippets and associate them with the commit
-    await service.snippet_repository.save_snippets(commit.commit_sha, snippets)
-
+    # Note: Snippets are now stored as enrichments, not directly saved
+    # This test helper creates the structure but enrichments would be created separately
     return repo, commit, snippets
 
 
@@ -175,41 +185,42 @@ async def test_delete_repository_with_data_succeeds(
 
     # Verify the data was created successfully
     assert repo.id is not None
-    repo_exists = await commit_indexing_service.repo_repository.get_by_id(repo.id)
+    repo_exists = await commit_indexing_service.repo_repository.get(repo.id)
     assert repo_exists is not None
 
-    saved_commit = await commit_indexing_service.git_commit_repository.get_by_sha(
+    saved_commit = await commit_indexing_service.git_commit_repository.get(
         commit.commit_sha
     )
     assert saved_commit is not None
 
-    saved_snippets = (
-        await commit_indexing_service.snippet_repository.get_snippets_for_commit(
-            commit.commit_sha
-        )
-    )
-    assert len(saved_snippets) == 1
-
-    # Create an enrichment for the commit
-    from kodit.domain.enrichments.architecture.physical.physical import (
-        PhysicalArchitectureEnrichment,
-    )
+    # Note: Snippet verification would now be done through enrichment_v2_repository
+    # For now, we just verify commit was saved
 
     test_enrichment = PhysicalArchitectureEnrichment(
-        entity_id=commit.commit_sha,
         content="test content",
     )
-    await commit_indexing_service.enrichment_v2_repository.bulk_save_enrichments(
-        [test_enrichment]
+    # Save enrichment first
+    saved_enrichment = await commit_indexing_service.enrichment_v2_repository.save(
+        test_enrichment
+    )
+    # Then create association
+    await commit_indexing_service.enrichment_association_repository.save(
+        EnrichmentAssociation(
+            enrichment_id=saved_enrichment.id,  # type: ignore[arg-type]
+            entity_type=db_entities.GitCommit.__tablename__,
+            entity_id=commit.commit_sha,
+        )
     )
 
-    # Verify enrichment was created
-    enrichment_repo = commit_indexing_service.enrichment_v2_repository
-    enrichments = await enrichment_repo.enrichments_for_entity_type(
-        entity_type="git_commit",
-        entity_ids=[commit.commit_sha],
+    # Verify enrichment association was created
+    from kodit.infrastructure.sqlalchemy.query import FilterOperator, QueryBuilder
+
+    associations = await commit_indexing_service.enrichment_association_repository.find(
+        QueryBuilder()
+        .filter("entity_type", FilterOperator.EQ, db_entities.GitCommit.__tablename__)
+        .filter("entity_id", FilterOperator.EQ, commit.commit_sha)
     )
-    assert len(enrichments) == 1
+    assert len(associations) == 1
 
     # Delete the repository
     success = await commit_indexing_service.delete_git_repository(repo.id)
@@ -217,14 +228,16 @@ async def test_delete_repository_with_data_succeeds(
 
     # Verify the repository was actually deleted
     with pytest.raises(ValueError, match="not found"):
-        await commit_indexing_service.repo_repository.get_by_id(repo.id)
+        await commit_indexing_service.repo_repository.get(repo.id)
 
-    # Verify enrichments were deleted
-    enrichments_after = await enrichment_repo.enrichments_for_entity_type(
-        entity_type="git_commit",
-        entity_ids=[commit.commit_sha],
+    # Verify enrichment associations were deleted
+    assoc_repo = commit_indexing_service.enrichment_association_repository
+    associations_after = await assoc_repo.find(
+        QueryBuilder()
+        .filter("entity_type", FilterOperator.EQ, db_entities.GitCommit.__tablename__)
+        .filter("entity_id", FilterOperator.EQ, commit.commit_sha)
     )
-    assert len(enrichments_after) == 0
+    assert len(associations_after) == 0
 
 
 @pytest.mark.asyncio

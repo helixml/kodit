@@ -63,6 +63,7 @@ class TestAPIDocExtractor:
             GitFile(
                 created_at=datetime.now(tz=UTC),
                 blob_sha=f"sha_{f.name}",
+                commit_sha="abc123def456",
                 path=str(f),
                 mime_type="text/plain",
                 size=f.stat().st_size,
@@ -75,7 +76,6 @@ class TestAPIDocExtractor:
         enrichments = extractor.extract_api_docs(
             git_files,
             language,
-            commit_sha="abc123def456",
         )
 
         if language in self.PositiveLanguageAssertions:
@@ -131,6 +131,7 @@ def test_extract_api_docs_empty_result() -> None:
     git_file = GitFile(
         created_at=datetime.now(tz=UTC),
         blob_sha="test123",
+        commit_sha="abc123def456",
         path=str(test_file),
         mime_type="text/x-python",
         size=test_file.stat().st_size if test_file.exists() else 0,
@@ -141,7 +142,6 @@ def test_extract_api_docs_empty_result() -> None:
     enrichments = extractor.extract_api_docs(
         [git_file],
         "python",
-        commit_sha="test123456",
     )
 
     # __init__.py has a module docstring, so should generate an enrichment

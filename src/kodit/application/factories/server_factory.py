@@ -23,10 +23,13 @@ from kodit.domain.enrichments.architecture.physical.formatter import (
 )
 from kodit.domain.enrichments.enricher import Enricher
 from kodit.domain.protocols import (
+    EnrichmentAssociationRepository,
+    EnrichmentV2Repository,
     FusionService,
     GitAdapter,
     GitBranchRepository,
     GitCommitRepository,
+    GitFileRepository,
     GitRepoRepository,
     GitTagRepository,
     SnippetRepositoryV2,
@@ -64,8 +67,11 @@ from kodit.infrastructure.sqlalchemy.embedding_repository import (
     SqlAlchemyEmbeddingRepository,
     create_embedding_repository,
 )
+from kodit.infrastructure.sqlalchemy.enrichment_association_repository import (
+    create_enrichment_association_repository,
+)
 from kodit.infrastructure.sqlalchemy.enrichment_v2_repository import (
-    EnrichmentV2Repository,
+    create_enrichment_v2_repository,
 )
 from kodit.infrastructure.sqlalchemy.git_branch_repository import (
     create_git_branch_repository,
@@ -73,12 +79,12 @@ from kodit.infrastructure.sqlalchemy.git_branch_repository import (
 from kodit.infrastructure.sqlalchemy.git_commit_repository import (
     create_git_commit_repository,
 )
+from kodit.infrastructure.sqlalchemy.git_file_repository import (
+    create_git_file_repository,
+)
 from kodit.infrastructure.sqlalchemy.git_repository import create_git_repo_repository
 from kodit.infrastructure.sqlalchemy.git_tag_repository import (
     create_git_tag_repository,
-)
-from kodit.infrastructure.sqlalchemy.snippet_v2_repository import (
-    create_snippet_v2_repository,
 )
 from kodit.infrastructure.sqlalchemy.task_status_repository import (
     create_task_status_repository,
@@ -121,10 +127,14 @@ class ServerFactory:
             None
         )
         self._git_commit_repository: GitCommitRepository | None = None
+        self._git_file_repository: GitFileRepository | None = None
         self._git_branch_repository: GitBranchRepository | None = None
         self._git_tag_repository: GitTagRepository | None = None
         self._architecture_service: PhysicalArchitectureService | None = None
         self._enrichment_v2_repository: EnrichmentV2Repository | None = None
+        self._enrichment_association_repository: (
+            EnrichmentAssociationRepository | None
+        ) = None
         self._architecture_formatter: PhysicalArchitectureFormatter | None = None
         self._trackable_resolution_service: TrackableResolutionService | None = None
         self._enrichment_query_service: EnrichmentQueryService | None = None
@@ -146,10 +156,22 @@ class ServerFactory:
     def enrichment_v2_repository(self) -> EnrichmentV2Repository:
         """Create a EnrichmentV2Repository instance."""
         if not self._enrichment_v2_repository:
-            self._enrichment_v2_repository = EnrichmentV2Repository(
+            self._enrichment_v2_repository = create_enrichment_v2_repository(
                 session_factory=self.session_factory
             )
         return self._enrichment_v2_repository
+
+    def enrichment_association_repository(
+        self,
+    ) -> EnrichmentAssociationRepository:
+        """Create a EnrichmentAssociationRepository instance."""
+        if not self._enrichment_association_repository:
+            self._enrichment_association_repository = (
+                create_enrichment_association_repository(
+                    session_factory=self.session_factory
+                )
+            )
+        return self._enrichment_association_repository
 
     def queue_service(self) -> QueueService:
         """Create a QueueService instance."""
@@ -217,27 +239,26 @@ class ServerFactory:
     def commit_indexing_application_service(self) -> CommitIndexingApplicationService:
         """Create a CommitIndexingApplicationService instance."""
         if not self._commit_indexing_application_service:
-            self._commit_indexing_application_service = (
-                CommitIndexingApplicationService(
-                    snippet_v2_repository=self.snippet_v2_repository(),
-                    repo_repository=self.repo_repository(),
-                    git_commit_repository=self.git_commit_repository(),
-                    git_branch_repository=self.git_branch_repository(),
-                    git_tag_repository=self.git_tag_repository(),
-                    operation=self.operation(),
-                    scanner=self.scanner(),
-                    cloner=self.cloner(),
-                    snippet_repository=self.snippet_v2_repository(),
-                    slicer=self.slicer(),
-                    queue=self.queue_service(),
-                    bm25_service=self.bm25_service(),
-                    code_search_service=self.code_search_service(),
-                    text_search_service=self.text_search_service(),
-                    embedding_repository=self.embedding_repository(),
-                    architecture_service=self.architecture_service(),
-                    enrichment_v2_repository=self.enrichment_v2_repository(),
-                    enricher_service=self.enricher(),
-                )
+            self._commit_indexing_application_service = CommitIndexingApplicationService(  # noqa: E501
+                repo_repository=self.repo_repository(),
+                git_commit_repository=self.git_commit_repository(),
+                git_file_repository=self.git_file_repository(),
+                git_branch_repository=self.git_branch_repository(),
+                git_tag_repository=self.git_tag_repository(),
+                operation=self.operation(),
+                scanner=self.scanner(),
+                cloner=self.cloner(),
+                slicer=self.slicer(),
+                queue=self.queue_service(),
+                bm25_service=self.bm25_service(),
+                code_search_service=self.code_search_service(),
+                text_search_service=self.text_search_service(),
+                embedding_repository=self.embedding_repository(),
+                architecture_service=self.architecture_service(),
+                enrichment_v2_repository=self.enrichment_v2_repository(),
+                enricher_service=self.enricher(),
+                enrichment_association_repository=self.enrichment_association_repository(),
+                enrichment_query_service=self.enrichment_query_service(),
             )
 
         return self._commit_indexing_application_service
@@ -279,13 +300,13 @@ class ServerFactory:
             )
         return self._cloner
 
-    def snippet_v2_repository(self) -> SnippetRepositoryV2:
-        """Create a SnippetRepositoryV2 instance."""
-        if not self._snippet_v2_repository:
-            self._snippet_v2_repository = create_snippet_v2_repository(
+    def git_file_repository(self) -> GitFileRepository:
+        """Create a GitFileRepository instance."""
+        if not self._git_file_repository:
+            self._git_file_repository = create_git_file_repository(
                 session_factory=self.session_factory
             )
-        return self._snippet_v2_repository
+        return self._git_file_repository
 
     def enricher(self) -> Enricher:
         """Create a EnricherDomainService instance."""
@@ -324,8 +345,8 @@ class ServerFactory:
                 code_search_service=self.code_search_service(),
                 text_search_service=self.text_search_service(),
                 progress_tracker=self.operation(),
-                snippet_repository=self.snippet_v2_repository(),
                 fusion_service=self.fusion_service(),
+                enrichment_query_service=self.enrichment_query_service(),
             )
         return self._code_search_application_service
 
@@ -369,5 +390,6 @@ class ServerFactory:
             self._enrichment_query_service = EnrichmentQueryService(
                 trackable_resolution=self.trackable_resolution_service(),
                 enrichment_repo=self.enrichment_v2_repository(),
+                enrichment_association_repository=self.enrichment_association_repository(),
             )
         return self._enrichment_query_service

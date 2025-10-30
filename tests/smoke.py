@@ -128,9 +128,11 @@ def main() -> None:  # noqa: PLR0915
                     f"{BASE_URL}/api/v1/repositories/{repo_id}/status"
                 )
                 status = response.json()
+                log.info("Indexing status", status=status)
                 return (
                     all(
                         task["attributes"]["state"] == "completed"
+                        or task["attributes"]["state"] == "skipped"
                         for task in status["data"]
                     )
                     and len(status["data"]) > 5
@@ -169,8 +171,10 @@ def main() -> None:  # noqa: PLR0915
                     client.get(f"{commit_url}/files/{blob_sha}").raise_for_status()
                     log.info("Retrieved file content", blob_sha=blob_sha)
 
-                client.get(f"{commit_url}/snippets").raise_for_status()
+                assert client.get(f"{commit_url}/snippets").is_redirect
                 log.info("Retrieved snippets", commit_sha=commit_sha)
+                client.get(f"{commit_url}/enrichments").raise_for_status()
+                log.info("Retrieved enrichments", commit_sha=commit_sha)
                 client.get(f"{commit_url}/embeddings?full=false").raise_for_status()
                 log.info("Retrieved embeddings", commit_sha=commit_sha)
 

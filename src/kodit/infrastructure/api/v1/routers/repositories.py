@@ -1,6 +1,8 @@
 """Repository management router for the REST API."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from kodit.domain.tracking.trackable import Trackable, TrackableReferenceType
 from kodit.infrastructure.api.middleware.auth import api_key_auth
@@ -13,6 +15,7 @@ from kodit.infrastructure.api.v1.dependencies import (
     GitTagRepositoryDep,
     TaskStatusQueryServiceDep,
 )
+from kodit.infrastructure.api.v1.query_params import PaginationParamsDep
 from kodit.infrastructure.api.v1.schemas.enrichment import (
     EnrichmentAttributes,
     EnrichmentData,
@@ -38,6 +41,7 @@ from kodit.infrastructure.api.v1.schemas.task_status import (
     TaskStatusData,
     TaskStatusListResponse,
 )
+from kodit.infrastructure.sqlalchemy.query import FilterOperator, QueryBuilder
 
 router = APIRouter(
     prefix="/api/v1/repositories",
@@ -60,7 +64,7 @@ async def list_repositories(
     git_repository: GitRepositoryDep,
 ) -> RepositoryListResponse:
     """List all cloned repositories."""
-    repos = await git_repository.get_all()
+    repos = await git_repository.find(QueryBuilder())
     return RepositoryListResponse(
         data=[RepositoryData.from_git_repo(repo) for repo in repos]
     )
@@ -99,36 +103,47 @@ async def get_repository(
     git_branch_repository: GitBranchRepositoryDep,
 ) -> RepositoryDetailsResponse:
     """Get repository details including branches and recent commits."""
-    repo = await git_repository.get_by_id(int(repo_id))
+    repo = await git_repository.get(int(repo_id))
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
 
+    # Get branches for the repository using the branch repository
+    repo_branches = await git_branch_repository.find(
+        QueryBuilder().filter("repo_id", FilterOperator.EQ, int(repo_id))
+    )
+
     # Get all commits for this repository from the commit repository
-    repo_commits = await git_commit_repository.get_by_repo_id(int(repo_id))
+    repo_commits = await git_commit_repository.find(
+        QueryBuilder().filter("repo_id", FilterOperator.EQ, int(repo_id))
+    )
     commits_by_sha = {commit.commit_sha: commit for commit in repo_commits}
 
     # Get recent commits from the tracking branch's head commit
     recent_commits = []
-    if repo.tracking_branch and repo.tracking_branch.head_commit:
+    # Get the tracking branch from the branch repository
+    tracking_branch = next(
+        (b for b in repo_branches if b.name == repo.tracking_config.name), None
+    )
+    if tracking_branch and tracking_branch.head_commit_sha:
         # For simplicity, just show the head commit and traverse back if needed
-        current_commit = repo.tracking_branch.head_commit
-        recent_commits = [current_commit]
+        current_commit = commits_by_sha.get(tracking_branch.head_commit_sha)
+        if current_commit:
+            recent_commits = [current_commit]
 
-        # Traverse parent commits for more recent commits (up to 10)
-        current_sha = current_commit.parent_commit_sha
-        while current_sha and len(recent_commits) < 10:
-            parent_commit = commits_by_sha.get(current_sha)
-            if parent_commit:
-                recent_commits.append(parent_commit)
-                current_sha = parent_commit.parent_commit_sha
-            else:
-                break
+            # Traverse parent commits for more recent commits (up to 10)
+            current_sha = current_commit.parent_commit_sha
+            while current_sha and len(recent_commits) < 10:
+                parent_commit = commits_by_sha.get(current_sha)
+                if parent_commit:
+                    recent_commits.append(parent_commit)
+                    current_sha = parent_commit.parent_commit_sha
+                else:
+                    break
 
     # Get commit count for the repository using the commit repository
-    commit_count = await git_commit_repository.count_by_repo_id(int(repo_id))
-
-    # Get branches for the repository using the branch repository
-    repo_branches = await git_branch_repository.get_by_repo_id(int(repo_id))
+    commit_count = await git_commit_repository.count(
+        QueryBuilder().filter("repo_id", FilterOperator.EQ, int(repo_id))
+    )
 
     # Get commit counts for all branches using the commit repository
     branch_data = []
@@ -140,9 +155,7 @@ async def get_repository(
         branch_data.append(
             RepositoryBranchData(
                 name=branch.name,
-                is_default=branch.name == repo.tracking_branch.name
-                if repo.tracking_branch
-                else False,
+                is_default=branch.name == repo.tracking_config.name,
                 commit_count=branch_commit_count,
             )
         )
@@ -208,7 +221,7 @@ async def list_repository_tags(
     git_tag_repository: GitTagRepositoryDep,
 ) -> TagListResponse:
     """List all tags for a repository."""
-    repo = await git_repository.get_by_id(int(repo_id))
+    repo = await git_repository.get(int(repo_id))
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
 
@@ -222,7 +235,7 @@ async def list_repository_tags(
                 id=tag.id,
                 attributes=TagAttributes(
                     name=tag.name,
-                    target_commit_sha=tag.target_commit.commit_sha,
+                    target_commit_sha=tag.target_commit_sha,
                     is_version_tag=tag.is_version_tag,
                 ),
             )
@@ -243,7 +256,7 @@ async def get_repository_tag(
     git_tag_repository: GitTagRepositoryDep,
 ) -> TagResponse:
     """Get a specific tag for a repository."""
-    repo = await git_repository.get_by_id(int(repo_id))
+    repo = await git_repository.get(int(repo_id))
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
 
@@ -259,7 +272,7 @@ async def get_repository_tag(
             id=tag.id,
             attributes=TagAttributes(
                 name=tag.name,
-                target_commit_sha=tag.target_commit.commit_sha,
+                target_commit_sha=tag.target_commit_sha,
                 is_version_tag=tag.is_version_tag,
             ),
         )
@@ -275,10 +288,16 @@ async def list_repository_enrichments(  # noqa: PLR0913
     repo_id: str,
     git_repository: GitRepositoryDep,
     enrichment_query_service: EnrichmentQueryServiceDep,
+    pagination: PaginationParamsDep,
     ref_type: str = "branch",
     ref_name: str | None = None,
     enrichment_type: str | None = None,
-    limit: int = 10,
+    max_commits_to_check: Annotated[
+        int,
+        Query(
+            description="Number of recent commits to search for recent enriched commits"
+        ),
+    ] = 10,
 ) -> EnrichmentListResponse:
     """List the most recent enrichments for a repository.
 
@@ -289,7 +308,7 @@ async def list_repository_enrichments(  # noqa: PLR0913
     - limit: Maximum number of enrichments to return. Defaults to 10.
     """
     # Get repository
-    repo = await git_repository.get_by_id(int(repo_id))
+    repo = await git_repository.get(int(repo_id))
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
 
@@ -297,11 +316,7 @@ async def list_repository_enrichments(  # noqa: PLR0913
     if ref_name is None:
         if ref_type == "branch":
             # Default to tracking branch
-            if not repo.tracking_branch:
-                raise HTTPException(
-                    status_code=400, detail="No tracking branch configured"
-                )
-            ref_name = repo.tracking_branch.name
+            ref_name = repo.tracking_config.name
         else:
             raise HTTPException(
                 status_code=400,
@@ -326,7 +341,7 @@ async def list_repository_enrichments(  # noqa: PLR0913
     enriched_commit = await enrichment_query_service.find_latest_enriched_commit(
         trackable=trackable,
         enrichment_type=enrichment_type,
-        max_commits_to_check=limit * 10,  # Check more commits to find enriched ones
+        max_commits_to_check=max_commits_to_check,
     )
 
     # If no enriched commit found, return empty list
@@ -334,9 +349,10 @@ async def list_repository_enrichments(  # noqa: PLR0913
         return EnrichmentListResponse(data=[])
 
     # Get enrichments for the commit
-    enrichments = await enrichment_query_service.get_enrichments_for_commit(
+    enrichments = await enrichment_query_service.all_enrichments_for_commit(
         commit_sha=enriched_commit,
         enrichment_type=enrichment_type,
+        pagination=pagination,
     )
 
     # Map enrichments to API response format

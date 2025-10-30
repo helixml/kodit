@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.domain.entities import Task
 from kodit.domain.value_objects import QueuePriority, TaskOperation
+from kodit.infrastructure.sqlalchemy.query import FilterOperator, QueryBuilder
 from kodit.infrastructure.sqlalchemy.task_repository import (
     create_task_repository,
 )
@@ -30,16 +31,12 @@ class QueueService:
 
     async def enqueue_task(self, task: Task) -> None:
         """Queue a task in the database."""
-        # See if task already exists
-        db_task = await self.task_repository.get(task.id)
-        if db_task:
-            # Task already exists, update priority
-            db_task.priority = task.priority
-            await self.task_repository.update(db_task)
+        # Check if task already exists
+        exists = await self.task_repository.exists(task.id)
+        await self.task_repository.save(task)
+        if exists:
             self.log.info("Task updated", task_id=task.id, task_type=task.type)
         else:
-            # Otherwise, add task
-            await self.task_repository.add(task)
             self.log.info(
                 "Task queued",
                 task_id=task.id,
@@ -69,8 +66,16 @@ class QueueService:
         self, task_operation: TaskOperation | None = None
     ) -> list[Task]:
         """List all tasks in the queue."""
-        return await self.task_repository.list(task_operation)
+        query = QueryBuilder()
+        if task_operation:
+            query.filter("type", FilterOperator.EQ, task_operation.value)
+        query.sort("priority", descending=True)
+        query.sort("created_at", descending=True)
+        return await self.task_repository.find(query)
 
     async def get_task(self, task_id: str) -> Task | None:
         """Get a specific task by ID."""
-        return await self.task_repository.get(task_id)
+        try:
+            return await self.task_repository.get(task_id)
+        except ValueError:
+            return None

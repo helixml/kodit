@@ -2,30 +2,45 @@
 
 from collections import defaultdict
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import structlog
 from pydantic import AnyUrl
 
 from kodit.application.services.queue_service import QueueService
 from kodit.application.services.reporting import ProgressTracker
+
+if TYPE_CHECKING:
+    from kodit.application.services.enrichment_query_service import (
+        EnrichmentQueryService,
+    )
 from kodit.domain.enrichments.architecture.physical.physical import (
     PhysicalArchitectureEnrichment,
 )
+from kodit.domain.enrichments.development.snippet.snippet import (
+    SnippetEnrichment,
+    SnippetEnrichmentSummary,
+)
 from kodit.domain.enrichments.enricher import Enricher
+from kodit.domain.enrichments.enrichment import (
+    CommitEnrichmentAssociation,
+    EnrichmentAssociation,
+    EnrichmentV2,
+)
 from kodit.domain.enrichments.request import (
     EnrichmentRequest as GenericEnrichmentRequest,
 )
-from kodit.domain.enrichments.usage.api_docs import ENRICHMENT_SUBTYPE_API_DOCS
-from kodit.domain.enrichments.usage.usage import ENRICHMENT_TYPE_USAGE
 from kodit.domain.entities import Task
-from kodit.domain.entities.git import GitFile, GitRepo, SnippetV2
+from kodit.domain.entities.git import GitFile, GitRepo, SnippetV2, TrackingType
 from kodit.domain.factories.git_repo_factory import GitRepoFactory
 from kodit.domain.protocols import (
+    EnrichmentAssociationRepository,
+    EnrichmentV2Repository,
     GitBranchRepository,
     GitCommitRepository,
+    GitFileRepository,
     GitRepoRepository,
     GitTagRepository,
-    SnippetRepositoryV2,
 )
 from kodit.domain.services.bm25_service import BM25DomainService
 from kodit.domain.services.embedding_service import EmbeddingDomainService
@@ -41,8 +56,6 @@ from kodit.domain.services.physical_architecture_service import (
 from kodit.domain.value_objects import (
     DeleteRequest,
     Document,
-    Enrichment,
-    EnrichmentType,
     IndexRequest,
     LanguageMapping,
     PrescribedOperations,
@@ -52,13 +65,17 @@ from kodit.domain.value_objects import (
 )
 from kodit.infrastructure.slicing.api_doc_extractor import APIDocExtractor
 from kodit.infrastructure.slicing.slicer import Slicer
+from kodit.infrastructure.sqlalchemy import entities as db_entities
 from kodit.infrastructure.sqlalchemy.embedding_repository import (
     SqlAlchemyEmbeddingRepository,
 )
-from kodit.infrastructure.sqlalchemy.enrichment_v2_repository import (
-    EnrichmentV2Repository,
-)
 from kodit.infrastructure.sqlalchemy.entities import EmbeddingType
+from kodit.infrastructure.sqlalchemy.query import (
+    EnrichmentAssociationQueryBuilder,
+    FilterOperator,
+    GitFileQueryBuilder,
+    QueryBuilder,
+)
 
 SUMMARIZATION_SYSTEM_PROMPT = """
 You are a professional software developer. You will be given a snippet of code.
@@ -71,15 +88,14 @@ class CommitIndexingApplicationService:
 
     def __init__(  # noqa: PLR0913
         self,
-        snippet_v2_repository: SnippetRepositoryV2,
         repo_repository: GitRepoRepository,
         git_commit_repository: GitCommitRepository,
+        git_file_repository: GitFileRepository,
         git_branch_repository: GitBranchRepository,
         git_tag_repository: GitTagRepository,
         operation: ProgressTracker,
         scanner: GitRepositoryScanner,
         cloner: RepositoryCloner,
-        snippet_repository: SnippetRepositoryV2,
         slicer: Slicer,
         queue: QueueService,
         bm25_service: BM25DomainService,
@@ -87,28 +103,20 @@ class CommitIndexingApplicationService:
         text_search_service: EmbeddingDomainService,
         embedding_repository: SqlAlchemyEmbeddingRepository,
         architecture_service: PhysicalArchitectureService,
-        enrichment_v2_repository: EnrichmentV2Repository,
         enricher_service: Enricher,
+        enrichment_v2_repository: EnrichmentV2Repository,
+        enrichment_association_repository: EnrichmentAssociationRepository,
+        enrichment_query_service: "EnrichmentQueryService",
     ) -> None:
-        """Initialize the commit indexing application service.
-
-        Args:
-            commit_index_repository: Repository for commit index data.
-            snippet_v2_repository: Repository for snippet data.
-            repo_repository: Repository for Git repository data.
-            domain_indexer: Domain service for indexing operations.
-            operation: Progress tracker for reporting operations.
-
-        """
-        self.snippet_repository = snippet_v2_repository
+        """Initialize the commit indexing application service."""
         self.repo_repository = repo_repository
         self.git_commit_repository = git_commit_repository
+        self.git_file_repository = git_file_repository
         self.git_branch_repository = git_branch_repository
         self.git_tag_repository = git_tag_repository
         self.operation = operation
         self.scanner = scanner
         self.cloner = cloner
-        self.snippet_repository = snippet_repository
         self.slicer = slicer
         self.queue = queue
         self.bm25_service = bm25_service
@@ -117,7 +125,9 @@ class CommitIndexingApplicationService:
         self.embedding_repository = embedding_repository
         self.architecture_service = architecture_service
         self.enrichment_v2_repository = enrichment_v2_repository
+        self.enrichment_association_repository = enrichment_association_repository
         self.enricher_service = enricher_service
+        self.enrichment_query_service = enrichment_query_service
         self._log = structlog.get_logger(__name__)
 
     async def create_git_repository(self, remote_uri: AnyUrl) -> GitRepo:
@@ -137,7 +147,7 @@ class CommitIndexingApplicationService:
 
     async def delete_git_repository(self, repo_id: int) -> bool:
         """Delete a Git repository by ID."""
-        repo = await self.repo_repository.get_by_id(repo_id)
+        repo = await self.repo_repository.get(repo_id)
         if not repo:
             return False
 
@@ -193,7 +203,7 @@ class CommitIndexingApplicationService:
             trackable_type=TrackableType.KODIT_REPOSITORY,
             trackable_id=repository_id,
         ):
-            repo = await self.repo_repository.get_by_id(repository_id)
+            repo = await self.repo_repository.get(repository_id)
             repo.cloned_path = await self.cloner.clone_repository(repo.remote_uri)
             await self.repo_repository.save(repo)
 
@@ -204,51 +214,131 @@ class CommitIndexingApplicationService:
             trackable_type=TrackableType.KODIT_REPOSITORY,
             trackable_id=repository_id,
         ) as step:
-            await step.set_total(6)
-            repo = await self.repo_repository.get_by_id(repository_id)
+            await step.set_total(7)
+            repo = await self.repo_repository.get(repository_id)
             if not repo.cloned_path:
                 raise ValueError(f"Repository {repository_id} has never been cloned")
 
             # Scan the repository to get all metadata
             await step.set_current(0, "Scanning repository")
-            scan_result = await self.scanner.scan_repository(repo.cloned_path)
+            scan_result = await self.scanner.scan_repository(
+                repo.cloned_path, repository_id
+            )
 
             # Update repo with scan result (this sets num_commits, num_branches, etc.)
             await step.set_current(1, "Updating repository with scan result")
             repo.update_with_scan_result(scan_result)
             await self.repo_repository.save(repo)
 
-            # Save commits, branches, and tags to their dedicated repositories
             await step.set_current(2, "Saving commits")
-            if scan_result.all_commits:
-                await self.git_commit_repository.save_bulk(
-                    scan_result.all_commits, repository_id
-                )
+            await self.git_commit_repository.save_bulk(scan_result.all_commits)
 
-            await step.set_current(3, "Saving branches")
+            await step.set_current(3, "Saving files")
+            await self.git_file_repository.save_bulk(scan_result.all_files)
+
+            await step.set_current(4, "Saving branches")
             if scan_result.branches:
                 await self.git_branch_repository.save_bulk(
-                    scan_result.branches, repository_id
+                    scan_result.branches,
                 )
 
-            await step.set_current(4, "Saving tags")
+            await step.set_current(5, "Saving tags")
             if scan_result.all_tags:
                 await self.git_tag_repository.save_bulk(
-                    scan_result.all_tags, repository_id
+                    scan_result.all_tags,
                 )
 
-            await step.set_current(5, "Enqueuing commit indexing tasks")
-            if not repo.tracking_branch:
+            await step.set_current(6, "Enqueuing commit indexing tasks")
+            if not repo.tracking_config.name:
                 raise ValueError(f"Repository {repository_id} has no tracking branch")
-            commit_sha = repo.tracking_branch.head_commit.commit_sha
-            if not commit_sha:
-                raise ValueError(f"Repository {repository_id} has no head commit")
+            if repo.tracking_config.type == TrackingType.BRANCH.value:
+                branch = await self.git_branch_repository.get_by_name(
+                    repo.tracking_config.name, repository_id
+                )
+                commit_sha = branch.head_commit_sha
+            elif repo.tracking_config.type == TrackingType.TAG.value:
+                tag = await self.git_tag_repository.get_by_name(
+                    repo.tracking_config.name, repository_id
+                )
+                commit_sha = tag.target_commit_sha
+            elif repo.tracking_config.type == TrackingType.COMMIT_SHA.value:
+                commit_sha = repo.tracking_config.name
+            else:
+                raise ValueError(f"Unknown tracking type: {repo.tracking_config.type}")
 
             await self.queue.enqueue_tasks(
                 tasks=PrescribedOperations.INDEX_COMMIT,
                 base_priority=QueuePriority.USER_INITIATED,
                 payload={"commit_sha": commit_sha, "repository_id": repository_id},
             )
+
+    async def _delete_snippet_enrichments_for_commits(
+        self, commit_shas: list[str]
+    ) -> None:
+        """Delete snippet enrichments and their indices for commits."""
+        # Get all snippet enrichment IDs for these commits
+        all_snippet_enrichment_ids = []
+        for commit_sha in commit_shas:
+            snippet_enrichments = (
+                await self.enrichment_query_service.get_all_snippets_for_commit(
+                    commit_sha
+                )
+            )
+            enrichment_ids = [
+                enrichment.id for enrichment in snippet_enrichments if enrichment.id
+            ]
+            all_snippet_enrichment_ids.extend(enrichment_ids)
+
+        if not all_snippet_enrichment_ids:
+            return
+
+        # Delete from BM25 and embedding indices
+        snippet_id_strings = [str(sid) for sid in all_snippet_enrichment_ids]
+        delete_request = DeleteRequest(snippet_ids=snippet_id_strings)
+        await self.bm25_service.delete_documents(delete_request)
+
+        for snippet_id in all_snippet_enrichment_ids:
+            await self.embedding_repository.delete_embeddings_by_snippet_id(
+                str(snippet_id)
+            )
+
+        # Delete enrichment associations for snippets
+        await self.enrichment_association_repository.delete_by_query(
+            QueryBuilder()
+            .filter("entity_type", FilterOperator.EQ, "snippet_v2")
+            .filter("entity_id", FilterOperator.IN, snippet_id_strings)
+        )
+
+        # Delete the enrichments themselves
+        await self.enrichment_v2_repository.delete_by_query(
+            QueryBuilder().filter("id", FilterOperator.IN, all_snippet_enrichment_ids)
+        )
+
+    async def _delete_commit_enrichments(self, commit_shas: list[str]) -> None:
+        """Delete commit-level enrichments for commits."""
+        existing_enrichment_associations = (
+            await self.enrichment_association_repository.find(
+                QueryBuilder()
+                .filter(
+                    "entity_type",
+                    FilterOperator.EQ,
+                    db_entities.GitCommit.__tablename__,
+                )
+                .filter("entity_id", FilterOperator.IN, commit_shas)
+            )
+        )
+        enrichment_ids = [a.enrichment_id for a in existing_enrichment_associations]
+        if not enrichment_ids:
+            return
+
+        # Delete associations first
+        await self.enrichment_association_repository.delete_by_query(
+            QueryBuilder().filter("enrichment_id", FilterOperator.IN, enrichment_ids)
+        )
+        # Then delete enrichments
+        await self.enrichment_v2_repository.delete_by_query(
+            QueryBuilder().filter("id", FilterOperator.IN, enrichment_ids)
+        )
 
     async def process_delete_repo(self, repository_id: int) -> None:
         """Delete a repository."""
@@ -257,61 +347,34 @@ class CommitIndexingApplicationService:
             trackable_type=TrackableType.KODIT_REPOSITORY,
             trackable_id=repository_id,
         ):
-            repo = await self.repo_repository.get_by_id(repository_id)
+            repo = await self.repo_repository.get(repository_id)
             if not repo:
                 raise ValueError(f"Repository {repository_id} not found")
 
-            # Get all commit SHAs for this repository first (needed for cleanup)
-            commits = await self.git_commit_repository.get_by_repo_id(repository_id)
+            # Get all commit SHAs for this repository
+            commits = await self.git_commit_repository.find(
+                QueryBuilder().filter("repo_id", FilterOperator.EQ, repository_id)
+            )
             commit_shas = [commit.commit_sha for commit in commits]
 
-            # Step 1: Get all snippet IDs that are associated with these commits FIRST
-            # (before deleting the associations)
-            all_snippet_ids = []
+            # Delete all enrichments and their indices
             if commit_shas:
-                for commit_sha in commit_shas:
-                    snippets = await self.snippet_repository.get_snippets_for_commit(
-                        commit_sha
-                    )
-                    all_snippet_ids.extend(
-                        [snippet.id for snippet in snippets if snippet.id]
-                    )
+                await self._delete_snippet_enrichments_for_commits(commit_shas)
+                await self._delete_commit_enrichments(commit_shas)
 
-            # Step 2: Delete from BM25 and embedding indices
-            if all_snippet_ids:
-                # Convert to strings as DeleteRequest expects list[str]
-                snippet_id_strings = [str(snippet_id) for snippet_id in all_snippet_ids]
-                delete_request = DeleteRequest(snippet_ids=snippet_id_strings)
-                await self.bm25_service.delete_documents(delete_request)
-
-                # Delete embeddings for each snippet
-                for snippet_id in all_snippet_ids:
-                    await self.embedding_repository.delete_embeddings_by_snippet_id(
-                        snippet_id
-                    )
-
-            # Step 3: Delete enrichments for all commits
-            if commit_shas:
-                await self.enrichment_v2_repository.bulk_delete_enrichments(
-                    entity_type="git_commit",
-                    entity_ids=commit_shas,
-                )
-
-            # Step 4: Delete snippet associations for all commits
-            for commit_sha in commit_shas:
-                await self.snippet_repository.delete_snippets_for_commit(commit_sha)
-
-            # Step 5: Delete branches (they reference commits via head_commit_sha)
+            # Delete branches, tags, files, commits, and repository
             await self.git_branch_repository.delete_by_repo_id(repository_id)
-
-            # Step 6: Delete tags (they reference commits via target_commit_sha)
             await self.git_tag_repository.delete_by_repo_id(repository_id)
 
-            # Step 7: Delete commits and their files
-            await self.git_commit_repository.delete_by_repo_id(repository_id)
+            for commit_sha in commit_shas:
+                await self.git_file_repository.delete_by_commit_sha(commit_sha)
 
-            # Step 8: Finally delete the repository
-            await self.repo_repository.delete(repo.sanitized_remote_uri)
+            await self.git_commit_repository.delete_by_query(
+                QueryBuilder().filter("repo_id", FilterOperator.EQ, repository_id)
+            )
+
+            if repo.id:
+                await self.repo_repository.delete(repo)
 
     async def process_snippets_for_commit(
         self, repository_id: int, commit_sha: str
@@ -322,16 +385,16 @@ class CommitIndexingApplicationService:
             trackable_type=TrackableType.KODIT_REPOSITORY,
             trackable_id=repository_id,
         ) as step:
-            # Have we already processed this commit? If yes, skip.
-            if await self.snippet_repository.get_snippets_for_commit(commit_sha):
-                await step.skip("All snippets already extracted for commit")
+            # Find existing snippet enrichments for this commit
+            if await self.enrichment_query_service.has_snippets_for_commit(commit_sha):
+                await step.skip("Snippets already extracted for commit")
                 return
 
-            commit = await self.git_commit_repository.get_by_sha(commit_sha)
+            commit = await self.git_commit_repository.get(commit_sha)
 
             # Load files on demand for snippet extraction (performance optimization)
             # Instead of using commit.files (which may be empty), load files directly
-            repo = await self.repo_repository.get_by_id(repository_id)
+            repo = await self.repo_repository.get(repository_id)
             if not repo.cloned_path:
                 raise ValueError(f"Repository {repository_id} has never been cloned")
 
@@ -350,6 +413,7 @@ class CommitIndexingApplicationService:
                 absolute_path = str(repo.cloned_path / file_data["path"])
 
                 git_file = GitFile(
+                    commit_sha=commit.commit_sha,
                     created_at=file_data.get("created_at", commit.date),
                     blob_sha=file_data["blob_sha"],
                     path=absolute_path,  # Use absolute path for file reading
@@ -395,8 +459,27 @@ class CommitIndexingApplicationService:
                 f"Extracted {len(all_snippets)} snippets, "
                 f"deduplicated to {len(deduplicated_snippets)} for {commit_short}"
             )
-            await self.snippet_repository.save_snippets(
-                commit.commit_sha, deduplicated_snippets
+
+            saved_enrichments = await self.enrichment_v2_repository.save_bulk(
+                [
+                    SnippetEnrichment(content=snippet.content)
+                    for snippet in deduplicated_snippets
+                ]
+            )
+            saved_associations = await self.enrichment_association_repository.save_bulk(
+                [
+                    EnrichmentAssociation(
+                        enrichment_id=enrichment.id,
+                        entity_type=db_entities.GitCommit.__tablename__,
+                        entity_id=commit_sha,
+                    )
+                    for enrichment in saved_enrichments
+                    if enrichment.id
+                ]
+            )
+            self._log.info(
+                f"Saved {len(saved_enrichments)} snippet enrichments and "
+                f"{len(saved_associations)} associations for commit {commit_sha}"
             )
 
     async def process_bm25_index(self, repository_id: int, commit_sha: str) -> None:
@@ -406,13 +489,16 @@ class CommitIndexingApplicationService:
             trackable_type=TrackableType.KODIT_REPOSITORY,
             trackable_id=repository_id,
         ):
-            snippets = await self.snippet_repository.get_snippets_for_commit(commit_sha)
-
+            existing_enrichments = (
+                await self.enrichment_query_service.get_all_snippets_for_commit(
+                    commit_sha
+                )
+            )
             await self.bm25_service.index_documents(
                 IndexRequest(
                     documents=[
-                        Document(snippet_id=snippet.id, text=snippet.content)
-                        for snippet in snippets
+                        Document(snippet_id=str(snippet.id), text=snippet.content)
+                        for snippet in existing_enrichments
                         if snippet.id
                     ]
                 )
@@ -427,12 +513,14 @@ class CommitIndexingApplicationService:
             trackable_type=TrackableType.KODIT_REPOSITORY,
             trackable_id=repository_id,
         ) as step:
-            all_snippets = await self.snippet_repository.get_snippets_for_commit(
-                commit_sha
+            existing_enrichments = (
+                await self.enrichment_query_service.get_all_snippets_for_commit(
+                    commit_sha
+                )
             )
 
             new_snippets = await self._new_snippets_for_type(
-                all_snippets, EmbeddingType.CODE
+                existing_enrichments, EmbeddingType.CODE
             )
             if not new_snippets:
                 await step.skip("All snippets already have code embeddings")
@@ -441,7 +529,7 @@ class CommitIndexingApplicationService:
             await step.set_total(len(new_snippets))
             processed = 0
             documents = [
-                Document(snippet_id=snippet.id, text=snippet.content)
+                Document(snippet_id=str(snippet.id), text=snippet.content)
                 for snippet in new_snippets
                 if snippet.id
             ]
@@ -458,36 +546,28 @@ class CommitIndexingApplicationService:
             trackable_type=TrackableType.KODIT_REPOSITORY,
             trackable_id=repository_id,
         ) as step:
-            all_snippets = await self.snippet_repository.get_snippets_for_commit(
-                commit_sha
-            )
+            if await self.enrichment_query_service.has_summaries_for_commit(commit_sha):
+                await step.skip("Summary enrichments already exist for commit")
+                return
 
-            # Find snippets without a summary enrichment
-            snippets_without_summary = [
-                snippet
-                for snippet in all_snippets
-                if not snippet.enrichments
-                or not next(
-                    enrichment
-                    for enrichment in snippet.enrichments
-                    if enrichment.type == EnrichmentType.SUMMARIZATION
+            all_snippets = (
+                await self.enrichment_query_service.get_all_snippets_for_commit(
+                    commit_sha
                 )
-            ]
-            if not snippets_without_summary:
-                await step.skip("All snippets already have a summary enrichment")
+            )
+            if not all_snippets:
+                await step.skip("No snippets to enrich")
                 return
 
             # Enrich snippets
-            await step.set_total(len(snippets_without_summary))
+            await step.set_total(len(all_snippets))
             snippet_map = {
-                snippet.id: snippet
-                for snippet in snippets_without_summary
-                if snippet.id
+                str(snippet.id): snippet for snippet in all_snippets if snippet.id
             }
 
             enrichment_requests = [
                 GenericEnrichmentRequest(
-                    id=snippet_id,
+                    id=str(snippet_id),
                     text=snippet.content,
                     system_prompt=SUMMARIZATION_SYSTEM_PROMPT,
                 )
@@ -497,12 +577,27 @@ class CommitIndexingApplicationService:
             processed = 0
             async for result in self.enricher_service.enrich(enrichment_requests):
                 snippet = snippet_map[result.id]
-                snippet.enrichments.append(
-                    Enrichment(type=EnrichmentType.SUMMARIZATION, content=result.text)
+                db_summary = await self.enrichment_v2_repository.save(
+                    SnippetEnrichmentSummary(content=result.text)
                 )
-
-                await self.snippet_repository.save_snippets(commit_sha, [snippet])
-
+                if not db_summary.id:
+                    raise ValueError(
+                        f"Failed to save snippet enrichment for commit {commit_sha}"
+                    )
+                await self.enrichment_association_repository.save(
+                    EnrichmentAssociation(
+                        enrichment_id=db_summary.id,
+                        entity_type=db_entities.EnrichmentV2.__tablename__,
+                        entity_id=str(snippet.id),
+                    )
+                )
+                await self.enrichment_association_repository.save(
+                    EnrichmentAssociation(
+                        enrichment_id=db_summary.id,
+                        entity_type=db_entities.GitCommit.__tablename__,
+                        entity_id=commit_sha,
+                    )
+                )
                 processed += 1
                 await step.set_current(processed, "Enriching snippets for commit")
 
@@ -515,40 +610,61 @@ class CommitIndexingApplicationService:
             trackable_type=TrackableType.KODIT_REPOSITORY,
             trackable_id=repository_id,
         ) as step:
-            snippets = await self.snippet_repository.get_snippets_for_commit(commit_sha)
-
-            new_snippets = await self._new_snippets_for_type(
-                snippets, EmbeddingType.TEXT
+            # Get all snippet enrichments for this commit
+            all_snippet_enrichments = (
+                await self.enrichment_query_service.get_all_snippets_for_commit(
+                    commit_sha
+                )
             )
-            if not new_snippets:
+            if not all_snippet_enrichments:
+                await step.skip("No snippets to create summary embeddings")
+                return
+
+            # Get summary enrichments that point to these snippet enrichments
+            query = EnrichmentAssociationQueryBuilder.for_enrichment_associations(
+                entity_type=db_entities.EnrichmentV2.__tablename__,
+                entity_ids=[
+                    str(snippet.id) for snippet in all_snippet_enrichments if snippet.id
+                ],
+            )
+            summary_enrichment_associations = (
+                await self.enrichment_association_repository.find(query)
+            )
+
+            if not summary_enrichment_associations:
+                await step.skip("No summary enrichments found for snippets")
+                return
+
+            # Get the actual summary enrichments
+            summary_enrichments = await self.enrichment_v2_repository.find(
+                QueryBuilder().filter(
+                    "id",
+                    FilterOperator.IN,
+                    [
+                        association.enrichment_id
+                        for association in summary_enrichment_associations
+                    ],
+                )
+            )
+
+            # Check if embeddings already exist for these summaries
+            new_summaries = await self._new_snippets_for_type(
+                summary_enrichments, EmbeddingType.TEXT
+            )
+            if not new_summaries:
                 await step.skip("All snippets already have text embeddings")
                 return
 
-            await step.set_total(len(new_snippets))
+            await step.set_total(len(new_summaries))
             processed = 0
 
-            def _summary_from_enrichments(enrichments: list[Enrichment]) -> str:
-                if not enrichments:
-                    return ""
-                return next(
-                    enrichment.content
-                    for enrichment in enrichments
-                    if enrichment.type == EnrichmentType.SUMMARIZATION
-                )
-
-            snippet_summary_map = {
-                snippet.id: _summary_from_enrichments(snippet.enrichments)
-                for snippet in snippets
-                if snippet.id
-            }
-            if len(snippet_summary_map) == 0:
-                await step.skip("No snippets with summaries to create text embeddings")
-                return
-
+            # Create documents from the summary enrichments
             documents_with_summaries = [
-                Document(snippet_id=snippet_id, text=snippet_summary)
-                for snippet_id, snippet_summary in snippet_summary_map.items()
+                Document(snippet_id=str(summary.id), text=summary.content)
+                for summary in new_summaries
+                if summary.id
             ]
+
             async for result in self.text_search_service.index_documents(
                 IndexRequest(documents=documents_with_summaries)
             ):
@@ -567,23 +683,14 @@ class CommitIndexingApplicationService:
             await step.set_total(3)
 
             # Check if architecture enrichment already exists for this commit
-            enrichment_repo = self.enrichment_v2_repository
-            existing_enrichments = await enrichment_repo.enrichments_for_entity_type(
-                entity_type="git_commit",
-                entity_ids=[commit_sha],
-            )
-
-            # Check if architecture enrichment already exists
-            has_architecture = any(
-                enrichment.type == "architecture" for enrichment in existing_enrichments
-            )
-
-            if has_architecture:
+            if await self.enrichment_query_service.has_architecture_for_commit(
+                commit_sha
+            ):
                 await step.skip("Architecture enrichment already exists for commit")
                 return
 
             # Get repository path
-            repo = await self.repo_repository.get_by_id(repository_id)
+            repo = await self.repo_repository.get(repository_id)
             if not repo.cloned_path:
                 raise ValueError(f"Repository {repository_id} has never been cloned")
 
@@ -610,13 +717,20 @@ class CommitIndexingApplicationService:
                 enriched_content = response.text
 
             # Create and save architecture enrichment with enriched content
-            architecture_enrichment = PhysicalArchitectureEnrichment(
-                entity_id=commit_sha,
-                content=enriched_content,
+            enrichment = await self.enrichment_v2_repository.save(
+                PhysicalArchitectureEnrichment(
+                    content=enriched_content,
+                )
             )
-
-            await self.enrichment_v2_repository.bulk_save_enrichments(
-                [architecture_enrichment]
+            if not enrichment or not enrichment.id:
+                raise ValueError(
+                    f"Failed to save architecture enrichment for commit {commit_sha}"
+                )
+            await self.enrichment_association_repository.save(
+                CommitEnrichmentAssociation(
+                    enrichment_id=enrichment.id,
+                    entity_id=commit_sha,
+                )
             )
 
             await step.set_current(3, "Architecture enrichment completed")
@@ -629,34 +743,26 @@ class CommitIndexingApplicationService:
             trackable_id=repository_id,
         ) as step:
             # Check if API docs already exist for this commit
-            existing_enrichments = (
-                await self.enrichment_v2_repository.enrichments_for_entity_type(
-                    entity_type="git_commit",
-                    entity_ids=[commit_sha],
-                )
-            )
-
-            has_api_docs = any(
-                e.type == ENRICHMENT_TYPE_USAGE
-                and e.subtype == ENRICHMENT_SUBTYPE_API_DOCS
-                for e in existing_enrichments
-            )
-
-            if has_api_docs:
+            if await self.enrichment_query_service.has_api_docs_for_commit(commit_sha):
                 await step.skip("API docs already exist for commit")
                 return
 
             # Get repository for metadata
-            repo = await self.repo_repository.get_by_id(repository_id)
+            repo = await self.repo_repository.get(repository_id)
             if not repo:
                 raise ValueError(f"Repository {repository_id} not found")
             str(repo.sanitized_remote_uri)
 
-            commit = await self.git_commit_repository.get_by_sha(commit_sha)
+            files = await self.git_file_repository.find(
+                GitFileQueryBuilder().for_commit_sha(commit_sha)
+            )
+            if not files:
+                await step.skip("No files to extract API docs from")
+                return
 
             # Group files by language
             lang_files_map: dict[str, list[GitFile]] = defaultdict(list)
-            for file in commit.files:
+            for file in files:
                 try:
                     lang = LanguageMapping.get_language_for_extension(file.extension)
                 except ValueError:
@@ -670,28 +776,41 @@ class CommitIndexingApplicationService:
             for i, (lang, lang_files) in enumerate(lang_files_map.items()):
                 await step.set_current(i, f"Extracting API docs for {lang}")
                 enrichments = extractor.extract_api_docs(
-                    lang_files,
-                    lang,
-                    commit_sha,
+                    files=lang_files,
+                    language=lang,
                     include_private=False,
                 )
                 all_enrichments.extend(enrichments)
 
             # Save all enrichments
             if all_enrichments:
-                await self.enrichment_v2_repository.bulk_save_enrichments(
-                    all_enrichments
+                saved_enrichments = await self.enrichment_v2_repository.save_bulk(
+                    all_enrichments  # type: ignore[arg-type]
+                )
+                await self.enrichment_association_repository.save_bulk(
+                    [
+                        CommitEnrichmentAssociation(
+                            enrichment_id=enrichment.id,
+                            entity_id=commit_sha,
+                        )
+                        for enrichment in saved_enrichments
+                        if enrichment.id
+                    ]
                 )
 
     async def _new_snippets_for_type(
-        self, all_snippets: list[SnippetV2], embedding_type: EmbeddingType
-    ) -> list[SnippetV2]:
+        self, all_snippets: list[EnrichmentV2], embedding_type: EmbeddingType
+    ) -> list[EnrichmentV2]:
         """Get new snippets for a given type."""
         existing_embeddings = (
             await self.embedding_repository.list_embeddings_by_snippet_ids_and_type(
-                [s.id for s in all_snippets], embedding_type
+                [str(s.id) for s in all_snippets], embedding_type
             )
         )
+        # TODO(Phil): Can't do this incrementally yet because like the API, we don't
+        # have a unified embedding repository
+        if existing_embeddings:
+            return []
         existing_embeddings_by_snippet_id = {
             embedding.snippet_id: embedding for embedding in existing_embeddings
         }
