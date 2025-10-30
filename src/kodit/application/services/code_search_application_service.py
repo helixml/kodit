@@ -123,16 +123,9 @@ class CodeSearchApplicationService:
                     snippet_ids=filtered_snippet_ids,
                 )
             )
-            # Deduplicate while preserving order
-            seen = set()
-            summary_results_dedup = []
-            for result in summary_results:
-                if result not in seen:
-                    seen.add(result)
-                    summary_results_dedup.append(result)
 
             # Get the snippet enrichment IDs that these summaries point to
-            summary_ids = [int(x.snippet_id) for x in summary_results_dedup]
+            summary_ids = [int(x.snippet_id) for x in summary_results]
             summary_enrichments = (
                 await self.enrichment_query_service.get_enrichments_by_ids(summary_ids)
             )
@@ -162,7 +155,7 @@ class CodeSearchApplicationService:
 
             # Build fusion list in the correct order
             fusion_items = []
-            for result in summary_results_dedup:
+            for result in summary_results:
                 summary_id = int(result.snippet_id)
                 if summary_id in summary_to_snippet_map:
                     snippet_id = summary_to_snippet_map[summary_id]

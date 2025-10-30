@@ -199,6 +199,16 @@ class EnrichmentQueryService:
             .for_enrichment_type()
         )
 
+    async def snippet_associations_from_enrichments(
+        self, enrichments: list[EnrichmentV2]
+    ) -> list[EnrichmentAssociation]:
+        """Get snippet enrichment associations for given enrichments."""
+        return await self.enrichment_association_repository.find(
+            EnrichmentAssociationQueryBuilder()
+            .for_enrichments(enrichments)
+            .for_enrichment_type()
+        )
+
     async def snippets_for_summary_enrichments(
         self, summary_enrichments: list[EnrichmentV2]
     ) -> list[EnrichmentV2]:

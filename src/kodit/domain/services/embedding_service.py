@@ -116,7 +116,16 @@ class EmbeddingDomainService:
             query=normalized_query, top_k=request.top_k, snippet_ids=request.snippet_ids
         )
 
-        return await self.vector_search_repository.search(normalized_request)
+        results = await self.vector_search_repository.search(normalized_request)
+
+        # Deduplicate results while preserving order and scores
+        seen_ids: set[str] = set()
+        unique_results: list[SearchResult] = []
+        for result in results:
+            if result.snippet_id not in seen_ids:
+                seen_ids.add(result.snippet_id)
+                unique_results.append(result)
+        return unique_results
 
     async def has_embedding(
         self, snippet_id: int, embedding_type: EmbeddingType
