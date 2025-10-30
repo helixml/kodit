@@ -7,6 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from kodit.domain.enrichments.architecture.architecture import (
     ENRICHMENT_TYPE_ARCHITECTURE,
 )
+from kodit.domain.enrichments.architecture.database_schema.database_schema import (
+    ENRICHMENT_SUBTYPE_DATABASE_SCHEMA,
+    DatabaseSchemaEnrichment,
+)
 from kodit.domain.enrichments.architecture.physical.physical import (
     ENRICHMENT_SUBTYPE_PHYSICAL,
     PhysicalArchitectureEnrichment,
@@ -141,6 +145,16 @@ class SQLAlchemyEnrichmentV2Repository(
             and db_entity.subtype == ENRICHMENT_SUBTYPE_COMMIT_DESCRIPTION
         ):
             return CommitDescriptionEnrichment(
+                id=db_entity.id,
+                content=db_entity.content,
+                created_at=db_entity.created_at,
+                updated_at=db_entity.updated_at,
+            )
+        if (
+            db_entity.type == ENRICHMENT_TYPE_ARCHITECTURE
+            and db_entity.subtype == ENRICHMENT_SUBTYPE_DATABASE_SCHEMA
+        ):
+            return DatabaseSchemaEnrichment(
                 id=db_entity.id,
                 content=db_entity.content,
                 created_at=db_entity.created_at,

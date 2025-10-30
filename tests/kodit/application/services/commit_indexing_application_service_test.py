@@ -114,6 +114,7 @@ async def commit_indexing_service(
         text_search_service=AsyncMock(spec=EmbeddingDomainService),
         embedding_repository=embedding_repository,
         architecture_service=AsyncMock(spec=PhysicalArchitectureService),
+        database_schema_detector=MagicMock(),
         enrichment_v2_repository=enrichment_v2_repository,
         enrichment_association_repository=enrichment_association_repository,
         enricher_service=AsyncMock(),
