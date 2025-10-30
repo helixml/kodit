@@ -150,7 +150,6 @@ async def embedding_repo(session_factory: Any) -> SqlAlchemyEmbeddingRepository:
 
 @pytest.fixture
 async def code_search_service(
-    session_factory: Any,
     embedding_repo: SqlAlchemyEmbeddingRepository,
 ) -> EmbeddingDomainService:
     """Create code search service with real database."""
