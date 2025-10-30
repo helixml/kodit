@@ -1,7 +1,6 @@
 """Create a big object that contains all the application services."""
 
 from collections.abc import Callable
-from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -92,9 +91,6 @@ from kodit.infrastructure.sqlalchemy.task_status_repository import (
 )
 from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 
-if TYPE_CHECKING:
-    from kodit.domain.services.enrichment_service import EnrichmentDomainService
-
 
 class ServerFactory:
     """Factory for creating server application services."""
@@ -115,7 +111,6 @@ class ServerFactory:
         self._commit_indexing_application_service: (
             CommitIndexingApplicationService | None
         ) = None
-        self._enrichment_service: EnrichmentDomainService | None = None
         self._enricher_service: Enricher | None = None
         self._task_status_repository: TaskStatusRepository | None = None
         self._operation: ProgressTracker | None = None

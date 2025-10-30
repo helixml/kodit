@@ -1,6 +1,7 @@
 """Logging configuration for kodit."""
 
 import logging
+import os
 import platform
 import re
 import shutil
@@ -10,6 +11,9 @@ import uuid
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
+
+# Set litellm logging level BEFORE import to prevent broken logging objects
+os.environ["LITELLM_LOG"] = "ERROR"
 
 import litellm
 import rudderstack.analytics as rudder_analytics  # type: ignore[import-untyped]
@@ -108,8 +112,13 @@ def configure_logging(app_context: AppContext) -> None:
         else:
             logging.getLogger(_log).disabled = True
 
-    # More litellm logging cruft
+    # Disable litellm's internal debug logging
     litellm.suppress_debug_info = True
+
+    # Monkey-patch litellm's Logging class to add missing debug method
+    # This prevents AttributeError when litellm tries to call logging_obj.debug()
+    if not hasattr(litellm.Logging, "debug"):
+        litellm.Logging.debug = lambda _self, *_args, **_kwargs: None  # type: ignore[attr-defined]
 
     # Configure SQLAlchemy loggers to use our structlog setup
     for _log in ["sqlalchemy.engine", "alembic"]:

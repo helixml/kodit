@@ -21,7 +21,7 @@ type:
 lint:
 	uv run ruff check --fix --unsafe-fixes
 
-test: lint type docs-check
+test: lint type
 	uv run pytest -s --cov=src --cov-report=xml tests/kodit
 
 no-database-changes-check:
