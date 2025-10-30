@@ -213,6 +213,10 @@ class GitAdapter(ABC):
     ) -> list[str]:
         """Get only commit SHAs for a branch (much faster than full commit data)."""
 
+    @abstractmethod
+    async def get_commit_diff(self, local_path: Path, commit_sha: str) -> str:
+        """Get the diff for a specific commit."""
+
 
 class SnippetRepositoryV2(ABC):
     """Repository for snippet operations."""

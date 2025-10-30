@@ -14,6 +14,10 @@ from kodit.domain.enrichments.development.snippet.snippet import (
     ENRICHMENT_SUBTYPE_SNIPPET_SUMMARY,
 )
 from kodit.domain.enrichments.enrichment import EnrichmentAssociation, EnrichmentV2
+from kodit.domain.enrichments.history.commit_description.commit_description import (
+    ENRICHMENT_SUBTYPE_COMMIT_DESCRIPTION,
+)
+from kodit.domain.enrichments.history.history import ENRICHMENT_TYPE_HISTORY
 from kodit.domain.enrichments.usage.api_docs import ENRICHMENT_SUBTYPE_API_DOCS
 from kodit.domain.enrichments.usage.usage import ENRICHMENT_TYPE_USAGE
 from kodit.domain.protocols import (
@@ -214,6 +218,21 @@ class EnrichmentQueryService:
         """Check if a commit has API documentation enrichments."""
         api_docs = await self.get_api_docs_for_commit(commit_sha)
         return len(api_docs) > 0
+
+    async def get_commit_description_for_commit(
+        self, commit_sha: str
+    ) -> list[EnrichmentV2]:
+        """Get commit description enrichments for a commit."""
+        return await self.get_enrichments_for_commit(
+            commit_sha,
+            enrichment_type=ENRICHMENT_TYPE_HISTORY,
+            enrichment_subtype=ENRICHMENT_SUBTYPE_COMMIT_DESCRIPTION,
+        )
+
+    async def has_commit_description_for_commit(self, commit_sha: str) -> bool:
+        """Check if a commit has commit description enrichments."""
+        commit_descriptions = await self.get_commit_description_for_commit(commit_sha)
+        return len(commit_descriptions) > 0
 
     async def associations_for_enrichments(
         self, enrichments: list[EnrichmentV2]
