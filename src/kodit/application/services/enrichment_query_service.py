@@ -155,8 +155,7 @@ class EnrichmentQueryService:
             query = query.for_type(enrichment_type)
         if enrichment_subtype:
             query = query.for_subtype(enrichment_subtype)
-        enrichments = await self.enrichment_repo.find(query)
-        return enrichments
+        return await self.enrichment_repo.find(query)
 
     async def get_architecture_docs_for_commit(
         self, commit_sha: str

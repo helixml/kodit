@@ -38,6 +38,8 @@ from kodit.infrastructure.api.v1.schemas.enrichment import (
     EnrichmentRelationships,
 )
 from kodit.infrastructure.sqlalchemy.query import (
+    EnrichmentAssociationQueryBuilder,
+    EnrichmentQueryBuilder,
     FilterOperator,
     GitFileQueryBuilder,
     QueryBuilder,
@@ -312,10 +314,26 @@ async def delete_all_commit_enrichments(
 ) -> None:
     """Delete all enrichments for a specific commit."""
     enrichment_v2_repository = server_factory.enrichment_v2_repository()
+    enrichment_association_repository = (
+        server_factory.enrichment_association_repository()
+    )
+    associations = await enrichment_association_repository.find(
+        EnrichmentAssociationQueryBuilder().for_commit(commit_sha)
+    )
+    enrichments = await enrichment_v2_repository.find(
+        EnrichmentQueryBuilder().for_ids(
+            enrichment_ids=[association.enrichment_id for association in associations]
+        )
+    )
+    await enrichment_association_repository.delete_by_query(
+        EnrichmentAssociationQueryBuilder().for_enrichments(enrichments)
+    )
     await enrichment_v2_repository.delete_by_query(
-        QueryBuilder()
-        .filter("entity_type", FilterOperator.EQ, db_entities.GitCommit.__tablename__)
-        .filter("entity_id", FilterOperator.EQ, commit_sha)
+        EnrichmentQueryBuilder().for_ids(
+            enrichment_ids=[
+                enrichment.id for enrichment in enrichments if enrichment.id
+            ]
+        )
     )
 
 
