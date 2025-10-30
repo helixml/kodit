@@ -22,7 +22,11 @@ from kodit.domain.enrichments.development.snippet.snippet import (
     SnippetEnrichmentSummary,
 )
 from kodit.domain.enrichments.enricher import Enricher
-from kodit.domain.enrichments.enrichment import EnrichmentAssociation, EnrichmentV2
+from kodit.domain.enrichments.enrichment import (
+    CommitEnrichmentAssociation,
+    EnrichmentAssociation,
+    EnrichmentV2,
+)
 from kodit.domain.enrichments.request import (
     EnrichmentRequest as GenericEnrichmentRequest,
 )
@@ -230,8 +234,7 @@ class CommitIndexingApplicationService:
             await self.git_commit_repository.save_bulk(scan_result.all_commits)
 
             await step.set_current(3, "Saving files")
-            git_files = await self.git_file_repository.save_bulk(scan_result.all_files)
-            self._log.info("saved_git_files", git_files=git_files)
+            await self.git_file_repository.save_bulk(scan_result.all_files)
 
             await step.set_current(4, "Saving branches")
             if scan_result.branches:
@@ -316,7 +319,11 @@ class CommitIndexingApplicationService:
         existing_enrichment_associations = (
             await self.enrichment_association_repository.find(
                 QueryBuilder()
-                .filter("entity_type", FilterOperator.EQ, "git_commit")
+                .filter(
+                    "entity_type",
+                    FilterOperator.EQ,
+                    db_entities.GitCommit.__tablename__,
+                )
                 .filter("entity_id", FilterOperator.IN, commit_shas)
             )
         )
@@ -720,9 +727,8 @@ class CommitIndexingApplicationService:
                     f"Failed to save architecture enrichment for commit {commit_sha}"
                 )
             await self.enrichment_association_repository.save(
-                EnrichmentAssociation(
-                    enrichment_id=enrichment.id,  # type: ignore[arg-type]
-                    entity_type="git_commit",
+                CommitEnrichmentAssociation(
+                    enrichment_id=enrichment.id,
                     entity_id=commit_sha,
                 )
             )
@@ -779,17 +785,16 @@ class CommitIndexingApplicationService:
             # Save all enrichments
             if all_enrichments:
                 saved_enrichments = await self.enrichment_v2_repository.save_bulk(
-                    all_enrichments  # type: ignore[arg-type]
+                    all_enrichments
                 )
                 await self.enrichment_association_repository.save_bulk(
                     [
-                        EnrichmentAssociation(
-                            enrichment_id=enrichment.id,  # type: ignore[arg-type]
-                            entity_type="git_commit",
+                        CommitEnrichmentAssociation(
+                            enrichment_id=enrichment.id,
                             entity_id=commit_sha,
                         )
                         for enrichment in saved_enrichments
-                        if enrichment.id is not None
+                        if enrichment.id
                     ]
                 )
 
@@ -802,6 +807,10 @@ class CommitIndexingApplicationService:
                 [str(s.id) for s in all_snippets], embedding_type
             )
         )
+        # TODO(Phil): Can't do this incrementally yet because like the API, we don't
+        # have a unified embedding repository
+        if existing_embeddings:
+            return []
         existing_embeddings_by_snippet_id = {
             embedding.snippet_id: embedding for embedding in existing_embeddings
         }

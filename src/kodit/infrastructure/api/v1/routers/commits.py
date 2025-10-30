@@ -313,7 +313,7 @@ async def delete_all_commit_enrichments(
     enrichment_v2_repository = server_factory.enrichment_v2_repository()
     await enrichment_v2_repository.delete_by_query(
         QueryBuilder()
-        .filter("entity_type", FilterOperator.EQ, "git_commit")
+        .filter("entity_type", FilterOperator.EQ, db_entities.GitCommit.__tablename__)
         .filter("entity_id", FilterOperator.EQ, commit_sha)
     )
 

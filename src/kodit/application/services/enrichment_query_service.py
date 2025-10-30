@@ -129,13 +129,13 @@ class EnrichmentQueryService:
 
     async def get_summaries_for_commit(self, commit_sha: str) -> list[EnrichmentV2]:
         """Get summary enrichments for a commit."""
-        return await self.get_for_commit(
+        return await self.get_enrichments_for_commit(
             commit_sha,
             enrichment_type=ENRICHMENT_TYPE_DEVELOPMENT,
             enrichment_subtype=ENRICHMENT_SUBTYPE_SNIPPET_SUMMARY,
         )
 
-    async def get_for_commit(
+    async def get_enrichments_for_commit(
         self,
         commit_sha: str,
         enrichment_type: str | None = None,
@@ -155,13 +155,14 @@ class EnrichmentQueryService:
             query = query.for_type(enrichment_type)
         if enrichment_subtype:
             query = query.for_subtype(enrichment_subtype)
-        return await self.enrichment_repo.find(query)
+        enrichments = await self.enrichment_repo.find(query)
+        return enrichments
 
     async def get_architecture_docs_for_commit(
         self, commit_sha: str
     ) -> list[EnrichmentV2]:
         """Get architecture documentation enrichments for a commit."""
-        return await self.get_for_commit(
+        return await self.get_enrichments_for_commit(
             commit_sha,
             enrichment_type=ENRICHMENT_TYPE_ARCHITECTURE,
             enrichment_subtype=ENRICHMENT_SUBTYPE_PHYSICAL,
@@ -169,7 +170,7 @@ class EnrichmentQueryService:
 
     async def get_api_docs_for_commit(self, commit_sha: str) -> list[EnrichmentV2]:
         """Get API documentation enrichments for a commit."""
-        return await self.get_for_commit(
+        return await self.get_enrichments_for_commit(
             commit_sha,
             enrichment_type=ENRICHMENT_TYPE_USAGE,
             enrichment_subtype=ENRICHMENT_SUBTYPE_API_DOCS,
