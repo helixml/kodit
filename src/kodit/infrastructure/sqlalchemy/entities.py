@@ -9,7 +9,6 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
-    ForeignKeyConstraint,
     Index,
     Integer,
     String,
@@ -19,7 +18,7 @@ from sqlalchemy import (
 )
 from sqlalchemy import Enum as SQLAlchemyEnum
 from sqlalchemy.ext.asyncio import AsyncAttrs
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.types import JSON
 
 
@@ -379,111 +378,6 @@ class GitCommitFile(Base):
         self.size = size
         self.created_at = created_at
         self.extension = extension
-
-
-class SnippetV2(Base):
-    """SnippetV2 model for commit-based snippets."""
-
-    __tablename__ = "snippets_v2"
-
-    sha: Mapped[str] = mapped_column(String(64), primary_key=True)
-    created_at: Mapped[datetime] = mapped_column(
-        TZDateTime, nullable=False, default=lambda: datetime.now(UTC)
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        TZDateTime,
-        nullable=False,
-        default=lambda: datetime.now(UTC),
-        onupdate=lambda: datetime.now(UTC),
-    )
-    content: Mapped[str] = mapped_column(UnicodeText)
-    extension: Mapped[str] = mapped_column(String(255), index=True)
-    enrichments: Mapped[list["EnrichmentV2"]] = relationship(
-        "EnrichmentV2",
-        secondary="enrichment_associations",
-        lazy="select",
-        primaryjoin="SnippetV2.sha == foreign(EnrichmentAssociation.entity_id)",
-        secondaryjoin="EnrichmentV2.id == foreign(EnrichmentAssociation.enrichment_id)",
-        viewonly=True,
-    )
-    derives_from: Mapped[list["GitCommitFile"]] = relationship(
-        "GitCommitFile",
-        secondary="snippet_v2_files",
-        lazy="select",
-        primaryjoin="SnippetV2.sha == foreign(SnippetV2File.snippet_sha)",
-        secondaryjoin="and_(GitCommitFile.commit_sha == foreign(SnippetV2File.commit_sha), GitCommitFile.path == foreign(SnippetV2File.file_path))",  # noqa: E501
-        viewonly=True,
-    )
-
-    def __init__(
-        self,
-        sha: str,
-        content: str,
-        extension: str,
-    ) -> None:
-        """Initialize snippet."""
-        super().__init__()
-        self.sha = sha
-        self.content = content
-        self.extension = extension
-
-
-class SnippetV2File(Base):
-    """Association between snippets and files."""
-
-    __tablename__ = "snippet_v2_files"
-
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    snippet_sha: Mapped[str] = mapped_column(ForeignKey("snippets_v2.sha"), index=True)
-    blob_sha: Mapped[str] = mapped_column(String(64), index=True)
-    commit_sha: Mapped[str] = mapped_column(String(64), index=True)
-    file_path: Mapped[str] = mapped_column(String(1024), index=True)
-
-    __table_args__ = (
-        ForeignKeyConstraint(
-            ["commit_sha", "file_path"],
-            ["git_commit_files.commit_sha", "git_commit_files.path"],
-        ),
-        UniqueConstraint(
-            "snippet_sha",
-            "blob_sha",
-            "commit_sha",
-            "file_path",
-            name="uix_snippet_file",
-        ),
-    )
-
-    def __init__(
-        self, snippet_sha: str, blob_sha: str, commit_sha: str, file_path: str
-    ) -> None:
-        """Initialize snippet file association."""
-        super().__init__()
-        self.snippet_sha = snippet_sha
-        self.blob_sha = blob_sha
-        self.commit_sha = commit_sha
-        self.file_path = file_path
-
-
-class CommitSnippetV2(Base):
-    """Association table for commits and snippets v2."""
-
-    __tablename__ = "commit_snippets_v2"
-
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    commit_sha: Mapped[str] = mapped_column(
-        ForeignKey("git_commits.commit_sha"), index=True
-    )
-    snippet_sha: Mapped[str] = mapped_column(ForeignKey("snippets_v2.sha"), index=True)
-
-    __table_args__ = (
-        UniqueConstraint("commit_sha", "snippet_sha", name="uix_commit_snippet"),
-    )
-
-    def __init__(self, commit_sha: str, snippet_sha: str) -> None:
-        """Initialize commit snippet association."""
-        super().__init__()
-        self.commit_sha = commit_sha
-        self.snippet_sha = snippet_sha
 
 
 class CommitIndex(Base):
