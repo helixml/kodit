@@ -532,3 +532,44 @@ class GitPythonAdapter(GitAdapter):
                 raise
 
         return await asyncio.get_event_loop().run_in_executor(self.executor, _get_tags)
+
+    async def get_commit_diff(self, local_path: Path, commit_sha: str) -> str:
+        """Get the diff for a specific commit."""
+
+        def _get_diff() -> str:
+            try:
+                repo = Repo(local_path)
+                commit = repo.commit(commit_sha)
+
+                # If this is the first commit (no parents), show diff against empty tree
+                if not commit.parents:
+                    diffs = commit.diff(None, create_patch=True)
+                    if not diffs:
+                        return ""
+                    first_diff = diffs[0]
+                    diff_bytes = first_diff.diff
+                    if isinstance(diff_bytes, bytes):
+                        return diff_bytes.decode("utf-8")
+                    return str(diff_bytes) if diff_bytes is not None else ""
+
+                # For commits with parents, show diff against first parent
+                parent = commit.parents[0]
+                diffs = parent.diff(commit, create_patch=True)
+
+                # Combine all diffs into a single string
+                diff_text = ""
+                for diff in diffs:
+                    diff_bytes = diff.diff
+                    if diff_bytes and isinstance(diff_bytes, bytes):
+                        diff_text += diff_bytes.decode("utf-8")
+            except Exception as e:
+                self._log.error(
+                    f"Failed to get diff for commit {commit_sha} in {local_path}: {e}"
+                )
+                raise
+            else:
+                return diff_text
+
+        return await asyncio.get_event_loop().run_in_executor(
+            self.executor, _get_diff
+        )

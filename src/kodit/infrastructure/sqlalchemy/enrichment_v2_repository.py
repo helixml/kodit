@@ -19,6 +19,11 @@ from kodit.domain.enrichments.development.snippet.snippet import (
     SnippetEnrichmentSummary,
 )
 from kodit.domain.enrichments.enrichment import EnrichmentV2
+from kodit.domain.enrichments.history.commit_description.commit_description import (
+    ENRICHMENT_SUBTYPE_COMMIT_DESCRIPTION,
+    CommitDescriptionEnrichment,
+)
+from kodit.domain.enrichments.history.history import ENRICHMENT_TYPE_HISTORY
 from kodit.domain.enrichments.usage.api_docs import (
     ENRICHMENT_SUBTYPE_API_DOCS,
     APIDocEnrichment,
@@ -126,6 +131,16 @@ class SQLAlchemyEnrichmentV2Repository(
             and db_entity.subtype == ENRICHMENT_SUBTYPE_PHYSICAL
         ):
             return PhysicalArchitectureEnrichment(
+                id=db_entity.id,
+                content=db_entity.content,
+                created_at=db_entity.created_at,
+                updated_at=db_entity.updated_at,
+            )
+        if (
+            db_entity.type == ENRICHMENT_TYPE_HISTORY
+            and db_entity.subtype == ENRICHMENT_SUBTYPE_COMMIT_DESCRIPTION
+        ):
+            return CommitDescriptionEnrichment(
                 id=db_entity.id,
                 content=db_entity.content,
                 created_at=db_entity.created_at,

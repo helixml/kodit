@@ -63,6 +63,8 @@ async def app_lifespan(_: FastAPI) -> AsyncIterator[AppLifespanState]:
                 )
             )
         )
+    except StopAsyncIteration:
+        pass
     except Exception as e:
         raise ValueError("Embedding service is not accessible") from e
     try:
