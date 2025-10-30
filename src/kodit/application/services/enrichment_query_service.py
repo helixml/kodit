@@ -148,7 +148,7 @@ class EnrichmentQueryService:
         )
         query = EnrichmentQueryBuilder().for_ids(
             enrichment_ids=[
-                int(association.entity_id) for association in all_associations
+                int(association.enrichment_id) for association in all_associations
             ]
         )
         if enrichment_type:
