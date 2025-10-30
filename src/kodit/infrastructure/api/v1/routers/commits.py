@@ -67,6 +67,7 @@ async def list_repository_commits(
             QueryBuilder()
             .filter("repo_id", FilterOperator.EQ, int(repo_id))
             .paginate(pagination_params)
+            .sort("date", descending=True)
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail="Repository not found") from e
