@@ -254,9 +254,3 @@ class EnrichmentV2Repository(Repository[EnrichmentV2]):
 
 class EnrichmentAssociationRepository(Repository[EnrichmentAssociation]):
     """Repository for enrichment association operations."""
-
-    @abstractmethod
-    async def snippet_ids_for_summaries(
-        self, summary_enrichment_ids: list[int]
-    ) -> list[int]:
-        """Get snippet enrichment IDs for summary enrichments, preserving order."""

@@ -10,10 +10,6 @@ from kodit.domain.enrichments.enrichment import (
 )
 from kodit.domain.protocols import EnrichmentAssociationRepository
 from kodit.infrastructure.sqlalchemy import entities as db_entities
-from kodit.infrastructure.sqlalchemy.query import (
-    FilterOperator,
-    QueryBuilder,
-)
 from kodit.infrastructure.sqlalchemy.repository import SqlAlchemyRepository
 
 
@@ -75,32 +71,3 @@ class SQLAlchemyEnrichmentAssociationRepository(
         db_entity.created_at = now
         db_entity.updated_at = now
         return db_entity
-
-    async def snippet_ids_for_summaries(
-        self, summary_enrichment_ids: list[int]
-    ) -> list[int]:
-        """Get snippet enrichment IDs for summary enrichments, preserving order."""
-        if not summary_enrichment_ids:
-            return []
-
-        # Get associations where enrichment_id points to these summaries
-        associations = await self.find(
-            QueryBuilder().filter(
-                db_entities.EnrichmentAssociation.enrichment_id.key,
-                FilterOperator.IN,
-                summary_enrichment_ids,
-            )
-        )
-
-        # Create a lookup map: summary_enrichment_id -> snippet_enrichment_id
-        summary_to_snippet: dict[int, int] = {
-            association.enrichment_id: int(association.entity_id)
-            for association in associations
-        }
-
-        # Return snippet IDs in the same order as input summary IDs
-        return [
-            summary_to_snippet[summary_id]
-            for summary_id in summary_enrichment_ids
-            if summary_id in summary_to_snippet
-        ]
