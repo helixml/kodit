@@ -134,18 +134,6 @@ class SQLAlchemyEnrichmentAssociationRepository(
             )
         )
 
-    async def for_enrichments(
-        self, enrichment_ids: list[int]
-    ) -> list[EnrichmentAssociation]:
-        """Get associations where enrichment_id is in the given list."""
-        return await self.find(
-            QueryBuilder().filter(
-                db_entities.EnrichmentAssociation.enrichment_id.key,
-                FilterOperator.IN,
-                enrichment_ids,
-            )
-        )
-
     async def snippet_ids_for_summaries(
         self, summary_enrichment_ids: list[int]
     ) -> list[int]:

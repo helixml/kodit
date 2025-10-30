@@ -167,10 +167,10 @@ class QueryBuilder(Query):
 class EnrichmentAssociationQueryBuilder(QueryBuilder):
     """Query builder for enrichment association entities."""
 
-    def for_ids(self, enrichment_ids: list[int]) -> Self:
-        """Build a query for enrichments by their IDs."""
+    def for_enrichment_ids(self, enrichment_ids: list[int]) -> Self:
+        """Build a query for associations by enrichment IDs."""
         self.filter(
-            db_entities.EnrichmentAssociation.id.key,
+            db_entities.EnrichmentAssociation.enrichment_id.key,
             FilterOperator.IN,
             enrichment_ids,
         )

@@ -277,12 +277,6 @@ class EnrichmentAssociationRepository(Repository[EnrichmentAssociation]):
         """Get the snippet associations for the given commit."""
 
     @abstractmethod
-    async def for_enrichments(
-        self, enrichment_ids: list[int]
-    ) -> list[EnrichmentAssociation]:
-        """Get associations where enrichment_id is in the given list."""
-
-    @abstractmethod
     async def snippet_ids_for_summaries(
         self, summary_enrichment_ids: list[int]
     ) -> list[int]:

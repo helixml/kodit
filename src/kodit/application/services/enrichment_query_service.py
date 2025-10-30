@@ -193,8 +193,10 @@ class EnrichmentQueryService:
         self, enrichment_ids: list[int]
     ) -> list[EnrichmentAssociation]:
         """Get enrichment associations for given enrichment IDs."""
-        return await self.enrichment_association_repository.for_enrichments(
-            enrichment_ids
+        return await self.enrichment_association_repository.find(
+            EnrichmentAssociationQueryBuilder()
+            .for_enrichment_ids(enrichment_ids)
+            .for_enrichment_type()
         )
 
     async def snippets_for_summary_enrichments(

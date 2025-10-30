@@ -150,7 +150,8 @@ async def embedding_repo(session_factory: Any) -> SqlAlchemyEmbeddingRepository:
 
 @pytest.fixture
 async def code_search_service(
-    session_factory: Any, embedding_repo: SqlAlchemyEmbeddingRepository  # noqa: ARG001
+    session_factory: Any,
+    embedding_repo: SqlAlchemyEmbeddingRepository,
 ) -> EmbeddingDomainService:
     """Create code search service with real database."""
     # Create real services
@@ -217,23 +218,32 @@ async def test_data(
     # Create associations between summaries and snippets
     assoc1 = db_entities.EnrichmentAssociation(
         enrichment_id=summary1.id,
-        entity_type="enrichment",
+        entity_type=db_entities.EnrichmentV2.__tablename__,
         entity_id=str(snippet1.id),
     )
     assoc2 = db_entities.EnrichmentAssociation(
         enrichment_id=summary2.id,
-        entity_type="enrichment",
+        entity_type=db_entities.EnrichmentV2.__tablename__,
         entity_id=str(snippet2.id),
     )
     assoc3 = db_entities.EnrichmentAssociation(
         enrichment_id=summary3.id,
-        entity_type="enrichment",
+        entity_type=db_entities.EnrichmentV2.__tablename__,
         entity_id=str(snippet3.id),
     )
 
     assoc1 = await enrichment_association_repo.save(assoc1)  # type: ignore[arg-type,assignment]
     assoc2 = await enrichment_association_repo.save(assoc2)  # type: ignore[arg-type,assignment]
     assoc3 = await enrichment_association_repo.save(assoc3)  # type: ignore[arg-type,assignment]
+
+    # Add a commit-pointing association to summary1 to test entity_type filtering
+    # This association points to a commit SHA, which cannot be converted to int
+    commit_assoc = db_entities.EnrichmentAssociation(
+        enrichment_id=summary1.id,
+        entity_type=db_entities.GitCommit.__tablename__,
+        entity_id="abc123def456",  # Commit SHA - would fail int() conversion
+    )
+    await enrichment_association_repo.save(commit_assoc)  # type: ignore[arg-type,assignment]
 
     # Create embeddings for summaries
     emb1 = Embedding()
@@ -304,8 +314,6 @@ class TestCodeSearchApplicationServiceTextQuery:
             text_query="function calculations",
             top_k=10,
         )
-
-        # Add debug output
 
         results = await service.search(request)
 

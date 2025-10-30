@@ -154,6 +154,7 @@ class CodeSearchApplicationService:
                     [e.id for e in summary_enrichments if e.id is not None]
                 )
             )
+            # Only include associations pointing to enrichments (not commits)
             summary_to_snippet_map = {
                 assoc.enrichment_id: int(assoc.entity_id) for assoc in associations
             }
