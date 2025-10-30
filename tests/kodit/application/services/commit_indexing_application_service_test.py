@@ -35,6 +35,7 @@ from kodit.domain.services.physical_architecture_service import (
 )
 from kodit.domain.value_objects import Enrichment
 from kodit.infrastructure.slicing.slicer import Slicer
+from kodit.infrastructure.sqlalchemy import entities as db_entities
 from kodit.infrastructure.sqlalchemy.embedding_repository import (
     create_embedding_repository,
 )
@@ -206,7 +207,7 @@ async def test_delete_repository_with_data_succeeds(
     await commit_indexing_service.enrichment_association_repository.save(
         EnrichmentAssociation(
             enrichment_id=saved_enrichment.id,  # type: ignore[arg-type]
-            entity_type="git_commit",
+            entity_type=db_entities.GitCommit.__tablename__,
             entity_id=commit.commit_sha,
         )
     )
@@ -216,7 +217,7 @@ async def test_delete_repository_with_data_succeeds(
 
     associations = await commit_indexing_service.enrichment_association_repository.find(
         QueryBuilder()
-        .filter("entity_type", FilterOperator.EQ, "git_commit")
+        .filter("entity_type", FilterOperator.EQ, db_entities.GitCommit.__tablename__)
         .filter("entity_id", FilterOperator.EQ, commit.commit_sha)
     )
     assert len(associations) == 1
@@ -233,7 +234,7 @@ async def test_delete_repository_with_data_succeeds(
     assoc_repo = commit_indexing_service.enrichment_association_repository
     associations_after = await assoc_repo.find(
         QueryBuilder()
-        .filter("entity_type", FilterOperator.EQ, "git_commit")
+        .filter("entity_type", FilterOperator.EQ, db_entities.GitCommit.__tablename__)
         .filter("entity_id", FilterOperator.EQ, commit.commit_sha)
     )
     assert len(associations_after) == 0

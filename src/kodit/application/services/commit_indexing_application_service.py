@@ -785,7 +785,7 @@ class CommitIndexingApplicationService:
             # Save all enrichments
             if all_enrichments:
                 saved_enrichments = await self.enrichment_v2_repository.save_bulk(
-                    all_enrichments
+                    all_enrichments  # type: ignore[arg-type]
                 )
                 await self.enrichment_association_repository.save_bulk(
                     [
