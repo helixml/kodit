@@ -128,9 +128,11 @@ def main() -> None:  # noqa: PLR0915
                     f"{BASE_URL}/api/v1/repositories/{repo_id}/status"
                 )
                 status = response.json()
+                log.info("Indexing status", status=status)
                 return (
                     all(
                         task["attributes"]["state"] == "completed"
+                        or task["attributes"]["state"] == "skipped"
                         for task in status["data"]
                     )
                     and len(status["data"]) > 5
