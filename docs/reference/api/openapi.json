@@ -3,7 +3,7 @@
   "info": {
     "title": "kodit API",
     "description": "\nThis is the REST API for the Kodit server. Please refer to the\n[Kodit documentation](https://docs.helix.ml/kodit/) for more information.\n    ",
-    "version": "0.5.2"
+    "version": "0.5.4"
   },
   "paths": {
     "/healthz": {
@@ -497,9 +497,7 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SnippetListResponse"
-                }
+                "schema": {}
               }
             }
           },
@@ -2187,7 +2185,7 @@
         "properties": {
           "data": {
             "items": {
-              "$ref": "#/components/schemas/kodit__infrastructure__api__v1__schemas__search__SnippetData"
+              "$ref": "#/components/schemas/SnippetData"
             },
             "type": "array",
             "title": "Data"
@@ -2199,6 +2197,67 @@
         ],
         "title": "SearchResponse",
         "description": "JSON:API response for search results."
+      },
+      "SnippetAttributes": {
+        "properties": {
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "derives_from": {
+            "items": {
+              "$ref": "#/components/schemas/GitFileSchema"
+            },
+            "type": "array",
+            "title": "Derives From"
+          },
+          "content": {
+            "$ref": "#/components/schemas/SnippetContentSchema"
+          },
+          "enrichments": {
+            "items": {
+              "$ref": "#/components/schemas/EnrichmentSchema"
+            },
+            "type": "array",
+            "title": "Enrichments"
+          },
+          "original_scores": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Original Scores"
+          }
+        },
+        "type": "object",
+        "required": [
+          "derives_from",
+          "content",
+          "enrichments",
+          "original_scores"
+        ],
+        "title": "SnippetAttributes",
+        "description": "Snippet attributes for JSON:API responses."
       },
       "SnippetContentSchema": {
         "properties": {
@@ -2219,22 +2278,28 @@
         "title": "SnippetContentSchema",
         "description": "Snippet content schema following JSON-API spec."
       },
-      "SnippetListResponse": {
+      "SnippetData": {
         "properties": {
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/kodit__infrastructure__api__v1__schemas__snippet__SnippetData"
-            },
-            "type": "array",
-            "title": "Data"
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "default": "snippet"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "attributes": {
+            "$ref": "#/components/schemas/SnippetAttributes"
           }
         },
         "type": "object",
         "required": [
-          "data"
+          "id",
+          "attributes"
         ],
-        "title": "SnippetListResponse",
-        "description": "Snippet list response following JSON-API spec."
+        "title": "SnippetData",
+        "description": "Snippet data for JSON:API responses."
       },
       "TagAttributes": {
         "properties": {
@@ -2600,166 +2665,6 @@
           "type"
         ],
         "title": "ValidationError"
-      },
-      "kodit__infrastructure__api__v1__schemas__search__SnippetAttributes": {
-        "properties": {
-          "created_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Created At"
-          },
-          "updated_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Updated At"
-          },
-          "derives_from": {
-            "items": {
-              "$ref": "#/components/schemas/GitFileSchema"
-            },
-            "type": "array",
-            "title": "Derives From"
-          },
-          "content": {
-            "$ref": "#/components/schemas/SnippetContentSchema"
-          },
-          "enrichments": {
-            "items": {
-              "$ref": "#/components/schemas/EnrichmentSchema"
-            },
-            "type": "array",
-            "title": "Enrichments"
-          },
-          "original_scores": {
-            "items": {
-              "type": "number"
-            },
-            "type": "array",
-            "title": "Original Scores"
-          }
-        },
-        "type": "object",
-        "required": [
-          "derives_from",
-          "content",
-          "enrichments",
-          "original_scores"
-        ],
-        "title": "SnippetAttributes",
-        "description": "Snippet attributes for JSON:API responses."
-      },
-      "kodit__infrastructure__api__v1__schemas__search__SnippetData": {
-        "properties": {
-          "type": {
-            "type": "string",
-            "title": "Type",
-            "default": "snippet"
-          },
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "attributes": {
-            "$ref": "#/components/schemas/kodit__infrastructure__api__v1__schemas__search__SnippetAttributes"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "attributes"
-        ],
-        "title": "SnippetData",
-        "description": "Snippet data for JSON:API responses."
-      },
-      "kodit__infrastructure__api__v1__schemas__snippet__SnippetAttributes": {
-        "properties": {
-          "created_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Created At"
-          },
-          "updated_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Updated At"
-          },
-          "derives_from": {
-            "items": {
-              "$ref": "#/components/schemas/GitFileSchema"
-            },
-            "type": "array",
-            "title": "Derives From"
-          },
-          "content": {
-            "$ref": "#/components/schemas/SnippetContentSchema"
-          },
-          "enrichments": {
-            "items": {
-              "$ref": "#/components/schemas/EnrichmentSchema"
-            },
-            "type": "array",
-            "title": "Enrichments"
-          }
-        },
-        "type": "object",
-        "required": [
-          "derives_from",
-          "content",
-          "enrichments"
-        ],
-        "title": "SnippetAttributes",
-        "description": "Snippet attributes following JSON-API spec."
-      },
-      "kodit__infrastructure__api__v1__schemas__snippet__SnippetData": {
-        "properties": {
-          "type": {
-            "type": "string",
-            "title": "Type",
-            "default": "snippet"
-          },
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "attributes": {
-            "$ref": "#/components/schemas/kodit__infrastructure__api__v1__schemas__snippet__SnippetAttributes"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "attributes"
-        ],
-        "title": "SnippetData",
-        "description": "Snippet data following JSON-API spec."
       }
     },
     "securitySchemes": {
