@@ -4,6 +4,8 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Protocol, TypeVar
 
+from git import Repo
+
 from kodit.domain.enrichments.enrichment import EnrichmentAssociation, EnrichmentV2
 from kodit.domain.entities import (
     Task,
@@ -163,9 +165,16 @@ class GitAdapter(ABC):
 
     @abstractmethod
     async def get_commit_files(
-        self, local_path: Path, commit_sha: str
+        self, local_path: Path, commit_sha: str, repo: Repo
     ) -> list[dict[str, Any]]:
-        """Get all files in a specific commit from the git tree."""
+        """Get all files in a specific commit from the git tree.
+
+        Args:
+            local_path: Path to the repository
+            commit_sha: SHA of the commit to get files for
+            repo: Repo object to reuse (avoids creating new Repo per commit)
+
+        """
 
     @abstractmethod
     async def get_commit_file_data(

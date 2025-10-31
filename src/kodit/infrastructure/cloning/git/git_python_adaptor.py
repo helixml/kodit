@@ -346,14 +346,22 @@ class GitPythonAdapter(GitAdapter):
         )
 
     async def get_commit_files(
-        self, local_path: Path, commit_sha: str
+        self, local_path: Path, commit_sha: str, repo: Repo
     ) -> list[dict[str, Any]]:
-        """Get all files in a specific commit from the git tree."""
+        """Get all files in a specific commit from the git tree.
+
+        Args:
+            local_path: Path to the repository
+            commit_sha: SHA of the commit to get files for
+            repo: Repo object to reuse (avoids creating new Repo per commit)
+
+        """
 
         def _get_files() -> list[dict[str, Any]]:
             try:
-                repo = Repo(local_path)
-                commit = repo.commit(commit_sha)
+                # Use the provided repo object
+                _repo = repo
+                commit = _repo.commit(commit_sha)
 
                 files = []
 
@@ -395,7 +403,11 @@ class GitPythonAdapter(GitAdapter):
         """Get file metadata for a commit, with files checked out to disk."""
         await self._checkout_commit(local_path, commit_sha)
         try:
-            return await self.get_commit_files(local_path, commit_sha)
+            repo = Repo(local_path)
+            try:
+                return await self.get_commit_files(local_path, commit_sha, repo)
+            finally:
+                repo.close()
         finally:
             await self.restore_to_branch(local_path, "main")
 
@@ -570,6 +582,4 @@ class GitPythonAdapter(GitAdapter):
             else:
                 return diff_text
 
-        return await asyncio.get_event_loop().run_in_executor(
-            self.executor, _get_diff
-        )
+        return await asyncio.get_event_loop().run_in_executor(self.executor, _get_diff)

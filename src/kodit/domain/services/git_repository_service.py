@@ -1,6 +1,5 @@
 """Domain services for Git repository scanning and cloning operations."""
 
-import asyncio
 import shutil
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -66,51 +65,11 @@ class GitRepositoryScanner:
         tags = await self._process_tags(cloned_path, commit_cache, repo_id)
         self._log.info(f"Found {len(tags)} tags")
 
-        all_files = await self._process_files(cloned_path, commit_cache)
-        self._log.info(f"Found {len(all_files)} files")
+        # Don't load all files into memory - return empty list
+        # Files will be processed in batches by the application service
+        self._log.info("Deferring file processing to avoid memory exhaustion")
 
-        return self._create_scan_result(branches, commit_cache, tags, all_files)
-
-    async def _process_commits_concurrently(
-        self,
-        cloned_path: Path,
-        commits_batch: list[tuple[str, dict[str, Any]]],
-    ) -> dict[str, GitCommit]:
-        """Process a batch of commits concurrently."""
-        batch_cache = {}
-
-        async def process_single_commit(
-            commit_sha: str, commit_data: dict[str, Any]
-        ) -> tuple[str, GitCommit | None]:
-            git_commit = await self._create_git_commit_from_data(
-                cloned_path, commit_data
-            )
-            return commit_sha, git_commit
-
-        # Process commits concurrently in smaller batches
-        semaphore = asyncio.Semaphore(50)  # Limit concurrent operations
-
-        async def bounded_process(
-            item: tuple[str, dict[str, Any]],
-        ) -> tuple[str, GitCommit | None]:
-            async with semaphore:
-                return await process_single_commit(item[0], item[1])
-
-        # Process all commits concurrently
-        results = await asyncio.gather(
-            *[bounded_process(item) for item in commits_batch],
-            return_exceptions=True,
-        )
-
-        # Collect successful results
-        for result in results:
-            if isinstance(result, tuple):
-                # Type narrowing: result is now tuple[str, GitCommit | None]
-                commit_sha, git_commit = result
-                if git_commit is not None:
-                    batch_cache[commit_sha] = git_commit
-
-        return batch_cache
+        return self._create_scan_result(branches, commit_cache, tags, [], cloned_path)
 
     async def _process_branches_bulk(
         self,
@@ -166,30 +125,6 @@ class GitRepositoryScanner:
                 continue
 
         return branches, commit_cache
-
-    async def _create_git_commit_from_data(
-        self, cloned_path: Path, commit_data: dict[str, Any], repo_id: int | None = None
-    ) -> GitCommit | None:
-        """Create GitCommit from pre-fetched commit data."""
-        commit_sha = commit_data["sha"]
-
-        # Get files for this commit
-        files_data = await self.git_adapter.get_commit_files(cloned_path, commit_sha)
-        self._create_git_files(cloned_path, files_data, commit_sha)
-        author = self._format_author_from_data(commit_data)
-
-        # Cache datetime creation
-        created_at = datetime.now(UTC)
-
-        return GitCommit(
-            created_at=created_at,
-            commit_sha=commit_sha,
-            repo_id=repo_id or 0,  # Use 0 as default if not provided
-            date=commit_data["date"],
-            message=commit_data["message"],
-            parent_commit_sha=commit_data["parent_sha"],
-            author=author,
-        )
 
     def _format_author_from_data(self, commit_data: dict[str, Any]) -> str:
         """Format author string from commit data."""
@@ -376,17 +311,18 @@ class GitRepositoryScanner:
         branches: list[GitBranch],
         commit_cache: dict[str, GitCommit],
         tags: list[GitTag],
-        all_files: list[GitFile],
+        all_files: list[GitFile],  # noqa: ARG002
+        cloned_path: Path | None = None,  # noqa: ARG002
     ) -> RepositoryScanResult:
         """Create final scan result."""
-        # Files are loaded on-demand for performance, so total_files is 0 during scan
+        # Files list is empty to avoid memory issues - will be processed in batches
         scan_result = RepositoryScanResult(
             branches=branches,
             all_commits=list(commit_cache.values()),
             scan_timestamp=datetime.now(UTC),
-            total_files_across_commits=len(all_files),
+            total_files_across_commits=0,  # Will be updated after batch processing
             all_tags=tags,
-            all_files=all_files,
+            all_files=[],  # Empty - processed in batches to avoid memory exhaustion
         )
 
         self._log.info(
@@ -395,16 +331,35 @@ class GitRepositoryScanner:
         )
         return scan_result
 
-    async def _process_files(
-        self, cloned_path: Path, commit_cache: dict[str, GitCommit]
+    async def process_files_for_commits_batch(
+        self, cloned_path: Path, commit_shas: list[str]
     ) -> list[GitFile]:
-        """Process files for a commit."""
+        """Process files for a batch of commits.
+
+        This allows the application service to process files in batches
+        to avoid loading millions of files into memory at once.
+
+        CRITICAL: Reuses a single Repo object to avoid creating 32K+ Repo instances
+        which would consume massive memory (1-2 MB each).
+        """
+        from git import Repo
+
+        # Open repo once and reuse for all commits in this batch
+        repo = Repo(cloned_path)
         files = []
-        for commit_sha in commit_cache:
-            files_data = await self.git_adapter.get_commit_files(
-                cloned_path, commit_sha
-            )
-            files.extend(self._create_git_files(cloned_path, files_data, commit_sha))
+
+        try:
+            for commit_sha in commit_shas:
+                files_data = await self.git_adapter.get_commit_files(
+                    cloned_path, commit_sha, repo=repo
+                )
+                files.extend(
+                    self._create_git_files(cloned_path, files_data, commit_sha)
+                )
+        finally:
+            # Explicitly close the repo to free resources
+            repo.close()
+
         return files
 
 
