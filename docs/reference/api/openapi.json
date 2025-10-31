@@ -3,7 +3,7 @@
   "info": {
     "title": "kodit API",
     "description": "\nThis is the REST API for the Kodit server. Please refer to the\n[Kodit documentation](https://docs.helix.ml/kodit/) for more information.\n    ",
-    "version": "0.5.5"
+    "version": "0.5.6"
   },
   "paths": {
     "/healthz": {
@@ -2496,7 +2496,9 @@
           "kodit.commit.create_summary_enrichment",
           "kodit.commit.create_summary_embeddings",
           "kodit.commit.create_architecture_enrichment",
-          "kodit.commit.create_public_api_docs"
+          "kodit.commit.create_public_api_docs",
+          "kodit.commit.create_commit_description",
+          "kodit.commit.create_database_schema"
         ],
         "title": "TaskOperation",
         "description": "Task operation."
