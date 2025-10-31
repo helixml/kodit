@@ -12,7 +12,7 @@ look at the [hosted version](https://kodit.helix.ml/docs).
 This is the REST API for the Kodit server. Please refer to the
 [Kodit documentation](https://docs.helix.ml/kodit/) for more information.
     
-Current version: 0.5.6
+Current version: 0.5.7
 
 ## Authentication
 
@@ -372,7 +372,7 @@ List all cloned repositories.
 
 ### POST /api/v1/repositories
 
-Clone a new repository and perform initial mapping.
+Create a new repository or trigger re-indexing if it exists.
 
 
 #### Request Body
@@ -382,7 +382,7 @@ Clone a new repository and perform initial mapping.
 
 #### Responses
 
-- 201: Successful Response
+- 200: Successful Response
 
 [RepositoryResponse](#repositoryresponse)
 
