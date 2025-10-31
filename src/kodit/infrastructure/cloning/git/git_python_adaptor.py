@@ -346,21 +346,21 @@ class GitPythonAdapter(GitAdapter):
         )
 
     async def get_commit_files(
-        self, local_path: Path, commit_sha: str, repo: Repo | None = None
+        self, local_path: Path, commit_sha: str, repo: Repo
     ) -> list[dict[str, Any]]:
         """Get all files in a specific commit from the git tree.
 
         Args:
             local_path: Path to the repository
             commit_sha: SHA of the commit to get files for
-            repo: Optional Repo object to reuse (avoids creating new Repo per commit)
+            repo: Repo object to reuse (avoids creating new Repo per commit)
 
         """
 
         def _get_files() -> list[dict[str, Any]]:
             try:
-                # Reuse repo if provided, otherwise create new one
-                _repo = repo if repo is not None else Repo(local_path)
+                # Use the provided repo object
+                _repo = repo
                 commit = _repo.commit(commit_sha)
 
                 files = []
@@ -403,7 +403,11 @@ class GitPythonAdapter(GitAdapter):
         """Get file metadata for a commit, with files checked out to disk."""
         await self._checkout_commit(local_path, commit_sha)
         try:
-            return await self.get_commit_files(local_path, commit_sha)
+            repo = Repo(local_path)
+            try:
+                return await self.get_commit_files(local_path, commit_sha, repo)
+            finally:
+                repo.close()
         finally:
             await self.restore_to_branch(local_path, "main")
 

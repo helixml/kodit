@@ -1,6 +1,5 @@
 """Domain services for Git repository scanning and cloning operations."""
 
-import asyncio
 import shutil
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -72,47 +71,6 @@ class GitRepositoryScanner:
 
         return self._create_scan_result(branches, commit_cache, tags, [], cloned_path)
 
-    async def _process_commits_concurrently(
-        self,
-        cloned_path: Path,
-        commits_batch: list[tuple[str, dict[str, Any]]],
-    ) -> dict[str, GitCommit]:
-        """Process a batch of commits concurrently."""
-        batch_cache = {}
-
-        async def process_single_commit(
-            commit_sha: str, commit_data: dict[str, Any]
-        ) -> tuple[str, GitCommit | None]:
-            git_commit = await self._create_git_commit_from_data(
-                cloned_path, commit_data
-            )
-            return commit_sha, git_commit
-
-        # Process commits concurrently in smaller batches
-        semaphore = asyncio.Semaphore(50)  # Limit concurrent operations
-
-        async def bounded_process(
-            item: tuple[str, dict[str, Any]],
-        ) -> tuple[str, GitCommit | None]:
-            async with semaphore:
-                return await process_single_commit(item[0], item[1])
-
-        # Process all commits concurrently
-        results = await asyncio.gather(
-            *[bounded_process(item) for item in commits_batch],
-            return_exceptions=True,
-        )
-
-        # Collect successful results
-        for result in results:
-            if isinstance(result, tuple):
-                # Type narrowing: result is now tuple[str, GitCommit | None]
-                commit_sha, git_commit = result
-                if git_commit is not None:
-                    batch_cache[commit_sha] = git_commit
-
-        return batch_cache
-
     async def _process_branches_bulk(
         self,
         cloned_path: Path,
@@ -167,30 +125,6 @@ class GitRepositoryScanner:
                 continue
 
         return branches, commit_cache
-
-    async def _create_git_commit_from_data(
-        self, cloned_path: Path, commit_data: dict[str, Any], repo_id: int | None = None
-    ) -> GitCommit | None:
-        """Create GitCommit from pre-fetched commit data."""
-        commit_sha = commit_data["sha"]
-
-        # Get files for this commit
-        files_data = await self.git_adapter.get_commit_files(cloned_path, commit_sha)
-        self._create_git_files(cloned_path, files_data, commit_sha)
-        author = self._format_author_from_data(commit_data)
-
-        # Cache datetime creation
-        created_at = datetime.now(UTC)
-
-        return GitCommit(
-            created_at=created_at,
-            commit_sha=commit_sha,
-            repo_id=repo_id or 0,  # Use 0 as default if not provided
-            date=commit_data["date"],
-            message=commit_data["message"],
-            parent_commit_sha=commit_data["parent_sha"],
-            author=author,
-        )
 
     def _format_author_from_data(self, commit_data: dict[str, Any]) -> str:
         """Format author string from commit data."""
@@ -396,18 +330,6 @@ class GitRepositoryScanner:
             f"{len(commit_cache)} unique commits"
         )
         return scan_result
-
-    async def _process_files(
-        self, cloned_path: Path, commit_cache: dict[str, GitCommit]
-    ) -> list[GitFile]:
-        """Process files for a commit."""
-        files = []
-        for commit_sha in commit_cache:
-            files_data = await self.git_adapter.get_commit_files(
-                cloned_path, commit_sha
-            )
-            files.extend(self._create_git_files(cloned_path, files_data, commit_sha))
-        return files
 
     async def process_files_for_commits_batch(
         self, cloned_path: Path, commit_shas: list[str]

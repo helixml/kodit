@@ -128,9 +128,7 @@ async def test_pull_repository_failure(git_adapter: GitPythonAdapter) -> None:
     local_path = Path("/tmp/test-repo")
 
     with patch(f"{MODULE_PATH}.Repo") as mock_repo_class:
-        mock_repo_class.side_effect = InvalidGitRepositoryError(
-            "Not a git repository"
-        )
+        mock_repo_class.side_effect = InvalidGitRepositoryError("Not a git repository")
 
         with pytest.raises(InvalidGitRepositoryError):
             await git_adapter.pull_repository(local_path)
@@ -322,7 +320,7 @@ async def test_get_commit_files(git_adapter: GitPythonAdapter) -> None:
         mock_repo.commit.return_value = mock_commit
         mock_repo_class.return_value = mock_repo
 
-        result = await git_adapter.get_commit_files(local_path, commit_sha)
+        result = await git_adapter.get_commit_files(local_path, commit_sha, mock_repo)
 
         # Should return empty list since no blobs
         assert result == []
@@ -348,9 +346,7 @@ async def test_repository_exists_false(git_adapter: GitPythonAdapter) -> None:
     local_path = Path("/tmp/test-repo")
 
     with patch(f"{MODULE_PATH}.Repo") as mock_repo_class:
-        mock_repo_class.side_effect = InvalidGitRepositoryError(
-            "Not a git repository"
-        )
+        mock_repo_class.side_effect = InvalidGitRepositoryError("Not a git repository")
 
         result = await git_adapter.repository_exists(local_path)
 
