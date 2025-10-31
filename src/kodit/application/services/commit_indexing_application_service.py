@@ -37,7 +37,13 @@ from kodit.domain.enrichments.request import (
     EnrichmentRequest as GenericEnrichmentRequest,
 )
 from kodit.domain.entities import Task
-from kodit.domain.entities.git import GitFile, GitRepo, SnippetV2, TrackingType
+from kodit.domain.entities.git import (
+    GitCommit,
+    GitFile,
+    GitRepo,
+    SnippetV2,
+    TrackingType,
+)
 from kodit.domain.factories.git_repo_factory import GitRepoFactory
 from kodit.domain.protocols import (
     EnrichmentAssociationRepository,
@@ -278,6 +284,57 @@ class CommitIndexingApplicationService:
         else:
             raise ValueError(f"Unknown task type: {task.type}")
 
+    async def _process_files_in_batches(
+        self, cloned_path: Path, all_commits: list[GitCommit], batch_size: int = 100
+    ) -> int:
+        """Process file metadata for all commits in batches to avoid memory exhaustion.
+
+        This loads file metadata (paths, sizes, blob SHAs) in batches and saves them
+        incrementally to avoid holding millions of file objects in memory.
+
+        Args:
+            cloned_path: Path to the cloned repository
+            all_commits: List of all commits from scan
+            batch_size: Number of commits to process at once (default 100)
+
+        Returns:
+            Total number of files processed
+
+        """
+        total_files = 0
+        commit_shas = [commit.commit_sha for commit in all_commits]
+        total_batches = (len(commit_shas) + batch_size - 1) // batch_size
+
+        self._log.info(
+            f"Processing files for {len(commit_shas)} commits "
+            f"in {total_batches} batches"
+        )
+
+        # Process commits in batches
+        for i in range(0, len(commit_shas), batch_size):
+            batch = commit_shas[i : i + batch_size]
+            batch_num = i // batch_size + 1
+
+            self._log.debug(
+                f"Processing batch {batch_num}/{total_batches} ({len(batch)} commits)"
+            )
+
+            # Get file metadata for this batch of commits
+            files = await self.scanner.process_files_for_commits_batch(
+                cloned_path, batch
+            )
+
+            # Save file metadata to database immediately
+            if files:
+                await self.git_file_repository.save_bulk(files)
+                total_files += len(files)
+                self._log.debug(
+                    f"Batch {batch_num}: Saved {len(files)} files "
+                    f"(total so far: {total_files})"
+                )
+
+        return total_files
+
     async def process_clone_repo(self, repository_id: int) -> None:
         """Clone a repository."""
         async with self.operation.create_child(
@@ -315,8 +372,11 @@ class CommitIndexingApplicationService:
             await step.set_current(2, "Saving commits")
             await self.git_commit_repository.save_bulk(scan_result.all_commits)
 
-            await step.set_current(3, "Saving files")
-            await self.git_file_repository.save_bulk(scan_result.all_files)
+            await step.set_current(3, "Processing and saving files in batches")
+            total_files = await self._process_files_in_batches(
+                repo.cloned_path, scan_result.all_commits
+            )
+            self._log.info(f"Processed and saved {total_files} total files")
 
             await step.set_current(4, "Saving branches")
             if scan_result.branches:

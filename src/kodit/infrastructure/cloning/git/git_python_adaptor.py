@@ -346,14 +346,22 @@ class GitPythonAdapter(GitAdapter):
         )
 
     async def get_commit_files(
-        self, local_path: Path, commit_sha: str
+        self, local_path: Path, commit_sha: str, repo: Repo | None = None
     ) -> list[dict[str, Any]]:
-        """Get all files in a specific commit from the git tree."""
+        """Get all files in a specific commit from the git tree.
+
+        Args:
+            local_path: Path to the repository
+            commit_sha: SHA of the commit to get files for
+            repo: Optional Repo object to reuse (avoids creating new Repo per commit)
+
+        """
 
         def _get_files() -> list[dict[str, Any]]:
             try:
-                repo = Repo(local_path)
-                commit = repo.commit(commit_sha)
+                # Reuse repo if provided, otherwise create new one
+                _repo = repo if repo is not None else Repo(local_path)
+                commit = _repo.commit(commit_sha)
 
                 files = []
 
@@ -570,6 +578,4 @@ class GitPythonAdapter(GitAdapter):
             else:
                 return diff_text
 
-        return await asyncio.get_event_loop().run_in_executor(
-            self.executor, _get_diff
-        )
+        return await asyncio.get_event_loop().run_in_executor(self.executor, _get_diff)

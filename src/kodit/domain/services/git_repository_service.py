@@ -66,10 +66,11 @@ class GitRepositoryScanner:
         tags = await self._process_tags(cloned_path, commit_cache, repo_id)
         self._log.info(f"Found {len(tags)} tags")
 
-        all_files = await self._process_files(cloned_path, commit_cache)
-        self._log.info(f"Found {len(all_files)} files")
+        # Don't load all files into memory - return empty list
+        # Files will be processed in batches by the application service
+        self._log.info("Deferring file processing to avoid memory exhaustion")
 
-        return self._create_scan_result(branches, commit_cache, tags, all_files)
+        return self._create_scan_result(branches, commit_cache, tags, [], cloned_path)
 
     async def _process_commits_concurrently(
         self,
@@ -376,17 +377,18 @@ class GitRepositoryScanner:
         branches: list[GitBranch],
         commit_cache: dict[str, GitCommit],
         tags: list[GitTag],
-        all_files: list[GitFile],
+        all_files: list[GitFile],  # noqa: ARG002
+        cloned_path: Path | None = None,  # noqa: ARG002
     ) -> RepositoryScanResult:
         """Create final scan result."""
-        # Files are loaded on-demand for performance, so total_files is 0 during scan
+        # Files list is empty to avoid memory issues - will be processed in batches
         scan_result = RepositoryScanResult(
             branches=branches,
             all_commits=list(commit_cache.values()),
             scan_timestamp=datetime.now(UTC),
-            total_files_across_commits=len(all_files),
+            total_files_across_commits=0,  # Will be updated after batch processing
             all_tags=tags,
-            all_files=all_files,
+            all_files=[],  # Empty - processed in batches to avoid memory exhaustion
         )
 
         self._log.info(
@@ -405,6 +407,37 @@ class GitRepositoryScanner:
                 cloned_path, commit_sha
             )
             files.extend(self._create_git_files(cloned_path, files_data, commit_sha))
+        return files
+
+    async def process_files_for_commits_batch(
+        self, cloned_path: Path, commit_shas: list[str]
+    ) -> list[GitFile]:
+        """Process files for a batch of commits.
+
+        This allows the application service to process files in batches
+        to avoid loading millions of files into memory at once.
+
+        CRITICAL: Reuses a single Repo object to avoid creating 32K+ Repo instances
+        which would consume massive memory (1-2 MB each).
+        """
+        from git import Repo
+
+        # Open repo once and reuse for all commits in this batch
+        repo = Repo(cloned_path)
+        files = []
+
+        try:
+            for commit_sha in commit_shas:
+                files_data = await self.git_adapter.get_commit_files(
+                    cloned_path, commit_sha, repo=repo
+                )
+                files.extend(
+                    self._create_git_files(cloned_path, files_data, commit_sha)
+                )
+        finally:
+            # Explicitly close the repo to free resources
+            repo.close()
+
         return files
 
 
