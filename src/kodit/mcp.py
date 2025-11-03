@@ -1,5 +1,6 @@
 """MCP server for kodit."""
 
+import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -15,10 +16,12 @@ from kodit.application.factories.server_factory import ServerFactory
 from kodit.application.services.code_search_application_service import MultiSearchResult
 from kodit.config import AppContext
 from kodit.database import Database
+from kodit.domain.tracking.trackable import Trackable, TrackableReferenceType
 from kodit.domain.value_objects import (
     MultiSearchRequest,
     SnippetSearchFilters,
 )
+from kodit.infrastructure.sqlalchemy.query import QueryBuilder
 
 # Global database connection for MCP server
 _mcp_db: Database | None = None
@@ -64,7 +67,44 @@ def create_mcp_server(name: str, instructions: str | None = None) -> FastMCP:
     )
 
 
-def register_mcp_tools(mcp_server: FastMCP) -> None:
+async def _get_default_branch_name(
+    server_factory: ServerFactory, repo_id: int
+) -> str | None:
+    """Get the default branch name for a repository.
+
+    Returns the branch name or None if not found.
+    """
+    # Get default branch for this repo
+    branch_repo = server_factory.git_branch_repository()
+    branches = await branch_repo.get_by_repo_id(repo_id)
+
+    # Find main/master/develop branch
+    default_branch = next(
+        (b for b in branches if b.name in ["main", "master", "develop"]),
+        branches[0] if branches else None,
+    )
+    return default_branch.name if default_branch else None
+
+
+def _format_enrichments(enrichments: list) -> str:
+    """Format enrichments as JSON."""
+    return json.dumps(
+        [
+            {
+                "id": e.id,
+                "type": e.type,
+                "subtype": e.subtype,
+                "content": e.content,
+                "created_at": e.created_at.isoformat() if e.created_at else None,
+                "updated_at": e.updated_at.isoformat() if e.updated_at else None,
+            }
+            for e in enrichments
+        ],
+        indent=2,
+    )
+
+
+def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
     """Register MCP tools on the provided FastMCP instance."""
 
     @mcp_server.tool()
@@ -201,6 +241,281 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:
     async def get_version() -> str:
         """Get the version of the kodit project."""
         return version
+
+    @mcp_server.tool()
+    async def list_repositories(ctx: Context) -> str:
+        """List all repositories available in the system.
+
+        Returns a list of repositories with their IDs and URLs.
+        """
+        mcp_context: MCPContext = ctx.request_context.lifespan_context
+        repo_repository = mcp_context.server_factory.repo_repository()
+
+        repos = await repo_repository.find(QueryBuilder())
+
+        return json.dumps(
+            [
+                {
+                    "id": repo.id,
+                    "remote_uri": str(repo.remote_uri),
+                    "sanitized_remote_uri": str(repo.sanitized_remote_uri),
+                    "cloned_path": str(repo.cloned_path) if repo.cloned_path else None,
+                    "num_commits": repo.num_commits,
+                    "num_branches": repo.num_branches,
+                    "num_tags": repo.num_tags,
+                    "created_at": (
+                        repo.created_at.isoformat() if repo.created_at else None
+                    ),
+                }
+                for repo in repos
+            ],
+            indent=2,
+        )
+
+    @mcp_server.tool()
+    async def get_architecture_docs(
+        ctx: Context,
+        repo_id: Annotated[
+            int,
+            Field(description="The repository ID"),
+        ],
+        commit_sha: Annotated[
+            str | None,
+            Field(
+                description=(
+                    "Optional commit SHA. If not provided, uses most recent "
+                    "commit with architecture docs"
+                )
+            ),
+        ] = None,
+    ) -> str:
+        """Get architecture documentation enrichments for a repository.
+
+        Returns architecture docs describing the physical structure and
+        organization of the codebase.
+        """
+        mcp_context: MCPContext = ctx.request_context.lifespan_context
+        service = mcp_context.server_factory.enrichment_query_service()
+
+        # If no commit_sha provided, find the latest commit with architecture docs
+        if not commit_sha:
+            branch_name = await _get_default_branch_name(
+                mcp_context.server_factory, repo_id
+            )
+            if not branch_name:
+                return json.dumps([])
+
+            trackable = Trackable(
+                type=TrackableReferenceType.BRANCH,
+                identifier=branch_name,
+                repo_id=repo_id,
+            )
+            commit_sha = await service.find_latest_enriched_commit(
+                trackable=trackable,
+                enrichment_type="architecture",
+                max_commits_to_check=100,
+            )
+            if not commit_sha:
+                return json.dumps([])
+
+        enrichments = await service.get_architecture_docs_for_commit(commit_sha)
+
+        return _format_enrichments(enrichments)
+
+    @mcp_server.tool()
+    async def get_api_docs(
+        ctx: Context,
+        repo_id: Annotated[
+            int,
+            Field(description="The repository ID"),
+        ],
+        commit_sha: Annotated[
+            str | None,
+            Field(
+                description=(
+                    "Optional commit SHA. If not provided, uses most recent "
+                    "commit with API docs"
+                )
+            ),
+        ] = None,
+    ) -> str:
+        """Get API documentation enrichments for a repository.
+
+        Returns API docs describing public interfaces and usage patterns.
+        """
+        mcp_context: MCPContext = ctx.request_context.lifespan_context
+        service = mcp_context.server_factory.enrichment_query_service()
+
+        if not commit_sha:
+            branch_name = await _get_default_branch_name(
+                mcp_context.server_factory, repo_id
+            )
+            if not branch_name:
+                return json.dumps([])
+
+            trackable = Trackable(
+                type=TrackableReferenceType.BRANCH,
+                identifier=branch_name,
+                repo_id=repo_id,
+            )
+            commit_sha = await service.find_latest_enriched_commit(
+                trackable=trackable,
+                enrichment_type="usage",
+                max_commits_to_check=100,
+            )
+            if not commit_sha:
+                return json.dumps([])
+
+        enrichments = await service.get_api_docs_for_commit(commit_sha)
+
+        return _format_enrichments(enrichments)
+
+    @mcp_server.tool()
+    async def get_commit_description(
+        ctx: Context,
+        repo_id: Annotated[
+            int,
+            Field(description="The repository ID"),
+        ],
+        commit_sha: Annotated[
+            str | None,
+            Field(
+                description=(
+                    "Optional commit SHA. If not provided, uses most recent "
+                    "commit with description"
+                )
+            ),
+        ] = None,
+    ) -> str:
+        """Get commit description enrichments for a repository.
+
+        Returns human-readable descriptions explaining what changed and why.
+        """
+        mcp_context: MCPContext = ctx.request_context.lifespan_context
+        service = mcp_context.server_factory.enrichment_query_service()
+
+        if not commit_sha:
+            branch_name = await _get_default_branch_name(
+                mcp_context.server_factory, repo_id
+            )
+            if not branch_name:
+                return json.dumps([])
+
+            trackable = Trackable(
+                type=TrackableReferenceType.BRANCH,
+                identifier=branch_name,
+                repo_id=repo_id,
+            )
+            commit_sha = await service.find_latest_enriched_commit(
+                trackable=trackable,
+                enrichment_type="history",
+                max_commits_to_check=100,
+            )
+            if not commit_sha:
+                return json.dumps([])
+
+        enrichments = await service.get_commit_description_for_commit(commit_sha)
+
+        return _format_enrichments(enrichments)
+
+    @mcp_server.tool()
+    async def get_database_schema(
+        ctx: Context,
+        repo_id: Annotated[
+            int,
+            Field(description="The repository ID"),
+        ],
+        commit_sha: Annotated[
+            str | None,
+            Field(
+                description=(
+                    "Optional commit SHA. If not provided, uses most recent "
+                    "commit with database schema"
+                )
+            ),
+        ] = None,
+    ) -> str:
+        """Get database schema enrichments for a repository.
+
+        Returns database schema docs from ORM models, migrations, or schema
+        definitions.
+        """
+        mcp_context: MCPContext = ctx.request_context.lifespan_context
+        service = mcp_context.server_factory.enrichment_query_service()
+
+        if not commit_sha:
+            branch_name = await _get_default_branch_name(
+                mcp_context.server_factory, repo_id
+            )
+            if not branch_name:
+                return json.dumps([])
+
+            trackable = Trackable(
+                type=TrackableReferenceType.BRANCH,
+                identifier=branch_name,
+                repo_id=repo_id,
+            )
+            commit_sha = await service.find_latest_enriched_commit(
+                trackable=trackable,
+                enrichment_type="architecture",
+                max_commits_to_check=100,
+            )
+            if not commit_sha:
+                return json.dumps([])
+
+        enrichments = await service.get_database_schema_for_commit(commit_sha)
+
+        return _format_enrichments(enrichments)
+
+    @mcp_server.tool()
+    async def get_cookbook(
+        ctx: Context,
+        repo_id: Annotated[
+            int,
+            Field(description="The repository ID"),
+        ],
+        commit_sha: Annotated[
+            str | None,
+            Field(
+                description=(
+                    "Optional commit SHA. If not provided, uses most recent "
+                    "commit with cookbook examples"
+                )
+            ),
+        ] = None,
+    ) -> str:
+        """Get cookbook enrichments for a repository.
+
+        Returns cookbook-style code examples with context showing how to use
+        various parts of the codebase.
+        """
+        mcp_context: MCPContext = ctx.request_context.lifespan_context
+        service = mcp_context.server_factory.enrichment_query_service()
+
+        if not commit_sha:
+            branch_name = await _get_default_branch_name(
+                mcp_context.server_factory, repo_id
+            )
+            if not branch_name:
+                return json.dumps([])
+
+            trackable = Trackable(
+                type=TrackableReferenceType.BRANCH,
+                identifier=branch_name,
+                repo_id=repo_id,
+            )
+            commit_sha = await service.find_latest_enriched_commit(
+                trackable=trackable,
+                enrichment_type="usage",
+                max_commits_to_check=100,
+            )
+            if not commit_sha:
+                return json.dumps([])
+
+        enrichments = await service.get_cookbook_for_commit(commit_sha)
+
+        return _format_enrichments(enrichments)
+
 
 
 # FastAPI-integrated MCP server
