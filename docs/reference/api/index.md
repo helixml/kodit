@@ -12,7 +12,7 @@ look at the [hosted version](https://kodit.helix.ml/docs).
 This is the REST API for the Kodit server. Please refer to the
 [Kodit documentation](https://docs.helix.ml/kodit/) for more information.
     
-Current version: 0.5.7
+Current version: 0.5.8
 
 ## Authentication
 
@@ -525,10 +525,11 @@ Get a specific tag for a repository.
 
 List the most recent enrichments for a repository.
 
+Uses the repository's tracking_config to find the most recent enriched commit.
+
 Query parameters:
-- ref_type: Type of reference (branch, tag, or commit_sha). Defaults to "branch".
-- ref_name: Name of the reference. For branches, defaults to the tracking branch.
 - enrichment_type: Optional filter for specific enrichment type.
+- max_commits_to_check: Number of recent commits to search (default: 100).
 - limit: Maximum number of enrichments to return. Defaults to 10.
 
 
@@ -537,8 +538,6 @@ Query parameters:
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | repo_id | string | True |  |
-| ref_type | string | False |  |
-| ref_name |  | False |  |
 | enrichment_type |  | False |  |
 | max_commits_to_check | integer | False | Number of recent commits to search for recent enriched commits |
 | page | integer | False | Page number, starting from 1 |
