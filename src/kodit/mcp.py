@@ -1,6 +1,5 @@
 """MCP server for kodit."""
 
-import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -67,21 +66,15 @@ def create_mcp_server(name: str, instructions: str | None = None) -> FastMCP:
 
 
 def _format_enrichments(enrichments: list) -> str:
-    """Format enrichments as JSON."""
-    return json.dumps(
-        [
-            {
-                "id": e.id,
-                "type": e.type,
-                "subtype": e.subtype,
-                "content": e.content,
-                "created_at": e.created_at.isoformat() if e.created_at else None,
-                "updated_at": e.updated_at.isoformat() if e.updated_at else None,
-            }
-            for e in enrichments
-        ],
-        indent=2,
-    )
+    """Format enrichments in a simple, LLM-friendly format.
+
+    Just returns the content from each enrichment, separated by double newlines.
+    """
+    if not enrichments:
+        return ""
+
+    contents = [e.content for e in enrichments if e.content]
+    return "\n\n".join(contents)
 
 
 def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
@@ -226,38 +219,27 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
     async def list_repositories(ctx: Context) -> str:
         """List all repositories available in the system.
 
-        Returns a list of repositories with their IDs and URLs.
+        Returns a simple list of repository URLs.
         """
         mcp_context: MCPContext = ctx.request_context.lifespan_context
         repo_repository = mcp_context.server_factory.repo_repository()
 
         repos = await repo_repository.find(QueryBuilder())
 
-        return json.dumps(
-            [
-                {
-                    "id": repo.id,
-                    "remote_uri": str(repo.remote_uri),
-                    "sanitized_remote_uri": str(repo.sanitized_remote_uri),
-                    "cloned_path": str(repo.cloned_path) if repo.cloned_path else None,
-                    "num_commits": repo.num_commits,
-                    "num_branches": repo.num_branches,
-                    "num_tags": repo.num_tags,
-                    "created_at": (
-                        repo.created_at.isoformat() if repo.created_at else None
-                    ),
-                }
-                for repo in repos
-            ],
-            indent=2,
-        )
+        if not repos:
+            return "No repositories found."
+
+        lines = ["Available repositories:"]
+        lines.extend(f"- {repo.sanitized_remote_uri}" for repo in repos)
+
+        return "\n".join(lines)
 
     @mcp_server.tool()
     async def get_architecture_docs(
         ctx: Context,
-        repo_id: Annotated[
-            int,
-            Field(description="The repository ID"),
+        repo_url: Annotated[
+            str,
+            Field(description="The repository URL (e.g., github.com/user/repo)"),
         ],
         commit_sha: Annotated[
             str | None,
@@ -275,15 +257,20 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
         organization of the codebase.
         """
         mcp_context: MCPContext = ctx.request_context.lifespan_context
+        repo_query_service = mcp_context.server_factory.repository_query_service()
+
+        # Find the repository by URL
+        repo_id = await repo_query_service.find_repo_by_url(repo_url)
+        if not repo_id:
+            return ""
 
         if not commit_sha:
-            repo_query_service = mcp_context.server_factory.repository_query_service()
             commit_sha = await repo_query_service.find_latest_commit(
                 repo_id=repo_id,
                 max_commits_to_check=100,
             )
             if not commit_sha:
-                return json.dumps([])
+                return ""
 
         enrichment_service = mcp_context.server_factory.enrichment_query_service()
         enrichments = await enrichment_service.get_architecture_docs_for_commit(
@@ -294,9 +281,9 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
     @mcp_server.tool()
     async def get_api_docs(
         ctx: Context,
-        repo_id: Annotated[
-            int,
-            Field(description="The repository ID"),
+        repo_url: Annotated[
+            str,
+            Field(description="The repository URL (e.g., github.com/user/repo)"),
         ],
         commit_sha: Annotated[
             str | None,
@@ -313,15 +300,20 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
         Returns API docs describing public interfaces and usage patterns.
         """
         mcp_context: MCPContext = ctx.request_context.lifespan_context
+        repo_query_service = mcp_context.server_factory.repository_query_service()
+
+        # Find the repository by URL
+        repo_id = await repo_query_service.find_repo_by_url(repo_url)
+        if not repo_id:
+            return ""
 
         if not commit_sha:
-            repo_query_service = mcp_context.server_factory.repository_query_service()
             commit_sha = await repo_query_service.find_latest_commit(
                 repo_id=repo_id,
                 max_commits_to_check=100,
             )
             if not commit_sha:
-                return json.dumps([])
+                return ""
 
         enrichment_service = mcp_context.server_factory.enrichment_query_service()
         enrichments = await enrichment_service.get_api_docs_for_commit(commit_sha)
@@ -330,9 +322,9 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
     @mcp_server.tool()
     async def get_commit_description(
         ctx: Context,
-        repo_id: Annotated[
-            int,
-            Field(description="The repository ID"),
+        repo_url: Annotated[
+            str,
+            Field(description="The repository URL (e.g., github.com/user/repo)"),
         ],
         commit_sha: Annotated[
             str | None,
@@ -349,15 +341,20 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
         Returns human-readable descriptions explaining what changed and why.
         """
         mcp_context: MCPContext = ctx.request_context.lifespan_context
+        repo_query_service = mcp_context.server_factory.repository_query_service()
+
+        # Find the repository by URL
+        repo_id = await repo_query_service.find_repo_by_url(repo_url)
+        if not repo_id:
+            return ""
 
         if not commit_sha:
-            repo_query_service = mcp_context.server_factory.repository_query_service()
             commit_sha = await repo_query_service.find_latest_commit(
                 repo_id=repo_id,
                 max_commits_to_check=100,
             )
             if not commit_sha:
-                return json.dumps([])
+                return ""
 
         enrichment_service = mcp_context.server_factory.enrichment_query_service()
         enrichments = await enrichment_service.get_commit_description_for_commit(
@@ -368,9 +365,9 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
     @mcp_server.tool()
     async def get_database_schema(
         ctx: Context,
-        repo_id: Annotated[
-            int,
-            Field(description="The repository ID"),
+        repo_url: Annotated[
+            str,
+            Field(description="The repository URL (e.g., github.com/user/repo)"),
         ],
         commit_sha: Annotated[
             str | None,
@@ -388,15 +385,20 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
         definitions.
         """
         mcp_context: MCPContext = ctx.request_context.lifespan_context
+        repo_query_service = mcp_context.server_factory.repository_query_service()
+
+        # Find the repository by URL
+        repo_id = await repo_query_service.find_repo_by_url(repo_url)
+        if not repo_id:
+            return ""
 
         if not commit_sha:
-            repo_query_service = mcp_context.server_factory.repository_query_service()
             commit_sha = await repo_query_service.find_latest_commit(
                 repo_id=repo_id,
                 max_commits_to_check=100,
             )
             if not commit_sha:
-                return json.dumps([])
+                return ""
 
         enrichment_service = mcp_context.server_factory.enrichment_query_service()
         enrichments = await enrichment_service.get_database_schema_for_commit(
@@ -407,9 +409,9 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
     @mcp_server.tool()
     async def get_cookbook(
         ctx: Context,
-        repo_id: Annotated[
-            int,
-            Field(description="The repository ID"),
+        repo_url: Annotated[
+            str,
+            Field(description="The repository URL (e.g., github.com/user/repo)"),
         ],
         commit_sha: Annotated[
             str | None,
@@ -427,15 +429,20 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
         various parts of the codebase.
         """
         mcp_context: MCPContext = ctx.request_context.lifespan_context
+        repo_query_service = mcp_context.server_factory.repository_query_service()
+
+        # Find the repository by URL
+        repo_id = await repo_query_service.find_repo_by_url(repo_url)
+        if not repo_id:
+            return ""
 
         if not commit_sha:
-            repo_query_service = mcp_context.server_factory.repository_query_service()
             commit_sha = await repo_query_service.find_latest_commit(
                 repo_id=repo_id,
                 max_commits_to_check=100,
             )
             if not commit_sha:
-                return json.dumps([])
+                return ""
 
         enrichment_service = mcp_context.server_factory.enrichment_query_service()
         enrichments = await enrichment_service.get_cookbook_for_commit(commit_sha)

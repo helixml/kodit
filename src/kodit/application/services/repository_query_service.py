@@ -23,6 +23,32 @@ class RepositoryQueryService:
         self.trackable_resolution = trackable_resolution
         self.log = structlog.get_logger(__name__)
 
+    async def find_repo_by_url(self, repo_url: str) -> int | None:
+        """Find a repository ID by its URL.
+
+        Matches against both remote_uri and sanitized_remote_uri.
+        """
+        from kodit.infrastructure.sqlalchemy.query import FilterOperator, QueryBuilder
+
+        # Try to find by sanitized_remote_uri first (more common)
+        repos = await self.git_repo_repository.find(
+            QueryBuilder().filter("sanitized_remote_uri", FilterOperator.EQ, repo_url)
+        )
+
+        if repos:
+            return repos[0].id
+
+        # Try to find by remote_uri
+        repos = await self.git_repo_repository.find(
+            QueryBuilder().filter("remote_uri", FilterOperator.EQ, repo_url)
+        )
+
+        if repos:
+            return repos[0].id
+
+        self.log.warning("Repository not found by URL", repo_url=repo_url)
+        return None
+
     async def find_latest_commit(
         self,
         repo_id: int,
