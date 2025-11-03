@@ -4,7 +4,6 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
-from kodit.domain.tracking.trackable import Trackable, TrackableReferenceType
 from kodit.infrastructure.api.middleware.auth import api_key_auth
 from kodit.infrastructure.api.v1.dependencies import (
     CommitIndexingAppServiceDep,
@@ -13,6 +12,7 @@ from kodit.infrastructure.api.v1.dependencies import (
     GitCommitRepositoryDep,
     GitRepositoryDep,
     GitTagRepositoryDep,
+    RepositoryQueryServiceDep,
     TaskStatusQueryServiceDep,
 )
 from kodit.infrastructure.api.v1.query_params import PaginationParamsDep
@@ -289,62 +289,32 @@ async def get_repository_tag(
 )
 async def list_repository_enrichments(  # noqa: PLR0913
     repo_id: str,
-    git_repository: GitRepositoryDep,
+    repository_query_service: RepositoryQueryServiceDep,
     enrichment_query_service: EnrichmentQueryServiceDep,
     pagination: PaginationParamsDep,
-    ref_type: str = "branch",
-    ref_name: str | None = None,
     enrichment_type: str | None = None,
     max_commits_to_check: Annotated[
         int,
         Query(
             description="Number of recent commits to search for recent enriched commits"
         ),
-    ] = 10,
+    ] = 100,
 ) -> EnrichmentListResponse:
     """List the most recent enrichments for a repository.
 
+    Uses the repository's tracking_config to find the most recent enriched commit.
+
     Query parameters:
-    - ref_type: Type of reference (branch, tag, or commit_sha). Defaults to "branch".
-    - ref_name: Name of the reference. For branches, defaults to the tracking branch.
     - enrichment_type: Optional filter for specific enrichment type.
+    - max_commits_to_check: Number of recent commits to search (default: 100).
     - limit: Maximum number of enrichments to return. Defaults to 10.
     """
-    # Get repository
-    repo = await git_repository.get(int(repo_id))
-    if not repo:
-        raise HTTPException(status_code=404, detail="Repository not found")
-
-    # Determine the reference to track
-    if ref_name is None:
-        if ref_type == "branch":
-            # Default to tracking branch
-            ref_name = repo.tracking_config.name
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail="ref_name is required for tag and commit_sha references",
-            )
-
-    # Parse ref_type
-    try:
-        trackable_type = TrackableReferenceType(ref_type)
-    except ValueError:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid ref_type: {ref_type}. Must be branch, tag, or commit_sha",
-        ) from None
-
-    # Create trackable
-    trackable = Trackable(
-        type=trackable_type, identifier=ref_name, repo_id=int(repo_id)
-    )
-
-    # Find the latest enriched commit
-    enriched_commit = await enrichment_query_service.find_latest_enriched_commit(
-        trackable=trackable,
+    # Find the latest enriched commit using the repository's tracking config
+    enriched_commit = await repository_query_service.find_latest_enriched_commit(
+        repo_id=int(repo_id),
         enrichment_type=enrichment_type,
         max_commits_to_check=max_commits_to_check,
+        check_enrichments_fn=enrichment_query_service.has_enrichments_for_commit,
     )
 
     # If no enriched commit found, return empty list

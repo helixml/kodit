@@ -16,6 +16,9 @@ from kodit.application.services.enrichment_query_service import (
 )
 from kodit.application.services.queue_service import QueueService
 from kodit.application.services.reporting import ProgressTracker
+from kodit.application.services.repository_query_service import (
+    RepositoryQueryService,
+)
 from kodit.application.services.sync_scheduler import SyncSchedulerService
 from kodit.config import AppContext
 from kodit.domain.enrichments.architecture.physical.formatter import (
@@ -143,6 +146,7 @@ class ServerFactory:
         self._cookbook_context_service: CookbookContextService | None = None
         self._trackable_resolution_service: TrackableResolutionService | None = None
         self._enrichment_query_service: EnrichmentQueryService | None = None
+        self._repository_query_service: RepositoryQueryService | None = None
 
     def architecture_formatter(self) -> PhysicalArchitectureFormatter:
         """Create a PhysicalArchitectureFormatter instance."""
@@ -406,3 +410,12 @@ class ServerFactory:
                 enrichment_association_repository=self.enrichment_association_repository(),
             )
         return self._enrichment_query_service
+
+    def repository_query_service(self) -> RepositoryQueryService:
+        """Create a RepositoryQueryService instance."""
+        if not self._repository_query_service:
+            self._repository_query_service = RepositoryQueryService(
+                git_repo_repository=self.repo_repository(),
+                trackable_resolution=self.trackable_resolution_service(),
+            )
+        return self._repository_query_service

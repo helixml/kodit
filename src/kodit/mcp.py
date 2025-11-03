@@ -16,7 +16,6 @@ from kodit.application.factories.server_factory import ServerFactory
 from kodit.application.services.code_search_application_service import MultiSearchResult
 from kodit.config import AppContext
 from kodit.database import Database
-from kodit.domain.tracking.trackable import Trackable, TrackableReferenceType
 from kodit.domain.value_objects import (
     MultiSearchRequest,
     SnippetSearchFilters,
@@ -65,25 +64,6 @@ def create_mcp_server(name: str, instructions: str | None = None) -> FastMCP:
         lifespan=mcp_lifespan,
         instructions=instructions,
     )
-
-
-async def _get_default_branch_name(
-    server_factory: ServerFactory, repo_id: int
-) -> str | None:
-    """Get the default branch name for a repository.
-
-    Returns the branch name or None if not found.
-    """
-    # Get default branch for this repo
-    branch_repo = server_factory.git_branch_repository()
-    branches = await branch_repo.get_by_repo_id(repo_id)
-
-    # Find main/master/develop branch
-    default_branch = next(
-        (b for b in branches if b.name in ["main", "master", "develop"]),
-        branches[0] if branches else None,
-    )
-    return default_branch.name if default_branch else None
 
 
 def _format_enrichments(enrichments: list) -> str:
@@ -295,31 +275,20 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
         organization of the codebase.
         """
         mcp_context: MCPContext = ctx.request_context.lifespan_context
-        service = mcp_context.server_factory.enrichment_query_service()
 
-        # If no commit_sha provided, find the latest commit with architecture docs
         if not commit_sha:
-            branch_name = await _get_default_branch_name(
-                mcp_context.server_factory, repo_id
-            )
-            if not branch_name:
-                return json.dumps([])
-
-            trackable = Trackable(
-                type=TrackableReferenceType.BRANCH,
-                identifier=branch_name,
+            repo_query_service = mcp_context.server_factory.repository_query_service()
+            commit_sha = await repo_query_service.find_latest_commit(
                 repo_id=repo_id,
-            )
-            commit_sha = await service.find_latest_enriched_commit(
-                trackable=trackable,
-                enrichment_type="architecture",
                 max_commits_to_check=100,
             )
             if not commit_sha:
                 return json.dumps([])
 
-        enrichments = await service.get_architecture_docs_for_commit(commit_sha)
-
+        enrichment_service = mcp_context.server_factory.enrichment_query_service()
+        enrichments = await enrichment_service.get_architecture_docs_for_commit(
+            commit_sha
+        )
         return _format_enrichments(enrichments)
 
     @mcp_server.tool()
@@ -344,30 +313,18 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
         Returns API docs describing public interfaces and usage patterns.
         """
         mcp_context: MCPContext = ctx.request_context.lifespan_context
-        service = mcp_context.server_factory.enrichment_query_service()
 
         if not commit_sha:
-            branch_name = await _get_default_branch_name(
-                mcp_context.server_factory, repo_id
-            )
-            if not branch_name:
-                return json.dumps([])
-
-            trackable = Trackable(
-                type=TrackableReferenceType.BRANCH,
-                identifier=branch_name,
+            repo_query_service = mcp_context.server_factory.repository_query_service()
+            commit_sha = await repo_query_service.find_latest_commit(
                 repo_id=repo_id,
-            )
-            commit_sha = await service.find_latest_enriched_commit(
-                trackable=trackable,
-                enrichment_type="usage",
                 max_commits_to_check=100,
             )
             if not commit_sha:
                 return json.dumps([])
 
-        enrichments = await service.get_api_docs_for_commit(commit_sha)
-
+        enrichment_service = mcp_context.server_factory.enrichment_query_service()
+        enrichments = await enrichment_service.get_api_docs_for_commit(commit_sha)
         return _format_enrichments(enrichments)
 
     @mcp_server.tool()
@@ -392,30 +349,20 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
         Returns human-readable descriptions explaining what changed and why.
         """
         mcp_context: MCPContext = ctx.request_context.lifespan_context
-        service = mcp_context.server_factory.enrichment_query_service()
 
         if not commit_sha:
-            branch_name = await _get_default_branch_name(
-                mcp_context.server_factory, repo_id
-            )
-            if not branch_name:
-                return json.dumps([])
-
-            trackable = Trackable(
-                type=TrackableReferenceType.BRANCH,
-                identifier=branch_name,
+            repo_query_service = mcp_context.server_factory.repository_query_service()
+            commit_sha = await repo_query_service.find_latest_commit(
                 repo_id=repo_id,
-            )
-            commit_sha = await service.find_latest_enriched_commit(
-                trackable=trackable,
-                enrichment_type="history",
                 max_commits_to_check=100,
             )
             if not commit_sha:
                 return json.dumps([])
 
-        enrichments = await service.get_commit_description_for_commit(commit_sha)
-
+        enrichment_service = mcp_context.server_factory.enrichment_query_service()
+        enrichments = await enrichment_service.get_commit_description_for_commit(
+            commit_sha
+        )
         return _format_enrichments(enrichments)
 
     @mcp_server.tool()
@@ -441,30 +388,20 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
         definitions.
         """
         mcp_context: MCPContext = ctx.request_context.lifespan_context
-        service = mcp_context.server_factory.enrichment_query_service()
 
         if not commit_sha:
-            branch_name = await _get_default_branch_name(
-                mcp_context.server_factory, repo_id
-            )
-            if not branch_name:
-                return json.dumps([])
-
-            trackable = Trackable(
-                type=TrackableReferenceType.BRANCH,
-                identifier=branch_name,
+            repo_query_service = mcp_context.server_factory.repository_query_service()
+            commit_sha = await repo_query_service.find_latest_commit(
                 repo_id=repo_id,
-            )
-            commit_sha = await service.find_latest_enriched_commit(
-                trackable=trackable,
-                enrichment_type="architecture",
                 max_commits_to_check=100,
             )
             if not commit_sha:
                 return json.dumps([])
 
-        enrichments = await service.get_database_schema_for_commit(commit_sha)
-
+        enrichment_service = mcp_context.server_factory.enrichment_query_service()
+        enrichments = await enrichment_service.get_database_schema_for_commit(
+            commit_sha
+        )
         return _format_enrichments(enrichments)
 
     @mcp_server.tool()
@@ -490,32 +427,19 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
         various parts of the codebase.
         """
         mcp_context: MCPContext = ctx.request_context.lifespan_context
-        service = mcp_context.server_factory.enrichment_query_service()
 
         if not commit_sha:
-            branch_name = await _get_default_branch_name(
-                mcp_context.server_factory, repo_id
-            )
-            if not branch_name:
-                return json.dumps([])
-
-            trackable = Trackable(
-                type=TrackableReferenceType.BRANCH,
-                identifier=branch_name,
+            repo_query_service = mcp_context.server_factory.repository_query_service()
+            commit_sha = await repo_query_service.find_latest_commit(
                 repo_id=repo_id,
-            )
-            commit_sha = await service.find_latest_enriched_commit(
-                trackable=trackable,
-                enrichment_type="usage",
                 max_commits_to_check=100,
             )
             if not commit_sha:
                 return json.dumps([])
 
-        enrichments = await service.get_cookbook_for_commit(commit_sha)
-
+        enrichment_service = mcp_context.server_factory.enrichment_query_service()
+        enrichments = await enrichment_service.get_cookbook_for_commit(commit_sha)
         return _format_enrichments(enrichments)
-
 
 
 # FastAPI-integrated MCP server
