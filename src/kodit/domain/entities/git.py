@@ -33,18 +33,15 @@ class TrackingConfig(BaseModel, frozen=True):
 class GitFile(BaseModel):
     """File domain entity."""
 
-    created_at: datetime
+    id: int | None = None  # Database-generated surrogate key
+    created_at: datetime | None = None  # Is populated by repository
+    updated_at: datetime | None = None  # Is populated by repository
     blob_sha: str
     commit_sha: str
     path: str
     mime_type: str
     size: int
     extension: str
-
-    @property
-    def id(self) -> str:
-        """Get the unique id for a tag."""
-        return self.blob_sha
 
     @staticmethod
     def extension_from_path(path: str) -> str:

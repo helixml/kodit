@@ -20,7 +20,7 @@ async def test_save_and_get_file(
     session_factory: Callable[[], AsyncSession],
     sample_git_repo: GitRepo,
 ) -> None:
-    """Test saving a file and retrieving it by composite ID."""
+    """Test saving a file and retrieving it by integer ID."""
     # Setup: Create repo and commit first (foreign key requirement)
     repo_repository = create_git_repo_repository(session_factory)
     commit_repository = create_git_commit_repository(session_factory)
@@ -56,6 +56,7 @@ async def test_save_and_get_file(
     saved_file = await file_repository.save(test_file)
 
     # Verify all fields are mapped correctly
+    assert saved_file.id is not None  # Should have an integer ID now
     assert saved_file.blob_sha == test_file.blob_sha
     assert saved_file.commit_sha == test_file.commit_sha
     assert saved_file.path == test_file.path
@@ -64,10 +65,10 @@ async def test_save_and_get_file(
     assert saved_file.extension == test_file.extension
     assert saved_file.created_at is not None
 
-    # Get by composite ID (commit_sha, path)
-    composite_id = (test_file.commit_sha, test_file.path)
-    retrieved_file = await file_repository.get(composite_id)
+    # Get by integer ID
+    retrieved_file = await file_repository.get(saved_file.id)
 
+    assert retrieved_file.id == saved_file.id
     assert retrieved_file.blob_sha == test_file.blob_sha
     assert retrieved_file.commit_sha == test_file.commit_sha
     assert retrieved_file.path == test_file.path

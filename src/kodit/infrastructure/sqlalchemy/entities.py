@@ -342,20 +342,19 @@ class GitTag(Base):
         self.target_commit_sha = target_commit_sha
 
 
-class GitCommitFile(Base):
+class GitCommitFile(Base, CommonMixin):
     """Files in a git commit (tree entries)."""
 
     __tablename__ = "git_commit_files"
 
     commit_sha: Mapped[str] = mapped_column(
-        ForeignKey("git_commits.commit_sha"), primary_key=True
+        ForeignKey("git_commits.commit_sha"), nullable=False
     )
-    path: Mapped[str] = mapped_column(String(1024), primary_key=True)
+    path: Mapped[str] = mapped_column(String(1024), nullable=False)
     blob_sha: Mapped[str] = mapped_column(String(64), index=True)
     mime_type: Mapped[str] = mapped_column(String(255), index=True)
     extension: Mapped[str] = mapped_column(String(255), index=True)
     size: Mapped[int] = mapped_column(Integer)
-    created_at: Mapped[datetime] = mapped_column(TZDateTime, nullable=False)
 
     __table_args__ = (UniqueConstraint("commit_sha", "path", name="uix_commit_file"),)
 

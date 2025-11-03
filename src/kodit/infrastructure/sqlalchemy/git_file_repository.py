@@ -35,14 +35,16 @@ class SqlAlchemyGitFileRepository(
 
     def _get_id(self, entity: GitFile) -> Any:
         """Extract ID from domain entity."""
-        return (entity.commit_sha, entity.path)
+        return entity.id
 
     @staticmethod
     def to_domain(db_entity: db_entities.GitCommitFile) -> GitFile:
         """Map database entity to domain entity."""
         return GitFile(
+            id=db_entity.id,
             commit_sha=db_entity.commit_sha,
             created_at=db_entity.created_at,
+            updated_at=db_entity.updated_at,
             blob_sha=db_entity.blob_sha,
             path=db_entity.path,
             mime_type=db_entity.mime_type,
@@ -53,15 +55,21 @@ class SqlAlchemyGitFileRepository(
     @staticmethod
     def to_db(domain_entity: GitFile) -> db_entities.GitCommitFile:
         """Map domain entity to database entity."""
-        return db_entities.GitCommitFile(
+        from datetime import UTC, datetime
+
+        db_entity = db_entities.GitCommitFile(
             commit_sha=domain_entity.commit_sha,
             blob_sha=domain_entity.blob_sha,
             path=domain_entity.path,
             mime_type=domain_entity.mime_type,
             size=domain_entity.size,
             extension=domain_entity.extension,
-            created_at=domain_entity.created_at,
+            created_at=domain_entity.created_at or datetime.now(UTC),
         )
+        # Set id if it exists (for updates)
+        if domain_entity.id is not None:
+            db_entity.id = domain_entity.id
+        return db_entity
 
     async def delete_by_commit_sha(self, commit_sha: str) -> None:
         """Delete all files for a repository."""
