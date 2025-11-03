@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
 from kodit.domain.tracking.trackable import Trackable, TrackableReferenceType
 from kodit.infrastructure.api.middleware.auth import api_key_auth
@@ -70,24 +70,27 @@ async def list_repositories(
     )
 
 
-@router.post("", status_code=201, summary="Create repository")
+@router.post("", summary="Create or reindex repository")
 async def create_repository(
     request: RepositoryCreateRequest,
     service: CommitIndexingAppServiceDep,
+    response: Response,
 ) -> RepositoryResponse:
-    """Clone a new repository and perform initial mapping."""
+    """Create a new repository or trigger re-indexing if it exists."""
     try:
         remote_uri = request.data.attributes.remote_uri
 
-        repo = await service.create_git_repository(remote_uri)
+        repo, created = await service.create_git_repository(remote_uri)
 
-        return RepositoryResponse(data=RepositoryData.from_git_repo(repo))
+        # Set 201 Created for new repositories, 200 OK for existing
+        response.status_code = 201 if created else 200
+        return RepositoryResponse(
+            data=RepositoryData.from_git_repo(repo),
+        )
     except ValueError as e:
-        if "already exists" in str(e):
-            raise HTTPException(status_code=409, detail=str(e)) from e
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
-        msg = f"Failed to clone repository: {e}"
+        msg = f"Failed to process repository: {e}"
         raise HTTPException(status_code=500, detail=msg) from e
 
 

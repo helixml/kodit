@@ -3,7 +3,7 @@
   "info": {
     "title": "kodit API",
     "description": "\nThis is the REST API for the Kodit server. Please refer to the\n[Kodit documentation](https://docs.helix.ml/kodit/) for more information.\n    ",
-    "version": "0.5.6"
+    "version": "0.5.7"
   },
   "paths": {
     "/healthz": {
@@ -839,8 +839,8 @@
         "tags": [
           "repositories"
         ],
-        "summary": "Create repository",
-        "description": "Clone a new repository and perform initial mapping.",
+        "summary": "Create or reindex repository",
+        "description": "Create a new repository or trigger re-indexing if it exists.",
         "operationId": "create_repository_api_v1_repositories_post",
         "requestBody": {
           "content": {
@@ -853,7 +853,7 @@
           "required": true
         },
         "responses": {
-          "201": {
+          "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {

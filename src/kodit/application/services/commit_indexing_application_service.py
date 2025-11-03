@@ -9,6 +9,8 @@ from pydantic import AnyUrl
 
 from kodit.application.services.queue_service import QueueService
 from kodit.application.services.reporting import ProgressTracker
+from kodit.domain.entities import WorkingCopy
+from kodit.infrastructure.sqlalchemy.query import FilterOperator, QueryBuilder
 
 if TYPE_CHECKING:
     from kodit.application.services.enrichment_query_service import (
@@ -87,9 +89,7 @@ from kodit.infrastructure.sqlalchemy.embedding_repository import (
 from kodit.infrastructure.sqlalchemy.entities import EmbeddingType
 from kodit.infrastructure.sqlalchemy.query import (
     EnrichmentAssociationQueryBuilder,
-    FilterOperator,
     GitFileQueryBuilder,
-    QueryBuilder,
 )
 
 SUMMARIZATION_SYSTEM_PROMPT = """
@@ -214,8 +214,32 @@ class CommitIndexingApplicationService:
         self.enrichment_query_service = enrichment_query_service
         self._log = structlog.get_logger(__name__)
 
-    async def create_git_repository(self, remote_uri: AnyUrl) -> GitRepo:
-        """Create a new Git repository."""
+    async def create_git_repository(
+        self, remote_uri: AnyUrl
+    ) -> tuple[GitRepo, bool]:
+        """Create a new Git repository or get existing one.
+
+        Returns tuple of (repository, created) where created is True if new.
+        """
+        # Check if repository already exists
+        sanitized_uri = str(WorkingCopy.sanitize_git_url(str(remote_uri)))
+        existing_repos = await self.repo_repository.find(
+            QueryBuilder().filter(
+                "sanitized_remote_uri", FilterOperator.EQ, sanitized_uri
+            )
+        )
+        existing_repo = existing_repos[0] if existing_repos else None
+
+        if existing_repo:
+            # Repository exists, trigger re-indexing
+            await self.queue.enqueue_tasks(
+                tasks=PrescribedOperations.CREATE_NEW_REPOSITORY,
+                base_priority=QueuePriority.USER_INITIATED,
+                payload={"repository_id": existing_repo.id},
+            )
+            return existing_repo, False
+
+        # Create new repository
         async with self.operation.create_child(
             TaskOperation.CREATE_REPOSITORY,
             trackable_type=TrackableType.KODIT_REPOSITORY,
@@ -227,7 +251,7 @@ class CommitIndexingApplicationService:
                 base_priority=QueuePriority.USER_INITIATED,
                 payload={"repository_id": repo.id},
             )
-            return repo
+            return repo, True
 
     async def delete_git_repository(self, repo_id: int) -> bool:
         """Delete a Git repository by ID."""
