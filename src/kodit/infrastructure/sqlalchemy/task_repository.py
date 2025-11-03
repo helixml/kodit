@@ -32,7 +32,7 @@ class SqlAlchemyTaskRepository(
 
     def __init__(self, session_factory: Callable[[], AsyncSession]) -> None:
         """Initialize the repository."""
-        self.session_factory = session_factory
+        super().__init__(session_factory)
         self.log = structlog.get_logger(__name__)
 
     @property

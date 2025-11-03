@@ -64,11 +64,63 @@ class SqlAlchemyRepository(ABC, Generic[DomainEntityType, DatabaseEntityType]):
 
     async def find(self, query: Query) -> list[DomainEntityType]:
         """Find all entities matching query."""
+        from kodit.infrastructure.sqlalchemy.query import QueryBuilder
+
+        # Check if we need to chunk IN queries
+        if isinstance(query, QueryBuilder):
+            large_in_filters = query.get_large_in_filters(self._chunk_size)
+
+            if large_in_filters:
+                # We need to chunk the query
+                return await self._find_with_chunked_in(query, large_in_filters)
+
+        # Normal case: no chunking needed
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             stmt = select(self.db_entity_type)
             stmt = query.apply(stmt, self.db_entity_type)
             db_entities = (await session.scalars(stmt)).all()
             return [self.to_domain(db) for db in db_entities]
+
+    async def _find_with_chunked_in(
+        self, query: Query, large_in_filters: list[Any]
+    ) -> list[DomainEntityType]:
+        """Execute find query with chunked IN filters."""
+        from kodit.infrastructure.sqlalchemy.query import (
+            FilterCriteria,
+            QueryBuilder,
+        )
+
+        # For simplicity, we'll only handle the case of a single large IN filter
+        if len(large_in_filters) > 1:
+            raise ValueError("Multiple large IN filters not supported")
+
+        # Type narrowing for mypy
+        if not isinstance(query, QueryBuilder):
+            raise TypeError("Query must be a QueryBuilder for chunking")
+
+        large_filter = large_in_filters[0]
+        all_results = []
+
+        # Chunk the IN filter values
+        for i in range(0, len(large_filter.value), self._chunk_size):
+            chunk_values = large_filter.value[i : i + self._chunk_size]
+
+            # Create a new query with the chunked IN filter
+            chunked_filter = FilterCriteria(
+                field=large_filter.field,
+                operator=large_filter.operator,
+                value=chunk_values,
+            )
+            chunked_query = query.with_replaced_filter(large_filter, chunked_filter)
+
+            # Execute the chunked query
+            async with SqlAlchemyUnitOfWork(self.session_factory) as session:
+                stmt = select(self.db_entity_type)
+                stmt = chunked_query.apply(stmt, self.db_entity_type)
+                db_entities = (await session.scalars(stmt)).all()
+                all_results.extend([self.to_domain(db) for db in db_entities])
+
+        return all_results
 
     async def count(self, query: Query) -> int:
         """Count the number of entities matching query."""
