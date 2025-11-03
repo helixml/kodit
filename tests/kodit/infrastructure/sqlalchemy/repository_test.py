@@ -427,6 +427,56 @@ class TestFind:
 
         assert found == []
 
+    async def test_chunks_large_in_queries(
+        self,
+        repository: MockRepository,
+    ) -> None:
+        """Verifies find chunks large IN queries to avoid database parameter limits."""
+        # Create more entities than the chunk size (1000)
+        num_entities = 2500
+        entities = [
+            MockEntity(id=i, name=f"entity_{i}", value=i)
+            for i in range(1, num_entities + 1)
+        ]
+        await repository.save_bulk(entities)
+
+        # Create a query with a large IN clause
+        ids_to_find = list(range(1, num_entities + 1))
+        query = QueryBuilder().filter("id", FilterOperator.IN, ids_to_find)
+        found = await repository.find(query)
+
+        # Should find all entities despite exceeding chunk size
+        assert len(found) == num_entities
+        found_ids = {e.id for e in found}
+        assert found_ids == set(ids_to_find)
+
+    async def test_chunks_preserves_other_filters(
+        self,
+        repository: MockRepository,
+    ) -> None:
+        """Verifies that chunking preserves other filters in the query."""
+        # Create entities with different values
+        entities = [
+            MockEntity(id=i, name=f"entity_{i}", value=100 if i % 2 == 0 else 50)
+            for i in range(1, 2001)
+        ]
+        await repository.save_bulk(entities)
+
+        # Query with both IN and EQ filters
+        ids_to_find = list(range(1, 2001))
+        query = (
+            QueryBuilder()
+            .filter("id", FilterOperator.IN, ids_to_find)
+            .filter("value", FilterOperator.EQ, 100)
+        )
+        found = await repository.find(query)
+
+        # Should only find entities with value=100
+        assert len(found) == 1000
+        for entity in found:
+            assert entity.value == 100
+            assert entity.id % 2 == 0
+
 
 class TestExists:
     """Tests for the exists method."""

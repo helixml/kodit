@@ -159,6 +159,29 @@ class QueryBuilder(Query):
 
         return stmt
 
+    def get_large_in_filters(self, chunk_size: int) -> list[FilterCriteria]:
+        """Get filters that have IN clauses larger than chunk_size."""
+        return [
+            f
+            for f in self._filters
+            if f.operator == FilterOperator.IN
+            and isinstance(f.value, list)
+            and len(f.value) > chunk_size
+        ]
+
+    def with_replaced_filter(
+        self, old_filter: FilterCriteria, new_filter: FilterCriteria
+    ) -> Self:
+        """Create a copy of this query with a filter replaced."""
+        new_query = self.__class__()
+        # Copy internal state - accessing private members is intentional for cloning
+        new_query._filters = [  # noqa: SLF001
+            new_filter if f == old_filter else f for f in self._filters
+        ]
+        new_query._sorts = self._sorts.copy()  # noqa: SLF001
+        new_query._pagination = self._pagination  # noqa: SLF001
+        return new_query  # type: ignore[return-value]
+
 
 class EnrichmentAssociationQueryBuilder(QueryBuilder):
     """Query builder for enrichment association entities."""
