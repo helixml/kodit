@@ -3,7 +3,7 @@
   "info": {
     "title": "kodit API",
     "description": "\nThis is the REST API for the Kodit server. Please refer to the\n[Kodit documentation](https://docs.helix.ml/kodit/) for more information.\n    ",
-    "version": "0.5.7"
+    "version": "0.5.8"
   },
   "paths": {
     "/healthz": {
@@ -1136,7 +1136,7 @@
           "repositories"
         ],
         "summary": "List latest repository enrichments",
-        "description": "List the most recent enrichments for a repository.\n\nQuery parameters:\n- ref_type: Type of reference (branch, tag, or commit_sha). Defaults to \"branch\".\n- ref_name: Name of the reference. For branches, defaults to the tracking branch.\n- enrichment_type: Optional filter for specific enrichment type.\n- limit: Maximum number of enrichments to return. Defaults to 10.",
+        "description": "List the most recent enrichments for a repository.\n\nUses the repository's tracking_config to find the most recent enriched commit.\n\nQuery parameters:\n- enrichment_type: Optional filter for specific enrichment type.\n- max_commits_to_check: Number of recent commits to search (default: 100).\n- limit: Maximum number of enrichments to return. Defaults to 10.",
         "operationId": "list_repository_enrichments_api_v1_repositories__repo_id__enrichments_get",
         "security": [
           {
@@ -1151,32 +1151,6 @@
             "schema": {
               "type": "string",
               "title": "Repo Id"
-            }
-          },
-          {
-            "name": "ref_type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "default": "branch",
-              "title": "Ref Type"
-            }
-          },
-          {
-            "name": "ref_name",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Ref Name"
             }
           },
           {
@@ -1202,7 +1176,7 @@
             "schema": {
               "type": "integer",
               "description": "Number of recent commits to search for recent enriched commits",
-              "default": 10,
+              "default": 100,
               "title": "Max Commits To Check"
             },
             "description": "Number of recent commits to search for recent enriched commits"
@@ -2498,7 +2472,8 @@
           "kodit.commit.create_architecture_enrichment",
           "kodit.commit.create_public_api_docs",
           "kodit.commit.create_commit_description",
-          "kodit.commit.create_database_schema"
+          "kodit.commit.create_database_schema",
+          "kodit.commit.create_cookbook"
         ],
         "title": "TaskOperation",
         "description": "Task operation."

@@ -19,6 +19,7 @@ from kodit.domain.value_objects import (
     MultiSearchRequest,
     SnippetSearchFilters,
 )
+from kodit.infrastructure.sqlalchemy.query import QueryBuilder
 
 # Global database connection for MCP server
 _mcp_db: Database | None = None
@@ -64,7 +65,19 @@ def create_mcp_server(name: str, instructions: str | None = None) -> FastMCP:
     )
 
 
-def register_mcp_tools(mcp_server: FastMCP) -> None:
+def _format_enrichments(enrichments: list) -> str:
+    """Format enrichments in a simple, LLM-friendly format.
+
+    Just returns the content from each enrichment, separated by double newlines.
+    """
+    if not enrichments:
+        return ""
+
+    contents = [e.content for e in enrichments if e.content]
+    return "\n\n".join(contents)
+
+
+def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
     """Register MCP tools on the provided FastMCP instance."""
 
     @mcp_server.tool()
@@ -201,6 +214,239 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:
     async def get_version() -> str:
         """Get the version of the kodit project."""
         return version
+
+    @mcp_server.tool()
+    async def list_repositories(ctx: Context) -> str:
+        """List all repositories available in the system.
+
+        Returns a simple list of repository URLs.
+        """
+        mcp_context: MCPContext = ctx.request_context.lifespan_context
+        repo_repository = mcp_context.server_factory.repo_repository()
+
+        repos = await repo_repository.find(QueryBuilder())
+
+        if not repos:
+            return "No repositories found."
+
+        lines = ["Available repositories:"]
+        lines.extend(f"- {repo.sanitized_remote_uri}" for repo in repos)
+
+        return "\n".join(lines)
+
+    @mcp_server.tool()
+    async def get_architecture_docs(
+        ctx: Context,
+        repo_url: Annotated[
+            str,
+            Field(description="The repository URL (e.g., github.com/user/repo)"),
+        ],
+        commit_sha: Annotated[
+            str | None,
+            Field(
+                description=(
+                    "Optional commit SHA. If not provided, uses most recent "
+                    "commit with architecture docs"
+                )
+            ),
+        ] = None,
+    ) -> str:
+        """Get architecture documentation enrichments for a repository.
+
+        Returns architecture docs describing the physical structure and
+        organization of the codebase.
+        """
+        mcp_context: MCPContext = ctx.request_context.lifespan_context
+        repo_query_service = mcp_context.server_factory.repository_query_service()
+
+        # Find the repository by URL
+        repo_id = await repo_query_service.find_repo_by_url(repo_url)
+        if not repo_id:
+            return ""
+
+        if not commit_sha:
+            commit_sha = await repo_query_service.find_latest_commit(
+                repo_id=repo_id,
+                max_commits_to_check=100,
+            )
+            if not commit_sha:
+                return ""
+
+        enrichment_service = mcp_context.server_factory.enrichment_query_service()
+        enrichments = await enrichment_service.get_architecture_docs_for_commit(
+            commit_sha
+        )
+        return _format_enrichments(enrichments)
+
+    @mcp_server.tool()
+    async def get_api_docs(
+        ctx: Context,
+        repo_url: Annotated[
+            str,
+            Field(description="The repository URL (e.g., github.com/user/repo)"),
+        ],
+        commit_sha: Annotated[
+            str | None,
+            Field(
+                description=(
+                    "Optional commit SHA. If not provided, uses most recent "
+                    "commit with API docs"
+                )
+            ),
+        ] = None,
+    ) -> str:
+        """Get API documentation enrichments for a repository.
+
+        Returns API docs describing public interfaces and usage patterns.
+        """
+        mcp_context: MCPContext = ctx.request_context.lifespan_context
+        repo_query_service = mcp_context.server_factory.repository_query_service()
+
+        # Find the repository by URL
+        repo_id = await repo_query_service.find_repo_by_url(repo_url)
+        if not repo_id:
+            return ""
+
+        if not commit_sha:
+            commit_sha = await repo_query_service.find_latest_commit(
+                repo_id=repo_id,
+                max_commits_to_check=100,
+            )
+            if not commit_sha:
+                return ""
+
+        enrichment_service = mcp_context.server_factory.enrichment_query_service()
+        enrichments = await enrichment_service.get_api_docs_for_commit(commit_sha)
+        return _format_enrichments(enrichments)
+
+    @mcp_server.tool()
+    async def get_commit_description(
+        ctx: Context,
+        repo_url: Annotated[
+            str,
+            Field(description="The repository URL (e.g., github.com/user/repo)"),
+        ],
+        commit_sha: Annotated[
+            str | None,
+            Field(
+                description=(
+                    "Optional commit SHA. If not provided, uses most recent "
+                    "commit with description"
+                )
+            ),
+        ] = None,
+    ) -> str:
+        """Get commit description enrichments for a repository.
+
+        Returns human-readable descriptions explaining what changed and why.
+        """
+        mcp_context: MCPContext = ctx.request_context.lifespan_context
+        repo_query_service = mcp_context.server_factory.repository_query_service()
+
+        # Find the repository by URL
+        repo_id = await repo_query_service.find_repo_by_url(repo_url)
+        if not repo_id:
+            return ""
+
+        if not commit_sha:
+            commit_sha = await repo_query_service.find_latest_commit(
+                repo_id=repo_id,
+                max_commits_to_check=100,
+            )
+            if not commit_sha:
+                return ""
+
+        enrichment_service = mcp_context.server_factory.enrichment_query_service()
+        enrichments = await enrichment_service.get_commit_description_for_commit(
+            commit_sha
+        )
+        return _format_enrichments(enrichments)
+
+    @mcp_server.tool()
+    async def get_database_schema(
+        ctx: Context,
+        repo_url: Annotated[
+            str,
+            Field(description="The repository URL (e.g., github.com/user/repo)"),
+        ],
+        commit_sha: Annotated[
+            str | None,
+            Field(
+                description=(
+                    "Optional commit SHA. If not provided, uses most recent "
+                    "commit with database schema"
+                )
+            ),
+        ] = None,
+    ) -> str:
+        """Get database schema enrichments for a repository.
+
+        Returns database schema docs from ORM models, migrations, or schema
+        definitions.
+        """
+        mcp_context: MCPContext = ctx.request_context.lifespan_context
+        repo_query_service = mcp_context.server_factory.repository_query_service()
+
+        # Find the repository by URL
+        repo_id = await repo_query_service.find_repo_by_url(repo_url)
+        if not repo_id:
+            return ""
+
+        if not commit_sha:
+            commit_sha = await repo_query_service.find_latest_commit(
+                repo_id=repo_id,
+                max_commits_to_check=100,
+            )
+            if not commit_sha:
+                return ""
+
+        enrichment_service = mcp_context.server_factory.enrichment_query_service()
+        enrichments = await enrichment_service.get_database_schema_for_commit(
+            commit_sha
+        )
+        return _format_enrichments(enrichments)
+
+    @mcp_server.tool()
+    async def get_cookbook(
+        ctx: Context,
+        repo_url: Annotated[
+            str,
+            Field(description="The repository URL (e.g., github.com/user/repo)"),
+        ],
+        commit_sha: Annotated[
+            str | None,
+            Field(
+                description=(
+                    "Optional commit SHA. If not provided, uses most recent "
+                    "commit with cookbook examples"
+                )
+            ),
+        ] = None,
+    ) -> str:
+        """Get cookbook enrichments for a repository.
+
+        Returns cookbook-style code examples with context showing how to use
+        various parts of the codebase.
+        """
+        mcp_context: MCPContext = ctx.request_context.lifespan_context
+        repo_query_service = mcp_context.server_factory.repository_query_service()
+
+        # Find the repository by URL
+        repo_id = await repo_query_service.find_repo_by_url(repo_url)
+        if not repo_id:
+            return ""
+
+        if not commit_sha:
+            commit_sha = await repo_query_service.find_latest_commit(
+                repo_id=repo_id,
+                max_commits_to_check=100,
+            )
+            if not commit_sha:
+                return ""
+
+        enrichment_service = mcp_context.server_factory.enrichment_query_service()
+        enrichments = await enrichment_service.get_cookbook_for_commit(commit_sha)
+        return _format_enrichments(enrichments)
 
 
 # FastAPI-integrated MCP server

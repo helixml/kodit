@@ -29,7 +29,6 @@ from kodit.domain.protocols import (
     EnrichmentV2Repository,
 )
 from kodit.domain.tracking.resolution_service import TrackableResolutionService
-from kodit.domain.tracking.trackable import Trackable
 from kodit.infrastructure.api.v1.query_params import PaginationParams
 from kodit.infrastructure.sqlalchemy import entities as db_entities
 from kodit.infrastructure.sqlalchemy.query import (
@@ -64,32 +63,19 @@ class EnrichmentQueryService:
             )
         )
 
-    async def find_latest_enriched_commit(
+    async def has_enrichments_for_commit(
         self,
-        trackable: Trackable,
+        commit_sha: str,
+        pagination: PaginationParams,
         enrichment_type: str | None = None,
-        max_commits_to_check: int = 100,
-    ) -> str | None:
-        """Find the most recent commit with enrichments."""
-        # Get candidate commits from the trackable
-        candidate_commits = await self.trackable_resolution.resolve_to_commits(
-            trackable, max_commits_to_check
+    ) -> bool:
+        """Check if a commit has enrichments."""
+        enrichments = await self.all_enrichments_for_commit(
+            commit_sha=commit_sha,
+            pagination=pagination,
+            enrichment_type=enrichment_type,
         )
-
-        if not candidate_commits:
-            return None
-
-        # Check which commits have enrichments
-        for commit_sha in candidate_commits:
-            enrichments = await self.all_enrichments_for_commit(
-                commit_sha=commit_sha,
-                pagination=PaginationParams(page_size=1),
-                enrichment_type=enrichment_type,
-            )
-            if enrichments:
-                return commit_sha
-
-        return None
+        return bool(enrichments)
 
     async def all_enrichments_for_commit(
         self,
