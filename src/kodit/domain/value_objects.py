@@ -616,6 +616,7 @@ class TaskOperation(StrEnum):
     CREATE_PUBLIC_API_DOCS_FOR_COMMIT = "kodit.commit.create_public_api_docs"
     CREATE_COMMIT_DESCRIPTION_FOR_COMMIT = "kodit.commit.create_commit_description"
     CREATE_DATABASE_SCHEMA_FOR_COMMIT = "kodit.commit.create_database_schema"
+    CREATE_COOKBOOK_FOR_COMMIT = "kodit.commit.create_cookbook"
 
     def is_repository_operation(self) -> bool:
         """Check if the task operation is a repository operation."""
@@ -643,6 +644,7 @@ class PrescribedOperations:
         TaskOperation.CREATE_PUBLIC_API_DOCS_FOR_COMMIT,
         TaskOperation.CREATE_COMMIT_DESCRIPTION_FOR_COMMIT,
         TaskOperation.CREATE_DATABASE_SCHEMA_FOR_COMMIT,
+        TaskOperation.CREATE_COOKBOOK_FOR_COMMIT,
     ]
     SYNC_REPOSITORY: ClassVar[list[TaskOperation]] = [
         TaskOperation.SCAN_REPOSITORY,

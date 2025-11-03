@@ -36,6 +36,7 @@ from kodit.domain.protocols import (
     TaskStatusRepository,
 )
 from kodit.domain.services.bm25_service import BM25DomainService, BM25Repository
+from kodit.domain.services.cookbook_context_service import CookbookContextService
 from kodit.domain.services.embedding_service import EmbeddingDomainService
 from kodit.domain.services.git_repository_service import (
     GitRepositoryScanner,
@@ -139,6 +140,7 @@ class ServerFactory:
             EnrichmentAssociationRepository | None
         ) = None
         self._architecture_formatter: PhysicalArchitectureFormatter | None = None
+        self._cookbook_context_service: CookbookContextService | None = None
         self._trackable_resolution_service: TrackableResolutionService | None = None
         self._enrichment_query_service: EnrichmentQueryService | None = None
 
@@ -155,6 +157,12 @@ class ServerFactory:
                 formatter=self.architecture_formatter()
             )
         return self._architecture_service
+
+    def cookbook_context_service(self) -> CookbookContextService:
+        """Create a CookbookContextService instance."""
+        if not self._cookbook_context_service:
+            self._cookbook_context_service = CookbookContextService()
+        return self._cookbook_context_service
 
     def enrichment_v2_repository(self) -> EnrichmentV2Repository:
         """Create a EnrichmentV2Repository instance."""
@@ -258,6 +266,7 @@ class ServerFactory:
                 text_search_service=self.text_search_service(),
                 embedding_repository=self.embedding_repository(),
                 architecture_service=self.architecture_service(),
+                cookbook_context_service=self.cookbook_context_service(),
                 database_schema_detector=DatabaseSchemaDetector(),
                 enrichment_v2_repository=self.enrichment_v2_repository(),
                 enricher_service=self.enricher(),

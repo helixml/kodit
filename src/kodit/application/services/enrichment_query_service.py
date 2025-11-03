@@ -22,6 +22,7 @@ from kodit.domain.enrichments.history.commit_description.commit_description impo
 )
 from kodit.domain.enrichments.history.history import ENRICHMENT_TYPE_HISTORY
 from kodit.domain.enrichments.usage.api_docs import ENRICHMENT_SUBTYPE_API_DOCS
+from kodit.domain.enrichments.usage.cookbook import ENRICHMENT_SUBTYPE_COOKBOOK
 from kodit.domain.enrichments.usage.usage import ENRICHMENT_TYPE_USAGE
 from kodit.domain.protocols import (
     EnrichmentAssociationRepository,
@@ -251,6 +252,19 @@ class EnrichmentQueryService:
         """Check if a commit has database schema enrichments."""
         database_schemas = await self.get_database_schema_for_commit(commit_sha)
         return len(database_schemas) > 0
+
+    async def get_cookbook_for_commit(self, commit_sha: str) -> list[EnrichmentV2]:
+        """Get cookbook enrichments for a commit."""
+        return await self.get_enrichments_for_commit(
+            commit_sha,
+            enrichment_type=ENRICHMENT_TYPE_USAGE,
+            enrichment_subtype=ENRICHMENT_SUBTYPE_COOKBOOK,
+        )
+
+    async def has_cookbook_for_commit(self, commit_sha: str) -> bool:
+        """Check if a commit has cookbook enrichments."""
+        cookbooks = await self.get_cookbook_for_commit(commit_sha)
+        return len(cookbooks) > 0
 
     async def associations_for_enrichments(
         self, enrichments: list[EnrichmentV2]
