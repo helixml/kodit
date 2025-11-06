@@ -317,7 +317,7 @@ class CommitIndexingApplicationService:
             raise ValueError(f"Unknown task type: {task.type}")
 
     async def _process_files_in_batches(
-        self, cloned_path: Path, all_commits: list[GitCommit], batch_size: int = 100
+        self, cloned_path: Path, all_commits: list[GitCommit], batch_size: int = 500
     ) -> int:
         """Process file metadata for all commits in batches to avoid memory exhaustion.
 
@@ -327,7 +327,7 @@ class CommitIndexingApplicationService:
         Args:
             cloned_path: Path to the cloned repository
             all_commits: List of all commits from scan
-            batch_size: Number of commits to process at once (default 100)
+            batch_size: Number of commits to process at once (default 500)
 
         Returns:
             Total number of files processed
@@ -357,8 +357,11 @@ class CommitIndexingApplicationService:
             )
 
             # Save file metadata to database immediately
+            # For initial scans (no existing files), skip existence check
             if files:
-                await self.git_file_repository.save_bulk(files)
+                await self.git_file_repository.save_bulk(
+                    files, skip_existence_check=True
+                )
                 total_files += len(files)
                 self._log.debug(
                     f"Batch {batch_num}: Saved {len(files)} files "
