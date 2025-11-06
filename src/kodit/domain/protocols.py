@@ -213,14 +213,28 @@ class GitAdapter(ABC):
         """Get all tags in repository."""
 
     @abstractmethod
-    async def get_all_commits_bulk(self, local_path: Path) -> dict[str, dict[str, Any]]:
-        """Get all commits from all branches in bulk for efficiency."""
+    async def get_all_commits_bulk(
+        self, local_path: Path, since_date: Any = None
+    ) -> dict[str, dict[str, Any]]:
+        """Get all commits from all branches in bulk for efficiency.
+
+        Args:
+            local_path: Path to the git repository
+            since_date: Optional date to get commits after (for incremental scanning)
+
+        """
 
     @abstractmethod
     async def get_branch_commit_shas(
         self, local_path: Path, branch_name: str
     ) -> list[str]:
         """Get only commit SHAs for a branch (much faster than full commit data)."""
+
+    @abstractmethod
+    async def get_all_branch_head_shas(
+        self, local_path: Path, branch_names: list[str]
+    ) -> dict[str, str]:
+        """Get head commit SHAs for all branches in one operation."""
 
     @abstractmethod
     async def get_commit_diff(self, local_path: Path, commit_sha: str) -> str:

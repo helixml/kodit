@@ -44,17 +44,38 @@ class GitRepositoryScanner:
         self.git_adapter = git_adapter
 
     async def scan_repository(
-        self, cloned_path: Path, repo_id: int
+        self,
+        cloned_path: Path,
+        repo_id: int,
+        since_date: datetime | None = None,
     ) -> RepositoryScanResult:
-        """Scan repository and return immutable result data."""
-        self._log.info(f"Starting repository scan at: {cloned_path}")
+        """Scan repository and return immutable result data.
+
+        Args:
+            cloned_path: Path to the cloned repository
+            repo_id: Repository ID
+            since_date: Optional date to scan commits after (for incremental scanning)
+
+        Returns:
+            Scan result with commits, branches, and tags
+
+        """
+        if since_date:
+            self._log.info(
+                f"Starting incremental repository scan at: {cloned_path} "
+                f"(since {since_date})"
+            )
+        else:
+            self._log.info(f"Starting full repository scan at: {cloned_path}")
 
         # Get all data in bulk for maximum efficiency
         branch_data = await self.git_adapter.get_all_branches(cloned_path)
         self._log.info(f"Found {len(branch_data)} branches")
 
-        # Get all commits at once to avoid redundant processing
-        all_commits_data = await self.git_adapter.get_all_commits_bulk(cloned_path)
+        # Get commits (all or incremental based on since_date)
+        all_commits_data = await self.git_adapter.get_all_commits_bulk(
+            cloned_path, since_date=since_date
+        )
         self._log.info(f"Found {len(all_commits_data)} unique commits")
 
         # Process branches efficiently using bulk commit data
@@ -95,34 +116,29 @@ class GitRepositoryScanner:
             if git_commit:
                 commit_cache[commit_sha] = git_commit
 
-        # Now process branches using the pre-built commit cache
+        # Get all branch head SHAs in one operation (major optimization)
+        branch_names = [branch_info["name"] for branch_info in branch_data]
+        branch_head_shas = await self.git_adapter.get_all_branch_head_shas(
+            cloned_path, branch_names
+        )
+
+        # Now process branches using the pre-built commit cache and head SHAs
         for branch_info in branch_data:
-            # Get commit SHAs for this branch (much faster than full commit data)
-            try:
-                commit_shas = await self.git_adapter.get_branch_commit_shas(
-                    cloned_path, branch_info["name"]
-                )
+            branch_name = branch_info["name"]
+            head_sha = branch_head_shas.get(branch_name)
 
-                if commit_shas and commit_shas[0] in commit_cache:
-                    head_commit = commit_cache[commit_shas[0]]
-                    branch = GitBranch(
-                        repo_id=repo_id,
-                        created_at=current_time,
-                        name=branch_info["name"],
-                        head_commit_sha=head_commit.commit_sha,
-                    )
-                    branches.append(branch)
-                    self._log.debug(f"Processed branch: {branch_info['name']}")
-                else:
-                    self._log.warning(
-                        "No commits found for branch %s", branch_info["name"]
-                    )
-
-            except Exception as e:  # noqa: BLE001
-                self._log.warning(
-                    "Failed to process branch %s: %s", branch_info["name"], e
+            if head_sha and head_sha in commit_cache:
+                head_commit = commit_cache[head_sha]
+                branch = GitBranch(
+                    repo_id=repo_id,
+                    created_at=current_time,
+                    name=branch_name,
+                    head_commit_sha=head_commit.commit_sha,
                 )
-                continue
+                branches.append(branch)
+                self._log.debug(f"Processed branch: {branch_name}")
+            else:
+                self._log.warning("No head commit found for branch %s", branch_name)
 
         return branches, commit_cache
 

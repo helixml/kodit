@@ -291,17 +291,74 @@ class GitPythonAdapter(GitAdapter):
             self.executor, _get_commits
         )
 
-    async def get_all_commits_bulk(self, local_path: Path) -> dict[str, dict[str, Any]]:
-        """Get all commits from all branches in bulk for efficiency."""
+    async def get_all_commits_bulk(
+        self, local_path: Path, since_date: datetime | None = None
+    ) -> dict[str, dict[str, Any]]:
+        """Get all commits from all branches in bulk for efficiency.
+
+        Optimized to use git rev-list --all which is much faster than iterating
+        through all branches.
+
+        Args:
+            local_path: Path to the git repository
+            since_date: Optional date to get commits after (for incremental scanning)
+
+        Returns:
+            Dictionary mapping commit SHAs to commit data
+
+        """
 
         def _get_all_commits() -> dict[str, dict[str, Any]]:
             try:
                 repo = Repo(local_path)
-                all_commits = _collect_unique_commits(repo, self._log)
-                return _process_commits(all_commits)
+
+                # Build git command with optional date filter
+                if since_date:
+                    # Format date for git (git uses ISO 8601 format)
+                    # Use --since to get commits after the given date
+                    since_str = since_date.strftime("%Y-%m-%d %H:%M:%S")
+                    rev_list_output = repo.git.rev_list("--all", f"--since={since_str}")
+                    commit_shas = rev_list_output.split("\n")
+                    self._log.info(
+                        "Getting commits since %s, found %d commits",
+                        since_str,
+                        len([s for s in commit_shas if s]),
+                    )
+                else:
+                    # Get all commits
+                    commit_shas = repo.git.rev_list("--all").split("\n")
+
+                # Batch fetch commit objects
+                commits_map = {}
+                for sha in commit_shas:
+                    if not sha:
+                        continue
+                    try:
+                        commit = repo.commit(sha)
+                        parent_sha = ""
+                        if commit.parents:
+                            parent_sha = commit.parents[0].hexsha
+
+                        commits_map[commit.hexsha] = {
+                            "sha": commit.hexsha,
+                            "date": datetime.fromtimestamp(commit.committed_date, UTC),
+                            "message": commit.message.strip(),
+                            "parent_sha": parent_sha,
+                            "author_name": commit.author.name,
+                            "author_email": commit.author.email,
+                            "committer_name": commit.committer.name,
+                            "committer_email": commit.committer.email,
+                            "tree_sha": commit.tree.hexsha,
+                        }
+                    except Exception as e:  # noqa: BLE001
+                        self._log.debug("Skipping commit %s: %s", sha, e)
+                        continue
+
             except Exception as e:
                 self._log.error("Failed to get bulk commits for %s: %s", local_path, e)
                 raise
+            else:
+                return commits_map
 
         return await asyncio.get_event_loop().run_in_executor(
             self.executor, _get_all_commits
@@ -343,6 +400,77 @@ class GitPythonAdapter(GitAdapter):
 
         return await asyncio.get_event_loop().run_in_executor(
             self.executor, _get_commit_shas
+        )
+
+    async def get_all_branch_head_shas(  # noqa: C901
+        self, local_path: Path, branch_names: list[str]
+    ) -> dict[str, str]:
+        """Get head commit SHAs for all branches in one operation.
+
+        This is much more efficient than calling get_branch_commit_shas for each
+        branch individually.
+
+        Args:
+            local_path: Path to the repository
+            branch_names: List of branch names to get head SHAs for
+
+        Returns:
+            Dictionary mapping branch names to their head commit SHAs
+
+        """
+
+        def _build_branch_maps(repo: Repo) -> tuple[dict, dict]:
+            """Build lookup maps for local and remote branches."""
+            local_branches = {branch.name: branch for branch in repo.branches}
+            remote_branches = {}
+            for remote in repo.remotes:
+                for ref in remote.refs:
+                    if ref.name != f"{remote.name}/HEAD":
+                        branch_name = ref.name.replace(f"{remote.name}/", "")
+                        remote_branches[branch_name] = ref
+            return local_branches, remote_branches
+
+        def _get_branch_head_sha(
+            branch_name: str, local_branches: dict, remote_branches: dict
+        ) -> str | None:
+            """Get head SHA for a single branch."""
+            try:
+                if branch_name in local_branches:
+                    return local_branches[branch_name].commit.hexsha
+                if branch_name in remote_branches:
+                    return remote_branches[branch_name].commit.hexsha
+                self._log.warning(
+                    "Branch %s not found in local or remote branches", branch_name
+                )
+            except Exception as e:  # noqa: BLE001
+                self._log.debug(
+                    "Failed to get head SHA for branch %s: %s", branch_name, e
+                )
+            return None
+
+        def _get_all_head_shas() -> dict[str, str]:
+            try:
+                repo = Repo(local_path)
+                local_branches, remote_branches = _build_branch_maps(repo)
+
+                result = {}
+                for branch_name in branch_names:
+                    head_sha = _get_branch_head_sha(
+                        branch_name, local_branches, remote_branches
+                    )
+                    if head_sha:
+                        result[branch_name] = head_sha
+
+            except Exception as e:
+                self._log.error(
+                    "Failed to get all branch head SHAs for %s: %s", local_path, e
+                )
+                raise
+            else:
+                return result
+
+        return await asyncio.get_event_loop().run_in_executor(
+            self.executor, _get_all_head_shas
         )
 
     async def get_commit_files(

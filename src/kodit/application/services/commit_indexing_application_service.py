@@ -222,9 +222,7 @@ class CommitIndexingApplicationService:
         self.enrichment_query_service = enrichment_query_service
         self._log = structlog.get_logger(__name__)
 
-    async def create_git_repository(
-        self, remote_uri: AnyUrl
-    ) -> tuple[GitRepo, bool]:
+    async def create_git_repository(self, remote_uri: AnyUrl) -> tuple[GitRepo, bool]:
         """Create a new Git repository or get existing one.
 
         Returns tuple of (repository, created) where created is True if new.
@@ -396,10 +394,32 @@ class CommitIndexingApplicationService:
             await step.set_current(0, "Pulling latest changes from remote")
             await self.cloner.pull_repository(repo)
 
+            # Check for incremental vs full scan
+            # Get the latest commit date to determine if we can do incremental scan
+            from kodit.infrastructure.sqlalchemy.query import (
+                FilterOperator,
+                QueryBuilder,
+            )
+
+            query = (
+                QueryBuilder()
+                .filter("repo_id", FilterOperator.EQ, repository_id)
+                .sort("date", descending=True)
+                .paginate(type("Pagination", (), {"limit": 1, "offset": 0})())
+            )
+            latest_commits = await self.git_commit_repository.find(query)
+            since_date = latest_commits[0].date if latest_commits else None
+
+            if since_date:
+                await step.set_current(
+                    1, f"Scanning repository (incremental since {since_date})"
+                )
+            else:
+                await step.set_current(1, "Scanning repository (full scan)")
+
             # Scan the repository to get all metadata
-            await step.set_current(1, "Scanning repository")
             scan_result = await self.scanner.scan_repository(
-                repo.cloned_path, repository_id
+                repo.cloned_path, repository_id, since_date=since_date
             )
 
             # Update repo with scan result (this sets num_commits, num_branches, etc.)
@@ -1191,9 +1211,7 @@ class CommitIndexingApplicationService:
             # Generate cookbook through the enricher
             enrichment_request = GenericEnrichmentRequest(
                 id=commit_sha,
-                text=COOKBOOK_TASK_PROMPT.format(
-                    repository_context=repository_context
-                ),
+                text=COOKBOOK_TASK_PROMPT.format(repository_context=repository_context),
                 system_prompt=COOKBOOK_SYSTEM_PROMPT,
             )
 
