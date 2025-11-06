@@ -162,49 +162,61 @@ class SqlAlchemyRepository(ABC, Generic[DomainEntityType, DatabaseEntityType]):
             return self.to_domain(db_entity)
 
     async def save_bulk(
-        self, entities: list[DomainEntityType]
+        self,
+        entities: list[DomainEntityType],
+        *,
+        skip_existence_check: bool = False,
     ) -> list[DomainEntityType]:
-        """Save multiple entities in bulk (create new or update existing)."""
+        """Save multiple entities in bulk (create new or update existing).
+
+        Args:
+            entities: List of domain entities to save
+            skip_existence_check: If True, skip checking if entities exist
+                (faster for new entities)
+
+        Returns:
+            List of saved domain entities
+
+        """
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
             all_saved_db_entities = []
 
             for chunk in self._chunked_domain(entities):
-                # Get IDs for all entities in chunk
-                entity_ids = [self._get_id(entity) for entity in chunk]
-
-                # Fetch all existing entities in one query
-                existing_entities = {}
-                for entity_id in entity_ids:
-                    # Skip None IDs (new entities not yet persisted)
-                    if entity_id is None:
-                        continue
-                    existing = await session.get(self.db_entity_type, entity_id)
-                    if existing:
-                        existing_entities[entity_id] = existing
-
-                # Process each entity
-                new_entities = []
-                chunk_db_entities = []
-                for entity in chunk:
-                    entity_id = self._get_id(entity)
-                    new_db_entity = self.to_db(entity)
-
-                    if entity_id in existing_entities:
-                        # Update existing entity
-                        existing = existing_entities[entity_id]
-                        self._update_db_entity(existing, new_db_entity)
-                        chunk_db_entities.append(existing)
-                    else:
-                        # Collect new entities to add
-                        new_entities.append(new_db_entity)
-                        chunk_db_entities.append(new_db_entity)
-
-                # Add all new entities at once
-                if new_entities:
+                if skip_existence_check:
+                    # Fast path: assume all entities are new
+                    new_entities = [self.to_db(entity) for entity in chunk]
                     session.add_all(new_entities)
+                    await session.flush()
+                    all_saved_db_entities.extend(new_entities)
+                else:
+                    # Fetch existing entities in a single bulk query
+                    existing_entities = await self._fetch_existing_entities_bulk(
+                        session, chunk
+                    )
 
-                await session.flush()
-                all_saved_db_entities.extend(chunk_db_entities)
+                    # Process each entity
+                    new_entities = []
+                    chunk_db_entities = []
+                    for entity in chunk:
+                        entity_id = self._get_id(entity)
+                        new_db_entity = self.to_db(entity)
+
+                        if entity_id in existing_entities:
+                            # Update existing entity
+                            existing = existing_entities[entity_id]
+                            self._update_db_entity(existing, new_db_entity)
+                            chunk_db_entities.append(existing)
+                        else:
+                            # Collect new entities to add
+                            new_entities.append(new_db_entity)
+                            chunk_db_entities.append(new_db_entity)
+
+                    # Add all new entities at once
+                    if new_entities:
+                        session.add_all(new_entities)
+
+                    await session.flush()
+                    all_saved_db_entities.extend(chunk_db_entities)
 
             return [self.to_domain(db) for db in all_saved_db_entities]
 
@@ -253,3 +265,69 @@ class SqlAlchemyRepository(ABC, Generic[DomainEntityType, DatabaseEntityType]):
         chunk_size = chunk_size or self._chunk_size
         for i in range(0, len(items), chunk_size):
             yield items[i : i + chunk_size]
+
+    async def _fetch_existing_entities_bulk(
+        self, session: AsyncSession, entities: list[DomainEntityType]
+    ) -> dict[Any, DatabaseEntityType]:
+        """Fetch existing entities in a single bulk query.
+
+        Handles both simple primary keys and composite primary keys.
+
+        Args:
+            session: SQLAlchemy session
+            entities: List of domain entities to check
+
+        Returns:
+            Dictionary mapping entity_id to database entity
+
+        """
+        from sqlalchemy import tuple_
+        from sqlalchemy.inspection import inspect
+
+        # Get entity IDs, filtering out None
+        entity_ids = [self._get_id(entity) for entity in entities]
+        entity_ids = [eid for eid in entity_ids if eid is not None]
+
+        if not entity_ids:
+            return {}
+
+        # Get primary key columns
+        mapper = inspect(self.db_entity_type)
+        if mapper is None:
+            return {}
+        pk_columns = [col.key for col in mapper.primary_key]
+
+        if len(pk_columns) == 1:
+            # Simple primary key - use IN clause
+            pk_col = getattr(self.db_entity_type, pk_columns[0])
+            stmt = select(self.db_entity_type).where(pk_col.in_(entity_ids))
+        else:
+            # Composite primary key - use tuple IN clause
+            pk_tuple = tuple_(
+                *[getattr(self.db_entity_type, col) for col in pk_columns]
+            )
+            stmt = select(self.db_entity_type).where(pk_tuple.in_(entity_ids))
+
+        # Execute query and build result dict
+        result = await session.scalars(stmt)
+        existing = result.all()
+
+        # Map entities by their ID for quick lookup
+        return {self._get_id_from_db(db_entity): db_entity for db_entity in existing}
+
+    def _get_id_from_db(self, db_entity: DatabaseEntityType) -> Any:
+        """Extract ID from database entity.
+
+        For simple primary keys, returns the value directly.
+        For composite keys, returns a tuple of values.
+        """
+        from sqlalchemy.inspection import inspect
+
+        mapper = inspect(self.db_entity_type)
+        if mapper is None:
+            return None
+        pk_columns = [col.key for col in mapper.primary_key]
+
+        if len(pk_columns) == 1:
+            return getattr(db_entity, pk_columns[0])
+        return tuple(getattr(db_entity, col) for col in pk_columns)

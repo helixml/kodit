@@ -44,7 +44,9 @@ class Repository[T](Protocol):
         """Save entity (create new or update existing)."""
         ...
 
-    async def save_bulk(self, entities: list[T]) -> list[T]:
+    async def save_bulk(
+        self, entities: list[T], *, skip_existence_check: bool = False
+    ) -> list[T]:
         """Save multiple entities in bulk (create new or update existing)."""
         ...
 
