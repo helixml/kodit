@@ -1,7 +1,7 @@
 """Simple integration tests for repository scanning."""
 
 import tempfile
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -53,9 +53,7 @@ async def test_incremental_scan_only_new_commits() -> None:
         full_count = len(full_result.all_commits)
 
         # Incremental scan with recent date (last 7 days)
-        since_date = datetime.now(UTC).replace(
-            day=datetime.now(UTC).day - 7, hour=0, minute=0, second=0, microsecond=0
-        )
+        since_date = datetime.now(UTC) - timedelta(days=7)
         inc_result = await scanner.scan_repository(
             clone_path, repo_id=1, since_date=since_date
         )
