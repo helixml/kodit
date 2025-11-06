@@ -112,7 +112,10 @@ async def test_git_repository_scanner_scan_repository(
         "abc123": sample_commit_data[0],
         "def456": sample_develop_commit,
     }
-    mock_git_adapter.get_branch_commit_shas.return_value = ["abc123", "def456"]
+    mock_git_adapter.get_all_branch_head_shas.return_value = {
+        "main": "abc123",
+        "develop": "def456",
+    }
 
     scanner = GitRepositoryScanner(mock_git_adapter)
     cloned_path = Path("/tmp/test-repo")
@@ -151,7 +154,7 @@ async def test_git_repository_scanner_empty_branch(
 
     # Setup new bulk operations for empty repository
     mock_git_adapter.get_all_commits_bulk.return_value = {}
-    mock_git_adapter.get_branch_commit_shas.return_value = []
+    mock_git_adapter.get_all_branch_head_shas.return_value = {}
 
     scanner = GitRepositoryScanner(mock_git_adapter)
     result = await scanner.scan_repository(Path("/tmp/test-repo"), repo_id=1)
@@ -191,7 +194,10 @@ async def test_git_repository_scanner_malformed_tag(
         "abc123": sample_commit_data[0],
         "def456": sample_develop_commit,
     }
-    mock_git_adapter.get_branch_commit_shas.return_value = ["abc123", "def456"]
+    mock_git_adapter.get_all_branch_head_shas.return_value = {
+        "main": "abc123",
+        "develop": "def456",
+    }
 
     scanner = GitRepositoryScanner(mock_git_adapter)
     result = await scanner.scan_repository(Path("/tmp/test-repo"), repo_id=1)
