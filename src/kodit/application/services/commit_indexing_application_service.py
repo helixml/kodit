@@ -387,44 +387,48 @@ class CommitIndexingApplicationService:
             trackable_type=TrackableType.KODIT_REPOSITORY,
             trackable_id=repository_id,
         ) as step:
-            await step.set_total(7)
+            await step.set_total(8)
             repo = await self.repo_repository.get(repository_id)
             if not repo.cloned_path:
                 raise ValueError(f"Repository {repository_id} has never been cloned")
 
+            # Pull latest changes from remote before scanning
+            await step.set_current(0, "Pulling latest changes from remote")
+            await self.cloner.pull_repository(repo)
+
             # Scan the repository to get all metadata
-            await step.set_current(0, "Scanning repository")
+            await step.set_current(1, "Scanning repository")
             scan_result = await self.scanner.scan_repository(
                 repo.cloned_path, repository_id
             )
 
             # Update repo with scan result (this sets num_commits, num_branches, etc.)
-            await step.set_current(1, "Updating repository with scan result")
+            await step.set_current(2, "Updating repository with scan result")
             repo.update_with_scan_result(scan_result)
             await self.repo_repository.save(repo)
 
-            await step.set_current(2, "Saving commits")
+            await step.set_current(3, "Saving commits")
             await self.git_commit_repository.save_bulk(scan_result.all_commits)
 
-            await step.set_current(3, "Processing and saving files in batches")
+            await step.set_current(4, "Processing and saving files in batches")
             total_files = await self._process_files_in_batches(
                 repo.cloned_path, scan_result.all_commits
             )
             self._log.info(f"Processed and saved {total_files} total files")
 
-            await step.set_current(4, "Saving branches")
+            await step.set_current(5, "Saving branches")
             if scan_result.branches:
                 await self.git_branch_repository.save_bulk(
                     scan_result.branches,
                 )
 
-            await step.set_current(5, "Saving tags")
+            await step.set_current(6, "Saving tags")
             if scan_result.all_tags:
                 await self.git_tag_repository.save_bulk(
                     scan_result.all_tags,
                 )
 
-            await step.set_current(6, "Enqueuing commit indexing tasks")
+            await step.set_current(7, "Enqueuing commit indexing tasks")
             if not repo.tracking_config.name:
                 raise ValueError(f"Repository {repository_id} has no tracking branch")
             if repo.tracking_config.type == TrackingType.BRANCH.value:
