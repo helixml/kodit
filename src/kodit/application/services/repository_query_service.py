@@ -29,21 +29,29 @@ class RepositoryQueryService:
     async def find_repo_by_url(self, repo_url: str) -> int | None:
         """Find a repository ID by its URL.
 
-        Matches against both remote_uri and sanitized_remote_uri.
+        Matches against both remote_uri and sanitized_remote_uri using fuzzy matching.
         """
         from kodit.infrastructure.sqlalchemy.query import FilterOperator, QueryBuilder
 
-        # Try to find by sanitized_remote_uri first (more common)
+        # Normalize the input URL to match how it's stored in the database
+        normalized_url = self._normalize_repo_url(repo_url)
+
+        # Try exact match first
         repos = await self.git_repo_repository.find(
-            QueryBuilder().filter("sanitized_remote_uri", FilterOperator.EQ, repo_url)
+            QueryBuilder().filter(
+                "sanitized_remote_uri", FilterOperator.ILIKE, str(normalized_url)
+            )
         )
 
         if repos:
             return repos[0].id
 
-        # Try to find by remote_uri
+        # Try fuzzy match with repo identifier (e.g., %quant-helper%)
+        fuzzy_pattern = self._extract_repo_identifier(repo_url)
         repos = await self.git_repo_repository.find(
-            QueryBuilder().filter("remote_uri", FilterOperator.EQ, repo_url)
+            QueryBuilder().filter(
+                "sanitized_remote_uri", FilterOperator.ILIKE, f"%{fuzzy_pattern}%"
+            )
         )
 
         if repos:
@@ -51,6 +59,47 @@ class RepositoryQueryService:
 
         self.log.warning("Repository not found by URL", repo_url=repo_url)
         return None
+
+    def _normalize_repo_url(self, url: str) -> str:
+        """Normalize a repository URL for consistent matching.
+
+        Handles URLs with or without protocol (https://).
+        """
+        from kodit.domain.entities import WorkingCopy
+
+        # If URL doesn't start with a protocol, assume https://
+        if not url.startswith(("http://", "https://", "ssh://", "git@", "file://")):
+            url = f"https://{url}"
+
+        # Use the same sanitization logic as when storing repos
+        try:
+            sanitized = WorkingCopy.sanitize_git_url(url)
+            return str(sanitized)
+        except ValueError:
+            # If sanitization fails, return the original URL
+            return url
+
+    def _extract_repo_identifier(self, url: str) -> str:
+        """Extract the repository identifier for fuzzy matching.
+
+        Examples:
+            - "quant-helper" -> "quant-helper"
+            - "github.com/philwinder/quant-helper" -> "quant-helper"
+            - "https://github.com/philwinder/quant-helper" -> "quant-helper"
+
+        """
+        # Remove protocol if present
+        url = url.replace("https://", "").replace("http://", "")
+        url = url.replace("ssh://", "").replace("git@", "")
+
+        # Split by '/' and get the last non-empty part (repo name)
+        parts = [p for p in url.split("/") if p]
+        if parts:
+            # Remove .git suffix if present
+            return parts[-1].replace(".git", "")
+
+        # If no parts, return the original (cleaned) url
+        return url
 
     async def find_latest_commit(
         self,
