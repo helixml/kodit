@@ -209,6 +209,13 @@ async def test_file_saving_performance_ray_repo(
         file_repository = create_git_file_repository(
             session_factory=performance_session_factory
         )
+        from kodit.infrastructure.sqlalchemy.git_commit_repository import (
+            create_git_commit_repository,
+        )
+
+        commit_repository = create_git_commit_repository(
+            session_factory=performance_session_factory
+        )
 
         # Create repository entity
         repo = GitRepoFactory.create_from_remote_uri(repo_url)
@@ -220,6 +227,9 @@ async def test_file_saving_performance_ray_repo(
         scanner = GitRepositoryScanner(git_adapter)
         scan_result = await scanner.scan_repository(cloned_path, repo.id)
         sys.stderr.write(f"Found {len(scan_result.all_commits)} commits\n")
+
+        # Save commits to satisfy foreign key constraint
+        await commit_repository.save_bulk(scan_result.all_commits)
 
         # Now benchmark the file processing and saving
         instrumented_service = InstrumentedFileSavingService(
