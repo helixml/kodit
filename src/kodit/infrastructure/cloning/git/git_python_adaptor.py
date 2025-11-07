@@ -624,23 +624,14 @@ class GitPythonAdapter(GitAdapter):
     async def get_default_branch(self, local_path: Path) -> str:
         """Get the default branch name from origin/HEAD."""
         repo = Repo(local_path)
-        # Check if origin/HEAD exists
         if not hasattr(repo.remotes, "origin"):
             raise ValueError(f"Repository {local_path} has no origin remote")
 
         origin = repo.remotes.origin
-        # Get the symbolic reference for origin/HEAD
-        for ref in origin.refs:
-            if ref.name == "origin/HEAD":
-                # Extract branch name from the symbolic reference
-                # refs/remotes/origin/HEAD -> origin/main -> main
-                if not ref.is_detached:
-                    # Get the target branch name (e.g., origin/main -> main)
-                    target = str(ref.ref)
-                    if target.startswith("refs/remotes/origin/"):
-                        return target.replace("refs/remotes/origin/", "")
-                raise ValueError(f"Repository {local_path} has no default branch")
-        raise ValueError(f"Repository {local_path} has no origin/HEAD")
+        try:
+            return origin.refs.HEAD.ref.name.removeprefix("origin/")
+        except (AttributeError, IndexError) as e:
+            raise ValueError(f"Repository {local_path} has no default branch") from e
 
     async def get_latest_commit_sha(
         self, local_path: Path, branch_name: str = "HEAD"
