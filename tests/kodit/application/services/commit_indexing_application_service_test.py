@@ -1,10 +1,12 @@
 """Tests for the CommitIndexingApplicationService."""
 
+import tempfile
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import git
 import pytest
 from pydantic import AnyUrl
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -35,6 +37,7 @@ from kodit.domain.services.physical_architecture_service import (
     PhysicalArchitectureService,
 )
 from kodit.domain.value_objects import Enrichment
+from kodit.infrastructure.cloning.git.git_python_adaptor import GitPythonAdapter
 from kodit.infrastructure.slicing.slicer import Slicer
 from kodit.infrastructure.sqlalchemy import entities as db_entities
 from kodit.infrastructure.sqlalchemy.embedding_repository import (
@@ -375,5 +378,153 @@ async def test_process_scan_commit_scans_single_commit(
     )
     assert len(saved_files) == 1
     assert saved_files[0].blob_sha == "file1"
+
+
+@pytest.mark.asyncio
+async def test_sync_branches_and_tags_with_real_git(  # noqa: PLR0915
+    session_factory: Callable[[], AsyncSession],
+    mock_progress_tracker: MagicMock,
+) -> None:
+    """Test that _sync_branches_and_tags properly syncs branches and tags."""
+    # Create a real temporary git repository
+    with tempfile.TemporaryDirectory() as tmpdir:
+        repo_path = Path(tmpdir) / "test-repo"
+        repo_path.mkdir()
+
+        # Initialize git repo
+        git_repo = git.Repo.init(repo_path)
+
+        # Configure git user for commits
+        with git_repo.config_writer() as cw:
+            cw.set_value("user", "name", "Test User")
+            cw.set_value("user", "email", "test@example.com")
+
+        # Create some commits
+        test_file = repo_path / "test.txt"
+        test_file.write_text("initial content")
+        git_repo.index.add(["test.txt"])
+        commit1 = git_repo.index.commit("Initial commit")
+
+        # Create branches
+        git_repo.create_head("develop", commit1.hexsha)
+
+        # Make another commit on main
+        test_file.write_text("updated content")
+        git_repo.index.add(["test.txt"])
+        commit2 = git_repo.index.commit("Second commit")
+
+        # Create another branch from commit2
+        git_repo.create_head("feature-1", commit2.hexsha)
+
+        # Create tags
+        git_repo.create_tag("v1.0.0", ref=commit1.hexsha, message="Version 1.0.0")
+        git_repo.create_tag("v1.1.0", ref=commit2.hexsha, message="Version 1.1.0")
+
+        # Now set up the service with real components
+        queue_service = QueueService(session_factory=session_factory)
+        repo_repository = create_git_repo_repository(session_factory=session_factory)
+        git_commit_repository = create_git_commit_repository(
+            session_factory=session_factory
+        )
+        git_branch_repository = create_git_branch_repository(
+            session_factory=session_factory
+        )
+        git_file_repository = create_git_file_repository(
+            session_factory=session_factory
+        )
+        git_tag_repository = create_git_tag_repository(session_factory=session_factory)
+        embedding_repository = create_embedding_repository(
+            session_factory=session_factory
+        )
+        enrichment_v2_repository = create_enrichment_v2_repository(
+            session_factory=session_factory
+        )
+        enrichment_association_repository = create_enrichment_association_repository(
+            session_factory=session_factory
+        )
+
+        git_adapter = GitPythonAdapter()
+        scanner = GitRepositoryScanner(git_adapter)
+
+        service = CommitIndexingApplicationService(
+            repo_repository=repo_repository,
+            git_commit_repository=git_commit_repository,
+            git_branch_repository=git_branch_repository,
+            git_tag_repository=git_tag_repository,
+            git_file_repository=git_file_repository,
+            operation=mock_progress_tracker,
+            scanner=scanner,
+            cloner=MagicMock(),
+            slicer=MagicMock(spec=Slicer),
+            queue=queue_service,
+            bm25_service=AsyncMock(spec=BM25DomainService),
+            code_search_service=AsyncMock(spec=EmbeddingDomainService),
+            text_search_service=AsyncMock(spec=EmbeddingDomainService),
+            embedding_repository=embedding_repository,
+            architecture_service=AsyncMock(spec=PhysicalArchitectureService),
+            cookbook_context_service=MagicMock(),
+            database_schema_detector=MagicMock(),
+            enrichment_v2_repository=enrichment_v2_repository,
+            enrichment_association_repository=enrichment_association_repository,
+            enricher_service=AsyncMock(),
+            enrichment_query_service=AsyncMock(),
+            repository_query_service=AsyncMock(),
+        )
+
+        # Create and save repository entity
+        repo = GitRepoFactory.create_from_remote_uri(
+            AnyUrl("https://github.com/test/repo.git")
+        )
+        repo.cloned_path = repo_path
+        repo = await service.repo_repository.save(repo)
+        assert repo.id is not None
+
+        # Save the commits to satisfy foreign key constraints
+        for commit_obj in [commit1, commit2]:
+            commit = GitCommit(
+                commit_sha=commit_obj.hexsha,
+                repo_id=repo.id,
+                message=str(commit_obj.message),
+                author=str(commit_obj.author),
+                date=datetime.fromtimestamp(commit_obj.committed_date, UTC),
+            )
+            await service.git_commit_repository.save(commit)
+
+        # Sync branches and tags
+        await service._sync_branches_and_tags(repo)  # noqa: SLF001
+
+        # Verify branches were saved
+        branches = await git_branch_repository.get_by_repo_id(repo.id)
+        assert len(branches) == 3, f"Expected 3 branches, got {len(branches)}"
+
+        branch_names = {branch.name for branch in branches}
+        # Note: default branch might be 'main' or 'master' depending on git config
+        assert (
+            "master" in branch_names or "main" in branch_names
+        ), f"Expected main/master branch, got {branch_names}"
+        assert "develop" in branch_names
+        assert "feature-1" in branch_names
+
+        # Verify each branch has a valid commit SHA
+        for branch in branches:
+            assert branch.head_commit_sha is not None
+            assert len(branch.head_commit_sha) == 40
+
+        # Verify tags were saved
+        tags = await git_tag_repository.get_by_repo_id(repo.id)
+        assert len(tags) == 2, f"Expected 2 tags, got {len(tags)}"
+
+        tag_names = {tag.name for tag in tags}
+        assert tag_names == {"v1.0.0", "v1.1.0"}
+
+        # Verify each tag points to correct commit
+        for tag in tags:
+            assert tag.target_commit_sha is not None
+            assert len(tag.target_commit_sha) == 40
+
+        # Verify repo metadata was updated
+        updated_repo = await service.repo_repository.get(repo.id)
+        assert updated_repo.num_branches == 3
+        assert updated_repo.num_tags == 2
 
 
