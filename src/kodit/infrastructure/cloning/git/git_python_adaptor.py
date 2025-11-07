@@ -621,6 +621,18 @@ class GitPythonAdapter(GitAdapter):
             self.executor, _get_file_content
         )
 
+    async def get_default_branch(self, local_path: Path) -> str:
+        """Get the default branch name from origin/HEAD."""
+        repo = Repo(local_path)
+        if not hasattr(repo.remotes, "origin"):
+            raise ValueError(f"Repository {local_path} has no origin remote")
+
+        origin = repo.remotes.origin
+        try:
+            return origin.refs.HEAD.ref.name.removeprefix("origin/")
+        except (AttributeError, IndexError) as e:
+            raise ValueError(f"Repository {local_path} has no default branch") from e
+
     async def get_latest_commit_sha(
         self, local_path: Path, branch_name: str = "HEAD"
     ) -> str:
@@ -635,7 +647,7 @@ class GitPythonAdapter(GitAdapter):
                     branch = repo.branches[branch_name]
                     commit_sha = branch.commit.hexsha
             except Exception as e:
-                self._log.error(
+                self._log.debug(
                     f"Failed to get latest commit for {branch_name} in "
                     f"{local_path}: {e}"
                 )

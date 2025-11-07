@@ -30,7 +30,7 @@ class RepositoryAttributes(BaseModel):
             created_at=repo.created_at,
             updated_at=repo.updated_at,
             last_scanned_at=repo.last_scanned_at,
-            tracking_branch=repo.tracking_config.name,
+            tracking_branch=repo.tracking_config.name if repo.tracking_config else None,
             num_commits=repo.num_commits,
             num_branches=repo.num_branches,
             num_tags=repo.num_tags,

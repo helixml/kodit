@@ -11,12 +11,9 @@ from pydantic import AnyUrl
 
 from kodit.domain.entities import WorkingCopy
 from kodit.domain.entities.git import (
-    GitBranch,
     GitCommit,
     GitFile,
     GitRepo,
-    GitTag,
-    RepositoryScanResult,
 )
 from kodit.domain.protocols import GitAdapter
 
@@ -43,104 +40,47 @@ class GitRepositoryScanner:
         self._log = structlog.getLogger(__name__)
         self.git_adapter = git_adapter
 
-    async def scan_repository(
+    async def scan_commit(
         self,
         cloned_path: Path,
+        commit_sha: str,
         repo_id: int,
-        since_date: datetime | None = None,
-    ) -> RepositoryScanResult:
-        """Scan repository and return immutable result data.
+    ) -> tuple[GitCommit, list[GitFile]]:
+        """Scan a specific commit and return commit with its files.
 
         Args:
             cloned_path: Path to the cloned repository
+            commit_sha: SHA of the commit to scan
             repo_id: Repository ID
-            since_date: Optional date to scan commits after (for incremental scanning)
 
         Returns:
-            Scan result with commits, branches, and tags
+            Tuple of (commit, files) for the scanned commit
 
         """
-        if since_date:
-            self._log.info(
-                f"Starting incremental repository scan at: {cloned_path} "
-                f"(since {since_date})"
-            )
-        else:
-            self._log.info(f"Starting full repository scan at: {cloned_path}")
+        self._log.info(f"Scanning commit {commit_sha[:8]} at: {cloned_path}")
 
-        # Get all data in bulk for maximum efficiency
-        branch_data = await self.git_adapter.get_all_branches(cloned_path)
-        self._log.info(f"Found {len(branch_data)} branches")
+        # Get commit details
+        commit_data = await self.git_adapter.get_commit_details(cloned_path, commit_sha)
 
-        # Get commits (all or incremental based on since_date)
-        all_commits_data = await self.git_adapter.get_all_commits_bulk(
-            cloned_path, since_date=since_date
+        # Create GitCommit entity
+        git_commit = self._create_lightweight_git_commit(
+            commit_data, datetime.now(UTC), repo_id
         )
-        self._log.info(f"Found {len(all_commits_data)} unique commits")
+        if not git_commit:
+            raise ValueError(f"Failed to create commit object for {commit_sha}")
 
-        # Process branches efficiently using bulk commit data
-        branches, commit_cache = await self._process_branches_bulk(
-            cloned_path, branch_data, all_commits_data, repo_id
+        # Get files for this commit
+        files_data = await self.git_adapter.get_commit_file_data(
+            cloned_path, commit_sha
         )
-        self._log.info(f"Found {len(branches)} branches")
-        tags = await self._process_tags(cloned_path, commit_cache, repo_id)
-        self._log.info(f"Found {len(tags)} tags")
+        files = self._create_git_files(cloned_path, files_data, commit_sha)
 
-        # Don't load all files into memory - return empty list
-        # Files will be processed in batches by the application service
-        self._log.info("Deferring file processing to avoid memory exhaustion")
-
-        return self._create_scan_result(branches, commit_cache, tags, [], cloned_path)
-
-    async def _process_branches_bulk(
-        self,
-        cloned_path: Path,
-        branch_data: list[dict],
-        all_commits_data: dict[str, dict[str, Any]],
-        repo_id: int,
-    ) -> tuple[list[GitBranch], dict[str, GitCommit]]:
-        """Process branches efficiently using bulk commit data."""
-        branches = []
-        commit_cache: dict[str, GitCommit] = {}
-
-        # Cache expensive operations
-        current_time = datetime.now(UTC)
-
-        # Create lightweight commits without file data (major optimization)
-        self._log.info(f"Processing {len(all_commits_data)} commits (metadata only)")
-
-        for commit_sha, commit_data in all_commits_data.items():
-            git_commit = self._create_lightweight_git_commit(
-                commit_data, current_time, repo_id
-            )
-            if git_commit:
-                commit_cache[commit_sha] = git_commit
-
-        # Get all branch head SHAs in one operation (major optimization)
-        branch_names = [branch_info["name"] for branch_info in branch_data]
-        branch_head_shas = await self.git_adapter.get_all_branch_head_shas(
-            cloned_path, branch_names
+        self._log.info(
+            f"Scanned commit {commit_sha[:8]}: found {len(files)} files"
         )
 
-        # Now process branches using the pre-built commit cache and head SHAs
-        for branch_info in branch_data:
-            branch_name = branch_info["name"]
-            head_sha = branch_head_shas.get(branch_name)
+        return git_commit, files
 
-            if head_sha and head_sha in commit_cache:
-                head_commit = commit_cache[head_sha]
-                branch = GitBranch(
-                    repo_id=repo_id,
-                    created_at=current_time,
-                    name=branch_name,
-                    head_commit_sha=head_commit.commit_sha,
-                )
-                branches.append(branch)
-                self._log.debug(f"Processed branch: {branch_name}")
-            else:
-                self._log.warning("No head commit found for branch %s", branch_name)
-
-        return branches, commit_cache
 
     def _format_author_from_data(self, commit_data: dict[str, Any]) -> str:
         """Format author string from commit data."""
@@ -173,93 +113,6 @@ class GitRepositoryScanner:
             self._log.warning(f"Failed to create commit {commit_data.get('sha')}: {e}")
             return None
 
-    async def _process_branches(
-        self, cloned_path: Path, branch_data: list[dict], repo_id: int
-    ) -> tuple[list[GitBranch], dict[str, GitCommit]]:
-        """Process branches and return branches with commit cache."""
-        branches = []
-        commit_cache: dict[str, GitCommit] = {}
-
-        for branch_info in branch_data:
-            branch = await self._process_single_branch(
-                cloned_path, branch_info, commit_cache, repo_id
-            )
-            if branch:
-                branches.append(branch)
-
-        return branches, commit_cache
-
-    async def _process_single_branch(
-        self,
-        cloned_path: Path,
-        branch_info: dict,
-        commit_cache: dict[str, GitCommit],
-        repo_id: int,
-    ) -> GitBranch | None:
-        """Process a single branch and return GitBranch or None."""
-        self._log.info(f"Processing branch: {branch_info['name']}")
-
-        commits_data = await self.git_adapter.get_branch_commits(
-            cloned_path, branch_info["name"]
-        )
-
-        if not commits_data:
-            self._log.warning(f"No commits found for branch {branch_info['name']}")
-            return None
-
-        head_commit = await self._process_branch_commits(commits_data, commit_cache)
-
-        if head_commit:
-            return GitBranch(
-                repo_id=repo_id,
-                created_at=datetime.now(UTC),
-                name=branch_info["name"],
-                head_commit_sha=head_commit.commit_sha,
-            )
-        return None
-
-    async def _process_branch_commits(
-        self,
-        commits_data: list[dict],
-        commit_cache: dict[str, GitCommit],
-    ) -> GitCommit | None:
-        """Process commits for a branch and return head commit."""
-        head_commit = None
-
-        for commit_data in commits_data:
-            commit_sha = commit_data["sha"]
-
-            # Use cached commit if already processed
-            if commit_sha in commit_cache:
-                if head_commit is None:
-                    head_commit = commit_cache[commit_sha]
-                continue
-
-            git_commit = await self._create_git_commit(commit_data)
-            if git_commit:
-                commit_cache[commit_sha] = git_commit
-                if head_commit is None:
-                    head_commit = git_commit
-
-        return head_commit
-
-    async def _create_git_commit(
-        self, commit_data: dict, repo_id: int | None = None
-    ) -> GitCommit | None:
-        """Create GitCommit from commit data."""
-        commit_sha = commit_data["sha"]
-
-        author = self._format_author(commit_data)
-
-        return GitCommit(
-            created_at=datetime.now(UTC),
-            commit_sha=commit_sha,
-            repo_id=repo_id or 0,  # Use 0 as default if not provided
-            date=commit_data["date"],
-            message=commit_data["message"],
-            parent_commit_sha=commit_data["parent_sha"],
-            author=author,
-        )
 
     def _create_git_files(
         self, cloned_path: Path, files_data: list[dict], commit_sha: str
@@ -288,64 +141,6 @@ class GitRepositoryScanner:
             )
         return result
 
-    def _format_author(self, commit_data: dict) -> str:
-        """Format author string from commit data."""
-        author_name = commit_data.get("author_name", "")
-        author_email = commit_data.get("author_email", "")
-        if author_name and author_email:
-            return f"{author_name} <{author_email}>"
-        return author_name or "Unknown"
-
-    async def _process_tags(
-        self, cloned_path: Path, commit_cache: dict[str, GitCommit], repo_id: int
-    ) -> list[GitTag]:
-        """Process repository tags."""
-        tag_data = await self.git_adapter.get_all_tags(cloned_path)
-        tags = []
-        for tag_info in tag_data:
-            try:
-                target_commit = commit_cache[tag_info["target_commit_sha"]]
-                git_tag = GitTag(
-                    repo_id=repo_id,
-                    name=tag_info["name"],
-                    target_commit_sha=target_commit.commit_sha,
-                    created_at=target_commit.created_at or datetime.now(UTC),
-                    updated_at=target_commit.updated_at or datetime.now(UTC),
-                )
-                tags.append(git_tag)
-            except (KeyError, ValueError) as e:
-                self._log.warning(
-                    f"Failed to process tag {tag_info.get('name', 'unknown')}: {e}"
-                )
-                continue
-
-        self._log.info(f"Found {len(tags)} tags")
-        return tags
-
-    def _create_scan_result(
-        self,
-        branches: list[GitBranch],
-        commit_cache: dict[str, GitCommit],
-        tags: list[GitTag],
-        all_files: list[GitFile],  # noqa: ARG002
-        cloned_path: Path | None = None,  # noqa: ARG002
-    ) -> RepositoryScanResult:
-        """Create final scan result."""
-        # Files list is empty to avoid memory issues - will be processed in batches
-        scan_result = RepositoryScanResult(
-            branches=branches,
-            all_commits=list(commit_cache.values()),
-            scan_timestamp=datetime.now(UTC),
-            total_files_across_commits=0,  # Will be updated after batch processing
-            all_tags=tags,
-            all_files=[],  # Empty - processed in batches to avoid memory exhaustion
-        )
-
-        self._log.info(
-            f"Scan completed. Found {len(branches)} branches with "
-            f"{len(commit_cache)} unique commits"
-        )
-        return scan_result
 
     async def process_files_for_commits_batch(
         self, cloned_path: Path, commit_shas: list[str]

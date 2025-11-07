@@ -125,7 +125,13 @@ async def get_repository(
     recent_commits = []
     # Get the tracking branch from the branch repository
     tracking_branch = next(
-        (b for b in repo_branches if b.name == repo.tracking_config.name), None
+        (
+            b
+            for b in repo_branches
+            if repo.tracking_config
+            if b.name == repo.tracking_config.name
+        ),
+        None,
     )
     if tracking_branch and tracking_branch.head_commit_sha:
         # For simplicity, just show the head commit and traverse back if needed
@@ -158,7 +164,9 @@ async def get_repository(
         branch_data.append(
             RepositoryBranchData(
                 name=branch.name,
-                is_default=branch.name == repo.tracking_config.name,
+                is_default=branch.name == repo.tracking_config.name
+                if repo.tracking_config
+                else False,
                 commit_count=branch_commit_count,
             )
         )

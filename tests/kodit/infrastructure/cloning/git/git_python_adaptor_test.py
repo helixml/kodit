@@ -544,3 +544,71 @@ async def test_concurrent_operations(git_adapter: GitPythonAdapter) -> None:
 
         assert all(results)
         assert mock_repo_class.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_get_default_branch_main(
+    git_adapter: GitPythonAdapter,
+) -> None:
+    """Test get_default_branch returns main branch."""
+    import tempfile
+
+    from git import Repo as GitRepo
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        repo_path = Path(tmpdir) / "test-repo"
+        repo_path.mkdir()
+
+        # Initialize a git repo with main as default branch
+        repo = GitRepo.init(repo_path, initial_branch="main")
+
+        # Create an initial commit
+        test_file = repo_path / "README.md"
+        test_file.write_text("# Test Repo")
+        repo.index.add(["README.md"])
+        repo.index.commit("Initial commit")
+
+        # Add a fake remote origin
+        repo.create_remote("origin", "https://github.com/test/repo.git")
+
+        # Set origin/HEAD to point to origin/main
+        # This simulates what happens when you clone a repo
+        repo.git.symbolic_ref("refs/remotes/origin/HEAD", "refs/remotes/origin/main")
+
+        result = await git_adapter.get_default_branch(repo_path)
+
+        assert result == "main"
+
+
+@pytest.mark.asyncio
+async def test_get_default_branch_master(
+    git_adapter: GitPythonAdapter,
+) -> None:
+    """Test get_default_branch returns master branch."""
+    import tempfile
+
+    from git import Repo as GitRepo
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        repo_path = Path(tmpdir) / "test-repo"
+        repo_path.mkdir()
+
+        # Initialize a git repo with master as default branch
+        repo = GitRepo.init(repo_path, initial_branch="master")
+
+        # Create an initial commit
+        test_file = repo_path / "README.md"
+        test_file.write_text("# Test Repo")
+        repo.index.add(["README.md"])
+        repo.index.commit("Initial commit")
+
+        # Add a fake remote origin
+        repo.create_remote("origin", "https://github.com/test/repo.git")
+
+        # Set origin/HEAD to point to origin/master
+        # This simulates what happens when you clone a repo
+        repo.git.symbolic_ref("refs/remotes/origin/HEAD", "refs/remotes/origin/master")
+
+        result = await git_adapter.get_default_branch(repo_path)
+
+        assert result == "master"

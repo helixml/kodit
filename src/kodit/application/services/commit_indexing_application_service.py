@@ -1,6 +1,7 @@
 """Application services for commit indexing operations."""
 
 from collections import defaultdict
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -15,6 +16,9 @@ from kodit.infrastructure.sqlalchemy.query import FilterOperator, QueryBuilder
 if TYPE_CHECKING:
     from kodit.application.services.enrichment_query_service import (
         EnrichmentQueryService,
+    )
+    from kodit.application.services.repository_query_service import (
+        RepositoryQueryService,
     )
 from kodit.domain.enrichments.architecture.database_schema.database_schema import (
     DatabaseSchemaEnrichment,
@@ -45,7 +49,6 @@ from kodit.domain.entities.git import (
     GitFile,
     GitRepo,
     SnippetV2,
-    TrackingType,
 )
 from kodit.domain.factories.git_repo_factory import GitRepoFactory
 from kodit.domain.protocols import (
@@ -197,6 +200,7 @@ class CommitIndexingApplicationService:
         enrichment_v2_repository: EnrichmentV2Repository,
         enrichment_association_repository: EnrichmentAssociationRepository,
         enrichment_query_service: "EnrichmentQueryService",
+        repository_query_service: "RepositoryQueryService",
     ) -> None:
         """Initialize the commit indexing application service."""
         self.repo_repository = repo_repository
@@ -220,6 +224,7 @@ class CommitIndexingApplicationService:
         self.enrichment_association_repository = enrichment_association_repository
         self.enricher_service = enricher_service
         self.enrichment_query_service = enrichment_query_service
+        self.repository_query_service = repository_query_service
         self._log = structlog.get_logger(__name__)
 
     async def create_git_repository(self, remote_uri: AnyUrl) -> tuple[GitRepo, bool]:
@@ -278,8 +283,8 @@ class CommitIndexingApplicationService:
                 raise ValueError("Repository ID is required")
             if task.type == TaskOperation.CLONE_REPOSITORY:
                 await self.process_clone_repo(repo_id)
-            elif task.type == TaskOperation.SCAN_REPOSITORY:
-                await self.process_scan_repo(repo_id)
+            elif task.type == TaskOperation.SYNC_REPOSITORY:
+                await self.process_sync_repo(repo_id)
             elif task.type == TaskOperation.DELETE_REPOSITORY:
                 await self.process_delete_repo(repo_id)
             else:
@@ -291,7 +296,9 @@ class CommitIndexingApplicationService:
             commit_sha = task.payload["commit_sha"]
             if not commit_sha:
                 raise ValueError("Commit SHA is required")
-            if task.type == TaskOperation.EXTRACT_SNIPPETS_FOR_COMMIT:
+            if task.type == TaskOperation.SCAN_COMMIT:
+                await self.process_scan_commit(repository_id, commit_sha)
+            elif task.type == TaskOperation.EXTRACT_SNIPPETS_FOR_COMMIT:
                 await self.process_snippets_for_commit(repository_id, commit_sha)
             elif task.type == TaskOperation.CREATE_BM25_INDEX_FOR_COMMIT:
                 await self.process_bm25_index(repository_id, commit_sha)
@@ -378,7 +385,7 @@ class CommitIndexingApplicationService:
         return total_files
 
     async def process_clone_repo(self, repository_id: int) -> None:
-        """Clone a repository."""
+        """Clone a repository and enqueue head commit scan."""
         async with self.operation.create_child(
             TaskOperation.CLONE_REPOSITORY,
             trackable_type=TrackableType.KODIT_REPOSITORY,
@@ -386,104 +393,116 @@ class CommitIndexingApplicationService:
         ):
             repo = await self.repo_repository.get(repository_id)
             repo.cloned_path = await self.cloner.clone_repository(repo.remote_uri)
+
+            if not repo.tracking_config:
+                repo.tracking_config = (
+                    await self.repository_query_service.get_tracking_config(repo)
+                )
+
             await self.repo_repository.save(repo)
 
-    async def process_scan_repo(self, repository_id: int) -> None:
-        """Scan a repository."""
+            # Resolve the head commit SHA and enqueue scan + indexing
+            commit_sha = (
+                await self.repository_query_service.resolve_tracked_commit_from_git(
+                    repo
+                )
+            )
+            self._log.info(
+                f"Enqueuing scan for head commit {commit_sha[:8]} "
+                f"of repository {repository_id}"
+            )
+
+            await self.queue.enqueue_tasks(
+                tasks=PrescribedOperations.SCAN_AND_INDEX_COMMIT,
+                base_priority=QueuePriority.USER_INITIATED,
+                payload={"commit_sha": commit_sha, "repository_id": repository_id},
+            )
+
+    # TODO(Phil): We should do a fetch here, then trigger scans for tracking things or
+    # other things.
+    async def process_sync_repo(self, repository_id: int) -> None:
+        """Sync a repository by pulling and scanning head commit if changed."""
         async with self.operation.create_child(
-            TaskOperation.SCAN_REPOSITORY,
+            TaskOperation.SYNC_REPOSITORY,
             trackable_type=TrackableType.KODIT_REPOSITORY,
             trackable_id=repository_id,
-        ) as step:
-            await step.set_total(8)
+        ):
             repo = await self.repo_repository.get(repository_id)
             if not repo.cloned_path:
                 raise ValueError(f"Repository {repository_id} has never been cloned")
 
-            # Pull latest changes from remote before scanning
-            await step.set_current(0, "Pulling latest changes from remote")
+            # Pull latest changes from remote
             await self.cloner.pull_repository(repo)
 
-            # Check for incremental vs full scan
-            # Get the latest commit date to determine if we can do incremental scan
-            from kodit.infrastructure.sqlalchemy.query import (
-                FilterOperator,
-                QueryBuilder,
+            # Resolve the head commit SHA
+            commit_sha = (
+                await self.repository_query_service.resolve_tracked_commit_from_git(
+                    repo
+                )
+            )
+            self._log.info(
+                f"Syncing repository {repository_id}, head commit is {commit_sha[:8]}"
             )
 
-            query = (
-                QueryBuilder()
-                .filter("repo_id", FilterOperator.EQ, repository_id)
-                .sort("date", descending=True)
-                .paginate(type("Pagination", (), {"limit": 1, "offset": 0})())
-            )
-            latest_commits = await self.git_commit_repository.find(query)
-            since_date = latest_commits[0].date if latest_commits else None
-
-            if since_date:
-                await step.set_current(
-                    1, f"Scanning repository (incremental since {since_date})"
-                )
-            else:
-                await step.set_current(1, "Scanning repository (full scan)")
-
-            # Scan the repository to get all metadata
-            scan_result = await self.scanner.scan_repository(
-                repo.cloned_path, repository_id, since_date=since_date
+            # Check if we've already scanned this commit
+            existing_commit = await self.git_commit_repository.find(
+                QueryBuilder().filter("commit_sha", FilterOperator.EQ, commit_sha)
             )
 
-            # Update repo with scan result (this sets num_commits, num_branches, etc.)
-            await step.set_current(2, "Updating repository with scan result")
-            repo.update_with_scan_result(scan_result)
-            await self.repo_repository.save(repo)
+            if existing_commit:
+                self._log.info(
+                    f"Commit {commit_sha[:8]} already scanned, sync complete"
+                )
+                return
 
-            await step.set_current(3, "Saving commits")
-            await self.git_commit_repository.save_bulk(scan_result.all_commits)
-
-            await step.set_current(4, "Processing and saving files in batches")
-            is_incremental_scan = since_date is not None
-            total_files = await self._process_files_in_batches(
-                repo.cloned_path,
-                scan_result.all_commits,
-                is_incremental=is_incremental_scan,
+            # New commit detected, enqueue scan and indexing
+            self._log.info(
+                f"New commit {commit_sha[:8]} detected, enqueuing scan and indexing"
             )
-            self._log.info(f"Processed and saved {total_files} total files")
-
-            await step.set_current(5, "Saving branches")
-            if scan_result.branches:
-                await self.git_branch_repository.save_bulk(
-                    scan_result.branches,
-                )
-
-            await step.set_current(6, "Saving tags")
-            if scan_result.all_tags:
-                await self.git_tag_repository.save_bulk(
-                    scan_result.all_tags,
-                )
-
-            await step.set_current(7, "Enqueuing commit indexing tasks")
-            if not repo.tracking_config.name:
-                raise ValueError(f"Repository {repository_id} has no tracking branch")
-            if repo.tracking_config.type == TrackingType.BRANCH.value:
-                branch = await self.git_branch_repository.get_by_name(
-                    repo.tracking_config.name, repository_id
-                )
-                commit_sha = branch.head_commit_sha
-            elif repo.tracking_config.type == TrackingType.TAG.value:
-                tag = await self.git_tag_repository.get_by_name(
-                    repo.tracking_config.name, repository_id
-                )
-                commit_sha = tag.target_commit_sha
-            elif repo.tracking_config.type == TrackingType.COMMIT_SHA.value:
-                commit_sha = repo.tracking_config.name
-            else:
-                raise ValueError(f"Unknown tracking type: {repo.tracking_config.type}")
-
             await self.queue.enqueue_tasks(
-                tasks=PrescribedOperations.INDEX_COMMIT,
-                base_priority=QueuePriority.USER_INITIATED,
+                tasks=PrescribedOperations.SCAN_AND_INDEX_COMMIT,
+                base_priority=QueuePriority.BACKGROUND,
                 payload={"commit_sha": commit_sha, "repository_id": repository_id},
             )
+
+    async def process_scan_commit(self, repository_id: int, commit_sha: str) -> None:
+        """Scan a specific commit and save to database."""
+        async with self.operation.create_child(
+            TaskOperation.SCAN_COMMIT,
+            trackable_type=TrackableType.KODIT_REPOSITORY,
+            trackable_id=repository_id,
+        ) as step:
+            # Check if we've already scanned this commit
+            existing_commit = await self.git_commit_repository.find(
+                QueryBuilder().filter("commit_sha", FilterOperator.EQ, commit_sha)
+            )
+
+            if existing_commit:
+                await step.skip("Commit already scanned")
+                return
+
+            # Get repository
+            repo = await self.repo_repository.get(repository_id)
+            if not repo.cloned_path:
+                raise ValueError(f"Repository {repository_id} has never been cloned")
+
+            # Scan the specific commit
+            commit, files = await self.scanner.scan_commit(
+                repo.cloned_path, commit_sha, repository_id
+            )
+
+            # Save commit and files
+            await self.git_commit_repository.save(commit)
+            if files:
+                await self.git_file_repository.save_bulk(files)
+            self._log.info(
+                f"Scanned and saved commit {commit_sha[:8]} with {len(files)} files"
+            )
+
+            # Update repository metadata
+            repo.last_scanned_at = datetime.now(UTC)
+            repo.num_commits = 1  # We only scanned one commit
+            await self.repo_repository.save(repo)
 
     async def _delete_snippet_enrichments_for_commits(
         self, commit_shas: list[str]

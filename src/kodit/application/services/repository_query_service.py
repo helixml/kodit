@@ -4,7 +4,8 @@ from collections.abc import Callable
 
 import structlog
 
-from kodit.domain.protocols import GitRepoRepository
+from kodit.domain.entities.git import GitRepo, TrackingConfig, TrackingType
+from kodit.domain.protocols import GitAdapter, GitRepoRepository
 from kodit.domain.tracking.resolution_service import TrackableResolutionService
 from kodit.domain.tracking.trackable import Trackable, TrackableReferenceType
 from kodit.infrastructure.api.v1.query_params import PaginationParams
@@ -17,10 +18,12 @@ class RepositoryQueryService:
         self,
         git_repo_repository: GitRepoRepository,
         trackable_resolution: TrackableResolutionService,
+        git_adapter: GitAdapter | None = None,
     ) -> None:
         """Initialize the repository query service."""
         self.git_repo_repository = git_repo_repository
         self.trackable_resolution = trackable_resolution
+        self.git_adapter = git_adapter
         self.log = structlog.get_logger(__name__)
 
     async def find_repo_by_url(self, repo_url: str) -> int | None:
@@ -64,6 +67,9 @@ class RepositoryQueryService:
             self.log.warning("Repository not found", repo_id=repo_id)
             return None
 
+        if not repo.tracking_config:
+            raise ValueError(f"Repository {repo.id} has no tracking config")
+
         # Create trackable from repository's tracking config
         trackable = Trackable(
             type=TrackableReferenceType(repo.tracking_config.type),
@@ -99,6 +105,9 @@ class RepositoryQueryService:
             self.log.warning("Repository not found", repo_id=repo_id)
             return None
 
+        if not repo.tracking_config:
+            raise ValueError(f"Repository {repo.id} has no tracking config")
+
         # Create trackable from repository's tracking config
         trackable = Trackable(
             type=TrackableReferenceType(repo.tracking_config.type),
@@ -126,3 +135,54 @@ class RepositoryQueryService:
                     return commit_sha
 
         return None
+
+    async def get_tracking_config(self, repo: GitRepo) -> TrackingConfig:
+        """Get the tracking info for a repository."""
+        if repo.tracking_config:
+            return repo.tracking_config
+
+        # If it doesn't exist, use the git adapter to get the default branch
+        if not self.git_adapter:
+            raise ValueError("GitAdapter is required for get_tracking_config")
+        if not repo.cloned_path:
+            raise ValueError(f"Repository {repo.id} has never been cloned")
+        default_branch = await self.git_adapter.get_default_branch(repo.cloned_path)
+        return TrackingConfig(type=TrackingType.BRANCH, name=default_branch)
+
+    async def resolve_tracked_commit_from_git(self, repo: GitRepo) -> str:
+        """Resolve commit SHA from tracking config by querying git directly.
+
+        This is used during initial scanning before branches/tags are in the database.
+        Similar to find_latest_commit but works with git directly instead of database.
+        """
+        if not self.git_adapter:
+            raise ValueError(
+                "GitAdapter is required for resolve_tracked_commit_from_git"
+            )
+
+        if not repo.cloned_path:
+            raise ValueError(f"Repository {repo.id} has never been cloned")
+
+        if not repo.tracking_config:
+            raise ValueError(f"Repository {repo.id} has no tracking config")
+
+        if repo.tracking_config.type == TrackingType.BRANCH.value:
+            return await self.git_adapter.get_latest_commit_sha(
+                repo.cloned_path, repo.tracking_config.name
+            )
+        if repo.tracking_config.type == TrackingType.TAG.value:
+            # Get commit SHA from tag
+            tags = await self.git_adapter.get_all_tags(repo.cloned_path)
+            tag = next(
+                (t for t in tags if t["name"] == repo.tracking_config.name),
+                None,
+            )
+            if not tag:
+                raise ValueError(
+                    f"Tag {repo.tracking_config.name} not found in repository"
+                )
+            return tag["target_commit_sha"]
+        if repo.tracking_config.type == TrackingType.COMMIT_SHA.value:
+            return repo.tracking_config.name
+
+        raise ValueError(f"Unknown tracking type: {repo.tracking_config.type}")

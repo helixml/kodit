@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from kodit.domain.entities.git import GitFile
+from kodit.domain.entities.git import GitCommit, GitFile
 from kodit.domain.factories.git_repo_factory import GitRepoFactory
 from kodit.domain.protocols import GitFileRepository
 from kodit.domain.services.git_repository_service import GitRepositoryScanner
@@ -209,17 +209,51 @@ async def test_file_saving_performance_ray_repo(
         file_repository = create_git_file_repository(
             session_factory=performance_session_factory
         )
+        from kodit.infrastructure.sqlalchemy.git_commit_repository import (
+            create_git_commit_repository,
+        )
+
+        commit_repository = create_git_commit_repository(
+            session_factory=performance_session_factory
+        )
 
         # Create repository entity
         repo = GitRepoFactory.create_from_remote_uri(repo_url)
         repo = await repo_repository.save(repo)
         assert repo.id is not None
 
-        # Scan to get commits (this is fast, we already measured it)
-        sys.stderr.write("\nScanning repository metadata...\n")
+        # Get commits directly from git
+        sys.stderr.write("\nGetting commit list...\n")
         scanner = GitRepositoryScanner(git_adapter)
-        scan_result = await scanner.scan_repository(cloned_path, repo.id)
-        sys.stderr.write(f"Found {len(scan_result.all_commits)} commits\n")
+        all_commits_data = await git_adapter.get_all_commits_bulk(cloned_path)
+        sys.stderr.write(f"Found {len(all_commits_data)} commits\n")
+
+        # Create commit entities
+        commits = []
+        current_time = datetime.now(UTC)
+        for commit_sha, commit_data in all_commits_data.items():
+            # Format author string
+            author_name = commit_data.get("author_name", "")
+            author_email = commit_data.get("author_email", "")
+            if author_name and author_email:
+                author = f"{author_name} <{author_email}>"
+            else:
+                author = author_name or "Unknown"
+
+            commits.append(
+                GitCommit(
+                    created_at=current_time,
+                    commit_sha=commit_sha,
+                    repo_id=repo.id,
+                    date=commit_data["date"],
+                    message=commit_data["message"],
+                    parent_commit_sha=commit_data["parent_sha"],
+                    author=author,
+                )
+            )
+
+        # Save commits to satisfy foreign key constraint
+        await commit_repository.save_bulk(commits)
 
         # Now benchmark the file processing and saving
         instrumented_service = InstrumentedFileSavingService(
@@ -227,7 +261,7 @@ async def test_file_saving_performance_ray_repo(
             file_repo=file_repository,
         )
 
-        commit_shas = [commit.commit_sha for commit in scan_result.all_commits]
+        commit_shas = [commit.commit_sha for commit in commits]
         timing = await instrumented_service.process_files_with_timing(
             cloned_path, commit_shas, batch_size=100
         )

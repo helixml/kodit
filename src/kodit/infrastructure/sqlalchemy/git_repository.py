@@ -61,6 +61,13 @@ class SqlAlchemyGitRepoRepository(
     @staticmethod
     def to_domain(db_entity: db_entities.GitRepo) -> GitRepo:
         """Map database entity to domain entity."""
+        tracking_config = None
+        if db_entity.tracking_type and db_entity.tracking_name:
+            tracking_config = TrackingConfig(
+                type=TrackingType(db_entity.tracking_type),
+                name=db_entity.tracking_name,
+            )
+
         return GitRepo(
             id=db_entity.id,
             sanitized_remote_uri=AnyUrl(db_entity.sanitized_remote_uri),
@@ -70,15 +77,18 @@ class SqlAlchemyGitRepoRepository(
             num_commits=db_entity.num_commits,
             num_branches=db_entity.num_branches,
             num_tags=db_entity.num_tags,
-            tracking_config=TrackingConfig(
-                type=TrackingType(db_entity.tracking_type),
-                name=db_entity.tracking_name,
-            ),
+            tracking_config=tracking_config,
         )
 
     @staticmethod
     def to_db(domain_entity: GitRepo) -> db_entities.GitRepo:
         """Map domain entity to database entity."""
+        tracking_type = ""
+        tracking_name = ""
+        if domain_entity.tracking_config:
+            tracking_type = domain_entity.tracking_config.type
+            tracking_name = domain_entity.tracking_config.name
+
         return db_entities.GitRepo(
             sanitized_remote_uri=str(domain_entity.sanitized_remote_uri),
             remote_uri=str(domain_entity.remote_uri),
@@ -87,6 +97,6 @@ class SqlAlchemyGitRepoRepository(
             num_commits=domain_entity.num_commits,
             num_branches=domain_entity.num_branches,
             num_tags=domain_entity.num_tags,
-            tracking_type=domain_entity.tracking_config.type,
-            tracking_name=domain_entity.tracking_config.name,
+            tracking_type=tracking_type,
+            tracking_name=tracking_name,
         )
