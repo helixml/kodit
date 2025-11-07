@@ -77,7 +77,7 @@ def _format_enrichments(enrichments: list) -> str:
     return "\n\n".join(contents)
 
 
-def register_mcp_tools(mcp_server: FastMCP) -> None:
+def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
     """Register MCP tools on the provided FastMCP instance."""
 
     @mcp_server.tool()
@@ -414,7 +414,7 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:
             ),
         ] = None,
     ) -> str:
-        """Get database schema documentation including tables, columns, and relationships.
+        """Get database schema documentation.
 
         Use this to understand:
         - Database table structures
@@ -506,7 +506,8 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:
 mcp = create_mcp_server(
     name="Kodit",
     instructions=(
-        "This server provides access to code knowledge through multiple complementary tools:\n\n"
+        "This server provides access to code knowledge through multiple "
+        "complementary tools:\n\n"
         "**Discovery workflow:**\n"
         "1. Use list_repositories() first to see available repositories\n"
         "2. Then use repository-specific tools with the discovered repo URLs\n\n"
