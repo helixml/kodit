@@ -77,7 +77,7 @@ def _format_enrichments(enrichments: list) -> str:
     return "\n\n".join(contents)
 
 
-def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
+def register_mcp_tools(mcp_server: FastMCP) -> None:
     """Register MCP tools on the provided FastMCP instance."""
 
     @mcp_server.tool()
@@ -154,13 +154,15 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
             ),
         ] = None,
     ) -> str:
-        """Search for pre-existing examples of relevant code.
+        """Search for relevant code snippets and examples across repositories.
 
-        ⚠️ **ENFORCEMENT:**
-        For *every* user request that involves writing or modifying code (of any
-        language or domain), the assistant's *first* action **must** be to call the
-        kodit.search MCP tool. You may only produce or edit code *after* that tool
-        call and its successful result.
+        Use this when you need to find specific code patterns, implementations, or
+        examples that match the user's requirements. This searches through actual
+        code snippets indexed from repositories.
+
+        Before writing new code, consider searching for existing examples that solve
+        similar problems. This helps maintain consistency with existing patterns in
+        the codebase.
         """
         # This docstring is used by the AI assistant to decide when to call the tool.
         # If you want to update it, please make sure you thoroughly test the
@@ -219,7 +221,11 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
     async def list_repositories(ctx: Context) -> str:
         """List all repositories available in the system.
 
-        Returns a simple list of repository URLs.
+        Call this first to discover which repositories you can query for documentation,
+        schemas, cookbooks, and other enrichments. The returned repository URLs can be
+        used with other tools like get_architecture_docs(), get_api_docs(), etc.
+
+        Returns a simple list of repository URLs in the format: github.com/user/repo
         """
         mcp_context: MCPContext = ctx.request_context.lifespan_context
         repo_repository = mcp_context.server_factory.repo_repository()
@@ -251,10 +257,19 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
             ),
         ] = None,
     ) -> str:
-        """Get architecture documentation enrichments for a repository.
+        """Get high-level architecture documentation for a repository.
 
-        Returns architecture docs describing the physical structure and
-        organization of the codebase.
+        Use this to understand:
+        - Overall project structure and organization
+        - Key architectural patterns and design decisions
+        - Component relationships and boundaries
+        - Module organization and responsibilities
+
+        Prefer this over search() when you need to understand the big picture before
+        diving into specific code examples.
+
+        **Important**: If you don't know which repositories are available, call
+        list_repositories() first to see the available options.
         """
         mcp_context: MCPContext = ctx.request_context.lifespan_context
         repo_query_service = mcp_context.server_factory.repository_query_service()
@@ -295,9 +310,19 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
             ),
         ] = None,
     ) -> str:
-        """Get API documentation enrichments for a repository.
+        """Get API documentation showing public interfaces and contracts.
 
-        Returns API docs describing public interfaces and usage patterns.
+        Use this to understand:
+        - Public APIs and their usage patterns
+        - Function signatures and parameters
+        - Expected inputs and outputs
+        - Interface contracts and guarantees
+
+        Prefer this over search() when you need to understand how to interact with
+        existing components rather than finding implementation examples.
+
+        **Important**: If you don't know which repositories are available, call
+        list_repositories() first to see the available options.
         """
         mcp_context: MCPContext = ctx.request_context.lifespan_context
         repo_query_service = mcp_context.server_factory.repository_query_service()
@@ -336,9 +361,19 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
             ),
         ] = None,
     ) -> str:
-        """Get commit description enrichments for a repository.
+        """Get human-readable descriptions of recent changes and their rationale.
 
-        Returns human-readable descriptions explaining what changed and why.
+        Use this to understand:
+        - What recently changed in the codebase
+        - Why changes were made
+        - Context around recent development decisions
+        - Evolution of the codebase over time
+
+        Prefer this when you need to understand recent development context or when
+        working with actively changing code.
+
+        **Important**: If you don't know which repositories are available, call
+        list_repositories() first to see the available options.
         """
         mcp_context: MCPContext = ctx.request_context.lifespan_context
         repo_query_service = mcp_context.server_factory.repository_query_service()
@@ -379,10 +414,19 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
             ),
         ] = None,
     ) -> str:
-        """Get database schema enrichments for a repository.
+        """Get database schema documentation including tables, columns, and relationships.
 
-        Returns database schema docs from ORM models, migrations, or schema
-        definitions.
+        Use this to understand:
+        - Database table structures
+        - Column types and constraints
+        - Relationships between entities
+        - ORM model definitions
+
+        Prefer this over search() when you need to understand data models or write
+        database-related code.
+
+        **Important**: If you don't know which repositories are available, call
+        list_repositories() first to see the available options.
         """
         mcp_context: MCPContext = ctx.request_context.lifespan_context
         repo_query_service = mcp_context.server_factory.repository_query_service()
@@ -423,10 +467,19 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
             ),
         ] = None,
     ) -> str:
-        """Get cookbook enrichments for a repository.
+        """Get curated cookbook-style code examples showing common usage patterns.
 
-        Returns cookbook-style code examples with context showing how to use
-        various parts of the codebase.
+        Use this to understand:
+        - How-to guides for common tasks
+        - Working examples with full context
+        - Best practices and recommended patterns
+        - Step-by-step usage instructions
+
+        Prefer this over search() when you need complete, contextual examples of how
+        to accomplish specific tasks rather than searching for code fragments.
+
+        **Important**: If you don't know which repositories are available, call
+        list_repositories() first to see the available options.
         """
         mcp_context: MCPContext = ctx.request_context.lifespan_context
         repo_query_service = mcp_context.server_factory.repository_query_service()
@@ -453,9 +506,21 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
 mcp = create_mcp_server(
     name="Kodit",
     instructions=(
-        "This server is used to assist with code generation by retrieving "
-        "code examples related to the user's intent."
-        "Call search() to retrieve relevant code examples."
+        "This server provides access to code knowledge through multiple complementary tools:\n\n"
+        "**Discovery workflow:**\n"
+        "1. Use list_repositories() first to see available repositories\n"
+        "2. Then use repository-specific tools with the discovered repo URLs\n\n"
+        "**Available tools:**\n"
+        "- list_repositories() - Discover available repositories (call this first!)\n"
+        "- get_architecture_docs() - High-level structure and design\n"
+        "- get_api_docs() - Interface documentation\n"
+        "- get_commit_description() - Recent changes and context\n"
+        "- get_database_schema() - Data models\n"
+        "- get_cookbook() - Complete usage examples\n"
+        "- search() - Find specific code snippets matching keywords\n\n"
+        "Choose the most appropriate tool based on what information you need. "
+        "Often starting with architecture or API docs provides better context than "
+        "immediately searching for code snippets."
     ),
 )
 
