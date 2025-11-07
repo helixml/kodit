@@ -160,6 +160,13 @@ class GitAdapter(ABC):
         """Get all branches in repository."""
 
     @abstractmethod
+    async def get_default_branch(self, local_path: Path) -> str:
+        """Get the default branch name from origin/HEAD.
+
+        Returns None if no default branch is set (e.g., local-only repos).
+        """
+
+    @abstractmethod
     async def get_branch_commits(
         self, local_path: Path, branch_name: str
     ) -> list[dict[str, Any]]:

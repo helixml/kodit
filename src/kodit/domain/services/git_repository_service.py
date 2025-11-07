@@ -43,6 +43,47 @@ class GitRepositoryScanner:
         self._log = structlog.getLogger(__name__)
         self.git_adapter = git_adapter
 
+    async def scan_commit(
+        self,
+        cloned_path: Path,
+        commit_sha: str,
+        repo_id: int,
+    ) -> tuple[GitCommit, list[GitFile]]:
+        """Scan a specific commit and return commit with its files.
+
+        Args:
+            cloned_path: Path to the cloned repository
+            commit_sha: SHA of the commit to scan
+            repo_id: Repository ID
+
+        Returns:
+            Tuple of (commit, files) for the scanned commit
+
+        """
+        self._log.info(f"Scanning commit {commit_sha[:8]} at: {cloned_path}")
+
+        # Get commit details
+        commit_data = await self.git_adapter.get_commit_details(cloned_path, commit_sha)
+
+        # Create GitCommit entity
+        git_commit = self._create_lightweight_git_commit(
+            commit_data, datetime.now(UTC), repo_id
+        )
+        if not git_commit:
+            raise ValueError(f"Failed to create commit object for {commit_sha}")
+
+        # Get files for this commit
+        files_data = await self.git_adapter.get_commit_file_data(
+            cloned_path, commit_sha
+        )
+        files = self._create_git_files(cloned_path, files_data, commit_sha)
+
+        self._log.info(
+            f"Scanned commit {commit_sha[:8]}: found {len(files)} files"
+        )
+
+        return git_commit, files
+
     async def scan_repository(
         self,
         cloned_path: Path,

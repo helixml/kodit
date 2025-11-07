@@ -2,7 +2,8 @@
 
 from collections.abc import Callable
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic import AnyUrl
@@ -58,6 +59,7 @@ from kodit.infrastructure.sqlalchemy.git_repository import create_git_repo_repos
 from kodit.infrastructure.sqlalchemy.git_tag_repository import (
     create_git_tag_repository,
 )
+from kodit.infrastructure.sqlalchemy.query import FilterOperator, QueryBuilder
 
 
 @pytest.fixture
@@ -120,6 +122,7 @@ async def commit_indexing_service(
         enrichment_association_repository=enrichment_association_repository,
         enricher_service=AsyncMock(),
         enrichment_query_service=AsyncMock(),
+        repository_query_service=AsyncMock(),
     )
 
 
@@ -215,7 +218,6 @@ async def test_delete_repository_with_data_succeeds(
     )
 
     # Verify enrichment association was created
-    from kodit.infrastructure.sqlalchemy.query import FilterOperator, QueryBuilder
 
     associations = await commit_indexing_service.enrichment_association_repository.find(
         QueryBuilder()
@@ -298,7 +300,6 @@ async def test_incremental_scan_does_not_duplicate_files(
     )
 
     # Verify files were saved correctly (should have exactly 2 files)
-    from kodit.infrastructure.sqlalchemy.query import FilterOperator, QueryBuilder
 
     saved_files = await commit_indexing_service.git_file_repository.find(
         QueryBuilder().filter("commit_sha", FilterOperator.EQ, "abc123")
@@ -314,3 +315,65 @@ async def test_delete_nonexistent_repository_raises_error(
     # Try to delete a repository that doesn't exist - should raise ValueError
     with pytest.raises(ValueError, match="not found"):
         await commit_indexing_service.delete_git_repository(99999)
+
+
+@pytest.mark.asyncio
+async def test_process_scan_commit_scans_single_commit(
+    commit_indexing_service: CommitIndexingApplicationService,
+) -> None:
+    """Test that process_scan_commit scans a specific commit."""
+    # Create and save a repository with a cloned path
+    repo = GitRepoFactory.create_from_remote_uri(
+        AnyUrl("https://github.com/test/scan-test.git")
+    )
+    repo.cloned_path = Path("/tmp/test-repo")
+    repo = await commit_indexing_service.repo_repository.save(repo)
+    assert repo.id is not None
+
+    # Setup test data
+    commit_sha = "abc123def456"
+    mock_commit = GitCommit(
+        commit_sha=commit_sha,
+        repo_id=repo.id,
+        date=datetime.now(UTC),
+        message="Test commit",
+        parent_commit_sha=None,
+        author="test@example.com",
+    )
+    mock_files = [
+        GitFile(
+            created_at=datetime.now(UTC),
+            blob_sha="file1",
+            commit_sha=commit_sha,
+            path="/test/file.py",
+            mime_type="text/x-python",
+            size=100,
+            extension="py",
+        )
+    ]
+
+    # Patch the scanner
+    with patch.object(
+        commit_indexing_service.scanner,
+        "scan_commit",
+        new_callable=AsyncMock,
+        return_value=(mock_commit, mock_files),
+    ) as mock_scan:
+        # Run the scan - now with explicit commit_sha
+        await commit_indexing_service.process_scan_commit(repo.id, commit_sha)
+
+        # Verify scan_commit was called with the correct parameters
+        mock_scan.assert_called_once_with(repo.cloned_path, commit_sha, repo.id)
+
+    # Verify the commit and files were saved
+    saved_commit = await commit_indexing_service.git_commit_repository.get(commit_sha)
+    assert saved_commit is not None
+    assert saved_commit.commit_sha == commit_sha
+
+    saved_files = await commit_indexing_service.git_file_repository.find(
+        QueryBuilder().filter("commit_sha", FilterOperator.EQ, commit_sha)
+    )
+    assert len(saved_files) == 1
+    assert saved_files[0].blob_sha == "file1"
+
+

@@ -130,12 +130,10 @@ class GitRepo(BaseModel):
     # The following may be empty when initially created
     cloned_path: Path | None = None
     last_scanned_at: datetime | None = None
+    tracking_config: TrackingConfig | None = None
     num_commits: int = 0  # Total number of commits in this repository
     num_branches: int = 0  # Total number of branches in this repository
     num_tags: int = 0  # Total number of tags in this repository
-    tracking_config: TrackingConfig = TrackingConfig(
-        type=TrackingType.BRANCH, name=DEFAULT_TRACKING_BRANCH
-    )
 
     @staticmethod
     def create_id(sanitized_remote_uri: AnyUrl) -> str:

@@ -276,6 +276,7 @@ class ServerFactory:
                 enricher_service=self.enricher(),
                 enrichment_association_repository=self.enrichment_association_repository(),
                 enrichment_query_service=self.enrichment_query_service(),
+                repository_query_service=self.repository_query_service(),
             )
 
         return self._commit_indexing_application_service
@@ -417,5 +418,6 @@ class ServerFactory:
             self._repository_query_service = RepositoryQueryService(
                 git_repo_repository=self.repo_repository(),
                 trackable_resolution=self.trackable_resolution_service(),
+                git_adapter=self.git_adapter(),
             )
         return self._repository_query_service
