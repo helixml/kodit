@@ -317,7 +317,12 @@ class CommitIndexingApplicationService:
             raise ValueError(f"Unknown task type: {task.type}")
 
     async def _process_files_in_batches(
-        self, cloned_path: Path, all_commits: list[GitCommit], batch_size: int = 500
+        self,
+        cloned_path: Path,
+        all_commits: list[GitCommit],
+        batch_size: int = 500,
+        *,
+        is_incremental: bool = False,
     ) -> int:
         """Process file metadata for all commits in batches to avoid memory exhaustion.
 
@@ -328,6 +333,7 @@ class CommitIndexingApplicationService:
             cloned_path: Path to the cloned repository
             all_commits: List of all commits from scan
             batch_size: Number of commits to process at once (default 500)
+            is_incremental: Whether this is an incremental scan
 
         Returns:
             Total number of files processed
@@ -357,10 +363,11 @@ class CommitIndexingApplicationService:
             )
 
             # Save file metadata to database immediately
-            # For initial scans (no existing files), skip existence check
+            # For initial scans, skip existence check for performance
+            # For incremental scans, check existence to avoid violations
             if files:
                 await self.git_file_repository.save_bulk(
-                    files, skip_existence_check=True
+                    files, skip_existence_check=not is_incremental
                 )
                 total_files += len(files)
                 self._log.debug(
@@ -434,8 +441,11 @@ class CommitIndexingApplicationService:
             await self.git_commit_repository.save_bulk(scan_result.all_commits)
 
             await step.set_current(4, "Processing and saving files in batches")
+            is_incremental_scan = since_date is not None
             total_files = await self._process_files_in_batches(
-                repo.cloned_path, scan_result.all_commits
+                repo.cloned_path,
+                scan_result.all_commits,
+                is_incremental=is_incremental_scan,
             )
             self._log.info(f"Processed and saved {total_files} total files")
 
