@@ -252,6 +252,7 @@ async def test_incremental_scan_does_not_duplicate_files(
         AnyUrl("https://github.com/test/repo.git")
     )
     repo = await commit_indexing_service.repo_repository.save(repo)
+    assert repo.id is not None
 
     # Create a test commit
     commit = GitCommit(
