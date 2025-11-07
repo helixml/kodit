@@ -243,6 +243,70 @@ async def test_delete_repository_with_data_succeeds(
 
 
 @pytest.mark.asyncio
+async def test_incremental_scan_does_not_duplicate_files(
+    commit_indexing_service: CommitIndexingApplicationService,
+) -> None:
+    """Test that incremental scans don't cause duplicate file errors."""
+    # Create a test repository
+    repo = GitRepoFactory.create_from_remote_uri(
+        AnyUrl("https://github.com/test/repo.git")
+    )
+    repo = await commit_indexing_service.repo_repository.save(repo)
+    assert repo.id is not None
+
+    # Create a test commit
+    commit = GitCommit(
+        commit_sha="abc123",
+        repo_id=repo.id,
+        message="Test commit",
+        author="Test Author <test@example.com>",
+        date=datetime.now(UTC),
+    )
+    await commit_indexing_service.git_commit_repository.save(commit)
+
+    # Create test files
+    files = [
+        GitFile(
+            commit_sha="abc123",
+            path="/test/file1.py",
+            blob_sha="blob1",
+            mime_type="text/x-python",
+            extension="py",
+            size=100,
+            created_at=datetime.now(UTC),
+        ),
+        GitFile(
+            commit_sha="abc123",
+            path="/test/file2.py",
+            blob_sha="blob2",
+            mime_type="text/x-python",
+            extension="py",
+            size=200,
+            created_at=datetime.now(UTC),
+        ),
+    ]
+
+    # First save (full scan) - should use skip_existence_check=True
+    await commit_indexing_service.git_file_repository.save_bulk(
+        files, skip_existence_check=True
+    )
+
+    # Second save (incremental scan) - should use skip_existence_check=False
+    # This simulates what happens during incremental sync
+    await commit_indexing_service.git_file_repository.save_bulk(
+        files, skip_existence_check=False
+    )
+
+    # Verify files were saved correctly (should have exactly 2 files)
+    from kodit.infrastructure.sqlalchemy.query import FilterOperator, QueryBuilder
+
+    saved_files = await commit_indexing_service.git_file_repository.find(
+        QueryBuilder().filter("commit_sha", FilterOperator.EQ, "abc123")
+    )
+    assert len(saved_files) == 2
+
+
+@pytest.mark.asyncio
 async def test_delete_nonexistent_repository_raises_error(
     commit_indexing_service: CommitIndexingApplicationService,
 ) -> None:
