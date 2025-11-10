@@ -18,7 +18,7 @@ from .generated_endpoints import APIEndpoints
 class SearchClient(BaseAPIClient):
     """API client for search operations."""
 
-    async def search(  # noqa: PLR0913
+    async def search(
         self,
         keywords: list[str] | None = None,
         code_query: str | None = None,

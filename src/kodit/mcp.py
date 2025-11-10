@@ -81,7 +81,7 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
     """Register MCP tools on the provided FastMCP instance."""
 
     @mcp_server.tool()
-    async def search(  # noqa: PLR0913
+    async def search(
         ctx: Context,
         user_intent: Annotated[
             str,

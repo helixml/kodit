@@ -295,7 +295,7 @@ async def get_repository_tag(
     summary="List latest repository enrichments",
     responses={404: {"description": "Repository not found"}},
 )
-async def list_repository_enrichments(  # noqa: PLR0913
+async def list_repository_enrichments(
     repo_id: str,
     repository_query_service: RepositoryQueryServiceDep,
     enrichment_query_service: EnrichmentQueryServiceDep,

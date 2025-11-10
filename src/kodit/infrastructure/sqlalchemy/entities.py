@@ -161,7 +161,7 @@ class TaskStatus(Base):
     total: Mapped[int] = mapped_column(Integer, default=0)
     current: Mapped[int] = mapped_column(Integer, default=0)
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         id: str,  # noqa: A002
         operation: str,
@@ -212,7 +212,7 @@ class GitRepo(Base, CommonMixin):
     tracking_type: Mapped[str] = mapped_column(String(255), index=True)
     tracking_name: Mapped[str] = mapped_column(String(255), index=True)
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         sanitized_remote_uri: str,
         remote_uri: str,
@@ -258,7 +258,7 @@ class GitCommit(Base):
     parent_commit_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
     author: Mapped[str] = mapped_column(String(255), index=True)
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         commit_sha: str,
         repo_id: int,
@@ -359,7 +359,7 @@ class GitCommitFile(Base):
 
     __table_args__ = (UniqueConstraint("commit_sha", "path", name="uix_commit_file"),)
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         commit_sha: str,
         path: str,
@@ -401,7 +401,7 @@ class CommitIndex(Base):
     files_processed: Mapped[int] = mapped_column(Integer, default=0)
     processing_time_seconds: Mapped[float] = mapped_column(Float, default=0.0)
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         commit_sha: str,
         status: str,
