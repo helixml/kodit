@@ -166,6 +166,9 @@ async def commit_indexing_service(
         operation=mock_progress_tracker,
     )
 
+    from kodit.application.services.enrichment_generation_service import (
+        EnrichmentGenerationService,
+    )
     from kodit.application.services.search_indexing_service import (
         SearchIndexingService,
     )
@@ -205,6 +208,19 @@ async def commit_indexing_service(
             enrichment_v2_repository=enrichment_v2_repository,
             enrichment_association_repository=enrichment_association_repository,
             enrichment_query_service=enrichment_query_service,
+            operation=mock_progress_tracker,
+        ),
+        enrichment_generation_service=EnrichmentGenerationService(
+            repo_repository=repo_repository,
+            git_file_repository=git_file_repository,
+            enrichment_v2_repository=enrichment_v2_repository,
+            enrichment_association_repository=enrichment_association_repository,
+            enrichment_query_service=enrichment_query_service,
+            scanner=scanner,
+            architecture_service=AsyncMock(spec=PhysicalArchitectureService),
+            cookbook_context_service=MagicMock(),
+            database_schema_detector=MagicMock(),
+            enricher_service=AsyncMock(),
             operation=mock_progress_tracker,
         ),
     )
@@ -604,6 +620,24 @@ async def test_sync_branches_and_tags_with_real_git(  # noqa: PLR0915
             operation=mock_progress_tracker,
         )
 
+        from kodit.application.services.enrichment_generation_service import (
+            EnrichmentGenerationService,
+        )
+
+        enrichment_generation_service = EnrichmentGenerationService(
+            repo_repository=repo_repository,
+            git_file_repository=git_file_repository,
+            enrichment_v2_repository=enrichment_v2_repository,
+            enrichment_association_repository=enrichment_association_repository,
+            enrichment_query_service=enrichment_query_service,
+            scanner=scanner,
+            architecture_service=AsyncMock(spec=PhysicalArchitectureService),
+            cookbook_context_service=MagicMock(),
+            database_schema_detector=MagicMock(),
+            enricher_service=AsyncMock(),
+            operation=mock_progress_tracker,
+        )
+
         service = CommitIndexingApplicationService(
             repo_repository=repo_repository,
             git_commit_repository=git_commit_repository,
@@ -632,6 +666,7 @@ async def test_sync_branches_and_tags_with_real_git(  # noqa: PLR0915
             commit_scanning_service=commit_scanning_service,
             snippet_extraction_service=snippet_extraction_service,
             search_indexing_service=search_indexing_service,
+            enrichment_generation_service=enrichment_generation_service,
         )
 
         # Create and save repository entity

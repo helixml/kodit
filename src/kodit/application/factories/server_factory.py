@@ -17,6 +17,9 @@ if TYPE_CHECKING:
     from kodit.application.services.commit_scanning_service import (
         CommitScanningService,
     )
+    from kodit.application.services.enrichment_generation_service import (
+        EnrichmentGenerationService,
+    )
     from kodit.application.services.repository_deletion_service import (
         RepositoryDeletionService,
     )
@@ -353,6 +356,26 @@ class ServerFactory:
             operation=self.operation(),
         )
 
+    def enrichment_generation_service(self) -> "EnrichmentGenerationService":
+        """Create an EnrichmentGenerationService instance."""
+        from kodit.application.services.enrichment_generation_service import (
+            EnrichmentGenerationService,
+        )
+
+        return EnrichmentGenerationService(
+            repo_repository=self.repo_repository(),
+            git_file_repository=self.git_file_repository(),
+            enrichment_v2_repository=self.enrichment_v2_repository(),
+            enrichment_association_repository=self.enrichment_association_repository(),
+            enrichment_query_service=self.enrichment_query_service(),
+            scanner=self.scanner(),
+            architecture_service=self.architecture_service(),
+            cookbook_context_service=self.cookbook_context_service(),
+            database_schema_detector=DatabaseSchemaDetector(),
+            enricher_service=self.enricher(),
+            operation=self.operation(),
+        )
+
     def commit_indexing_application_service(self) -> CommitIndexingApplicationService:
         """Create a CommitIndexingApplicationService instance."""
         if not self._commit_indexing_application_service:
@@ -384,6 +407,7 @@ class ServerFactory:
                 commit_scanning_service=self.commit_scanning_service(),
                 snippet_extraction_service=self.snippet_extraction_service(),
                 search_indexing_service=self.search_indexing_service(),
+                enrichment_generation_service=self.enrichment_generation_service(),
             )
 
         return self._commit_indexing_application_service
