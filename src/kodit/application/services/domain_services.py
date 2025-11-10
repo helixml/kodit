@@ -28,7 +28,7 @@ class DomainServices:
     This is a Parameter Object pattern to reduce constructor complexity.
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         scanner: "GitRepositoryScanner",
         cloner: "RepositoryCloner",

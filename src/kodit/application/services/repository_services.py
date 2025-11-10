@@ -23,7 +23,7 @@ class RepositoryServices:
     This is a Parameter Object pattern to reduce constructor complexity.
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         repo_repository: "GitRepoRepository",
         git_commit_repository: "GitCommitRepository",
