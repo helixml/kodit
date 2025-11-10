@@ -2,7 +2,7 @@
 title: "Kodit Demo: Quant Workflows with Private Libraries"
 linkTitle: Quant Workflows
 description: A demo of Kodit helping with quantitative analysis using private helper libraries in Jupyter notebooks.
-weight: 3
+weight: 1
 tags:
 - demo
 - jupyter
@@ -44,7 +44,7 @@ This simulates the common helper libraries that most quant teams maintain. In pr
 
 Let's index the quant helper library and create our analysis notebook:
 
-1. (Optional) Start afresh. Delete your data directory or your database.
+1. (Optional) Make sure the [Kodit server is running](/kodit/getting-started/_index.md) and start afresh.
 
 2. Index the quant helper library via curl:
 

@@ -2,7 +2,7 @@
 title: "Kodit Demo: Proprietary Auth Patterns"
 linkTitle: Proprietary Code
 description: A demo of Kodit where knowledge of proprietary code is required.
-weight: 1
+weight: 2
 tags:
 - demo
 - auth
@@ -74,10 +74,32 @@ see that Cursor doesn't have a chance.
 
 Now let's index the code for my secret server and then leverage Kodit in Cursor.
 
-1. Start afresh. Delete your data directory or your database.
-2. Index the [server code](https://gist.github.com/cbf0bd1f3338ddf9f98879148d2d752d): `kodit index https://gist.github.com/cbf0bd1f3338ddf9f98879148d2d752d.git`
-3. Launch the MCP server: `kodit serve`kodit
-4. Connect Cursor.
+1. (Optional) Make sure the [Kodit server is running](/kodit/getting-started/_index.md) and start afresh.
+2. Index the [server
+   code](https://gist.github.com/philwinder/cbf0bd1f3338ddf9f98879148d2d752d) via curl:
+
+   ```sh
+   curl --request POST \
+   --url http://localhost:8080/api/v1/indexes \
+   --header 'Content-Type: application/json' \
+   --data '{
+   "data": {
+      "type": "index",
+      "attributes": {
+         "uri": "https://gist.github.com/philwinder/cbf0bd1f3338ddf9f98879148d2d752d.git"
+      }
+   }
+   }'
+   ```
+
+   Wait for indexing to complete:
+
+   ```sh
+   curl --request GET \
+   --url http://localhost:8080/api/v1/repositories/1/status \
+   ```
+
+3. [Connect Cursor](/kodit/getting-started/integration/index.md).
 
 The results are shown below. Cursor has correctly queried Kodit, which has responded with examples of the super secret auth implementation. This lead to cursor producing valid, working code that adhered to our esoteric auth implementation!
 
