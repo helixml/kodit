@@ -232,6 +232,23 @@ class CommitIndexingApplicationService:
         self.repository_deletion_service = repository_deletion_service
         self._log = structlog.get_logger(__name__)
 
+        # Create task handlers and dispatcher
+        from kodit.application.services.task_dispatcher import TaskDispatcher
+        from kodit.application.services.task_handlers import (
+            CommitTaskHandler,
+            RepositoryTaskHandler,
+        )
+
+        repository_handler = RepositoryTaskHandler(
+            lifecycle_service=repository_lifecycle_service,
+            deletion_service=repository_deletion_service,
+        )
+        commit_handler = CommitTaskHandler(commit_service=self)
+        self.task_dispatcher = TaskDispatcher(
+            repository_handler=repository_handler,
+            commit_handler=commit_handler,
+        )
+
     async def create_git_repository(self, remote_uri: AnyUrl) -> tuple[GitRepo, bool]:
         """Create a new Git repository or get existing one.
 
@@ -250,54 +267,9 @@ class CommitIndexingApplicationService:
         await self.repository_deletion_service.delete_repository(repo_id)
         return True
 
-    # TODO(Phil): Make this polymorphic
-    async def run_task(self, task: Task) -> None:  # noqa: PLR0912, C901
-        """Run a task."""
-        if task.type.is_repository_operation():
-            repo_id = task.payload["repository_id"]
-            if not repo_id:
-                raise ValueError("Repository ID is required")
-            if task.type == TaskOperation.CLONE_REPOSITORY:
-                await self.process_clone_repo(repo_id)
-            elif task.type == TaskOperation.SYNC_REPOSITORY:
-                await self.process_sync_repo(repo_id)
-            elif task.type == TaskOperation.DELETE_REPOSITORY:
-                await self.process_delete_repo(repo_id)
-            else:
-                raise ValueError(f"Unknown task type: {task.type}")
-        elif task.type.is_commit_operation():
-            repository_id = task.payload["repository_id"]
-            if not repository_id:
-                raise ValueError("Repository ID is required")
-            commit_sha = task.payload["commit_sha"]
-            if not commit_sha:
-                raise ValueError("Commit SHA is required")
-            if task.type == TaskOperation.SCAN_COMMIT:
-                await self.process_scan_commit(repository_id, commit_sha)
-            elif task.type == TaskOperation.EXTRACT_SNIPPETS_FOR_COMMIT:
-                await self.process_snippets_for_commit(repository_id, commit_sha)
-            elif task.type == TaskOperation.CREATE_BM25_INDEX_FOR_COMMIT:
-                await self.process_bm25_index(repository_id, commit_sha)
-            elif task.type == TaskOperation.CREATE_CODE_EMBEDDINGS_FOR_COMMIT:
-                await self.process_code_embeddings(repository_id, commit_sha)
-            elif task.type == TaskOperation.CREATE_SUMMARY_ENRICHMENT_FOR_COMMIT:
-                await self.process_enrich(repository_id, commit_sha)
-            elif task.type == TaskOperation.CREATE_SUMMARY_EMBEDDINGS_FOR_COMMIT:
-                await self.process_summary_embeddings(repository_id, commit_sha)
-            elif task.type == TaskOperation.CREATE_ARCHITECTURE_ENRICHMENT_FOR_COMMIT:
-                await self.process_architecture_discovery(repository_id, commit_sha)
-            elif task.type == TaskOperation.CREATE_PUBLIC_API_DOCS_FOR_COMMIT:
-                await self.process_api_docs(repository_id, commit_sha)
-            elif task.type == TaskOperation.CREATE_COMMIT_DESCRIPTION_FOR_COMMIT:
-                await self.process_commit_description(repository_id, commit_sha)
-            elif task.type == TaskOperation.CREATE_DATABASE_SCHEMA_FOR_COMMIT:
-                await self.process_database_schema(repository_id, commit_sha)
-            elif task.type == TaskOperation.CREATE_COOKBOOK_FOR_COMMIT:
-                await self.process_cookbook(repository_id, commit_sha)
-            else:
-                raise ValueError(f"Unknown task type: {task.type}")
-        else:
-            raise ValueError(f"Unknown task type: {task.type}")
+    async def run_task(self, task: Task) -> None:
+        """Run a task by dispatching to appropriate handler."""
+        await self.task_dispatcher.dispatch(task)
 
     async def _process_files_in_batches(
         self,
