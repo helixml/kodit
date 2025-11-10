@@ -5,6 +5,39 @@ from collections.abc import Callable
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.application.factories.reporting_factory import create_server_operation
+from kodit.application.handlers.commit.api_docs import ApiDocsHandler
+from kodit.application.handlers.commit.architecture_discovery import (
+    ArchitectureDiscoveryHandler,
+)
+from kodit.application.handlers.commit.commit_description import (
+    CommitDescriptionHandler,
+)
+from kodit.application.handlers.commit.cookbook import CookbookHandler
+from kodit.application.handlers.commit.create_bm25_index import (
+    CreateBM25IndexHandler,
+)
+from kodit.application.handlers.commit.create_code_embeddings import (
+    CreateCodeEmbeddingsHandler,
+)
+from kodit.application.handlers.commit.create_summary_embeddings import (
+    CreateSummaryEmbeddingsHandler,
+)
+from kodit.application.handlers.commit.create_summary_enrichment import (
+    CreateSummaryEnrichmentHandler,
+)
+from kodit.application.handlers.commit.database_schema import DatabaseSchemaHandler
+from kodit.application.handlers.commit.extract_snippets import ExtractSnippetsHandler
+from kodit.application.handlers.commit.scan_commit import ScanCommitHandler
+from kodit.application.handlers.registry import TaskHandlerRegistry
+from kodit.application.handlers.repository.clone_repository import (
+    CloneRepositoryHandler,
+)
+from kodit.application.handlers.repository.delete_repository import (
+    DeleteRepositoryHandler,
+)
+from kodit.application.handlers.repository.sync_repository import (
+    SyncRepositoryHandler,
+)
 from kodit.application.services.code_search_application_service import (
     CodeSearchApplicationService,
 )
@@ -19,6 +52,7 @@ from kodit.application.services.reporting import ProgressTracker
 from kodit.application.services.repository_query_service import (
     RepositoryQueryService,
 )
+from kodit.application.services.repository_sync_service import RepositorySyncService
 from kodit.application.services.sync_scheduler import SyncSchedulerService
 from kodit.config import AppContext
 from kodit.domain.enrichments.architecture.physical.formatter import (
@@ -147,6 +181,8 @@ class ServerFactory:
         self._trackable_resolution_service: TrackableResolutionService | None = None
         self._enrichment_query_service: EnrichmentQueryService | None = None
         self._repository_query_service: RepositoryQueryService | None = None
+        self._handler_registry: TaskHandlerRegistry | None = None
+        self._repository_sync_service: RepositorySyncService | None = None
 
     def architecture_formatter(self) -> PhysicalArchitectureFormatter:
         """Create a PhysicalArchitectureFormatter instance."""
@@ -251,32 +287,200 @@ class ServerFactory:
             )
         return self._text_search_service
 
+    def repository_sync_service(self) -> RepositorySyncService:
+        """Create a RepositorySyncService instance."""
+        if not self._repository_sync_service:
+            self._repository_sync_service = RepositorySyncService(
+                scanner=self.scanner(),
+                git_commit_repository=self.git_commit_repository(),
+                git_branch_repository=self.git_branch_repository(),
+                git_tag_repository=self.git_tag_repository(),
+            )
+        return self._repository_sync_service
+
+    def handler_registry(self) -> TaskHandlerRegistry:
+        """Create and populate a TaskHandlerRegistry instance."""
+        if not self._handler_registry:
+            from kodit.domain.value_objects import TaskOperation
+
+            registry = TaskHandlerRegistry()
+
+            # Register commit operation handlers
+            registry.register(
+                TaskOperation.SCAN_COMMIT,
+                ScanCommitHandler(
+                    repo_repository=self.repo_repository(),
+                    git_commit_repository=self.git_commit_repository(),
+                    git_file_repository=self.git_file_repository(),
+                    scanner=self.scanner(),
+                    operation=self.operation(),
+                ),
+            )
+            registry.register(
+                TaskOperation.EXTRACT_SNIPPETS_FOR_COMMIT,
+                ExtractSnippetsHandler(
+                    repo_repository=self.repo_repository(),
+                    git_commit_repository=self.git_commit_repository(),
+                    scanner=self.scanner(),
+                    enrichment_v2_repository=self.enrichment_v2_repository(),
+                    enrichment_association_repository=self.enrichment_association_repository(),
+                    enrichment_query_service=self.enrichment_query_service(),
+                    operation=self.operation(),
+                ),
+            )
+            registry.register(
+                TaskOperation.CREATE_BM25_INDEX_FOR_COMMIT,
+                CreateBM25IndexHandler(
+                    bm25_service=self.bm25_service(),
+                    enrichment_query_service=self.enrichment_query_service(),
+                    operation=self.operation(),
+                ),
+            )
+            registry.register(
+                TaskOperation.CREATE_CODE_EMBEDDINGS_FOR_COMMIT,
+                CreateCodeEmbeddingsHandler(
+                    code_search_service=self.code_search_service(),
+                    embedding_repository=self.embedding_repository(),
+                    enrichment_query_service=self.enrichment_query_service(),
+                    operation=self.operation(),
+                ),
+            )
+            registry.register(
+                TaskOperation.CREATE_SUMMARY_ENRICHMENT_FOR_COMMIT,
+                CreateSummaryEnrichmentHandler(
+                    enricher_service=self.enricher(),
+                    enrichment_v2_repository=self.enrichment_v2_repository(),
+                    enrichment_association_repository=self.enrichment_association_repository(),
+                    enrichment_query_service=self.enrichment_query_service(),
+                    operation=self.operation(),
+                ),
+            )
+            registry.register(
+                TaskOperation.CREATE_SUMMARY_EMBEDDINGS_FOR_COMMIT,
+                CreateSummaryEmbeddingsHandler(
+                    text_search_service=self.text_search_service(),
+                    embedding_repository=self.embedding_repository(),
+                    enrichment_v2_repository=self.enrichment_v2_repository(),
+                    enrichment_association_repository=self.enrichment_association_repository(),
+                    enrichment_query_service=self.enrichment_query_service(),
+                    operation=self.operation(),
+                ),
+            )
+            registry.register(
+                TaskOperation.CREATE_ARCHITECTURE_ENRICHMENT_FOR_COMMIT,
+                ArchitectureDiscoveryHandler(
+                    repo_repository=self.repo_repository(),
+                    architecture_service=self.architecture_service(),
+                    enricher_service=self.enricher(),
+                    enrichment_v2_repository=self.enrichment_v2_repository(),
+                    enrichment_association_repository=self.enrichment_association_repository(),
+                    enrichment_query_service=self.enrichment_query_service(),
+                    operation=self.operation(),
+                ),
+            )
+            registry.register(
+                TaskOperation.CREATE_PUBLIC_API_DOCS_FOR_COMMIT,
+                ApiDocsHandler(
+                    repo_repository=self.repo_repository(),
+                    git_file_repository=self.git_file_repository(),
+                    enrichment_v2_repository=self.enrichment_v2_repository(),
+                    enrichment_association_repository=self.enrichment_association_repository(),
+                    enrichment_query_service=self.enrichment_query_service(),
+                    operation=self.operation(),
+                ),
+            )
+            registry.register(
+                TaskOperation.CREATE_COMMIT_DESCRIPTION_FOR_COMMIT,
+                CommitDescriptionHandler(
+                    repo_repository=self.repo_repository(),
+                    scanner=self.scanner(),
+                    enricher_service=self.enricher(),
+                    enrichment_v2_repository=self.enrichment_v2_repository(),
+                    enrichment_association_repository=self.enrichment_association_repository(),
+                    enrichment_query_service=self.enrichment_query_service(),
+                    operation=self.operation(),
+                ),
+            )
+            registry.register(
+                TaskOperation.CREATE_DATABASE_SCHEMA_FOR_COMMIT,
+                DatabaseSchemaHandler(
+                    repo_repository=self.repo_repository(),
+                    database_schema_detector=DatabaseSchemaDetector(),
+                    enricher_service=self.enricher(),
+                    enrichment_v2_repository=self.enrichment_v2_repository(),
+                    enrichment_association_repository=self.enrichment_association_repository(),
+                    enrichment_query_service=self.enrichment_query_service(),
+                    operation=self.operation(),
+                ),
+            )
+            registry.register(
+                TaskOperation.CREATE_COOKBOOK_FOR_COMMIT,
+                CookbookHandler(
+                    repo_repository=self.repo_repository(),
+                    git_file_repository=self.git_file_repository(),
+                    cookbook_context_service=self.cookbook_context_service(),
+                    enricher_service=self.enricher(),
+                    enrichment_v2_repository=self.enrichment_v2_repository(),
+                    enrichment_association_repository=self.enrichment_association_repository(),
+                    enrichment_query_service=self.enrichment_query_service(),
+                    operation=self.operation(),
+                ),
+            )
+
+            # Register repository operation handlers
+            registry.register(
+                TaskOperation.CLONE_REPOSITORY,
+                CloneRepositoryHandler(
+                    repo_repository=self.repo_repository(),
+                    cloner=self.cloner(),
+                    repository_sync_service=self.repository_sync_service(),
+                    repository_query_service=self.repository_query_service(),
+                    queue=self.queue_service(),
+                    operation=self.operation(),
+                ),
+            )
+            registry.register(
+                TaskOperation.SYNC_REPOSITORY,
+                SyncRepositoryHandler(
+                    repo_repository=self.repo_repository(),
+                    git_commit_repository=self.git_commit_repository(),
+                    cloner=self.cloner(),
+                    repository_sync_service=self.repository_sync_service(),
+                    repository_query_service=self.repository_query_service(),
+                    queue=self.queue_service(),
+                    operation=self.operation(),
+                ),
+            )
+            registry.register(
+                TaskOperation.DELETE_REPOSITORY,
+                DeleteRepositoryHandler(
+                    repo_repository=self.repo_repository(),
+                    git_commit_repository=self.git_commit_repository(),
+                    git_file_repository=self.git_file_repository(),
+                    git_branch_repository=self.git_branch_repository(),
+                    git_tag_repository=self.git_tag_repository(),
+                    bm25_service=self.bm25_service(),
+                    embedding_repository=self.embedding_repository(),
+                    enrichment_v2_repository=self.enrichment_v2_repository(),
+                    enrichment_association_repository=self.enrichment_association_repository(),
+                    enrichment_query_service=self.enrichment_query_service(),
+                    operation=self.operation(),
+                ),
+            )
+
+            self._handler_registry = registry
+        return self._handler_registry
+
     def commit_indexing_application_service(self) -> CommitIndexingApplicationService:
         """Create a CommitIndexingApplicationService instance."""
         if not self._commit_indexing_application_service:
-            self._commit_indexing_application_service = CommitIndexingApplicationService(  # noqa: E501
-                repo_repository=self.repo_repository(),
-                git_commit_repository=self.git_commit_repository(),
-                git_file_repository=self.git_file_repository(),
-                git_branch_repository=self.git_branch_repository(),
-                git_tag_repository=self.git_tag_repository(),
-                operation=self.operation(),
-                scanner=self.scanner(),
-                cloner=self.cloner(),
-                slicer=self.slicer(),
-                queue=self.queue_service(),
-                bm25_service=self.bm25_service(),
-                code_search_service=self.code_search_service(),
-                text_search_service=self.text_search_service(),
-                embedding_repository=self.embedding_repository(),
-                architecture_service=self.architecture_service(),
-                cookbook_context_service=self.cookbook_context_service(),
-                database_schema_detector=DatabaseSchemaDetector(),
-                enrichment_v2_repository=self.enrichment_v2_repository(),
-                enricher_service=self.enricher(),
-                enrichment_association_repository=self.enrichment_association_repository(),
-                enrichment_query_service=self.enrichment_query_service(),
-                repository_query_service=self.repository_query_service(),
+            self._commit_indexing_application_service = (
+                CommitIndexingApplicationService(
+                    repo_repository=self.repo_repository(),
+                    operation=self.operation(),
+                    queue=self.queue_service(),
+                    handler_registry=self.handler_registry(),
+                )
             )
 
         return self._commit_indexing_application_service
