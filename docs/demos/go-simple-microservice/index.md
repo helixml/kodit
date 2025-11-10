@@ -2,7 +2,7 @@
 title: "Kodit Demo: Simple Go Microservice"
 linkTitle: Microservices
 description: A simple demo of Kodit on a multi-repo microservices example in Go.
-weight: 2
+weight: 3
 tags:
 - demo
 - go
@@ -56,26 +56,51 @@ It has also used incorrect APIs.
 
 Now let's index the microservices and try again:
 
-1. Start afresh. Delete your data directory or your database.
+1. (Optional) Make sure the [Kodit server is running](/kodit/getting-started/_index.md) and start afresh.
 2. Index the [users
-   microservice](https://gist.github.com/philwinder/db2e17413332844fa4b14971ae5adb34):
+   microservice](https://gist.github.com/philwinder/db2e17413332844fa4b14971ae5adb34) via curl:
 
    ```sh
-   kodit index https://gist.github.com/philwinder/db2e17413332844fa4b14971ae5adb34.git
+   curl --request POST \
+   --url http://localhost:8080/api/v1/indexes \
+   --header 'Content-Type: application/json' \
+   --data '{
+   "data": {
+      "type": "index",
+      "attributes": {
+         "uri": "https://gist.github.com/philwinder/db2e17413332844fa4b14971ae5adb34.git"
+      }
+   }
+   }'
    ```
 
 3. Index the [orders
-   microservice](https://gist.github.com/philwinder/7aa38185e20433c04c533f2b28f4e217):
+   microservice](https://gist.github.com/philwinder/7aa38185e20433c04c533f2b28f4e217) via curl:
 
    ```sh
-   kodit index https://gist.github.com/philwinder/7aa38185e20433c04c533f2b28f4e217.git
+   curl --request POST \
+   --url http://localhost:8080/api/v1/indexes \
+   --header 'Content-Type: application/json' \
+   --data '{
+   "data": {
+      "type": "index",
+      "attributes": {
+         "uri": "https://gist.github.com/philwinder/7aa38185e20433c04c533f2b28f4e217.git"
+      }
+   }
+   }'
    ```
 
-4. Launch the MCP server:
+4. Wait for indexing to complete:
 
    ```sh
-   kodit serve
+   curl --request GET \
+   --url http://localhost:8080/api/v1/repositories/1/status \
    ```
+
+   ```sh
+   curl --request GET \
+   --url http://localhost:8080/api/v1/repositories/2/status \
 
 5. [Connect Cline](/kodit/getting-started/integration/index.md).
 

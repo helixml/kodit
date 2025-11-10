@@ -22,7 +22,6 @@ Kodit is a code indexing MCP (Model Context Protocol) server that connects AI co
 ### Application
 
 - `uv run kodit --help` - Show CLI help
-- `uv run kodit index <path>` - Index a codebase
 - `uv run kodit serve` - Start MCP server
 
 ### Database
