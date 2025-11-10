@@ -10,7 +10,12 @@ from pydantic import AnyUrl
 
 from kodit.application.services.queue_service import QueueService
 from kodit.application.services.reporting import ProgressTracker
-from kodit.domain.entities import WorkingCopy
+from kodit.application.services.repository_deletion_service import (
+    RepositoryDeletionService,
+)
+from kodit.application.services.repository_lifecycle_service import (
+    RepositoryLifecycleService,
+)
 from kodit.infrastructure.sqlalchemy.query import FilterOperator, QueryBuilder
 
 if TYPE_CHECKING:
@@ -45,14 +50,11 @@ from kodit.domain.enrichments.request import (
 from kodit.domain.enrichments.usage.cookbook import CookbookEnrichment
 from kodit.domain.entities import Task
 from kodit.domain.entities.git import (
-    GitBranch,
     GitCommit,
     GitFile,
     GitRepo,
-    GitTag,
     SnippetV2,
 )
-from kodit.domain.factories.git_repo_factory import GitRepoFactory
 from kodit.domain.protocols import (
     EnrichmentAssociationRepository,
     EnrichmentV2Repository,
@@ -79,12 +81,9 @@ from kodit.domain.services.physical_architecture_service import (
     PhysicalArchitectureService,
 )
 from kodit.domain.value_objects import (
-    DeleteRequest,
     Document,
     IndexRequest,
     LanguageMapping,
-    PrescribedOperations,
-    QueuePriority,
     TaskOperation,
     TrackableType,
 )
@@ -203,6 +202,8 @@ class CommitIndexingApplicationService:
         enrichment_association_repository: EnrichmentAssociationRepository,
         enrichment_query_service: "EnrichmentQueryService",
         repository_query_service: "RepositoryQueryService",
+        repository_lifecycle_service: RepositoryLifecycleService,
+        repository_deletion_service: RepositoryDeletionService,
     ) -> None:
         """Initialize the commit indexing application service."""
         self.repo_repository = repo_repository
@@ -227,6 +228,8 @@ class CommitIndexingApplicationService:
         self.enricher_service = enricher_service
         self.enrichment_query_service = enrichment_query_service
         self.repository_query_service = repository_query_service
+        self.repository_lifecycle_service = repository_lifecycle_service
+        self.repository_deletion_service = repository_deletion_service
         self._log = structlog.get_logger(__name__)
 
     async def create_git_repository(self, remote_uri: AnyUrl) -> tuple[GitRepo, bool]:
@@ -234,37 +237,9 @@ class CommitIndexingApplicationService:
 
         Returns tuple of (repository, created) where created is True if new.
         """
-        # Check if repository already exists
-        sanitized_uri = str(WorkingCopy.sanitize_git_url(str(remote_uri)))
-        existing_repos = await self.repo_repository.find(
-            QueryBuilder().filter(
-                "sanitized_remote_uri", FilterOperator.EQ, sanitized_uri
-            )
+        return await self.repository_lifecycle_service.create_or_get_repository(
+            remote_uri
         )
-        existing_repo = existing_repos[0] if existing_repos else None
-
-        if existing_repo:
-            # Repository exists, trigger re-indexing
-            await self.queue.enqueue_tasks(
-                tasks=PrescribedOperations.CREATE_NEW_REPOSITORY,
-                base_priority=QueuePriority.USER_INITIATED,
-                payload={"repository_id": existing_repo.id},
-            )
-            return existing_repo, False
-
-        # Create new repository
-        async with self.operation.create_child(
-            TaskOperation.CREATE_REPOSITORY,
-            trackable_type=TrackableType.KODIT_REPOSITORY,
-        ):
-            repo = GitRepoFactory.create_from_remote_uri(remote_uri)
-            repo = await self.repo_repository.save(repo)
-            await self.queue.enqueue_tasks(
-                tasks=PrescribedOperations.CREATE_NEW_REPOSITORY,
-                base_priority=QueuePriority.USER_INITIATED,
-                payload={"repository_id": repo.id},
-            )
-            return repo, True
 
     async def delete_git_repository(self, repo_id: int) -> bool:
         """Delete a Git repository by ID."""
@@ -272,8 +247,7 @@ class CommitIndexingApplicationService:
         if not repo:
             return False
 
-        # Use the proper deletion process that handles all dependencies
-        await self.process_delete_repo(repo_id)
+        await self.repository_deletion_service.delete_repository(repo_id)
         return True
 
     # TODO(Phil): Make this polymorphic
@@ -386,250 +360,13 @@ class CommitIndexingApplicationService:
 
         return total_files
 
-    async def _sync_branches(self, repo: GitRepo, current_time: datetime) -> int:
-        """Sync branches from git to database.
-
-        Only saves branches whose head commits exist in the database to avoid
-        foreign key constraint violations.
-        """
-        if not repo.id or not repo.cloned_path:
-            raise ValueError("Repository must have ID and cloned_path")
-
-        # Get all branches from git
-        branch_data = await self.scanner.git_adapter.get_all_branches(repo.cloned_path)
-        self._log.info(f"Found {len(branch_data)} branches in git")
-
-        # Get all branch head SHAs efficiently
-        branch_names = [branch_info["name"] for branch_info in branch_data]
-        branch_head_shas = await self.scanner.git_adapter.get_all_branch_head_shas(
-            repo.cloned_path, branch_names
-        )
-
-        # Create branches only for commits that exist in database
-        branches = []
-        skipped = 0
-        for branch_info in branch_data:
-            branch_name = branch_info["name"]
-            head_sha = branch_head_shas.get(branch_name)
-
-            if not head_sha:
-                self._log.warning(f"No head commit found for branch {branch_name}")
-                continue
-
-            # Check if commit exists in database to avoid FK constraint violation
-            try:
-                await self.git_commit_repository.get(head_sha)
-                branch = GitBranch(
-                    repo_id=repo.id,
-                    created_at=current_time,
-                    name=branch_name,
-                    head_commit_sha=head_sha,
-                )
-                branches.append(branch)
-                self._log.debug(f"Processed branch: {branch_name}")
-            except Exception:  # noqa: BLE001
-                # Commit doesn't exist yet, skip this branch
-                skipped += 1
-                self._log.debug(
-                    f"Skipping branch {branch_name} - "
-                    f"commit {head_sha[:8]} not in database yet"
-                )
-
-        # Save branches individually (handles upsert)
-        for branch in branches:
-            await self.git_branch_repository.save(branch)
-
-        if branches:
-            self._log.info(f"Saved {len(branches)} branches to database")
-        if skipped > 0:
-            self._log.info(
-                f"Skipped {skipped} branches - commits not in database yet"
-            )
-
-        # Delete branches that no longer exist in git
-        existing_branches = await self.git_branch_repository.get_by_repo_id(repo.id)
-        git_branch_names = {b.name for b in branches}
-        for existing_branch in existing_branches:
-            if existing_branch.name not in git_branch_names:
-                await self.git_branch_repository.delete(existing_branch)
-                self._log.info(
-                    f"Deleted branch {existing_branch.name} (no longer in git)"
-                )
-
-        return len(branches)
-
-    async def _sync_tags(self, repo: GitRepo, current_time: datetime) -> int:
-        """Sync tags from git to database.
-
-        Only saves tags whose target commits exist in the database to avoid
-        foreign key constraint violations.
-        """
-        if not repo.id or not repo.cloned_path:
-            raise ValueError("Repository must have ID and cloned_path")
-
-        # Get all tags from git
-        tag_data = await self.scanner.git_adapter.get_all_tags(repo.cloned_path)
-        self._log.info(f"Found {len(tag_data)} tags in git")
-
-        # Create tags only for commits that exist in database
-        tags = []
-        skipped = 0
-        for tag_info in tag_data:
-            try:
-                target_sha = tag_info["target_commit_sha"]
-
-                # Check if commit exists in database to avoid FK constraint violation
-                try:
-                    await self.git_commit_repository.get(target_sha)
-                    git_tag = GitTag(
-                        repo_id=repo.id,
-                        name=tag_info["name"],
-                        target_commit_sha=target_sha,
-                        created_at=current_time,
-                        updated_at=current_time,
-                    )
-                    tags.append(git_tag)
-                except Exception:  # noqa: BLE001
-                    # Commit doesn't exist yet, skip this tag
-                    skipped += 1
-                    self._log.debug(
-                        f"Skipping tag {tag_info['name']} - "
-                        f"commit {target_sha[:8]} not in database yet"
-                    )
-            except (KeyError, ValueError) as e:
-                self._log.warning(
-                    f"Failed to process tag {tag_info.get('name', 'unknown')}: {e}"
-                )
-                continue
-
-        # Save tags individually (handles upsert)
-        for tag in tags:
-            await self.git_tag_repository.save(tag)
-
-        if tags:
-            self._log.info(f"Saved {len(tags)} tags to database")
-        if skipped > 0:
-            self._log.info(f"Skipped {skipped} tags - commits not in database yet")
-
-        # Delete tags that no longer exist in git
-        existing_tags = await self.git_tag_repository.get_by_repo_id(repo.id)
-        git_tag_names = {t.name for t in tags}
-        for existing_tag in existing_tags:
-            if existing_tag.name not in git_tag_names:
-                await self.git_tag_repository.delete(existing_tag)
-                self._log.info(f"Deleted tag {existing_tag.name} (no longer in git)")
-
-        return len(tags)
-
-    async def _sync_branches_and_tags(self, repo: GitRepo) -> None:
-        """Sync all branches and tags from git to database.
-
-        This scans all branches and tags in the repository and saves them to the
-        database, creating or updating entries as needed. It also removes branches
-        and tags that no longer exist in git.
-        """
-        if not repo.id:
-            raise ValueError("Repository must have an ID")
-        if not repo.cloned_path:
-            raise ValueError(f"Repository {repo.id} has never been cloned")
-
-        current_time = datetime.now(UTC)
-
-        # Sync branches and tags
-        num_branches = await self._sync_branches(repo, current_time)
-        num_tags = await self._sync_tags(repo, current_time)
-
-        # Update repository with new counts
-        repo.num_branches = num_branches
-        repo.num_tags = num_tags
-        await self.repo_repository.save(repo)
-
     async def process_clone_repo(self, repository_id: int) -> None:
         """Clone a repository and enqueue head commit scan."""
-        async with self.operation.create_child(
-            TaskOperation.CLONE_REPOSITORY,
-            trackable_type=TrackableType.KODIT_REPOSITORY,
-            trackable_id=repository_id,
-        ):
-            repo = await self.repo_repository.get(repository_id)
-            repo.cloned_path = await self.cloner.clone_repository(repo.remote_uri)
+        await self.repository_lifecycle_service.clone_repository(repository_id)
 
-            if not repo.tracking_config:
-                repo.tracking_config = (
-                    await self.repository_query_service.get_tracking_config(repo)
-                )
-
-            await self.repo_repository.save(repo)
-
-            # Sync all branches and tags to database
-            await self._sync_branches_and_tags(repo)
-
-            # Resolve the head commit SHA and enqueue scan + indexing
-            commit_sha = (
-                await self.repository_query_service.resolve_tracked_commit_from_git(
-                    repo
-                )
-            )
-            self._log.info(
-                f"Enqueuing scan for head commit {commit_sha[:8]} "
-                f"of repository {repository_id}"
-            )
-
-            await self.queue.enqueue_tasks(
-                tasks=PrescribedOperations.SCAN_AND_INDEX_COMMIT,
-                base_priority=QueuePriority.USER_INITIATED,
-                payload={"commit_sha": commit_sha, "repository_id": repository_id},
-            )
-
-    # TODO(Phil): We should do a fetch here, then trigger scans for tracking things or
-    # other things.
     async def process_sync_repo(self, repository_id: int) -> None:
         """Sync a repository by pulling and scanning head commit if changed."""
-        async with self.operation.create_child(
-            TaskOperation.SYNC_REPOSITORY,
-            trackable_type=TrackableType.KODIT_REPOSITORY,
-            trackable_id=repository_id,
-        ):
-            repo = await self.repo_repository.get(repository_id)
-            if not repo.cloned_path:
-                raise ValueError(f"Repository {repository_id} has never been cloned")
-
-            # Pull latest changes from remote
-            await self.cloner.pull_repository(repo)
-
-            # Sync all branches and tags to database
-            await self._sync_branches_and_tags(repo)
-
-            # Resolve the head commit SHA
-            commit_sha = (
-                await self.repository_query_service.resolve_tracked_commit_from_git(
-                    repo
-                )
-            )
-            self._log.info(
-                f"Syncing repository {repository_id}, head commit is {commit_sha[:8]}"
-            )
-
-            # Check if we've already scanned this commit
-            existing_commit = await self.git_commit_repository.find(
-                QueryBuilder().filter("commit_sha", FilterOperator.EQ, commit_sha)
-            )
-
-            if existing_commit:
-                self._log.info(
-                    f"Commit {commit_sha[:8]} already scanned, sync complete"
-                )
-                return
-
-            # New commit detected, enqueue scan and indexing
-            self._log.info(
-                f"New commit {commit_sha[:8]} detected, enqueuing scan and indexing"
-            )
-            await self.queue.enqueue_tasks(
-                tasks=PrescribedOperations.SCAN_AND_INDEX_COMMIT,
-                base_priority=QueuePriority.BACKGROUND,
-                payload={"commit_sha": commit_sha, "repository_id": repository_id},
-            )
+        await self.repository_lifecycle_service.sync_repository(repository_id)
 
     async def process_scan_commit(self, repository_id: int, commit_sha: str) -> None:
         """Scan a specific commit and save to database."""
@@ -670,109 +407,9 @@ class CommitIndexingApplicationService:
             repo.num_commits = 1  # We only scanned one commit
             await self.repo_repository.save(repo)
 
-    async def _delete_snippet_enrichments_for_commits(
-        self, commit_shas: list[str]
-    ) -> None:
-        """Delete snippet enrichments and their indices for commits."""
-        # Get all snippet enrichment IDs for these commits
-        all_snippet_enrichment_ids = []
-        for commit_sha in commit_shas:
-            snippet_enrichments = (
-                await self.enrichment_query_service.get_all_snippets_for_commit(
-                    commit_sha
-                )
-            )
-            enrichment_ids = [
-                enrichment.id for enrichment in snippet_enrichments if enrichment.id
-            ]
-            all_snippet_enrichment_ids.extend(enrichment_ids)
-
-        if not all_snippet_enrichment_ids:
-            return
-
-        # Delete from BM25 and embedding indices
-        snippet_id_strings = [str(sid) for sid in all_snippet_enrichment_ids]
-        delete_request = DeleteRequest(snippet_ids=snippet_id_strings)
-        await self.bm25_service.delete_documents(delete_request)
-
-        for snippet_id in all_snippet_enrichment_ids:
-            await self.embedding_repository.delete_embeddings_by_snippet_id(
-                str(snippet_id)
-            )
-
-        # Delete enrichment associations for snippets
-        await self.enrichment_association_repository.delete_by_query(
-            QueryBuilder()
-            .filter("entity_type", FilterOperator.EQ, "snippet_v2")
-            .filter("entity_id", FilterOperator.IN, snippet_id_strings)
-        )
-
-        # Delete the enrichments themselves
-        await self.enrichment_v2_repository.delete_by_query(
-            QueryBuilder().filter("id", FilterOperator.IN, all_snippet_enrichment_ids)
-        )
-
-    async def _delete_commit_enrichments(self, commit_shas: list[str]) -> None:
-        """Delete commit-level enrichments for commits."""
-        existing_enrichment_associations = (
-            await self.enrichment_association_repository.find(
-                QueryBuilder()
-                .filter(
-                    "entity_type",
-                    FilterOperator.EQ,
-                    db_entities.GitCommit.__tablename__,
-                )
-                .filter("entity_id", FilterOperator.IN, commit_shas)
-            )
-        )
-        enrichment_ids = [a.enrichment_id for a in existing_enrichment_associations]
-        if not enrichment_ids:
-            return
-
-        # Delete associations first
-        await self.enrichment_association_repository.delete_by_query(
-            QueryBuilder().filter("enrichment_id", FilterOperator.IN, enrichment_ids)
-        )
-        # Then delete enrichments
-        await self.enrichment_v2_repository.delete_by_query(
-            QueryBuilder().filter("id", FilterOperator.IN, enrichment_ids)
-        )
-
     async def process_delete_repo(self, repository_id: int) -> None:
         """Delete a repository."""
-        async with self.operation.create_child(
-            TaskOperation.DELETE_REPOSITORY,
-            trackable_type=TrackableType.KODIT_REPOSITORY,
-            trackable_id=repository_id,
-        ):
-            repo = await self.repo_repository.get(repository_id)
-            if not repo:
-                raise ValueError(f"Repository {repository_id} not found")
-
-            # Get all commit SHAs for this repository
-            commits = await self.git_commit_repository.find(
-                QueryBuilder().filter("repo_id", FilterOperator.EQ, repository_id)
-            )
-            commit_shas = [commit.commit_sha for commit in commits]
-
-            # Delete all enrichments and their indices
-            if commit_shas:
-                await self._delete_snippet_enrichments_for_commits(commit_shas)
-                await self._delete_commit_enrichments(commit_shas)
-
-            # Delete branches, tags, files, commits, and repository
-            await self.git_branch_repository.delete_by_repo_id(repository_id)
-            await self.git_tag_repository.delete_by_repo_id(repository_id)
-
-            for commit_sha in commit_shas:
-                await self.git_file_repository.delete_by_commit_sha(commit_sha)
-
-            await self.git_commit_repository.delete_by_query(
-                QueryBuilder().filter("repo_id", FilterOperator.EQ, repository_id)
-            )
-
-            if repo.id:
-                await self.repo_repository.delete(repo)
+        await self.repository_deletion_service.delete_repository(repository_id)
 
     async def process_snippets_for_commit(
         self, repository_id: int, commit_sha: str

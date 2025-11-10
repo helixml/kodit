@@ -85,6 +85,13 @@ async def commit_indexing_service(
     mock_progress_tracker: MagicMock,
 ) -> CommitIndexingApplicationService:
     """Create a CommitIndexingApplicationService instance for testing."""
+    from kodit.application.services.repository_deletion_service import (
+        RepositoryDeletionService,
+    )
+    from kodit.application.services.repository_lifecycle_service import (
+        RepositoryLifecycleService,
+    )
+
     queue_service = QueueService(session_factory=session_factory)
     repo_repository = create_git_repo_repository(session_factory=session_factory)
     git_commit_repository = create_git_commit_repository(
@@ -103,6 +110,38 @@ async def commit_indexing_service(
         session_factory=session_factory
     )
 
+    enrichment_query_service = AsyncMock()
+    repository_query_service = AsyncMock()
+    scanner = AsyncMock(spec=GitRepositoryScanner)
+    cloner = MagicMock(spec=RepositoryCloner)
+    bm25_service = AsyncMock(spec=BM25DomainService)
+
+    repository_lifecycle_service = RepositoryLifecycleService(
+        repo_repository=repo_repository,
+        git_commit_repository=git_commit_repository,
+        git_branch_repository=git_branch_repository,
+        git_tag_repository=git_tag_repository,
+        cloner=cloner,
+        scanner=scanner,
+        queue=queue_service,
+        operation=mock_progress_tracker,
+        repository_query_service=repository_query_service,
+    )
+
+    repository_deletion_service = RepositoryDeletionService(
+        repo_repository=repo_repository,
+        git_commit_repository=git_commit_repository,
+        git_file_repository=git_file_repository,
+        git_branch_repository=git_branch_repository,
+        git_tag_repository=git_tag_repository,
+        enrichment_v2_repository=enrichment_v2_repository,
+        enrichment_association_repository=enrichment_association_repository,
+        embedding_repository=embedding_repository,
+        bm25_service=bm25_service,
+        operation=mock_progress_tracker,
+        enrichment_query_service=enrichment_query_service,
+    )
+
     return CommitIndexingApplicationService(
         repo_repository=repo_repository,
         git_commit_repository=git_commit_repository,
@@ -110,11 +149,11 @@ async def commit_indexing_service(
         git_tag_repository=git_tag_repository,
         git_file_repository=git_file_repository,
         operation=mock_progress_tracker,
-        scanner=AsyncMock(spec=GitRepositoryScanner),
-        cloner=MagicMock(spec=RepositoryCloner),
+        scanner=scanner,
+        cloner=cloner,
         slicer=MagicMock(spec=Slicer),
         queue=queue_service,
-        bm25_service=AsyncMock(spec=BM25DomainService),
+        bm25_service=bm25_service,
         code_search_service=AsyncMock(spec=EmbeddingDomainService),
         text_search_service=AsyncMock(spec=EmbeddingDomainService),
         embedding_repository=embedding_repository,
@@ -124,8 +163,10 @@ async def commit_indexing_service(
         enrichment_v2_repository=enrichment_v2_repository,
         enrichment_association_repository=enrichment_association_repository,
         enricher_service=AsyncMock(),
-        enrichment_query_service=AsyncMock(),
-        repository_query_service=AsyncMock(),
+        enrichment_query_service=enrichment_query_service,
+        repository_query_service=repository_query_service,
+        repository_lifecycle_service=repository_lifecycle_service,
+        repository_deletion_service=repository_deletion_service,
     )
 
 
@@ -446,6 +487,44 @@ async def test_sync_branches_and_tags_with_real_git(  # noqa: PLR0915
         git_adapter = GitPythonAdapter()
         scanner = GitRepositoryScanner(git_adapter)
 
+        from kodit.application.services.repository_deletion_service import (
+            RepositoryDeletionService,
+        )
+        from kodit.application.services.repository_lifecycle_service import (
+            RepositoryLifecycleService,
+        )
+
+        enrichment_query_service = AsyncMock()
+        repository_query_service = AsyncMock()
+        cloner = MagicMock()
+        bm25_service = AsyncMock(spec=BM25DomainService)
+
+        repository_lifecycle_service = RepositoryLifecycleService(
+            repo_repository=repo_repository,
+            git_commit_repository=git_commit_repository,
+            git_branch_repository=git_branch_repository,
+            git_tag_repository=git_tag_repository,
+            cloner=cloner,
+            scanner=scanner,
+            queue=queue_service,
+            operation=mock_progress_tracker,
+            repository_query_service=repository_query_service,
+        )
+
+        repository_deletion_service = RepositoryDeletionService(
+            repo_repository=repo_repository,
+            git_commit_repository=git_commit_repository,
+            git_file_repository=git_file_repository,
+            git_branch_repository=git_branch_repository,
+            git_tag_repository=git_tag_repository,
+            enrichment_v2_repository=enrichment_v2_repository,
+            enrichment_association_repository=enrichment_association_repository,
+            embedding_repository=embedding_repository,
+            bm25_service=bm25_service,
+            operation=mock_progress_tracker,
+            enrichment_query_service=enrichment_query_service,
+        )
+
         service = CommitIndexingApplicationService(
             repo_repository=repo_repository,
             git_commit_repository=git_commit_repository,
@@ -454,10 +533,10 @@ async def test_sync_branches_and_tags_with_real_git(  # noqa: PLR0915
             git_file_repository=git_file_repository,
             operation=mock_progress_tracker,
             scanner=scanner,
-            cloner=MagicMock(),
+            cloner=cloner,
             slicer=MagicMock(spec=Slicer),
             queue=queue_service,
-            bm25_service=AsyncMock(spec=BM25DomainService),
+            bm25_service=bm25_service,
             code_search_service=AsyncMock(spec=EmbeddingDomainService),
             text_search_service=AsyncMock(spec=EmbeddingDomainService),
             embedding_repository=embedding_repository,
@@ -467,8 +546,10 @@ async def test_sync_branches_and_tags_with_real_git(  # noqa: PLR0915
             enrichment_v2_repository=enrichment_v2_repository,
             enrichment_association_repository=enrichment_association_repository,
             enricher_service=AsyncMock(),
-            enrichment_query_service=AsyncMock(),
-            repository_query_service=AsyncMock(),
+            enrichment_query_service=enrichment_query_service,
+            repository_query_service=repository_query_service,
+            repository_lifecycle_service=repository_lifecycle_service,
+            repository_deletion_service=repository_deletion_service,
         )
 
         # Create and save repository entity
@@ -491,7 +572,7 @@ async def test_sync_branches_and_tags_with_real_git(  # noqa: PLR0915
             await service.git_commit_repository.save(commit)
 
         # Sync branches and tags
-        await service._sync_branches_and_tags(repo)  # noqa: SLF001
+        await repository_lifecycle_service.sync_branches_and_tags(repo)
 
         # Verify branches were saved
         branches = await git_branch_repository.get_by_repo_id(repo.id)

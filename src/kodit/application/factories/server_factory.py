@@ -1,6 +1,7 @@
 """Create a big object that contains all the application services."""
 
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,6 +12,14 @@ from kodit.application.services.code_search_application_service import (
 from kodit.application.services.commit_indexing_application_service import (
     CommitIndexingApplicationService,
 )
+
+if TYPE_CHECKING:
+    from kodit.application.services.repository_deletion_service import (
+        RepositoryDeletionService,
+    )
+    from kodit.application.services.repository_lifecycle_service import (
+        RepositoryLifecycleService,
+    )
 from kodit.application.services.enrichment_query_service import (
     EnrichmentQueryService,
 )
@@ -251,6 +260,44 @@ class ServerFactory:
             )
         return self._text_search_service
 
+    def repository_lifecycle_service(self) -> "RepositoryLifecycleService":
+        """Create a RepositoryLifecycleService instance."""
+        from kodit.application.services.repository_lifecycle_service import (
+            RepositoryLifecycleService,
+        )
+
+        return RepositoryLifecycleService(
+            repo_repository=self.repo_repository(),
+            git_commit_repository=self.git_commit_repository(),
+            git_branch_repository=self.git_branch_repository(),
+            git_tag_repository=self.git_tag_repository(),
+            cloner=self.cloner(),
+            scanner=self.scanner(),
+            queue=self.queue_service(),
+            operation=self.operation(),
+            repository_query_service=self.repository_query_service(),
+        )
+
+    def repository_deletion_service(self) -> "RepositoryDeletionService":
+        """Create a RepositoryDeletionService instance."""
+        from kodit.application.services.repository_deletion_service import (
+            RepositoryDeletionService,
+        )
+
+        return RepositoryDeletionService(
+            repo_repository=self.repo_repository(),
+            git_commit_repository=self.git_commit_repository(),
+            git_file_repository=self.git_file_repository(),
+            git_branch_repository=self.git_branch_repository(),
+            git_tag_repository=self.git_tag_repository(),
+            enrichment_v2_repository=self.enrichment_v2_repository(),
+            enrichment_association_repository=self.enrichment_association_repository(),
+            embedding_repository=self.embedding_repository(),
+            bm25_service=self.bm25_service(),
+            operation=self.operation(),
+            enrichment_query_service=self.enrichment_query_service(),
+        )
+
     def commit_indexing_application_service(self) -> CommitIndexingApplicationService:
         """Create a CommitIndexingApplicationService instance."""
         if not self._commit_indexing_application_service:
@@ -277,6 +324,8 @@ class ServerFactory:
                 enrichment_association_repository=self.enrichment_association_repository(),
                 enrichment_query_service=self.enrichment_query_service(),
                 repository_query_service=self.repository_query_service(),
+                repository_lifecycle_service=self.repository_lifecycle_service(),
+                repository_deletion_service=self.repository_deletion_service(),
             )
 
         return self._commit_indexing_application_service
