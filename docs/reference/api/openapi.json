@@ -3,7 +3,7 @@
   "info": {
     "title": "kodit API",
     "description": "\nThis is the REST API for the Kodit server. Please refer to the\n[Kodit documentation](https://docs.helix.ml/kodit/) for more information.\n    ",
-    "version": "0.5.10"
+    "version": "0.5.11"
   },
   "paths": {
     "/healthz": {
@@ -2462,7 +2462,7 @@
           "kodit.repository.create",
           "kodit.repository.delete",
           "kodit.repository.clone",
-          "kodit.repository.scan",
+          "kodit.repository.sync",
           "kodit.commit",
           "kodit.commit.extract_snippets",
           "kodit.commit.create_bm25_index",
@@ -2473,7 +2473,8 @@
           "kodit.commit.create_public_api_docs",
           "kodit.commit.create_commit_description",
           "kodit.commit.create_database_schema",
-          "kodit.commit.create_cookbook"
+          "kodit.commit.create_cookbook",
+          "kodit.commit.scan"
         ],
         "title": "TaskOperation",
         "description": "Task operation."
