@@ -85,6 +85,9 @@ async def commit_indexing_service(
     mock_progress_tracker: MagicMock,
 ) -> CommitIndexingApplicationService:
     """Create a CommitIndexingApplicationService instance for testing."""
+    from kodit.application.services.commit_scanning_service import (
+        CommitScanningService,
+    )
     from kodit.application.services.repository_deletion_service import (
         RepositoryDeletionService,
     )
@@ -142,6 +145,27 @@ async def commit_indexing_service(
         enrichment_query_service=enrichment_query_service,
     )
 
+    commit_scanning_service = CommitScanningService(
+        repo_repository=repo_repository,
+        git_commit_repository=git_commit_repository,
+        git_file_repository=git_file_repository,
+        scanner=scanner,
+        operation=mock_progress_tracker,
+    )
+
+    from kodit.application.services.snippet_extraction_service import (
+        SnippetExtractionService,
+    )
+
+    snippet_extraction_service = SnippetExtractionService(
+        repo_repository=repo_repository,
+        git_commit_repository=git_commit_repository,
+        enrichment_v2_repository=enrichment_v2_repository,
+        enrichment_association_repository=enrichment_association_repository,
+        scanner=scanner,
+        operation=mock_progress_tracker,
+    )
+
     return CommitIndexingApplicationService(
         repo_repository=repo_repository,
         git_commit_repository=git_commit_repository,
@@ -167,6 +191,8 @@ async def commit_indexing_service(
         repository_query_service=repository_query_service,
         repository_lifecycle_service=repository_lifecycle_service,
         repository_deletion_service=repository_deletion_service,
+        commit_scanning_service=commit_scanning_service,
+        snippet_extraction_service=snippet_extraction_service,
     )
 
 
@@ -487,6 +513,9 @@ async def test_sync_branches_and_tags_with_real_git(  # noqa: PLR0915
         git_adapter = GitPythonAdapter()
         scanner = GitRepositoryScanner(git_adapter)
 
+        from kodit.application.services.commit_scanning_service import (
+            CommitScanningService,
+        )
         from kodit.application.services.repository_deletion_service import (
             RepositoryDeletionService,
         )
@@ -525,6 +554,27 @@ async def test_sync_branches_and_tags_with_real_git(  # noqa: PLR0915
             enrichment_query_service=enrichment_query_service,
         )
 
+        commit_scanning_service = CommitScanningService(
+            repo_repository=repo_repository,
+            git_commit_repository=git_commit_repository,
+            git_file_repository=git_file_repository,
+            scanner=scanner,
+            operation=mock_progress_tracker,
+        )
+
+        from kodit.application.services.snippet_extraction_service import (
+            SnippetExtractionService,
+        )
+
+        snippet_extraction_service = SnippetExtractionService(
+            repo_repository=repo_repository,
+            git_commit_repository=git_commit_repository,
+            enrichment_v2_repository=enrichment_v2_repository,
+            enrichment_association_repository=enrichment_association_repository,
+            scanner=scanner,
+            operation=mock_progress_tracker,
+        )
+
         service = CommitIndexingApplicationService(
             repo_repository=repo_repository,
             git_commit_repository=git_commit_repository,
@@ -550,6 +600,8 @@ async def test_sync_branches_and_tags_with_real_git(  # noqa: PLR0915
             repository_query_service=repository_query_service,
             repository_lifecycle_service=repository_lifecycle_service,
             repository_deletion_service=repository_deletion_service,
+            commit_scanning_service=commit_scanning_service,
+            snippet_extraction_service=snippet_extraction_service,
         )
 
         # Create and save repository entity

@@ -14,11 +14,17 @@ from kodit.application.services.commit_indexing_application_service import (
 )
 
 if TYPE_CHECKING:
+    from kodit.application.services.commit_scanning_service import (
+        CommitScanningService,
+    )
     from kodit.application.services.repository_deletion_service import (
         RepositoryDeletionService,
     )
     from kodit.application.services.repository_lifecycle_service import (
         RepositoryLifecycleService,
+    )
+    from kodit.application.services.snippet_extraction_service import (
+        SnippetExtractionService,
     )
 from kodit.application.services.enrichment_query_service import (
     EnrichmentQueryService,
@@ -298,6 +304,35 @@ class ServerFactory:
             enrichment_query_service=self.enrichment_query_service(),
         )
 
+    def commit_scanning_service(self) -> "CommitScanningService":
+        """Create a CommitScanningService instance."""
+        from kodit.application.services.commit_scanning_service import (
+            CommitScanningService,
+        )
+
+        return CommitScanningService(
+            repo_repository=self.repo_repository(),
+            git_commit_repository=self.git_commit_repository(),
+            git_file_repository=self.git_file_repository(),
+            scanner=self.scanner(),
+            operation=self.operation(),
+        )
+
+    def snippet_extraction_service(self) -> "SnippetExtractionService":
+        """Create a SnippetExtractionService instance."""
+        from kodit.application.services.snippet_extraction_service import (
+            SnippetExtractionService,
+        )
+
+        return SnippetExtractionService(
+            repo_repository=self.repo_repository(),
+            git_commit_repository=self.git_commit_repository(),
+            enrichment_v2_repository=self.enrichment_v2_repository(),
+            enrichment_association_repository=self.enrichment_association_repository(),
+            scanner=self.scanner(),
+            operation=self.operation(),
+        )
+
     def commit_indexing_application_service(self) -> CommitIndexingApplicationService:
         """Create a CommitIndexingApplicationService instance."""
         if not self._commit_indexing_application_service:
@@ -326,6 +361,8 @@ class ServerFactory:
                 repository_query_service=self.repository_query_service(),
                 repository_lifecycle_service=self.repository_lifecycle_service(),
                 repository_deletion_service=self.repository_deletion_service(),
+                commit_scanning_service=self.commit_scanning_service(),
+                snippet_extraction_service=self.snippet_extraction_service(),
             )
 
         return self._commit_indexing_application_service

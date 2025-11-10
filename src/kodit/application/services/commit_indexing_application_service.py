@@ -1,8 +1,6 @@
 """Application services for commit indexing operations."""
 
 from collections import defaultdict
-from datetime import UTC, datetime
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import structlog
@@ -19,11 +17,17 @@ from kodit.application.services.repository_lifecycle_service import (
 from kodit.infrastructure.sqlalchemy.query import FilterOperator, QueryBuilder
 
 if TYPE_CHECKING:
+    from kodit.application.services.commit_scanning_service import (
+        CommitScanningService,
+    )
     from kodit.application.services.enrichment_query_service import (
         EnrichmentQueryService,
     )
     from kodit.application.services.repository_query_service import (
         RepositoryQueryService,
+    )
+    from kodit.application.services.snippet_extraction_service import (
+        SnippetExtractionService,
     )
 from kodit.domain.enrichments.architecture.database_schema.database_schema import (
     DatabaseSchemaEnrichment,
@@ -32,7 +36,6 @@ from kodit.domain.enrichments.architecture.physical.physical import (
     PhysicalArchitectureEnrichment,
 )
 from kodit.domain.enrichments.development.snippet.snippet import (
-    SnippetEnrichment,
     SnippetEnrichmentSummary,
 )
 from kodit.domain.enrichments.enricher import Enricher
@@ -50,10 +53,8 @@ from kodit.domain.enrichments.request import (
 from kodit.domain.enrichments.usage.cookbook import CookbookEnrichment
 from kodit.domain.entities import Task
 from kodit.domain.entities.git import (
-    GitCommit,
     GitFile,
     GitRepo,
-    SnippetV2,
 )
 from kodit.domain.protocols import (
     EnrichmentAssociationRepository,
@@ -204,6 +205,8 @@ class CommitIndexingApplicationService:
         repository_query_service: "RepositoryQueryService",
         repository_lifecycle_service: RepositoryLifecycleService,
         repository_deletion_service: RepositoryDeletionService,
+        commit_scanning_service: "CommitScanningService",
+        snippet_extraction_service: "SnippetExtractionService",
     ) -> None:
         """Initialize the commit indexing application service."""
         self.repo_repository = repo_repository
@@ -230,6 +233,8 @@ class CommitIndexingApplicationService:
         self.repository_query_service = repository_query_service
         self.repository_lifecycle_service = repository_lifecycle_service
         self.repository_deletion_service = repository_deletion_service
+        self.commit_scanning_service = commit_scanning_service
+        self.snippet_extraction_service = snippet_extraction_service
         self._log = structlog.get_logger(__name__)
 
         # Create task handlers and dispatcher
@@ -271,67 +276,6 @@ class CommitIndexingApplicationService:
         """Run a task by dispatching to appropriate handler."""
         await self.task_dispatcher.dispatch(task)
 
-    async def _process_files_in_batches(
-        self,
-        cloned_path: Path,
-        all_commits: list[GitCommit],
-        batch_size: int = 500,
-        *,
-        is_incremental: bool = False,
-    ) -> int:
-        """Process file metadata for all commits in batches to avoid memory exhaustion.
-
-        This loads file metadata (paths, sizes, blob SHAs) in batches and saves them
-        incrementally to avoid holding millions of file objects in memory.
-
-        Args:
-            cloned_path: Path to the cloned repository
-            all_commits: List of all commits from scan
-            batch_size: Number of commits to process at once (default 500)
-            is_incremental: Whether this is an incremental scan
-
-        Returns:
-            Total number of files processed
-
-        """
-        total_files = 0
-        commit_shas = [commit.commit_sha for commit in all_commits]
-        total_batches = (len(commit_shas) + batch_size - 1) // batch_size
-
-        self._log.info(
-            f"Processing files for {len(commit_shas)} commits "
-            f"in {total_batches} batches"
-        )
-
-        # Process commits in batches
-        for i in range(0, len(commit_shas), batch_size):
-            batch = commit_shas[i : i + batch_size]
-            batch_num = i // batch_size + 1
-
-            self._log.debug(
-                f"Processing batch {batch_num}/{total_batches} ({len(batch)} commits)"
-            )
-
-            # Get file metadata for this batch of commits
-            files = await self.scanner.process_files_for_commits_batch(
-                cloned_path, batch
-            )
-
-            # Save file metadata to database immediately
-            # For initial scans, skip existence check for performance
-            # For incremental scans, check existence to avoid violations
-            if files:
-                await self.git_file_repository.save_bulk(
-                    files, skip_existence_check=not is_incremental
-                )
-                total_files += len(files)
-                self._log.debug(
-                    f"Batch {batch_num}: Saved {len(files)} files "
-                    f"(total so far: {total_files})"
-                )
-
-        return total_files
-
     async def process_clone_repo(self, repository_id: int) -> None:
         """Clone a repository and enqueue head commit scan."""
         await self.repository_lifecycle_service.clone_repository(repository_id)
@@ -342,42 +286,7 @@ class CommitIndexingApplicationService:
 
     async def process_scan_commit(self, repository_id: int, commit_sha: str) -> None:
         """Scan a specific commit and save to database."""
-        async with self.operation.create_child(
-            TaskOperation.SCAN_COMMIT,
-            trackable_type=TrackableType.KODIT_REPOSITORY,
-            trackable_id=repository_id,
-        ) as step:
-            # Check if we've already scanned this commit
-            existing_commit = await self.git_commit_repository.find(
-                QueryBuilder().filter("commit_sha", FilterOperator.EQ, commit_sha)
-            )
-
-            if existing_commit:
-                await step.skip("Commit already scanned")
-                return
-
-            # Get repository
-            repo = await self.repo_repository.get(repository_id)
-            if not repo.cloned_path:
-                raise ValueError(f"Repository {repository_id} has never been cloned")
-
-            # Scan the specific commit
-            commit, files = await self.scanner.scan_commit(
-                repo.cloned_path, commit_sha, repository_id
-            )
-
-            # Save commit and files
-            await self.git_commit_repository.save(commit)
-            if files:
-                await self.git_file_repository.save_bulk(files)
-            self._log.info(
-                f"Scanned and saved commit {commit_sha[:8]} with {len(files)} files"
-            )
-
-            # Update repository metadata
-            repo.last_scanned_at = datetime.now(UTC)
-            repo.num_commits = 1  # We only scanned one commit
-            await self.repo_repository.save(repo)
+        await self.commit_scanning_service.scan_commit(repository_id, commit_sha)
 
     async def process_delete_repo(self, repository_id: int) -> None:
         """Delete a repository."""
@@ -387,107 +296,20 @@ class CommitIndexingApplicationService:
         self, repository_id: int, commit_sha: str
     ) -> None:
         """Generate snippets for a repository."""
-        async with self.operation.create_child(
-            operation=TaskOperation.EXTRACT_SNIPPETS_FOR_COMMIT,
-            trackable_type=TrackableType.KODIT_REPOSITORY,
-            trackable_id=repository_id,
-        ) as step:
-            # Find existing snippet enrichments for this commit
-            if await self.enrichment_query_service.has_snippets_for_commit(commit_sha):
+        # Check if snippets already exist
+        if await self.enrichment_query_service.has_snippets_for_commit(commit_sha):
+            async with self.operation.create_child(
+                operation=TaskOperation.EXTRACT_SNIPPETS_FOR_COMMIT,
+                trackable_type=TrackableType.KODIT_REPOSITORY,
+                trackable_id=repository_id,
+            ) as step:
                 await step.skip("Snippets already extracted for commit")
-                return
+            return
 
-            commit = await self.git_commit_repository.get(commit_sha)
-
-            # Load files on demand for snippet extraction (performance optimization)
-            # Instead of using commit.files (which may be empty), load files directly
-            repo = await self.repo_repository.get(repository_id)
-            if not repo.cloned_path:
-                raise ValueError(f"Repository {repository_id} has never been cloned")
-
-            files_data = await self.scanner.git_adapter.get_commit_file_data(
-                repo.cloned_path, commit_sha
-            )
-
-            # Create GitFile entities with absolute paths for the slicer
-            files = []
-            for file_data in files_data:
-                # Extract extension from file path
-                file_path = Path(file_data["path"])
-                extension = file_path.suffix.lstrip(".")
-
-                # Create absolute path for the slicer to read
-                absolute_path = str(repo.cloned_path / file_data["path"])
-
-                git_file = GitFile(
-                    commit_sha=commit.commit_sha,
-                    created_at=file_data.get("created_at", commit.date),
-                    blob_sha=file_data["blob_sha"],
-                    path=absolute_path,  # Use absolute path for file reading
-                    mime_type=file_data.get("mime_type", "application/octet-stream"),
-                    size=file_data.get("size", 0),
-                    extension=extension,
-                )
-                files.append(git_file)
-
-            # Create a set of languages to extract snippets for
-            extensions = {file.extension for file in files}
-            lang_files_map: dict[str, list[GitFile]] = defaultdict(list)
-            for ext in extensions:
-                try:
-                    lang = LanguageMapping.get_language_for_extension(ext)
-                    lang_files_map[lang].extend(
-                        file for file in files if file.extension == ext
-                    )
-                except ValueError as e:
-                    self._log.debug("Skipping", error=str(e))
-                    continue
-
-            # Extract snippets
-            all_snippets: list[SnippetV2] = []
-            slicer = Slicer()
-            await step.set_total(len(lang_files_map.keys()))
-            for i, (lang, lang_files) in enumerate(lang_files_map.items()):
-                await step.set_current(i, f"Extracting snippets for {lang}")
-                snippets = slicer.extract_snippets_from_git_files(
-                    lang_files, language=lang
-                )
-                all_snippets.extend(snippets)
-
-            # Deduplicate snippets by SHA before saving to prevent constraint violations
-            unique_snippets: dict[str, SnippetV2] = {}
-            for snippet in all_snippets:
-                unique_snippets[snippet.sha] = snippet
-
-            deduplicated_snippets = list(unique_snippets.values())
-
-            commit_short = commit.commit_sha[:8]
-            self._log.info(
-                f"Extracted {len(all_snippets)} snippets, "
-                f"deduplicated to {len(deduplicated_snippets)} for {commit_short}"
-            )
-
-            saved_enrichments = await self.enrichment_v2_repository.save_bulk(
-                [
-                    SnippetEnrichment(content=snippet.content)
-                    for snippet in deduplicated_snippets
-                ]
-            )
-            saved_associations = await self.enrichment_association_repository.save_bulk(
-                [
-                    EnrichmentAssociation(
-                        enrichment_id=enrichment.id,
-                        entity_type=db_entities.GitCommit.__tablename__,
-                        entity_id=commit_sha,
-                    )
-                    for enrichment in saved_enrichments
-                    if enrichment.id
-                ]
-            )
-            self._log.info(
-                f"Saved {len(saved_enrichments)} snippet enrichments and "
-                f"{len(saved_associations)} associations for commit {commit_sha}"
-            )
+        # Delegate to snippet extraction service
+        await self.snippet_extraction_service.extract_snippets(
+            repository_id, commit_sha
+        )
 
     async def process_bm25_index(self, repository_id: int, commit_sha: str) -> None:
         """Handle BM25_INDEX task - create keyword index."""
