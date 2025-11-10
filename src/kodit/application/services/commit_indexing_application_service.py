@@ -14,7 +14,6 @@ from kodit.application.services.repository_deletion_service import (
 from kodit.application.services.repository_lifecycle_service import (
     RepositoryLifecycleService,
 )
-from kodit.infrastructure.sqlalchemy.query import FilterOperator, QueryBuilder
 
 if TYPE_CHECKING:
     from kodit.application.services.commit_scanning_service import (
@@ -25,6 +24,9 @@ if TYPE_CHECKING:
     )
     from kodit.application.services.repository_query_service import (
         RepositoryQueryService,
+    )
+    from kodit.application.services.search_indexing_service import (
+        SearchIndexingService,
     )
     from kodit.application.services.snippet_extraction_service import (
         SnippetExtractionService,
@@ -42,7 +44,6 @@ from kodit.domain.enrichments.enricher import Enricher
 from kodit.domain.enrichments.enrichment import (
     CommitEnrichmentAssociation,
     EnrichmentAssociation,
-    EnrichmentV2,
 )
 from kodit.domain.enrichments.history.commit_description.commit_description import (
     CommitDescriptionEnrichment,
@@ -82,8 +83,6 @@ from kodit.domain.services.physical_architecture_service import (
     PhysicalArchitectureService,
 )
 from kodit.domain.value_objects import (
-    Document,
-    IndexRequest,
     LanguageMapping,
     TaskOperation,
     TrackableType,
@@ -97,9 +96,7 @@ from kodit.infrastructure.sqlalchemy import entities as db_entities
 from kodit.infrastructure.sqlalchemy.embedding_repository import (
     SqlAlchemyEmbeddingRepository,
 )
-from kodit.infrastructure.sqlalchemy.entities import EmbeddingType
 from kodit.infrastructure.sqlalchemy.query import (
-    EnrichmentAssociationQueryBuilder,
     GitFileQueryBuilder,
 )
 
@@ -207,6 +204,7 @@ class CommitIndexingApplicationService:
         repository_deletion_service: RepositoryDeletionService,
         commit_scanning_service: "CommitScanningService",
         snippet_extraction_service: "SnippetExtractionService",
+        search_indexing_service: "SearchIndexingService",
     ) -> None:
         """Initialize the commit indexing application service."""
         self.repo_repository = repo_repository
@@ -235,6 +233,7 @@ class CommitIndexingApplicationService:
         self.repository_deletion_service = repository_deletion_service
         self.commit_scanning_service = commit_scanning_service
         self.snippet_extraction_service = snippet_extraction_service
+        self.search_indexing_service = search_indexing_service
         self._log = structlog.get_logger(__name__)
 
         # Create task handlers and dispatcher
@@ -313,60 +312,15 @@ class CommitIndexingApplicationService:
 
     async def process_bm25_index(self, repository_id: int, commit_sha: str) -> None:
         """Handle BM25_INDEX task - create keyword index."""
-        async with self.operation.create_child(
-            TaskOperation.CREATE_BM25_INDEX_FOR_COMMIT,
-            trackable_type=TrackableType.KODIT_REPOSITORY,
-            trackable_id=repository_id,
-        ):
-            existing_enrichments = (
-                await self.enrichment_query_service.get_all_snippets_for_commit(
-                    commit_sha
-                )
-            )
-            await self.bm25_service.index_documents(
-                IndexRequest(
-                    documents=[
-                        Document(snippet_id=str(snippet.id), text=snippet.content)
-                        for snippet in existing_enrichments
-                        if snippet.id
-                    ]
-                )
-            )
+        await self.search_indexing_service.create_bm25_index(repository_id, commit_sha)
 
     async def process_code_embeddings(
         self, repository_id: int, commit_sha: str
     ) -> None:
         """Handle CODE_EMBEDDINGS task - create code embeddings."""
-        async with self.operation.create_child(
-            TaskOperation.CREATE_CODE_EMBEDDINGS_FOR_COMMIT,
-            trackable_type=TrackableType.KODIT_REPOSITORY,
-            trackable_id=repository_id,
-        ) as step:
-            existing_enrichments = (
-                await self.enrichment_query_service.get_all_snippets_for_commit(
-                    commit_sha
-                )
-            )
-
-            new_snippets = await self._new_snippets_for_type(
-                existing_enrichments, EmbeddingType.CODE
-            )
-            if not new_snippets:
-                await step.skip("All snippets already have code embeddings")
-                return
-
-            await step.set_total(len(new_snippets))
-            processed = 0
-            documents = [
-                Document(snippet_id=str(snippet.id), text=snippet.content)
-                for snippet in new_snippets
-                if snippet.id
-            ]
-            async for result in self.code_search_service.index_documents(
-                IndexRequest(documents=documents)
-            ):
-                processed += len(result)
-                await step.set_current(processed, "Creating code embeddings for commit")
+        await self.search_indexing_service.create_code_embeddings(
+            repository_id, commit_sha
+        )
 
     async def process_enrich(self, repository_id: int, commit_sha: str) -> None:
         """Handle ENRICH task - enrich snippets and create text embeddings."""
@@ -434,71 +388,9 @@ class CommitIndexingApplicationService:
         self, repository_id: int, commit_sha: str
     ) -> None:
         """Handle SUMMARY_EMBEDDINGS task - create summary embeddings."""
-        async with self.operation.create_child(
-            TaskOperation.CREATE_SUMMARY_EMBEDDINGS_FOR_COMMIT,
-            trackable_type=TrackableType.KODIT_REPOSITORY,
-            trackable_id=repository_id,
-        ) as step:
-            # Get all snippet enrichments for this commit
-            all_snippet_enrichments = (
-                await self.enrichment_query_service.get_all_snippets_for_commit(
-                    commit_sha
-                )
-            )
-            if not all_snippet_enrichments:
-                await step.skip("No snippets to create summary embeddings")
-                return
-
-            # Get summary enrichments that point to these snippet enrichments
-            query = EnrichmentAssociationQueryBuilder.for_enrichment_associations(
-                entity_type=db_entities.EnrichmentV2.__tablename__,
-                entity_ids=[
-                    str(snippet.id) for snippet in all_snippet_enrichments if snippet.id
-                ],
-            )
-            summary_enrichment_associations = (
-                await self.enrichment_association_repository.find(query)
-            )
-
-            if not summary_enrichment_associations:
-                await step.skip("No summary enrichments found for snippets")
-                return
-
-            # Get the actual summary enrichments
-            summary_enrichments = await self.enrichment_v2_repository.find(
-                QueryBuilder().filter(
-                    "id",
-                    FilterOperator.IN,
-                    [
-                        association.enrichment_id
-                        for association in summary_enrichment_associations
-                    ],
-                )
-            )
-
-            # Check if embeddings already exist for these summaries
-            new_summaries = await self._new_snippets_for_type(
-                summary_enrichments, EmbeddingType.TEXT
-            )
-            if not new_summaries:
-                await step.skip("All snippets already have text embeddings")
-                return
-
-            await step.set_total(len(new_summaries))
-            processed = 0
-
-            # Create documents from the summary enrichments
-            documents_with_summaries = [
-                Document(snippet_id=str(summary.id), text=summary.content)
-                for summary in new_summaries
-                if summary.id
-            ]
-
-            async for result in self.text_search_service.index_documents(
-                IndexRequest(documents=documents_with_summaries)
-            ):
-                processed += len(result)
-                await step.set_current(processed, "Creating text embeddings for commit")
+        await self.search_indexing_service.create_summary_embeddings(
+            repository_id, commit_sha
+        )
 
     async def process_architecture_discovery(
         self, repository_id: int, commit_sha: str
@@ -870,23 +762,3 @@ class CommitIndexingApplicationService:
         module_path_lower = module_path.lower()
         test_indicators = ["test", "tests", "__tests__", "_test", "spec"]
         return any(indicator in module_path_lower for indicator in test_indicators)
-
-    async def _new_snippets_for_type(
-        self, all_snippets: list[EnrichmentV2], embedding_type: EmbeddingType
-    ) -> list[EnrichmentV2]:
-        """Get new snippets for a given type."""
-        existing_embeddings = (
-            await self.embedding_repository.list_embeddings_by_snippet_ids_and_type(
-                [str(s.id) for s in all_snippets], embedding_type
-            )
-        )
-        # TODO(Phil): Can't do this incrementally yet because like the API, we don't
-        # have a unified embedding repository
-        if existing_embeddings:
-            return []
-        existing_embeddings_by_snippet_id = {
-            embedding.snippet_id: embedding for embedding in existing_embeddings
-        }
-        return [
-            s for s in all_snippets if s.id not in existing_embeddings_by_snippet_id
-        ]

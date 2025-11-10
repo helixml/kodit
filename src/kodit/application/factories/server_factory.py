@@ -23,6 +23,9 @@ if TYPE_CHECKING:
     from kodit.application.services.repository_lifecycle_service import (
         RepositoryLifecycleService,
     )
+    from kodit.application.services.search_indexing_service import (
+        SearchIndexingService,
+    )
     from kodit.application.services.snippet_extraction_service import (
         SnippetExtractionService,
     )
@@ -333,6 +336,23 @@ class ServerFactory:
             operation=self.operation(),
         )
 
+    def search_indexing_service(self) -> "SearchIndexingService":
+        """Create a SearchIndexingService instance."""
+        from kodit.application.services.search_indexing_service import (
+            SearchIndexingService,
+        )
+
+        return SearchIndexingService(
+            bm25_service=self.bm25_service(),
+            code_search_service=self.code_search_service(),
+            text_search_service=self.text_search_service(),
+            embedding_repository=self.embedding_repository(),
+            enrichment_v2_repository=self.enrichment_v2_repository(),
+            enrichment_association_repository=self.enrichment_association_repository(),
+            enrichment_query_service=self.enrichment_query_service(),
+            operation=self.operation(),
+        )
+
     def commit_indexing_application_service(self) -> CommitIndexingApplicationService:
         """Create a CommitIndexingApplicationService instance."""
         if not self._commit_indexing_application_service:
@@ -363,6 +383,7 @@ class ServerFactory:
                 repository_deletion_service=self.repository_deletion_service(),
                 commit_scanning_service=self.commit_scanning_service(),
                 snippet_extraction_service=self.snippet_extraction_service(),
+                search_indexing_service=self.search_indexing_service(),
             )
 
         return self._commit_indexing_application_service

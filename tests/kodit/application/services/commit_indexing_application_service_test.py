@@ -166,6 +166,10 @@ async def commit_indexing_service(
         operation=mock_progress_tracker,
     )
 
+    from kodit.application.services.search_indexing_service import (
+        SearchIndexingService,
+    )
+
     return CommitIndexingApplicationService(
         repo_repository=repo_repository,
         git_commit_repository=git_commit_repository,
@@ -193,6 +197,16 @@ async def commit_indexing_service(
         repository_deletion_service=repository_deletion_service,
         commit_scanning_service=commit_scanning_service,
         snippet_extraction_service=snippet_extraction_service,
+        search_indexing_service=SearchIndexingService(
+            bm25_service=bm25_service,
+            code_search_service=AsyncMock(spec=EmbeddingDomainService),
+            text_search_service=AsyncMock(spec=EmbeddingDomainService),
+            embedding_repository=embedding_repository,
+            enrichment_v2_repository=enrichment_v2_repository,
+            enrichment_association_repository=enrichment_association_repository,
+            enrichment_query_service=enrichment_query_service,
+            operation=mock_progress_tracker,
+        ),
     )
 
 
@@ -575,6 +589,21 @@ async def test_sync_branches_and_tags_with_real_git(  # noqa: PLR0915
             operation=mock_progress_tracker,
         )
 
+        from kodit.application.services.search_indexing_service import (
+            SearchIndexingService,
+        )
+
+        search_indexing_service = SearchIndexingService(
+            bm25_service=bm25_service,
+            code_search_service=AsyncMock(spec=EmbeddingDomainService),
+            text_search_service=AsyncMock(spec=EmbeddingDomainService),
+            embedding_repository=embedding_repository,
+            enrichment_v2_repository=enrichment_v2_repository,
+            enrichment_association_repository=enrichment_association_repository,
+            enrichment_query_service=enrichment_query_service,
+            operation=mock_progress_tracker,
+        )
+
         service = CommitIndexingApplicationService(
             repo_repository=repo_repository,
             git_commit_repository=git_commit_repository,
@@ -602,6 +631,7 @@ async def test_sync_branches_and_tags_with_real_git(  # noqa: PLR0915
             repository_deletion_service=repository_deletion_service,
             commit_scanning_service=commit_scanning_service,
             snippet_extraction_service=snippet_extraction_service,
+            search_indexing_service=search_indexing_service,
         )
 
         # Create and save repository entity
