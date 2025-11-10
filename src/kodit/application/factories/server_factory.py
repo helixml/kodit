@@ -14,11 +14,18 @@ from kodit.application.services.commit_indexing_application_service import (
 )
 
 if TYPE_CHECKING:
+    from kodit.application.services.commit_processing_services import (
+        CommitProcessingServices,
+    )
     from kodit.application.services.commit_scanning_service import (
         CommitScanningService,
     )
+    from kodit.application.services.domain_services import DomainServices
     from kodit.application.services.enrichment_generation_service import (
         EnrichmentGenerationService,
+    )
+    from kodit.application.services.infrastructure_services import (
+        InfrastructureServices,
     )
     from kodit.application.services.repository_deletion_service import (
         RepositoryDeletionService,
@@ -26,6 +33,10 @@ if TYPE_CHECKING:
     from kodit.application.services.repository_lifecycle_service import (
         RepositoryLifecycleService,
     )
+    from kodit.application.services.repository_management_services import (
+        RepositoryManagementServices,
+    )
+    from kodit.application.services.repository_services import RepositoryServices
     from kodit.application.services.search_indexing_service import (
         SearchIndexingService,
     )
@@ -376,39 +387,86 @@ class ServerFactory:
             operation=self.operation(),
         )
 
+    def repository_services_bundle(self) -> "RepositoryServices":
+        """Create a RepositoryServices bundle."""
+        from kodit.application.services.repository_services import RepositoryServices
+
+        return RepositoryServices(
+            repo_repository=self.repo_repository(),
+            git_commit_repository=self.git_commit_repository(),
+            git_file_repository=self.git_file_repository(),
+            git_branch_repository=self.git_branch_repository(),
+            git_tag_repository=self.git_tag_repository(),
+            enrichment_v2_repository=self.enrichment_v2_repository(),
+            enrichment_association_repository=self.enrichment_association_repository(),
+            embedding_repository=self.embedding_repository(),
+        )
+
+    def domain_services_bundle(self) -> "DomainServices":
+        """Create a DomainServices bundle."""
+        from kodit.application.services.domain_services import DomainServices
+
+        return DomainServices(
+            scanner=self.scanner(),
+            cloner=self.cloner(),
+            slicer=self.slicer(),
+            bm25_service=self.bm25_service(),
+            code_search_service=self.code_search_service(),
+            text_search_service=self.text_search_service(),
+            architecture_service=self.architecture_service(),
+            cookbook_context_service=self.cookbook_context_service(),
+            database_schema_detector=DatabaseSchemaDetector(),
+            enricher_service=self.enricher(),
+        )
+
+    def infrastructure_services_bundle(self) -> "InfrastructureServices":
+        """Create an InfrastructureServices bundle."""
+        from kodit.application.services.infrastructure_services import (
+            InfrastructureServices,
+        )
+
+        return InfrastructureServices(
+            operation=self.operation(),
+            queue=self.queue_service(),
+        )
+
+    def commit_processing_services_bundle(self) -> "CommitProcessingServices":
+        """Create a CommitProcessingServices bundle."""
+        from kodit.application.services.commit_processing_services import (
+            CommitProcessingServices,
+        )
+
+        return CommitProcessingServices(
+            commit_scanning_service=self.commit_scanning_service(),
+            snippet_extraction_service=self.snippet_extraction_service(),
+            search_indexing_service=self.search_indexing_service(),
+            enrichment_generation_service=self.enrichment_generation_service(),
+            enrichment_query_service=self.enrichment_query_service(),
+        )
+
+    def repository_management_services_bundle(self) -> "RepositoryManagementServices":
+        """Create a RepositoryManagementServices bundle."""
+        from kodit.application.services.repository_management_services import (
+            RepositoryManagementServices,
+        )
+
+        return RepositoryManagementServices(
+            lifecycle=self.repository_lifecycle_service(),
+            deletion=self.repository_deletion_service(),
+            query=self.repository_query_service(),
+        )
+
     def commit_indexing_application_service(self) -> CommitIndexingApplicationService:
         """Create a CommitIndexingApplicationService instance."""
         if not self._commit_indexing_application_service:
-            self._commit_indexing_application_service = CommitIndexingApplicationService(  # noqa: E501
-                repo_repository=self.repo_repository(),
-                git_commit_repository=self.git_commit_repository(),
-                git_file_repository=self.git_file_repository(),
-                git_branch_repository=self.git_branch_repository(),
-                git_tag_repository=self.git_tag_repository(),
-                operation=self.operation(),
-                scanner=self.scanner(),
-                cloner=self.cloner(),
-                slicer=self.slicer(),
-                queue=self.queue_service(),
-                bm25_service=self.bm25_service(),
-                code_search_service=self.code_search_service(),
-                text_search_service=self.text_search_service(),
-                embedding_repository=self.embedding_repository(),
-                architecture_service=self.architecture_service(),
-                cookbook_context_service=self.cookbook_context_service(),
-                database_schema_detector=DatabaseSchemaDetector(),
-                enrichment_v2_repository=self.enrichment_v2_repository(),
-                enricher_service=self.enricher(),
-                enrichment_association_repository=self.enrichment_association_repository(),
-                enrichment_query_service=self.enrichment_query_service(),
-                repository_query_service=self.repository_query_service(),
-                repository_lifecycle_service=self.repository_lifecycle_service(),
-                repository_deletion_service=self.repository_deletion_service(),
-                commit_scanning_service=self.commit_scanning_service(),
-                snippet_extraction_service=self.snippet_extraction_service(),
-                search_indexing_service=self.search_indexing_service(),
-                enrichment_generation_service=self.enrichment_generation_service(),
+            service = CommitIndexingApplicationService(
+                repositories=self.repository_services_bundle(),
+                domain_services=self.domain_services_bundle(),
+                infrastructure=self.infrastructure_services_bundle(),
+                commit_processing=self.commit_processing_services_bundle(),
+                repository_management=self.repository_management_services_bundle(),
             )
+            self._commit_indexing_application_service = service
 
         return self._commit_indexing_application_service
 

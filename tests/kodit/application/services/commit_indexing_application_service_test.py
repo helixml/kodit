@@ -166,38 +166,55 @@ async def commit_indexing_service(
         operation=mock_progress_tracker,
     )
 
+    from kodit.application.services.commit_processing_services import (
+        CommitProcessingServices,
+    )
+    from kodit.application.services.domain_services import DomainServices
     from kodit.application.services.enrichment_generation_service import (
         EnrichmentGenerationService,
     )
+    from kodit.application.services.infrastructure_services import (
+        InfrastructureServices,
+    )
+    from kodit.application.services.repository_management_services import (
+        RepositoryManagementServices,
+    )
+    from kodit.application.services.repository_services import RepositoryServices
     from kodit.application.services.search_indexing_service import (
         SearchIndexingService,
     )
 
-    return CommitIndexingApplicationService(
+    # Create service bundles
+    repositories = RepositoryServices(
         repo_repository=repo_repository,
         git_commit_repository=git_commit_repository,
+        git_file_repository=git_file_repository,
         git_branch_repository=git_branch_repository,
         git_tag_repository=git_tag_repository,
-        git_file_repository=git_file_repository,
-        operation=mock_progress_tracker,
+        enrichment_v2_repository=enrichment_v2_repository,
+        enrichment_association_repository=enrichment_association_repository,
+        embedding_repository=embedding_repository,
+    )
+
+    domain_services = DomainServices(
         scanner=scanner,
         cloner=cloner,
         slicer=MagicMock(spec=Slicer),
-        queue=queue_service,
         bm25_service=bm25_service,
         code_search_service=AsyncMock(spec=EmbeddingDomainService),
         text_search_service=AsyncMock(spec=EmbeddingDomainService),
-        embedding_repository=embedding_repository,
         architecture_service=AsyncMock(spec=PhysicalArchitectureService),
         cookbook_context_service=MagicMock(),
         database_schema_detector=MagicMock(),
-        enrichment_v2_repository=enrichment_v2_repository,
-        enrichment_association_repository=enrichment_association_repository,
         enricher_service=AsyncMock(),
-        enrichment_query_service=enrichment_query_service,
-        repository_query_service=repository_query_service,
-        repository_lifecycle_service=repository_lifecycle_service,
-        repository_deletion_service=repository_deletion_service,
+    )
+
+    infrastructure = InfrastructureServices(
+        operation=mock_progress_tracker,
+        queue=queue_service,
+    )
+
+    commit_processing = CommitProcessingServices(
         commit_scanning_service=commit_scanning_service,
         snippet_extraction_service=snippet_extraction_service,
         search_indexing_service=SearchIndexingService(
@@ -223,6 +240,21 @@ async def commit_indexing_service(
             enricher_service=AsyncMock(),
             operation=mock_progress_tracker,
         ),
+        enrichment_query_service=enrichment_query_service,
+    )
+
+    repository_management = RepositoryManagementServices(
+        lifecycle=repository_lifecycle_service,
+        deletion=repository_deletion_service,
+        query=repository_query_service,
+    )
+
+    return CommitIndexingApplicationService(
+        repositories=repositories,
+        domain_services=domain_services,
+        infrastructure=infrastructure,
+        commit_processing=commit_processing,
+        repository_management=repository_management,
     )
 
 
@@ -638,35 +670,68 @@ async def test_sync_branches_and_tags_with_real_git(  # noqa: PLR0915
             operation=mock_progress_tracker,
         )
 
-        service = CommitIndexingApplicationService(
+        from kodit.application.services.commit_processing_services import (
+            CommitProcessingServices,
+        )
+        from kodit.application.services.domain_services import DomainServices
+        from kodit.application.services.infrastructure_services import (
+            InfrastructureServices,
+        )
+        from kodit.application.services.repository_management_services import (
+            RepositoryManagementServices,
+        )
+        from kodit.application.services.repository_services import RepositoryServices
+
+        # Create service bundles
+        repositories = RepositoryServices(
             repo_repository=repo_repository,
             git_commit_repository=git_commit_repository,
+            git_file_repository=git_file_repository,
             git_branch_repository=git_branch_repository,
             git_tag_repository=git_tag_repository,
-            git_file_repository=git_file_repository,
-            operation=mock_progress_tracker,
+            enrichment_v2_repository=enrichment_v2_repository,
+            enrichment_association_repository=enrichment_association_repository,
+            embedding_repository=embedding_repository,
+        )
+
+        domain_services = DomainServices(
             scanner=scanner,
             cloner=cloner,
             slicer=MagicMock(spec=Slicer),
-            queue=queue_service,
             bm25_service=bm25_service,
             code_search_service=AsyncMock(spec=EmbeddingDomainService),
             text_search_service=AsyncMock(spec=EmbeddingDomainService),
-            embedding_repository=embedding_repository,
             architecture_service=AsyncMock(spec=PhysicalArchitectureService),
             cookbook_context_service=MagicMock(),
             database_schema_detector=MagicMock(),
-            enrichment_v2_repository=enrichment_v2_repository,
-            enrichment_association_repository=enrichment_association_repository,
             enricher_service=AsyncMock(),
-            enrichment_query_service=enrichment_query_service,
-            repository_query_service=repository_query_service,
-            repository_lifecycle_service=repository_lifecycle_service,
-            repository_deletion_service=repository_deletion_service,
+        )
+
+        infrastructure = InfrastructureServices(
+            operation=mock_progress_tracker,
+            queue=queue_service,
+        )
+
+        commit_processing = CommitProcessingServices(
             commit_scanning_service=commit_scanning_service,
             snippet_extraction_service=snippet_extraction_service,
             search_indexing_service=search_indexing_service,
             enrichment_generation_service=enrichment_generation_service,
+            enrichment_query_service=enrichment_query_service,
+        )
+
+        repository_management = RepositoryManagementServices(
+            lifecycle=repository_lifecycle_service,
+            deletion=repository_deletion_service,
+            query=repository_query_service,
+        )
+
+        service = CommitIndexingApplicationService(
+            repositories=repositories,
+            domain_services=domain_services,
+            infrastructure=infrastructure,
+            commit_processing=commit_processing,
+            repository_management=repository_management,
         )
 
         # Create and save repository entity

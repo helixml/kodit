@@ -5,38 +5,21 @@ from typing import TYPE_CHECKING
 import structlog
 from pydantic import AnyUrl
 
-from kodit.application.services.queue_service import QueueService
-from kodit.application.services.reporting import ProgressTracker
-from kodit.application.services.repository_deletion_service import (
-    RepositoryDeletionService,
-)
-from kodit.application.services.repository_lifecycle_service import (
-    RepositoryLifecycleService,
-)
-
 if TYPE_CHECKING:
-    from kodit.application.services.commit_scanning_service import (
-        CommitScanningService,
+    from kodit.application.services.commit_processing_services import (
+        CommitProcessingServices,
     )
-    from kodit.application.services.enrichment_generation_service import (
-        EnrichmentGenerationService,
+    from kodit.application.services.domain_services import DomainServices
+    from kodit.application.services.infrastructure_services import (
+        InfrastructureServices,
     )
-    from kodit.application.services.enrichment_query_service import (
-        EnrichmentQueryService,
+    from kodit.application.services.repository_management_services import (
+        RepositoryManagementServices,
     )
-    from kodit.application.services.repository_query_service import (
-        RepositoryQueryService,
-    )
-    from kodit.application.services.search_indexing_service import (
-        SearchIndexingService,
-    )
-    from kodit.application.services.snippet_extraction_service import (
-        SnippetExtractionService,
-    )
+    from kodit.application.services.repository_services import RepositoryServices
 from kodit.domain.enrichments.development.snippet.snippet import (
     SnippetEnrichmentSummary,
 )
-from kodit.domain.enrichments.enricher import Enricher
 from kodit.domain.enrichments.enrichment import (
     EnrichmentAssociation,
 )
@@ -47,39 +30,11 @@ from kodit.domain.entities import Task
 from kodit.domain.entities.git import (
     GitRepo,
 )
-from kodit.domain.protocols import (
-    EnrichmentAssociationRepository,
-    EnrichmentV2Repository,
-    GitBranchRepository,
-    GitCommitRepository,
-    GitFileRepository,
-    GitRepoRepository,
-    GitTagRepository,
-)
-from kodit.domain.services.bm25_service import BM25DomainService
-from kodit.domain.services.cookbook_context_service import (
-    CookbookContextService,
-)
-from kodit.domain.services.embedding_service import EmbeddingDomainService
-from kodit.domain.services.git_repository_service import (
-    GitRepositoryScanner,
-    RepositoryCloner,
-)
-from kodit.domain.services.physical_architecture_service import (
-    PhysicalArchitectureService,
-)
 from kodit.domain.value_objects import (
     TaskOperation,
     TrackableType,
 )
-from kodit.infrastructure.database_schema.database_schema_detector import (
-    DatabaseSchemaDetector,
-)
-from kodit.infrastructure.slicing.slicer import Slicer
 from kodit.infrastructure.sqlalchemy import entities as db_entities
-from kodit.infrastructure.sqlalchemy.embedding_repository import (
-    SqlAlchemyEmbeddingRepository,
-)
 
 SUMMARIZATION_SYSTEM_PROMPT = """
 You are a professional software developer. You will be given a snippet of code.
@@ -90,66 +45,54 @@ Please provide a concise explanation of the code.
 class CommitIndexingApplicationService:
     """Application service for commit indexing operations."""
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
-        repo_repository: GitRepoRepository,
-        git_commit_repository: GitCommitRepository,
-        git_file_repository: GitFileRepository,
-        git_branch_repository: GitBranchRepository,
-        git_tag_repository: GitTagRepository,
-        operation: ProgressTracker,
-        scanner: GitRepositoryScanner,
-        cloner: RepositoryCloner,
-        slicer: Slicer,
-        queue: QueueService,
-        bm25_service: BM25DomainService,
-        code_search_service: EmbeddingDomainService,
-        text_search_service: EmbeddingDomainService,
-        embedding_repository: SqlAlchemyEmbeddingRepository,
-        architecture_service: PhysicalArchitectureService,
-        cookbook_context_service: CookbookContextService,
-        database_schema_detector: DatabaseSchemaDetector,
-        enricher_service: Enricher,
-        enrichment_v2_repository: EnrichmentV2Repository,
-        enrichment_association_repository: EnrichmentAssociationRepository,
-        enrichment_query_service: "EnrichmentQueryService",
-        repository_query_service: "RepositoryQueryService",
-        repository_lifecycle_service: RepositoryLifecycleService,
-        repository_deletion_service: RepositoryDeletionService,
-        commit_scanning_service: "CommitScanningService",
-        snippet_extraction_service: "SnippetExtractionService",
-        search_indexing_service: "SearchIndexingService",
-        enrichment_generation_service: "EnrichmentGenerationService",
+        repositories: "RepositoryServices",
+        domain_services: "DomainServices",
+        infrastructure: "InfrastructureServices",
+        commit_processing: "CommitProcessingServices",
+        repository_management: "RepositoryManagementServices",
     ) -> None:
         """Initialize the commit indexing application service."""
-        self.repo_repository = repo_repository
-        self.git_commit_repository = git_commit_repository
-        self.git_file_repository = git_file_repository
-        self.git_branch_repository = git_branch_repository
-        self.git_tag_repository = git_tag_repository
-        self.operation = operation
-        self.scanner = scanner
-        self.cloner = cloner
-        self.slicer = slicer
-        self.queue = queue
-        self.bm25_service = bm25_service
-        self.code_search_service = code_search_service
-        self.text_search_service = text_search_service
-        self.embedding_repository = embedding_repository
-        self.architecture_service = architecture_service
-        self.cookbook_context_service = cookbook_context_service
-        self.database_schema_detector = database_schema_detector
-        self.enrichment_v2_repository = enrichment_v2_repository
-        self.enrichment_association_repository = enrichment_association_repository
-        self.enricher_service = enricher_service
-        self.enrichment_query_service = enrichment_query_service
-        self.repository_query_service = repository_query_service
-        self.repository_lifecycle_service = repository_lifecycle_service
-        self.repository_deletion_service = repository_deletion_service
-        self.commit_scanning_service = commit_scanning_service
-        self.snippet_extraction_service = snippet_extraction_service
-        self.search_indexing_service = search_indexing_service
-        self.enrichment_generation_service = enrichment_generation_service
+        # Store service bundles
+        self.repositories = repositories
+        self.domain_services = domain_services
+        self.infrastructure = infrastructure
+        self.commit_processing = commit_processing
+        self.repository_management = repository_management
+
+        # Convenience accessors from repository_management bundle
+        self.repository_query_service = repository_management.query
+        self.repository_lifecycle_service = repository_management.lifecycle
+        self.repository_deletion_service = repository_management.deletion
+
+        # Convenience accessors for backward compatibility
+        self.repo_repository = repositories.repo
+        self.git_commit_repository = repositories.git_commit
+        self.git_file_repository = repositories.git_file
+        self.git_branch_repository = repositories.git_branch
+        self.git_tag_repository = repositories.git_tag
+        self.operation = infrastructure.operation
+        self.scanner = domain_services.scanner
+        self.cloner = domain_services.cloner
+        self.slicer = domain_services.slicer
+        self.queue = infrastructure.queue
+        self.bm25_service = domain_services.bm25
+        self.code_search_service = domain_services.code_search
+        self.text_search_service = domain_services.text_search
+        self.embedding_repository = repositories.embedding
+        self.architecture_service = domain_services.architecture
+        self.cookbook_context_service = domain_services.cookbook_context
+        self.database_schema_detector = domain_services.database_schema_detector
+        self.enrichment_v2_repository = repositories.enrichment_v2
+        self.enrichment_association_repository = repositories.enrichment_association
+        self.enricher_service = domain_services.enricher
+        self.enrichment_query_service = commit_processing.enrichment_query
+        self.commit_scanning_service = commit_processing.commit_scanning
+        self.snippet_extraction_service = commit_processing.snippet_extraction
+        self.search_indexing_service = commit_processing.search_indexing
+        self.enrichment_generation_service = commit_processing.enrichment_generation
+
         self._log = structlog.get_logger(__name__)
 
         # Create task handlers and dispatcher
@@ -160,8 +103,8 @@ class CommitIndexingApplicationService:
         )
 
         repository_handler = RepositoryTaskHandler(
-            lifecycle_service=repository_lifecycle_service,
-            deletion_service=repository_deletion_service,
+            lifecycle_service=self.repository_lifecycle_service,
+            deletion_service=self.repository_deletion_service,
         )
         commit_handler = CommitTaskHandler(commit_service=self)
         self.task_dispatcher = TaskDispatcher(
