@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import git
 import pytest
+from pydantic import AnyUrl
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.application.handlers.commit.scan_commit import ScanCommitHandler
@@ -78,7 +79,9 @@ async def test_scan_commit_saves_commit_and_files(
 
         # Setup repository in database
         repo_repository = create_git_repo_repository(session_factory)
-        repo = GitRepoFactory.create_from_remote_uri("https://github.com/test/repo.git")
+        repo = GitRepoFactory.create_from_remote_uri(
+            AnyUrl("https://github.com/test/repo.git")
+        )
         repo.cloned_path = repo_path
         repo = await repo_repository.save(repo)
         assert repo.id is not None
@@ -127,7 +130,9 @@ async def test_scan_commit_is_idempotent(
         commit = git_repo.index.commit("Initial commit")
 
         repo_repository = create_git_repo_repository(session_factory)
-        repo = GitRepoFactory.create_from_remote_uri("https://github.com/test/repo.git")
+        repo = GitRepoFactory.create_from_remote_uri(
+            AnyUrl("https://github.com/test/repo.git")
+        )
         repo.cloned_path = repo_path
         repo = await repo_repository.save(repo)
         assert repo.id is not None
@@ -168,7 +173,9 @@ async def test_scan_commit_updates_repository_metadata(
         commit = git_repo.index.commit("Initial commit")
 
         repo_repository = create_git_repo_repository(session_factory)
-        repo = GitRepoFactory.create_from_remote_uri("https://github.com/test/repo.git")
+        repo = GitRepoFactory.create_from_remote_uri(
+            AnyUrl("https://github.com/test/repo.git")
+        )
         repo.cloned_path = repo_path
         repo = await repo_repository.save(repo)
         assert repo.id is not None

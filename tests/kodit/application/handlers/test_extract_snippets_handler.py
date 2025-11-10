@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import git
 import pytest
+from pydantic import AnyUrl
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.application.handlers.commit.extract_snippets import ExtractSnippetsHandler
@@ -121,7 +122,9 @@ def goodbye():
         repo_repository = create_git_repo_repository(session_factory)
         commit_repository = create_git_commit_repository(session_factory)
 
-        repo = GitRepoFactory.create_from_remote_uri("https://github.com/test/repo.git")
+        repo = GitRepoFactory.create_from_remote_uri(
+            AnyUrl("https://github.com/test/repo.git")
+        )
         repo.cloned_path = repo_path
         repo = await repo_repository.save(repo)
         assert repo.id is not None
@@ -151,7 +154,9 @@ def goodbye():
         # Get enrichments associated with this commit
         associations = await enrichment_assoc_repo.find(
             QueryBuilder()
-            .filter("entity_type", FilterOperator.EQ, db_entities.GitCommit.__tablename__)
+            .filter(
+                "entity_type", FilterOperator.EQ, db_entities.GitCommit.__tablename__
+            )
             .filter("entity_id", FilterOperator.EQ, commit.hexsha)
         )
 
@@ -197,7 +202,9 @@ def identical_function():
         repo_repository = create_git_repo_repository(session_factory)
         commit_repository = create_git_commit_repository(session_factory)
 
-        repo = GitRepoFactory.create_from_remote_uri("https://github.com/test/repo.git")
+        repo = GitRepoFactory.create_from_remote_uri(
+            AnyUrl("https://github.com/test/repo.git")
+        )
         repo.cloned_path = repo_path
         repo = await repo_repository.save(repo)
         assert repo.id is not None
@@ -225,7 +232,9 @@ def identical_function():
 
         associations = await enrichment_assoc_repo.find(
             QueryBuilder()
-            .filter("entity_type", FilterOperator.EQ, db_entities.GitCommit.__tablename__)
+            .filter(
+                "entity_type", FilterOperator.EQ, db_entities.GitCommit.__tablename__
+            )
             .filter("entity_id", FilterOperator.EQ, commit.hexsha)
         )
 
@@ -266,7 +275,9 @@ async def test_extract_snippets_is_idempotent(
         repo_repository = create_git_repo_repository(session_factory)
         commit_repository = create_git_commit_repository(session_factory)
 
-        repo = GitRepoFactory.create_from_remote_uri("https://github.com/test/repo.git")
+        repo = GitRepoFactory.create_from_remote_uri(
+            AnyUrl("https://github.com/test/repo.git")
+        )
         repo.cloned_path = repo_path
         repo = await repo_repository.save(repo)
         assert repo.id is not None
@@ -290,7 +301,9 @@ async def test_extract_snippets_is_idempotent(
         )
         associations_first = await enrichment_assoc_repo.find(
             QueryBuilder()
-            .filter("entity_type", FilterOperator.EQ, db_entities.GitCommit.__tablename__)
+            .filter(
+                "entity_type", FilterOperator.EQ, db_entities.GitCommit.__tablename__
+            )
             .filter("entity_id", FilterOperator.EQ, commit.hexsha)
         )
         count_first = len(associations_first)
@@ -300,7 +313,9 @@ async def test_extract_snippets_is_idempotent(
 
         associations_second = await enrichment_assoc_repo.find(
             QueryBuilder()
-            .filter("entity_type", FilterOperator.EQ, db_entities.GitCommit.__tablename__)
+            .filter(
+                "entity_type", FilterOperator.EQ, db_entities.GitCommit.__tablename__
+            )
             .filter("entity_id", FilterOperator.EQ, commit.hexsha)
         )
         count_second = len(associations_second)
@@ -335,7 +350,9 @@ async def test_extract_snippets_handles_multiple_languages(
         repo_repository = create_git_repo_repository(session_factory)
         commit_repository = create_git_commit_repository(session_factory)
 
-        repo = GitRepoFactory.create_from_remote_uri("https://github.com/test/repo.git")
+        repo = GitRepoFactory.create_from_remote_uri(
+            AnyUrl("https://github.com/test/repo.git")
+        )
         repo.cloned_path = repo_path
         repo = await repo_repository.save(repo)
         assert repo.id is not None
@@ -363,7 +380,9 @@ async def test_extract_snippets_handles_multiple_languages(
 
         associations = await enrichment_assoc_repo.find(
             QueryBuilder()
-            .filter("entity_type", FilterOperator.EQ, db_entities.GitCommit.__tablename__)
+            .filter(
+                "entity_type", FilterOperator.EQ, db_entities.GitCommit.__tablename__
+            )
             .filter("entity_id", FilterOperator.EQ, commit.hexsha)
         )
 
@@ -383,4 +402,6 @@ async def test_extract_snippets_handles_multiple_languages(
         has_js = any("jsFunc" in c or "function" in c for c in contents)
         has_go = any("goFunc" in c or "func " in c for c in contents)
 
-        assert has_python or has_js or has_go, "Should have extracted from at least one language"
+        assert (
+            has_python or has_js or has_go
+        ), "Should have extracted from at least one language"

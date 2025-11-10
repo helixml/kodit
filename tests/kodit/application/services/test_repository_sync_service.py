@@ -7,6 +7,7 @@ from pathlib import Path
 
 import git
 import pytest
+from pydantic import AnyUrl
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.application.services.repository_sync_service import RepositorySyncService
@@ -80,7 +81,9 @@ async def test_sync_creates_branches_and_tags(
         branch_repository = create_git_branch_repository(session_factory)
         tag_repository = create_git_tag_repository(session_factory)
 
-        repo = GitRepoFactory.create_from_remote_uri("https://github.com/test/repo.git")
+        repo = GitRepoFactory.create_from_remote_uri(
+            AnyUrl("https://github.com/test/repo.git")
+        )
         repo.cloned_path = repo_path
         repo = await repo_repository.save(repo)
         assert repo.id is not None
@@ -140,7 +143,9 @@ async def test_sync_handles_missing_commits(
         branch_repository = create_git_branch_repository(session_factory)
         tag_repository = create_git_tag_repository(session_factory)
 
-        repo = GitRepoFactory.create_from_remote_uri("https://github.com/test/repo.git")
+        repo = GitRepoFactory.create_from_remote_uri(
+            AnyUrl("https://github.com/test/repo.git")
+        )
         repo.cloned_path = repo_path
         repo = await repo_repository.save(repo)
         assert repo.id is not None
@@ -187,7 +192,9 @@ async def test_sync_deletes_stale_branches_and_tags(
         branch_repository = create_git_branch_repository(session_factory)
         tag_repository = create_git_tag_repository(session_factory)
 
-        repo = GitRepoFactory.create_from_remote_uri("https://github.com/test/repo.git")
+        repo = GitRepoFactory.create_from_remote_uri(
+            AnyUrl("https://github.com/test/repo.git")
+        )
         repo.cloned_path = repo_path
         repo = await repo_repository.save(repo)
         assert repo.id is not None

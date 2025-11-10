@@ -163,7 +163,3 @@ torch = { index = "pytorch-cpu" }
 
 [tool.mypy]
 plugins = ["sqlalchemy.ext.mypy.plugin"]
-
-[[tool.mypy.overrides]]
-module = "tests.kodit.application.services.commit_indexing_application_service_test"
-ignore_errors = true
