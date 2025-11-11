@@ -65,7 +65,10 @@ class TrackableResolutionService:
             if not current_sha:
                 break
             result.append(current_sha)
-            commit = await self.commit_repo.get(current_sha)
-            current_sha = commit.parent_commit_sha or None
+            if await self.commit_repo.exists(current_sha):
+                commit = await self.commit_repo.get(current_sha)
+                current_sha = commit.parent_commit_sha or None
+            else:
+                current_sha = None
 
         return result
