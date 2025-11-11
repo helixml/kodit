@@ -92,7 +92,7 @@ Answer these questions in 1-2 sentences each:
 class DatabaseSchemaHandler:
     """Handler for discovering database schema for a commit."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         repo_repository: GitRepoRepository,
         database_schema_detector: DatabaseSchemaDetector,

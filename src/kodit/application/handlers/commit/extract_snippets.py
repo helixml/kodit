@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 class ExtractSnippetsHandler:
     """Handler for extracting code snippets from a commit."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         repo_repository: GitRepoRepository,
         git_commit_repository: GitCommitRepository,

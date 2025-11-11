@@ -35,7 +35,7 @@ if TYPE_CHECKING:
 class CreateSummaryEmbeddingsHandler:
     """Handler for creating summary embeddings for a commit."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         text_search_service: EmbeddingDomainService,
         embedding_repository: SqlAlchemyEmbeddingRepository,

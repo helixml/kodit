@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 class ArchitectureDiscoveryHandler:
     """Handler for discovering physical architecture for a commit."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         repo_repository: GitRepoRepository,
         architecture_service: PhysicalArchitectureService,

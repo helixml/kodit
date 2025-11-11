@@ -36,7 +36,7 @@ if TYPE_CHECKING:
 class CookbookHandler:
     """Handler for generating cookbook examples for a commit."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         repo_repository: GitRepoRepository,
         git_file_repository: GitFileRepository,

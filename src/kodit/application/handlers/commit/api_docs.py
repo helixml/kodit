@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 class ApiDocsHandler:
     """Handler for generating API documentation for a commit."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         repo_repository: GitRepoRepository,
         git_file_repository: GitFileRepository,

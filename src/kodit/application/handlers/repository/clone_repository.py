@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 class CloneRepositoryHandler:
     """Handler for cloning a repository."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         repo_repository: GitRepoRepository,
         cloner: RepositoryCloner,

@@ -227,7 +227,7 @@ class DockerComposeDetector:
                     recorded_connections,
                 )
 
-    def _check_communication_pattern(
+    def _check_communication_pattern(  # noqa: PLR0913
         self,
         text: str,
         service_name: str,

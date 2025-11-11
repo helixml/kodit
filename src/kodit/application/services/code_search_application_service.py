@@ -54,7 +54,7 @@ class MultiSearchResult:
 class CodeSearchApplicationService:
     """Service for searching the indexes."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         bm25_service: BM25DomainService,
         code_search_service: EmbeddingDomainService,

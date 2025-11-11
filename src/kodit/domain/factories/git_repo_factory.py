@@ -21,7 +21,7 @@ class GitRepoFactory:
         )
 
     @staticmethod
-    def create_from_components(
+    def create_from_components(  # noqa: PLR0913
         *,
         repo_id: int | None = None,
         created_at: datetime | None = None,
@@ -64,7 +64,7 @@ class GitRepoFactory:
         )
 
     @staticmethod
-    def create_from_path_scan(
+    def create_from_path_scan(  # noqa: PLR0913
         *,
         remote_uri: AnyUrl,
         sanitized_remote_uri: AnyUrl,

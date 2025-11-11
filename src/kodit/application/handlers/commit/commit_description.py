@@ -33,7 +33,7 @@ Please provide a concise description of what changes were made and why.
 class CommitDescriptionHandler:
     """Handler for creating commit descriptions."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         repo_repository: GitRepoRepository,
         scanner: GitRepositoryScanner,
