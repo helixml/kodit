@@ -18,9 +18,9 @@ Global context for the kodit project. Provides a shared state for the app.
 | `LOG_FORMAT` | LogFormat | `LogFormat.PRETTY` |  |
 | `DISABLE_TELEMETRY` | bool | `False` |  |
 | `EMBEDDING_ENDPOINT` | `Endpoint | None` | `None` | Endpoint to use for embedding. |
-| `EMBEDDING_ENDPOINT_BASE_URL` | `str | None` | `None` |  |
-| `EMBEDDING_ENDPOINT_MODEL` | `str | None` | `None` | Model to use for the endpoint in litellm format (e.g. 'openai/text-embedding-3-small') |
-| `EMBEDDING_ENDPOINT_API_KEY` | `str | None` | `None` |  |
+| `EMBEDDING_ENDPOINT_BASE_URL` | `str | None` | `None` | Base URL for the endpoint (e.g. 'https://app.helix.ml/v1') |
+| `EMBEDDING_ENDPOINT_MODEL` | `str | None` | `None` | Model to use for the endpoint in litellm format (e.g. 'openai/text-embedding-3-small' or 'hosted_vllm/Qwen/Qwen3-8B') |
+| `EMBEDDING_ENDPOINT_API_KEY` | `str | None` | `None` | API key for the endpoint |
 | `EMBEDDING_ENDPOINT_NUM_PARALLEL_TASKS` | int | `10` | Number of parallel tasks to use for the endpoint |
 | `EMBEDDING_ENDPOINT_SOCKET_PATH` | `str | None` | `None` | Unix socket path for local communication (e.g., /tmp/openai.sock) |
 | `EMBEDDING_ENDPOINT_TIMEOUT` | float | `60` | Request timeout in seconds |
@@ -30,9 +30,9 @@ Global context for the kodit project. Provides a shared state for the app.
 | `EMBEDDING_ENDPOINT_EXTRA_PARAMS` | `dict | None` | `None` | Extra provider-specific non-secret parameters for LiteLLM |
 | `EMBEDDING_ENDPOINT_MAX_TOKENS` | int | `8000` | Conservative token limit for the embedding model |
 | `ENRICHMENT_ENDPOINT` | `Endpoint | None` | `None` | Endpoint to use for enrichment. |
-| `ENRICHMENT_ENDPOINT_BASE_URL` | `str | None` | `None` |  |
-| `ENRICHMENT_ENDPOINT_MODEL` | `str | None` | `None` | Model to use for the endpoint in litellm format (e.g. 'openai/text-embedding-3-small') |
-| `ENRICHMENT_ENDPOINT_API_KEY` | `str | None` | `None` |  |
+| `ENRICHMENT_ENDPOINT_BASE_URL` | `str | None` | `None` | Base URL for the endpoint (e.g. 'https://app.helix.ml/v1') |
+| `ENRICHMENT_ENDPOINT_MODEL` | `str | None` | `None` | Model to use for the endpoint in litellm format (e.g. 'openai/text-embedding-3-small' or 'hosted_vllm/Qwen/Qwen3-8B') |
+| `ENRICHMENT_ENDPOINT_API_KEY` | `str | None` | `None` | API key for the endpoint |
 | `ENRICHMENT_ENDPOINT_NUM_PARALLEL_TASKS` | int | `10` | Number of parallel tasks to use for the endpoint |
 | `ENRICHMENT_ENDPOINT_SOCKET_PATH` | `str | None` | `None` | Unix socket path for local communication (e.g., /tmp/openai.sock) |
 | `ENRICHMENT_ENDPOINT_TIMEOUT` | float | `60` | Request timeout in seconds |
