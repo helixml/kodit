@@ -37,8 +37,6 @@ DEFAULT_LOG_FORMAT = LogFormat.PRETTY
 DEFAULT_DISABLE_TELEMETRY = False
 T = TypeVar("T")
 
-EndpointType = Literal["openai", "litellm"]
-
 
 class ReportingConfig(BaseModel):
     """Reporting configuration."""
