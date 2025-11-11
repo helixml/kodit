@@ -50,12 +50,18 @@ class ReportingConfig(BaseModel):
 class Endpoint(BaseModel):
     """Endpoint provides configuration for an AI service."""
 
-    base_url: str | None = None
+    base_url: str | None = Field(
+        default=None,
+        description="Base URL for the endpoint (e.g. 'https://app.helix.ml/v1')",
+    )
     model: str | None = Field(
         default=None,
-        description="Model to use for the endpoint in litellm format (e.g. 'openai/text-embedding-3-small')",  # noqa: E501
+        description="Model to use for the endpoint in litellm format (e.g. 'openai/text-embedding-3-small' or 'hosted_vllm/Qwen/Qwen3-8B')",  # noqa: E501
     )
-    api_key: str | None = None
+    api_key: str | None = Field(
+        default=None,
+        description="API key for the endpoint",
+    )
     num_parallel_tasks: int = Field(
         default=10,
         description="Number of parallel tasks to use for the endpoint",
