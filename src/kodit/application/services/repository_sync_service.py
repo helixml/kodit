@@ -69,24 +69,14 @@ class RepositorySyncService:
                 self._log.warning(f"No head commit found for branch {branch_name}")
                 continue
 
-            # Check if commit exists in database to avoid FK constraint violation
-            try:
-                await self.git_commit_repository.get(head_sha)
-                branch = GitBranch(
-                    repo_id=repo.id,
-                    created_at=current_time,
-                    name=branch_name,
-                    head_commit_sha=head_sha,
-                )
-                branches.append(branch)
-                self._log.debug(f"Processed branch: {branch_name}")
-            except Exception:  # noqa: BLE001
-                # Commit doesn't exist yet, skip this branch
-                skipped += 1
-                self._log.debug(
-                    f"Skipping branch {branch_name} - "
-                    f"commit {head_sha[:8]} not in database yet"
-                )
+            branch = GitBranch(
+                repo_id=repo.id,
+                created_at=current_time,
+                name=branch_name,
+                head_commit_sha=head_sha,
+            )
+            branches.append(branch)
+            self._log.debug(f"Processed branch: {branch_name}")
 
         # Save branches individually (handles upsert)
         for branch in branches:
@@ -95,9 +85,7 @@ class RepositorySyncService:
         if branches:
             self._log.info(f"Saved {len(branches)} branches to database")
         if skipped > 0:
-            self._log.info(
-                f"Skipped {skipped} branches - commits not in database yet"
-            )
+            self._log.info(f"Skipped {skipped} branches - commits not in database yet")
 
         # Delete branches that no longer exist in git
         existing_branches = await self.git_branch_repository.get_by_repo_id(repo.id)
@@ -126,25 +114,15 @@ class RepositorySyncService:
         for tag_info in tag_data:
             try:
                 target_sha = tag_info["target_commit_sha"]
-
-                # Check if commit exists in database to avoid FK constraint violation
-                try:
-                    await self.git_commit_repository.get(target_sha)
-                    git_tag = GitTag(
-                        repo_id=repo.id,
-                        name=tag_info["name"],
-                        target_commit_sha=target_sha,
-                        created_at=current_time,
-                        updated_at=current_time,
-                    )
-                    tags.append(git_tag)
-                except Exception:  # noqa: BLE001
-                    # Commit doesn't exist yet, skip this tag
-                    skipped += 1
-                    self._log.debug(
-                        f"Skipping tag {tag_info['name']} - "
-                        f"commit {target_sha[:8]} not in database yet"
-                    )
+                git_tag = GitTag(
+                    repo_id=repo.id,
+                    name=tag_info["name"],
+                    target_commit_sha=target_sha,
+                    created_at=current_time,
+                    updated_at=current_time,
+                )
+                tags.append(git_tag)
+                self._log.debug(f"Processed tag: {tag_info['name']}")
             except (KeyError, ValueError) as e:
                 self._log.warning(
                     f"Failed to process tag {tag_info.get('name', 'unknown')}: {e}"

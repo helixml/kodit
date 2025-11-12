@@ -2,12 +2,22 @@
 
 from pathlib import Path
 
-from kodit.infrastructure.slicing.ast_analyzer import ModuleDefinition
-
-COOKBOOK_SYSTEM_PROMPT = (
-    "You are an expert technical writer creating practical cookbook examples "
-    "for code libraries and frameworks."
+from kodit.infrastructure.slicing.ast_analyzer import (
+    FunctionDefinition,
+    ModuleDefinition,
 )
+
+COOKBOOK_SYSTEM_PROMPT = """You are an expert technical writer creating practical \
+cookbook examples for code libraries and frameworks.
+
+Your primary responsibility is ACCURACY. You must:
+- ONLY use APIs, classes, functions, and signatures that are explicitly provided
+- NEVER invent, guess, or fabricate function signatures, parameters, or return \
+types
+- If information is insufficient, create fewer examples or simpler examples
+- Prefer 2 accurate examples over 6 examples with invented details
+
+Quality over quantity. Accuracy over completeness."""
 
 COOKBOOK_TASK_PROMPT = """Based on the following information about a code repository,
 generate a practical cookbook with usage examples.
@@ -49,14 +59,22 @@ generate a practical cookbook with usage examples.
 **Explanation:** [Brief explanation of how it works and when to use it]
 
 **Rules:**
-- Generate 4-6 examples total (1 quick start + 3-5 feature examples)
+- CRITICAL: ONLY use exact APIs, classes, functions, and signatures shown in \
+the API Structure section
+- NEVER invent or guess function parameters, return types, or method signatures
+- Generate 2-6 examples total depending on available API information
 - Each example should focus on a DIFFERENT functionality or use case
-- Use actual APIs, classes, and functions from the repository
 - Examples should be complete and runnable (include necessary imports)
 - Keep code examples concise but realistic (10-40 lines)
-- Choose examples based on the library's purpose, not arbitrary difficulty levels
+- If you cannot create an accurate example due to insufficient information, \
+skip it
+- Choose examples based on the library's purpose, not arbitrary difficulty \
+levels
 - If the repository has clear primary features (e.g., routing, authentication,
   data processing), prioritize those in your examples
+
+**IMPORTANT**: Accuracy is more important than completeness. It is better to \
+provide 2 accurate examples than 6 examples with guessed or invented APIs.
 """
 
 
@@ -148,18 +166,21 @@ class CookbookContextService:
                         class_info += f": {first_line}"
                     lines.append(class_info)
 
-                    # Show important methods
+                    # Show important methods with signatures
                     if cls.methods:
                         public_methods = [
                             m for m in cls.methods if not m.simple_name.startswith("_")
                         ][:3]
                         if public_methods:
-                            methods_list = ", ".join(
-                                f"`{m.simple_name}()`" for m in public_methods
-                            )
-                            lines.append(f"  - Methods: {methods_list}")
+                            for method in public_methods:
+                                sig = self._format_signature(method)
+                                method_info = f"  - `{sig}`"
+                                if method.docstring:
+                                    first_line = method.docstring.split("\n")[0]
+                                    method_info += f": {first_line}"
+                                lines.append(method_info)
 
-            # List important functions
+            # List important functions with signatures
             if module.functions:
                 public_funcs = [
                     f
@@ -169,7 +190,8 @@ class CookbookContextService:
                 if public_funcs:
                     lines.append("\n**Functions:**")
                     for func in public_funcs:
-                        func_info = f"- `{func.simple_name}()`"
+                        sig = self._format_signature(func)
+                        func_info = f"- `{sig}`"
                         if func.docstring:
                             first_line = func.docstring.split("\n")[0]
                             func_info += f": {first_line}"
@@ -188,6 +210,16 @@ class CookbookContextService:
             lines.append("")  # Blank line between modules
 
         return "\n".join(lines)
+
+    def _format_signature(self, func: FunctionDefinition) -> str:
+        """Format function signature with parameters and return type."""
+        # Build parameter string
+        params = ", ".join(func.parameters) if func.parameters else ""
+
+        # Build return type string
+        return_type = f" -> {func.return_type}" if func.return_type else ""
+
+        return f"{func.simple_name}({params}){return_type}"
 
     async def _extract_readme_content(self, repo_path: Path) -> str:
         """Extract and summarize README content."""

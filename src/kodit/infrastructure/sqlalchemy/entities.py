@@ -255,7 +255,7 @@ class GitCommit(Base):
     repo_id: Mapped[int] = mapped_column(ForeignKey("git_repos.id"), index=True)
     date: Mapped[datetime] = mapped_column(TZDateTime)
     message: Mapped[str] = mapped_column(UnicodeText)
-    parent_commit_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    parent_commit_sha: Mapped[str | None] = mapped_column(String(64), index=True)
     author: Mapped[str] = mapped_column(String(255), index=True)
 
     def __init__(  # noqa: PLR0913
@@ -294,7 +294,7 @@ class GitBranch(Base):
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
     )
-    head_commit_sha: Mapped[str] = mapped_column(ForeignKey("git_commits.commit_sha"))
+    head_commit_sha: Mapped[str] = mapped_column(String(64), index=True)
 
     __table_args__ = (UniqueConstraint("repo_id", "name", name="uix_repo_branch"),)
 
@@ -328,9 +328,7 @@ class GitTag(Base):
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
     )
-    target_commit_sha: Mapped[str] = mapped_column(
-        ForeignKey("git_commits.commit_sha"), index=True
-    )
+    target_commit_sha: Mapped[str] = mapped_column(String(64), index=True)
 
     __table_args__ = (UniqueConstraint("repo_id", "name", name="uix_repo_tag"),)
 
