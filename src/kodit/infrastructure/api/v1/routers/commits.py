@@ -66,10 +66,8 @@ async def list_repository_commits(
 ) -> CommitListResponse:
     """List all commits for a repository."""
     # Validate repository exists
-    try:
-        await git_repository.get(int(repo_id))
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail="Repository not found") from e
+    if not await git_repository.exists(int(repo_id)):
+        raise HTTPException(status_code=404, detail="Repository not found")
 
     # Get all commits for the repository directly from commit repository
     commits = await git_commit_repository.find(
@@ -110,18 +108,15 @@ async def get_repository_commit(
 ) -> CommitResponse:
     """Get a specific commit for a repository."""
     # Validate repository exists
-    try:
-        await git_repository.get(int(repo_id))
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail="Repository not found") from e
+    if not await git_repository.exists(int(repo_id)):
+        raise HTTPException(status_code=404, detail="Repository not found")
 
-    # Get the specific commit directly from commit repository
-    try:
-        commit = await git_commit_repository.get(commit_sha)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail="Commit not found") from e
+    # Validate commit exists
+    if not await git_commit_repository.exists(commit_sha):
+        raise HTTPException(status_code=404, detail="Commit not found")
 
-    # Validate commit belongs to the specified repository
+    # Get commit to validate it belongs to the repository
+    commit = await git_commit_repository.get(commit_sha)
     if commit.repo_id != int(repo_id):
         raise HTTPException(
             status_code=404,
@@ -154,17 +149,15 @@ async def list_commit_files(  # noqa: PLR0913
 ) -> FileListResponse:
     """List all files in a specific commit."""
     # Validate repository exists
-    try:
-        await git_repository.get(int(repo_id))
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail="Repository not found") from e
+    if not await git_repository.exists(int(repo_id)):
+        raise HTTPException(status_code=404, detail="Repository not found")
 
-    # Validate commit exists and belongs to repository
-    try:
-        commit = await git_commit_repository.get(commit_sha)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail="Commit not found") from e
+    # Validate commit exists
+    if not await git_commit_repository.exists(commit_sha):
+        raise HTTPException(status_code=404, detail="Commit not found")
 
+    # Get commit to validate it belongs to the repository
+    commit = await git_commit_repository.get(commit_sha)
     if commit.repo_id != int(repo_id):
         raise HTTPException(
             status_code=404,
@@ -207,17 +200,15 @@ async def get_commit_file(  # noqa: PLR0913
 ) -> FileResponse:
     """Get a specific file from a commit."""
     # Validate repository exists
-    try:
-        await git_repository.get(int(repo_id))
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail="Repository not found") from e
+    if not await git_repository.exists(int(repo_id)):
+        raise HTTPException(status_code=404, detail="Repository not found")
 
-    # Validate commit exists and belongs to repository
-    try:
-        commit = await git_commit_repository.get(commit_sha)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail="Commit not found") from e
+    # Validate commit exists
+    if not await git_commit_repository.exists(commit_sha):
+        raise HTTPException(status_code=404, detail="Commit not found")
 
+    # Get commit to validate it belongs to the repository
+    commit = await git_commit_repository.get(commit_sha)
     if commit.repo_id != int(repo_id):
         raise HTTPException(
             status_code=404,
@@ -285,17 +276,15 @@ async def list_commit_embeddings(  # noqa: PLR0913
 ) -> EmbeddingListResponse:
     """List all embeddings for snippets in a specific commit."""
     # Validate repository exists
-    try:
-        await git_repository.get(int(repo_id))
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail="Repository not found") from e
+    if not await git_repository.exists(int(repo_id)):
+        raise HTTPException(status_code=404, detail="Repository not found")
 
-    # Validate commit exists and belongs to repository
-    try:
-        commit = await git_commit_repository.get(commit_sha)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail="Commit not found") from e
+    # Validate commit exists
+    if not await git_commit_repository.exists(commit_sha):
+        raise HTTPException(status_code=404, detail="Commit not found")
 
+    # Get commit to validate it belongs to the repository
+    commit = await git_commit_repository.get(commit_sha)
     if commit.repo_id != int(repo_id):
         raise HTTPException(
             status_code=404,
@@ -344,17 +333,15 @@ async def list_commit_enrichments(  # noqa: PLR0913
 ) -> EnrichmentListResponse:
     """List all enrichments for a specific commit."""
     # Validate repository exists
-    try:
-        await git_repository.get(int(repo_id))
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail="Repository not found") from e
+    if not await git_repository.exists(int(repo_id)):
+        raise HTTPException(status_code=404, detail="Repository not found")
 
-    # Validate commit exists and belongs to repository
-    try:
-        commit = await git_commit_repository.get(commit_sha)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail="Commit not found") from e
+    # Validate commit exists
+    if not await git_commit_repository.exists(commit_sha):
+        raise HTTPException(status_code=404, detail="Commit not found")
 
+    # Get commit to validate it belongs to the repository
+    commit = await git_commit_repository.get(commit_sha)
     if commit.repo_id != int(repo_id):
         raise HTTPException(
             status_code=404,
@@ -410,17 +397,15 @@ async def delete_all_commit_enrichments(
 ) -> None:
     """Delete all enrichments for a specific commit."""
     # Validate repository exists
-    try:
-        await git_repository.get(int(repo_id))
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail="Repository not found") from e
+    if not await git_repository.exists(int(repo_id)):
+        raise HTTPException(status_code=404, detail="Repository not found")
 
-    # Validate commit exists and belongs to repository
-    try:
-        commit = await git_commit_repository.get(commit_sha)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail="Commit not found") from e
+    # Validate commit exists
+    if not await git_commit_repository.exists(commit_sha):
+        raise HTTPException(status_code=404, detail="Commit not found")
 
+    # Get commit to validate it belongs to the repository
+    commit = await git_commit_repository.get(commit_sha)
     if commit.repo_id != int(repo_id):
         raise HTTPException(
             status_code=404,
@@ -467,17 +452,15 @@ async def delete_commit_enrichment(  # noqa: PLR0913
 ) -> None:
     """Delete a specific enrichment for a commit."""
     # Validate repository exists
-    try:
-        await git_repository.get(int(repo_id))
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail="Repository not found") from e
+    if not await git_repository.exists(int(repo_id)):
+        raise HTTPException(status_code=404, detail="Repository not found")
 
-    # Validate commit exists and belongs to repository
-    try:
-        commit = await git_commit_repository.get(commit_sha)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail="Commit not found") from e
+    # Validate commit exists
+    if not await git_commit_repository.exists(commit_sha):
+        raise HTTPException(status_code=404, detail="Commit not found")
 
+    # Get commit to validate it belongs to the repository
+    commit = await git_commit_repository.get(commit_sha)
     if commit.repo_id != int(repo_id):
         raise HTTPException(
             status_code=404,

@@ -197,10 +197,8 @@ async def get_index_status(
 ) -> TaskStatusListResponse:
     """Get the status of tasks for an index."""
     # Validate repository exists
-    try:
-        await git_repository.get(repo_id)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail="Repository not found") from e
+    if not await git_repository.exists(repo_id):
+        raise HTTPException(status_code=404, detail="Repository not found")
 
     # Get all task statuses for this index
     progress_trackers = await status_service.get_index_status(repo_id)
@@ -326,10 +324,8 @@ async def list_repository_enrichments(  # noqa: PLR0913
     - limit: Maximum number of enrichments to return. Defaults to 10.
     """
     # Validate repository exists
-    try:
-        await git_repository.get(int(repo_id))
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail="Repository not found") from e
+    if not await git_repository.exists(int(repo_id)):
+        raise HTTPException(status_code=404, detail="Repository not found")
 
     # Find the latest enriched commit using the repository's tracking config
     enriched_commit = await repository_query_service.find_latest_enriched_commit(
