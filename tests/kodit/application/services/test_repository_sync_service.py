@@ -120,7 +120,7 @@ async def test_sync_handles_missing_commits(
     sync_service: RepositorySyncService,
     session_factory: Callable[[], AsyncSession],
 ) -> None:
-    """Test that sync gracefully skips branches/tags pointing to unscanned commits."""
+    """Test that sync creates branches/tags even when commits aren't indexed yet."""
     with tempfile.TemporaryDirectory() as tmpdir:
         repo_path = Path(tmpdir) / "test-repo"
         repo_path.mkdir()
@@ -153,13 +153,15 @@ async def test_sync_handles_missing_commits(
         # Sync should not fail even though commits don't exist
         await sync_service.sync_branches_and_tags(repo)
 
-        # Verify no branches/tags were created (commits missing)
+        # Verify branches/tags were created even though commits don't exist in DB yet
         branches = await branch_repository.get_by_repo_id(repo.id)
         tags = await tag_repository.get_by_repo_id(repo.id)
 
-        # Should skip branches/tags since commits don't exist in DB
-        assert len(branches) == 0
-        assert len(tags) == 0
+        # Branches/tags are created even without indexed commits (FK constraint removed)
+        assert len(branches) == 2  # main + branch-with-unscanned-commit
+        assert len(tags) == 1  # tag-with-unscanned-commit
+        assert branches[0].head_commit_sha == commit1.hexsha
+        assert tags[0].target_commit_sha == commit1.hexsha
 
 
 @pytest.mark.asyncio

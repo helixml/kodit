@@ -38,6 +38,9 @@ jobs:
       - name: No database changes check
         run: make no-database-changes-check
 
+      - name: Run migrations test
+        run: make test-migrations
+
       - name: API Doc check
         if: "!startsWith(github.ref, 'refs/tags/')"
         run: make docs-check
