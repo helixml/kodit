@@ -29,5 +29,8 @@ no-database-changes-check:
 	uv run alembic upgrade head
 	uv run alembic check
 
+test-migrations:
+	uv run python tests/migrations.py
+
 smoke:
 	uv run tests/smoke.py
