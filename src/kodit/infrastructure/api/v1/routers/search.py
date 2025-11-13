@@ -1,9 +1,12 @@
 """Search router for the REST API."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from kodit.domain.value_objects import MultiSearchRequest, SnippetSearchFilters
-from kodit.infrastructure.api.v1.dependencies import CodeSearchAppServiceDep
+from kodit.infrastructure.api.v1.dependencies import (
+    CodeSearchAppServiceDep,
+    RepositoryQueryServiceDep,
+)
 from kodit.infrastructure.api.v1.schemas.search import (
     SearchRequest,
     SearchResponse,
@@ -23,8 +26,18 @@ router = APIRouter(tags=["search"])
 async def search_snippets(
     request: SearchRequest,
     search_application_service: CodeSearchAppServiceDep,
+    repository_query_service: RepositoryQueryServiceDep,
 ) -> SearchResponse:
     """Search code snippets with filters matching MCP tool."""
+    # Validate source_repo if provided
+    if request.sources:
+        source_repo = request.sources[0]
+        repo_id = await repository_query_service.find_repo_by_url(source_repo)
+        if not repo_id:
+            raise HTTPException(
+                status_code=404, detail=f"Repository not found: {source_repo}"
+            )
+
     # Convert API request to domain request
     domain_request = MultiSearchRequest(
         keywords=request.data.attributes.keywords,
