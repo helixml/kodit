@@ -225,10 +225,13 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
         schemas, cookbooks, and other enrichments. The returned repository URLs can be
         used with other tools like get_architecture_docs(), get_api_docs(), etc.
 
-        Returns a simple list of repository URLs in the format: github.com/user/repo
+        Returns a list of repositories with their tracking information and latest
+        commit SHA.
         """
+        log = structlog.get_logger(__name__)
         mcp_context: MCPContext = ctx.request_context.lifespan_context
         repo_repository = mcp_context.server_factory.repo_repository()
+        repo_query_service = mcp_context.server_factory.repository_query_service()
 
         repos = await repo_repository.find(QueryBuilder())
 
@@ -236,7 +239,34 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
             return "No repositories found."
 
         lines = ["Available repositories:"]
-        lines.extend(f"- {repo.sanitized_remote_uri}" for repo in repos)
+        for repo in repos:
+            # Base repository info
+            repo_info = f"- {repo.sanitized_remote_uri}"
+
+            # Add tracking information if available
+            if repo.tracking_config:
+                tracking_type = repo.tracking_config.type
+                tracking_name = repo.tracking_config.name
+                repo_info += f" (tracking {tracking_type}: {tracking_name})"
+
+                # Get the latest commit SHA for the tracked thing
+                try:
+                    if repo.id:
+                        latest_commit = await repo_query_service.find_latest_commit(
+                            repo_id=repo.id,
+                            max_commits_to_check=1,
+                        )
+                        if latest_commit:
+                            repo_info += f" [latest: {latest_commit[:8]}]"
+                except ValueError as e:
+                    # Log if we can't get the commit
+                    log.debug(
+                        "Could not get latest commit for repository",
+                        repo_id=repo.id,
+                        error=str(e),
+                    )
+
+            lines.append(repo_info)
 
         return "\n".join(lines)
 
