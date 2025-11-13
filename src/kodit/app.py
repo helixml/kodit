@@ -15,7 +15,7 @@ from kodit.application.services.indexing_worker_service import IndexingWorkerSer
 from kodit.application.services.sync_scheduler import SyncSchedulerService
 from kodit.config import AppContext
 from kodit.domain.enrichments.request import EnrichmentRequest
-from kodit.domain.value_objects import Document, IndexRequest
+from kodit.domain.value_objects import EmbeddingRequest
 from kodit.infrastructure.api.v1.routers.commits import router as commits_router
 from kodit.infrastructure.api.v1.routers.queue import router as queue_router
 from kodit.infrastructure.api.v1.routers.repositories import (
@@ -55,26 +55,30 @@ async def app_lifespan(_: FastAPI) -> AsyncIterator[AppLifespanState]:
 
     # Quickly check if the providers are accessible and raise an error if not
     log.info("Checking providers are accessible")
+
+    # Check embedding provider directly
     try:
+        embedding_service = _server_factory.code_search_service()
         await anext(
-            _server_factory.code_search_service().index_documents(
-                IndexRequest(
-                    documents=[Document(snippet_id="1", text="def hello(): pass")]
-                )
+            embedding_service.embedding_provider.embed(
+                [EmbeddingRequest(snippet_id="1", text="test")]
             )
         )
     except StopAsyncIteration:
         pass
     except Exception as e:
         raise ValueError("Embedding service is not accessible") from e
+
+    # Check enrichment provider directly
     try:
+        enricher = _server_factory.enricher()
         await anext(
-            _server_factory.enricher().enrich(
+            enricher.enrich(
                 [
                     EnrichmentRequest(
                         id="1",
-                        text="def hello(): pass",
-                        system_prompt="Explain this code",
+                        text="test",
+                        system_prompt="Reply with OK",
                     )
                 ]
             )
