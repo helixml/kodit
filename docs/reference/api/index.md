@@ -12,7 +12,7 @@ look at the [hosted version](https://kodit.helix.ml/docs).
 This is the REST API for the Kodit server. Please refer to the
 [Kodit documentation](https://docs.helix.ml/kodit/) for more information.
     
-Current version: 0.5.11
+Current version: 0.0.
 
 ## Authentication
 
@@ -325,7 +325,7 @@ Delete all enrichments for a specific commit.
 
 - 422: Invalid request
 
-- 404: Commit not found
+- 404: Repository or commit not found
 
 ### DELETE /api/v1/repositories/{repo_id}/commits/{commit_sha}/enrichments/{enrichment_id}
 
@@ -351,7 +351,7 @@ Delete a specific enrichment for a commit.
 
 - 422: Invalid request
 
-- 404: Enrichment not found
+- 404: Repository, commit, or enrichment not found
 
 ### GET /api/v1/repositories
 
@@ -466,7 +466,7 @@ Get the status of tasks for an index.
 
 - 422: Invalid request
 
-- 404: Index not found
+- 404: Repository or index not found
 
 ### GET /api/v1/repositories/{repo_id}/tags
 

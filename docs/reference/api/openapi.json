@@ -3,7 +3,7 @@
   "info": {
     "title": "kodit API",
     "description": "\nThis is the REST API for the Kodit server. Please refer to the\n[Kodit documentation](https://docs.helix.ml/kodit/) for more information.\n    ",
-    "version": "0.5.11"
+    "version": "0.0"
   },
   "paths": {
     "/healthz": {
@@ -734,7 +734,7 @@
             "description": "Invalid request"
           },
           "404": {
-            "description": "Commit not found"
+            "description": "Repository or commit not found"
           }
         }
       }
@@ -795,7 +795,7 @@
             "description": "Invalid request"
           },
           "404": {
-            "description": "Enrichment not found"
+            "description": "Repository, commit, or enrichment not found"
           }
         }
       }
@@ -1016,7 +1016,7 @@
             "description": "Invalid request"
           },
           "404": {
-            "description": "Index not found"
+            "description": "Repository or index not found"
           }
         }
       }
