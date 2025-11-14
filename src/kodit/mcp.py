@@ -182,6 +182,13 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
 
         mcp_context: MCPContext = ctx.request_context.lifespan_context
 
+        # Validate source_repo if provided
+        if source_repo:
+            repo_query_service = mcp_context.server_factory.repository_query_service()
+            repo_id = await repo_query_service.find_repo_by_url(source_repo)
+            if not repo_id:
+                raise ValueError(f"Repository not found: {source_repo}")
+
         # Use the unified application service
         service = mcp_context.server_factory.code_search_application_service()
 
@@ -307,7 +314,7 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
         # Find the repository by URL
         repo_id = await repo_query_service.find_repo_by_url(repo_url)
         if not repo_id:
-            return ""
+            raise ValueError(f"Repository not found: {repo_url}")
 
         if not commit_sha:
             commit_sha = await repo_query_service.find_latest_commit(
@@ -315,7 +322,11 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
                 max_commits_to_check=100,
             )
             if not commit_sha:
-                return ""
+                msg = (
+                    f"No commits with architecture docs found "
+                    f"for repository: {repo_url}"
+                )
+                raise ValueError(msg)
 
         enrichment_service = mcp_context.server_factory.enrichment_query_service()
         enrichments = await enrichment_service.get_architecture_docs_for_commit(
@@ -360,7 +371,7 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
         # Find the repository by URL
         repo_id = await repo_query_service.find_repo_by_url(repo_url)
         if not repo_id:
-            return ""
+            raise ValueError(f"Repository not found: {repo_url}")
 
         if not commit_sha:
             commit_sha = await repo_query_service.find_latest_commit(
@@ -368,7 +379,9 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
                 max_commits_to_check=100,
             )
             if not commit_sha:
-                return ""
+                raise ValueError(
+                    f"No commits with API docs found for repository: {repo_url}"
+                )
 
         enrichment_service = mcp_context.server_factory.enrichment_query_service()
         enrichments = await enrichment_service.get_api_docs_for_commit(commit_sha)
@@ -411,7 +424,7 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
         # Find the repository by URL
         repo_id = await repo_query_service.find_repo_by_url(repo_url)
         if not repo_id:
-            return ""
+            raise ValueError(f"Repository not found: {repo_url}")
 
         if not commit_sha:
             commit_sha = await repo_query_service.find_latest_commit(
@@ -419,7 +432,11 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
                 max_commits_to_check=100,
             )
             if not commit_sha:
-                return ""
+                msg = (
+                    f"No commits with commit description found "
+                    f"for repository: {repo_url}"
+                )
+                raise ValueError(msg)
 
         enrichment_service = mcp_context.server_factory.enrichment_query_service()
         enrichments = await enrichment_service.get_commit_description_for_commit(
@@ -464,7 +481,7 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
         # Find the repository by URL
         repo_id = await repo_query_service.find_repo_by_url(repo_url)
         if not repo_id:
-            return ""
+            raise ValueError(f"Repository not found: {repo_url}")
 
         if not commit_sha:
             commit_sha = await repo_query_service.find_latest_commit(
@@ -472,7 +489,9 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
                 max_commits_to_check=100,
             )
             if not commit_sha:
-                return ""
+                raise ValueError(
+                    f"No commits with database schema found for repository: {repo_url}"
+                )
 
         enrichment_service = mcp_context.server_factory.enrichment_query_service()
         enrichments = await enrichment_service.get_database_schema_for_commit(
@@ -517,7 +536,7 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
         # Find the repository by URL
         repo_id = await repo_query_service.find_repo_by_url(repo_url)
         if not repo_id:
-            return ""
+            raise ValueError(f"Repository not found: {repo_url}")
 
         if not commit_sha:
             commit_sha = await repo_query_service.find_latest_commit(
@@ -525,7 +544,9 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
                 max_commits_to_check=100,
             )
             if not commit_sha:
-                return ""
+                raise ValueError(
+                    f"No commits with cookbook found for repository: {repo_url}"
+                )
 
         enrichment_service = mcp_context.server_factory.enrichment_query_service()
         enrichments = await enrichment_service.get_cookbook_for_commit(commit_sha)

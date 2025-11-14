@@ -734,7 +734,7 @@
             "description": "Invalid request"
           },
           "404": {
-            "description": "Commit not found"
+            "description": "Repository or commit not found"
           }
         }
       }
@@ -795,7 +795,7 @@
             "description": "Invalid request"
           },
           "404": {
-            "description": "Enrichment not found"
+            "description": "Repository, commit, or enrichment not found"
           }
         }
       }
@@ -1016,7 +1016,7 @@
             "description": "Invalid request"
           },
           "404": {
-            "description": "Index not found"
+            "description": "Repository or index not found"
           }
         }
       }

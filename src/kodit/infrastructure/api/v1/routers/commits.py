@@ -14,6 +14,7 @@ from kodit.infrastructure.api.middleware.auth import api_key_auth
 from kodit.infrastructure.api.v1.dependencies import (
     GitCommitRepositoryDep,
     GitFileRepositoryDep,
+    GitRepositoryDep,
     ServerFactoryDep,
 )
 from kodit.infrastructure.api.v1.query_params import PaginationParamsDep
@@ -59,20 +60,22 @@ router = APIRouter(
 @router.get("/{repo_id}/commits", summary="List repository commits")
 async def list_repository_commits(
     repo_id: str,
+    git_repository: GitRepositoryDep,
     git_commit_repository: GitCommitRepositoryDep,
     pagination_params: PaginationParamsDep,
 ) -> CommitListResponse:
     """List all commits for a repository."""
-    try:
-        # Get all commits for the repository directly from commit repository
-        commits = await git_commit_repository.find(
-            QueryBuilder()
-            .filter("repo_id", FilterOperator.EQ, int(repo_id))
-            .paginate(pagination_params)
-            .sort("date", descending=True)
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail="Repository not found") from e
+    # Validate repository exists
+    if not await git_repository.exists(int(repo_id)):
+        raise HTTPException(status_code=404, detail="Repository not found")
+
+    # Get all commits for the repository directly from commit repository
+    commits = await git_commit_repository.find(
+        QueryBuilder()
+        .filter("repo_id", FilterOperator.EQ, int(repo_id))
+        .paginate(pagination_params)
+        .sort("date", descending=True)
+    )
 
     return CommitListResponse(
         data=[
@@ -98,16 +101,27 @@ async def list_repository_commits(
     responses={404: {"description": "Repository or commit not found"}},
 )
 async def get_repository_commit(
-    repo_id: str,  # noqa: ARG001
+    repo_id: str,
     commit_sha: str,
+    git_repository: GitRepositoryDep,
     git_commit_repository: GitCommitRepositoryDep,
 ) -> CommitResponse:
     """Get a specific commit for a repository."""
-    try:
-        # Get the specific commit directly from commit repository
-        commit = await git_commit_repository.get(commit_sha)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail="Commit not found") from e
+    # Validate repository exists
+    if not await git_repository.exists(int(repo_id)):
+        raise HTTPException(status_code=404, detail="Repository not found")
+
+    # Validate commit exists
+    if not await git_commit_repository.exists(commit_sha):
+        raise HTTPException(status_code=404, detail="Commit not found")
+
+    # Get commit to validate it belongs to the repository
+    commit = await git_commit_repository.get(commit_sha)
+    if commit.repo_id != int(repo_id):
+        raise HTTPException(
+            status_code=404,
+            detail=f"Commit {commit_sha} does not belong to repository {repo_id}",
+        )
 
     return CommitResponse(
         data=CommitData(
@@ -125,13 +139,31 @@ async def get_repository_commit(
 
 
 @router.get("/{repo_id}/commits/{commit_sha}/files", summary="List commit files")
-async def list_commit_files(
-    repo_id: str,  # noqa: ARG001
+async def list_commit_files(  # noqa: PLR0913
+    repo_id: str,
     commit_sha: str,
+    git_repository: GitRepositoryDep,
+    git_commit_repository: GitCommitRepositoryDep,
     git_file_repository: GitFileRepositoryDep,
     pagination: PaginationParamsDep,
 ) -> FileListResponse:
     """List all files in a specific commit."""
+    # Validate repository exists
+    if not await git_repository.exists(int(repo_id)):
+        raise HTTPException(status_code=404, detail="Repository not found")
+
+    # Validate commit exists
+    if not await git_commit_repository.exists(commit_sha):
+        raise HTTPException(status_code=404, detail="Commit not found")
+
+    # Get commit to validate it belongs to the repository
+    commit = await git_commit_repository.get(commit_sha)
+    if commit.repo_id != int(repo_id):
+        raise HTTPException(
+            status_code=404,
+            detail=f"Commit {commit_sha} does not belong to repository {repo_id}",
+        )
+
     files = await git_file_repository.find(
         GitFileQueryBuilder().for_commit_sha(commit_sha).paginate(pagination)
     )
@@ -158,13 +190,31 @@ async def list_commit_files(
     summary="Get commit file",
     responses={404: {"description": "Repository, commit or file not found"}},
 )
-async def get_commit_file(
-    repo_id: str,  # noqa: ARG001
+async def get_commit_file(  # noqa: PLR0913
+    repo_id: str,
     commit_sha: str,
     blob_sha: str,
+    git_repository: GitRepositoryDep,
+    git_commit_repository: GitCommitRepositoryDep,
     git_file_repository: GitFileRepositoryDep,
 ) -> FileResponse:
     """Get a specific file from a commit."""
+    # Validate repository exists
+    if not await git_repository.exists(int(repo_id)):
+        raise HTTPException(status_code=404, detail="Repository not found")
+
+    # Validate commit exists
+    if not await git_commit_repository.exists(commit_sha):
+        raise HTTPException(status_code=404, detail="Commit not found")
+
+    # Get commit to validate it belongs to the repository
+    commit = await git_commit_repository.get(commit_sha)
+    if commit.repo_id != int(repo_id):
+        raise HTTPException(
+            status_code=404,
+            detail=f"Commit {commit_sha} does not belong to repository {repo_id}",
+        )
+
     files = await git_file_repository.find(
         GitFileQueryBuilder().for_commit_sha(commit_sha).for_blob_sha(blob_sha)
     )
@@ -211,9 +261,11 @@ async def list_commit_snippets(
     summary="List commit embeddings",
     responses={404: {"description": "Repository or commit not found"}},
 )
-async def list_commit_embeddings(
+async def list_commit_embeddings(  # noqa: PLR0913
     repo_id: str,
     commit_sha: str,
+    git_repository: GitRepositoryDep,
+    git_commit_repository: GitCommitRepositoryDep,
     server_factory: ServerFactoryDep,
     full: Annotated[  # noqa: FBT002
         bool,
@@ -223,7 +275,21 @@ async def list_commit_embeddings(
     ] = False,
 ) -> EmbeddingListResponse:
     """List all embeddings for snippets in a specific commit."""
-    _ = repo_id  # Required by FastAPI route path but not used in function
+    # Validate repository exists
+    if not await git_repository.exists(int(repo_id)):
+        raise HTTPException(status_code=404, detail="Repository not found")
+
+    # Validate commit exists
+    if not await git_commit_repository.exists(commit_sha):
+        raise HTTPException(status_code=404, detail="Commit not found")
+
+    # Get commit to validate it belongs to the repository
+    commit = await git_commit_repository.get(commit_sha)
+    if commit.repo_id != int(repo_id):
+        raise HTTPException(
+            status_code=404,
+            detail=f"Commit {commit_sha} does not belong to repository {repo_id}",
+        )
 
     enrichment_query_service = server_factory.enrichment_query_service()
     snippets = await enrichment_query_service.get_all_snippets_for_commit(commit_sha)
@@ -256,17 +322,32 @@ async def list_commit_embeddings(
     summary="List commit enrichments",
     responses={404: {"description": "Repository or commit not found"}},
 )
-async def list_commit_enrichments(
-    repo_id: str,  # noqa: ARG001
+async def list_commit_enrichments(  # noqa: PLR0913
+    repo_id: str,
     commit_sha: str,
+    git_repository: GitRepositoryDep,
+    git_commit_repository: GitCommitRepositoryDep,
     server_factory: ServerFactoryDep,
     pagination_params: PaginationParamsDep,
     enrichment_type: str | None = None,
 ) -> EnrichmentListResponse:
     """List all enrichments for a specific commit."""
-    # TODO(Phil): Should use repo too, it's confusing to the user when they specify the
-    # wrong commit and another repo. It's like they are seeing results from the other
-    # repo.
+    # Validate repository exists
+    if not await git_repository.exists(int(repo_id)):
+        raise HTTPException(status_code=404, detail="Repository not found")
+
+    # Validate commit exists
+    if not await git_commit_repository.exists(commit_sha):
+        raise HTTPException(status_code=404, detail="Commit not found")
+
+    # Get commit to validate it belongs to the repository
+    commit = await git_commit_repository.get(commit_sha)
+    if commit.repo_id != int(repo_id):
+        raise HTTPException(
+            status_code=404,
+            detail=f"Commit {commit_sha} does not belong to repository {repo_id}",
+        )
+
     enrichment_query_service = server_factory.enrichment_query_service()
     enrichments = await enrichment_query_service.all_enrichments_for_commit(
         commit_sha=commit_sha,
@@ -304,15 +385,33 @@ async def list_commit_enrichments(
 @router.delete(
     "/{repo_id}/commits/{commit_sha}/enrichments",
     summary="Delete all commit enrichments",
-    responses={404: {"description": "Commit not found"}},
+    responses={404: {"description": "Repository or commit not found"}},
     status_code=204,
 )
 async def delete_all_commit_enrichments(
-    repo_id: str,  # noqa: ARG001
+    repo_id: str,
     commit_sha: str,
+    git_repository: GitRepositoryDep,
+    git_commit_repository: GitCommitRepositoryDep,
     server_factory: ServerFactoryDep,
 ) -> None:
     """Delete all enrichments for a specific commit."""
+    # Validate repository exists
+    if not await git_repository.exists(int(repo_id)):
+        raise HTTPException(status_code=404, detail="Repository not found")
+
+    # Validate commit exists
+    if not await git_commit_repository.exists(commit_sha):
+        raise HTTPException(status_code=404, detail="Commit not found")
+
+    # Get commit to validate it belongs to the repository
+    commit = await git_commit_repository.get(commit_sha)
+    if commit.repo_id != int(repo_id):
+        raise HTTPException(
+            status_code=404,
+            detail=f"Commit {commit_sha} does not belong to repository {repo_id}",
+        )
+
     enrichment_v2_repository = server_factory.enrichment_v2_repository()
     enrichment_association_repository = (
         server_factory.enrichment_association_repository()
@@ -340,16 +439,35 @@ async def delete_all_commit_enrichments(
 @router.delete(
     "/{repo_id}/commits/{commit_sha}/enrichments/{enrichment_id}",
     summary="Delete commit enrichment",
-    responses={404: {"description": "Enrichment not found"}},
+    responses={404: {"description": "Repository, commit, or enrichment not found"}},
     status_code=204,
 )
-async def delete_commit_enrichment(
-    repo_id: str,  # noqa: ARG001
-    commit_sha: str,  # noqa: ARG001
+async def delete_commit_enrichment(  # noqa: PLR0913
+    repo_id: str,
+    commit_sha: str,
     enrichment_id: int,
+    git_repository: GitRepositoryDep,
+    git_commit_repository: GitCommitRepositoryDep,
     server_factory: ServerFactoryDep,
 ) -> None:
     """Delete a specific enrichment for a commit."""
+    # Validate repository exists
+    if not await git_repository.exists(int(repo_id)):
+        raise HTTPException(status_code=404, detail="Repository not found")
+
+    # Validate commit exists
+    if not await git_commit_repository.exists(commit_sha):
+        raise HTTPException(status_code=404, detail="Commit not found")
+
+    # Get commit to validate it belongs to the repository
+    commit = await git_commit_repository.get(commit_sha)
+    if commit.repo_id != int(repo_id):
+        raise HTTPException(
+            status_code=404,
+            detail=f"Commit {commit_sha} does not belong to repository {repo_id}",
+        )
+
+    # Delete enrichment
     try:
         enrichment_v2_repository = server_factory.enrichment_v2_repository()
         enrichment = await enrichment_v2_repository.get(enrichment_id)
