@@ -4,8 +4,8 @@ import structlog
 
 from kodit.domain.enrichments.usage.api_docs import APIDocEnrichment
 from kodit.domain.entities.git import GitFile
-from kodit.infrastructure.slicing.ast_analyzer import (
-    ASTAnalyzer,
+from kodit.infrastructure.slicing.ast_analyzer import ASTAnalyzer
+from kodit.infrastructure.slicing.code_elements import (
     ClassDefinition,
     FunctionDefinition,
     ModuleDefinition,

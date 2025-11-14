@@ -8,29 +8,22 @@ from collections import defaultdict
 from collections.abc import Generator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
 from tree_sitter import Node, Parser, Tree
 
 from kodit.domain.entities.git import GitFile, SnippetV2
 from kodit.domain.value_objects import LanguageMapping
-from kodit.infrastructure.slicing.ast_analyzer import (
-    ASTAnalyzer,
-    FunctionDefinition,
-    LanguageConfig,
-    ParsedFile,
-)
+from kodit.infrastructure.slicing.ast_analyzer import ASTAnalyzer
+from kodit.infrastructure.slicing.code_elements import FunctionInfo
+from kodit.infrastructure.slicing.language_analyzer import language_analyzer_factory
 
-
-@dataclass
-class FunctionInfo:
-    """Information about a function definition."""
-
-    file: Path
-    node: Node
-    span: tuple[int, int]
-    qualified_name: str
+if TYPE_CHECKING:
+    from kodit.infrastructure.slicing.code_elements import (
+        FunctionDefinition,
+        ParsedFile,
+    )
 
 
 @dataclass
@@ -110,10 +103,10 @@ class Slicer:
 
         # Build state from ASTAnalyzer results
         state = self._build_state_from_ast_analyzer(parsed_files, functions)
-        config = LanguageConfig.CONFIGS[language]
+        lang_analyzer = language_analyzer_factory(language)
 
         # Build call graph and snippets (Slicer-specific logic)
-        self._build_call_graph(state, config)
+        self._build_call_graph(state, lang_analyzer)
         self._build_reverse_call_graph(state)
 
         # Extract snippets for all functions
@@ -136,7 +129,9 @@ class Slicer:
 
     def _file_matches_language(self, file_extension: str, language: str) -> bool:
         """Check if a file extension matches the current language."""
-        if language not in LanguageConfig.CONFIGS:
+        try:
+            language_analyzer_factory(language)
+        except ValueError:
             return False
 
         try:
@@ -177,11 +172,11 @@ class Slicer:
 
         return state
 
-    def _build_call_graph(self, state: AnalyzerState, config: dict[str, Any]) -> None:
+    def _build_call_graph(self, state: AnalyzerState, analyzer: Any) -> None:
         """Build call graph from function definitions."""
         for qualified_name, func_info in state.def_index.items():
             calls = self._find_function_calls(
-                func_info.node, func_info.file, state, config
+                func_info.node, func_info.file, state, analyzer
             )
             state.call_graph[qualified_name] = calls
 
@@ -424,11 +419,11 @@ class Slicer:
         return imports
 
     def _find_function_calls(
-        self, node: Node, file_path: Path, state: AnalyzerState, config: dict[str, Any]
+        self, node: Node, file_path: Path, state: AnalyzerState, analyzer: Any
     ) -> set[str]:
         """Find function calls in a node."""
         calls = set()
-        call_node_type = config["call_node"]
+        call_node_type = analyzer.node_types().call_node
 
         for child in self._walk_tree(node):
             if child.type == call_node_type:

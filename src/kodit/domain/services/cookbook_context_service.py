@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from kodit.infrastructure.slicing.ast_analyzer import (
+from kodit.infrastructure.slicing.code_elements import (
     FunctionDefinition,
     ModuleDefinition,
 )

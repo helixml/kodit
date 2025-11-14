@@ -13,7 +13,7 @@ def test_ast_analyzer_initialization() -> None:
     """Test that ASTAnalyzer initializes correctly."""
     analyzer = ASTAnalyzer("python")
     assert analyzer.language == "python"
-    assert analyzer.config is not None
+    assert analyzer.analyzer is not None
 
 
 def test_ast_analyzer_unsupported_language() -> None:
