@@ -372,7 +372,6 @@ class APIDocExtractor:
         """Format source files section for a module."""
         from pathlib import Path
 
-        lines = ["### Source Files", ""]
         # Filter out __init__.py files as they're implementation details
         # The module itself represents the package
         non_init_files = [
@@ -380,6 +379,12 @@ class APIDocExtractor:
             for parsed in module.files
             if Path(parsed.git_file.path).name != "__init__.py"
         ]
+
+        # Only show section if there are non-__init__.py files
+        if not non_init_files:
+            return []
+
+        lines = ["### Source Files", ""]
         lines.extend(
             f"- `{parsed.git_file.path}`"
             for parsed in sorted(non_init_files, key=lambda f: f.git_file.path)
@@ -418,68 +423,6 @@ class APIDocExtractor:
             lines.append("")
 
         return lines
-
-    def _generate_markdown(self, module: ModuleDefinition) -> str:  # noqa: C901
-        """Generate Go-Doc style Markdown for a module."""
-        lines = []
-
-        # Header
-        lines.append(f"# package {module.module_path}")
-        lines.append("")
-
-        # Overview section (module docstring)
-        if module.module_docstring:
-            lines.append("## Overview")
-            lines.append("")
-            lines.append(module.module_docstring)
-            lines.append("")
-
-        # Index
-        if self._should_generate_index(module):
-            lines.extend(self._generate_index(module))
-            lines.append("")
-
-        # Constants
-        if module.constants:
-            lines.append("## Constants")
-            lines.append("")
-            for _name, node in module.constants:
-                parsed_file = self._find_parsed_file(module, node)
-                if parsed_file:
-                    signature = self._extract_source(parsed_file, node)
-                    lines.append("```")
-                    lines.append(signature.strip())
-                    lines.append("```")
-                    lines.append("")
-
-        # Functions
-        if module.functions:
-            lines.append("## Functions")
-            lines.append("")
-            for func in sorted(module.functions, key=lambda f: f.simple_name):
-                lines.extend(self._format_function(func, module))
-
-        # Types
-        if module.types:
-            lines.append("## Types")
-            lines.append("")
-            for typ in sorted(module.types, key=lambda t: t.simple_name):
-                lines.extend(self._format_type(typ, module))
-
-        if module.classes:
-            if not module.types:
-                lines.append("## Types")
-                lines.append("")
-            for cls in sorted(module.classes, key=lambda c: c.simple_name):
-                lines.extend(self._format_class(cls, module))
-
-        # Source Files
-        lines.append("## Source Files")
-        lines.append("")
-        lines.extend(f"- {parsed.git_file.path}" for parsed in module.files)
-        lines.append("")
-
-        return "\n".join(lines)
 
     def _should_generate_index(self, module: ModuleDefinition) -> bool:
         """Check if we should generate an index."""
