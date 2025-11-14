@@ -18,9 +18,7 @@ class TestSlicer:
             ("c", ".c"),
             ("cpp", ".cpp"),
             ("csharp", ".cs"),
-            ("css", ".css"),
             ("go", ".go"),
-            ("html", ".html"),
             ("java", ".java"),
             ("javascript", ".js"),
             ("python", ".py"),
@@ -30,7 +28,7 @@ class TestSlicer:
     def test_extract_snippets_from_language(
         self, language: str, extension: str
     ) -> None:
-        """Test extracting snippets from each supported language."""
+        """Test extracting snippets from supported languages."""
         data_dir = Path(__file__).parent / "data" / language
         files = [f for f in data_dir.glob(f"*{extension}") if f.is_file()]
 

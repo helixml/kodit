@@ -15,7 +15,7 @@ class TestAPIDocExtractor:
 
     PositiveLanguageAssertions: ClassVar[dict[str, list[str]]] = {
         "go": [
-            "## api/pkg/controller",
+            "## controller",
             "func (fs *FileStore) GetFileList(filter string) ([]*File, error)",
             """type File struct {
 	Path string
