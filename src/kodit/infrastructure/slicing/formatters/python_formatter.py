@@ -29,7 +29,7 @@ class PythonAPIDocFormatter:
         lines = []
 
         # Generate index of all modules
-        lines.append(f"## {language} API Reference")
+        lines.append(f"# {language} API Reference")
         lines.append("")
         lines.extend(
             f"- [{module.module_path}](#{self._anchor(module.module_path)})"
@@ -60,11 +60,19 @@ class PythonAPIDocFormatter:
             lines.extend(self._format_class_python(cls, module))
 
         # Format standalone functions
+        # Collect all method names from classes to filter them out
+        method_names = set()
+        for cls in module.classes:
+            for method in cls.methods:
+                method_names.add(method.simple_name)
+
         if module.functions:
+            # Filter out class methods from the functions list
             valid_functions = [
                 f
                 for f in module.functions
                 if self._is_valid_function_name(f.simple_name)
+                and f.simple_name not in method_names
             ]
             if valid_functions:
                 lines.append("### Functions")
@@ -138,9 +146,31 @@ class PythonAPIDocFormatter:
         # Method signature
         parsed_file = self._find_parsed_file_for_function(module, method)
         if parsed_file:
-            signature = self._extract_source(parsed_file, method.node)
+            signature = self._extract_source(parsed_file, method.node).strip()
+
+            # Remove "def " prefix if present
+            signature = signature.removeprefix("def ")
+
+            # Extract function name and parameters
+            # Remove the function name and keep only parameters and return type
+            if "(" in signature:
+                func_name = signature[: signature.index("(")]
+                rest = signature[signature.index("(") :]
+
+                # Remove 'self' parameter if present
+                if rest.startswith("(self"):
+                    # Handle cases: (self), (self, ...), (self,...)
+                    if rest.startswith("(self)"):
+                        rest = "()" + rest[6:]
+                    elif rest.startswith("(self, "):
+                        rest = "(" + rest[7:]
+                    elif rest.startswith("(self,"):
+                        rest = "(" + rest[6:]
+
+                signature = f"{func_name}{rest}"
+
             lines.append("```py")
-            lines.append(f"{cls.simple_name}.{signature.strip()}")
+            lines.append(f"{cls.simple_name}.{signature}")
             lines.append("```")
             lines.append("")
 
