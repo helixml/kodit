@@ -286,6 +286,7 @@ class PythonAnalyzer(LanguageAnalyzer):
                             continue
 
                         docstring = self.extract_docstring(block_child)
+                        parameters = self._extract_parameters_from_function(block_child)
 
                         class_name = None
                         for class_child in class_node.children:
@@ -307,7 +308,7 @@ class PythonAnalyzer(LanguageAnalyzer):
                             is_public=is_public,
                             is_method=True,
                             docstring=docstring,
-                            parameters=[],
+                            parameters=parameters,
                             return_type=None,
                         )
                         methods.append(method)

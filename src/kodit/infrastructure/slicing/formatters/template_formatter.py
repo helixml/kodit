@@ -6,7 +6,7 @@ from pathlib import Path
 import structlog
 from jinja2 import Environment, FileSystemLoader
 
-from kodit.infrastructure.slicing.code_elements import ModuleDefinition, ParsedFile
+from kodit.infrastructure.slicing.code_elements import ModuleDefinition
 
 
 def regex_replace(value: str, pattern: str, replacement: str = "") -> str:
@@ -109,111 +109,7 @@ class TemplateAPIDocFormatter:
             Formatted markdown documentation
 
         """
-        # Enrich modules with extracted signatures if needed for Python
-        if self.language == "python":
-            modules = self._enrich_python_signatures(modules)
-
         return self.template.render(
             modules=modules,
             language=language,
         )
-
-    def _enrich_python_signatures(
-        self, modules: list[ModuleDefinition]
-    ) -> list[ModuleDefinition]:
-        """Enrich Python modules with extracted method signatures.
-
-        Args:
-            modules: Original module definitions
-
-        Returns:
-            Modules with enriched parameter lists
-
-        """
-        for module in modules:
-            for cls in module.classes:
-                for method in cls.methods:
-                    if not method.parameters:
-                        # Extract signature from node if parameters are missing
-                        parsed_file = self._find_parsed_file(module, method.file)
-                        if parsed_file:
-                            sig = self._extract_signature(parsed_file, method.node)
-                            params = self._parse_python_params(sig)
-                            # Create new method with updated parameters
-                            method.parameters.extend(params)
-
-        return modules
-
-    def _find_parsed_file(
-        self, module: ModuleDefinition, file_path: Path
-    ) -> ParsedFile | None:
-        """Find parsed file in module."""
-        for parsed in module.files:
-            if parsed.path == file_path:
-                return parsed
-        return None
-
-    def _extract_signature(self, parsed_file: object, node: object) -> str:
-        """Extract signature from tree-sitter node."""
-        if not hasattr(node, "start_byte") or not hasattr(node, "end_byte"):
-            return ""
-
-        start = node.start_byte  # type: ignore[attr-defined]
-        end = node.end_byte  # type: ignore[attr-defined]
-
-        try:
-            source = parsed_file.source_code[start:end].decode("utf-8")  # type: ignore[attr-defined]
-            # Extract just the signature (up to the function body colon)
-            # We need to count parentheses to handle multi-line parameters
-            lines = []
-            paren_count = 0
-            found_closing_paren = False
-
-            for line in source.split("\n"):
-                lines.append(line)
-                paren_count += line.count("(") - line.count(")")
-
-                # Once we've closed all parentheses, look for the colon
-                if paren_count == 0 and "(" in "".join(lines):
-                    found_closing_paren = True
-
-                # If we found the closing paren and now see a colon, we're done
-                if found_closing_paren and ":" in line:
-                    break
-
-            return "\n".join(lines)
-        except (UnicodeDecodeError, IndexError, AttributeError):
-            return ""
-
-    def _parse_python_params(self, signature: str) -> list[str]:
-        """Parse parameters from Python function signature.
-
-        Args:
-            signature: Function signature string
-
-        Returns:
-            List of parameter strings with types
-
-        """
-        # Extract params from signature like "def add(self, a: float, b: float)"
-        # or multi-line like:
-        # def add(
-        #     self,
-        #     a: float,
-        #     b: float,
-        # ):
-
-        # Find content between parentheses
-        match = re.search(r"\((.*?)\)", signature, re.DOTALL)
-        if not match:
-            return []
-
-        params_str = match.group(1).strip()
-        if not params_str:
-            return []
-
-        # Split by commas and filter out empty strings
-        # This handles trailing commas and extra whitespace
-        params = [p.strip() for p in params_str.split(",")]
-        # Filter out empty params (from trailing commas)
-        return [p for p in params if p]
