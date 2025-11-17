@@ -8,7 +8,7 @@
 ## {{ module.module_path }}
 
 {% if module.module_docstring -%}
-{{ module.module_docstring }}
+{{ module.module_docstring | dedent }}
 
 {% endif -%}
 
@@ -32,7 +32,7 @@
 ```
 
 {% if typ.docstring -%}
-{{ typ.docstring }}
+{{ typ.docstring | dedent }}
 
 {% endif -%}
 {% endfor -%}
@@ -52,7 +52,7 @@ func {{ func.simple_name }}({{ func.parameters | join(', ') }})
 ```
 
 {% if func.docstring -%}
-{{ func.docstring }}
+{{ func.docstring | dedent }}
 
 {% endif -%}
 {% endfor -%}
@@ -68,7 +68,7 @@ type {{ cls.simple_name }} struct
 ```
 
 {% if cls.docstring -%}
-{{ cls.docstring }}
+{{ cls.docstring | dedent }}
 
 {% endif -%}
 
@@ -88,7 +88,7 @@ func (receiver) {{ method.simple_name }}({{ method.parameters | join(', ') }})
 ```
 
 {% if method.docstring -%}
-{{ method.docstring }}
+{{ method.docstring | dedent }}
 
 {% endif -%}
 {% endfor -%}

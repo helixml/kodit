@@ -8,7 +8,7 @@
 ## {{ module.module_path }}
 
 {% if module.module_docstring -%}
-{{ module.module_docstring }}
+{{ module.module_docstring | dedent }}
 
 {% endif -%}
 
@@ -26,7 +26,7 @@
 ```
 
 {% if func.docstring -%}
-{{ func.docstring }}
+{{ func.docstring | dedent }}
 
 {% endif -%}
 {% endfor -%}
@@ -42,7 +42,7 @@
 ```
 
 {% if typ.docstring -%}
-{{ typ.docstring }}
+{{ typ.docstring | dedent }}
 
 {% endif -%}
 {% endfor -%}

@@ -14,6 +14,38 @@ def regex_replace(value: str, pattern: str, replacement: str = "") -> str:
     return re.sub(pattern, replacement, value)
 
 
+def dedent_filter(value: str) -> str:
+    """Jinja2 filter to remove common leading whitespace from docstrings."""
+    # First, split into lines
+    lines = value.splitlines()
+    if not lines:
+        return ""
+
+    # Find the minimum indentation (ignoring the first line and empty lines)
+    # This matches Python's inspect.cleandoc() behavior
+    indents = []
+    for i, line in enumerate(lines):
+        if i == 0:  # Skip first line
+            continue
+        stripped = line.lstrip()
+        if stripped:  # Only consider non-empty lines
+            indents.append(len(line) - len(stripped))
+
+    if not indents:
+        return value.strip()
+
+    # Remove the minimum indentation from all lines except the first
+    min_indent = min(indents)
+    dedented_lines = [lines[0]]  # Keep first line as-is
+    for line in lines[1:]:
+        if line.strip():  # Non-empty line
+            dedented_lines.append(line[min_indent:])
+        else:  # Empty line
+            dedented_lines.append("")
+
+    return "\n".join(dedented_lines).strip()
+
+
 def regex_match(value: str, pattern: str, attribute: str | None = None) -> bool:
     """Jinja2 test to check if value matches regex pattern.
 
@@ -55,6 +87,7 @@ class TemplateAPIDocFormatter:
 
         # Add custom filters and tests BEFORE loading templates
         self.env.filters["regex_replace"] = regex_replace
+        self.env.filters["dedent"] = dedent_filter
         self.env.tests["match"] = regex_match
 
         # Load language-specific template
