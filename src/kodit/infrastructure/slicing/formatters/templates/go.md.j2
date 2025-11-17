@@ -28,6 +28,7 @@
 
 ```go
 {{ typ.kind }} {{ typ.simple_name }}
+
 ```
 
 {% if typ.docstring -%}
@@ -47,6 +48,7 @@
 ```go
 func {{ func.simple_name }}({{ func.parameters | join(', ') }})
 {%- if func.return_type %} {{ func.return_type }}{% endif %}
+
 ```
 
 {% if func.docstring -%}
@@ -62,6 +64,7 @@ func {{ func.simple_name }}({{ func.parameters | join(', ') }})
 
 ```go
 type {{ cls.simple_name }} struct
+
 ```
 
 {% if cls.docstring -%}
@@ -81,6 +84,7 @@ type {{ cls.simple_name }} struct
 ```go
 func (receiver) {{ method.simple_name }}({{ method.parameters | join(', ') }})
 {%- if method.return_type %} {{ method.return_type }}{% endif %}
+
 ```
 
 {% if method.docstring -%}

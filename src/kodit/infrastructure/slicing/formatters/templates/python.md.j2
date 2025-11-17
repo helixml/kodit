@@ -18,11 +18,10 @@
 
 ```py
 class {{ module.module_path }}.{{ cls.simple_name }}
-{%- if cls.constructor_params -%}
-({{ cls.constructor_params | join(', ') }})
-{%- else -%}
-()
+{%- if cls.constructor_params %}({{ cls.constructor_params | join(', ') }})
+{%- else %}()
 {%- endif %}
+
 ```
 
 {% if cls.docstring -%}
@@ -42,7 +41,7 @@ class {{ module.module_path }}.{{ cls.simple_name }}
 ##### {{ cls.simple_name }}.{{ method.simple_name }}
 
 ```py
-{%- if method.parameters -%}
+{% if method.parameters -%}
 {%- set params_without_self = [] -%}
 {%- for param in method.parameters if param != 'self' -%}
   {%- set _ = params_without_self.append(param) -%}
@@ -50,8 +49,9 @@ class {{ module.module_path }}.{{ cls.simple_name }}
 {{ cls.simple_name }}.{{ method.simple_name }}({{ params_without_self | join(', ') }})
 {%- else -%}
 {{ cls.simple_name }}.{{ method.simple_name }}()
-{%- endif -%}
+{%- endif %}
 {%- if method.return_type %} -> {{ method.return_type }}{% endif %}
+
 ```
 
 {% if method.docstring -%}
@@ -82,6 +82,7 @@ class {{ module.module_path }}.{{ cls.simple_name }}
 ```py
 {{ func.simple_name }}({{ func.parameters | join(', ') }})
 {%- if func.return_type %} -> {{ func.return_type }}{% endif %}
+
 ```
 
 {% if func.docstring -%}
@@ -97,6 +98,7 @@ class {{ module.module_path }}.{{ cls.simple_name }}
 
 ```py
 {{ typ.kind }} {{ module.module_path }}.{{ typ.simple_name }}
+
 ```
 
 {% if typ.docstring -%}
