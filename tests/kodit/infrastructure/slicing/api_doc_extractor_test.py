@@ -113,11 +113,13 @@ class TestAPIDocExtractor:
             "### Functions" in content
             or "### Types" in content
             or "### Constants" in content
+            or "#### Methods" in content  # Python uses Methods instead
         )
         assert has_subsections, f"No API subsections found for {language}"
 
-        # Should have source files subsection
-        assert "### Source Files" in content
+        # Source files subsection is language-specific (Python doesn't include it)
+        if language != "python":
+            assert "### Source Files" in content
 
 
 def test_extract_api_docs_empty_result() -> None:
@@ -190,9 +192,14 @@ def test_constructor_params_in_api_docs() -> None:
         assert len(enrichments) == 1
         content = enrichments[0].content
 
-        # Verify constructor parameters section exists
-        assert "**Constructor Parameters:**" in content
+        # Python constructor params appear inline (Pydoc-Markdown style)
+        # e.g., class Calculator(precision: int, mode: str = "standard")
+        assert "class" in content
+        assert "Calculator" in content
         assert "precision: int" in content
         assert 'mode: str = "standard"' in content
+
+        # Python uses Pydoc-Markdown style headers
+        assert "#### Methods" in content or "### Functions" in content
     finally:
         Path(temp_path).unlink()
