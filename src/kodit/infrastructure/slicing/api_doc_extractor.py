@@ -511,6 +511,13 @@ class APIDocExtractor:
             lines.append(typ.docstring)
             lines.append("")
 
+        # Constructor parameters (for structs with fields)
+        if typ.constructor_params:
+            lines.append("**Fields:**")
+            lines.append("")
+            lines.extend(f"- `{param}`" for param in typ.constructor_params)
+            lines.append("")
+
         return lines
 
     def _format_class(
@@ -531,6 +538,13 @@ class APIDocExtractor:
         # Class documentation
         if cls.docstring:
             lines.append(cls.docstring)
+            lines.append("")
+
+        # Constructor parameters
+        if cls.constructor_params:
+            lines.append("**Constructor Parameters:**")
+            lines.append("")
+            lines.extend(f"- `{param}`" for param in cls.constructor_params)
             lines.append("")
 
         # Methods - filter out invalid method names

@@ -47,6 +47,7 @@ class ClassDefinition:
     docstring: str | None
     methods: list[FunctionDefinition]
     base_classes: list[str]
+    constructor_params: list[str]
 
 
 @dataclass
@@ -61,6 +62,7 @@ class TypeDefinition:
     is_public: bool
     docstring: str | None
     kind: str
+    constructor_params: list[str]
 
 
 @dataclass

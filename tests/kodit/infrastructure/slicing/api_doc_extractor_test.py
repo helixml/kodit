@@ -149,3 +149,50 @@ def test_extract_api_docs_empty_result() -> None:
     assert isinstance(enrichments, list)
     assert len(enrichments) == 1
     assert "Python example project for testing" in enrichments[0].content
+
+
+def test_constructor_params_in_api_docs() -> None:
+    """Test that constructor parameters appear in API documentation."""
+    # Create a simple Python file with a class that has constructor params
+    import tempfile
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+        f.write(
+            '''class Calculator:
+    """A simple calculator."""
+
+    def __init__(self, precision: int, mode: str = "standard"):
+        """Initialize calculator."""
+        self.precision = precision
+        self.mode = mode
+
+    def add(self, a: float, b: float) -> float:
+        """Add two numbers."""
+        return a + b
+'''
+        )
+        temp_path = f.name
+
+    try:
+        git_file = GitFile(
+            created_at=datetime.now(tz=UTC),
+            blob_sha="test123",
+            commit_sha="abc123def456",
+            path=temp_path,
+            mime_type="text/x-python",
+            size=Path(temp_path).stat().st_size,
+            extension=".py",
+        )
+
+        extractor = APIDocExtractor()
+        enrichments = extractor.extract_api_docs([git_file], "python")
+
+        assert len(enrichments) == 1
+        content = enrichments[0].content
+
+        # Verify constructor parameters section exists
+        assert "**Constructor Parameters:**" in content
+        assert "precision: int" in content
+        assert 'mode: str = "standard"' in content
+    finally:
+        Path(temp_path).unlink()
