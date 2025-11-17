@@ -27,7 +27,10 @@ class Calculator:
     This calculator performs basic arithmetic operations.
     """
 
-    def __init__(self, precision: int = 2):
+    def __init__(
+        self,
+        precision: int = 2,
+    ):
         """Initialize the calculator.
 
         Args:
@@ -35,7 +38,11 @@ class Calculator:
         """
         self.precision = precision
 
-    def add(self, a: float, b: float) -> float:
+    def add(
+        self,
+        a: float,
+        b: float,
+    ) -> float:
         """Add two numbers together.
 
         Args:

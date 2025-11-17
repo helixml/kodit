@@ -163,12 +163,24 @@ class TemplateAPIDocFormatter:
 
         try:
             source = parsed_file.source_code[start:end].decode("utf-8")  # type: ignore[attr-defined]
-            # Extract just the signature (up to the colon)
+            # Extract just the signature (up to the function body colon)
+            # We need to count parentheses to handle multi-line parameters
             lines = []
+            paren_count = 0
+            found_closing_paren = False
+
             for line in source.split("\n"):
                 lines.append(line)
-                if ":" in line and line.count("(") == line.count(")"):
+                paren_count += line.count("(") - line.count(")")
+
+                # Once we've closed all parentheses, look for the colon
+                if paren_count == 0 and "(" in "".join(lines):
+                    found_closing_paren = True
+
+                # If we found the closing paren and now see a colon, we're done
+                if found_closing_paren and ":" in line:
                     break
+
             return "\n".join(lines)
         except (UnicodeDecodeError, IndexError, AttributeError):
             return ""
@@ -184,6 +196,12 @@ class TemplateAPIDocFormatter:
 
         """
         # Extract params from signature like "def add(self, a: float, b: float)"
+        # or multi-line like:
+        # def add(
+        #     self,
+        #     a: float,
+        #     b: float,
+        # ):
 
         # Find content between parentheses
         match = re.search(r"\((.*?)\)", signature, re.DOTALL)
@@ -194,5 +212,8 @@ class TemplateAPIDocFormatter:
         if not params_str:
             return []
 
-        # Split by commas (simple approach, doesn't handle nested structures)
-        return [p.strip() for p in params_str.split(",")]
+        # Split by commas and filter out empty strings
+        # This handles trailing commas and extra whitespace
+        params = [p.strip() for p in params_str.split(",")]
+        # Filter out empty params (from trailing commas)
+        return [p for p in params if p]
