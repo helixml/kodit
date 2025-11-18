@@ -174,6 +174,28 @@ For STDIO mode, please use:
 }
 ```
 
+### Integration With Kilo Code
+
+1. Open Kilo Code from the side menu
+2. Click the `MCP Servers` button at the top right of the Cline window (the icon looks
+   like a server)
+3. Click the `Edit Project/Global MCP` button.
+
+Add the following configuration:
+
+```json
+{
+  "mcpServers": {
+    "kodit": {
+      "type": "streamable-http",
+      "url": "https://kodit.helix.ml/mcp",
+      "alwaysAllow": [],
+      "disabled": false
+    }
+  }
+}
+```
+
 ## Forcing AI Assistants to use Kodit
 
 Although Kodit has been developed to work well out of the box with popular AI coding
