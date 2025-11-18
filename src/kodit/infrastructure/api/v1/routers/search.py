@@ -51,6 +51,8 @@ async def search_snippets(
             created_before=request.end_date,
             source_repo=request.sources[0] if request.sources else None,
             file_path=request.file_patterns[0] if request.file_patterns else None,
+            enrichment_types=request.enrichment_types,
+            enrichment_subtypes=request.enrichment_subtypes,
         )
         if any(
             [
@@ -60,6 +62,8 @@ async def search_snippets(
                 request.end_date,
                 request.sources,
                 request.file_patterns,
+                request.enrichment_types,
+                request.enrichment_subtypes,
             ]
         )
         else None,
@@ -71,7 +75,7 @@ async def search_snippets(
     return SearchResponse(
         data=[
             SnippetData(
-                type="snippet",
+                type=result.enrichment_subtype or result.enrichment_type,
                 id=result.snippet.id,
                 attributes=SnippetAttributes(
                     created_at=result.snippet.created_at,

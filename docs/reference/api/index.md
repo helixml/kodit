@@ -12,7 +12,7 @@ look at the [hosted version](https://kodit.helix.ml/docs).
 This is the REST API for the Kodit server. Please refer to the
 [Kodit documentation](https://docs.helix.ml/kodit/) for more information.
     
-Current version: 0.5.11
+Current version: 0.5.12
 
 ## Authentication
 
@@ -966,6 +966,8 @@ Search filters for JSON:API requests.
 | end_date |  | Filter snippets created before this date |
 | sources |  | Source repositories to filter by |
 | file_patterns |  | File path patterns to filter by |
+| enrichment_types |  | Enrichment types to filter by (e.g., 'development', 'usage') |
+| enrichment_subtypes |  | Enrichment subtypes to filter by (e.g., 'snippet', 'example', 'snippet_summary', 'example_summary') |
 
 
 ### SearchRequest

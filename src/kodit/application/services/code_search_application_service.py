@@ -31,6 +31,8 @@ class MultiSearchResult:
 
     snippet: SnippetV2
     original_scores: list[float]
+    enrichment_type: str
+    enrichment_subtype: str | None
 
     def to_json(self) -> str:
         """Return LLM-optimized JSON representation following the compact schema."""
@@ -164,10 +166,25 @@ class CodeSearchApplicationService:
             enrichment_ids
         )
 
+        # Apply enrichment type/subtype filters if provided
+        if request.filters:
+            if request.filters.enrichment_types:
+                final_enrichments = [
+                    e
+                    for e in final_enrichments
+                    if e.type in request.filters.enrichment_types
+                ]
+            if request.filters.enrichment_subtypes:
+                final_enrichments = [
+                    e
+                    for e in final_enrichments
+                    if e.subtype in request.filters.enrichment_subtypes
+                ]
+
         # Get enrichments pointing to these enrichments
         extra_enrichments = (
             await self.enrichment_query_service.get_enrichments_pointing_to_enrichments(
-                enrichment_ids
+                [e.id for e in final_enrichments if e.id]
             )
         )
 
@@ -177,8 +194,9 @@ class CodeSearchApplicationService:
         )
 
         # Convert enrichments to SnippetV2 domain objects
-        # Map enrichment ID to snippet for correct ordering
+        # Map enrichment ID to snippet and type info for correct ordering
         enrichment_id_to_snippet: dict[int | None, SnippetV2] = {}
+        enrichment_id_to_type: dict[int | None, tuple[str, str | None]] = {}
         for enrichment in final_enrichments:
             # Get extra enrichments for this enrichment (only if ID is not None)
             enrichment_extras = (
@@ -199,6 +217,10 @@ class CodeSearchApplicationService:
                     for enrichment in enrichment_extras
                 ],
             )
+            enrichment_id_to_type[enrichment.id] = (
+                enrichment.type,
+                enrichment.subtype,
+            )
 
         # Sort by the original fusion ranking order
         snippets = [
@@ -216,6 +238,8 @@ class CodeSearchApplicationService:
                     if int(x.id) in enrichment_id_to_snippet
                     and enrichment_id_to_snippet[int(x.id)].sha == snippet.sha
                 ],
+                enrichment_type=enrichment_id_to_type[int(snippet.sha)][0],
+                enrichment_subtype=enrichment_id_to_type[int(snippet.sha)][1],
             )
             for snippet in snippets
         ]

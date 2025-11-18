@@ -376,23 +376,24 @@ class EnrichmentQueryService:
         return result
 
     async def summary_to_snippet_map(self, summary_ids: list[int]) -> dict[int, int]:
-        """Get a map of summary IDs to snippet IDs."""
-        # Get the snippet enrichment IDs that these summaries point to
+        """Get a map of summary IDs to base enrichment IDs (snippets or examples)."""
+        # Get the summary enrichment IDs that these summaries point to
         summary_enrichments = await self.get_enrichments_by_ids(summary_ids)
 
         # Get all the associations for these summary enrichments
         all_associations = await self.associations_for_enrichments(summary_enrichments)
 
         # Get all enrichments for these summary associations
-        all_snippet_enrichments = await self.get_enrichment_entities_from_associations(
+        all_base_enrichments = await self.get_enrichment_entities_from_associations(
             all_associations
         )
-        snippet_type_map = {e.id: e.subtype for e in all_snippet_enrichments}
+        enrichment_type_map = {e.id: e.subtype for e in all_base_enrichments}
 
-        # Create a lookup map from summary ID to snippet ID, via the associations,
-        # filtering out any snippets that are not summary enrichments
+        # Create a lookup map from summary ID to base enrichment ID,
+        # including both snippets and examples (but not other summaries)
         return {
             assoc.enrichment_id: int(assoc.entity_id)
             for assoc in all_associations
-            if snippet_type_map[int(assoc.entity_id)] == ENRICHMENT_SUBTYPE_SNIPPET
+            if enrichment_type_map[int(assoc.entity_id)]
+            in {ENRICHMENT_SUBTYPE_SNIPPET, ENRICHMENT_SUBTYPE_EXAMPLE}
         }

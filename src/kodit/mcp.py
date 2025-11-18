@@ -153,6 +153,16 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
                 )
             ),
         ] = None,
+        enrichment_subtypes: Annotated[
+            list[str] | None,
+            Field(
+                description=(
+                    "Filter by enrichment subtypes. Use ['example'] for full "
+                    "example files and documentation code blocks, ['snippet'] for "
+                    "AST-extracted code snippets. Leave empty to search both."
+                )
+            ),
+        ] = None,
     ) -> str:
         """Search for relevant code snippets and examples across repositories.
 
@@ -201,6 +211,7 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
             created_after=created_after,
             created_before=created_before,
             source_repo=source_repo,
+            enrichment_subtypes=enrichment_subtypes,
         )
 
         search_request = MultiSearchRequest(
