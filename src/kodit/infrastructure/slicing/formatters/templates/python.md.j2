@@ -1,0 +1,118 @@
+# {{ language }} API Reference
+
+{% for module in modules | sort(attribute='module_path') -%}
+- [{{ module.module_path }}](#{{ module.module_path | lower | replace('/', '-') | replace('.', '-') | regex_replace('[^a-z0-9\\-_]', '') | regex_replace('-+', '-') | trim('-') }})
+{% endfor %}
+
+{% for module in modules | sort(attribute='module_path') -%}
+## {{ module.module_path }}
+
+{% if module.module_docstring -%}
+{{ module.module_docstring | dedent }}
+
+{% endif -%}
+
+{# Format classes - Python's primary organizational unit #}
+{% for cls in module.classes | sort(attribute='simple_name') -%}
+### {{ module.module_path }}.{{ cls.simple_name }}
+
+```py
+class {{ module.module_path }}.{{ cls.simple_name }}
+{%- if cls.constructor_params %}({{ cls.constructor_params | join(', ') }})
+{%- else %}()
+{%- endif %}
+
+```
+
+{% if cls.docstring -%}
+{{ cls.docstring | dedent }}
+
+{% endif -%}
+
+{# Methods section #}
+{% set valid_methods = [] -%}
+{% for method in cls.methods if method.simple_name and method.simple_name not in ['anonymous', 'default'] -%}
+  {% set _ = valid_methods.append(method) -%}
+{% endfor -%}
+{% if valid_methods -%}
+#### Methods
+
+{% for method in valid_methods | sort(attribute='simple_name') -%}
+##### {{ cls.simple_name }}.{{ method.simple_name }}
+
+```py
+{% if method.parameters -%}
+{%- set params_without_self = [] -%}
+{%- for param in method.parameters if param != 'self' -%}
+  {%- set _ = params_without_self.append(param) -%}
+{%- endfor -%}
+{{ cls.simple_name }}.{{ method.simple_name }}({{ params_without_self | join(', ') }})
+{%- else -%}
+{{ cls.simple_name }}.{{ method.simple_name }}()
+{%- endif %}
+{%- if method.return_type %} -> {{ method.return_type }}{% endif %}
+
+```
+
+{% if method.docstring -%}
+{{ method.docstring | dedent }}
+
+{% endif -%}
+{% endfor -%}
+{% endif -%}
+{% endfor -%}
+
+{# Format standalone functions - filter out class methods #}
+{% set method_names = [] -%}
+{% for cls in module.classes -%}
+  {% for method in cls.methods -%}
+    {% set _ = method_names.append(method.simple_name) -%}
+  {% endfor -%}
+{% endfor -%}
+{% set valid_functions = [] -%}
+{% for func in module.functions if func.simple_name and func.simple_name not in method_names and func.simple_name not in ['anonymous', 'default'] and func.simple_name | length <= 255 -%}
+  {% set _ = valid_functions.append(func) -%}
+{% endfor -%}
+{% if valid_functions -%}
+### Functions
+
+{% for func in valid_functions | sort(attribute='simple_name') -%}
+#### {{ func.simple_name }}
+
+```py
+{{ func.simple_name }}({{ func.parameters | join(', ') }})
+{%- if func.return_type %} -> {{ func.return_type }}{% endif %}
+
+```
+
+{% if func.docstring -%}
+{{ func.docstring | dedent }}
+
+{% endif -%}
+{% endfor -%}
+{% endif -%}
+
+{# Format types (TypedDict, Protocol, etc.) #}
+{% for typ in module.types | sort(attribute='simple_name') -%}
+### {{ module.module_path }}.{{ typ.simple_name }}
+
+```py
+{{ typ.kind }} {{ module.module_path }}.{{ typ.simple_name }}
+
+```
+
+{% if typ.docstring -%}
+{{ typ.docstring | dedent }}
+
+{% endif -%}
+
+{% if typ.constructor_params -%}
+**Fields:**
+
+{% for param in typ.constructor_params -%}
+- `{{ param }}`
+{% endfor %}
+
+{% endif -%}
+{% endfor -%}
+{% endfor -%}

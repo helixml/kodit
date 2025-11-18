@@ -73,6 +73,10 @@ class LanguageAnalyzer(ABC):
         """Extract type definitions."""
         return []
 
+    def extract_constructor_params(self, node: Node) -> list[str]:  # noqa: ARG002
+        """Extract constructor parameters from a class or type node."""
+        return []
+
 
 class PythonAnalyzer(LanguageAnalyzer):
     """Python-specific analyzer."""
@@ -221,6 +225,8 @@ class PythonAnalyzer(LanguageAnalyzer):
                 qualified_name = f"{parsed.path.stem}.{class_name}"
                 span = (node.start_byte, node.end_byte)
 
+                constructor_params = self.extract_constructor_params(node)
+
                 classes.append(
                     ClassDefinition(
                         file=parsed.path,
@@ -232,6 +238,7 @@ class PythonAnalyzer(LanguageAnalyzer):
                         docstring=docstring,
                         methods=methods,
                         base_classes=base_classes,
+                        constructor_params=constructor_params,
                     )
                 )
 
@@ -279,6 +286,7 @@ class PythonAnalyzer(LanguageAnalyzer):
                             continue
 
                         docstring = self.extract_docstring(block_child)
+                        parameters = self._extract_parameters_from_function(block_child)
 
                         class_name = None
                         for class_child in class_node.children:
@@ -300,7 +308,7 @@ class PythonAnalyzer(LanguageAnalyzer):
                             is_public=is_public,
                             is_method=True,
                             docstring=docstring,
-                            parameters=[],
+                            parameters=parameters,
                             return_type=None,
                         )
                         methods.append(method)
@@ -320,6 +328,41 @@ class PythonAnalyzer(LanguageAnalyzer):
                 )
 
         return base_classes
+
+    def extract_constructor_params(self, node: Node) -> list[str]:
+        """Extract constructor parameters from Python __init__ method."""
+        for child in self._walk_tree(node):
+            if child.type == "function_definition":
+                func_name = self.extract_function_name(child)
+                if func_name == "__init__":
+                    return self._extract_parameters_from_function(child)
+        return []
+
+    def _extract_parameters_from_function(self, func_node: Node) -> list[str]:
+        """Extract parameter names and types from a function definition."""
+        params: list[str] = []
+        for child in func_node.children:
+            if child.type == "parameters":
+                for param_child in child.children:
+                    if param_child.type in {
+                        "identifier",
+                        "typed_parameter",
+                        "typed_default_parameter",
+                        "default_parameter",
+                    }:
+                        param_text = self._extract_param_text(param_child)
+                        if param_text and param_text != "self":
+                            params.append(param_text)
+        return params
+
+    def _extract_param_text(self, param_node: Node) -> str | None:
+        """Extract parameter text including type annotation."""
+        if param_node.text:
+            try:
+                return param_node.text.decode("utf-8")
+            except UnicodeDecodeError:
+                return None
+        return None
 
 
 class GoAnalyzer(LanguageAnalyzer):
@@ -498,6 +541,7 @@ class GoAnalyzer(LanguageAnalyzer):
 
         qualified_name = f"{parsed.path.stem}.{type_name}"
         span = (parent_node.start_byte, parent_node.end_byte)
+        constructor_params = self.extract_constructor_params(type_spec_node)
 
         return TypeDefinition(
             file=parsed.path,
@@ -508,6 +552,7 @@ class GoAnalyzer(LanguageAnalyzer):
             is_public=is_public,
             docstring=docstring,
             kind=type_kind,
+            constructor_params=constructor_params,
         )
 
     def _extract_type_comment(self, type_decl_node: Node) -> str | None:
@@ -530,6 +575,30 @@ class GoAnalyzer(LanguageAnalyzer):
             comment_text = prev_sibling.text.decode("utf-8")
             return comment_text.lstrip("/").strip()
 
+        return None
+
+    def extract_constructor_params(self, node: Node) -> list[str]:
+        """Extract constructor parameters from Go struct fields."""
+        params: list[str] = []
+
+        for child in node.children:
+            if child.type == "struct_type":
+                for struct_child in child.children:
+                    if struct_child.type == "field_declaration_list":
+                        for field in struct_child.children:
+                            if field.type == "field_declaration":
+                                field_text = self._extract_go_field_signature(field)
+                                if field_text:
+                                    params.append(field_text)
+        return params
+
+    def _extract_go_field_signature(self, field_node: Node) -> str | None:
+        """Extract field signature from a Go field declaration."""
+        if field_node.text:
+            try:
+                return field_node.text.decode("utf-8").strip()
+            except UnicodeDecodeError:
+                return None
         return None
 
 

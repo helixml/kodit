@@ -1,0 +1,49 @@
+# {{ language }} API Reference
+
+{% for module in modules | sort(attribute='module_path') -%}
+- [{{ module.module_path }}](#{{ module.module_path | lower | replace('/', '-') | replace('.', '-') | regex_replace('[^a-z0-9\\-_]', '') | regex_replace('-+', '-') | trim('-') }})
+{% endfor %}
+
+{% for module in modules | sort(attribute='module_path') -%}
+## {{ module.module_path }}
+
+{% if module.module_docstring -%}
+{{ module.module_docstring | dedent }}
+
+{% endif -%}
+
+{# Classes #}
+{% for cls in module.classes | sort(attribute='simple_name') -%}
+### {{ cls.simple_name }}
+
+```java
+class {{ cls.simple_name }}
+
+```
+
+{% if cls.docstring -%}
+{{ cls.docstring | dedent }}
+
+{% endif -%}
+
+{# Methods #}
+{% set valid_methods = cls.methods | selectattr('simple_name') | reject('match', '^(anonymous|default)$', attribute='simple_name') | list -%}
+{% if valid_methods -%}
+#### Methods
+
+{% for method in valid_methods | sort(attribute='simple_name') -%}
+##### {{ cls.simple_name }}.{{ method.simple_name }}
+
+```java
+// Signature placeholder
+
+```
+
+{% if method.docstring -%}
+{{ method.docstring | dedent }}
+
+{% endif -%}
+{% endfor -%}
+{% endif -%}
+{% endfor -%}
+{% endfor -%}
