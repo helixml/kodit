@@ -19,6 +19,15 @@ from kodit.application.handlers.commit.create_bm25_index import (
 from kodit.application.handlers.commit.create_code_embeddings import (
     CreateCodeEmbeddingsHandler,
 )
+from kodit.application.handlers.commit.create_example_code_embeddings import (
+    CreateExampleCodeEmbeddingsHandler,
+)
+from kodit.application.handlers.commit.create_example_summary import (
+    CreateExampleSummaryHandler,
+)
+from kodit.application.handlers.commit.create_example_summary_embeddings import (
+    CreateExampleSummaryEmbeddingsHandler,
+)
 from kodit.application.handlers.commit.create_summary_embeddings import (
     CreateSummaryEmbeddingsHandler,
 )
@@ -26,6 +35,7 @@ from kodit.application.handlers.commit.create_summary_enrichment import (
     CreateSummaryEnrichmentHandler,
 )
 from kodit.application.handlers.commit.database_schema import DatabaseSchemaHandler
+from kodit.application.handlers.commit.extract_examples import ExtractExamplesHandler
 from kodit.application.handlers.commit.extract_snippets import ExtractSnippetsHandler
 from kodit.application.handlers.commit.scan_commit import ScanCommitHandler
 from kodit.application.handlers.registry import TaskHandlerRegistry
@@ -329,6 +339,18 @@ class ServerFactory:
                 ),
             )
             registry.register(
+                TaskOperation.EXTRACT_EXAMPLES_FOR_COMMIT,
+                ExtractExamplesHandler(
+                    repo_repository=self.repo_repository(),
+                    git_commit_repository=self.git_commit_repository(),
+                    scanner=self.scanner(),
+                    enrichment_v2_repository=self.enrichment_v2_repository(),
+                    enrichment_association_repository=self.enrichment_association_repository(),
+                    enrichment_query_service=self.enrichment_query_service(),
+                    operation=self.operation(),
+                ),
+            )
+            registry.register(
                 TaskOperation.CREATE_BM25_INDEX_FOR_COMMIT,
                 CreateBM25IndexHandler(
                     bm25_service=self.bm25_service(),
@@ -346,6 +368,15 @@ class ServerFactory:
                 ),
             )
             registry.register(
+                TaskOperation.CREATE_EXAMPLE_CODE_EMBEDDINGS_FOR_COMMIT,
+                CreateExampleCodeEmbeddingsHandler(
+                    code_search_service=self.code_search_service(),
+                    embedding_repository=self.embedding_repository(),
+                    enrichment_query_service=self.enrichment_query_service(),
+                    operation=self.operation(),
+                ),
+            )
+            registry.register(
                 TaskOperation.CREATE_SUMMARY_ENRICHMENT_FOR_COMMIT,
                 CreateSummaryEnrichmentHandler(
                     enricher_service=self.enricher(),
@@ -356,8 +387,29 @@ class ServerFactory:
                 ),
             )
             registry.register(
+                TaskOperation.CREATE_EXAMPLE_SUMMARY_FOR_COMMIT,
+                CreateExampleSummaryHandler(
+                    enricher_service=self.enricher(),
+                    enrichment_v2_repository=self.enrichment_v2_repository(),
+                    enrichment_association_repository=self.enrichment_association_repository(),
+                    enrichment_query_service=self.enrichment_query_service(),
+                    operation=self.operation(),
+                ),
+            )
+            registry.register(
                 TaskOperation.CREATE_SUMMARY_EMBEDDINGS_FOR_COMMIT,
                 CreateSummaryEmbeddingsHandler(
+                    text_search_service=self.text_search_service(),
+                    embedding_repository=self.embedding_repository(),
+                    enrichment_v2_repository=self.enrichment_v2_repository(),
+                    enrichment_association_repository=self.enrichment_association_repository(),
+                    enrichment_query_service=self.enrichment_query_service(),
+                    operation=self.operation(),
+                ),
+            )
+            registry.register(
+                TaskOperation.CREATE_EXAMPLE_SUMMARY_EMBEDDINGS_FOR_COMMIT,
+                CreateExampleSummaryEmbeddingsHandler(
                     text_search_service=self.text_search_service(),
                     embedding_repository=self.embedding_repository(),
                     enrichment_v2_repository=self.enrichment_v2_repository(),

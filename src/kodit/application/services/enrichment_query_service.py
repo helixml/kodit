@@ -12,6 +12,10 @@ from kodit.domain.enrichments.architecture.physical.physical import (
     ENRICHMENT_SUBTYPE_PHYSICAL,
 )
 from kodit.domain.enrichments.development.development import ENRICHMENT_TYPE_DEVELOPMENT
+from kodit.domain.enrichments.development.example.example import (
+    ENRICHMENT_SUBTYPE_EXAMPLE,
+    ENRICHMENT_SUBTYPE_EXAMPLE_SUMMARY,
+)
 from kodit.domain.enrichments.development.snippet.snippet import (
     ENRICHMENT_SUBTYPE_SNIPPET,
     ENRICHMENT_SUBTYPE_SNIPPET_SUMMARY,
@@ -251,6 +255,37 @@ class EnrichmentQueryService:
         """Check if a commit has cookbook enrichments."""
         cookbooks = await self.get_cookbook_for_commit(commit_sha)
         return len(cookbooks) > 0
+
+    async def get_all_examples_for_commit(self, commit_sha: str) -> list[EnrichmentV2]:
+        """Get example enrichments for a commit."""
+        return list(
+            await self.all_enrichments_for_commit(
+                commit_sha=commit_sha,
+                pagination=PaginationParams(page_size=32000),
+                enrichment_type=ENRICHMENT_TYPE_DEVELOPMENT,
+                enrichment_subtype=ENRICHMENT_SUBTYPE_EXAMPLE,
+            )
+        )
+
+    async def has_examples_for_commit(self, commit_sha: str) -> bool:
+        """Check if a commit has example enrichments."""
+        examples = await self.get_all_examples_for_commit(commit_sha)
+        return len(examples) > 0
+
+    async def get_example_summaries_for_commit(
+        self, commit_sha: str
+    ) -> list[EnrichmentV2]:
+        """Get example summary enrichments for a commit."""
+        return await self.get_enrichments_for_commit(
+            commit_sha,
+            enrichment_type=ENRICHMENT_TYPE_DEVELOPMENT,
+            enrichment_subtype=ENRICHMENT_SUBTYPE_EXAMPLE_SUMMARY,
+        )
+
+    async def has_example_summaries_for_commit(self, commit_sha: str) -> bool:
+        """Check if a commit has example summary enrichments."""
+        summaries = await self.get_example_summaries_for_commit(commit_sha)
+        return len(summaries) > 0
 
     async def associations_for_enrichments(
         self, enrichments: list[EnrichmentV2]

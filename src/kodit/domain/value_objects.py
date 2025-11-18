@@ -611,6 +611,14 @@ class TaskOperation(StrEnum):
     CREATE_COMMIT_DESCRIPTION_FOR_COMMIT = "kodit.commit.create_commit_description"
     CREATE_DATABASE_SCHEMA_FOR_COMMIT = "kodit.commit.create_database_schema"
     CREATE_COOKBOOK_FOR_COMMIT = "kodit.commit.create_cookbook"
+    EXTRACT_EXAMPLES_FOR_COMMIT = "kodit.commit.extract_examples"
+    CREATE_EXAMPLE_SUMMARY_FOR_COMMIT = "kodit.commit.create_example_summary"
+    CREATE_EXAMPLE_CODE_EMBEDDINGS_FOR_COMMIT = (
+        "kodit.commit.create_example_code_embeddings"
+    )
+    CREATE_EXAMPLE_SUMMARY_EMBEDDINGS_FOR_COMMIT = (
+        "kodit.commit.create_example_summary_embeddings"
+    )
     SCAN_COMMIT = "kodit.commit.scan"
 
     def is_repository_operation(self) -> bool:
@@ -634,10 +642,14 @@ class PrescribedOperations:
     SCAN_AND_INDEX_COMMIT: ClassVar[list[TaskOperation]] = [
         TaskOperation.SCAN_COMMIT,
         TaskOperation.EXTRACT_SNIPPETS_FOR_COMMIT,
+        TaskOperation.EXTRACT_EXAMPLES_FOR_COMMIT,
         TaskOperation.CREATE_BM25_INDEX_FOR_COMMIT,
         TaskOperation.CREATE_CODE_EMBEDDINGS_FOR_COMMIT,
+        TaskOperation.CREATE_EXAMPLE_CODE_EMBEDDINGS_FOR_COMMIT,
         TaskOperation.CREATE_SUMMARY_ENRICHMENT_FOR_COMMIT,
+        TaskOperation.CREATE_EXAMPLE_SUMMARY_FOR_COMMIT,
         TaskOperation.CREATE_SUMMARY_EMBEDDINGS_FOR_COMMIT,
+        TaskOperation.CREATE_EXAMPLE_SUMMARY_EMBEDDINGS_FOR_COMMIT,
         TaskOperation.CREATE_ARCHITECTURE_ENRICHMENT_FOR_COMMIT,
         TaskOperation.CREATE_PUBLIC_API_DOCS_FOR_COMMIT,
         TaskOperation.CREATE_COMMIT_DESCRIPTION_FOR_COMMIT,
