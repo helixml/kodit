@@ -8,7 +8,6 @@ tags:
 - jupyter
 - quant
 - cline
-video: https://s3.eu-west-2.amazonaws.com/assets.winder.ai/helix/251109_Kodit_SimpleQuantDemo.mp4
 ---
 
 Most quantitative researchers maintain proprietary helper libraries for common tasks
@@ -56,7 +55,7 @@ Let's index the quant helper library and create our analysis notebook:
    "data": {
       "type": "index",
       "attributes": {
-         "uri": "https://github.com/winderai/analytics-ai-agent-demo"
+         "uri": "https://github.com/philwinder/quant-helper"
       }
    }
    }'
