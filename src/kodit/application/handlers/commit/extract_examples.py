@@ -116,7 +116,10 @@ class ExtractExamplesHandler:
             )
 
             saved_enrichments = await self.enrichment_v2_repository.save_bulk(
-                [ExampleEnrichment(content=content) for content in unique_examples]
+                [
+                    ExampleEnrichment(content=self._sanitize_content(content))
+                    for content in unique_examples
+                ]
             )
             saved_associations = await self.enrichment_association_repository.save_bulk(
                 [
@@ -184,3 +187,8 @@ class ExtractExamplesHandler:
         relative_path = Path(file_path).name
         metadata = f"# Language: {language} | File: {relative_path}\n\n"
         return metadata + content
+
+    def _sanitize_content(self, content: str) -> str:
+        """Remove null bytes and other problematic characters for PostgreSQL UTF-8."""
+        # Remove null bytes (0x00) which PostgreSQL UTF-8 doesn't allow
+        return content.replace("\x00", "")
