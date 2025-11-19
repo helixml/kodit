@@ -209,7 +209,7 @@ greeter.hello()
 
         assert len(enrichments) == 1
         assert "greeter.hello()" in enrichments[0].content
-        assert "python" in enrichments[0].content.lower()
+        assert "from mylib import greeter" in enrichments[0].content
 
 
 @pytest.mark.asyncio

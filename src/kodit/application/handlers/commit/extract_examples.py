@@ -156,37 +156,21 @@ class ExtractExamplesHandler:
 
         # Concatenate all code blocks with separators
         code_parts = [block.content for block in blocks]
-        concatenated_code = "\n\n".join(code_parts)
-
-        # Add metadata header with file info
-        relative_path = Path(file.path).name
-        # Determine primary language from first block
-        primary_language = blocks[0].language if blocks[0].language else "unknown"
-        metadata = f"# File: {relative_path} | Language: {primary_language}\n\n"
-
-        return metadata + concatenated_code
+        return "\n\n".join(code_parts)
 
     def _extract_full_file(self, file: GitFile) -> str | None:
         """Extract full file content as an example."""
         try:
-            language = LanguageMapping.get_language_for_extension(file.extension)
+            LanguageMapping.get_language_for_extension(file.extension)
         except ValueError:
             return None
 
         try:
             with Path(file.path).open() as f:
-                content = f.read()
+                return f.read()
         except OSError as e:
             self._log.warning(f"Failed to read file {file.path}", error=str(e))
             return None
-
-        return self._format_full_file(content, language, file.path)
-
-    def _format_full_file(self, content: str, language: str, file_path: str) -> str:
-        """Format full file with metadata."""
-        relative_path = Path(file_path).name
-        metadata = f"# Language: {language} | File: {relative_path}\n\n"
-        return metadata + content
 
     def _sanitize_content(self, content: str) -> str:
         """Remove null bytes and other problematic characters for PostgreSQL UTF-8."""

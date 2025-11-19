@@ -220,7 +220,7 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
         snippets = await service.search(request=search_request)
 
         log.debug("Fusing output")
-        output = MultiSearchResult.to_jsonlines(results=snippets)
+        output = MultiSearchResult.to_markdown(results=snippets)
 
         log.debug("Output", output=output)
         return output
