@@ -16,6 +16,12 @@ from kodit.domain.enrichments.architecture.physical.physical import (
     PhysicalArchitectureEnrichment,
 )
 from kodit.domain.enrichments.development.development import ENRICHMENT_TYPE_DEVELOPMENT
+from kodit.domain.enrichments.development.example.example import (
+    ENRICHMENT_SUBTYPE_EXAMPLE,
+    ENRICHMENT_SUBTYPE_EXAMPLE_SUMMARY,
+    ExampleEnrichment,
+    ExampleSummaryEnrichment,
+)
 from kodit.domain.enrichments.development.snippet.snippet import (
     ENRICHMENT_SUBTYPE_SNIPPET,
     ENRICHMENT_SUBTYPE_SNIPPET_SUMMARY,
@@ -119,6 +125,26 @@ class SQLAlchemyEnrichmentV2Repository(
             and db_entity.subtype == ENRICHMENT_SUBTYPE_SNIPPET
         ):
             return SnippetEnrichment(
+                id=db_entity.id,
+                content=db_entity.content,
+                created_at=db_entity.created_at,
+                updated_at=db_entity.updated_at,
+            )
+        if (
+            db_entity.type == ENRICHMENT_TYPE_DEVELOPMENT
+            and db_entity.subtype == ENRICHMENT_SUBTYPE_EXAMPLE_SUMMARY
+        ):
+            return ExampleSummaryEnrichment(
+                id=db_entity.id,
+                content=db_entity.content,
+                created_at=db_entity.created_at,
+                updated_at=db_entity.updated_at,
+            )
+        if (
+            db_entity.type == ENRICHMENT_TYPE_DEVELOPMENT
+            and db_entity.subtype == ENRICHMENT_SUBTYPE_EXAMPLE
+        ):
+            return ExampleEnrichment(
                 id=db_entity.id,
                 content=db_entity.content,
                 created_at=db_entity.created_at,

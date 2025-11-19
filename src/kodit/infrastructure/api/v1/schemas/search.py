@@ -30,6 +30,17 @@ class SearchFilters(BaseModel):
     file_patterns: list[str] | None = Field(
         None, description="File path patterns to filter by"
     )
+    enrichment_types: list[str] | None = Field(
+        None,
+        description="Enrichment types to filter by (e.g., 'development', 'usage')",
+    )
+    enrichment_subtypes: list[str] | None = Field(
+        None,
+        description=(
+            "Enrichment subtypes to filter by "
+            "(e.g., 'snippet', 'example', 'snippet_summary', 'example_summary')"
+        ),
+    )
 
 
 class SearchAttributes(BaseModel):
@@ -113,6 +124,24 @@ class SearchRequest(BaseModel):
             else None
         )
 
+    @property
+    def enrichment_types(self) -> list[str] | None:
+        """Get the enrichment types from the search request."""
+        return (
+            self.data.attributes.filters.enrichment_types
+            if self.data.attributes.filters
+            else None
+        )
+
+    @property
+    def enrichment_subtypes(self) -> list[str] | None:
+        """Get the enrichment subtypes from the search request."""
+        return (
+            self.data.attributes.filters.enrichment_subtypes
+            if self.data.attributes.filters
+            else None
+        )
+
 
 class SnippetAttributes(BaseModel):
     """Snippet attributes for JSON:API responses."""
@@ -128,7 +157,7 @@ class SnippetAttributes(BaseModel):
 class SnippetData(BaseModel):
     """Snippet data for JSON:API responses."""
 
-    type: str = "snippet"
+    type: str
     id: str
     attributes: SnippetAttributes
 
@@ -211,7 +240,7 @@ class SnippetDetailAttributes(BaseModel):
 class SnippetDetailData(BaseModel):
     """Snippet detail data for JSON:API responses."""
 
-    type: str = "snippet"
+    type: str
     id: str
     attributes: SnippetDetailAttributes
 

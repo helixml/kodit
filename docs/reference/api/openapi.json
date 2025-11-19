@@ -3,7 +3,7 @@
   "info": {
     "title": "kodit API",
     "description": "\nThis is the REST API for the Kodit server. Please refer to the\n[Kodit documentation](https://docs.helix.ml/kodit/) for more information.\n    ",
-    "version": "0.5.11"
+    "version": "0.5.12"
   },
   "paths": {
     "/healthz": {
@@ -2136,6 +2136,36 @@
             ],
             "title": "File Patterns",
             "description": "File path patterns to filter by"
+          },
+          "enrichment_types": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enrichment Types",
+            "description": "Enrichment types to filter by (e.g., 'development', 'usage')"
+          },
+          "enrichment_subtypes": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enrichment Subtypes",
+            "description": "Enrichment subtypes to filter by (e.g., 'snippet', 'example', 'snippet_summary', 'example_summary')"
           }
         },
         "type": "object",
@@ -2256,8 +2286,7 @@
         "properties": {
           "type": {
             "type": "string",
-            "title": "Type",
-            "default": "snippet"
+            "title": "Type"
           },
           "id": {
             "type": "string",
@@ -2269,6 +2298,7 @@
         },
         "type": "object",
         "required": [
+          "type",
           "id",
           "attributes"
         ],
@@ -2474,6 +2504,10 @@
           "kodit.commit.create_commit_description",
           "kodit.commit.create_database_schema",
           "kodit.commit.create_cookbook",
+          "kodit.commit.extract_examples",
+          "kodit.commit.create_example_summary",
+          "kodit.commit.create_example_code_embeddings",
+          "kodit.commit.create_example_summary_embeddings",
           "kodit.commit.scan"
         ],
         "title": "TaskOperation",

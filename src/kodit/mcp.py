@@ -153,21 +153,26 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
                 )
             ),
         ] = None,
+        enrichment_subtypes: Annotated[
+            list[str] | None,
+            Field(
+                description=(
+                    "Filter by enrichment subtypes. Use ['example'] for full "
+                    "example files and documentation code blocks, ['snippet'] for "
+                    "AST-extracted code snippets. Leave empty to search both."
+                )
+            ),
+        ] = None,
     ) -> str:
         """Search for relevant code snippets and examples across repositories.
 
         Use this when you need to find specific code patterns, implementations, or
         examples that match the user's requirements. This searches through actual
         code snippets indexed from repositories.
-
-        Before writing new code, consider searching for existing examples that solve
-        similar problems. This helps maintain consistency with existing patterns in
-        the codebase.
         """
         # This docstring is used by the AI assistant to decide when to call the tool.
         # If you want to update it, please make sure you thoroughly test the
-        # assistant's response to the updated tool call. See:
-        # tests/experiments/cline-prompt-regression-tests/cline_prompt_test.py
+        # assistant's response to the updated tool call.
 
         log = structlog.get_logger(__name__)
 
@@ -201,6 +206,7 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
             created_after=created_after,
             created_before=created_before,
             source_repo=source_repo,
+            enrichment_subtypes=enrichment_subtypes,
         )
 
         search_request = MultiSearchRequest(
@@ -214,7 +220,7 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
         snippets = await service.search(request=search_request)
 
         log.debug("Fusing output")
-        output = MultiSearchResult.to_jsonlines(results=snippets)
+        output = MultiSearchResult.to_markdown(results=snippets)
 
         log.debug("Output", output=output)
         return output

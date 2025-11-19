@@ -200,15 +200,19 @@ class SnippetSearchFilters:
     created_before: datetime | None = None
     source_repo: str | None = None
     file_path: str | None = None
+    enrichment_types: list[str] | None = None
+    enrichment_subtypes: list[str] | None = None
 
     @classmethod
-    def from_cli_params(
+    def from_cli_params(  # noqa: PLR0913
         cls,
         language: str | None = None,
         author: str | None = None,
         created_after: str | None = None,
         created_before: str | None = None,
         source_repo: str | None = None,
+        enrichment_types: list[str] | None = None,
+        enrichment_subtypes: list[str] | None = None,
     ) -> "SnippetSearchFilters | None":
         """Create SnippetSearchFilters from CLI parameters.
 
@@ -220,6 +224,8 @@ class SnippetSearchFilters:
             created_before: Date string in YYYY-MM-DD format for filtering snippets
             created before
             source_repo: Source repository filter (e.g., github.com/example/repo)
+            enrichment_types: Enrichment type filters (e.g., development, usage)
+            enrichment_subtypes: Enrichment subtype filters (e.g., snippet, example)
 
         Returns:
             SnippetSearchFilters instance if any filters are provided, None otherwise
@@ -229,7 +235,17 @@ class SnippetSearchFilters:
 
         """
         # Only create filters if at least one parameter is provided
-        if not any([language, author, created_after, created_before, source_repo]):
+        if not any(
+            [
+                language,
+                author,
+                created_after,
+                created_before,
+                source_repo,
+                enrichment_types,
+                enrichment_subtypes,
+            ]
+        ):
             return None
 
         # Parse date strings if provided
@@ -259,6 +275,8 @@ class SnippetSearchFilters:
             created_after=parsed_created_after,
             created_before=parsed_created_before,
             source_repo=source_repo,
+            enrichment_types=enrichment_types,
+            enrichment_subtypes=enrichment_subtypes,
         )
 
 
@@ -611,6 +629,14 @@ class TaskOperation(StrEnum):
     CREATE_COMMIT_DESCRIPTION_FOR_COMMIT = "kodit.commit.create_commit_description"
     CREATE_DATABASE_SCHEMA_FOR_COMMIT = "kodit.commit.create_database_schema"
     CREATE_COOKBOOK_FOR_COMMIT = "kodit.commit.create_cookbook"
+    EXTRACT_EXAMPLES_FOR_COMMIT = "kodit.commit.extract_examples"
+    CREATE_EXAMPLE_SUMMARY_FOR_COMMIT = "kodit.commit.create_example_summary"
+    CREATE_EXAMPLE_CODE_EMBEDDINGS_FOR_COMMIT = (
+        "kodit.commit.create_example_code_embeddings"
+    )
+    CREATE_EXAMPLE_SUMMARY_EMBEDDINGS_FOR_COMMIT = (
+        "kodit.commit.create_example_summary_embeddings"
+    )
     SCAN_COMMIT = "kodit.commit.scan"
 
     def is_repository_operation(self) -> bool:
@@ -634,10 +660,14 @@ class PrescribedOperations:
     SCAN_AND_INDEX_COMMIT: ClassVar[list[TaskOperation]] = [
         TaskOperation.SCAN_COMMIT,
         TaskOperation.EXTRACT_SNIPPETS_FOR_COMMIT,
+        TaskOperation.EXTRACT_EXAMPLES_FOR_COMMIT,
         TaskOperation.CREATE_BM25_INDEX_FOR_COMMIT,
         TaskOperation.CREATE_CODE_EMBEDDINGS_FOR_COMMIT,
+        TaskOperation.CREATE_EXAMPLE_CODE_EMBEDDINGS_FOR_COMMIT,
         TaskOperation.CREATE_SUMMARY_ENRICHMENT_FOR_COMMIT,
+        TaskOperation.CREATE_EXAMPLE_SUMMARY_FOR_COMMIT,
         TaskOperation.CREATE_SUMMARY_EMBEDDINGS_FOR_COMMIT,
+        TaskOperation.CREATE_EXAMPLE_SUMMARY_EMBEDDINGS_FOR_COMMIT,
         TaskOperation.CREATE_ARCHITECTURE_ENRICHMENT_FOR_COMMIT,
         TaskOperation.CREATE_PUBLIC_API_DOCS_FOR_COMMIT,
         TaskOperation.CREATE_COMMIT_DESCRIPTION_FOR_COMMIT,

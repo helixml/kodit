@@ -80,6 +80,8 @@ This file is auto-generated. Do not edit manually.
 Run `make generate-api-paths` to regenerate.
 """
 
+# ruff: noqa: E501
+
 from typing import Final
 
 
