@@ -169,15 +169,10 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
         Use this when you need to find specific code patterns, implementations, or
         examples that match the user's requirements. This searches through actual
         code snippets indexed from repositories.
-
-        Before writing new code, consider searching for existing examples that solve
-        similar problems. This helps maintain consistency with existing patterns in
-        the codebase.
         """
         # This docstring is used by the AI assistant to decide when to call the tool.
         # If you want to update it, please make sure you thoroughly test the
-        # assistant's response to the updated tool call. See:
-        # tests/experiments/cline-prompt-regression-tests/cline_prompt_test.py
+        # assistant's response to the updated tool call.
 
         log = structlog.get_logger(__name__)
 
