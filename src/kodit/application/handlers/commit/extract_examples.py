@@ -98,7 +98,10 @@ class ExtractExamplesHandler:
                 await step.set_current(i, f"Processing {Path(file.path).name}")
 
                 if self.discovery.is_documentation_file(file.path):
-                    examples.extend(self._extract_from_documentation(file))
+                    # Concatenate all code blocks from this documentation file
+                    example = self._extract_from_documentation(file)
+                    if example:
+                        examples.append(example)
                 else:
                     example = self._extract_full_file(file)
                     if example:
@@ -131,24 +134,34 @@ class ExtractExamplesHandler:
                 f"{len(saved_associations)} associations for commit {commit_sha}"
             )
 
-    def _extract_from_documentation(self, file: GitFile) -> list[str]:
-        """Extract code blocks from documentation file."""
+    def _extract_from_documentation(self, file: GitFile) -> str | None:
+        """Extract and concatenate all code blocks from documentation file."""
         parser = ParserFactory.create(Path(file.path).suffix)
         if not parser:
-            return []
+            return None
 
         try:
             with Path(file.path).open() as f:
                 content = f.read()
         except OSError as e:
             self._log.warning(f"Failed to read file {file.path}", error=str(e))
-            return []
+            return None
 
         blocks = parser.parse(content)
-        return [
-            self._format_code_block(block.content, block.language, block.context)
-            for block in blocks
-        ]
+        if not blocks:
+            return None
+
+        # Concatenate all code blocks with separators
+        code_parts = [block.content for block in blocks]
+        concatenated_code = "\n\n".join(code_parts)
+
+        # Add metadata header with file info
+        relative_path = Path(file.path).name
+        # Determine primary language from first block
+        primary_language = blocks[0].language if blocks[0].language else "unknown"
+        metadata = f"# File: {relative_path} | Language: {primary_language}\n\n"
+
+        return metadata + concatenated_code
 
     def _extract_full_file(self, file: GitFile) -> str | None:
         """Extract full file content as an example."""
@@ -165,21 +178,6 @@ class ExtractExamplesHandler:
             return None
 
         return self._format_full_file(content, language, file.path)
-
-    def _format_code_block(
-        self, content: str, language: str | None, context: str | None
-    ) -> str:
-        """Format code block with metadata."""
-        metadata_parts = []
-        if language:
-            metadata_parts.append(f"Language: {language}")
-        if context:
-            metadata_parts.append(f"Context: {context}")
-
-        if metadata_parts:
-            metadata = "# " + " | ".join(metadata_parts) + "\n\n"
-            return metadata + content
-        return content
 
     def _format_full_file(self, content: str, language: str, file_path: str) -> str:
         """Format full file with metadata."""

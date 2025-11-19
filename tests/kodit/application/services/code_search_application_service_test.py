@@ -15,6 +15,10 @@ from kodit.application.services.enrichment_query_service import EnrichmentQueryS
 from kodit.domain.enrichments.development.development import (
     ENRICHMENT_TYPE_DEVELOPMENT,
 )
+from kodit.domain.enrichments.development.example.example import (
+    ENRICHMENT_SUBTYPE_EXAMPLE,
+    ENRICHMENT_SUBTYPE_EXAMPLE_SUMMARY,
+)
 from kodit.domain.enrichments.development.snippet.snippet import (
     ENRICHMENT_SUBTYPE_SNIPPET,
     ENRICHMENT_SUBTYPE_SNIPPET_SUMMARY,
@@ -457,3 +461,141 @@ class TestCodeSearchApplicationServiceTextQuery:
 
         # Should return at most 1 result
         assert len(results) <= 1
+
+
+class TestCodeSearchApplicationServiceExamples:
+    """End-to-end test for example enrichment search functionality."""
+
+    @pytest.mark.asyncio
+    async def test_search_examples_with_text_query_returns_correct_type(
+        self,
+        code_search_service: EmbeddingDomainService,
+        enrichment_v2_repo: SQLAlchemyEnrichmentV2Repository,
+        enrichment_association_repo: SQLAlchemyEnrichmentAssociationRepository,
+        embedding_repo: SqlAlchemyEmbeddingRepository,
+    ) -> None:
+        """E2E test: examples are searchable and return correct enrichment type."""
+        # Create example enrichments (full file examples, not AST snippets)
+        example1 = db_entities.EnrichmentV2(
+            type=ENRICHMENT_TYPE_DEVELOPMENT,
+            subtype=ENRICHMENT_SUBTYPE_EXAMPLE,
+            content=(
+                '"""Example: Hello World\n\n'
+                'This example demonstrates basic output.\n"""\n\n'
+                'print("Hello, World!")'
+            ),
+        )
+        example2 = db_entities.EnrichmentV2(
+            type=ENRICHMENT_TYPE_DEVELOPMENT,
+            subtype=ENRICHMENT_SUBTYPE_EXAMPLE,
+            content=(
+                '"""Example: File I/O\n\n'
+                'This example shows file operations.\n"""\n\n'
+                'with open("data.txt") as f:\n    data = f.read()'
+            ),
+        )
+
+        # Save examples
+        example1 = await enrichment_v2_repo.save(example1)  # type: ignore[arg-type,assignment]
+        example2 = await enrichment_v2_repo.save(example2)  # type: ignore[arg-type,assignment]
+
+        # Create example summary enrichments
+        example_summary1 = db_entities.EnrichmentV2(
+            type=ENRICHMENT_TYPE_DEVELOPMENT,
+            subtype=ENRICHMENT_SUBTYPE_EXAMPLE_SUMMARY,
+            content=(
+                "This example demonstrates how to print Hello World "
+                "to the console"
+            ),
+        )
+        example_summary2 = db_entities.EnrichmentV2(
+            type=ENRICHMENT_TYPE_DEVELOPMENT,
+            subtype=ENRICHMENT_SUBTYPE_EXAMPLE_SUMMARY,
+            content=(
+                "This example shows how to read data from files "
+                "using context managers"
+            ),
+        )
+
+        # Save example summaries
+        example_summary1 = await enrichment_v2_repo.save(example_summary1)  # type: ignore[arg-type,assignment]
+        example_summary2 = await enrichment_v2_repo.save(example_summary2)  # type: ignore[arg-type,assignment]
+
+        # Create associations between example summaries and examples
+        assoc1 = db_entities.EnrichmentAssociation(
+            enrichment_id=example_summary1.id,
+            entity_type=db_entities.EnrichmentV2.__tablename__,
+            entity_id=str(example1.id),
+        )
+        assoc2 = db_entities.EnrichmentAssociation(
+            enrichment_id=example_summary2.id,
+            entity_type=db_entities.EnrichmentV2.__tablename__,
+            entity_id=str(example2.id),
+        )
+
+        await enrichment_association_repo.save(assoc1)  # type: ignore[arg-type]
+        await enrichment_association_repo.save(assoc2)  # type: ignore[arg-type]
+
+        # Create embeddings for example summaries
+        # Use longer embeddings that are similar to what the query will generate
+        emb1 = Embedding()
+        emb1.snippet_id = str(example_summary1.id)
+        emb1.type = EmbeddingType.TEXT
+        # Length/function/class features matching "hello world example"
+        emb1.embedding = [0.19, 0.0, 0.0]  # 19 chars, no "function", no "class"
+        await embedding_repo.create_embedding(emb1)
+
+        emb2 = Embedding()
+        emb2.snippet_id = str(example_summary2.id)
+        emb2.type = EmbeddingType.TEXT
+        emb2.embedding = [0.14, 0.0, 0.0]  # 14 chars, no "function", no "class"
+        await embedding_repo.create_embedding(emb2)
+
+        # Create the search service
+        mock_bm25_service = BM25DomainService(
+            repository=MockBM25Repository()  # type: ignore[arg-type]
+        )
+        mock_progress_tracker = MagicMock()
+        fusion_service = ReciprocalRankFusionService()
+
+        trackable_resolution = MagicMock(spec=TrackableResolutionService)
+        enrichment_query_service = EnrichmentQueryService(
+            trackable_resolution=trackable_resolution,
+            enrichment_repo=enrichment_v2_repo,
+            enrichment_association_repository=enrichment_association_repo,
+        )
+
+        service = CodeSearchApplicationService(
+            bm25_service=mock_bm25_service,
+            code_search_service=code_search_service,
+            text_search_service=code_search_service,
+            progress_tracker=mock_progress_tracker,
+            fusion_service=fusion_service,
+            enrichment_query_service=enrichment_query_service,
+        )
+
+        # Search for examples using text query
+        request = MultiSearchRequest(
+            text_query="hello world example",
+            top_k=10,
+        )
+
+        results = await service.search(request)
+
+        # Verify we got results
+        assert len(results) > 0, (
+            f"Should return at least one result, got {len(results)}"
+        )
+
+        # Verify the results contain examples with correct type metadata
+        for result in results:
+            assert result.snippet.content is not None, "Result should have content"
+            # Verify the enrichment type is set correctly
+            assert result.enrichment_type == ENRICHMENT_TYPE_DEVELOPMENT, (
+                f"Expected type {ENRICHMENT_TYPE_DEVELOPMENT}, "
+                f"got {result.enrichment_type}"
+            )
+            assert result.enrichment_subtype == ENRICHMENT_SUBTYPE_EXAMPLE, (
+                f"Expected subtype {ENRICHMENT_SUBTYPE_EXAMPLE}, "
+                f"got {result.enrichment_subtype}"
+            )
