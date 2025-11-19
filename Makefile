@@ -12,7 +12,7 @@ docs-check: docs
 	git diff --exit-code docs/reference/api/index.md
 	git diff --exit-code docs/reference/configuration/index.md
 
-generate-api-paths: openapi
+generate-api-paths: docs
 	uv run python src/kodit/utils/generate_api_paths.py
 
 type:
