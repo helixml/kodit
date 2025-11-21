@@ -4,6 +4,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
+from kodit.infrastructure.api.client.generated_endpoints import APIEndpoints
 from kodit.infrastructure.api.middleware.auth import api_key_auth
 from kodit.infrastructure.api.v1.dependencies import (
     CommitIndexingAppServiceDep,
@@ -17,9 +18,12 @@ from kodit.infrastructure.api.v1.dependencies import (
 )
 from kodit.infrastructure.api.v1.query_params import PaginationParamsDep
 from kodit.infrastructure.api.v1.schemas.enrichment import (
+    EnrichmentAssociationData,
     EnrichmentAttributes,
     EnrichmentData,
     EnrichmentListResponse,
+    EnrichmentRelationships,
+    Links,
 )
 from kodit.infrastructure.api.v1.schemas.repository import (
     RepositoryBranchData,
@@ -358,8 +362,24 @@ async def list_repository_enrichments(  # noqa: PLR0913
                 created_at=enrichment.created_at,
                 updated_at=enrichment.updated_at,
             ),
+            relationships=EnrichmentRelationships(
+                associations=[
+                    EnrichmentAssociationData(
+                        id=association.entity_id,
+                        type=association.entity_type,
+                    )
+                    for association in associations
+                ],
+            ),
+            links=Links(
+                self=APIEndpoints.API_V1_REPOSITORIES_REPO_ID_COMMITS_COMMIT_SHA_ENRICHMENTS_ENRICHMENT_ID.format(
+                    repo_id=repo_id,
+                    commit_sha=enriched_commit,
+                    enrichment_id=enrichment.id,
+                ),
+            ),
         )
-        for enrichment in enrichments
+        for enrichment, associations in enrichments.items()
     ]
 
     return EnrichmentListResponse(data=enrichment_data)

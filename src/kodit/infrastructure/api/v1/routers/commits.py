@@ -10,6 +10,7 @@ from kodit.domain.enrichments.development.snippet.snippet import (
     ENRICHMENT_SUBTYPE_SNIPPET,
 )
 from kodit.domain.entities.git import GitFile
+from kodit.infrastructure.api.client.generated_endpoints import APIEndpoints
 from kodit.infrastructure.api.middleware.auth import api_key_auth
 from kodit.infrastructure.api.v1.dependencies import (
     GitCommitRepositoryDep,
@@ -37,6 +38,8 @@ from kodit.infrastructure.api.v1.schemas.enrichment import (
     EnrichmentData,
     EnrichmentListResponse,
     EnrichmentRelationships,
+    EnrichmentResponse,
+    Links,
 )
 from kodit.infrastructure.sqlalchemy.query import (
     EnrichmentAssociationQueryBuilder,
@@ -376,9 +379,110 @@ async def list_commit_enrichments(  # noqa: PLR0913
                         for association in associations
                     ],
                 ),
+                links=Links(
+                    self=APIEndpoints.API_V1_REPOSITORIES_REPO_ID_COMMITS_COMMIT_SHA_ENRICHMENTS_ENRICHMENT_ID.format(
+                        repo_id=repo_id,
+                        commit_sha=commit_sha,
+                        enrichment_id=enrichment.id,
+                    ),
+                ),
             )
             for enrichment, associations in enrichments.items()
         ]
+    )
+
+
+@router.get(
+    "/{repo_id}/commits/{commit_sha}/enrichments/{enrichment_id}",
+    summary="Get commit enrichment",
+    responses={404: {"description": "Repository, commit, or enrichment not found"}},
+)
+async def get_commit_enrichment(  # noqa: PLR0913
+    repo_id: str,
+    commit_sha: str,
+    enrichment_id: int,
+    git_repository: GitRepositoryDep,
+    git_commit_repository: GitCommitRepositoryDep,
+    server_factory: ServerFactoryDep,
+) -> EnrichmentResponse:
+    """Get a specific enrichment for a commit."""
+    # Validate repository exists
+    if not await git_repository.exists(int(repo_id)):
+        raise HTTPException(status_code=404, detail="Repository not found")
+
+    # Validate commit exists
+    if not await git_commit_repository.exists(commit_sha):
+        raise HTTPException(status_code=404, detail="Commit not found")
+
+    # Get commit to validate it belongs to the repository
+    commit = await git_commit_repository.get(commit_sha)
+    if commit.repo_id != int(repo_id):
+        raise HTTPException(
+            status_code=404,
+            detail=f"Commit {commit_sha} does not belong to repository {repo_id}",
+        )
+
+    # Get enrichment
+    try:
+        enrichment_v2_repository = server_factory.enrichment_v2_repository()
+        enrichment = await enrichment_v2_repository.get(enrichment_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail="Enrichment not found") from e
+
+    # Ensure enrichment has an ID
+    if enrichment.id is None:
+        raise HTTPException(
+            status_code=500, detail="Enrichment ID is missing from database"
+        )
+
+    # Verify enrichment is associated with this commit
+    enrichment_association_repository = (
+        server_factory.enrichment_association_repository()
+    )
+    associations = await enrichment_association_repository.find(
+        EnrichmentAssociationQueryBuilder()
+        .for_commit(commit_sha)
+        .for_enrichment_ids([enrichment.id])
+    )
+    if not associations:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Enrichment {enrichment_id} not found for commit {commit_sha}",
+        )
+
+    # Get all associations for this enrichment
+    all_associations = await enrichment_association_repository.find(
+        EnrichmentAssociationQueryBuilder().for_enrichment_ids([enrichment.id])
+    )
+
+    return EnrichmentResponse(
+        data=EnrichmentData(
+            type="enrichment",
+            id=str(enrichment.id),
+            attributes=EnrichmentAttributes(
+                type=enrichment.type,
+                subtype=enrichment.subtype,
+                content=enrichment.content,
+                created_at=enrichment.created_at,
+                updated_at=enrichment.updated_at,
+            ),
+            relationships=EnrichmentRelationships(
+                associations=[
+                    EnrichmentAssociationData(
+                        id=association.entity_id,
+                        type=association.entity_type,
+                    )
+                    for association in all_associations
+                ],
+            ),
+            links=Links(
+                self=APIEndpoints.API_V1_REPOSITORIES_REPO_ID_COMMITS_COMMIT_SHA_ENRICHMENTS_ENRICHMENT_ID.format(
+                    repo_id=repo_id,
+                    commit_sha=commit_sha,
+                    enrichment_id=enrichment.id,
+                ),
+            ),
+        )
     )
 
 

@@ -28,6 +28,12 @@ class EnrichmentRelationships(BaseModel):
     associations: list[EnrichmentAssociationData] | None = None
 
 
+class Links(BaseModel):
+    """Links for JSON-API spec."""
+
+    self: str | None = None
+
+
 class EnrichmentData(BaseModel):
     """Enrichment data following JSON-API spec."""
 
@@ -35,9 +41,16 @@ class EnrichmentData(BaseModel):
     id: str
     attributes: EnrichmentAttributes
     relationships: EnrichmentRelationships | None = None
+    links: Links | None = None
 
 
 class EnrichmentListResponse(BaseModel):
     """Enrichment list response following JSON-API spec."""
 
     data: list[EnrichmentData]
+
+
+class EnrichmentResponse(BaseModel):
+    """Single enrichment response following JSON-API spec."""
+
+    data: EnrichmentData
