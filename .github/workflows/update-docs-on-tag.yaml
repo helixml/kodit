@@ -1,0 +1,68 @@
+name: Update Docs on Tag
+
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+
+jobs:
+  update-docs:
+    name: Update documentation after tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Run make docs
+        run: make docs
+
+      - name: Check for changes
+        id: check_changes
+        run: |
+          if git diff --quiet; then
+            echo "changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "changes=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit and push changes
+        if: steps.check_changes.outputs.changes == 'true'
+        run: |
+          BRANCH_NAME="docs/update-after-tag-${{ github.ref_name }}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git checkout -b "$BRANCH_NAME"
+          git add -A
+          git commit -m "docs: update generated docs after tag ${{ github.ref_name }}"
+          git push origin "$BRANCH_NAME"
+
+      - name: Create and auto-merge pull request
+        if: steps.check_changes.outputs.changes == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH_NAME="docs/update-after-tag-${{ github.ref_name }}"
+
+          PR_URL=$(gh pr create \
+            --base main \
+            --head "$BRANCH_NAME" \
+            --title "docs: update generated docs after tag ${{ github.ref_name }}" \
+            --body "This PR updates the generated documentation after creating tag \`${{ github.ref_name }}\`.
+
+          The version in \`_version.py\` has been bumped by hatch-vcs, which requires regenerating:
+          - OpenAPI documentation
+          - Configuration documentation
+          - Generated clients
+
+          This PR is automatically created and will auto-merge after CI passes.")
+
+          gh pr merge "$PR_URL" --auto --squash --delete-branch
