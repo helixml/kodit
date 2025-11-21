@@ -3,7 +3,7 @@
   "info": {
     "title": "kodit API",
     "description": "\nThis is the REST API for the Kodit server. Please refer to the\n[Kodit documentation](https://docs.helix.ml/kodit/) for more information.\n    ",
-    "version": "0.5.13"
+    "version": "0.5.14"
   },
   "paths": {
     "/healthz": {
@@ -740,6 +740,72 @@
       }
     },
     "/api/v1/repositories/{repo_id}/commits/{commit_sha}/enrichments/{enrichment_id}": {
+      "get": {
+        "tags": [
+          "commits"
+        ],
+        "summary": "Get commit enrichment",
+        "description": "Get a specific enrichment for a commit.",
+        "operationId": "get_commit_enrichment_api_v1_repositories__repo_id__commits__commit_sha__enrichments__enrichment_id__get",
+        "security": [
+          {
+            "Header (X-API-KEY)": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "repo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Repo Id"
+            }
+          },
+          {
+            "name": "commit_sha",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Commit Sha"
+            }
+          },
+          {
+            "name": "enrichment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Enrichment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnrichmentResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Invalid request"
+          },
+          "404": {
+            "description": "Repository, commit, or enrichment not found"
+          }
+        }
+      },
       "delete": {
         "tags": [
           "commits"
@@ -1492,6 +1558,16 @@
                 "type": "null"
               }
             ]
+          },
+          "links": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Links"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -1539,6 +1615,19 @@
         "type": "object",
         "title": "EnrichmentRelationships",
         "description": "Enrichment relationships for JSON-API spec."
+      },
+      "EnrichmentResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/EnrichmentData"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "EnrichmentResponse",
+        "description": "Single enrichment response following JSON-API spec."
       },
       "EnrichmentSchema": {
         "properties": {
@@ -1687,6 +1776,24 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "Links": {
+        "properties": {
+          "self": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Self"
+          }
+        },
+        "type": "object",
+        "title": "Links",
+        "description": "Links for JSON-API spec."
       },
       "RepositoryAttributes": {
         "properties": {

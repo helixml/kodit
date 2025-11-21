@@ -127,6 +127,9 @@ type ClientInterface interface {
 	// DeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdDelete request
 	DeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdDelete(ctx context.Context, repoId string, commitSha string, enrichmentId int, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdGet request
+	GetCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdGet(ctx context.Context, repoId string, commitSha string, enrichmentId int, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGet request
 	ListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGet(ctx context.Context, repoId string, commitSha string, params *ListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGetParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -303,6 +306,18 @@ func (c *Client) ListCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnr
 
 func (c *Client) DeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdDelete(ctx context.Context, repoId string, commitSha string, enrichmentId int, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewDeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdDeleteRequest(c.Server, repoId, commitSha, enrichmentId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdGet(ctx context.Context, repoId string, commitSha string, enrichmentId int, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdGetRequest(c.Server, repoId, commitSha, enrichmentId)
 	if err != nil {
 		return nil, err
 	}
@@ -1011,6 +1026,54 @@ func NewDeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichments
 	return req, nil
 }
 
+// NewGetCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdGetRequest generates requests for GetCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdGet
+func NewGetCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdGetRequest(server string, repoId string, commitSha string, enrichmentId int) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "repo_id", runtime.ParamLocationPath, repoId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "commit_sha", runtime.ParamLocationPath, commitSha)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "enrichment_id", runtime.ParamLocationPath, enrichmentId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/repositories/%s/commits/%s/enrichments/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGetRequest generates requests for ListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGet
 func NewListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGetRequest(server string, repoId string, commitSha string, params *ListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGetParams) (*http.Request, error) {
 	var err error
@@ -1540,6 +1603,9 @@ type ClientWithResponsesInterface interface {
 	// DeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdDeleteWithResponse request
 	DeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdDeleteWithResponse(ctx context.Context, repoId string, commitSha string, enrichmentId int, reqEditors ...RequestEditorFn) (*DeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdDeleteResponse, error)
 
+	// GetCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdGetWithResponse request
+	GetCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdGetWithResponse(ctx context.Context, repoId string, commitSha string, enrichmentId int, reqEditors ...RequestEditorFn) (*GetCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdGetResponse, error)
+
 	// ListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGetWithResponse request
 	ListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGetWithResponse(ctx context.Context, repoId string, commitSha string, params *ListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGetParams, reqEditors ...RequestEditorFn) (*ListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGetResponse, error)
 
@@ -1825,6 +1891,28 @@ func (r DeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichments
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r DeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdDeleteResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdGetResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *EnrichmentResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdGetResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdGetResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -2144,6 +2232,15 @@ func (c *ClientWithResponses) DeleteCommitEnrichmentApiV1RepositoriesRepoIdCommi
 		return nil, err
 	}
 	return ParseDeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdDeleteResponse(rsp)
+}
+
+// GetCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdGetWithResponse request returning *GetCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdGetResponse
+func (c *ClientWithResponses) GetCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdGetWithResponse(ctx context.Context, repoId string, commitSha string, enrichmentId int, reqEditors ...RequestEditorFn) (*GetCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdGetResponse, error) {
+	rsp, err := c.GetCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdGet(ctx, repoId, commitSha, enrichmentId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdGetResponse(rsp)
 }
 
 // ListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGetWithResponse request returning *ListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGetResponse
@@ -2512,6 +2609,32 @@ func ParseDeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmen
 	response := &DeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdDeleteResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
+	}
+
+	return response, nil
+}
+
+// ParseGetCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdGetResponse parses an HTTP response from a GetCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdGetWithResponse call
+func ParseGetCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdGetResponse(rsp *http.Response) (*GetCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdGetResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdGetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EnrichmentResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
 	}
 
 	return response, nil

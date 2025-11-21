@@ -12,7 +12,7 @@ look at the [hosted version](https://kodit.helix.ml/docs).
 This is the REST API for the Kodit server. Please refer to the
 [Kodit documentation](https://docs.helix.ml/kodit/) for more information.
     
-Current version: 0.5.13
+Current version: 0.5.14
 
 ## Authentication
 
@@ -326,6 +326,34 @@ Delete all enrichments for a specific commit.
 - 422: Invalid request
 
 - 404: Repository or commit not found
+
+### GET /api/v1/repositories/{repo_id}/commits/{commit_sha}/enrichments/{enrichment_id}
+
+Get a specific enrichment for a commit.
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| repo_id | string | True |  |
+| commit_sha | string | True |  |
+| enrichment_id | integer | True |  |
+
+
+#### Responses
+
+- 200: Successful Response
+
+[EnrichmentResponse](#enrichmentresponse)
+
+- 500: Internal server error
+
+- 401: Unauthorized
+
+- 422: Invalid request
+
+- 404: Repository, commit, or enrichment not found
 
 ### DELETE /api/v1/repositories/{repo_id}/commits/{commit_sha}/enrichments/{enrichment_id}
 
@@ -688,6 +716,7 @@ Enrichment data following JSON-API spec.
 | id | string |  |
 | attributes |  |  |
 | relationships |  |  |
+| links |  |  |
 
 
 ### EnrichmentListResponse
@@ -710,6 +739,17 @@ Enrichment relationships for JSON-API spec.
 | Field | Type | Description |
 |-------|------|-------------|
 | associations |  |  |
+
+
+### EnrichmentResponse
+
+
+Single enrichment response following JSON-API spec.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data |  |  |
 
 
 ### EnrichmentSchema
@@ -795,6 +835,17 @@ Git file schema following JSON-API spec.
 | Field | Type | Description |
 |-------|------|-------------|
 | detail | array |  |
+
+
+### Links
+
+
+Links for JSON-API spec.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| self |  |  |
 
 
 ### RepositoryAttributes

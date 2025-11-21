@@ -143,8 +143,14 @@ type EnrichmentData struct {
 	// Attributes Enrichment attributes following JSON-API spec.
 	Attributes    EnrichmentAttributes          `json:"attributes"`
 	Id            string                        `json:"id"`
+	Links         *EnrichmentData_Links         `json:"links"`
 	Relationships *EnrichmentData_Relationships `json:"relationships"`
 	Type          *string                       `json:"type,omitempty"`
+}
+
+// EnrichmentData_Links defines model for EnrichmentData.Links.
+type EnrichmentData_Links struct {
+	union json.RawMessage
 }
 
 // EnrichmentData_Relationships defines model for EnrichmentData.Relationships.
@@ -168,6 +174,12 @@ type EnrichmentRelationshipsAssociations0 = []EnrichmentAssociationData
 // EnrichmentRelationships_Associations defines model for EnrichmentRelationships.Associations.
 type EnrichmentRelationships_Associations struct {
 	union json.RawMessage
+}
+
+// EnrichmentResponse Single enrichment response following JSON-API spec.
+type EnrichmentResponse struct {
+	// Data Enrichment data following JSON-API spec.
+	Data EnrichmentData `json:"data"`
 }
 
 // EnrichmentSchema Enrichment schema following JSON-API spec.
@@ -215,6 +227,19 @@ type GitFileSchema struct {
 // HTTPValidationError defines model for HTTPValidationError.
 type HTTPValidationError struct {
 	Detail *[]ValidationError `json:"detail,omitempty"`
+}
+
+// Links Links for JSON-API spec.
+type Links struct {
+	Self *Links_Self `json:"self"`
+}
+
+// LinksSelf0 defines model for .
+type LinksSelf0 = string
+
+// Links_Self defines model for Links.Self.
+type Links_Self struct {
+	union json.RawMessage
 }
 
 // RepositoryAttributes Repository attributes following JSON-API spec.
@@ -866,6 +891,42 @@ func (t *EnrichmentAttributes_UpdatedAt) UnmarshalJSON(b []byte) error {
 	return err
 }
 
+// AsLinks returns the union data inside the EnrichmentData_Links as a Links
+func (t EnrichmentData_Links) AsLinks() (Links, error) {
+	var body Links
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromLinks overwrites any union data inside the EnrichmentData_Links as the provided Links
+func (t *EnrichmentData_Links) FromLinks(v Links) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeLinks performs a merge with any union data inside the EnrichmentData_Links, using the provided Links
+func (t *EnrichmentData_Links) MergeLinks(v Links) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t EnrichmentData_Links) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *EnrichmentData_Links) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
 // AsEnrichmentRelationships returns the union data inside the EnrichmentData_Relationships as a EnrichmentRelationships
 func (t EnrichmentData_Relationships) AsEnrichmentRelationships() (EnrichmentRelationships, error) {
 	var body EnrichmentRelationships
@@ -934,6 +995,42 @@ func (t EnrichmentRelationships_Associations) MarshalJSON() ([]byte, error) {
 }
 
 func (t *EnrichmentRelationships_Associations) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsLinksSelf0 returns the union data inside the Links_Self as a LinksSelf0
+func (t Links_Self) AsLinksSelf0() (LinksSelf0, error) {
+	var body LinksSelf0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromLinksSelf0 overwrites any union data inside the Links_Self as the provided LinksSelf0
+func (t *Links_Self) FromLinksSelf0(v LinksSelf0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeLinksSelf0 performs a merge with any union data inside the Links_Self, using the provided LinksSelf0
+func (t *Links_Self) MergeLinksSelf0(v LinksSelf0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t Links_Self) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *Links_Self) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }
