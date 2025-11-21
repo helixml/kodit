@@ -177,3 +177,6 @@ cython_debug/
 .kodit.db
 benchmark.db
 profile.prof
+
+# Generated OpenAPI files (intermediate files only)
+docs/reference/api/openapi.3.0.json

@@ -1,18 +1,26 @@
 # Makefile for Kodit
 
-# Generate OpenAPI json schema from the FastAPI app
 build:
 	uv build
 
-docs: build
-	uv run src/kodit/utils/dump_openapi.py --out docs/reference/api/ kodit.app:app
+openapi: build
+	uv run python src/kodit/utils/dump_openapi.py --out docs/reference/api/ kodit.app:app
+
+generate-go-client: openapi
+	./scripts/generate-go-client.sh
+
+generate-clients: generate-go-client
+
+docs: build openapi
 	uv run python src/kodit/utils/dump_config.py
 
-docs-check: docs
+check: openapi generate-clients
 	git diff --exit-code docs/reference/api/index.md
 	git diff --exit-code docs/reference/configuration/index.md
+	git diff --exit-code clients/go/types.gen.go
+	git diff --exit-code clients/go/client.gen.go
 
-generate-api-paths: docs
+generate-api-paths: build
 	uv run python src/kodit/utils/generate_api_paths.py
 
 type:
@@ -31,6 +39,8 @@ no-database-changes-check:
 
 test-migrations:
 	uv run python tests/migrations.py
+
+integration-test: test-migrations no-database-changes-check
 
 smoke:
 	uv run tests/smoke.py
