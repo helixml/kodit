@@ -54,6 +54,8 @@ aware of? (e.g. a different direction to what you'd expect)
 - Focus on WHAT each service does, not HOW it's configured
 - If a service name is unclear, make your best guess based on the information
 - Keep descriptions to 10 words or less per service
+- IMPORTANT: Return only the markdown content directly. Do NOT wrap your response in
+  markdown code fences (```markdown or ```).
 """
 
 
