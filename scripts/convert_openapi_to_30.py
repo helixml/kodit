@@ -37,6 +37,47 @@ def convert_schemas(schemas: dict) -> dict:
     return result
 
 
+def _handle_type_array(schema: dict) -> dict:
+    """Handle type arrays with null (OpenAPI 3.1 feature)."""
+    if "type" not in schema or not isinstance(schema["type"], list):
+        return schema
+
+    types = schema["type"]
+    if "null" not in types:
+        return schema
+
+    schema["nullable"] = True
+    non_null_types = [t for t in types if t != "null"]
+    if len(non_null_types) == 1:
+        schema["type"] = non_null_types[0]
+    elif non_null_types:
+        schema.pop("type")
+        schema["anyOf"] = [{"type": t} for t in non_null_types]
+
+    return schema
+
+
+def _handle_any_of(schema: dict) -> dict:
+    """Handle anyOf with null."""
+    if "anyOf" not in schema:
+        return schema
+
+    any_of = schema["anyOf"]
+    null_schemas = [s for s in any_of if s.get("type") == "null"]
+    non_null_schemas = [s for s in any_of if s.get("type") != "null"]
+
+    if not null_schemas:
+        return schema
+
+    schema["nullable"] = True
+    if non_null_schemas:
+        schema["anyOf"] = [convert_schema(s) for s in non_null_schemas]
+    else:
+        schema.pop("anyOf", None)
+
+    return schema
+
+
 def convert_schema(schema: dict | list) -> dict | list:
     """Convert a single schema, handling nullable types."""
     if isinstance(schema, list):
@@ -47,31 +88,8 @@ def convert_schema(schema: dict | list) -> dict | list:
 
     schema = schema.copy()
 
-    # Handle type arrays with null (OpenAPI 3.1 feature)
-    if "type" in schema and isinstance(schema["type"], list):
-        types = schema["type"]
-        if "null" in types:
-            schema["nullable"] = True
-            non_null_types = [t for t in types if t != "null"]
-            if len(non_null_types) == 1:
-                schema["type"] = non_null_types[0]
-            elif non_null_types:
-                # Multiple non-null types - use anyOf
-                schema.pop("type")
-                schema["anyOf"] = [{"type": t} for t in non_null_types]
-
-    # Handle anyOf with null
-    if "anyOf" in schema:
-        any_of = schema["anyOf"]
-        null_schemas = [s for s in any_of if s.get("type") == "null"]
-        non_null_schemas = [s for s in any_of if s.get("type") != "null"]
-
-        if null_schemas:
-            schema["nullable"] = True
-            if non_null_schemas:
-                schema["anyOf"] = [convert_schema(s) for s in non_null_schemas]
-            else:
-                schema.pop("anyOf", None)
+    schema = _handle_type_array(schema)
+    schema = _handle_any_of(schema)
 
     # Recursively process nested schemas
     for key in ["properties", "items", "additionalProperties"]:
@@ -158,14 +176,15 @@ def convert_content(content: dict) -> dict:
     """Convert content definitions."""
     result = {}
     for media_type, media_type_obj in content.items():
-        media_type_obj = media_type_obj.copy()
-        if "schema" in media_type_obj:
-            media_type_obj["schema"] = convert_schema(media_type_obj["schema"])
-        result[media_type] = media_type_obj
+        converted_obj = media_type_obj.copy()
+        if "schema" in converted_obj:
+            converted_obj["schema"] = convert_schema(converted_obj["schema"])
+        result[media_type] = converted_obj
     return result
 
 
 def main() -> None:
+    """Convert OpenAPI file from 3.1 to 3.0 format."""
     if len(sys.argv) != 3:
         sys.exit(1)
 
