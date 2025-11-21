@@ -178,9 +178,5 @@ cython_debug/
 benchmark.db
 profile.prof
 
-# Generated OpenAPI files
+# Generated OpenAPI files (intermediate files only)
 docs/reference/api/openapi.3.0.json
-
-# Generated client libraries
-clients/go/*.gen.go
-clients/go/go.sum

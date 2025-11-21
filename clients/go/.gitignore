@@ -1,8 +1,3 @@
-# Generated files
-client.gen.go
-types.gen.go
-*.gen.go
-
 # Go build artifacts
 *.exe
 *.exe~
