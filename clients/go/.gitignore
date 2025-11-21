@@ -1,0 +1,16 @@
+# Generated files
+client.gen.go
+types.gen.go
+*.gen.go
+
+# Go build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Dependency directories
+vendor/

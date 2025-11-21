@@ -177,3 +177,10 @@ cython_debug/
 .kodit.db
 benchmark.db
 profile.prof
+
+# Generated OpenAPI files
+docs/reference/api/openapi.3.0.json
+
+# Generated client libraries
+clients/go/*.gen.go
+clients/go/go.sum
