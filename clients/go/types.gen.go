@@ -464,6 +464,9 @@ type SearchFilters struct {
 	// Authors Authors to filter by
 	Authors *SearchFilters_Authors `json:"authors"`
 
+	// CommitSha Filter snippets by commit SHAs
+	CommitSha *SearchFilters_CommitSha `json:"commit_sha"`
+
 	// EndDate Filter snippets created before this date
 	EndDate *SearchFilters_EndDate `json:"end_date"`
 
@@ -491,6 +494,14 @@ type SearchFiltersAuthors0 = []string
 
 // SearchFilters_Authors Authors to filter by
 type SearchFilters_Authors struct {
+	union json.RawMessage
+}
+
+// SearchFiltersCommitSha0 defines model for .
+type SearchFiltersCommitSha0 = []string
+
+// SearchFilters_CommitSha Filter snippets by commit SHAs
+type SearchFilters_CommitSha struct {
 	union json.RawMessage
 }
 
@@ -1594,6 +1605,42 @@ func (t SearchFilters_Authors) MarshalJSON() ([]byte, error) {
 }
 
 func (t *SearchFilters_Authors) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsSearchFiltersCommitSha0 returns the union data inside the SearchFilters_CommitSha as a SearchFiltersCommitSha0
+func (t SearchFilters_CommitSha) AsSearchFiltersCommitSha0() (SearchFiltersCommitSha0, error) {
+	var body SearchFiltersCommitSha0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSearchFiltersCommitSha0 overwrites any union data inside the SearchFilters_CommitSha as the provided SearchFiltersCommitSha0
+func (t *SearchFilters_CommitSha) FromSearchFiltersCommitSha0(v SearchFiltersCommitSha0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSearchFiltersCommitSha0 performs a merge with any union data inside the SearchFilters_CommitSha, using the provided SearchFiltersCommitSha0
+func (t *SearchFilters_CommitSha) MergeSearchFiltersCommitSha0(v SearchFiltersCommitSha0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t SearchFilters_CommitSha) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *SearchFilters_CommitSha) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }
