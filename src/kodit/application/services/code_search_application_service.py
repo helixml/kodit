@@ -145,13 +145,30 @@ class CodeSearchApplicationService:
         self.enrichment_query_service = enrichment_query_service
         self.log = structlog.get_logger(__name__)
 
-    async def search(self, request: MultiSearchRequest) -> list[MultiSearchResult]:
+    async def search(self, request: MultiSearchRequest) -> list[MultiSearchResult]:  # noqa: C901, PLR0912
         """Search for relevant snippets across all indexes."""
         log_event("kodit.index.search")
 
-        # Apply filters if provided
+        # Apply commit SHA filter if provided
         filtered_snippet_ids: list[str] | None = None
-        # TODO(Phil): Re-implement filtering on search results
+        if request.filters and request.filters.commit_sha:
+            # Get all enrichments associated with these commits
+            all_associations = []
+            for commit_sha in request.filters.commit_sha:
+                associations = (
+                    await self.enrichment_query_service.associations_for_commit(
+                        commit_sha
+                    )
+                )
+                all_associations.extend(associations)
+
+            # Extract unique enrichment IDs as strings for filtering
+            filtered_snippet_ids = list(
+                {str(assoc.enrichment_id) for assoc in all_associations}
+            )
+            if not filtered_snippet_ids:
+                # No enrichments for these commits, return empty results
+                return []
 
         # Gather results from different search modes
         fusion_list: list[list[FusionRequest]] = []
@@ -237,19 +254,35 @@ class CodeSearchApplicationService:
             enrichment_ids
         )
 
-        # Apply enrichment type/subtype filters if provided
+        # Apply all filters if provided
         if request.filters:
+            # Filter by enrichment type
             if request.filters.enrichment_types:
                 final_enrichments = [
                     e
                     for e in final_enrichments
                     if e.type in request.filters.enrichment_types
                 ]
+            # Filter by enrichment subtype
             if request.filters.enrichment_subtypes:
                 final_enrichments = [
                     e
                     for e in final_enrichments
                     if e.subtype in request.filters.enrichment_subtypes
+                ]
+            # Filter by created_after date
+            if request.filters.created_after:
+                final_enrichments = [
+                    e
+                    for e in final_enrichments
+                    if e.created_at and e.created_at >= request.filters.created_after
+                ]
+            # Filter by created_before date
+            if request.filters.created_before:
+                final_enrichments = [
+                    e
+                    for e in final_enrichments
+                    if e.created_at and e.created_at <= request.filters.created_before
                 ]
 
         # Get enrichments pointing to these enrichments

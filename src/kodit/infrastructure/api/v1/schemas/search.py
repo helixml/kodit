@@ -41,6 +41,9 @@ class SearchFilters(BaseModel):
             "(e.g., 'snippet', 'example', 'snippet_summary', 'example_summary')"
         ),
     )
+    commit_sha: list[str] | None = Field(
+        None, description="Filter snippets by commit SHAs"
+    )
 
 
 class SearchAttributes(BaseModel):
@@ -138,6 +141,15 @@ class SearchRequest(BaseModel):
         """Get the enrichment subtypes from the search request."""
         return (
             self.data.attributes.filters.enrichment_subtypes
+            if self.data.attributes.filters
+            else None
+        )
+
+    @property
+    def commit_sha(self) -> list[str] | None:
+        """Get the commit SHAs from the search request."""
+        return (
+            self.data.attributes.filters.commit_sha
             if self.data.attributes.filters
             else None
         )
