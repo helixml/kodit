@@ -53,6 +53,7 @@ async def search_snippets(
             file_path=request.file_patterns[0] if request.file_patterns else None,
             enrichment_types=request.enrichment_types,
             enrichment_subtypes=request.enrichment_subtypes,
+            commit_sha=request.commit_sha,
         )
         if any(
             [
@@ -64,6 +65,7 @@ async def search_snippets(
                 request.file_patterns,
                 request.enrichment_types,
                 request.enrichment_subtypes,
+                request.commit_sha,
             ]
         )
         else None,

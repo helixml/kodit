@@ -480,3 +480,5 @@ async def delete_commit_enrichment(  # noqa: PLR0913
         await enrichment_v2_repository.delete(enrichment)
     except ValueError as e:
         raise HTTPException(status_code=404, detail="Enrichment not found") from e
+
+

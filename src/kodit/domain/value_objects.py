@@ -202,6 +202,7 @@ class SnippetSearchFilters:
     file_path: str | None = None
     enrichment_types: list[str] | None = None
     enrichment_subtypes: list[str] | None = None
+    commit_sha: list[str] | None = None
 
     @classmethod
     def from_cli_params(  # noqa: PLR0913
