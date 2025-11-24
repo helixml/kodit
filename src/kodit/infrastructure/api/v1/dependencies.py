@@ -22,6 +22,7 @@ from kodit.application.services.repository_query_service import (
 )
 from kodit.config import AppContext
 from kodit.domain.protocols import (
+    EnrichmentV2Repository,
     GitBranchRepository,
     GitCommitRepository,
     GitFileRepository,
@@ -194,3 +195,15 @@ async def get_git_file_repository(
 
 
 GitFileRepositoryDep = Annotated[GitFileRepository, Depends(get_git_file_repository)]
+
+
+async def get_enrichment_v2_repository(
+    server_factory: ServerFactoryDep,
+) -> EnrichmentV2Repository:
+    """Get enrichment V2 repository dependency."""
+    return server_factory.enrichment_v2_repository()
+
+
+EnrichmentV2RepositoryDep = Annotated[
+    EnrichmentV2Repository, Depends(get_enrichment_v2_repository)
+]

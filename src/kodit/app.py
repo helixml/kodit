@@ -17,6 +17,9 @@ from kodit.config import AppContext
 from kodit.domain.enrichments.request import EnrichmentRequest
 from kodit.domain.value_objects import EmbeddingRequest
 from kodit.infrastructure.api.v1.routers.commits import router as commits_router
+from kodit.infrastructure.api.v1.routers.enrichments import (
+    router as enrichments_router,
+)
 from kodit.infrastructure.api.v1.routers.queue import router as queue_router
 from kodit.infrastructure.api.v1.routers.repositories import (
     router as repositories_router,
@@ -161,6 +164,7 @@ app.include_router(queue_router)
 app.include_router(search_router)
 app.include_router(commits_router)
 app.include_router(repositories_router)
+app.include_router(enrichments_router)
 
 # Add mcp routes last, otherwise previous routes aren't added
 # Mount both apps at root - they have different internal paths
