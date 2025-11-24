@@ -353,7 +353,7 @@ async def list_repository_enrichments(  # noqa: PLR0913
     enrichment_data = [
         EnrichmentData(
             type="enrichment",
-            id=str(enrichment.id) if enrichment.id else "0",
+            id=str(enrichment.id),
             attributes=EnrichmentAttributes(
                 type=enrichment.type,
                 subtype=enrichment.subtype,
@@ -365,7 +365,7 @@ async def list_repository_enrichments(  # noqa: PLR0913
                 {"self": f"{base_url}/api/v1/enrichments/{enrichment.id}"}
             ),
         )
-        for enrichment in enrichments
+        for enrichment in enrichments if enrichment.id
     ]
 
     return EnrichmentListResponse(data=enrichment_data)
