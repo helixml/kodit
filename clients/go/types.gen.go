@@ -143,13 +143,24 @@ type EnrichmentData struct {
 	// Attributes Enrichment attributes following JSON-API spec.
 	Attributes    EnrichmentAttributes          `json:"attributes"`
 	Id            string                        `json:"id"`
+	Links         *EnrichmentData_Links         `json:"links"`
 	Relationships *EnrichmentData_Relationships `json:"relationships"`
 	Type          *string                       `json:"type,omitempty"`
+}
+
+// EnrichmentData_Links defines model for EnrichmentData.Links.
+type EnrichmentData_Links struct {
+	union json.RawMessage
 }
 
 // EnrichmentData_Relationships defines model for EnrichmentData.Relationships.
 type EnrichmentData_Relationships struct {
 	union json.RawMessage
+}
+
+// EnrichmentLinks Links following JSON-API spec.
+type EnrichmentLinks struct {
+	Self string `json:"self"`
 }
 
 // EnrichmentListResponse Enrichment list response following JSON-API spec.
@@ -160,6 +171,7 @@ type EnrichmentListResponse struct {
 // EnrichmentRelationships Enrichment relationships for JSON-API spec.
 type EnrichmentRelationships struct {
 	Associations *EnrichmentRelationships_Associations `json:"associations"`
+	Commit       *EnrichmentRelationships_Commit       `json:"commit"`
 }
 
 // EnrichmentRelationshipsAssociations0 defines model for .
@@ -170,10 +182,39 @@ type EnrichmentRelationships_Associations struct {
 	union json.RawMessage
 }
 
+// EnrichmentRelationships_Commit defines model for EnrichmentRelationships.Commit.
+type EnrichmentRelationships_Commit struct {
+	union json.RawMessage
+}
+
+// EnrichmentResponse Single enrichment response following JSON-API spec.
+type EnrichmentResponse struct {
+	// Data Enrichment data following JSON-API spec.
+	Data EnrichmentData `json:"data"`
+}
+
 // EnrichmentSchema Enrichment schema following JSON-API spec.
 type EnrichmentSchema struct {
 	Content string `json:"content"`
 	Type    string `json:"type"`
+}
+
+// EnrichmentUpdateAttributes Attributes for updating an enrichment.
+type EnrichmentUpdateAttributes struct {
+	Content string `json:"content"`
+}
+
+// EnrichmentUpdateData Data for updating an enrichment.
+type EnrichmentUpdateData struct {
+	// Attributes Attributes for updating an enrichment.
+	Attributes EnrichmentUpdateAttributes `json:"attributes"`
+	Type       *string                    `json:"type,omitempty"`
+}
+
+// EnrichmentUpdateRequest Request to update an enrichment.
+type EnrichmentUpdateRequest struct {
+	// Data Data for updating an enrichment.
+	Data EnrichmentUpdateData `json:"data"`
 }
 
 // FileAttributes File attributes following JSON-API spec.
@@ -215,6 +256,31 @@ type GitFileSchema struct {
 // HTTPValidationError defines model for HTTPValidationError.
 type HTTPValidationError struct {
 	Detail *[]ValidationError `json:"detail,omitempty"`
+}
+
+// Relationship A JSON:API relationship.
+type Relationship struct {
+	Data  *Relationship_Data  `json:"data"`
+	Links *Relationship_Links `json:"links"`
+}
+
+// RelationshipData1 defines model for .
+type RelationshipData1 = []RelationshipData
+
+// Relationship_Data defines model for Relationship.Data.
+type Relationship_Data struct {
+	union json.RawMessage
+}
+
+// Relationship_Links defines model for Relationship.Links.
+type Relationship_Links struct {
+	union json.RawMessage
+}
+
+// RelationshipData Data for a single relationship.
+type RelationshipData struct {
+	Id   string `json:"id"`
+	Type string `json:"type"`
 }
 
 // RepositoryAttributes Repository attributes following JSON-API spec.
@@ -686,6 +752,31 @@ type ValidationError_Loc_Item struct {
 	union json.RawMessage
 }
 
+// ListEnrichmentsApiV1EnrichmentsGetParams defines parameters for ListEnrichmentsApiV1EnrichmentsGet.
+type ListEnrichmentsApiV1EnrichmentsGetParams struct {
+	// EnrichmentType Filter by enrichment type
+	EnrichmentType *struct {
+		union json.RawMessage
+	} `form:"enrichment_type,omitempty" json:"enrichment_type,omitempty"`
+
+	// EnrichmentSubtype Filter by enrichment subtype
+	EnrichmentSubtype *struct {
+		union json.RawMessage
+	} `form:"enrichment_subtype,omitempty" json:"enrichment_subtype,omitempty"`
+
+	// Page Page number, starting from 1
+	Page *int `form:"page,omitempty" json:"page,omitempty"`
+
+	// PageSize Items per page
+	PageSize *int `form:"page_size,omitempty" json:"page_size,omitempty"`
+}
+
+// ListEnrichmentsApiV1EnrichmentsGetParamsEnrichmentType0 defines parameters for ListEnrichmentsApiV1EnrichmentsGet.
+type ListEnrichmentsApiV1EnrichmentsGetParamsEnrichmentType0 = string
+
+// ListEnrichmentsApiV1EnrichmentsGetParamsEnrichmentSubtype0 defines parameters for ListEnrichmentsApiV1EnrichmentsGet.
+type ListEnrichmentsApiV1EnrichmentsGetParamsEnrichmentSubtype0 = string
+
 // ListQueueTasksApiV1QueueGetParams defines parameters for ListQueueTasksApiV1QueueGet.
 type ListQueueTasksApiV1QueueGetParams struct {
 	TaskType *struct {
@@ -751,6 +842,9 @@ type ListRepositoryEnrichmentsApiV1RepositoriesRepoIdEnrichmentsGetParams struct
 
 // ListRepositoryEnrichmentsApiV1RepositoriesRepoIdEnrichmentsGetParamsEnrichmentType0 defines parameters for ListRepositoryEnrichmentsApiV1RepositoriesRepoIdEnrichmentsGet.
 type ListRepositoryEnrichmentsApiV1RepositoriesRepoIdEnrichmentsGetParamsEnrichmentType0 = string
+
+// UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchJSONRequestBody defines body for UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatch for application/json ContentType.
+type UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchJSONRequestBody = EnrichmentUpdateRequest
 
 // CreateRepositoryApiV1RepositoriesPostJSONRequestBody defines body for CreateRepositoryApiV1RepositoriesPost for application/json ContentType.
 type CreateRepositoryApiV1RepositoriesPostJSONRequestBody = RepositoryCreateRequest
@@ -866,6 +960,42 @@ func (t *EnrichmentAttributes_UpdatedAt) UnmarshalJSON(b []byte) error {
 	return err
 }
 
+// AsEnrichmentLinks returns the union data inside the EnrichmentData_Links as a EnrichmentLinks
+func (t EnrichmentData_Links) AsEnrichmentLinks() (EnrichmentLinks, error) {
+	var body EnrichmentLinks
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromEnrichmentLinks overwrites any union data inside the EnrichmentData_Links as the provided EnrichmentLinks
+func (t *EnrichmentData_Links) FromEnrichmentLinks(v EnrichmentLinks) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeEnrichmentLinks performs a merge with any union data inside the EnrichmentData_Links, using the provided EnrichmentLinks
+func (t *EnrichmentData_Links) MergeEnrichmentLinks(v EnrichmentLinks) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t EnrichmentData_Links) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *EnrichmentData_Links) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
 // AsEnrichmentRelationships returns the union data inside the EnrichmentData_Relationships as a EnrichmentRelationships
 func (t EnrichmentData_Relationships) AsEnrichmentRelationships() (EnrichmentRelationships, error) {
 	var body EnrichmentRelationships
@@ -934,6 +1064,140 @@ func (t EnrichmentRelationships_Associations) MarshalJSON() ([]byte, error) {
 }
 
 func (t *EnrichmentRelationships_Associations) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsRelationship returns the union data inside the EnrichmentRelationships_Commit as a Relationship
+func (t EnrichmentRelationships_Commit) AsRelationship() (Relationship, error) {
+	var body Relationship
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromRelationship overwrites any union data inside the EnrichmentRelationships_Commit as the provided Relationship
+func (t *EnrichmentRelationships_Commit) FromRelationship(v Relationship) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeRelationship performs a merge with any union data inside the EnrichmentRelationships_Commit, using the provided Relationship
+func (t *EnrichmentRelationships_Commit) MergeRelationship(v Relationship) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t EnrichmentRelationships_Commit) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *EnrichmentRelationships_Commit) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsRelationshipData returns the union data inside the Relationship_Data as a RelationshipData
+func (t Relationship_Data) AsRelationshipData() (RelationshipData, error) {
+	var body RelationshipData
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromRelationshipData overwrites any union data inside the Relationship_Data as the provided RelationshipData
+func (t *Relationship_Data) FromRelationshipData(v RelationshipData) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeRelationshipData performs a merge with any union data inside the Relationship_Data, using the provided RelationshipData
+func (t *Relationship_Data) MergeRelationshipData(v RelationshipData) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsRelationshipData1 returns the union data inside the Relationship_Data as a RelationshipData1
+func (t Relationship_Data) AsRelationshipData1() (RelationshipData1, error) {
+	var body RelationshipData1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromRelationshipData1 overwrites any union data inside the Relationship_Data as the provided RelationshipData1
+func (t *Relationship_Data) FromRelationshipData1(v RelationshipData1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeRelationshipData1 performs a merge with any union data inside the Relationship_Data, using the provided RelationshipData1
+func (t *Relationship_Data) MergeRelationshipData1(v RelationshipData1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t Relationship_Data) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *Relationship_Data) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsEnrichmentLinks returns the union data inside the Relationship_Links as a EnrichmentLinks
+func (t Relationship_Links) AsEnrichmentLinks() (EnrichmentLinks, error) {
+	var body EnrichmentLinks
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromEnrichmentLinks overwrites any union data inside the Relationship_Links as the provided EnrichmentLinks
+func (t *Relationship_Links) FromEnrichmentLinks(v EnrichmentLinks) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeEnrichmentLinks performs a merge with any union data inside the Relationship_Links, using the provided EnrichmentLinks
+func (t *Relationship_Links) MergeEnrichmentLinks(v EnrichmentLinks) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t Relationship_Links) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *Relationship_Links) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }

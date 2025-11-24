@@ -1234,6 +1234,256 @@
           }
         }
       }
+    },
+    "/api/v1/enrichments": {
+      "get": {
+        "tags": [
+          "enrichments"
+        ],
+        "summary": "List enrichments",
+        "description": "List all enrichments with optional filtering.",
+        "operationId": "list_enrichments_api_v1_enrichments_get",
+        "security": [
+          {
+            "Header (X-API-KEY)": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "enrichment_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by enrichment type",
+              "title": "Enrichment Type"
+            },
+            "description": "Filter by enrichment type"
+          },
+          {
+            "name": "enrichment_subtype",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by enrichment subtype",
+              "title": "Enrichment Subtype"
+            },
+            "description": "Filter by enrichment subtype"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page number, starting from 1",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number, starting from 1"
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Items per page",
+              "default": 20,
+              "title": "Page Size"
+            },
+            "description": "Items per page"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnrichmentListResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Invalid request"
+          }
+        }
+      }
+    },
+    "/api/v1/enrichments/{enrichment_id}": {
+      "get": {
+        "tags": [
+          "enrichments"
+        ],
+        "summary": "Get enrichment",
+        "description": "Get a specific enrichment by ID.",
+        "operationId": "get_enrichment_api_v1_enrichments__enrichment_id__get",
+        "security": [
+          {
+            "Header (X-API-KEY)": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "enrichment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Enrichment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnrichmentResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Invalid request"
+          },
+          "404": {
+            "description": "Enrichment not found"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "enrichments"
+        ],
+        "summary": "Update enrichment",
+        "description": "Update an enrichment's content.",
+        "operationId": "update_enrichment_api_v1_enrichments__enrichment_id__patch",
+        "security": [
+          {
+            "Header (X-API-KEY)": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "enrichment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Enrichment Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnrichmentUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnrichmentResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Invalid request"
+          },
+          "404": {
+            "description": "Enrichment not found"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "enrichments"
+        ],
+        "summary": "Delete enrichment",
+        "description": "Delete an enrichment.",
+        "operationId": "delete_enrichment_api_v1_enrichments__enrichment_id__delete",
+        "security": [
+          {
+            "Header (X-API-KEY)": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "enrichment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Enrichment Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "500": {
+            "description": "Internal server error"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Invalid request"
+          },
+          "404": {
+            "description": "Enrichment not found"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1492,6 +1742,16 @@
                 "type": "null"
               }
             ]
+          },
+          "links": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EnrichmentLinks"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -1501,6 +1761,20 @@
         ],
         "title": "EnrichmentData",
         "description": "Enrichment data following JSON-API spec."
+      },
+      "EnrichmentLinks": {
+        "properties": {
+          "self": {
+            "type": "string",
+            "title": "Self"
+          }
+        },
+        "type": "object",
+        "required": [
+          "self"
+        ],
+        "title": "EnrichmentLinks",
+        "description": "Links following JSON-API spec."
       },
       "EnrichmentListResponse": {
         "properties": {
@@ -1534,11 +1808,34 @@
               }
             ],
             "title": "Associations"
+          },
+          "commit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Relationship"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
         "title": "EnrichmentRelationships",
         "description": "Enrichment relationships for JSON-API spec."
+      },
+      "EnrichmentResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/EnrichmentData"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "EnrichmentResponse",
+        "description": "Single enrichment response following JSON-API spec."
       },
       "EnrichmentSchema": {
         "properties": {
@@ -1558,6 +1855,51 @@
         ],
         "title": "EnrichmentSchema",
         "description": "Enrichment schema following JSON-API spec."
+      },
+      "EnrichmentUpdateAttributes": {
+        "properties": {
+          "content": {
+            "type": "string",
+            "title": "Content"
+          }
+        },
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "title": "EnrichmentUpdateAttributes",
+        "description": "Attributes for updating an enrichment."
+      },
+      "EnrichmentUpdateData": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "default": "enrichment"
+          },
+          "attributes": {
+            "$ref": "#/components/schemas/EnrichmentUpdateAttributes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "attributes"
+        ],
+        "title": "EnrichmentUpdateData",
+        "description": "Data for updating an enrichment."
+      },
+      "EnrichmentUpdateRequest": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/EnrichmentUpdateData"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "EnrichmentUpdateRequest",
+        "description": "Request to update an enrichment."
       },
       "FileAttributes": {
         "properties": {
@@ -1687,6 +2029,59 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "Relationship": {
+        "properties": {
+          "links": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EnrichmentLinks"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RelationshipData"
+              },
+              {
+                "items": {
+                  "$ref": "#/components/schemas/RelationshipData"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "title": "Relationship",
+        "description": "A JSON:API relationship."
+      },
+      "RelationshipData": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "id"
+        ],
+        "title": "RelationshipData",
+        "description": "Data for a single relationship."
       },
       "RepositoryAttributes": {
         "properties": {

@@ -89,6 +89,20 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 
 // The interface specification for the client above.
 type ClientInterface interface {
+	// ListEnrichmentsApiV1EnrichmentsGet request
+	ListEnrichmentsApiV1EnrichmentsGet(ctx context.Context, params *ListEnrichmentsApiV1EnrichmentsGetParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteEnrichmentApiV1EnrichmentsEnrichmentIdDelete request
+	DeleteEnrichmentApiV1EnrichmentsEnrichmentIdDelete(ctx context.Context, enrichmentId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetEnrichmentApiV1EnrichmentsEnrichmentIdGet request
+	GetEnrichmentApiV1EnrichmentsEnrichmentIdGet(ctx context.Context, enrichmentId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchWithBody request with any body
+	UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchWithBody(ctx context.Context, enrichmentId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatch(ctx context.Context, enrichmentId string, body UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListQueueTasksApiV1QueueGet request
 	ListQueueTasksApiV1QueueGet(ctx context.Context, params *ListQueueTasksApiV1QueueGetParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -155,6 +169,66 @@ type ClientInterface interface {
 
 	// HealthzHealthzGet request
 	HealthzHealthzGet(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+}
+
+func (c *Client) ListEnrichmentsApiV1EnrichmentsGet(ctx context.Context, params *ListEnrichmentsApiV1EnrichmentsGetParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListEnrichmentsApiV1EnrichmentsGetRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteEnrichmentApiV1EnrichmentsEnrichmentIdDelete(ctx context.Context, enrichmentId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteRequest(c.Server, enrichmentId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetEnrichmentApiV1EnrichmentsEnrichmentIdGet(ctx context.Context, enrichmentId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetEnrichmentApiV1EnrichmentsEnrichmentIdGetRequest(c.Server, enrichmentId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchWithBody(ctx context.Context, enrichmentId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchRequestWithBody(c.Server, enrichmentId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatch(ctx context.Context, enrichmentId string, body UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchRequest(c.Server, enrichmentId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
 }
 
 func (c *Client) ListQueueTasksApiV1QueueGet(ctx context.Context, params *ListQueueTasksApiV1QueueGetParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -431,6 +505,218 @@ func (c *Client) HealthzHealthzGet(ctx context.Context, reqEditors ...RequestEdi
 		return nil, err
 	}
 	return c.Client.Do(req)
+}
+
+// NewListEnrichmentsApiV1EnrichmentsGetRequest generates requests for ListEnrichmentsApiV1EnrichmentsGet
+func NewListEnrichmentsApiV1EnrichmentsGetRequest(server string, params *ListEnrichmentsApiV1EnrichmentsGetParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/enrichments")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.EnrichmentType != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "enrichment_type", runtime.ParamLocationQuery, *params.EnrichmentType); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.EnrichmentSubtype != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "enrichment_subtype", runtime.ParamLocationQuery, *params.EnrichmentSubtype); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "page", runtime.ParamLocationQuery, *params.Page); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.PageSize != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "page_size", runtime.ParamLocationQuery, *params.PageSize); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewDeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteRequest generates requests for DeleteEnrichmentApiV1EnrichmentsEnrichmentIdDelete
+func NewDeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteRequest(server string, enrichmentId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "enrichment_id", runtime.ParamLocationPath, enrichmentId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/enrichments/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetEnrichmentApiV1EnrichmentsEnrichmentIdGetRequest generates requests for GetEnrichmentApiV1EnrichmentsEnrichmentIdGet
+func NewGetEnrichmentApiV1EnrichmentsEnrichmentIdGetRequest(server string, enrichmentId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "enrichment_id", runtime.ParamLocationPath, enrichmentId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/enrichments/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchRequest calls the generic UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatch builder with application/json body
+func NewUpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchRequest(server string, enrichmentId string, body UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchRequestWithBody(server, enrichmentId, "application/json", bodyReader)
+}
+
+// NewUpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchRequestWithBody generates requests for UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatch with any type of body
+func NewUpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchRequestWithBody(server string, enrichmentId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "enrichment_id", runtime.ParamLocationPath, enrichmentId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/enrichments/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
 }
 
 // NewListQueueTasksApiV1QueueGetRequest generates requests for ListQueueTasksApiV1QueueGet
@@ -1502,6 +1788,20 @@ func WithBaseURL(baseURL string) ClientOption {
 
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
+	// ListEnrichmentsApiV1EnrichmentsGetWithResponse request
+	ListEnrichmentsApiV1EnrichmentsGetWithResponse(ctx context.Context, params *ListEnrichmentsApiV1EnrichmentsGetParams, reqEditors ...RequestEditorFn) (*ListEnrichmentsApiV1EnrichmentsGetResponse, error)
+
+	// DeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteWithResponse request
+	DeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteWithResponse(ctx context.Context, enrichmentId string, reqEditors ...RequestEditorFn) (*DeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteResponse, error)
+
+	// GetEnrichmentApiV1EnrichmentsEnrichmentIdGetWithResponse request
+	GetEnrichmentApiV1EnrichmentsEnrichmentIdGetWithResponse(ctx context.Context, enrichmentId string, reqEditors ...RequestEditorFn) (*GetEnrichmentApiV1EnrichmentsEnrichmentIdGetResponse, error)
+
+	// UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchWithBodyWithResponse request with any body
+	UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchWithBodyWithResponse(ctx context.Context, enrichmentId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchResponse, error)
+
+	UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchWithResponse(ctx context.Context, enrichmentId string, body UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchResponse, error)
+
 	// ListQueueTasksApiV1QueueGetWithResponse request
 	ListQueueTasksApiV1QueueGetWithResponse(ctx context.Context, params *ListQueueTasksApiV1QueueGetParams, reqEditors ...RequestEditorFn) (*ListQueueTasksApiV1QueueGetResponse, error)
 
@@ -1568,6 +1868,93 @@ type ClientWithResponsesInterface interface {
 
 	// HealthzHealthzGetWithResponse request
 	HealthzHealthzGetWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*HealthzHealthzGetResponse, error)
+}
+
+type ListEnrichmentsApiV1EnrichmentsGetResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *EnrichmentListResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ListEnrichmentsApiV1EnrichmentsGetResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListEnrichmentsApiV1EnrichmentsGetResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetEnrichmentApiV1EnrichmentsEnrichmentIdGetResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *EnrichmentResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetEnrichmentApiV1EnrichmentsEnrichmentIdGetResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetEnrichmentApiV1EnrichmentsEnrichmentIdGetResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *EnrichmentResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
 }
 
 type ListQueueTasksApiV1QueueGetResponse struct {
@@ -2030,6 +2417,50 @@ func (r HealthzHealthzGetResponse) StatusCode() int {
 	return 0
 }
 
+// ListEnrichmentsApiV1EnrichmentsGetWithResponse request returning *ListEnrichmentsApiV1EnrichmentsGetResponse
+func (c *ClientWithResponses) ListEnrichmentsApiV1EnrichmentsGetWithResponse(ctx context.Context, params *ListEnrichmentsApiV1EnrichmentsGetParams, reqEditors ...RequestEditorFn) (*ListEnrichmentsApiV1EnrichmentsGetResponse, error) {
+	rsp, err := c.ListEnrichmentsApiV1EnrichmentsGet(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListEnrichmentsApiV1EnrichmentsGetResponse(rsp)
+}
+
+// DeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteWithResponse request returning *DeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteResponse
+func (c *ClientWithResponses) DeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteWithResponse(ctx context.Context, enrichmentId string, reqEditors ...RequestEditorFn) (*DeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteResponse, error) {
+	rsp, err := c.DeleteEnrichmentApiV1EnrichmentsEnrichmentIdDelete(ctx, enrichmentId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteResponse(rsp)
+}
+
+// GetEnrichmentApiV1EnrichmentsEnrichmentIdGetWithResponse request returning *GetEnrichmentApiV1EnrichmentsEnrichmentIdGetResponse
+func (c *ClientWithResponses) GetEnrichmentApiV1EnrichmentsEnrichmentIdGetWithResponse(ctx context.Context, enrichmentId string, reqEditors ...RequestEditorFn) (*GetEnrichmentApiV1EnrichmentsEnrichmentIdGetResponse, error) {
+	rsp, err := c.GetEnrichmentApiV1EnrichmentsEnrichmentIdGet(ctx, enrichmentId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetEnrichmentApiV1EnrichmentsEnrichmentIdGetResponse(rsp)
+}
+
+// UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchWithBodyWithResponse request with arbitrary body returning *UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchResponse
+func (c *ClientWithResponses) UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchWithBodyWithResponse(ctx context.Context, enrichmentId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchResponse, error) {
+	rsp, err := c.UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchWithBody(ctx, enrichmentId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchResponse(rsp)
+}
+
+func (c *ClientWithResponses) UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchWithResponse(ctx context.Context, enrichmentId string, body UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchResponse, error) {
+	rsp, err := c.UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatch(ctx, enrichmentId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchResponse(rsp)
+}
+
 // ListQueueTasksApiV1QueueGetWithResponse request returning *ListQueueTasksApiV1QueueGetResponse
 func (c *ClientWithResponses) ListQueueTasksApiV1QueueGetWithResponse(ctx context.Context, params *ListQueueTasksApiV1QueueGetParams, reqEditors ...RequestEditorFn) (*ListQueueTasksApiV1QueueGetResponse, error) {
 	rsp, err := c.ListQueueTasksApiV1QueueGet(ctx, params, reqEditors...)
@@ -2233,6 +2664,100 @@ func (c *ClientWithResponses) HealthzHealthzGetWithResponse(ctx context.Context,
 		return nil, err
 	}
 	return ParseHealthzHealthzGetResponse(rsp)
+}
+
+// ParseListEnrichmentsApiV1EnrichmentsGetResponse parses an HTTP response from a ListEnrichmentsApiV1EnrichmentsGetWithResponse call
+func ParseListEnrichmentsApiV1EnrichmentsGetResponse(rsp *http.Response) (*ListEnrichmentsApiV1EnrichmentsGetResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListEnrichmentsApiV1EnrichmentsGetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EnrichmentListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteResponse parses an HTTP response from a DeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteWithResponse call
+func ParseDeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteResponse(rsp *http.Response) (*DeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	return response, nil
+}
+
+// ParseGetEnrichmentApiV1EnrichmentsEnrichmentIdGetResponse parses an HTTP response from a GetEnrichmentApiV1EnrichmentsEnrichmentIdGetWithResponse call
+func ParseGetEnrichmentApiV1EnrichmentsEnrichmentIdGetResponse(rsp *http.Response) (*GetEnrichmentApiV1EnrichmentsEnrichmentIdGetResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetEnrichmentApiV1EnrichmentsEnrichmentIdGetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EnrichmentResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchResponse parses an HTTP response from a UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchWithResponse call
+func ParseUpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchResponse(rsp *http.Response) (*UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EnrichmentResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
 }
 
 // ParseListQueueTasksApiV1QueueGetResponse parses an HTTP response from a ListQueueTasksApiV1QueueGetWithResponse call
