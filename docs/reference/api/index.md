@@ -558,6 +558,114 @@ Query parameters:
 
 - 404: Repository not found
 
+### GET /api/v1/enrichments
+
+List all enrichments with optional filtering.
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| enrichment_type |  | False | Filter by enrichment type |
+| enrichment_subtype |  | False | Filter by enrichment subtype |
+| page | integer | False | Page number, starting from 1 |
+| page_size | integer | False | Items per page |
+
+
+#### Responses
+
+- 200: Successful Response
+
+[EnrichmentListResponse](#enrichmentlistresponse)
+
+- 500: Internal server error
+
+- 401: Unauthorized
+
+- 422: Invalid request
+
+### GET /api/v1/enrichments/{enrichment_id}
+
+Get a specific enrichment by ID.
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| enrichment_id | string | True |  |
+
+
+#### Responses
+
+- 200: Successful Response
+
+[EnrichmentResponse](#enrichmentresponse)
+
+- 500: Internal server error
+
+- 401: Unauthorized
+
+- 422: Invalid request
+
+- 404: Enrichment not found
+
+### PATCH /api/v1/enrichments/{enrichment_id}
+
+Update an enrichment's content.
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| enrichment_id | string | True |  |
+
+
+#### Request Body
+
+[EnrichmentUpdateRequest](#enrichmentupdaterequest)
+
+
+#### Responses
+
+- 200: Successful Response
+
+[EnrichmentResponse](#enrichmentresponse)
+
+- 500: Internal server error
+
+- 401: Unauthorized
+
+- 422: Invalid request
+
+- 404: Enrichment not found
+
+### DELETE /api/v1/enrichments/{enrichment_id}
+
+Delete an enrichment.
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| enrichment_id | string | True |  |
+
+
+#### Responses
+
+- 204: Successful Response
+
+- 500: Internal server error
+
+- 401: Unauthorized
+
+- 422: Invalid request
+
+- 404: Enrichment not found
+
 ## Components
 
 
@@ -688,6 +796,18 @@ Enrichment data following JSON-API spec.
 | id | string |  |
 | attributes |  |  |
 | relationships |  |  |
+| links |  |  |
+
+
+### EnrichmentLinks
+
+
+Links following JSON-API spec.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| self | string |  |
 
 
 ### EnrichmentListResponse
@@ -710,6 +830,18 @@ Enrichment relationships for JSON-API spec.
 | Field | Type | Description |
 |-------|------|-------------|
 | associations |  |  |
+| commit |  |  |
+
+
+### EnrichmentResponse
+
+
+Single enrichment response following JSON-API spec.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data |  |  |
 
 
 ### EnrichmentSchema
@@ -722,6 +854,40 @@ Enrichment schema following JSON-API spec.
 |-------|------|-------------|
 | type | string |  |
 | content | string |  |
+
+
+### EnrichmentUpdateAttributes
+
+
+Attributes for updating an enrichment.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| content | string |  |
+
+
+### EnrichmentUpdateData
+
+
+Data for updating an enrichment.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| type | string |  |
+| attributes |  |  |
+
+
+### EnrichmentUpdateRequest
+
+
+Request to update an enrichment.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data |  |  |
 
 
 ### FileAttributes
@@ -795,6 +961,30 @@ Git file schema following JSON-API spec.
 | Field | Type | Description |
 |-------|------|-------------|
 | detail | array |  |
+
+
+### Relationship
+
+
+A JSON:API relationship.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| links |  |  |
+| data |  |  |
+
+
+### RelationshipData
+
+
+Data for a single relationship.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| type | string |  |
+| id | string |  |
 
 
 ### RepositoryAttributes
