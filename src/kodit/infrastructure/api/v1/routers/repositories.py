@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 
 from kodit.infrastructure.api.middleware.auth import api_key_auth
 from kodit.infrastructure.api.v1.dependencies import (
@@ -19,6 +19,7 @@ from kodit.infrastructure.api.v1.query_params import PaginationParamsDep
 from kodit.infrastructure.api.v1.schemas.enrichment import (
     EnrichmentAttributes,
     EnrichmentData,
+    EnrichmentLinks,
     EnrichmentListResponse,
 )
 from kodit.infrastructure.api.v1.schemas.repository import (
@@ -302,6 +303,7 @@ async def get_repository_tag(
 )
 async def list_repository_enrichments(  # noqa: PLR0913
     repo_id: str,
+    request: Request,
     repository_query_service: RepositoryQueryServiceDep,
     enrichment_query_service: EnrichmentQueryServiceDep,
     git_repository: GitRepositoryDep,
@@ -347,6 +349,7 @@ async def list_repository_enrichments(  # noqa: PLR0913
     )
 
     # Map enrichments to API response format
+    base_url = str(request.base_url).rstrip("/")
     enrichment_data = [
         EnrichmentData(
             type="enrichment",
@@ -357,6 +360,9 @@ async def list_repository_enrichments(  # noqa: PLR0913
                 content=enrichment.content,
                 created_at=enrichment.created_at,
                 updated_at=enrichment.updated_at,
+            ),
+            links=EnrichmentLinks.model_validate(
+                {"self": f"{base_url}/api/v1/enrichments/{enrichment.id}"}
             ),
         )
         for enrichment in enrichments

@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
 
 from kodit.domain.enrichments.development.development import ENRICHMENT_TYPE_DEVELOPMENT
@@ -35,6 +35,7 @@ from kodit.infrastructure.api.v1.schemas.enrichment import (
     EnrichmentAssociationData,
     EnrichmentAttributes,
     EnrichmentData,
+    EnrichmentLinks,
     EnrichmentListResponse,
     EnrichmentRelationships,
 )
@@ -325,6 +326,7 @@ async def list_commit_embeddings(  # noqa: PLR0913
 async def list_commit_enrichments(  # noqa: PLR0913
     repo_id: str,
     commit_sha: str,
+    request: Request,
     git_repository: GitRepositoryDep,
     git_commit_repository: GitCommitRepositoryDep,
     server_factory: ServerFactoryDep,
@@ -355,6 +357,7 @@ async def list_commit_enrichments(  # noqa: PLR0913
         enrichment_type=enrichment_type,
     )
 
+    base_url = str(request.base_url).rstrip("/")
     return EnrichmentListResponse(
         data=[
             EnrichmentData(
@@ -375,6 +378,9 @@ async def list_commit_enrichments(  # noqa: PLR0913
                         )
                         for association in associations
                     ],
+                ),
+                links=EnrichmentLinks.model_validate(
+                    {"self": f"{base_url}/api/v1/enrichments/{enrichment.id}"}
                 ),
             )
             for enrichment, associations in enrichments.items()
