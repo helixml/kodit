@@ -12,6 +12,7 @@ from kodit.domain.enrichments.development.snippet.snippet import (
 from kodit.domain.entities.git import GitFile
 from kodit.infrastructure.api.middleware.auth import api_key_auth
 from kodit.infrastructure.api.v1.dependencies import (
+    CommitIndexingAppServiceDep,
     GitCommitRepositoryDep,
     GitFileRepositoryDep,
     GitRepositoryDep,
@@ -30,6 +31,9 @@ from kodit.infrastructure.api.v1.schemas.commit import (
     FileData,
     FileListResponse,
     FileResponse,
+    IndexingAcceptedAttributes,
+    IndexingAcceptedData,
+    IndexingAcceptedResponse,
 )
 from kodit.infrastructure.api.v1.schemas.enrichment import (
     EnrichmentAssociationData,
@@ -135,6 +139,40 @@ async def get_repository_commit(
                 parent_commit_sha=commit.parent_commit_sha or "",
                 author=commit.author,
             ),
+        )
+    )
+
+
+@router.post(
+    "/{repo_id}/commits/{commit_sha}",
+    summary="Index a specific commit",
+    status_code=202,
+    responses={404: {"description": "Repository not found"}},
+)
+async def index_commit(
+    repo_id: str,
+    commit_sha: str,
+    git_repository: GitRepositoryDep,
+    service: CommitIndexingAppServiceDep,
+) -> IndexingAcceptedResponse:
+    """Trigger indexing for a specific commit."""
+    # Validate repository exists
+    repo = await git_repository.get(int(repo_id))
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repository not found")
+
+    await service.index_commit(
+        repo_id=int(repo_id),
+        commit_sha=commit_sha,
+    )
+
+    return IndexingAcceptedResponse(
+        data=IndexingAcceptedData(
+            attributes=IndexingAcceptedAttributes(
+                commit_sha=commit_sha,
+                repository_id=int(repo_id),
+                message=f"Indexing queued for commit {commit_sha}",
+            )
         )
     )
 

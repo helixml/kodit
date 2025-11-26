@@ -88,3 +88,17 @@ class CommitIndexingApplicationService:
         """Run a task by delegating to the appropriate handler."""
         handler = self.handler_registry.handler(task.type)
         await handler.execute(task.payload)
+
+    async def index_commit(self, repo_id: int, commit_sha: str) -> str:
+        """Index a specific commit for a repository.
+
+        Returns the commit SHA that was indexed.
+        """
+        # Enqueue indexing tasks for the commit
+        await self.queue.enqueue_tasks(
+            tasks=PrescribedOperations.SCAN_AND_INDEX_COMMIT,
+            base_priority=QueuePriority.USER_INITIATED,
+            payload={"repository_id": repo_id, "commit_sha": commit_sha},
+        )
+
+        return commit_sha

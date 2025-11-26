@@ -94,3 +94,24 @@ class EmbeddingListResponse(BaseModel):
     """Embedding list response following JSON-API spec."""
 
     data: list[EmbeddingData]
+
+
+class IndexingAcceptedAttributes(BaseModel):
+    """Attributes for indexing accepted response."""
+
+    commit_sha: str
+    repository_id: int
+    message: str
+
+
+class IndexingAcceptedData(BaseModel):
+    """Data for indexing accepted response."""
+
+    type: str = "indexing-request"
+    attributes: IndexingAcceptedAttributes
+
+
+class IndexingAcceptedResponse(BaseModel):
+    """Response for accepted indexing request."""
+
+    data: IndexingAcceptedData
