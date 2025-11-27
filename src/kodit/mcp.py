@@ -558,6 +558,55 @@ def register_mcp_tools(mcp_server: FastMCP) -> None:  # noqa: C901, PLR0915
         enrichments = await enrichment_service.get_cookbook_for_commit(commit_sha)
         return _format_enrichments(enrichments)
 
+    @mcp_server.tool()
+    async def query(
+        ctx: Context,
+        query: Annotated[
+            str,
+            Field(
+                description="A natural language query to search for code snippets. "
+                "The query will be used for keyword search, code semantic search, "
+                "and text semantic search."
+            ),
+        ],
+    ) -> str:
+        """Search across all code knowledge with a simple query.
+
+        Use this for quick searches when you have a natural language question
+        or want to find code related to a topic. The query is automatically
+        processed to extract keywords and search across all modalities.
+
+        For more control over search parameters, use the search() tool instead.
+        """
+        from kodit.domain.services.keyword_extraction_service import extract_keywords
+
+        log = structlog.get_logger(__name__)
+
+        log.debug("Query search", query=query)
+
+        mcp_context_obj: MCPContext = ctx.request_context.lifespan_context
+
+        # Extract keywords from the query
+        keywords = extract_keywords(query)
+
+        log.debug("Extracted keywords", keywords=keywords)
+
+        # Use the unified application service
+        service = mcp_context_obj.server_factory.code_search_application_service()
+
+        search_request = MultiSearchRequest(
+            keywords=keywords if keywords else None,
+            code_query=query,
+            text_query=query,
+        )
+
+        snippets = await service.search(request=search_request)
+
+        output = MultiSearchResult.to_markdown(results=snippets)
+
+        log.debug("Query output", output=output)
+        return output
+
 
 # FastAPI-integrated MCP server
 mcp = create_mcp_server(
@@ -575,7 +624,8 @@ mcp = create_mcp_server(
         "- get_commit_description() - Recent changes and context\n"
         "- get_database_schema() - Data models\n"
         "- get_cookbook() - Complete usage examples\n"
-        "- search() - Find specific code snippets matching keywords\n\n"
+        "- query() - Simple unified search with a natural language query\n"
+        "- search() - Advanced search with filters and specific parameters\n\n"
         "Choose the most appropriate tool based on what information you need. "
         "Often starting with architecture or API docs provides better context than "
         "immediately searching for code snippets."

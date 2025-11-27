@@ -261,3 +261,15 @@ class SnippetDetailResponse(BaseModel):
     """JSON:API response for snippet details."""
 
     data: SnippetDetailData
+
+
+class QueryRequest(BaseModel):
+    """Simple query request with just a query string."""
+
+    query: str = Field(..., description="The search query string")
+
+
+class QueryResponse(BaseModel):
+    """Response for the simple query endpoint."""
+
+    data: list[SnippetData]

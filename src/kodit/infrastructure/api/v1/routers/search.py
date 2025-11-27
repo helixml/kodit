@@ -2,12 +2,15 @@
 
 from fastapi import APIRouter, HTTPException
 
+from kodit.domain.services.keyword_extraction_service import extract_keywords
 from kodit.domain.value_objects import MultiSearchRequest, SnippetSearchFilters
 from kodit.infrastructure.api.v1.dependencies import (
     CodeSearchAppServiceDep,
     RepositoryQueryServiceDep,
 )
 from kodit.infrastructure.api.v1.schemas.search import (
+    QueryRequest,
+    QueryResponse,
     SearchRequest,
     SearchResponse,
     SnippetAttributes,
@@ -75,6 +78,70 @@ async def search_snippets(
     results = await search_application_service.search(domain_request)
 
     return SearchResponse(
+        data=[
+            SnippetData(
+                type=result.enrichment_subtype or result.enrichment_type,
+                id=result.snippet.id,
+                attributes=SnippetAttributes(
+                    created_at=result.snippet.created_at,
+                    updated_at=result.snippet.updated_at,
+                    derives_from=[
+                        GitFileSchema(
+                            blob_sha=file.blob_sha,
+                            path=file.path,
+                            mime_type=file.mime_type,
+                            size=file.size,
+                        )
+                        for file in result.snippet.derives_from
+                    ],
+                    content=SnippetContentSchema(
+                        value=result.snippet.content,
+                        language=result.snippet.extension,
+                    ),
+                    enrichments=[
+                        EnrichmentSchema(
+                            type=enrichment.type,
+                            content=enrichment.content,
+                        )
+                        for enrichment in result.snippet.enrichments
+                    ],
+                    original_scores=result.original_scores,
+                ),
+            )
+            for result in results
+        ]
+    )
+
+
+@router.post("/api/v1/query")
+async def query_snippets(
+    request: QueryRequest,
+    search_application_service: CodeSearchAppServiceDep,
+) -> QueryResponse:
+    """Simplified query endpoint that searches across all modalities.
+
+    Takes a simple query string and uses it for:
+    - Keyword search (after extracting keywords via NLP)
+    - Code semantic search
+    - Text semantic search
+
+    Results are fused and returned in ranked order.
+    """
+    # Extract keywords from the query for keyword search
+    keywords = extract_keywords(request.query)
+
+    # Create domain request using the query for all search modalities
+    domain_request = MultiSearchRequest(
+        keywords=keywords if keywords else None,
+        code_query=request.query,
+        text_query=request.query,
+        top_k=10,
+    )
+
+    # Execute search
+    results = await search_application_service.search(domain_request)
+
+    return QueryResponse(
         data=[
             SnippetData(
                 type=result.enrichment_subtype or result.enrichment_type,
