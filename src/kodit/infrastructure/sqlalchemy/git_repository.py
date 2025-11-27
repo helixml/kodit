@@ -70,6 +70,8 @@ class SqlAlchemyGitRepoRepository(
 
         return GitRepo(
             id=db_entity.id,
+            created_at=db_entity.created_at,
+            updated_at=db_entity.updated_at,
             sanitized_remote_uri=AnyUrl(db_entity.sanitized_remote_uri),
             remote_uri=AnyUrl(db_entity.remote_uri),
             cloned_path=db_entity.cloned_path,
