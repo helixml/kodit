@@ -178,3 +178,54 @@ async def test_repository_listing_with_commit_count(
         assert response.status_code == 200
         repo_data = response.json()["data"][0]
         assert repo_data["attributes"]["num_commits"] == 2
+
+
+@pytest.mark.asyncio
+async def test_repository_listing_includes_timestamps(
+    session_factory: Callable[[], AsyncSession],
+    client: AsyncClient,
+) -> None:
+    """Test repository listing returns created_at and updated_at timestamps."""
+    git_repo_repository = create_git_repo_repository(session_factory)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create git repo
+        remote_path = Path(tmpdir) / "remote.git"
+        git.Repo.init(remote_path, bare=True, initial_branch="main")
+        repo_path = Path(tmpdir) / "repo"
+        git_repo = git.Repo.clone_from(str(remote_path), str(repo_path))
+
+        with git_repo.config_writer() as cw:
+            cw.set_value("user", "name", "Test User")
+            cw.set_value("user", "email", "test@example.com")
+
+        test_file = repo_path / "test.txt"
+        test_file.write_text("initial content")
+        git_repo.index.add(["test.txt"])
+        git_repo.index.commit("Initial commit")
+        git_repo.git.push("origin", "HEAD:main")
+
+        # Save repository to database
+        repo = GitRepoFactory.create_from_remote_uri(
+            AnyUrl("https://github.com/test/timestamps-repo.git")
+        )
+        repo.cloned_path = repo_path
+        repo.tracking_config = TrackingConfig(type="branch", name="main")
+        repo = await git_repo_repository.save(repo)
+        assert repo.id is not None
+
+        # Verify timestamps are returned in API response
+        response = await client.get("/api/v1/repositories")
+        assert response.status_code == 200
+
+        data = response.json()["data"]
+        repo_data = next(
+            r for r in data
+            if "timestamps-repo" in r["attributes"]["remote_uri"]
+        )
+
+        # created_at and updated_at should not be null
+        assert repo_data["attributes"]["created_at"] is not None, \
+            "created_at should not be null"
+        assert repo_data["attributes"]["updated_at"] is not None, \
+            "updated_at should not be null"
