@@ -73,6 +73,8 @@ def embedding_domain_service_factory(
             embedding_type = EmbeddingType.CODE
         elif task_name == "text":
             embedding_type = EmbeddingType.TEXT
+        elif task_name == "documentation":
+            embedding_type = EmbeddingType.DOCUMENTATION
         else:
             raise ValueError(f"Invalid task name: {task_name}")
 

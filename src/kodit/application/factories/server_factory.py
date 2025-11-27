@@ -19,6 +19,9 @@ from kodit.application.handlers.commit.create_bm25_index import (
 from kodit.application.handlers.commit.create_code_embeddings import (
     CreateCodeEmbeddingsHandler,
 )
+from kodit.application.handlers.commit.create_documentation_embeddings import (
+    CreateDocumentationEmbeddingsHandler,
+)
 from kodit.application.handlers.commit.create_example_code_embeddings import (
     CreateExampleCodeEmbeddingsHandler,
 )
@@ -35,6 +38,9 @@ from kodit.application.handlers.commit.create_summary_enrichment import (
     CreateSummaryEnrichmentHandler,
 )
 from kodit.application.handlers.commit.database_schema import DatabaseSchemaHandler
+from kodit.application.handlers.commit.extract_documentation import (
+    ExtractDocumentationHandler,
+)
 from kodit.application.handlers.commit.extract_examples import ExtractExamplesHandler
 from kodit.application.handlers.commit.extract_snippets import ExtractSnippetsHandler
 from kodit.application.handlers.commit.scan_commit import ScanCommitHandler
@@ -171,6 +177,7 @@ class ServerFactory:
         self._bm25_repository: BM25Repository | None = None
         self._code_search_service: EmbeddingDomainService | None = None
         self._text_search_service: EmbeddingDomainService | None = None
+        self._documentation_search_service: EmbeddingDomainService | None = None
         self._sync_scheduler_service: SyncSchedulerService | None = None
         self._embedding_repository: SqlAlchemyEmbeddingRepository | None = None
         self._fusion_service: FusionService | None = None
@@ -297,6 +304,14 @@ class ServerFactory:
             )
         return self._text_search_service
 
+    def documentation_search_service(self) -> EmbeddingDomainService:
+        """Create a EmbeddingDomainService for documentation search."""
+        if not self._documentation_search_service:
+            self._documentation_search_service = embedding_domain_service_factory(
+                "documentation", self.app_context, self.session_factory
+            )
+        return self._documentation_search_service
+
     def repository_sync_service(self) -> RepositorySyncService:
         """Create a RepositorySyncService instance."""
         if not self._repository_sync_service:
@@ -351,6 +366,18 @@ class ServerFactory:
                 ),
             )
             registry.register(
+                TaskOperation.EXTRACT_DOCUMENTATION_FOR_COMMIT,
+                ExtractDocumentationHandler(
+                    repo_repository=self.repo_repository(),
+                    git_commit_repository=self.git_commit_repository(),
+                    scanner=self.scanner(),
+                    enrichment_v2_repository=self.enrichment_v2_repository(),
+                    enrichment_association_repository=self.enrichment_association_repository(),
+                    enrichment_query_service=self.enrichment_query_service(),
+                    operation=self.operation(),
+                ),
+            )
+            registry.register(
                 TaskOperation.CREATE_BM25_INDEX_FOR_COMMIT,
                 CreateBM25IndexHandler(
                     bm25_service=self.bm25_service(),
@@ -371,6 +398,15 @@ class ServerFactory:
                 TaskOperation.CREATE_EXAMPLE_CODE_EMBEDDINGS_FOR_COMMIT,
                 CreateExampleCodeEmbeddingsHandler(
                     code_search_service=self.code_search_service(),
+                    embedding_repository=self.embedding_repository(),
+                    enrichment_query_service=self.enrichment_query_service(),
+                    operation=self.operation(),
+                ),
+            )
+            registry.register(
+                TaskOperation.CREATE_DOCUMENTATION_EMBEDDINGS_FOR_COMMIT,
+                CreateDocumentationEmbeddingsHandler(
+                    documentation_search_service=self.documentation_search_service(),
                     embedding_repository=self.embedding_repository(),
                     enrichment_query_service=self.enrichment_query_service(),
                     operation=self.operation(),
@@ -621,6 +657,7 @@ class ServerFactory:
                 progress_tracker=self.operation(),
                 fusion_service=self.fusion_service(),
                 enrichment_query_service=self.enrichment_query_service(),
+                documentation_search_service=self.documentation_search_service(),
             )
         return self._code_search_application_service
 

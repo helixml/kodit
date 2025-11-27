@@ -41,14 +41,19 @@ class CreateBM25IndexHandler:
             trackable_type=TrackableType.KODIT_REPOSITORY,
             trackable_id=repository_id,
         ):
-            # Index both snippets and examples
+            # Index snippets, examples, and documentation
             snippets = await self.enrichment_query_service.get_all_snippets_for_commit(
                 commit_sha
             )
             examples = await self.enrichment_query_service.get_all_examples_for_commit(
                 commit_sha
             )
-            all_enrichments = snippets + examples
+            documentation = (
+                await self.enrichment_query_service.get_all_documentation_for_commit(
+                    commit_sha
+                )
+            )
+            all_enrichments = snippets + examples + documentation
 
             await self.bm25_service.index_documents(
                 IndexRequest(

@@ -88,6 +88,7 @@ class EmbeddingType(Enum):
 
     CODE = 1
     TEXT = 2
+    DOCUMENTATION = 3
 
 
 class Embedding(Base, CommonMixin):

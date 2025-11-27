@@ -638,6 +638,10 @@ class TaskOperation(StrEnum):
     CREATE_EXAMPLE_SUMMARY_EMBEDDINGS_FOR_COMMIT = (
         "kodit.commit.create_example_summary_embeddings"
     )
+    EXTRACT_DOCUMENTATION_FOR_COMMIT = "kodit.commit.extract_documentation"
+    CREATE_DOCUMENTATION_EMBEDDINGS_FOR_COMMIT = (
+        "kodit.commit.create_documentation_embeddings"
+    )
     SCAN_COMMIT = "kodit.commit.scan"
 
     def is_repository_operation(self) -> bool:
@@ -662,9 +666,11 @@ class PrescribedOperations:
         TaskOperation.SCAN_COMMIT,
         TaskOperation.EXTRACT_SNIPPETS_FOR_COMMIT,
         TaskOperation.EXTRACT_EXAMPLES_FOR_COMMIT,
+        TaskOperation.EXTRACT_DOCUMENTATION_FOR_COMMIT,
         TaskOperation.CREATE_BM25_INDEX_FOR_COMMIT,
         TaskOperation.CREATE_CODE_EMBEDDINGS_FOR_COMMIT,
         TaskOperation.CREATE_EXAMPLE_CODE_EMBEDDINGS_FOR_COMMIT,
+        TaskOperation.CREATE_DOCUMENTATION_EMBEDDINGS_FOR_COMMIT,
         TaskOperation.CREATE_SUMMARY_ENRICHMENT_FOR_COMMIT,
         TaskOperation.CREATE_EXAMPLE_SUMMARY_FOR_COMMIT,
         TaskOperation.CREATE_SUMMARY_EMBEDDINGS_FOR_COMMIT,

@@ -42,6 +42,10 @@ from kodit.domain.enrichments.usage.cookbook import (
     ENRICHMENT_SUBTYPE_COOKBOOK,
     CookbookEnrichment,
 )
+from kodit.domain.enrichments.usage.documentation import (
+    ENRICHMENT_SUBTYPE_DOCUMENTATION,
+    DocumentationEnrichment,
+)
 from kodit.domain.enrichments.usage.usage import ENRICHMENT_TYPE_USAGE
 from kodit.domain.protocols import EnrichmentV2Repository
 from kodit.infrastructure.sqlalchemy import entities as db_entities
@@ -107,7 +111,7 @@ class SQLAlchemyEnrichmentV2Repository(
         return enrichment
 
     @staticmethod
-    def to_domain(db_entity: db_entities.EnrichmentV2) -> EnrichmentV2:  # noqa: PLR0911
+    def to_domain(db_entity: db_entities.EnrichmentV2) -> EnrichmentV2:  # noqa: PLR0911, C901
         """Convert database enrichment to domain entity."""
         # Use the stored type and subtype to determine the correct domain class
         if (
@@ -195,6 +199,16 @@ class SQLAlchemyEnrichmentV2Repository(
             and db_entity.subtype == ENRICHMENT_SUBTYPE_DATABASE_SCHEMA
         ):
             return DatabaseSchemaEnrichment(
+                id=db_entity.id,
+                content=db_entity.content,
+                created_at=db_entity.created_at,
+                updated_at=db_entity.updated_at,
+            )
+        if (
+            db_entity.type == ENRICHMENT_TYPE_USAGE
+            and db_entity.subtype == ENRICHMENT_SUBTYPE_DOCUMENTATION
+        ):
+            return DocumentationEnrichment(
                 id=db_entity.id,
                 content=db_entity.content,
                 created_at=db_entity.created_at,

@@ -77,7 +77,7 @@ CHECK_VCHORD_EMBEDDING_EXISTS_MULTIPLE = """
 SELECT snippet_id FROM {TABLE_NAME} WHERE snippet_id = ANY(:snippet_ids)
 """
 
-TaskName = Literal["code", "text"]
+TaskName = Literal["code", "text", "documentation"]
 
 
 class VectorChordVectorSearchRepository(VectorSearchRepository):

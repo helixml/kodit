@@ -27,6 +27,9 @@ from kodit.domain.enrichments.history.commit_description.commit_description impo
 from kodit.domain.enrichments.history.history import ENRICHMENT_TYPE_HISTORY
 from kodit.domain.enrichments.usage.api_docs import ENRICHMENT_SUBTYPE_API_DOCS
 from kodit.domain.enrichments.usage.cookbook import ENRICHMENT_SUBTYPE_COOKBOOK
+from kodit.domain.enrichments.usage.documentation import (
+    ENRICHMENT_SUBTYPE_DOCUMENTATION,
+)
 from kodit.domain.enrichments.usage.usage import ENRICHMENT_TYPE_USAGE
 from kodit.domain.protocols import (
     EnrichmentAssociationRepository,
@@ -286,6 +289,24 @@ class EnrichmentQueryService:
         """Check if a commit has example summary enrichments."""
         summaries = await self.get_example_summaries_for_commit(commit_sha)
         return len(summaries) > 0
+
+    async def get_all_documentation_for_commit(
+        self, commit_sha: str
+    ) -> list[EnrichmentV2]:
+        """Get documentation enrichments for a commit."""
+        return list(
+            await self.all_enrichments_for_commit(
+                commit_sha=commit_sha,
+                pagination=PaginationParams(page_size=32000),
+                enrichment_type=ENRICHMENT_TYPE_USAGE,
+                enrichment_subtype=ENRICHMENT_SUBTYPE_DOCUMENTATION,
+            )
+        )
+
+    async def has_documentation_for_commit(self, commit_sha: str) -> bool:
+        """Check if a commit has documentation enrichments."""
+        docs = await self.get_all_documentation_for_commit(commit_sha)
+        return len(docs) > 0
 
     async def associations_for_enrichments(
         self, enrichments: list[EnrichmentV2]

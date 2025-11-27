@@ -135,11 +135,13 @@ class CodeSearchApplicationService:
         progress_tracker: ProgressTracker,
         fusion_service: FusionService,
         enrichment_query_service: "EnrichmentQueryService",
+        documentation_search_service: EmbeddingDomainService | None = None,
     ) -> None:
         """Initialize the code search application service."""
         self.bm25_service = bm25_service
         self.code_search_service = code_search_service
         self.text_search_service = text_search_service
+        self.documentation_search_service = documentation_search_service
         self.progress_tracker = progress_tracker
         self.fusion_service = fusion_service
         self.enrichment_query_service = enrichment_query_service
@@ -230,6 +232,21 @@ class CodeSearchApplicationService:
                 if int(result.snippet_id) in summary_to_snippet_map
             ]
             fusion_list.append(fusion_items)
+
+        # Semantic documentation search (using text query)
+        if request.text_query and self.documentation_search_service:
+            # Documentation embeddings point directly to documentation enrichments
+            doc_results = await self.documentation_search_service.search(
+                SearchRequest(
+                    query=request.text_query,
+                    top_k=request.top_k,
+                    snippet_ids=filtered_snippet_ids,
+                )
+            )
+            # Documentation IDs map directly to enrichment IDs (no remapping needed)
+            fusion_list.append(
+                [FusionRequest(id=x.snippet_id, score=x.score) for x in doc_results]
+            )
 
         if len(fusion_list) == 0:
             return []
