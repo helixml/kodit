@@ -263,13 +263,26 @@ class SnippetDetailResponse(BaseModel):
     data: SnippetDetailData
 
 
-class QueryRequest(BaseModel):
-    """Simple query request with just a query string."""
+class QueryAttributes(BaseModel):
+    """Query attributes for JSON:API requests."""
 
     query: str = Field(..., description="The search query string")
 
 
+class QueryData(BaseModel):
+    """Query data for JSON:API requests."""
+
+    type: str = "query"
+    attributes: QueryAttributes
+
+
+class QueryRequest(BaseModel):
+    """JSON:API request for simple query."""
+
+    data: QueryData
+
+
 class QueryResponse(BaseModel):
-    """Response for the simple query endpoint."""
+    """JSON:API response for simple query."""
 
     data: list[SnippetData]

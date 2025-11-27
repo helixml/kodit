@@ -127,14 +127,16 @@ async def query_snippets(
 
     Results are fused and returned in ranked order.
     """
+    query = request.data.attributes.query
+
     # Extract keywords from the query for keyword search
-    keywords = extract_keywords(request.query)
+    keywords = extract_keywords(query)
 
     # Create domain request using the query for all search modalities
     domain_request = MultiSearchRequest(
         keywords=keywords if keywords else None,
-        code_query=request.query,
-        text_query=request.query,
+        code_query=query,
+        text_query=query,
         top_k=10,
     )
 
