@@ -8,6 +8,7 @@ from urllib.parse import urlparse, urlunparse
 from pydantic import AnyUrl, BaseModel
 
 from kodit.domain.value_objects import (
+    IndexStatus,
     ReportingState,
     TaskOperation,
     TrackableType,
@@ -274,3 +275,61 @@ class TaskStatus(BaseModel):
 
         self.state = ReportingState.COMPLETED
         self.current = self.total  # Ensure progress shows 100%
+
+
+class RepositoryStatusSummary(BaseModel):
+    """Summary of repository indexing status."""
+
+    status: IndexStatus
+    message: str = ""
+    updated_at: datetime
+
+    @staticmethod
+    def from_tasks(tasks: list["TaskStatus"]) -> "RepositoryStatusSummary":
+        """Derive summary from task statuses.
+
+        Priority: failed > in_progress > completed > pending.
+        Timestamp reflects the most recent task with the reported status.
+        """
+        if not tasks:
+            return RepositoryStatusSummary(
+                status=IndexStatus.PENDING,
+                updated_at=datetime.now(UTC),
+            )
+
+        failed_tasks = [t for t in tasks if t.state == ReportingState.FAILED]
+        if failed_tasks:
+            most_recent_failed = max(failed_tasks, key=lambda t: t.updated_at)
+            return RepositoryStatusSummary(
+                status=IndexStatus.FAILED,
+                message=most_recent_failed.error or "",
+                updated_at=most_recent_failed.updated_at,
+            )
+
+        in_progress_tasks = [
+            t
+            for t in tasks
+            if t.state in (ReportingState.STARTED, ReportingState.IN_PROGRESS)
+        ]
+        if in_progress_tasks:
+            most_recent_in_progress = max(
+                in_progress_tasks, key=lambda t: t.updated_at
+            )
+            return RepositoryStatusSummary(
+                status=IndexStatus.IN_PROGRESS,
+                updated_at=most_recent_in_progress.updated_at,
+            )
+
+        all_terminal = all(ReportingState.is_terminal(t.state) for t in tasks)
+        if all_terminal:
+            most_recent = max(tasks, key=lambda t: t.updated_at)
+            return RepositoryStatusSummary(
+                status=IndexStatus.COMPLETED,
+                updated_at=most_recent.updated_at,
+            )
+
+        most_recent = max(tasks, key=lambda t: t.updated_at)
+        return RepositoryStatusSummary(
+            status=IndexStatus.PENDING,
+            updated_at=most_recent.updated_at,
+        )

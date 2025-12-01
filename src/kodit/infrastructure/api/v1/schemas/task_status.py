@@ -4,6 +4,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from kodit.domain.entities import RepositoryStatusSummary
+
 
 class TaskStatusAttributes(BaseModel):
     """Task status attributes for JSON:API responses."""
@@ -39,3 +41,39 @@ class TaskStatusListResponse(BaseModel):
     """JSON:API response for task status list."""
 
     data: list[TaskStatusData]
+
+
+class RepositoryStatusSummaryAttributes(BaseModel):
+    """Attributes for repository status summary."""
+
+    status: str = Field(..., description="Overall indexing status")
+    message: str = Field(default="", description="Error message if failed")
+    updated_at: datetime = Field(..., description="Most recent activity timestamp")
+
+
+class RepositoryStatusSummaryData(BaseModel):
+    """Data for repository status summary response."""
+
+    type: str = "repository_status_summary"
+    id: str
+    attributes: RepositoryStatusSummaryAttributes
+
+    @staticmethod
+    def from_summary(
+        repo_id: str, summary: RepositoryStatusSummary
+    ) -> "RepositoryStatusSummaryData":
+        """Create from domain entity."""
+        return RepositoryStatusSummaryData(
+            id=repo_id,
+            attributes=RepositoryStatusSummaryAttributes(
+                status=summary.status.value,
+                message=summary.message,
+                updated_at=summary.updated_at,
+            ),
+        )
+
+
+class RepositoryStatusSummaryResponse(BaseModel):
+    """JSON:API response for repository status summary."""
+
+    data: RepositoryStatusSummaryData
