@@ -24,6 +24,18 @@ if TYPE_CHECKING:
         EnrichmentQueryService,
     )
 
+# Maximum characters for a commit diff before truncation (roughly ~25k tokens)
+MAX_DIFF_LENGTH = 100_000
+
+
+def truncate_diff(diff: str, max_length: int = MAX_DIFF_LENGTH) -> str:
+    """Truncate a diff to a reasonable length for LLM processing."""
+    if len(diff) <= max_length:
+        return diff
+    truncation_notice = "\n\n[diff truncated due to size]"
+    return diff[: max_length - len(truncation_notice)] + truncation_notice
+
+
 COMMIT_DESCRIPTION_SYSTEM_PROMPT = """
 You are a professional software developer. You will be given a git commit diff.
 Please provide a concise description of what changes were made and why.
@@ -91,7 +103,7 @@ class CommitDescriptionHandler:
             # Enrich the diff through the enricher
             enrichment_request = GenericEnrichmentRequest(
                 id=commit_sha,
-                text=diff,
+                text=truncate_diff(diff),
                 system_prompt=COMMIT_DESCRIPTION_SYSTEM_PROMPT,
             )
 
