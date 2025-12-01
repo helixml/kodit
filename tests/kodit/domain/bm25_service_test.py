@@ -62,15 +62,17 @@ async def test_index_documents_success(
 
 @pytest.mark.asyncio
 async def test_index_documents_empty_list(
-    bm25_domain_service: BM25DomainService,
+    bm25_domain_service: BM25DomainService, mock_repository: MockBM25Repository
 ) -> None:
-    """Test indexing with empty document list."""
+    """Test indexing with empty document list skips gracefully."""
     # Setup
     request = IndexRequest(documents=[])
 
-    # Execute and verify
-    with pytest.raises(ValueError, match="Cannot index empty document list"):
-        await bm25_domain_service.index_documents(request)
+    # Execute - should not raise, just return
+    await bm25_domain_service.index_documents(request)
+
+    # Verify - repository should not be called
+    mock_repository.index_documents.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -93,6 +95,25 @@ async def test_index_documents_invalid_documents(
     assert len(call_args.documents) == 1
     assert call_args.documents[0].snippet_id == "1"
     assert call_args.documents[0].text == "valid content"
+
+
+@pytest.mark.asyncio
+async def test_index_documents_all_invalid_skips_gracefully(
+    bm25_domain_service: BM25DomainService, mock_repository: MockBM25Repository
+) -> None:
+    """Test indexing when all documents are invalid skips gracefully."""
+    # Setup - all documents are invalid
+    documents = [
+        Document(snippet_id="1", text=""),  # Empty text
+        Document(snippet_id="2", text="   "),  # Whitespace only
+    ]
+    request = IndexRequest(documents=documents)
+
+    # Execute - should not raise, just return
+    await bm25_domain_service.index_documents(request)
+
+    # Verify - repository should not be called
+    mock_repository.index_documents.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -161,15 +182,17 @@ async def test_delete_documents_success(
 
 @pytest.mark.asyncio
 async def test_delete_documents_empty_list(
-    bm25_domain_service: BM25DomainService,
+    bm25_domain_service: BM25DomainService, mock_repository: MockBM25Repository
 ) -> None:
-    """Test deletion with empty snippet ID list."""
+    """Test deletion with empty snippet ID list skips gracefully."""
     # Setup
     request = DeleteRequest(snippet_ids=[])
 
-    # Execute and verify
-    with pytest.raises(ValueError, match="Cannot delete empty snippet ID list"):
-        await bm25_domain_service.delete_documents(request)
+    # Execute - should not raise, just return
+    await bm25_domain_service.delete_documents(request)
+
+    # Verify - repository should not be called
+    mock_repository.delete_documents.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -186,3 +209,18 @@ async def test_delete_documents_invalid_ids(
     # Verify - only valid IDs should be passed to repository
     call_args = mock_repository.delete_documents.call_args[0][0]
     assert call_args.snippet_ids == ["1", "3"]
+
+
+@pytest.mark.asyncio
+async def test_delete_documents_all_invalid_skips_gracefully(
+    bm25_domain_service: BM25DomainService, mock_repository: MockBM25Repository
+) -> None:
+    """Test deletion when all IDs are invalid skips gracefully."""
+    # Setup - all IDs are invalid
+    request = DeleteRequest(snippet_ids=["0", "-1", "-2"])
+
+    # Execute - should not raise, just return
+    await bm25_domain_service.delete_documents(request)
+
+    # Verify - repository should not be called
+    mock_repository.delete_documents.assert_not_called()

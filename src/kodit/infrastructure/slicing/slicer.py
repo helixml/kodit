@@ -61,12 +61,11 @@ class Slicer:
             List of extracted code snippets as domain entities
 
         Raises:
-            ValueError: If no files provided or language unsupported
             FileNotFoundError: If any file doesn't exist
 
         """
         if not files:
-            raise ValueError("No files provided")
+            return []
 
         language = language.lower()
 

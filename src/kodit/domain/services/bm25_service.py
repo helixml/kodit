@@ -40,13 +40,10 @@ class BM25DomainService:
         Args:
             request: The indexing request containing documents to index
 
-        Raises:
-            ValueError: If the request is invalid
-
         """
-        # Domain logic: validate request
+        # Domain logic: validate request - skip if empty
         if not request.documents:
-            raise ValueError("Cannot index empty document list")
+            return
 
         # Domain logic: filter out invalid documents
         valid_documents = [
@@ -56,7 +53,7 @@ class BM25DomainService:
         ]
 
         if not valid_documents:
-            raise ValueError("No valid documents to index")
+            return
 
         # Domain logic: create new request with validated documents
         validated_request = IndexRequest(documents=valid_documents)
@@ -93,13 +90,10 @@ class BM25DomainService:
         Args:
             request: The deletion request
 
-        Raises:
-            ValueError: If the request is invalid
-
         """
-        # Domain logic: validate request
+        # Domain logic: validate request - skip if empty
         if not request.snippet_ids:
-            raise ValueError("Cannot delete empty snippet ID list")
+            return
 
         # Domain logic: filter out invalid IDs
         valid_ids = [
@@ -113,7 +107,7 @@ class BM25DomainService:
         ]
 
         if not valid_ids:
-            raise ValueError("No valid snippet IDs to delete")
+            return
 
         # Domain logic: create new request with validated IDs
         validated_request = DeleteRequest(snippet_ids=valid_ids)
