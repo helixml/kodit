@@ -468,6 +468,32 @@ Get the status of tasks for an index.
 
 - 404: Repository or index not found
 
+### GET /api/v1/repositories/{repo_id}/status/summary
+
+Get a summary of the repository indexing status.
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| repo_id | integer | True |  |
+
+
+#### Responses
+
+- 200: Successful Response
+
+[RepositoryStatusSummaryResponse](#repositorystatussummaryresponse)
+
+- 500: Internal server error
+
+- 401: Unauthorized
+
+- 422: Invalid request
+
+- 404: Repository not found
+
 ### GET /api/v1/repositories/{repo_id}/tags
 
 List all tags for a repository.
@@ -1108,6 +1134,43 @@ Repository list response following JSON-API spec.
 
 
 Single repository response following JSON-API spec.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data |  |  |
+
+
+### RepositoryStatusSummaryAttributes
+
+
+Attributes for repository status summary.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| status | string | Overall indexing status |
+| message | string | Error message if failed |
+| updated_at | string | Most recent activity timestamp |
+
+
+### RepositoryStatusSummaryData
+
+
+Data for repository status summary response.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| type | string |  |
+| id | string |  |
+| attributes |  |  |
+
+
+### RepositoryStatusSummaryResponse
+
+
+JSON:API response for repository status summary.
 
 
 | Field | Type | Description |
