@@ -397,6 +397,32 @@ type RepositoryResponse struct {
 	Data RepositoryData `json:"data"`
 }
 
+// RepositoryStatusSummaryAttributes Attributes for repository status summary.
+type RepositoryStatusSummaryAttributes struct {
+	// Message Error message if failed
+	Message *string `json:"message,omitempty"`
+
+	// Status Overall indexing status
+	Status string `json:"status"`
+
+	// UpdatedAt Most recent activity timestamp
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// RepositoryStatusSummaryData Data for repository status summary response.
+type RepositoryStatusSummaryData struct {
+	// Attributes Attributes for repository status summary.
+	Attributes RepositoryStatusSummaryAttributes `json:"attributes"`
+	Id         string                            `json:"id"`
+	Type       *string                           `json:"type,omitempty"`
+}
+
+// RepositoryStatusSummaryResponse JSON:API response for repository status summary.
+type RepositoryStatusSummaryResponse struct {
+	// Data Data for repository status summary response.
+	Data RepositoryStatusSummaryData `json:"data"`
+}
+
 // SearchAttributes Search attributes for JSON:API requests.
 type SearchAttributes struct {
 	// Code Code search query

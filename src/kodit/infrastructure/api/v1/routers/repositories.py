@@ -38,6 +38,8 @@ from kodit.infrastructure.api.v1.schemas.tag import (
     TagResponse,
 )
 from kodit.infrastructure.api.v1.schemas.task_status import (
+    RepositoryStatusSummaryData,
+    RepositoryStatusSummaryResponse,
     TaskStatusAttributes,
     TaskStatusData,
     TaskStatusListResponse,
@@ -225,6 +227,26 @@ async def get_index_status(
         )
 
     return TaskStatusListResponse(data=task_statuses)
+
+
+@router.get(
+    "/{repo_id}/status/summary",
+    summary="Get repository status summary",
+    responses={404: {"description": "Repository not found"}},
+)
+async def get_status_summary(
+    repo_id: int,
+    status_service: TaskStatusQueryServiceDep,
+    git_repository: GitRepositoryDep,
+) -> RepositoryStatusSummaryResponse:
+    """Get a summary of the repository indexing status."""
+    if not await git_repository.exists(repo_id):
+        raise HTTPException(status_code=404, detail="Repository not found")
+
+    summary = await status_service.get_status_summary(repo_id)
+    return RepositoryStatusSummaryResponse(
+        data=RepositoryStatusSummaryData.from_summary(str(repo_id), summary)
+    )
 
 
 @router.get(

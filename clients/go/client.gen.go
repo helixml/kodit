@@ -156,6 +156,9 @@ type ClientInterface interface {
 	// GetIndexStatusApiV1RepositoriesRepoIdStatusGet request
 	GetIndexStatusApiV1RepositoriesRepoIdStatusGet(ctx context.Context, repoId int, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGet request
+	GetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGet(ctx context.Context, repoId int, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListRepositoryTagsApiV1RepositoriesRepoIdTagsGet request
 	ListRepositoryTagsApiV1RepositoriesRepoIdTagsGet(ctx context.Context, repoId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -437,6 +440,18 @@ func (c *Client) ListRepositoryEnrichmentsApiV1RepositoriesRepoIdEnrichmentsGet(
 
 func (c *Client) GetIndexStatusApiV1RepositoriesRepoIdStatusGet(ctx context.Context, repoId int, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetIndexStatusApiV1RepositoriesRepoIdStatusGetRequest(c.Server, repoId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGet(ctx context.Context, repoId int, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetRequest(c.Server, repoId)
 	if err != nil {
 		return nil, err
 	}
@@ -1603,6 +1618,40 @@ func NewGetIndexStatusApiV1RepositoriesRepoIdStatusGetRequest(server string, rep
 	return req, nil
 }
 
+// NewGetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetRequest generates requests for GetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGet
+func NewGetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetRequest(server string, repoId int) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "repo_id", runtime.ParamLocationPath, repoId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/repositories/%s/status/summary", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewListRepositoryTagsApiV1RepositoriesRepoIdTagsGetRequest generates requests for ListRepositoryTagsApiV1RepositoriesRepoIdTagsGet
 func NewListRepositoryTagsApiV1RepositoriesRepoIdTagsGetRequest(server string, repoId string) (*http.Request, error) {
 	var err error
@@ -1854,6 +1903,9 @@ type ClientWithResponsesInterface interface {
 
 	// GetIndexStatusApiV1RepositoriesRepoIdStatusGetWithResponse request
 	GetIndexStatusApiV1RepositoriesRepoIdStatusGetWithResponse(ctx context.Context, repoId int, reqEditors ...RequestEditorFn) (*GetIndexStatusApiV1RepositoriesRepoIdStatusGetResponse, error)
+
+	// GetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetWithResponse request
+	GetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetWithResponse(ctx context.Context, repoId int, reqEditors ...RequestEditorFn) (*GetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetResponse, error)
 
 	// ListRepositoryTagsApiV1RepositoriesRepoIdTagsGetWithResponse request
 	ListRepositoryTagsApiV1RepositoriesRepoIdTagsGetWithResponse(ctx context.Context, repoId string, reqEditors ...RequestEditorFn) (*ListRepositoryTagsApiV1RepositoriesRepoIdTagsGetResponse, error)
@@ -2328,6 +2380,28 @@ func (r GetIndexStatusApiV1RepositoriesRepoIdStatusGetResponse) StatusCode() int
 	return 0
 }
 
+type GetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *RepositoryStatusSummaryResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ListRepositoryTagsApiV1RepositoriesRepoIdTagsGetResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -2620,6 +2694,15 @@ func (c *ClientWithResponses) GetIndexStatusApiV1RepositoriesRepoIdStatusGetWith
 		return nil, err
 	}
 	return ParseGetIndexStatusApiV1RepositoriesRepoIdStatusGetResponse(rsp)
+}
+
+// GetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetWithResponse request returning *GetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetResponse
+func (c *ClientWithResponses) GetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetWithResponse(ctx context.Context, repoId int, reqEditors ...RequestEditorFn) (*GetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetResponse, error) {
+	rsp, err := c.GetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGet(ctx, repoId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetResponse(rsp)
 }
 
 // ListRepositoryTagsApiV1RepositoriesRepoIdTagsGetWithResponse request returning *ListRepositoryTagsApiV1RepositoriesRepoIdTagsGetResponse
@@ -3162,6 +3245,32 @@ func ParseGetIndexStatusApiV1RepositoriesRepoIdStatusGetResponse(rsp *http.Respo
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest TaskStatusListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetResponse parses an HTTP response from a GetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetWithResponse call
+func ParseGetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetResponse(rsp *http.Response) (*GetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest RepositoryStatusSummaryResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

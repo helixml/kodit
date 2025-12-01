@@ -1021,6 +1021,56 @@
         }
       }
     },
+    "/api/v1/repositories/{repo_id}/status/summary": {
+      "get": {
+        "tags": [
+          "repositories"
+        ],
+        "summary": "Get repository status summary",
+        "description": "Get a summary of the repository indexing status.",
+        "operationId": "get_status_summary_api_v1_repositories__repo_id__status_summary_get",
+        "security": [
+          {
+            "Header (X-API-KEY)": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "repo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Repo Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepositoryStatusSummaryResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Invalid request"
+          },
+          "404": {
+            "description": "Repository not found"
+          }
+        }
+      }
+    },
     "/api/v1/repositories/{repo_id}/tags": {
       "get": {
         "tags": [
@@ -2355,6 +2405,70 @@
         ],
         "title": "RepositoryResponse",
         "description": "Single repository response following JSON-API spec."
+      },
+      "RepositoryStatusSummaryAttributes": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "Overall indexing status"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Error message if failed",
+            "default": ""
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At",
+            "description": "Most recent activity timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "updated_at"
+        ],
+        "title": "RepositoryStatusSummaryAttributes",
+        "description": "Attributes for repository status summary."
+      },
+      "RepositoryStatusSummaryData": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "default": "repository_status_summary"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "attributes": {
+            "$ref": "#/components/schemas/RepositoryStatusSummaryAttributes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "attributes"
+        ],
+        "title": "RepositoryStatusSummaryData",
+        "description": "Data for repository status summary response."
+      },
+      "RepositoryStatusSummaryResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RepositoryStatusSummaryData"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "RepositoryStatusSummaryResponse",
+        "description": "JSON:API response for repository status summary."
       },
       "SearchAttributes": {
         "properties": {
