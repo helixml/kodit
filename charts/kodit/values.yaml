@@ -1,0 +1,64 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/common-4.5.0/charts/library/common/values.schema.json
+
+secrets:
+  vectorchord:
+    enabled: true
+    stringData:
+      POSTGRES_USER: cG9zdGdyZXM= # postgres
+      POSTGRES_PASSWORD: bXlzZWNyZXRwYXNzd29yZA== # mysecretpassword
+      POSTGRES_DB: a29kaXQ= # kodit
+
+controllers:
+  kodit:
+    strategy: Recreate
+    containers:
+      kodit:
+        image:
+          repository: registry.helix.ml/helix/kodit
+          tag: latest
+          pullPolicy: IfNotPresent
+        env:
+          DATA_DIR: /data
+          DB_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@vectorchord:5432/${POSTGRES_DB}
+          DEFAULT_SEARCH_PROVIDER: vectorchord
+        envFrom:
+          - secretRef:
+              name: vectorchord
+  vectorchord:
+    strategy: Recreate
+    containers:
+      vectorchord:
+        image:
+          repository: tensorchord/vchord-suite
+          tag: pg17-20250601
+          pullPolicy: IfNotPresent
+        envFrom:
+          - secretRef:
+              name: vectorchord
+service:
+  kodit:
+    controller: kodit
+    ports:
+      http:
+        port: 8080
+  vectorchord:
+    controller: vectorchord
+    ports:
+      postgres:
+        port: 5432
+
+persistence:
+  kodit-data:
+    enabled: true
+    existingClaim: kodit-data
+    advancedMounts:
+      kodit:
+        kodit:
+          - path: /data
+  vectorchord-data:
+    enabled: true
+    existingClaim: kodit-vectorchord
+    advancedMounts:
+      vectorchord:
+        vectorchord:
+          - path: /var/lib/postgresql/data
