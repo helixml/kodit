@@ -36,8 +36,11 @@ jobs:
       - name: Set up chart-testing
         uses: helm/chart-testing-action@v2
 
+      - name: Build chart dependencies
+        run: helm dependency build charts/kodit --skip-refresh
+
       - name: Run chart-testing (lint)
-        run: ct lint --target-branch ${{ github.event.repository.default_branch }} --charts charts/kodit
+        run: ct lint --target-branch ${{ github.event.repository.default_branch }} --charts charts/kodit --build-id ${{ github.run_id }}
 
   test:
     name: Test Helm chart on Kind
