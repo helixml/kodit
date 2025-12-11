@@ -1,0 +1,77 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/common-4.5.0/charts/library/common/values.schema.json
+
+# This chart is based on the bjw-s-labs/helm-charts/library/common chart.
+# This is highly flexible and can be used to tailor the chart to your needs.
+# See https://github.com/bjw-s-labs/helm-charts/blob/main/charts/library/common/values.yaml for all possible values.
+
+# Please see https://docs.helixml.tech/kodit/reference/configuration/ for Kodit configuration options.
+
+secrets:
+  kodit:
+    enabled: true
+    stringData:
+      POSTGRES_USER: cG9zdGdyZXM=  # postgres
+      POSTGRES_PASSWORD: bXlzZWNyZXRwYXNzd29yZA==  # mysecretpassword
+      POSTGRES_DB: a29kaXQ=  # kodit
+
+controllers:
+  kodit:
+    strategy: Recreate
+    containers:
+      kodit:
+        image:
+          repository: registry.helixml.tech/helix/kodit  # Replace with a version
+          tag: latest
+        args:
+          - serve
+        env:
+          DATA_DIR: /data
+          DB_URL: postgresql+asyncpg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@kodit-vectorchord:5432/$(POSTGRES_DB)
+          DEFAULT_SEARCH_PROVIDER: vectorchord
+        envFrom:
+          - secretRef:
+              name: kodit
+  vectorchord:
+    enabled: true
+    strategy: Recreate
+    containers:
+      vectorchord:
+        image:
+          repository: tensorchord/vchord-suite
+          tag: pg17-20250601
+          pullPolicy: IfNotPresent
+        envFrom:
+          - secretRef:
+              name: kodit
+service:
+  kodit:
+    controller: kodit
+    ports:
+      http:
+        port: 8080
+  vectorchord:
+    enabled: true
+    controller: vectorchord
+    ports:
+      postgres:
+        port: 5432
+
+persistence:
+  kodit-data:
+    enabled: true
+    # existingClaim: kodit-data # RECOMMENDED
+    size: 10Gi
+    accessMode: ReadWriteOnce
+    advancedMounts:
+      kodit:
+        kodit:
+          - path: /data
+  vectorchord-data:
+    enabled: true
+    # existingClaim: kodit-vectorchord # RECOMMENDED
+    size: 10Gi
+    accessMode: ReadWriteOnce
+    advancedMounts:
+      vectorchord:
+        vectorchord:
+          - path: /var/lib/postgresql/data
