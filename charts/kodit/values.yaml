@@ -1,5 +1,11 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/common-4.5.0/charts/library/common/values.schema.json
 
+# This chart is based on the bjw-s-labs/helm-charts/library/common chart.
+# This is highly flexible and can be used to tailor the chart to your needs.
+# See https://github.com/bjw-s-labs/helm-charts/blob/main/charts/library/common/values.yaml for all possible values.
+
+# Please see https://docs.helixml.tech/kodit/reference/configuration/ for Kodit configuration options.
+
 secrets:
   kodit:
     enabled: true
@@ -16,7 +22,6 @@ controllers:
         image:
           repository: registry.helixml.tech/helix/kodit # Replace with a version
           tag: latest
-          pullPolicy: IfNotPresent
         args:
           - serve
         env:
@@ -27,6 +32,7 @@ controllers:
           - secretRef:
               name: kodit
   vectorchord:
+    enabled: true
     strategy: Recreate
     containers:
       vectorchord:
@@ -44,6 +50,7 @@ service:
       http:
         port: 8080
   vectorchord:
+    enabled: true
     controller: vectorchord
     ports:
       postgres:
