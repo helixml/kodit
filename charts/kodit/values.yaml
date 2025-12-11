@@ -17,9 +17,11 @@ controllers:
           repository: registry.helixml.tech/helix/kodit # Replace with a version
           tag: latest
           pullPolicy: IfNotPresent
+        args:
+          - serve
         env:
           DATA_DIR: /data
-          DB_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@kodit-vectorchord:5432/${POSTGRES_DB}
+          DB_URL: postgresql+asyncpg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@kodit-vectorchord:5432/$(POSTGRES_DB)
           DEFAULT_SEARCH_PROVIDER: vectorchord
         envFrom:
           - secretRef:
