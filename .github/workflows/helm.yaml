@@ -1,0 +1,108 @@
+name: Helm Chart
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "charts/**"
+      - ".github/workflows/helm.yaml"
+  pull_request:
+    paths:
+      - "charts/**"
+      - ".github/workflows/helm.yaml"
+  workflow_dispatch:
+
+jobs:
+  lint:
+    name: Lint Helm chart
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up chart-testing
+        uses: helm/chart-testing-action@v2
+
+      - name: Run chart-testing (lint)
+        run: ct lint --target-branch ${{ github.event.repository.default_branch }} --charts charts/kodit
+
+  test:
+    name: Test Helm chart on Kind
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+
+      - name: Create Kind cluster
+        uses: helm/kind-action@v1
+
+      - name: Install Helm chart
+        run: |
+          helm install kodit charts/kodit \
+            --namespace kodit \
+            --create-namespace \
+            --wait \
+            --timeout 5m
+
+      - name: Verify pods are running
+        run: |
+          kubectl get pods -n kodit
+          kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=kodit -n kodit --timeout=120s || true
+          kubectl describe pods -n kodit
+
+      - name: Show logs on failure
+        if: failure()
+        run: |
+          kubectl logs -n kodit -l app.kubernetes.io/name=kodit --all-containers=true || true
+          kubectl describe pods -n kodit || true
+
+  release:
+    name: Release Helm chart
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+
+      - name: Run chart-releaser
+        uses: helm/chart-releaser-action@v1.6.0
+        with:
+          charts_dir: charts
+        env:
+          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
