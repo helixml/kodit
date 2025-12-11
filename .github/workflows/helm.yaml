@@ -26,6 +26,9 @@ jobs:
       - name: Set up Helm
         uses: azure/setup-helm@v4.3.1
 
+      - name: Add helm dependencies
+        run: helm repo add bjw-s-labs https://bjw-s-labs.github.io/helm-charts
+
       - uses: actions/setup-python@v6.0.0
         with:
           python-version: "3.x"
