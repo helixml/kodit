@@ -10,9 +10,9 @@ secrets:
   kodit:
     enabled: true
     stringData:
-      POSTGRES_USER: cG9zdGdyZXM= # postgres
-      POSTGRES_PASSWORD: bXlzZWNyZXRwYXNzd29yZA== # mysecretpassword
-      POSTGRES_DB: a29kaXQ= # kodit
+      POSTGRES_USER: cG9zdGdyZXM=  # postgres
+      POSTGRES_PASSWORD: bXlzZWNyZXRwYXNzd29yZA==  # mysecretpassword
+      POSTGRES_DB: a29kaXQ=  # kodit
 
 controllers:
   kodit:
@@ -20,7 +20,7 @@ controllers:
     containers:
       kodit:
         image:
-          repository: registry.helixml.tech/helix/kodit # Replace with a version
+          repository: registry.helixml.tech/helix/kodit  # Replace with a version
           tag: latest
         args:
           - serve
