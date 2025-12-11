@@ -39,8 +39,11 @@ jobs:
       - name: Add Helm repositories
         run: helm repo add bjw-s https://bjw-s-labs.github.io/helm-charts
 
-      - name: Run chart-testing (lint)
-        run: ct lint --target-branch ${{ github.event.repository.default_branch }} --charts charts/kodit --check-version-increment=false
+      - name: Build chart dependencies
+        run: helm dependency build charts/kodit
+
+      - name: Lint Helm chart
+        run: helm lint charts/kodit --strict
 
   test:
     name: Test Helm chart on Kind
