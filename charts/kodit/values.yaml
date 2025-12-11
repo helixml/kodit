@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/common-4.5.0/charts/library/common/values.schema.json
 
 secrets:
-  vectorchord:
+  kodit:
     enabled: true
     stringData:
       POSTGRES_USER: cG9zdGdyZXM= # postgres
@@ -14,16 +14,16 @@ controllers:
     containers:
       kodit:
         image:
-          repository: registry.helix.ml/helix/kodit
+          repository: registry.helixml.tech/helix/kodit # Replace with a version
           tag: latest
           pullPolicy: IfNotPresent
         env:
           DATA_DIR: /data
-          DB_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@vectorchord:5432/${POSTGRES_DB}
+          DB_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@kodit-vectorchord:5432/${POSTGRES_DB}
           DEFAULT_SEARCH_PROVIDER: vectorchord
         envFrom:
           - secretRef:
-              name: vectorchord
+              name: kodit
   vectorchord:
     strategy: Recreate
     containers:
@@ -34,7 +34,7 @@ controllers:
           pullPolicy: IfNotPresent
         envFrom:
           - secretRef:
-              name: vectorchord
+              name: kodit
 service:
   kodit:
     controller: kodit
@@ -50,14 +50,18 @@ service:
 persistence:
   kodit-data:
     enabled: true
-    existingClaim: kodit-data
+    # existingClaim: kodit-data # RECOMMENDED
+    size: 10Gi
+    accessMode: ReadWriteOnce
     advancedMounts:
       kodit:
         kodit:
           - path: /data
   vectorchord-data:
     enabled: true
-    existingClaim: kodit-vectorchord
+    # existingClaim: kodit-vectorchord # RECOMMENDED
+    size: 10Gi
+    accessMode: ReadWriteOnce
     advancedMounts:
       vectorchord:
         vectorchord:
