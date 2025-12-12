@@ -10,9 +10,9 @@ secrets:
   kodit:
     enabled: true
     stringData:
-      POSTGRES_USER: cG9zdGdyZXM=  # postgres
-      POSTGRES_PASSWORD: bXlzZWNyZXRwYXNzd29yZA==  # mysecretpassword
-      POSTGRES_DB: a29kaXQ=  # kodit
+      POSTGRES_USER: cG9zdGdyZXM= # postgres
+      POSTGRES_PASSWORD: bXlzZWNyZXRwYXNzd29yZA== # mysecretpassword
+      POSTGRES_DB: a29kaXQ= # kodit
 
 controllers:
   kodit:
@@ -20,10 +20,12 @@ controllers:
     containers:
       kodit:
         image:
-          repository: registry.helixml.tech/helix/kodit  # Replace with a version
-          tag: latest
+          repository: registry.helixml.tech/helix/kodit
+          tag: latest # Replace with a version
         args:
           - serve
+          - --host=0.0.0.0
+          - --port=8080
         env:
           DATA_DIR: /data
           DB_URL: postgresql+asyncpg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@kodit-vectorchord:5432/$(POSTGRES_DB)
