@@ -66,30 +66,46 @@ class IndexingWorkerService:
         self.log.debug("Worker loop started")
 
         while not self._shutdown_event.is_set():
+            task = None
             try:
                 async with self.session_factory() as session:
                     task = await self.task_repository.next()
                     await session.commit()
 
-                # If there's a task, process it in a new thread
-                if task:
-                    await self._process_task(task)
-                    # Only remove the task if it was processed successfully
-                    await self.task_repository.delete(task)
+                # If no task, sleep for a bit
+                if not task:
+                    await asyncio.sleep(1)
                     continue
 
-                # If no task, sleep for a bit
-                await asyncio.sleep(1)
-                continue
+                # Process the task
+                await self._process_task(task)
+                # Only remove the task if it was processed successfully
+                await self.task_repository.delete(task)
 
             except Exception as e:
-                self.log.exception(
-                    "Error processing task",
-                    error=str(e),
-                )
-                continue
+                if task:
+                    await self._handle_task_failure(task, e)
+                else:
+                    self.log.exception(
+                        "Error in worker loop",
+                        error=str(e),
+                    )
 
         self.log.info("Worker loop stopped")
+
+    async def _handle_task_failure(self, task: Task, error: Exception) -> None:
+        """Handle a failed task by scheduling it for retry with backoff."""
+        task.mark_for_retry()
+        await self.task_repository.save(task)
+
+        self.log.warning(
+            "Task failed, scheduled for retry",
+            task_id=task.id,
+            task_type=task.type.value,
+            retry_count=task.retry_count,
+            next_retry_at=task.next_retry_at,
+            error=str(error),
+        )
 
     async def _process_task(self, task: Task) -> None:
         """Process a task based on its type."""

@@ -1,10 +1,11 @@
 """Task repository for the task queue."""
 
 from collections.abc import Callable
+from datetime import UTC, datetime
 from typing import Any
 
 import structlog
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import kodit.domain.entities as domain_entities
@@ -112,8 +113,15 @@ class SqlAlchemyTaskRepository(
     async def next(self) -> domain_entities.Task | None:
         """Take a task for processing and remove it from the database."""
         async with SqlAlchemyUnitOfWork(self.session_factory) as session:
+            now = datetime.now(UTC)
             stmt = (
                 select(db_entities.Task)
+                .where(
+                    or_(
+                        db_entities.Task.next_retry_at.is_(None),
+                        db_entities.Task.next_retry_at <= now,
+                    )
+                )
                 .order_by(db_entities.Task.priority.desc(), db_entities.Task.created_at)
                 .limit(1)
             )
