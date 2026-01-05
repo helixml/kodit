@@ -3,7 +3,35 @@ entries:
   kodit:
   - apiVersion: v2
     appVersion: 1.0.0
-    created: "2025-12-12T14:50:51.233380722Z"
+    created: "2026-01-05T15:05:54.506057994Z"
+    dependencies:
+    - name: common
+      repository: https://bjw-s-labs.github.io/helm-charts
+      version: 4.5.0
+    description: A Helm chart for Kodit
+    digest: 00f97d72d1eb372367e3252f64c56e3c0c751e602ac8d94f4c2eac22882a4d7e
+    name: kodit
+    type: application
+    urls:
+    - https://helixml.github.io/kodit/kodit-0.1.2.tgz
+    version: 0.1.2
+  - apiVersion: v2
+    appVersion: 1.0.0
+    created: "2026-01-05T15:05:54.510089595Z"
+    dependencies:
+    - name: common
+      repository: https://bjw-s-labs.github.io/helm-charts
+      version: 4.5.0
+    description: A Helm chart for Kodit
+    digest: 00f97d72d1eb372367e3252f64c56e3c0c751e602ac8d94f4c2eac22882a4d7e
+    name: kodit
+    type: application
+    urls:
+    - https://helixml.github.io/kodit/.cr-release-packages/kodit-0.1.2.tgz
+    version: 0.1.2
+  - apiVersion: v2
+    appVersion: 1.0.0
+    created: "2026-01-05T15:05:54.502149475Z"
     dependencies:
     - name: common
       repository: https://bjw-s-labs.github.io/helm-charts
@@ -17,21 +45,7 @@ entries:
     version: 0.1.1
   - apiVersion: v2
     appVersion: 1.0.0
-    created: "2025-12-12T14:50:51.237365861Z"
-    dependencies:
-    - name: common
-      repository: https://bjw-s-labs.github.io/helm-charts
-      version: 4.5.0
-    description: A Helm chart for Kodit
-    digest: b4f965126ac4a50dc674b081c73c99c2b13c7426b947e373d8a488abd20a7b70
-    name: kodit
-    type: application
-    urls:
-    - https://helixml.github.io/kodit/.cr-release-packages/kodit-0.1.1.tgz
-    version: 0.1.1
-  - apiVersion: v2
-    appVersion: 1.0.0
-    created: "2025-12-12T14:50:51.229347085Z"
+    created: "2026-01-05T15:05:54.498176564Z"
     dependencies:
     - name: common
       repository: https://bjw-s-labs.github.io/helm-charts
@@ -43,4 +57,4 @@ entries:
     urls:
     - https://helixml.github.io/kodit/kodit-0.1.0.tgz
     version: 0.1.0
-generated: "2025-12-12T14:50:51.224610513Z"
+generated: "2026-01-05T15:05:54.493350597Z"
