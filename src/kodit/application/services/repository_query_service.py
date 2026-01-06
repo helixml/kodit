@@ -5,10 +5,11 @@ from collections.abc import Callable
 import structlog
 
 from kodit.domain.entities.git import GitRepo, TrackingConfig, TrackingType
-from kodit.domain.protocols import GitAdapter, GitRepoRepository
+from kodit.domain.protocols import GitRepoRepository
 from kodit.domain.tracking.resolution_service import TrackableResolutionService
 from kodit.domain.tracking.trackable import Trackable, TrackableReferenceType
 from kodit.infrastructure.api.v1.query_params import PaginationParams
+from kodit.infrastructure.cloning.git.git_python_adaptor import GitPythonAdapter
 
 
 class RepositoryQueryService:
@@ -18,7 +19,7 @@ class RepositoryQueryService:
         self,
         git_repo_repository: GitRepoRepository,
         trackable_resolution: TrackableResolutionService,
-        git_adapter: GitAdapter | None = None,
+        git_adapter: GitPythonAdapter | None = None,
     ) -> None:
         """Initialize the repository query service."""
         self.git_repo_repository = git_repo_repository
@@ -192,7 +193,7 @@ class RepositoryQueryService:
 
         # If it doesn't exist, use the git adapter to get the default branch
         if not self.git_adapter:
-            raise ValueError("GitAdapter is required for get_tracking_config")
+            raise ValueError("git_adapter is required for get_tracking_config")
         if not repo.cloned_path:
             raise ValueError(f"Repository {repo.id} has never been cloned")
         default_branch = await self.git_adapter.get_default_branch(repo.cloned_path)
@@ -206,7 +207,7 @@ class RepositoryQueryService:
         """
         if not self.git_adapter:
             raise ValueError(
-                "GitAdapter is required for resolve_tracked_commit_from_git"
+                "git_adapter is required for resolve_tracked_commit_from_git"
             )
 
         if not repo.cloned_path:

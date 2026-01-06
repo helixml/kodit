@@ -60,7 +60,7 @@ class SyncRepositoryHandler:
                 raise ValueError(f"Repository {repository_id} has never been cloned")
 
             # Pull latest changes from remote
-            await self.cloner.pull_repository(repo)
+            await self.cloner.update_repository(repo)
 
             # Sync all branches and tags to database
             await self.repository_sync_service.sync_branches_and_tags(repo)

@@ -14,8 +14,9 @@ from kodit.domain.entities.git import (
     GitCommit,
     GitFile,
     GitRepo,
+    TrackingType,
 )
-from kodit.domain.protocols import GitAdapter
+from kodit.infrastructure.cloning.git.git_python_adaptor import GitPythonAdapter
 
 
 @dataclass(frozen=True)
@@ -30,7 +31,7 @@ class RepositoryInfo:
 class GitRepositoryScanner:
     """Pure scanner that extracts data without mutation."""
 
-    def __init__(self, git_adapter: GitAdapter) -> None:
+    def __init__(self, git_adapter: GitPythonAdapter) -> None:
         """Initialize the Git repository scanner.
 
         Args:
@@ -70,17 +71,12 @@ class GitRepositoryScanner:
             raise ValueError(f"Failed to create commit object for {commit_sha}")
 
         # Get files for this commit
-        files_data = await self.git_adapter.get_commit_file_data(
-            cloned_path, commit_sha
-        )
+        files_data = await self.git_adapter.get_commit_files(cloned_path, commit_sha)
         files = self._create_git_files(cloned_path, files_data, commit_sha)
 
-        self._log.info(
-            f"Scanned commit {commit_sha[:8]}: found {len(files)} files"
-        )
+        self._log.info(f"Scanned commit {commit_sha[:8]}: found {len(files)} files")
 
         return git_commit, files
-
 
     def _format_author_from_data(self, commit_data: dict[str, Any]) -> str:
         """Format author string from commit data."""
@@ -113,7 +109,6 @@ class GitRepositoryScanner:
             self._log.warning(f"Failed to create commit {commit_data.get('sha')}: {e}")
             return None
 
-
     def _create_git_files(
         self, cloned_path: Path, files_data: list[dict], commit_sha: str
     ) -> list[GitFile]:
@@ -141,7 +136,6 @@ class GitRepositoryScanner:
             )
         return result
 
-
     async def process_files_for_commits_batch(
         self, cloned_path: Path, commit_shas: list[str]
     ) -> list[GitFile]:
@@ -162,7 +156,7 @@ class GitRepositoryScanner:
         try:
             for commit_sha in commit_shas:
                 files_data = await self.git_adapter.get_commit_files(
-                    cloned_path, commit_sha, repo=repo
+                    cloned_path, commit_sha
                 )
                 files.extend(
                     self._create_git_files(cloned_path, files_data, commit_sha)
@@ -177,7 +171,7 @@ class GitRepositoryScanner:
 class RepositoryCloner:
     """Pure service for cloning repositories."""
 
-    def __init__(self, git_adapter: GitAdapter, clone_dir: Path) -> None:
+    def __init__(self, git_adapter: GitPythonAdapter, clone_dir: Path) -> None:
         """Initialize the repository cloner.
 
         Args:
@@ -206,12 +200,32 @@ class RepositoryCloner:
 
         return clone_path
 
-    async def pull_repository(self, repository: GitRepo) -> None:
-        """Pull latest changes for existing repository."""
+    async def update_repository(self, repository: GitRepo) -> None:
+        """Update repository based on tracking configuration."""
         if not repository.cloned_path:
             raise ValueError("Repository has never been cloned, please clone it first")
+
         if not repository.cloned_path.exists():
             await self.clone_repository(repository.remote_uri)
-            return
 
-        await self.git_adapter.pull_repository(repository.cloned_path)
+        if not repository.tracking_config:
+            raise ValueError("Repository has no tracking configuration")
+
+        if repository.tracking_config.type == TrackingType.BRANCH:
+            await self.git_adapter.fetch_repository(repository.cloned_path)
+            await self.git_adapter.checkout_branch(
+                repository.cloned_path, repository.tracking_config.name
+            )
+            await self.git_adapter.pull_repository(repository.cloned_path)
+        elif repository.tracking_config.type == TrackingType.TAG:
+            # Fetch all tags and get the most recent
+            await self.git_adapter.fetch_repository(repository.cloned_path)
+            tags = await self.git_adapter.get_all_tags(repository.cloned_path)
+
+            latest_tag = max(tags, key=lambda t: t["target_commit_sha"])
+            commit_sha = latest_tag["target_commit_sha"]
+            await self.git_adapter.checkout_commit(repository.cloned_path, commit_sha)
+        else:
+            raise ValueError(
+                f"Invalid tracking type: {repository.tracking_config.type}"
+            )

@@ -321,7 +321,7 @@ async def test_get_commit_files(git_adapter: GitPythonAdapter) -> None:
         mock_repo.commit.return_value = mock_commit
         mock_repo_class.return_value = mock_repo
 
-        result = await git_adapter.get_commit_files(local_path, commit_sha, mock_repo)
+        result = await git_adapter.get_commit_files(local_path, commit_sha)
 
         # Should return empty list since no blobs
         assert result == []

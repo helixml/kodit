@@ -1,10 +1,7 @@
 """Repository protocol interfaces for the domain layer."""
 
 from abc import ABC, abstractmethod
-from pathlib import Path
 from typing import Any, Protocol, TypeVar
-
-from git import Repo
 
 from kodit.domain.enrichments.enrichment import EnrichmentAssociation, EnrichmentV2
 from kodit.domain.entities import (
@@ -142,112 +139,6 @@ class GitTagRepository(Repository[GitTag]):
 
 class GitRepoRepository(Repository[GitRepo]):
     """Repository pattern for GitRepo aggregate."""
-
-
-class GitAdapter(ABC):
-    """Abstract interface for Git operations."""
-
-    @abstractmethod
-    async def clone_repository(self, remote_uri: str, local_path: Path) -> None:
-        """Clone a repository to local path."""
-
-    @abstractmethod
-    async def pull_repository(self, local_path: Path) -> None:
-        """Pull latest changes for existing repository."""
-
-    @abstractmethod
-    async def get_all_branches(self, local_path: Path) -> list[dict[str, Any]]:
-        """Get all branches in repository."""
-
-    @abstractmethod
-    async def get_default_branch(self, local_path: Path) -> str:
-        """Get the default branch name from origin/HEAD.
-
-        Returns None if no default branch is set (e.g., local-only repos).
-        """
-
-    @abstractmethod
-    async def get_branch_commits(
-        self, local_path: Path, branch_name: str
-    ) -> list[dict[str, Any]]:
-        """Get commit history for a specific branch."""
-
-    @abstractmethod
-    async def get_commit_files(
-        self, local_path: Path, commit_sha: str, repo: Repo
-    ) -> list[dict[str, Any]]:
-        """Get all files in a specific commit from the git tree.
-
-        Args:
-            local_path: Path to the repository
-            commit_sha: SHA of the commit to get files for
-            repo: Repo object to reuse (avoids creating new Repo per commit)
-
-        """
-
-    @abstractmethod
-    async def get_commit_file_data(
-        self, local_path: Path, commit_sha: str
-    ) -> list[dict[str, Any]]:
-        """Get file metadata for a commit, with files checked out to disk."""
-
-    @abstractmethod
-    async def repository_exists(self, local_path: Path) -> bool:
-        """Check if repository exists at local path."""
-
-    @abstractmethod
-    async def get_commit_details(
-        self, local_path: Path, commit_sha: str
-    ) -> dict[str, Any]:
-        """Get details of a specific commit."""
-
-    @abstractmethod
-    async def ensure_repository(self, remote_uri: str, local_path: Path) -> None:
-        """Ensure repository exists at local path."""
-
-    @abstractmethod
-    async def get_file_content(
-        self, local_path: Path, commit_sha: str, file_path: str
-    ) -> bytes:
-        """Get file content at specific commit."""
-
-    @abstractmethod
-    async def get_latest_commit_sha(
-        self, local_path: Path, branch_name: str = "HEAD"
-    ) -> str:
-        """Get the latest commit SHA for a branch."""
-
-    @abstractmethod
-    async def get_all_tags(self, local_path: Path) -> list[dict[str, Any]]:
-        """Get all tags in repository."""
-
-    @abstractmethod
-    async def get_all_commits_bulk(
-        self, local_path: Path, since_date: Any = None
-    ) -> dict[str, dict[str, Any]]:
-        """Get all commits from all branches in bulk for efficiency.
-
-        Args:
-            local_path: Path to the git repository
-            since_date: Optional date to get commits after (for incremental scanning)
-
-        """
-
-    @abstractmethod
-    async def get_branch_commit_shas(
-        self, local_path: Path, branch_name: str
-    ) -> list[str]:
-        """Get only commit SHAs for a branch (much faster than full commit data)."""
-
-    @abstractmethod
-    async def get_all_branch_head_shas(
-        self, local_path: Path, branch_names: list[str]
-    ) -> dict[str, str]:
-        """Get head commit SHAs for all branches in one operation."""
-
-    @abstractmethod
-    async def get_commit_diff(self, local_path: Path, commit_sha: str) -> str:
-        """Get the diff for a specific commit."""
 
 
 class SnippetRepositoryV2(ABC):
