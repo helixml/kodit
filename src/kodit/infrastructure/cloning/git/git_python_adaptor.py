@@ -10,7 +10,7 @@ from typing import Any
 
 import structlog
 
-from git import Blob, InvalidGitRepositoryError, Repo, Tree
+from git import Blob, GitCommandError, InvalidGitRepositoryError, Repo, Tree
 from kodit.domain.protocols import GitAdapter
 
 
@@ -166,14 +166,35 @@ class GitPythonAdapter(GitAdapter):
         await asyncio.get_event_loop().run_in_executor(self.executor, _restore)
 
     async def pull_repository(self, local_path: Path) -> None:
-        """Pull latest changes for existing repository."""
+        """Pull latest changes for existing repository.
+
+        First fetches all refs from remote, then attempts to pull (merge) into
+        the current branch. If pull fails (e.g., detached HEAD state), the fetch
+        still ensures remote refs are up-to-date for branch lookups.
+        """
 
         def _pull() -> None:
             try:
                 repo = Repo(local_path)
                 origin = repo.remotes.origin
-                origin.pull()
-                self._log.info(f"Successfully pulled latest changes for {local_path}")
+
+                # Always fetch first to ensure refs are up-to-date
+                origin.fetch()
+
+                # Try to pull (merge) if we're on a branch
+                try:
+                    origin.pull()
+                    self._log.info(
+                        f"Successfully pulled latest changes for {local_path}"
+                    )
+                except GitCommandError as e:
+                    # Pull can fail in detached HEAD state or other conditions
+                    # The fetch above ensures refs are still updated
+                    self._log.debug(
+                        f"Pull failed (possibly detached HEAD), "
+                        f"but fetch succeeded for {local_path}: {e}"
+                    )
+
             except Exception as e:
                 self._log.error(f"Failed to pull {local_path}: {e}")
                 raise
@@ -639,21 +660,26 @@ class GitPythonAdapter(GitAdapter):
         """Get the latest commit SHA for a branch."""
 
         def _get_latest_commit() -> str:
+            repo = Repo(local_path)
+            if branch_name == "HEAD":
+                return repo.head.commit.hexsha
+
+            branch_ref = None
             try:
-                repo = Repo(local_path)
-                if branch_name == "HEAD":
-                    commit_sha = repo.head.commit.hexsha
-                else:
-                    branch = repo.branches[branch_name]
-                    commit_sha = branch.commit.hexsha
-            except Exception as e:
-                self._log.debug(
-                    f"Failed to get latest commit for {branch_name} in "
-                    f"{local_path}: {e}"
-                )
-                raise
-            else:
-                return commit_sha
+                branch_ref = repo.branches[branch_name]
+            except IndexError:
+                for remote in repo.remotes:
+                    try:
+                        branch_ref = remote.refs[branch_name]
+                        break
+                    except IndexError:
+                        continue
+
+            if not branch_ref:
+                self._raise_branch_not_found_error(branch_name)
+                raise AssertionError("unreachable")
+
+            return branch_ref.commit.hexsha
 
         return await asyncio.get_event_loop().run_in_executor(
             self.executor, _get_latest_commit

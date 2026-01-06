@@ -107,7 +107,7 @@ async def test_clone_repository_failure(git_adapter: GitPythonAdapter) -> None:
 
 @pytest.mark.asyncio
 async def test_pull_repository_success(git_adapter: GitPythonAdapter) -> None:
-    """Test successful repository pull."""
+    """Test successful repository pull (fetches refs then pulls files)."""
     local_path = Path("/tmp/test-repo")
 
     with patch(f"{MODULE_PATH}.Repo") as mock_repo_class:
@@ -119,6 +119,7 @@ async def test_pull_repository_success(git_adapter: GitPythonAdapter) -> None:
         await git_adapter.pull_repository(local_path)
 
         mock_repo_class.assert_called_once_with(local_path)
+        mock_origin.fetch.assert_called_once()
         mock_origin.pull.assert_called_once()
 
 
