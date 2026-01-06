@@ -156,7 +156,8 @@ class RepositoryQueryService:
             return None
 
         if not repo.tracking_config:
-            raise ValueError(f"Repository {repo.id} has no tracking config")
+            self.log.debug("Repository has no tracking config yet", repo_id=repo_id)
+            return None
 
         # Create trackable from repository's tracking config
         trackable = Trackable(
