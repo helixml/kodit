@@ -73,6 +73,14 @@ class CloneRepositoryHandler:
                     repo
                 )
             )
+            if not commit_sha:
+                self._log.warning(
+                    "No commit SHA found. While unusual, "
+                    "this can happen if the repository is new and bare.",
+                    repository_id=repository_id,
+                )
+                return
+
             self._log.info(
                 f"Enqueuing scan for head commit {commit_sha[:8]} "
                 f"of repository {repository_id}"
