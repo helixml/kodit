@@ -179,19 +179,18 @@ class RepositoryCloner:
             clone_dir: The directory where repositories will be cloned.
 
         """
+        self._log = structlog.getLogger(__name__)
         self.git_adapter = git_adapter
         self.clone_dir = clone_dir
 
-    def _get_clone_path(self, sanitized_uri: AnyUrl) -> Path:
-        """Get the clone path for a Git working copy."""
+    def clone_path_from_uri(self, uri: AnyUrl) -> Path:
+        """Get the clone path for a Git repository."""
+        sanitized_uri = WorkingCopy.sanitize_git_url(str(uri))
         dir_name = GitRepo.create_id(sanitized_uri)
         return self.clone_dir / dir_name
 
-    async def clone_repository(self, remote_uri: AnyUrl) -> Path:
+    async def clone_repository(self, remote_uri: AnyUrl, clone_path: Path) -> Path:
         """Clone repository and return repository info."""
-        sanitized_uri = WorkingCopy.sanitize_git_url(str(remote_uri))
-        clone_path = self._get_clone_path(sanitized_uri)
-
         try:
             await self.git_adapter.clone_repository(str(remote_uri), clone_path)
         except Exception:
@@ -203,13 +202,17 @@ class RepositoryCloner:
     async def update_repository(self, repository: GitRepo) -> None:
         """Update repository based on tracking configuration."""
         if not repository.cloned_path:
-            raise ValueError("Repository has never been cloned, please clone it first")
+            raise ValueError(f"Repository {repository.id} has never been cloned")
 
-        if not repository.cloned_path.exists():
-            await self.clone_repository(repository.remote_uri)
+        if repository.cloned_path and not repository.cloned_path.exists():
+            # Re-clone this repository if the setting exists but the dir does not
+            await self.clone_repository(repository.remote_uri, repository.cloned_path)
 
         if not repository.tracking_config:
-            raise ValueError("Repository has no tracking configuration")
+            self._log.debug(
+                "Repository has no tracking config yet", repo_id=repository.id
+            )
+            return
 
         if repository.tracking_config.type == TrackingType.BRANCH:
             await self.git_adapter.fetch_repository(repository.cloned_path)

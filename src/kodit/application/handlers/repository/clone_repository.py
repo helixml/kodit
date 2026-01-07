@@ -53,7 +53,9 @@ class CloneRepositoryHandler:
             trackable_id=repository_id,
         ):
             repo = await self.repo_repository.get(repository_id)
-            repo.cloned_path = await self.cloner.clone_repository(repo.remote_uri)
+            repo.cloned_path = await self.cloner.clone_repository(
+                repo.remote_uri, self.cloner.clone_path_from_uri(repo.remote_uri)
+            )
 
             if not repo.tracking_config:
                 repo.tracking_config = (

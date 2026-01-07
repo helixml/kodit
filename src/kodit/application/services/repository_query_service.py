@@ -118,7 +118,8 @@ class RepositoryQueryService:
             return None
 
         if not repo.tracking_config:
-            raise ValueError(f"Repository {repo.id} has no tracking config")
+            self.log.debug("Repository has no tracking config yet", repo_id=repo_id)
+            return None
 
         # Create trackable from repository's tracking config
         trackable = Trackable(
@@ -200,7 +201,7 @@ class RepositoryQueryService:
         default_branch = await self.git_adapter.get_default_branch(repo.cloned_path)
         return TrackingConfig(type=TrackingType.BRANCH, name=default_branch)
 
-    async def resolve_tracked_commit_from_git(self, repo: GitRepo) -> str:
+    async def resolve_tracked_commit_from_git(self, repo: GitRepo) -> str | None:
         """Resolve commit SHA from tracking config by querying git directly.
 
         This is used during initial scanning before branches/tags are in the database.
@@ -215,7 +216,8 @@ class RepositoryQueryService:
             raise ValueError(f"Repository {repo.id} has never been cloned")
 
         if not repo.tracking_config:
-            raise ValueError(f"Repository {repo.id} has no tracking config")
+            self.log.debug("Repository has no tracking config yet", repo_id=repo.id)
+            return None
 
         if repo.tracking_config.type == TrackingType.BRANCH.value:
             return await self.git_adapter.get_latest_commit_sha(

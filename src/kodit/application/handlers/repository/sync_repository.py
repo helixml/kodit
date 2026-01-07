@@ -57,7 +57,16 @@ class SyncRepositoryHandler:
         ):
             repo = await self.repo_repository.get(repository_id)
             if not repo.cloned_path:
-                raise ValueError(f"Repository {repository_id} has never been cloned")
+                self._log.warning(
+                    "Repository has no cloned path. This is unexpected, "
+                    "as the repository should have been cloned by now. "
+                    "Re-cloning to recover.",
+                    repository_id=repository_id,
+                )
+                repo.cloned_path = await self.cloner.clone_repository(
+                    repo.remote_uri, self.cloner.clone_path_from_uri(repo.remote_uri)
+                )
+                await self.repo_repository.save(repo)
 
             # Pull latest changes from remote
             await self.cloner.update_repository(repo)
@@ -71,6 +80,14 @@ class SyncRepositoryHandler:
                     repo
                 )
             )
+            if not commit_sha:
+                self._log.warning(
+                    "No commit SHA found. While unusual, "
+                    "this can happen if the repository is new and bare.",
+                    repository_id=repository_id,
+                )
+                return
+
             self._log.info(
                 f"Syncing repository {repository_id}, head commit is {commit_sha[:8]}"
             )
