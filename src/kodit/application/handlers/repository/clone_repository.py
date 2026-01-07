@@ -53,7 +53,9 @@ class CloneRepositoryHandler:
             trackable_id=repository_id,
         ):
             repo = await self.repo_repository.get(repository_id)
-            repo.cloned_path = await self.cloner.clone_repository(repo.remote_uri)
+            repo.cloned_path = await self.cloner.clone_repository(
+                repo.remote_uri, self.cloner.clone_path_from_uri(repo.remote_uri)
+            )
 
             if not repo.tracking_config:
                 repo.tracking_config = (
@@ -71,6 +73,14 @@ class CloneRepositoryHandler:
                     repo
                 )
             )
+            if not commit_sha:
+                self._log.warning(
+                    "No commit SHA found. While unusual, "
+                    "this can happen if the repository is new and bare.",
+                    repository_id=repository_id,
+                )
+                return
+
             self._log.info(
                 f"Enqueuing scan for head commit {commit_sha[:8]} "
                 f"of repository {repository_id}"

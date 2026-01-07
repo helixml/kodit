@@ -216,3 +216,64 @@ async def test_sync_repository_with_new_commit_on_main(  # noqa: PLR0915
         commits_in_db = await commit_repository.find(QueryBuilder())
         commit_shas = {c.commit_sha for c in commits_in_db}
         assert commit2.hexsha not in commit_shas
+
+
+@pytest.mark.asyncio
+async def test_sync_repository_recovers_when_cloned_path_is_missing(
+    sync_handler: SyncRepositoryHandler,
+    session_factory: Callable[[], AsyncSession],
+    mock_queue: MagicMock,
+) -> None:
+    """Test that sync recovers when a repository has no cloned_path.
+
+    This tests the scenario where a repository exists in the database
+    but has no cloned_path (e.g., due to data corruption or incomplete
+    initial clone). The sync handler should detect this and re-clone
+    the repository automatically.
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create a bare remote repository that can be cloned
+        remote_path = Path(tmpdir) / "remote.git"
+        git.Repo.init(remote_path, bare=True, initial_branch="main")
+
+        # Create a working copy to push initial content to the bare repo
+        working_path = Path(tmpdir) / "working"
+        working_repo = git.Repo.clone_from(str(remote_path), str(working_path))
+        with working_repo.config_writer() as cw:
+            cw.set_value("user", "name", "Test User")
+            cw.set_value("user", "email", "test@example.com")
+
+        # Create initial commit
+        test_file = working_path / "README.md"
+        test_file.write_text("# Test Repository")
+        working_repo.index.add(["README.md"])
+        initial_commit = working_repo.index.commit("Initial commit")
+        working_repo.git.push("origin", "HEAD:main")
+
+        # Create repository in database WITHOUT a cloned_path
+        repo_repository = create_git_repo_repository(session_factory)
+
+        repo = GitRepoFactory.create_from_remote_uri(AnyUrl(f"file://{remote_path}"))
+        repo.cloned_path = None  # Simulate missing cloned path
+        repo.tracking_config = TrackingConfig(type="branch", name="main")
+        repo = await repo_repository.save(repo)
+        assert repo.id is not None
+        assert repo.cloned_path is None
+
+        # Execute sync - this should detect missing cloned_path and re-clone
+        await sync_handler.execute({"repository_id": repo.id})
+
+        # Verify the repository was re-cloned
+        updated_repo = await repo_repository.get(repo.id)
+        assert updated_repo.cloned_path is not None
+        assert updated_repo.cloned_path.exists()
+
+        # Verify the cloned repository has the expected content
+        cloned_repo = git.Repo(updated_repo.cloned_path)
+        assert cloned_repo.head.commit.hexsha == initial_commit.hexsha
+
+        # Verify sync completed normally (new commit was queued)
+        assert mock_queue.enqueue_tasks.called
+        payload = mock_queue.enqueue_tasks.call_args.kwargs["payload"]
+        assert payload["commit_sha"] == initial_commit.hexsha
+        assert payload["repository_id"] == repo.id

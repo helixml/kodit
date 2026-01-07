@@ -11,7 +11,6 @@ from typing import Any
 import structlog
 
 from git import Blob, GitCommandError, InvalidGitRepositoryError, Repo, Tree
-from kodit.domain.protocols import GitAdapter
 
 
 def _collect_unique_commits(repo: Repo, log: Any) -> set:
@@ -59,7 +58,7 @@ def _process_commits(all_commits: set) -> dict[str, dict[str, Any]]:
     return commits_map
 
 
-class GitPythonAdapter(GitAdapter):
+class GitPythonAdapter:
     """GitPython implementation of Git operations."""
 
     def __init__(self, max_workers: int = 4) -> None:
@@ -101,11 +100,8 @@ class GitPythonAdapter(GitAdapter):
 
         await asyncio.get_event_loop().run_in_executor(self.executor, _clone)
 
-    async def _checkout_commit(self, local_path: Path, commit_sha: str) -> None:
-        """Checkout a specific commit internally.
-
-        Private method - external callers should not mutate repository state directly.
-        """
+    async def checkout_commit(self, local_path: Path, commit_sha: str) -> None:
+        """Checkout a specific commit."""
 
         def _checkout() -> None:
             try:
@@ -119,51 +115,32 @@ class GitPythonAdapter(GitAdapter):
 
         await asyncio.get_event_loop().run_in_executor(self.executor, _checkout)
 
-    async def restore_to_branch(
-        self, local_path: Path, branch_name: str = "main"
-    ) -> None:
-        """Restore repository to a specific branch, recovering from detached HEAD.
+    async def checkout_branch(self, local_path: Path, branch_name: str) -> None:
+        """Checkout a specific branch."""
 
-        Args:
-            local_path: Path to the repository
-            branch_name: Branch to restore to (default: "main")
-
-        """
-
-        def _restore() -> None:
+        def _checkout() -> None:
             try:
                 repo = Repo(local_path)
-
-                # Try to checkout the requested branch
-                try:
-                    repo.git.checkout(branch_name)
-                except Exception:  # noqa: BLE001
-                    # If requested branch doesn't exist, try common default branches
-                    for fallback in ["master", "develop"]:
-                        try:
-                            repo.git.checkout(fallback)
-                        except Exception:  # noqa: BLE001
-                            # Branch doesn't exist, try next fallback
-                            self._log.debug(f"Branch {fallback} not found, trying next")
-                        else:
-                            self._log.debug(
-                                f"Branch {branch_name} not found, "
-                                f"restored to {fallback} instead"
-                            )
-                            return
-
-                    # If all branches fail, stay in detached state
-                    self._log.warning(
-                        f"Could not restore to any branch in {local_path}, "
-                        f"repository remains in detached HEAD state"
-                    )
-                else:
-                    self._log.debug(f"Restored repository to branch {branch_name}")
+                repo.git.checkout(branch_name)
             except Exception as e:
-                self._log.error(f"Failed to restore branch in {local_path}: {e}")
+                self._log.error(f"Failed to checkout {branch_name}: {e}")
                 raise
 
-        await asyncio.get_event_loop().run_in_executor(self.executor, _restore)
+        await asyncio.get_event_loop().run_in_executor(self.executor, _checkout)
+
+    async def fetch_repository(self, local_path: Path) -> None:
+        """Fetch latest changes for existing repository."""
+
+        def _fetch() -> None:
+            try:
+                repo = Repo(local_path)
+                origin = repo.remotes.origin
+                origin.fetch()
+            except Exception as e:
+                self._log.error(f"Failed to fetch {local_path}: {e}")
+                raise
+
+        await asyncio.get_event_loop().run_in_executor(self.executor, _fetch)
 
     async def pull_repository(self, local_path: Path) -> None:
         """Pull latest changes for existing repository.
@@ -495,7 +472,7 @@ class GitPythonAdapter(GitAdapter):
         )
 
     async def get_commit_files(
-        self, local_path: Path, commit_sha: str, repo: Repo
+        self, local_path: Path, commit_sha: str
     ) -> list[dict[str, Any]]:
         """Get all files in a specific commit from the git tree.
 
@@ -508,8 +485,7 @@ class GitPythonAdapter(GitAdapter):
 
         def _get_files() -> list[dict[str, Any]]:
             try:
-                # Use the provided repo object
-                _repo = repo
+                _repo = Repo(local_path)
                 commit = _repo.commit(commit_sha)
 
                 files = []
@@ -545,20 +521,6 @@ class GitPythonAdapter(GitAdapter):
                 return files
 
         return await asyncio.get_event_loop().run_in_executor(self.executor, _get_files)
-
-    async def get_commit_file_data(
-        self, local_path: Path, commit_sha: str
-    ) -> list[dict[str, Any]]:
-        """Get file metadata for a commit, with files checked out to disk."""
-        await self._checkout_commit(local_path, commit_sha)
-        try:
-            repo = Repo(local_path)
-            try:
-                return await self.get_commit_files(local_path, commit_sha, repo)
-            finally:
-                repo.close()
-        finally:
-            await self.restore_to_branch(local_path, "main")
 
     async def repository_exists(self, local_path: Path) -> bool:
         """Check if repository exists at local path."""

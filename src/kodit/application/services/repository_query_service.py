@@ -5,10 +5,11 @@ from collections.abc import Callable
 import structlog
 
 from kodit.domain.entities.git import GitRepo, TrackingConfig, TrackingType
-from kodit.domain.protocols import GitAdapter, GitRepoRepository
+from kodit.domain.protocols import GitRepoRepository
 from kodit.domain.tracking.resolution_service import TrackableResolutionService
 from kodit.domain.tracking.trackable import Trackable, TrackableReferenceType
 from kodit.infrastructure.api.v1.query_params import PaginationParams
+from kodit.infrastructure.cloning.git.git_python_adaptor import GitPythonAdapter
 
 
 class RepositoryQueryService:
@@ -18,7 +19,7 @@ class RepositoryQueryService:
         self,
         git_repo_repository: GitRepoRepository,
         trackable_resolution: TrackableResolutionService,
-        git_adapter: GitAdapter | None = None,
+        git_adapter: GitPythonAdapter | None = None,
     ) -> None:
         """Initialize the repository query service."""
         self.git_repo_repository = git_repo_repository
@@ -117,7 +118,8 @@ class RepositoryQueryService:
             return None
 
         if not repo.tracking_config:
-            raise ValueError(f"Repository {repo.id} has no tracking config")
+            self.log.debug("Repository has no tracking config yet", repo_id=repo_id)
+            return None
 
         # Create trackable from repository's tracking config
         trackable = Trackable(
@@ -155,7 +157,8 @@ class RepositoryQueryService:
             return None
 
         if not repo.tracking_config:
-            raise ValueError(f"Repository {repo.id} has no tracking config")
+            self.log.debug("Repository has no tracking config yet", repo_id=repo_id)
+            return None
 
         # Create trackable from repository's tracking config
         trackable = Trackable(
@@ -192,13 +195,13 @@ class RepositoryQueryService:
 
         # If it doesn't exist, use the git adapter to get the default branch
         if not self.git_adapter:
-            raise ValueError("GitAdapter is required for get_tracking_config")
+            raise ValueError("git_adapter is required for get_tracking_config")
         if not repo.cloned_path:
             raise ValueError(f"Repository {repo.id} has never been cloned")
         default_branch = await self.git_adapter.get_default_branch(repo.cloned_path)
         return TrackingConfig(type=TrackingType.BRANCH, name=default_branch)
 
-    async def resolve_tracked_commit_from_git(self, repo: GitRepo) -> str:
+    async def resolve_tracked_commit_from_git(self, repo: GitRepo) -> str | None:
         """Resolve commit SHA from tracking config by querying git directly.
 
         This is used during initial scanning before branches/tags are in the database.
@@ -206,14 +209,15 @@ class RepositoryQueryService:
         """
         if not self.git_adapter:
             raise ValueError(
-                "GitAdapter is required for resolve_tracked_commit_from_git"
+                "git_adapter is required for resolve_tracked_commit_from_git"
             )
 
         if not repo.cloned_path:
             raise ValueError(f"Repository {repo.id} has never been cloned")
 
         if not repo.tracking_config:
-            raise ValueError(f"Repository {repo.id} has no tracking config")
+            self.log.debug("Repository has no tracking config yet", repo_id=repo.id)
+            return None
 
         if repo.tracking_config.type == TrackingType.BRANCH.value:
             return await self.git_adapter.get_latest_commit_sha(

@@ -73,7 +73,6 @@ from kodit.domain.protocols import (
     EnrichmentAssociationRepository,
     EnrichmentV2Repository,
     FusionService,
-    GitAdapter,
     GitBranchRepository,
     GitCommitRepository,
     GitFileRepository,
@@ -156,7 +155,7 @@ class ServerFactory:
         self.session_factory = session_factory
         self._repo_repository: GitRepoRepository | None = None
         self._snippet_v2_repository: SnippetRepositoryV2 | None = None
-        self._git_adapter: GitAdapter | None = None
+        self._git_adapter: GitPythonAdapter | None = None
         self._scanner: GitRepositoryScanner | None = None
         self._cloner: RepositoryCloner | None = None
         self._commit_indexing_application_service: (
@@ -552,8 +551,8 @@ class ServerFactory:
     # branch_repository and commit_repository removed - now handled by repo_repository
     # as GitRepo is the aggregate root
 
-    def git_adapter(self) -> GitAdapter:
-        """Create a GitAdapter instance."""
+    def git_adapter(self) -> GitPythonAdapter:
+        """Create a GitPythonAdapter instance."""
         if not self._git_adapter:
             self._git_adapter = GitPythonAdapter()
         return self._git_adapter

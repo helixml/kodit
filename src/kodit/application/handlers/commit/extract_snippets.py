@@ -73,7 +73,7 @@ class ExtractSnippetsHandler:
             if not repo.cloned_path:
                 raise ValueError(f"Repository {repository_id} has never been cloned")
 
-            files_data = await self.scanner.git_adapter.get_commit_file_data(
+            files_data = await self.scanner.git_adapter.get_commit_files(
                 repo.cloned_path, commit_sha
             )
 

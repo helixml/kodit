@@ -198,7 +198,8 @@ async def test_file_saving_performance_ray_repo(
         sys.stderr.write("\nCloning ray-project/ray repository...\n")
         clone_start = time.perf_counter()
         cloner = RepositoryCloner(git_adapter, clone_dir)
-        cloned_path = await cloner.clone_repository(repo_url)
+        clone_path = clone_dir / "ray"
+        cloned_path = await cloner.clone_repository(repo_url, clone_path)
         clone_duration = time.perf_counter() - clone_start
         sys.stderr.write(f"Clone completed in {clone_duration:.2f}s\n")
 
