@@ -7,7 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.application.services.queue_service import QueueService
 from kodit.domain.entities import Task
-from kodit.domain.value_objects import QueuePriority, TaskOperation
+from kodit.domain.value_objects import (
+    PrescribedOperations,
+    QueuePriority,
+    TaskOperation,
+)
 
 
 @pytest.mark.asyncio
@@ -169,3 +173,54 @@ async def test_task_priority_ordering(
     # The repository should return tasks ordered by priority (highest first)
     task_priorities = [t.priority for t in tasks]
     assert task_priorities[0] >= task_priorities[1]
+
+
+@pytest.mark.asyncio
+async def test_user_initiated_tasks_higher_priority_than_background_batch(
+    session_factory: Callable[[], AsyncSession],
+) -> None:
+    """Test that user-initiated tasks have higher priority than background batches.
+
+    This tests a critical scenario: when a background sync operation enqueues
+    a large batch of tasks (like SCAN_AND_INDEX_COMMIT with 15 tasks), and then
+    a user initiates an action (like CREATE_NEW_REPOSITORY with 1 task), the
+    user's task should always be processed first regardless of batch size.
+    """
+    queue_service = QueueService(session_factory=session_factory)
+
+    # Simulate a background sync operation enqueueing a large batch
+    # This represents an automatic sync detecting a new commit
+    await queue_service.enqueue_tasks(
+        tasks=PrescribedOperations.SCAN_AND_INDEX_COMMIT,
+        base_priority=QueuePriority.BACKGROUND,
+        payload={"commit_sha": "abc123", "repository_id": 1},
+    )
+
+    # Now simulate a user creating a new repository
+    # This should have higher priority than all background tasks
+    await queue_service.enqueue_tasks(
+        tasks=PrescribedOperations.CREATE_NEW_REPOSITORY,
+        base_priority=QueuePriority.USER_INITIATED,
+        payload={"repository_id": 2},
+    )
+
+    # Get all tasks ordered by priority
+    tasks = await queue_service.list_tasks()
+
+    # Find the user-initiated task (CLONE_REPOSITORY for repo 2)
+    user_task = next(
+        (t for t in tasks if t.payload.get("repository_id") == 2),
+        None,
+    )
+    assert user_task is not None, "User-initiated task should exist"
+
+    # Find all background tasks (for repo 1)
+    background_tasks = [t for t in tasks if t.payload.get("repository_id") == 1]
+    assert len(background_tasks) == len(PrescribedOperations.SCAN_AND_INDEX_COMMIT)
+
+    # The user-initiated task should have higher priority than ALL background tasks
+    max_background_priority = max(t.priority for t in background_tasks)
+    assert user_task.priority > max_background_priority, (
+        f"User-initiated task (priority {user_task.priority}) should have "
+        f"higher priority than all background tasks (max {max_background_priority})"
+    )

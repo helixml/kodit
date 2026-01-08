@@ -561,11 +561,15 @@ class FunctionDefinition:
 
 
 class QueuePriority(IntEnum):
-    """Queue priority."""
+    """Queue priority.
 
-    BACKGROUND = 10
-    NORMAL = 20
-    USER_INITIATED = 50
+    Values are spaced far apart to ensure batch offsets (up to ~150
+    for 15 tasks) never cause a lower priority level to exceed a higher one.
+    """
+
+    BACKGROUND = 1000
+    NORMAL = 2000
+    USER_INITIATED = 5000
 
 
 class ReportingState(StrEnum):
