@@ -63,6 +63,17 @@ If you prefer to sync manually:
 SYNC_PERIODIC_ENABLED=false
 ```
 
+## Error Handling
+
+When a task fails (e.g., cloning a repository that doesn't exist, network errors), Kodit uses **exponential backoff** to prevent overwhelming external services:
+
+- **First retry**: 5 seconds
+- **Second retry**: 10 seconds
+- **Third retry**: 20 seconds
+- **Continues doubling** up to a maximum of **5 minutes**
+
+Failed tasks will continue retrying indefinitely with this backoff schedule until they succeed. The retry state is persisted to the database, so tasks maintain their backoff schedule across server restarts.
+
 ## Limitations
 
 - **Only syncs existing indexes**: The sync scheduler does not create new indexes for repositories that haven't been indexed yet

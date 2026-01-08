@@ -29,6 +29,8 @@ class TaskMapper:
             payload=record.payload or {},
             created_at=record.created_at,
             updated_at=record.updated_at,
+            retry_count=record.retry_count,
+            next_retry_at=record.next_retry_at,
         )
 
     @staticmethod
@@ -39,4 +41,6 @@ class TaskMapper:
             type=task.type.value,
             payload=task.payload,
             priority=task.priority,
+            retry_count=task.retry_count,
+            next_retry_at=task.next_retry_at,
         )

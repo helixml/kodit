@@ -115,13 +115,19 @@ class Task(Base, CommonMixin):
     payload: Mapped[dict] = mapped_column(JSON)
     # priority is used to determine the order of the items in the queue
     priority: Mapped[int] = mapped_column(Integer)
+    # retry_count tracks the number of failed attempts
+    retry_count: Mapped[int] = mapped_column(Integer, default=0)
+    # next_retry_at is when the task can be retried (NULL = immediately)
+    next_retry_at: Mapped[datetime | None] = mapped_column(TZDateTime, nullable=True)
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         dedup_key: str,
         type: str,  # noqa: A002
         payload: dict,
         priority: int,
+        retry_count: int = 0,
+        next_retry_at: datetime | None = None,
     ) -> None:
         """Initialize the queue item."""
         super().__init__()
@@ -129,6 +135,8 @@ class Task(Base, CommonMixin):
         self.type = type
         self.payload = payload
         self.priority = priority
+        self.retry_count = retry_count
+        self.next_retry_at = next_retry_at
 
 
 class TaskStatus(Base):

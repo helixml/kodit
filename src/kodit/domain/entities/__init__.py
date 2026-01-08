@@ -162,6 +162,8 @@ class Task(BaseModel):
 
     created_at: datetime | None = None  # Is populated by repository
     updated_at: datetime | None = None  # Is populated by repository
+    retry_count: int = 0  # Number of failed attempts
+    next_retry_at: datetime | None = None  # When task can be retried
 
     @staticmethod
     def create(
@@ -180,6 +182,21 @@ class Task(BaseModel):
         """Create a unique id for a task."""
         first_id = next(iter(payload.values()), None)
         return f"{operation}:{first_id}"
+
+    def calculate_backoff_delay(self) -> int:
+        """Calculate backoff delay in seconds based on retry count."""
+        max_delay = 300  # 5 minutes
+        base_delay = 5  # 5 seconds
+        delay = base_delay * (2**self.retry_count)
+        return min(delay, max_delay)
+
+    def mark_for_retry(self) -> None:
+        """Increment retry count and set next retry time with exponential backoff."""
+        from datetime import timedelta
+
+        delay_seconds = self.calculate_backoff_delay()
+        self.retry_count += 1
+        self.next_retry_at = datetime.now(UTC) + timedelta(seconds=delay_seconds)
 
 
 class TaskStatus(BaseModel):
