@@ -11,6 +11,9 @@ from kodit.domain.enrichments.architecture.database_schema.database_schema impor
 from kodit.domain.enrichments.architecture.physical.physical import (
     ENRICHMENT_SUBTYPE_PHYSICAL,
 )
+from kodit.domain.enrichments.architecture.repository_structure.repository_structure import (  # noqa: E501
+    ENRICHMENT_SUBTYPE_REPOSITORY_STRUCTURE,
+)
 from kodit.domain.enrichments.development.development import ENRICHMENT_TYPE_DEVELOPMENT
 from kodit.domain.enrichments.development.example.example import (
     ENRICHMENT_SUBTYPE_EXAMPLE,
@@ -173,6 +176,16 @@ class EnrichmentQueryService:
             enrichment_subtype=ENRICHMENT_SUBTYPE_API_DOCS,
         )
 
+    async def get_repository_structure_for_commit(
+        self, commit_sha: str
+    ) -> list[EnrichmentV2]:
+        """Get repository structure enrichments for a commit."""
+        return await self.get_enrichments_for_commit(
+            commit_sha,
+            enrichment_type=ENRICHMENT_TYPE_ARCHITECTURE,
+            enrichment_subtype=ENRICHMENT_SUBTYPE_REPOSITORY_STRUCTURE,
+        )
+
     async def get_enrichment_entities_from_associations(
         self, associations: list[EnrichmentAssociation]
     ) -> list[EnrichmentV2]:
@@ -212,6 +225,11 @@ class EnrichmentQueryService:
         """Check if a commit has API documentation enrichments."""
         api_docs = await self.get_api_docs_for_commit(commit_sha)
         return len(api_docs) > 0
+
+    async def has_repository_structure_for_commit(self, commit_sha: str) -> bool:
+        """Check if a commit has repository structure enrichments."""
+        repo_structure = await self.get_repository_structure_for_commit(commit_sha)
+        return len(repo_structure) > 0
 
     async def get_commit_description_for_commit(
         self, commit_sha: str

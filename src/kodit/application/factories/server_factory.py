@@ -37,6 +37,9 @@ from kodit.application.handlers.commit.create_summary_enrichment import (
 from kodit.application.handlers.commit.database_schema import DatabaseSchemaHandler
 from kodit.application.handlers.commit.extract_examples import ExtractExamplesHandler
 from kodit.application.handlers.commit.extract_snippets import ExtractSnippetsHandler
+from kodit.application.handlers.commit.repository_structure import (
+    RepositoryStructureHandler,
+)
 from kodit.application.handlers.commit.scan_commit import ScanCommitHandler
 from kodit.application.handlers.registry import TaskHandlerRegistry
 from kodit.application.handlers.repository.clone_repository import (
@@ -90,6 +93,9 @@ from kodit.domain.services.git_repository_service import (
 )
 from kodit.domain.services.physical_architecture_service import (
     PhysicalArchitectureService,
+)
+from kodit.domain.services.repository_structure_service import (
+    RepositoryStructureService,
 )
 from kodit.domain.tracking.resolution_service import TrackableResolutionService
 from kodit.infrastructure.bm25.local_bm25_repository import LocalBM25Repository
@@ -181,6 +187,7 @@ class ServerFactory:
         self._git_branch_repository: GitBranchRepository | None = None
         self._git_tag_repository: GitTagRepository | None = None
         self._architecture_service: PhysicalArchitectureService | None = None
+        self._repository_structure_service: RepositoryStructureService | None = None
         self._enrichment_v2_repository: EnrichmentV2Repository | None = None
         self._enrichment_association_repository: (
             EnrichmentAssociationRepository | None
@@ -206,6 +213,12 @@ class ServerFactory:
                 formatter=self.architecture_formatter()
             )
         return self._architecture_service
+
+    def repository_structure_service(self) -> RepositoryStructureService:
+        """Create a RepositoryStructureService instance."""
+        if not self._repository_structure_service:
+            self._repository_structure_service = RepositoryStructureService()
+        return self._repository_structure_service
 
     def cookbook_context_service(self) -> CookbookContextService:
         """Create a CookbookContextService instance."""
@@ -457,6 +470,18 @@ class ServerFactory:
                 DatabaseSchemaHandler(
                     repo_repository=self.repo_repository(),
                     database_schema_detector=DatabaseSchemaDetector(),
+                    enricher_service=self.enricher(),
+                    enrichment_v2_repository=self.enrichment_v2_repository(),
+                    enrichment_association_repository=self.enrichment_association_repository(),
+                    enrichment_query_service=self.enrichment_query_service(),
+                    operation=self.operation(),
+                ),
+            )
+            registry.register(
+                TaskOperation.CREATE_REPOSITORY_STRUCTURE_FOR_COMMIT,
+                RepositoryStructureHandler(
+                    repo_repository=self.repo_repository(),
+                    repository_structure_service=self.repository_structure_service(),
                     enricher_service=self.enricher(),
                     enrichment_v2_repository=self.enrichment_v2_repository(),
                     enrichment_association_repository=self.enrichment_association_repository(),

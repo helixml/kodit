@@ -633,6 +633,7 @@ class TaskOperation(StrEnum):
     CREATE_PUBLIC_API_DOCS_FOR_COMMIT = "kodit.commit.create_public_api_docs"
     CREATE_COMMIT_DESCRIPTION_FOR_COMMIT = "kodit.commit.create_commit_description"
     CREATE_DATABASE_SCHEMA_FOR_COMMIT = "kodit.commit.create_database_schema"
+    CREATE_REPOSITORY_STRUCTURE_FOR_COMMIT = "kodit.commit.create_repository_structure"
     CREATE_COOKBOOK_FOR_COMMIT = "kodit.commit.create_cookbook"
     EXTRACT_EXAMPLES_FOR_COMMIT = "kodit.commit.extract_examples"
     CREATE_EXAMPLE_SUMMARY_FOR_COMMIT = "kodit.commit.create_example_summary"
@@ -677,6 +678,7 @@ class PrescribedOperations:
         TaskOperation.CREATE_PUBLIC_API_DOCS_FOR_COMMIT,
         TaskOperation.CREATE_COMMIT_DESCRIPTION_FOR_COMMIT,
         TaskOperation.CREATE_DATABASE_SCHEMA_FOR_COMMIT,
+        TaskOperation.CREATE_REPOSITORY_STRUCTURE_FOR_COMMIT,
         TaskOperation.CREATE_COOKBOOK_FOR_COMMIT,
     ]
     INDEX_COMMIT: ClassVar[list[TaskOperation]] = [
@@ -689,6 +691,7 @@ class PrescribedOperations:
         TaskOperation.CREATE_PUBLIC_API_DOCS_FOR_COMMIT,
         TaskOperation.CREATE_COMMIT_DESCRIPTION_FOR_COMMIT,
         TaskOperation.CREATE_DATABASE_SCHEMA_FOR_COMMIT,
+        TaskOperation.CREATE_REPOSITORY_STRUCTURE_FOR_COMMIT,
         TaskOperation.CREATE_COOKBOOK_FOR_COMMIT,
     ]
 
