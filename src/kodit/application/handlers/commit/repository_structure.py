@@ -61,8 +61,6 @@ class RepositoryStructureHandler:
             trackable_type=TrackableType.KODIT_REPOSITORY,
             trackable_id=repository_id,
         ) as step:
-            await step.set_total(3)
-
             # Check if repository structure enrichment already exists for this commit
             if await self.enrichment_query_service.has_repository_structure_for_commit(
                 commit_sha
@@ -76,6 +74,8 @@ class RepositoryStructureHandler:
             repo = await self.repo_repository.get(repository_id)
             if not repo.cloned_path:
                 raise ValueError(f"Repository {repository_id} has never been cloned")
+
+            await step.set_total(3)
 
             await step.set_current(1, "Discovering repository structure")
 
