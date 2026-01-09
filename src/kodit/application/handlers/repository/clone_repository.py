@@ -88,6 +88,6 @@ class CloneRepositoryHandler:
 
             await self.queue.enqueue_tasks(
                 tasks=PrescribedOperations.SCAN_AND_INDEX_COMMIT,
-                base_priority=QueuePriority.USER_INITIATED,
+                base_priority=QueuePriority.NORMAL,
                 payload={"commit_sha": commit_sha, "repository_id": repository_id},
             )
