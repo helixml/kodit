@@ -63,6 +63,6 @@ jobs:
           - Configuration documentation
           - Generated clients
 
-          This PR is automatically created and will auto-merge after CI passes.")
+          This PR is automatically created and merged.")
 
-          gh pr merge "$PR_URL" --auto --squash --delete-branch
+          gh pr merge "$PR_URL" --squash --delete-branch --admin
