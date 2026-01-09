@@ -52,6 +52,32 @@ from kodit.infrastructure.sqlalchemy import entities as db_entities
 from kodit.infrastructure.sqlalchemy.repository import SqlAlchemyRepository
 from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 
+# Registry mapping (type, subtype) to domain class - defined once at module level
+ENRICHMENT_REGISTRY: dict[tuple[str, str], type[EnrichmentV2]] = {
+    (ENRICHMENT_TYPE_DEVELOPMENT, ENRICHMENT_SUBTYPE_SNIPPET_SUMMARY): (
+        SnippetEnrichmentSummary
+    ),
+    (ENRICHMENT_TYPE_DEVELOPMENT, ENRICHMENT_SUBTYPE_SNIPPET): SnippetEnrichment,
+    (ENRICHMENT_TYPE_DEVELOPMENT, ENRICHMENT_SUBTYPE_EXAMPLE_SUMMARY): (
+        ExampleSummaryEnrichment
+    ),
+    (ENRICHMENT_TYPE_DEVELOPMENT, ENRICHMENT_SUBTYPE_EXAMPLE): ExampleEnrichment,
+    (ENRICHMENT_TYPE_USAGE, ENRICHMENT_SUBTYPE_API_DOCS): APIDocEnrichment,
+    (ENRICHMENT_TYPE_USAGE, ENRICHMENT_SUBTYPE_COOKBOOK): CookbookEnrichment,
+    (ENRICHMENT_TYPE_ARCHITECTURE, ENRICHMENT_SUBTYPE_PHYSICAL): (
+        PhysicalArchitectureEnrichment
+    ),
+    (ENRICHMENT_TYPE_HISTORY, ENRICHMENT_SUBTYPE_COMMIT_DESCRIPTION): (
+        CommitDescriptionEnrichment
+    ),
+    (ENRICHMENT_TYPE_ARCHITECTURE, ENRICHMENT_SUBTYPE_DATABASE_SCHEMA): (
+        DatabaseSchemaEnrichment
+    ),
+    (ENRICHMENT_TYPE_ARCHITECTURE, ENRICHMENT_SUBTYPE_REPOSITORY_STRUCTURE): (
+        RepositoryStructureEnrichment
+    ),
+}
+
 
 def create_enrichment_v2_repository(
     session_factory: Callable[[], AsyncSession],
@@ -113,38 +139,8 @@ class SQLAlchemyEnrichmentV2Repository(
     @staticmethod
     def to_domain(db_entity: db_entities.EnrichmentV2) -> EnrichmentV2:
         """Convert database enrichment to domain entity."""
-        # Registry mapping (type, subtype) to domain class
-        enrichment_registry: dict[tuple[str, str], type[EnrichmentV2]] = {
-            (ENRICHMENT_TYPE_DEVELOPMENT, ENRICHMENT_SUBTYPE_SNIPPET_SUMMARY): (
-                SnippetEnrichmentSummary
-            ),
-            (ENRICHMENT_TYPE_DEVELOPMENT, ENRICHMENT_SUBTYPE_SNIPPET): (
-                SnippetEnrichment
-            ),
-            (ENRICHMENT_TYPE_DEVELOPMENT, ENRICHMENT_SUBTYPE_EXAMPLE_SUMMARY): (
-                ExampleSummaryEnrichment
-            ),
-            (ENRICHMENT_TYPE_DEVELOPMENT, ENRICHMENT_SUBTYPE_EXAMPLE): (
-                ExampleEnrichment
-            ),
-            (ENRICHMENT_TYPE_USAGE, ENRICHMENT_SUBTYPE_API_DOCS): APIDocEnrichment,
-            (ENRICHMENT_TYPE_USAGE, ENRICHMENT_SUBTYPE_COOKBOOK): CookbookEnrichment,
-            (ENRICHMENT_TYPE_ARCHITECTURE, ENRICHMENT_SUBTYPE_PHYSICAL): (
-                PhysicalArchitectureEnrichment
-            ),
-            (ENRICHMENT_TYPE_HISTORY, ENRICHMENT_SUBTYPE_COMMIT_DESCRIPTION): (
-                CommitDescriptionEnrichment
-            ),
-            (ENRICHMENT_TYPE_ARCHITECTURE, ENRICHMENT_SUBTYPE_DATABASE_SCHEMA): (
-                DatabaseSchemaEnrichment
-            ),
-            (ENRICHMENT_TYPE_ARCHITECTURE, ENRICHMENT_SUBTYPE_REPOSITORY_STRUCTURE): (
-                RepositoryStructureEnrichment
-            ),
-        }
-
         key = (db_entity.type, db_entity.subtype)
-        domain_class = enrichment_registry.get(key)
+        domain_class = ENRICHMENT_REGISTRY.get(key)
 
         if domain_class is None:
             raise ValueError(

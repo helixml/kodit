@@ -74,6 +74,44 @@ what the file does. For example:
 - IMPORTANT: Return only the tree content directly. Do NOT wrap in markdown fences.
 """
 
+# Known configuration files and their descriptions
+CONFIG_FILE_DESCRIPTIONS = {
+    "dockerfile": "Docker container configuration",
+    "docker-compose.yml": "Docker Compose orchestration",
+    "docker-compose.yaml": "Docker Compose orchestration",
+    "package.json": "Node.js package configuration",
+    "requirements.txt": "Python dependencies",
+    "pyproject.toml": "Python project configuration",
+    "setup.py": "Python package setup",
+    "cargo.toml": "Rust package configuration",
+    "go.mod": "Go module configuration",
+    "makefile": "Build automation",
+    "readme.md": "Project documentation",
+    "license": "Project license",
+    "changelog.md": "Project changelog",
+    "contributing.md": "Contribution guidelines",
+}
+
+# Non-code file descriptions by extension
+SIMPLE_FILE_DESCRIPTIONS = {
+    ".html": "HTML template",
+    ".css": "Stylesheet",
+    ".scss": "SASS stylesheet",
+    ".sql": "SQL script",
+    ".sh": "Shell script",
+    ".yml": "YAML configuration",
+    ".yaml": "YAML configuration",
+    ".json": "JSON configuration",
+    ".xml": "XML configuration",
+    ".toml": "TOML configuration",
+    ".ini": "INI configuration",
+    ".env": "Environment variables",
+    ".md": "Documentation",
+    ".txt": "Text file",
+    ".proto": "Protocol Buffer definition",
+    ".graphql": "GraphQL schema",
+}
+
 # Common patterns to ignore when walking repository
 IGNORE_PATTERNS = {
     # Version control
@@ -336,43 +374,8 @@ class RepositoryStructureService:
 
     def _get_config_description(self, name_lower: str) -> str:
         """Return description for known configuration files."""
-        config_files = {
-            "dockerfile": "Docker container configuration",
-            "docker-compose.yml": "Docker Compose orchestration",
-            "docker-compose.yaml": "Docker Compose orchestration",
-            "package.json": "Node.js package configuration",
-            "requirements.txt": "Python dependencies",
-            "pyproject.toml": "Python project configuration",
-            "setup.py": "Python package setup",
-            "cargo.toml": "Rust package configuration",
-            "go.mod": "Go module configuration",
-            "makefile": "Build automation",
-            "readme.md": "Project documentation",
-            "license": "Project license",
-            "changelog.md": "Project changelog",
-            "contributing.md": "Contribution guidelines",
-        }
-        return config_files.get(name_lower, "")
+        return CONFIG_FILE_DESCRIPTIONS.get(name_lower, "")
 
     def _get_simple_description(self, file_path: Path) -> str:
         """Return simple description for non-code files."""
-        suffix = file_path.suffix.lower()
-        descriptions = {
-            ".html": "HTML template",
-            ".css": "Stylesheet",
-            ".scss": "SASS stylesheet",
-            ".sql": "SQL script",
-            ".sh": "Shell script",
-            ".yml": "YAML configuration",
-            ".yaml": "YAML configuration",
-            ".json": "JSON configuration",
-            ".xml": "XML configuration",
-            ".toml": "TOML configuration",
-            ".ini": "INI configuration",
-            ".env": "Environment variables",
-            ".md": "Documentation",
-            ".txt": "Text file",
-            ".proto": "Protocol Buffer definition",
-            ".graphql": "GraphQL schema",
-        }
-        return descriptions.get(suffix, "")
+        return SIMPLE_FILE_DESCRIPTIONS.get(file_path.suffix.lower(), "")
