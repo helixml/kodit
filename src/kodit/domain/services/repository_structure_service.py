@@ -1,5 +1,6 @@
 """Service for discovering repository structure and generating tree summaries."""
 
+import asyncio
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -224,7 +225,7 @@ class RepositoryStructureService:
                 )
                 file_count += subfile_count
             else:
-                description = self._get_file_description(item)
+                description = await self._get_file_description(item)
                 tree_lines.append(f"{prefix}{connector}{item.name} - {description}")
                 file_count += 1
 
@@ -251,7 +252,7 @@ class RepositoryStructureService:
 
         return False
 
-    def _get_file_description(self, file_path: Path) -> str:
+    async def _get_file_description(self, file_path: Path) -> str:
         """Generate a description with code signatures for source files."""
         name = file_path.name
         name_lower = name.lower()
@@ -264,15 +265,32 @@ class RepositoryStructureService:
         # For source code files, extract code signatures
         suffix = file_path.suffix.lower()
         if suffix in EXTENSION_TO_LANGUAGE:
-            signatures = self._extract_code_signatures(file_path)
+            signatures = await self._extract_code_signatures(file_path)
             if signatures:
                 return signatures
 
         # Fall back to simple descriptions for non-code files
         return self._get_simple_description(file_path)
 
-    def _extract_code_signatures(self, file_path: Path) -> str:
+    async def _extract_code_signatures(self, file_path: Path) -> str:
         """Extract class and function signatures from a source file."""
+        suffix = file_path.suffix.lower()
+        language = EXTENSION_TO_LANGUAGE.get(suffix)
+        if not language:
+            return ""
+
+        # Run blocking file I/O and parsing operations in a thread pool
+        # to avoid blocking the event loop
+        try:
+            return await asyncio.to_thread(
+                self._extract_code_signatures_sync, file_path, language
+            )
+        except (OSError, ValueError, UnicodeDecodeError) as e:
+            log.debug("Failed to extract signatures", path=str(file_path), error=str(e))
+            return ""
+
+    def _extract_code_signatures_sync(self, file_path: Path, language: str) -> str:
+        """Synchronous implementation of code signature extraction."""
         from tree_sitter import Parser
         from tree_sitter_language_pack import get_language
 
@@ -280,31 +298,22 @@ class RepositoryStructureService:
             language_analyzer_factory,
         )
 
-        suffix = file_path.suffix.lower()
-        language = EXTENSION_TO_LANGUAGE.get(suffix)
-        if not language:
-            return ""
+        analyzer = language_analyzer_factory(language)
+        ts_language = get_language(analyzer.metadata().tree_sitter_name)
+        parser = Parser(ts_language)
 
-        try:
-            analyzer = language_analyzer_factory(language)
-            ts_language = get_language(analyzer.metadata().tree_sitter_name)
-            parser = Parser(ts_language)
+        with file_path.open("rb") as f:
+            source_code = f.read()
 
-            with file_path.open("rb") as f:
-                source_code = f.read()
+        tree = parser.parse(source_code)
+        signatures = self._collect_signatures(tree.root_node, analyzer)
 
-            tree = parser.parse(source_code)
-            signatures = self._collect_signatures(tree.root_node, analyzer)
-
-            if signatures:
-                # Limit total length to ~100 chars
-                result = ", ".join(signatures)
-                if len(result) > 100:
-                    result = result[:97] + "..."
-                return result
-
-        except (OSError, ValueError, UnicodeDecodeError) as e:
-            log.debug("Failed to extract signatures", path=str(file_path), error=str(e))
+        if signatures:
+            # Limit total length to ~100 chars
+            result = ", ".join(signatures)
+            if len(result) > 100:
+                result = result[:97] + "..."
+            return result
 
         return ""
 
