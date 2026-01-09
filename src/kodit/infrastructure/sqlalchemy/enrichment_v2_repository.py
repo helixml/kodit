@@ -111,110 +111,49 @@ class SQLAlchemyEnrichmentV2Repository(
         return enrichment
 
     @staticmethod
-    def to_domain(db_entity: db_entities.EnrichmentV2) -> EnrichmentV2:  # noqa: PLR0911
+    def to_domain(db_entity: db_entities.EnrichmentV2) -> EnrichmentV2:
         """Convert database enrichment to domain entity."""
-        # Use the stored type and subtype to determine the correct domain class
-        if (
-            db_entity.type == ENRICHMENT_TYPE_DEVELOPMENT
-            and db_entity.subtype == ENRICHMENT_SUBTYPE_SNIPPET_SUMMARY
-        ):
-            return SnippetEnrichmentSummary(
-                id=db_entity.id,
-                content=db_entity.content,
-                created_at=db_entity.created_at,
-                updated_at=db_entity.updated_at,
-            )
-        if (
-            db_entity.type == ENRICHMENT_TYPE_DEVELOPMENT
-            and db_entity.subtype == ENRICHMENT_SUBTYPE_SNIPPET
-        ):
-            return SnippetEnrichment(
-                id=db_entity.id,
-                content=db_entity.content,
-                created_at=db_entity.created_at,
-                updated_at=db_entity.updated_at,
-            )
-        if (
-            db_entity.type == ENRICHMENT_TYPE_DEVELOPMENT
-            and db_entity.subtype == ENRICHMENT_SUBTYPE_EXAMPLE_SUMMARY
-        ):
-            return ExampleSummaryEnrichment(
-                id=db_entity.id,
-                content=db_entity.content,
-                created_at=db_entity.created_at,
-                updated_at=db_entity.updated_at,
-            )
-        if (
-            db_entity.type == ENRICHMENT_TYPE_DEVELOPMENT
-            and db_entity.subtype == ENRICHMENT_SUBTYPE_EXAMPLE
-        ):
-            return ExampleEnrichment(
-                id=db_entity.id,
-                content=db_entity.content,
-                created_at=db_entity.created_at,
-                updated_at=db_entity.updated_at,
-            )
-        if (
-            db_entity.type == ENRICHMENT_TYPE_USAGE
-            and db_entity.subtype == ENRICHMENT_SUBTYPE_API_DOCS
-        ):
-            return APIDocEnrichment(
-                id=db_entity.id,
-                content=db_entity.content,
-                created_at=db_entity.created_at,
-                updated_at=db_entity.updated_at,
-            )
-        if (
-            db_entity.type == ENRICHMENT_TYPE_USAGE
-            and db_entity.subtype == ENRICHMENT_SUBTYPE_COOKBOOK
-        ):
-            return CookbookEnrichment(
-                id=db_entity.id,
-                content=db_entity.content,
-                created_at=db_entity.created_at,
-                updated_at=db_entity.updated_at,
-            )
-        if (
-            db_entity.type == ENRICHMENT_TYPE_ARCHITECTURE
-            and db_entity.subtype == ENRICHMENT_SUBTYPE_PHYSICAL
-        ):
-            return PhysicalArchitectureEnrichment(
-                id=db_entity.id,
-                content=db_entity.content,
-                created_at=db_entity.created_at,
-                updated_at=db_entity.updated_at,
-            )
-        if (
-            db_entity.type == ENRICHMENT_TYPE_HISTORY
-            and db_entity.subtype == ENRICHMENT_SUBTYPE_COMMIT_DESCRIPTION
-        ):
-            return CommitDescriptionEnrichment(
-                id=db_entity.id,
-                content=db_entity.content,
-                created_at=db_entity.created_at,
-                updated_at=db_entity.updated_at,
-            )
-        if (
-            db_entity.type == ENRICHMENT_TYPE_ARCHITECTURE
-            and db_entity.subtype == ENRICHMENT_SUBTYPE_DATABASE_SCHEMA
-        ):
-            return DatabaseSchemaEnrichment(
-                id=db_entity.id,
-                content=db_entity.content,
-                created_at=db_entity.created_at,
-                updated_at=db_entity.updated_at,
-            )
-        if (
-            db_entity.type == ENRICHMENT_TYPE_ARCHITECTURE
-            and db_entity.subtype == ENRICHMENT_SUBTYPE_REPOSITORY_STRUCTURE
-        ):
-            return RepositoryStructureEnrichment(
-                id=db_entity.id,
-                content=db_entity.content,
-                created_at=db_entity.created_at,
-                updated_at=db_entity.updated_at,
+        # Registry mapping (type, subtype) to domain class
+        enrichment_registry: dict[tuple[str, str], type[EnrichmentV2]] = {
+            (ENRICHMENT_TYPE_DEVELOPMENT, ENRICHMENT_SUBTYPE_SNIPPET_SUMMARY): (
+                SnippetEnrichmentSummary
+            ),
+            (ENRICHMENT_TYPE_DEVELOPMENT, ENRICHMENT_SUBTYPE_SNIPPET): (
+                SnippetEnrichment
+            ),
+            (ENRICHMENT_TYPE_DEVELOPMENT, ENRICHMENT_SUBTYPE_EXAMPLE_SUMMARY): (
+                ExampleSummaryEnrichment
+            ),
+            (ENRICHMENT_TYPE_DEVELOPMENT, ENRICHMENT_SUBTYPE_EXAMPLE): (
+                ExampleEnrichment
+            ),
+            (ENRICHMENT_TYPE_USAGE, ENRICHMENT_SUBTYPE_API_DOCS): APIDocEnrichment,
+            (ENRICHMENT_TYPE_USAGE, ENRICHMENT_SUBTYPE_COOKBOOK): CookbookEnrichment,
+            (ENRICHMENT_TYPE_ARCHITECTURE, ENRICHMENT_SUBTYPE_PHYSICAL): (
+                PhysicalArchitectureEnrichment
+            ),
+            (ENRICHMENT_TYPE_HISTORY, ENRICHMENT_SUBTYPE_COMMIT_DESCRIPTION): (
+                CommitDescriptionEnrichment
+            ),
+            (ENRICHMENT_TYPE_ARCHITECTURE, ENRICHMENT_SUBTYPE_DATABASE_SCHEMA): (
+                DatabaseSchemaEnrichment
+            ),
+            (ENRICHMENT_TYPE_ARCHITECTURE, ENRICHMENT_SUBTYPE_REPOSITORY_STRUCTURE): (
+                RepositoryStructureEnrichment
+            ),
+        }
+
+        key = (db_entity.type, db_entity.subtype)
+        domain_class = enrichment_registry.get(key)
+
+        if domain_class is None:
+            raise ValueError(
+                f"Unknown enrichment type: {db_entity.type}/{db_entity.subtype}"
             )
 
-        raise ValueError(
-            f"Unknown enrichment type: {db_entity.type}/{db_entity.subtype}"
+        return domain_class(
+            id=db_entity.id,
+            content=db_entity.content,
+            created_at=db_entity.created_at,
+            updated_at=db_entity.updated_at,
         )

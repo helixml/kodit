@@ -1,57 +1,87 @@
-"""Service for discovering repository structure and generating intelligent tree summaries."""  # noqa: E501
+"""Service for discovering repository structure and generating tree summaries."""
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-REPOSITORY_STRUCTURE_ENRICHMENT_SYSTEM_PROMPT = """You are an expert software architect and code analyst.  # noqa: E501
-Your task is to intelligently collapse and summarize a repository structure tree to highlight only the most important and interesting components.  # noqa: E501
-Deliver a clean, focused tree that helps developers understand the codebase structure.
-"""
+import structlog
 
-REPOSITORY_STRUCTURE_ENRICHMENT_TASK_PROMPT = """Below is a complete repository structure tree with descriptions for each file.  # noqa: E501
-Your task is to intelligently collapse and summarize this tree to create a focused view that highlights key components.  # noqa: E501
+if TYPE_CHECKING:
+    from tree_sitter import Node
+
+    from kodit.infrastructure.slicing.language_analyzer import LanguageAnalyzer
+
+log = structlog.get_logger(__name__)
+
+# Map file extensions to tree-sitter language names
+EXTENSION_TO_LANGUAGE = {
+    ".py": "python",
+    ".go": "go",
+    ".js": "javascript",
+    ".ts": "typescript",
+    ".tsx": "typescript",
+    ".jsx": "javascript",
+    ".java": "java",
+    ".c": "c",
+    ".cpp": "cpp",
+    ".rs": "rust",
+    ".cs": "csharp",
+}
+
+REPOSITORY_STRUCTURE_ENRICHMENT_SYSTEM_PROMPT = (
+    "You are an expert software architect and code analyst. "
+    "Your task is to intelligently collapse and summarize a repository structure "
+    "tree to highlight only the most important and interesting components. "
+    "Deliver a clean, focused tree that helps developers understand the "
+    "codebase structure."
+)
+
+REPOSITORY_STRUCTURE_ENRICHMENT_TASK_PROMPT = """Below is a repository structure \
+tree. Source files include code signatures (classes, functions) that describe \
+their contents. Transform these signatures into brief, readable descriptions.
 
 <repository_tree>
 {repository_tree}
 </repository_tree>
 
-**Guidelines for collapsing:**
-1. Keep important files like:
-   - Main entry points (main.py, index.js, app.py, etc.)
-   - Configuration files (config files, docker-compose, package.json, etc.)
-   - Key domain/business logic files
-   - Important documentation files (README, ARCHITECTURE, etc.)
+**Your task:**
+For each source file, convert the code signatures into a brief description of \
+what the file does. For example:
+- Input: "backtesting.py - class Backtest(Algorithm), def run_simulation()"
+- Output: "backtesting.py - Backtests trading algorithms with simulation support"
 
-2. Collapse/summarize less interesting parts like:
-   - Test directories (can be shown as "tests/ - [N files, test coverage for X, Y, Z]")
-   - Build artifacts and generated code directories
-   - Large directories with repetitive files (show pattern instead of all files)
-   - Vendor/dependencies directories
-   - Migration directories (can be shown as "migrations/ - [N migrations]")
+- Input: "user_service.py - class UserService, def create_user(), def get_user()"
+- Output: "user_service.py - Manages user creation and retrieval"
 
-3. For collapsed sections, provide a brief summary like:
-   - "tests/ - 45 test files covering domain, API, and infrastructure layers"
-   - "migrations/ - 12 database migrations"
-   - "components/ - 23 React components for UI"
+**CRITICAL: What to EXPAND (show all files with descriptions):**
+- src/, lib/, pkg/, internal/, core/ directories - the main source code
+- Domain/business logic directories
+- API and service directories
 
-4. Preserve the tree structure but reduce noise
-5. Keep the tree depth reasonable (collapse deep nested structures)
-6. Use your judgment to balance detail with readability
+**What to COLLAPSE (summarize with file count):**
+- tests/, test/, __tests__/ directories -> "tests/ - N test files"
+- examples/, example/ directories -> "examples/ - N example files"
+- docs/, documentation/ directories -> "docs/ - N documentation files"
+- migrations/ directories -> "migrations/ - N database migrations"
+
+**Guidelines:**
+1. ALWAYS expand source directories and describe each file based on its signatures
+2. Convert code signatures to human-readable descriptions (what it does, not what it is)
+3. Keep important root files: README.md, pyproject.toml, package.json, Dockerfile
+4. Preserve tree structure with proper indentation
 
 **Return format:**
-- Use proper tree formatting with indentation
-- Show collapsed sections with a summary in brackets
-- Keep important files with their descriptions
-- Maintain clear hierarchical structure
-- IMPORTANT: Return only the tree content directly. Do NOT wrap your response in markdown code fences.  # noqa: E501
+- Use tree formatting: ├── for items, └── for last item, │ for continuation
+- IMPORTANT: Return only the tree content directly. Do NOT wrap in markdown fences.
 """
 
 # Common patterns to ignore when walking repository
 IGNORE_PATTERNS = {
+    # Version control
     ".git",
     ".hg",
     ".svn",
+    # Python cache/build
     "__pycache__",
-    "node_modules",
     ".venv",
     "venv",
     ".tox",
@@ -61,54 +91,67 @@ IGNORE_PATTERNS = {
     "dist",
     "build",
     "*.egg-info",
-    ".idea",
-    ".vscode",
-    ".DS_Store",
     "*.pyc",
     "*.pyo",
     "*.pyd",
     ".coverage",
     "htmlcov",
     ".eggs",
+    # Node
+    "node_modules",
+    # IDE
+    ".idea",
+    ".vscode",
+    # OS
+    ".DS_Store",
+    # Lock files (dependencies are in config files)
+    "uv.lock",
+    "package-lock.json",
+    "yarn.lock",
+    "pnpm-lock.yaml",
+    "Cargo.lock",
+    "poetry.lock",
+    "Gemfile.lock",
+    "composer.lock",
+    "go.sum",
 }
 
 
 class RepositoryStructureService:
     """Service for discovering repository structure and generating trees."""
 
-    def __init__(self, max_files: int = 1000) -> None:
+    def __init__(self, max_files: int = 1000, max_depth: int = 10) -> None:
         """Initialize the service."""
         self.max_files = max_files
+        self.max_depth = max_depth
+        self._base_path: Path | None = None
 
-    async def discover_structure(self, repo_path: Path) -> str:
+    async def discover_structure(self, repo_path: Path, repo_url: str = "") -> str:
         """Discover repository structure and generate a tree with file descriptions."""
-        tree_lines = []
-        file_count = 0
+        self._base_path = repo_path
+        tree_lines: list[str] = []
 
-        # Build the tree recursively
-        tree_lines.append(f"Repository: {repo_path.name}")
-        tree_lines.append("=" * 80)
+        # Use repo URL for display if provided, otherwise use path name
+        display_name = repo_url if repo_url else repo_path.name
+        tree_lines.append(f"Repository: {display_name}")
         tree_lines.append("")
 
-        file_count = await self._build_tree(repo_path, repo_path, tree_lines, "", 0)
+        file_count = await self._build_tree(repo_path, tree_lines, "", 0)
 
         tree_lines.append("")
-        tree_lines.append("=" * 80)
         tree_lines.append(f"Total files: {file_count}")
 
         return "\n".join(tree_lines)
 
     async def _build_tree(
         self,
-        base_path: Path,
         current_path: Path,
         tree_lines: list[str],
         prefix: str,
         depth: int,
-        max_depth: int = 10,
     ) -> int:
         """Build tree recursively."""
-        if depth > max_depth:
+        if depth > self.max_depth:
             return 0
 
         file_count = 0
@@ -122,7 +165,7 @@ class RepositoryStructureService:
             return 0
 
         # Filter out ignored patterns
-        items = [item for item in items if not self._should_ignore(item, base_path)]
+        items = [item for item in items if not self._should_ignore(item)]
 
         for i, item in enumerate(items):
             if file_count >= self.max_files:
@@ -136,49 +179,163 @@ class RepositoryStructureService:
             if item.is_dir():
                 tree_lines.append(f"{prefix}{connector}{item.name}/")
                 subfile_count = await self._build_tree(
-                    base_path,
                     item,
                     tree_lines,
                     prefix + extension,
                     depth + 1,
-                    max_depth,
                 )
                 file_count += subfile_count
             else:
-                description = self._get_file_description(item, base_path)
+                description = self._get_file_description(item)
                 tree_lines.append(f"{prefix}{connector}{item.name} - {description}")
                 file_count += 1
 
         return file_count
 
-    def _should_ignore(self, path: Path, base_path: Path) -> bool:
+    def _should_ignore(self, path: Path) -> bool:
         """Check if path should be ignored."""
         name = path.name
 
-        # Check exact matches
+        # Check exact matches in ignore patterns
         if name in IGNORE_PATTERNS:
             return True
 
-        # Check pattern matches (simple glob-like matching)
+        # Ignore dotfiles (files starting with .) but keep dot-directories like .github/
+        if name.startswith(".") and path.is_file():
+            return True
+
+        # Check pattern matches (simple glob-like matching for extensions)
         for pattern in IGNORE_PATTERNS:
-            if "*" in pattern:
-                # Simple glob matching for extensions
-                if pattern.startswith("*."):
-                    ext = pattern[1:]  # includes the dot
-                    if name.endswith(ext):
-                        return True
-            elif name == pattern:
-                return True
+            if "*" in pattern and pattern.startswith("*."):
+                ext = pattern[1:]  # includes the dot
+                if name.endswith(ext):
+                    return True
 
         return False
 
-    def _get_file_description(self, file_path: Path, base_path: Path) -> str:
-        """Generate a short description for a file based on its path and extension."""
+    def _get_file_description(self, file_path: Path) -> str:
+        """Generate a description with code signatures for source files."""
         name = file_path.name
-        suffix = file_path.suffix.lower()
-        rel_path = file_path.relative_to(base_path)
+        name_lower = name.lower()
 
-        # Configuration files
+        # Check configuration files first
+        config_desc = self._get_config_description(name_lower)
+        if config_desc:
+            return config_desc
+
+        # For source code files, extract code signatures
+        suffix = file_path.suffix.lower()
+        if suffix in EXTENSION_TO_LANGUAGE:
+            signatures = self._extract_code_signatures(file_path)
+            if signatures:
+                return signatures
+
+        # Fall back to simple descriptions for non-code files
+        return self._get_simple_description(file_path)
+
+    def _extract_code_signatures(self, file_path: Path) -> str:
+        """Extract class and function signatures from a source file."""
+        from tree_sitter import Parser
+        from tree_sitter_language_pack import get_language
+
+        from kodit.infrastructure.slicing.language_analyzer import (
+            language_analyzer_factory,
+        )
+
+        suffix = file_path.suffix.lower()
+        language = EXTENSION_TO_LANGUAGE.get(suffix)
+        if not language:
+            return ""
+
+        try:
+            analyzer = language_analyzer_factory(language)
+            ts_language = get_language(analyzer.metadata().tree_sitter_name)
+            parser = Parser(ts_language)
+
+            with file_path.open("rb") as f:
+                source_code = f.read()
+
+            tree = parser.parse(source_code)
+            signatures = self._collect_signatures(tree.root_node, analyzer)
+
+            if signatures:
+                # Limit total length to ~100 chars
+                result = ", ".join(signatures)
+                if len(result) > 100:
+                    result = result[:97] + "..."
+                return result
+
+        except (OSError, ValueError, UnicodeDecodeError) as e:
+            log.debug("Failed to extract signatures", path=str(file_path), error=str(e))
+
+        return ""
+
+    def _collect_signatures(
+        self,
+        root_node: "Node",
+        analyzer: "LanguageAnalyzer",
+    ) -> list[str]:
+        """Collect class and function signatures from AST."""
+        signatures: list[str] = []
+        node_types = analyzer.node_types()
+        class_types = {"class_definition", "class_declaration", "type_declaration"}
+
+        # Walk the tree looking for classes and functions
+        queue = [root_node]
+        visited: set[int] = set()
+
+        while queue and len(signatures) < 5:  # Limit to 5 signatures
+            node = queue.pop(0)
+            node_id = id(node)
+            if node_id in visited:
+                continue
+            visited.add(node_id)
+
+            # Check for class definitions
+            if node.type in class_types:
+                class_sig = self._extract_class_signature(node)
+                if class_sig:
+                    signatures.append(class_sig)
+
+            # Check for function definitions
+            elif node.type in node_types.all_function_nodes:
+                func_name = analyzer.extract_function_name(node)
+                if func_name and not func_name.startswith("_"):
+                    signatures.append(f"def {func_name}()")
+
+            queue.extend(node.children)
+
+        return signatures
+
+    def _extract_class_signature(self, node: "Node") -> str:
+        """Extract a class signature like 'class Foo(Bar):'."""
+        # Find the class name
+        class_name = None
+        base_classes: list[str] = []
+
+        for child in node.children:
+            if child.type == "identifier" and child.text:
+                class_name = child.text.decode("utf-8")
+            elif child.type == "argument_list":
+                # Python base classes
+                base_classes.extend(
+                    arg.text.decode("utf-8")
+                    for arg in child.children
+                    if arg.type == "identifier" and arg.text
+                )
+            elif child.type == "type_identifier" and child.text:
+                # Go/other languages
+                class_name = child.text.decode("utf-8")
+
+        if not class_name:
+            return ""
+
+        if base_classes:
+            return f"class {class_name}({', '.join(base_classes)})"
+        return f"class {class_name}"
+
+    def _get_config_description(self, name_lower: str) -> str:
+        """Return description for known configuration files."""
         config_files = {
             "dockerfile": "Docker container configuration",
             "docker-compose.yml": "Docker Compose orchestration",
@@ -190,77 +347,32 @@ class RepositoryStructureService:
             "cargo.toml": "Rust package configuration",
             "go.mod": "Go module configuration",
             "makefile": "Build automation",
-            ".gitignore": "Git ignore patterns",
-            ".dockerignore": "Docker ignore patterns",
             "readme.md": "Project documentation",
             "license": "Project license",
             "changelog.md": "Project changelog",
             "contributing.md": "Contribution guidelines",
         }
+        return config_files.get(name_lower, "")
 
-        name_lower = name.lower()
-        if name_lower in config_files:
-            return config_files[name_lower]
-
-        # Extension-based descriptions
-        ext_descriptions = {
-            ".py": "Python source file",
-            ".js": "JavaScript source file",
-            ".ts": "TypeScript source file",
-            ".tsx": "TypeScript React component",
-            ".jsx": "JavaScript React component",
-            ".go": "Go source file",
-            ".rs": "Rust source file",
-            ".java": "Java source file",
-            ".cpp": "C++ source file",
-            ".c": "C source file",
-            ".h": "C/C++ header file",
-            ".hpp": "C++ header file",
-            ".cs": "C# source file",
-            ".rb": "Ruby source file",
-            ".php": "PHP source file",
-            ".html": "HTML template/page",
+    def _get_simple_description(self, file_path: Path) -> str:
+        """Return simple description for non-code files."""
+        suffix = file_path.suffix.lower()
+        descriptions = {
+            ".html": "HTML template",
             ".css": "Stylesheet",
             ".scss": "SASS stylesheet",
             ".sql": "SQL script",
             ".sh": "Shell script",
             ".yml": "YAML configuration",
             ".yaml": "YAML configuration",
-            ".json": "JSON data/configuration",
-            ".xml": "XML data/configuration",
+            ".json": "JSON configuration",
+            ".xml": "XML configuration",
             ".toml": "TOML configuration",
             ".ini": "INI configuration",
             ".env": "Environment variables",
-            ".md": "Markdown documentation",
+            ".md": "Documentation",
             ".txt": "Text file",
             ".proto": "Protocol Buffer definition",
             ".graphql": "GraphQL schema",
         }
-
-        if suffix in ext_descriptions:
-            base_desc = ext_descriptions[suffix]
-            # Add context from path
-            if "test" in str(rel_path).lower():
-                return f"{base_desc} (test)"
-            if "api" in str(rel_path).lower():
-                return f"{base_desc} (API)"
-            if "model" in str(rel_path).lower():
-                return f"{base_desc} (model)"
-            if "service" in str(rel_path).lower():
-                return f"{base_desc} (service)"
-            if "controller" in str(rel_path).lower():
-                return f"{base_desc} (controller)"
-            if "util" in str(rel_path).lower() or "helper" in str(rel_path).lower():
-                return f"{base_desc} (utility)"
-            return base_desc
-
-        # Special patterns
-        if name.endswith(("_test.py", "_test.go")):
-            return "Unit test file"
-        if name.endswith((".test.js", ".test.ts")):
-            return "Unit test file"
-        if name.endswith((".spec.js", ".spec.ts")):
-            return "Test specification"
-
-        # Default
-        return "Source file"
+        return descriptions.get(suffix, "")

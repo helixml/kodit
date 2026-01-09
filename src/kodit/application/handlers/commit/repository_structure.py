@@ -82,7 +82,8 @@ class RepositoryStructureHandler:
             # Discover repository structure
             repository_tree = (
                 await self.repository_structure_service.discover_structure(
-                    repo.cloned_path
+                    repo.cloned_path,
+                    repo_url=str(repo.sanitized_remote_uri),
                 )
             )
 
