@@ -69,7 +69,17 @@ class SyncRepositoryHandler:
                 await self.repo_repository.save(repo)
 
             # Pull latest changes from remote
+            original_tracking_config = repo.tracking_config
             await self.cloner.update_repository(repo)
+
+            # Persist tracking_config if it was re-detected
+            if repo.tracking_config != original_tracking_config:
+                self._log.info(
+                    "Tracking config updated",
+                    old=original_tracking_config,
+                    new=repo.tracking_config,
+                )
+                await self.repo_repository.save(repo)
 
             # Sync all branches and tags to database
             await self.repository_sync_service.sync_branches_and_tags(repo)

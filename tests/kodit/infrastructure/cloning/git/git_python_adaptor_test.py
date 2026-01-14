@@ -613,3 +613,136 @@ async def test_get_default_branch_master(
         result = await git_adapter.get_default_branch(repo_path)
 
         assert result == "master"
+
+
+@pytest.mark.asyncio
+async def test_get_default_branch_fallback_to_main(
+    git_adapter: GitPythonAdapter,
+) -> None:
+    """Test get_default_branch falls back to main when origin/HEAD is missing."""
+    import tempfile
+
+    from git import Repo as GitRepo
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        repo_path = Path(tmpdir) / "test-repo"
+        repo_path.mkdir()
+
+        # Initialize a git repo with main as default branch
+        repo = GitRepo.init(repo_path, initial_branch="main")
+
+        # Create an initial commit
+        test_file = repo_path / "README.md"
+        test_file.write_text("# Test Repo")
+        repo.index.add(["README.md"])
+        repo.index.commit("Initial commit")
+
+        # Add a fake remote origin
+        repo.create_remote("origin", "https://github.com/test/repo.git")
+
+        # Create a remote tracking ref for main (but NOT origin/HEAD)
+        repo.git.update_ref(
+            "refs/remotes/origin/main", repo.head.commit.hexsha
+        )
+
+        # origin/HEAD should NOT exist (no symbolic_ref call was made)
+        # This is the key scenario: a remote has branches but no HEAD pointer
+
+        result = await git_adapter.get_default_branch(repo_path)
+
+        assert result == "main"
+
+
+@pytest.mark.asyncio
+async def test_get_default_branch_fallback_to_master(
+    git_adapter: GitPythonAdapter,
+) -> None:
+    """Test get_default_branch falls back to master when origin/HEAD is missing."""
+    import tempfile
+
+    from git import Repo as GitRepo
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        repo_path = Path(tmpdir) / "test-repo"
+        repo_path.mkdir()
+
+        # Initialize a git repo with master as default branch
+        repo = GitRepo.init(repo_path, initial_branch="master")
+
+        # Create an initial commit
+        test_file = repo_path / "README.md"
+        test_file.write_text("# Test Repo")
+        repo.index.add(["README.md"])
+        repo.index.commit("Initial commit")
+
+        # Add a fake remote origin
+        repo.create_remote("origin", "https://github.com/test/repo.git")
+
+        # Create a remote tracking ref for master (but NOT origin/HEAD)
+        repo.git.update_ref(
+            "refs/remotes/origin/master", repo.head.commit.hexsha
+        )
+
+        result = await git_adapter.get_default_branch(repo_path)
+
+        assert result == "master"
+
+
+@pytest.mark.asyncio
+async def test_get_default_branch_fallback_to_first_branch(
+    git_adapter: GitPythonAdapter,
+) -> None:
+    """Test get_default_branch falls back to first branch when main/master missing."""
+    import tempfile
+
+    from git import Repo as GitRepo
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        repo_path = Path(tmpdir) / "test-repo"
+        repo_path.mkdir()
+
+        # Initialize a git repo with a non-standard default branch
+        repo = GitRepo.init(repo_path, initial_branch="develop")
+
+        # Create an initial commit
+        test_file = repo_path / "README.md"
+        test_file.write_text("# Test Repo")
+        repo.index.add(["README.md"])
+        repo.index.commit("Initial commit")
+
+        # Add a fake remote origin
+        repo.create_remote("origin", "https://github.com/test/repo.git")
+
+        # Create a remote tracking ref for develop (but NOT origin/HEAD)
+        repo.git.update_ref(
+            "refs/remotes/origin/develop", repo.head.commit.hexsha
+        )
+
+        result = await git_adapter.get_default_branch(repo_path)
+
+        # Should return develop since no main/master and no origin/HEAD
+        assert result == "develop"
+
+
+@pytest.mark.asyncio
+async def test_get_default_branch_no_branches_error(
+    git_adapter: GitPythonAdapter,
+) -> None:
+    """Test get_default_branch raises error when no branches exist."""
+    import tempfile
+
+    from git import Repo as GitRepo
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        repo_path = Path(tmpdir) / "test-repo"
+        repo_path.mkdir()
+
+        # Initialize a git repo (no commits = no branches)
+        GitRepo.init(repo_path, initial_branch="main")
+
+        # Add a fake remote origin (but no remote refs)
+        repo = GitRepo(repo_path)
+        repo.create_remote("origin", "https://github.com/test/repo.git")
+
+        with pytest.raises(ValueError, match="has no branches"):
+            await git_adapter.get_default_branch(repo_path)
