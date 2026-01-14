@@ -584,6 +584,63 @@ Query parameters:
 
 - 404: Repository not found
 
+### GET /api/v1/repositories/{repo_id}/tracking-config
+
+Get the tracking configuration for a repository.
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| repo_id | string | True |  |
+
+
+#### Responses
+
+- 200: Successful Response
+
+[TrackingConfigResponse](#trackingconfigresponse)
+
+- 500: Internal server error
+
+- 401: Unauthorized
+
+- 422: Invalid request
+
+- 404: Repository not found
+
+### PUT /api/v1/repositories/{repo_id}/tracking-config
+
+Update the tracking configuration for a repository.
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| repo_id | string | True |  |
+
+
+#### Request Body
+
+[TrackingConfigUpdateRequest](#trackingconfigupdaterequest)
+
+
+#### Responses
+
+- 200: Successful Response
+
+[TrackingConfigResponse](#trackingconfigresponse)
+
+- 500: Internal server error
+
+- 401: Unauthorized
+
+- 422: Invalid request
+
+- 404: Repository not found
+
 ### GET /api/v1/enrichments
 
 List all enrichments with optional filtering.
@@ -1434,6 +1491,84 @@ JSON:API response for task status list.
 | Field | Type | Description |
 |-------|------|-------------|
 | data | array |  |
+
+
+### TrackingConfigAttributes
+
+
+Tracking configuration attributes following JSON-API spec.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| mode |  | 'branch' tracks a specific branch, 'tag' tracks the latest tag |
+| value |  | Branch name when mode is 'branch'. Not used for 'tag' mode. |
+
+
+### TrackingConfigData
+
+
+Tracking configuration data following JSON-API spec.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| type | string |  |
+| attributes |  |  |
+
+
+### TrackingConfigResponse
+
+
+Tracking configuration response following JSON-API spec.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data |  |  |
+
+
+### TrackingConfigUpdateAttributes
+
+
+Tracking configuration update attributes.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| mode |  | 'branch' tracks a specific branch, 'tag' tracks the latest tag |
+| value |  | Branch name when mode is 'branch'. Not used for 'tag' mode. |
+
+
+### TrackingConfigUpdateData
+
+
+Tracking configuration update data.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| type | string |  |
+| attributes |  |  |
+
+
+### TrackingConfigUpdateRequest
+
+
+Tracking configuration update request.
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| data |  |  |
+
+
+### TrackingMode
+
+
+Tracking mode for repository configuration.
+
+
 
 
 ### ValidationError
