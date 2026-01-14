@@ -14,6 +14,7 @@ from kodit.domain.entities.git import (
     GitCommit,
     GitFile,
     GitRepo,
+    TrackingConfig,
     TrackingType,
 )
 from kodit.infrastructure.cloning.git.git_python_adaptor import GitPythonAdapter
@@ -216,9 +217,26 @@ class RepositoryCloner:
 
         if repository.tracking_config.type == TrackingType.BRANCH:
             await self.git_adapter.fetch_repository(repository.cloned_path)
-            await self.git_adapter.checkout_branch(
-                repository.cloned_path, repository.tracking_config.name
-            )
+            try:
+                await self.git_adapter.checkout_branch(
+                    repository.cloned_path, repository.tracking_config.name
+                )
+            except Exception as e:  # noqa: BLE001
+                # Branch might not exist - re-detect default branch
+                self._log.warning(
+                    "Checkout failed, re-detecting default branch",
+                    branch=repository.tracking_config.name,
+                    error=str(e),
+                )
+                new_default = await self.git_adapter.get_default_branch(
+                    repository.cloned_path
+                )
+                repository.tracking_config = TrackingConfig(
+                    type=TrackingType.BRANCH, name=new_default
+                )
+                await self.git_adapter.checkout_branch(
+                    repository.cloned_path, new_default
+                )
             await self.git_adapter.pull_repository(repository.cloned_path)
         elif repository.tracking_config.type == TrackingType.TAG:
             # Fetch all tags and get the most recent

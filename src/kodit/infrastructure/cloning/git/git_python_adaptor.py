@@ -604,17 +604,55 @@ class GitPythonAdapter:
             self.executor, _get_file_content
         )
 
-    async def get_default_branch(self, local_path: Path) -> str:
-        """Get the default branch name from origin/HEAD."""
+    def _get_remote_branch_names(self, origin: Any) -> list[str]:
+        """Get list of branch names from remote refs."""
+        branches = []
+        for ref in origin.refs:
+            if ref.name != f"{origin.name}/HEAD":
+                branch_name = ref.name.replace(f"{origin.name}/", "")
+                branches.append(branch_name)
+        return branches
+
+    def _get_default_branch_sync(self, local_path: Path) -> str:
+        """Detect the default branch with fallback strategies."""
         repo = Repo(local_path)
         if not hasattr(repo.remotes, "origin"):
             raise ValueError(f"Repository {local_path} has no origin remote")
 
         origin = repo.remotes.origin
+
+        # Strategy 1: Try origin/HEAD symbolic reference
         try:
             return origin.refs.HEAD.ref.name.removeprefix("origin/")
-        except (AttributeError, IndexError) as e:
-            raise ValueError(f"Repository {local_path} has no default branch") from e
+        except (AttributeError, IndexError, TypeError):
+            pass  # Fall through to next strategy
+
+        # Strategy 2: Look for common default branch names in remote refs
+        remote_branches = self._get_remote_branch_names(origin)
+        for candidate in ["main", "master"]:
+            if candidate in remote_branches:
+                self._log.info(
+                    "origin/HEAD not set, falling back to branch",
+                    branch=candidate,
+                )
+                return candidate
+
+        # Strategy 3: Use first available branch
+        if remote_branches:
+            first_branch = remote_branches[0]
+            self._log.info(
+                "origin/HEAD not set and no main/master, using first branch",
+                branch=first_branch,
+            )
+            return first_branch
+
+        raise ValueError(f"Repository {local_path} has no branches")
+
+    async def get_default_branch(self, local_path: Path) -> str:
+        """Get the default branch name with fallback strategies."""
+        return await asyncio.get_event_loop().run_in_executor(
+            self.executor, self._get_default_branch_sync, local_path
+        )
 
     async def get_latest_commit_sha(
         self, local_path: Path, branch_name: str = "HEAD"
