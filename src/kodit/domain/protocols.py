@@ -33,6 +33,16 @@ class Repository[T](Protocol):
         """Get entity by primary key."""
         ...
 
+    async def get_or_create(
+        self, entity: T, unique_field: str
+    ) -> tuple[T, bool]:
+        """Get existing entity or create new one atomically.
+
+        Handles race conditions by catching unique constraint violations.
+        Returns (entity, created) where created is True if new.
+        """
+        ...
+
     async def find(self, query: Query) -> list[T]:
         """Find all entities matching query."""
         ...
