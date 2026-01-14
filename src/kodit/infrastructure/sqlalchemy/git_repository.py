@@ -35,10 +35,10 @@ class SqlAlchemyGitRepoRepository(
     def to_domain(db_entity: db_entities.GitRepo) -> GitRepo:
         """Map database entity to domain entity."""
         tracking_config = None
-        if db_entity.tracking_type and db_entity.tracking_name:
+        if db_entity.tracking_type:
             tracking_config = TrackingConfig(
                 type=TrackingType(db_entity.tracking_type),
-                name=db_entity.tracking_name,
+                name=db_entity.tracking_name or "",
             )
 
         return GitRepo(

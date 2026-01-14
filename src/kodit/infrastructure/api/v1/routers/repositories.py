@@ -44,6 +44,11 @@ from kodit.infrastructure.api.v1.schemas.task_status import (
     TaskStatusData,
     TaskStatusListResponse,
 )
+from kodit.infrastructure.api.v1.schemas.tracking_config import (
+    TrackingConfigData,
+    TrackingConfigResponse,
+    TrackingConfigUpdateRequest,
+)
 from kodit.infrastructure.sqlalchemy.query import FilterOperator, QueryBuilder
 
 router = APIRouter(
@@ -414,3 +419,43 @@ async def delete_repository(
     except Exception as e:
         msg = f"Failed to delete repository: {e}"
         raise HTTPException(status_code=500, detail=msg) from e
+
+
+@router.get(
+    "/{repo_id}/tracking-config",
+    summary="Get repository tracking configuration",
+    responses={404: {"description": "Repository not found"}},
+)
+async def get_tracking_config(
+    repo_id: str,
+    git_repository: GitRepositoryDep,
+) -> TrackingConfigResponse:
+    """Get the tracking configuration for a repository."""
+    try:
+        repo = await git_repository.get(int(repo_id))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Repository not found") from None
+
+    return TrackingConfigResponse(data=TrackingConfigData.from_git_repo(repo))
+
+
+@router.put(
+    "/{repo_id}/tracking-config",
+    summary="Update repository tracking configuration",
+    responses={404: {"description": "Repository not found"}},
+)
+async def update_tracking_config(
+    repo_id: str,
+    request: TrackingConfigUpdateRequest,
+    git_repository: GitRepositoryDep,
+) -> TrackingConfigResponse:
+    """Update the tracking configuration for a repository."""
+    try:
+        repo = await git_repository.get(int(repo_id))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Repository not found") from None
+
+    repo.tracking_config = request.data.attributes.to_domain()
+    repo = await git_repository.save(repo)
+
+    return TrackingConfigResponse(data=TrackingConfigData.from_git_repo(repo))

@@ -51,6 +51,12 @@ const (
 	KoditRoot                                 TaskOperation = "kodit.root"
 )
 
+// Defines values for TrackingMode.
+const (
+	Branch TrackingMode = "branch"
+	Tag    TrackingMode = "tag"
+)
+
 // CommitAttributes Commit attributes following JSON-API spec.
 type CommitAttributes struct {
 	Author          string    `json:"author"`
@@ -771,6 +777,69 @@ type TaskStatusListResponse struct {
 	Data []TaskStatusData `json:"data"`
 }
 
+// TrackingConfigAttributes Tracking configuration attributes following JSON-API spec.
+type TrackingConfigAttributes struct {
+	// Mode Tracking mode for repository configuration.
+	Mode TrackingMode `json:"mode"`
+
+	// Value Branch name when mode is 'branch'. Not used for 'tag' mode.
+	Value *TrackingConfigAttributes_Value `json:"value"`
+}
+
+// TrackingConfigAttributesValue0 defines model for .
+type TrackingConfigAttributesValue0 = string
+
+// TrackingConfigAttributes_Value Branch name when mode is 'branch'. Not used for 'tag' mode.
+type TrackingConfigAttributes_Value struct {
+	union json.RawMessage
+}
+
+// TrackingConfigData Tracking configuration data following JSON-API spec.
+type TrackingConfigData struct {
+	// Attributes Tracking configuration attributes following JSON-API spec.
+	Attributes TrackingConfigAttributes `json:"attributes"`
+	Type       *string                  `json:"type,omitempty"`
+}
+
+// TrackingConfigResponse Tracking configuration response following JSON-API spec.
+type TrackingConfigResponse struct {
+	// Data Tracking configuration data following JSON-API spec.
+	Data TrackingConfigData `json:"data"`
+}
+
+// TrackingConfigUpdateAttributes Tracking configuration update attributes.
+type TrackingConfigUpdateAttributes struct {
+	// Mode Tracking mode for repository configuration.
+	Mode TrackingMode `json:"mode"`
+
+	// Value Branch name when mode is 'branch'. Not used for 'tag' mode.
+	Value *TrackingConfigUpdateAttributes_Value `json:"value"`
+}
+
+// TrackingConfigUpdateAttributesValue0 defines model for .
+type TrackingConfigUpdateAttributesValue0 = string
+
+// TrackingConfigUpdateAttributes_Value Branch name when mode is 'branch'. Not used for 'tag' mode.
+type TrackingConfigUpdateAttributes_Value struct {
+	union json.RawMessage
+}
+
+// TrackingConfigUpdateData Tracking configuration update data.
+type TrackingConfigUpdateData struct {
+	// Attributes Tracking configuration update attributes.
+	Attributes TrackingConfigUpdateAttributes `json:"attributes"`
+	Type       *string                        `json:"type,omitempty"`
+}
+
+// TrackingConfigUpdateRequest Tracking configuration update request.
+type TrackingConfigUpdateRequest struct {
+	// Data Tracking configuration update data.
+	Data TrackingConfigUpdateData `json:"data"`
+}
+
+// TrackingMode Tracking mode for repository configuration.
+type TrackingMode string
+
 // ValidationError defines model for ValidationError.
 type ValidationError struct {
 	Loc  []ValidationError_Loc_Item `json:"loc"`
@@ -885,6 +954,9 @@ type UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchJSONRequestBody = Enrichme
 
 // CreateRepositoryApiV1RepositoriesPostJSONRequestBody defines body for CreateRepositoryApiV1RepositoriesPost for application/json ContentType.
 type CreateRepositoryApiV1RepositoriesPostJSONRequestBody = RepositoryCreateRequest
+
+// UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutJSONRequestBody defines body for UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPut for application/json ContentType.
+type UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutJSONRequestBody = TrackingConfigUpdateRequest
 
 // SearchSnippetsApiV1SearchPostJSONRequestBody defines body for SearchSnippetsApiV1SearchPost for application/json ContentType.
 type SearchSnippetsApiV1SearchPostJSONRequestBody = SearchRequest
@@ -2135,6 +2207,78 @@ func (t TaskStatusAttributes_UpdatedAt) MarshalJSON() ([]byte, error) {
 }
 
 func (t *TaskStatusAttributes_UpdatedAt) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsTrackingConfigAttributesValue0 returns the union data inside the TrackingConfigAttributes_Value as a TrackingConfigAttributesValue0
+func (t TrackingConfigAttributes_Value) AsTrackingConfigAttributesValue0() (TrackingConfigAttributesValue0, error) {
+	var body TrackingConfigAttributesValue0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromTrackingConfigAttributesValue0 overwrites any union data inside the TrackingConfigAttributes_Value as the provided TrackingConfigAttributesValue0
+func (t *TrackingConfigAttributes_Value) FromTrackingConfigAttributesValue0(v TrackingConfigAttributesValue0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeTrackingConfigAttributesValue0 performs a merge with any union data inside the TrackingConfigAttributes_Value, using the provided TrackingConfigAttributesValue0
+func (t *TrackingConfigAttributes_Value) MergeTrackingConfigAttributesValue0(v TrackingConfigAttributesValue0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t TrackingConfigAttributes_Value) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *TrackingConfigAttributes_Value) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsTrackingConfigUpdateAttributesValue0 returns the union data inside the TrackingConfigUpdateAttributes_Value as a TrackingConfigUpdateAttributesValue0
+func (t TrackingConfigUpdateAttributes_Value) AsTrackingConfigUpdateAttributesValue0() (TrackingConfigUpdateAttributesValue0, error) {
+	var body TrackingConfigUpdateAttributesValue0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromTrackingConfigUpdateAttributesValue0 overwrites any union data inside the TrackingConfigUpdateAttributes_Value as the provided TrackingConfigUpdateAttributesValue0
+func (t *TrackingConfigUpdateAttributes_Value) FromTrackingConfigUpdateAttributesValue0(v TrackingConfigUpdateAttributesValue0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeTrackingConfigUpdateAttributesValue0 performs a merge with any union data inside the TrackingConfigUpdateAttributes_Value, using the provided TrackingConfigUpdateAttributesValue0
+func (t *TrackingConfigUpdateAttributes_Value) MergeTrackingConfigUpdateAttributesValue0(v TrackingConfigUpdateAttributesValue0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t TrackingConfigUpdateAttributes_Value) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *TrackingConfigUpdateAttributes_Value) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }

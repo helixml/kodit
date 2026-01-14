@@ -12,6 +12,12 @@ from typing import Final
 class APIEndpoints:
     """API endpoint constants extracted from OpenAPI specification."""
 
+    # /api/v1/enrichments
+    API_V1_ENRICHMENTS: Final[str] = "/api/v1/enrichments"
+
+    # /api/v1/enrichments/{enrichment_id}
+    API_V1_ENRICHMENTS_ENRICHMENT_ID: Final[str] = "/api/v1/enrichments/{enrichment_id}"
+
     # /api/v1/queue
     API_V1_QUEUE: Final[str] = "/api/v1/queue"
 
@@ -54,11 +60,17 @@ class APIEndpoints:
     # /api/v1/repositories/{repo_id}/status
     API_V1_REPOSITORIES_REPO_ID_STATUS: Final[str] = "/api/v1/repositories/{repo_id}/status"
 
+    # /api/v1/repositories/{repo_id}/status/summary
+    API_V1_REPOSITORIES_REPO_ID_STATUS_SUMMARY: Final[str] = "/api/v1/repositories/{repo_id}/status/summary"
+
     # /api/v1/repositories/{repo_id}/tags
     API_V1_REPOSITORIES_REPO_ID_TAGS: Final[str] = "/api/v1/repositories/{repo_id}/tags"
 
     # /api/v1/repositories/{repo_id}/tags/{tag_id}
     API_V1_REPOSITORIES_REPO_ID_TAGS_TAG_ID: Final[str] = "/api/v1/repositories/{repo_id}/tags/{tag_id}"
+
+    # /api/v1/repositories/{repo_id}/tracking-config
+    API_V1_REPOSITORIES_REPO_ID_TRACKING_CONFIG: Final[str] = "/api/v1/repositories/{repo_id}/tracking-config"
 
     # /api/v1/search
     API_V1_SEARCH: Final[str] = "/api/v1/search"
@@ -68,4 +80,4 @@ class APIEndpoints:
 
 
 # Generated from: openapi.json
-# Total endpoints: 18
+# Total endpoints: 22
