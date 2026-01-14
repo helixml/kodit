@@ -51,6 +51,11 @@ class CommitIndexingApplicationService:
         existing_repo = existing_repos[0] if existing_repos else None
 
         if existing_repo:
+            # Update remote_uri if credentials have changed
+            if str(existing_repo.remote_uri) != str(remote_uri):
+                existing_repo.remote_uri = remote_uri
+                existing_repo = await self.repo_repository.save(existing_repo)
+
             # Repository exists, trigger re-indexing
             await self.queue.enqueue_tasks(
                 tasks=PrescribedOperations.CREATE_NEW_REPOSITORY,
