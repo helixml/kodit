@@ -161,6 +161,47 @@ class SqlAlchemyRepository(ABC, Generic[DomainEntityType, DatabaseEntityType]):
             await session.flush()
             return self.to_domain(db_entity)
 
+    async def get_or_create(
+        self, entity: DomainEntityType, unique_field: str
+    ) -> tuple[DomainEntityType, bool]:
+        """Get existing entity or create new one atomically.
+
+        Handles race conditions by catching unique constraint violations.
+        """
+        from sqlalchemy.exc import IntegrityError
+
+        # First, try to find existing entity by unique field
+        unique_value = getattr(self.to_db(entity), unique_field)
+        existing = await self._find_by_field(unique_field, unique_value)
+        if existing:
+            return existing, False
+
+        # Try to create new entity
+        try:
+            async with SqlAlchemyUnitOfWork(self.session_factory) as session:
+                db_entity = self.to_db(entity)
+                session.add(db_entity)
+                await session.flush()
+                return self.to_domain(db_entity), True
+        except IntegrityError:
+            # Race condition: another request created it first
+            existing = await self._find_by_field(unique_field, unique_value)
+            if existing:
+                return existing, False
+            raise
+
+    async def _find_by_field(
+        self, field: str, value: Any
+    ) -> DomainEntityType | None:
+        """Find single entity by field value."""
+        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
+            column = getattr(self.db_entity_type, field)
+            stmt = select(self.db_entity_type).where(column == value)
+            db_entity = (await session.scalars(stmt)).first()
+            if db_entity:
+                return self.to_domain(db_entity)
+            return None
+
     async def save_bulk(
         self,
         entities: list[DomainEntityType],

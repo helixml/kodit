@@ -1,20 +1,18 @@
 """SQLAlchemy implementation of GitRepoRepository."""
 
 from collections.abc import Callable
-from typing import Any, override
+from typing import Any
 
 from pydantic import AnyUrl
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.domain.entities.git import GitRepo, TrackingConfig, TrackingType
 from kodit.domain.protocols import GitRepoRepository
 from kodit.infrastructure.sqlalchemy import entities as db_entities
 from kodit.infrastructure.sqlalchemy.repository import SqlAlchemyRepository
-from kodit.infrastructure.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWork
 
 
 def create_git_repo_repository(
-    session_factory: Callable[[], AsyncSession],
+    session_factory: Callable[[], Any],
 ) -> GitRepoRepository:
     """Create a git repository."""
     return SqlAlchemyGitRepoRepository(session_factory=session_factory)
@@ -32,31 +30,6 @@ class SqlAlchemyGitRepoRepository(
     def db_entity_type(self) -> type[db_entities.GitRepo]:
         """The SQLAlchemy model type."""
         return db_entities.GitRepo
-
-    @override
-    async def save(self, entity: GitRepo) -> GitRepo:
-        """Save entity (create new or update existing)."""
-        async with SqlAlchemyUnitOfWork(self.session_factory) as session:
-            entity_id = self._get_id(entity)
-            # Skip session.get if entity_id is None (new entity not yet persisted)
-            existing_db_entity = (
-                await session.get(self.db_entity_type, entity_id)
-                if entity_id is not None
-                else None
-            )
-
-            if existing_db_entity:
-                # Update existing entity
-                new_db_entity = self.to_db(entity)
-                self._update_db_entity(existing_db_entity, new_db_entity)
-                db_entity = existing_db_entity
-            else:
-                # Create new entity
-                db_entity = self.to_db(entity)
-                session.add(db_entity)
-
-            await session.flush()
-            return self.to_domain(db_entity)
 
     @staticmethod
     def to_domain(db_entity: db_entities.GitRepo) -> GitRepo:
