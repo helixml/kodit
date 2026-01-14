@@ -165,6 +165,14 @@ type ClientInterface interface {
 	// GetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGet request
 	GetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGet(ctx context.Context, repoId string, tagId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGet request
+	GetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGet(ctx context.Context, repoId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutWithBody request with any body
+	UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutWithBody(ctx context.Context, repoId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPut(ctx context.Context, repoId string, body UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// SearchSnippetsApiV1SearchPostWithBody request with any body
 	SearchSnippetsApiV1SearchPostWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -476,6 +484,42 @@ func (c *Client) ListRepositoryTagsApiV1RepositoriesRepoIdTagsGet(ctx context.Co
 
 func (c *Client) GetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGet(ctx context.Context, repoId string, tagId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGetRequest(c.Server, repoId, tagId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGet(ctx context.Context, repoId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetRequest(c.Server, repoId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutWithBody(ctx context.Context, repoId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutRequestWithBody(c.Server, repoId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPut(ctx context.Context, repoId string, body UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutRequest(c.Server, repoId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1727,6 +1771,87 @@ func NewGetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGetRequest(server string
 	return req, nil
 }
 
+// NewGetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetRequest generates requests for GetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGet
+func NewGetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetRequest(server string, repoId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "repo_id", runtime.ParamLocationPath, repoId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/repositories/%s/tracking-config", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutRequest calls the generic UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPut builder with application/json body
+func NewUpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutRequest(server string, repoId string, body UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutRequestWithBody(server, repoId, "application/json", bodyReader)
+}
+
+// NewUpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutRequestWithBody generates requests for UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPut with any type of body
+func NewUpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutRequestWithBody(server string, repoId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "repo_id", runtime.ParamLocationPath, repoId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/repositories/%s/tracking-config", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewSearchSnippetsApiV1SearchPostRequest calls the generic SearchSnippetsApiV1SearchPost builder with application/json body
 func NewSearchSnippetsApiV1SearchPostRequest(server string, body SearchSnippetsApiV1SearchPostJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -1912,6 +2037,14 @@ type ClientWithResponsesInterface interface {
 
 	// GetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGetWithResponse request
 	GetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGetWithResponse(ctx context.Context, repoId string, tagId string, reqEditors ...RequestEditorFn) (*GetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGetResponse, error)
+
+	// GetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetWithResponse request
+	GetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetWithResponse(ctx context.Context, repoId string, reqEditors ...RequestEditorFn) (*GetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetResponse, error)
+
+	// UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutWithBodyWithResponse request with any body
+	UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutWithBodyWithResponse(ctx context.Context, repoId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutResponse, error)
+
+	UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutWithResponse(ctx context.Context, repoId string, body UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutResponse, error)
 
 	// SearchSnippetsApiV1SearchPostWithBodyWithResponse request with any body
 	SearchSnippetsApiV1SearchPostWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SearchSnippetsApiV1SearchPostResponse, error)
@@ -2446,6 +2579,50 @@ func (r GetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGetResponse) StatusCode(
 	return 0
 }
 
+type GetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *TrackingConfigResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *TrackingConfigResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type SearchSnippetsApiV1SearchPostResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -2721,6 +2898,32 @@ func (c *ClientWithResponses) GetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGe
 		return nil, err
 	}
 	return ParseGetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGetResponse(rsp)
+}
+
+// GetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetWithResponse request returning *GetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetResponse
+func (c *ClientWithResponses) GetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetWithResponse(ctx context.Context, repoId string, reqEditors ...RequestEditorFn) (*GetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetResponse, error) {
+	rsp, err := c.GetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGet(ctx, repoId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetResponse(rsp)
+}
+
+// UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutWithBodyWithResponse request with arbitrary body returning *UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutResponse
+func (c *ClientWithResponses) UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutWithBodyWithResponse(ctx context.Context, repoId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutResponse, error) {
+	rsp, err := c.UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutWithBody(ctx, repoId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutResponse(rsp)
+}
+
+func (c *ClientWithResponses) UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutWithResponse(ctx context.Context, repoId string, body UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutResponse, error) {
+	rsp, err := c.UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPut(ctx, repoId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutResponse(rsp)
 }
 
 // SearchSnippetsApiV1SearchPostWithBodyWithResponse request with arbitrary body returning *SearchSnippetsApiV1SearchPostResponse
@@ -3323,6 +3526,58 @@ func ParseGetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGetResponse(rsp *http.
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest TagResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetResponse parses an HTTP response from a GetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetWithResponse call
+func ParseGetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetResponse(rsp *http.Response) (*GetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TrackingConfigResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutResponse parses an HTTP response from a UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutWithResponse call
+func ParseUpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutResponse(rsp *http.Response) (*UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TrackingConfigResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
