@@ -23,7 +23,7 @@ import structlog
 BASE_HOST = "127.0.0.1"
 BASE_PORT = 8080
 BASE_URL = f"http://{BASE_HOST}:{BASE_PORT}"
-TARGET_URI = "https://gist.github.com/7aa38185e20433c04c533f2b28f4e217.git"
+TARGET_URI = "https://gist.github.com/philwinder/11e4c4f7ea48b1c05b7cedea49367f1a.git"
 
 log = structlog.get_logger(__name__)
 
