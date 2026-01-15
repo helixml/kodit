@@ -108,7 +108,7 @@ class Search(BaseModel):
 class Git(BaseModel):
     """Git adapter configuration."""
 
-    provider: Literal["pygit2", "gitpython"] = Field(default="pygit2")
+    provider: Literal["pygit2", "gitpython", "dulwich"] = Field(default="dulwich")
 
 
 class PeriodicSyncConfig(BaseModel):
