@@ -58,3 +58,22 @@ async def test_dulwich_failed_clone_does_not_leave_zombie_processes() -> None:
     assert new_zombies == 0, (
         f"Dulwich clone failures created {new_zombies} zombie git process(es)"
     )
+
+
+@pytest.mark.asyncio
+async def test_pygit2_failed_clone_does_not_leave_zombie_processes() -> None:
+    """Cloning a repo that fails with PyGit2 should not leave zombie processes."""
+    from kodit.infrastructure.cloning.git.pygit2_adaptor import PyGit2Adapter
+
+    adapter = PyGit2Adapter(max_workers=1)
+    baseline = count_git_zombies()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        for i in range(3):
+            with contextlib.suppress(Exception):
+                await adapter.clone_repository(FAILING_URL, Path(tmpdir) / f"clone-{i}")
+
+    new_zombies = count_git_zombies() - baseline
+    assert new_zombies == 0, (
+        f"PyGit2 clone failures created {new_zombies} zombie git process(es)"
+    )
