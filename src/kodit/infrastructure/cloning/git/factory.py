@@ -9,7 +9,7 @@ from kodit.infrastructure.cloning.git.pygit2_adaptor import PyGit2Adapter
 
 
 def create_git_adapter(
-    provider: Literal["pygit2", "gitpython", "dulwich"] = "pygit2",
+    provider: Literal["pygit2", "gitpython", "dulwich"] = "dulwich",
 ) -> GitAdapter:
     """Create a GitAdapter based on the specified provider."""
     if provider == "gitpython":
