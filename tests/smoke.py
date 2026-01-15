@@ -129,10 +129,12 @@ def main() -> None:  # noqa: PLR0915
                 )
                 status = response.json()
                 log.info("Indexing status", status=status)
+                # Allow "failed" state for tasks like create_commit_description
+                # which fail on repos without commit history (e.g., gists)
+                terminal_states = {"completed", "skipped", "failed"}
                 return (
                     all(
-                        task["attributes"]["state"] == "completed"
-                        or task["attributes"]["state"] == "skipped"
+                        task["attributes"]["state"] in terminal_states
                         for task in status["data"]
                     )
                     and len(status["data"]) > 5
