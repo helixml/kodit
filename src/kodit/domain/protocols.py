@@ -1,6 +1,8 @@
 """Repository protocol interfaces for the domain layer."""
 
 from abc import ABC, abstractmethod
+from datetime import datetime
+from pathlib import Path
 from typing import Any, Protocol, TypeVar
 
 from kodit.domain.enrichments.enrichment import EnrichmentAssociation, EnrichmentV2
@@ -22,6 +24,102 @@ from kodit.domain.value_objects import (
     MultiSearchRequest,
 )
 from kodit.infrastructure.sqlalchemy.query import Query
+
+
+class GitAdapter(Protocol):
+    """Protocol for Git repository operations."""
+
+    async def clone_repository(self, remote_uri: str, local_path: Path) -> None:
+        """Clone a repository to local path."""
+        ...
+
+    async def checkout_commit(self, local_path: Path, commit_sha: str) -> None:
+        """Checkout a specific commit."""
+        ...
+
+    async def checkout_branch(self, local_path: Path, branch_name: str) -> None:
+        """Checkout a specific branch."""
+        ...
+
+    async def fetch_repository(self, local_path: Path) -> None:
+        """Fetch latest changes for existing repository."""
+        ...
+
+    async def pull_repository(self, local_path: Path) -> None:
+        """Pull latest changes for existing repository."""
+        ...
+
+    async def get_all_branches(self, local_path: Path) -> list[dict[str, Any]]:
+        """Get all branches in repository."""
+        ...
+
+    async def get_branch_commits(
+        self, local_path: Path, branch_name: str
+    ) -> list[dict[str, Any]]:
+        """Get commit history for a specific branch."""
+        ...
+
+    async def get_all_commits_bulk(
+        self, local_path: Path, since_date: datetime | None = None
+    ) -> dict[str, dict[str, Any]]:
+        """Get all commits from all branches in bulk for efficiency."""
+        ...
+
+    async def get_branch_commit_shas(
+        self, local_path: Path, branch_name: str
+    ) -> list[str]:
+        """Get only commit SHAs for a branch."""
+        ...
+
+    async def get_all_branch_head_shas(
+        self, local_path: Path, branch_names: list[str]
+    ) -> dict[str, str]:
+        """Get head commit SHAs for all branches in one operation."""
+        ...
+
+    async def get_commit_files(
+        self, local_path: Path, commit_sha: str
+    ) -> list[dict[str, Any]]:
+        """Get all files in a specific commit from the git tree."""
+        ...
+
+    async def repository_exists(self, local_path: Path) -> bool:
+        """Check if repository exists at local path."""
+        ...
+
+    async def get_commit_details(
+        self, local_path: Path, commit_sha: str
+    ) -> dict[str, Any]:
+        """Get detailed information about a specific commit."""
+        ...
+
+    async def ensure_repository(self, remote_uri: str, local_path: Path) -> None:
+        """Clone repository if it doesn't exist, otherwise pull latest changes."""
+        ...
+
+    async def get_file_content(
+        self, local_path: Path, commit_sha: str, file_path: str
+    ) -> bytes:
+        """Get file content at specific commit."""
+        ...
+
+    async def get_default_branch(self, local_path: Path) -> str:
+        """Get the default branch name with fallback strategies."""
+        ...
+
+    async def get_latest_commit_sha(
+        self, local_path: Path, branch_name: str = "HEAD"
+    ) -> str:
+        """Get the latest commit SHA for a branch."""
+        ...
+
+    async def get_all_tags(self, local_path: Path) -> list[dict[str, Any]]:
+        """Get all tags in repository."""
+        ...
+
+    async def get_commit_diff(self, local_path: Path, commit_sha: str) -> str:
+        """Get the diff for a specific commit."""
+        ...
 
 T = TypeVar("T")
 

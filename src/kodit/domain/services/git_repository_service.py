@@ -4,10 +4,13 @@ import shutil
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
 from pydantic import AnyUrl
+
+if TYPE_CHECKING:
+    from kodit.domain.protocols import GitAdapter
 
 from kodit.domain.entities import WorkingCopy
 from kodit.domain.entities.git import (
@@ -17,7 +20,6 @@ from kodit.domain.entities.git import (
     TrackingConfig,
     TrackingType,
 )
-from kodit.infrastructure.cloning.git.git_python_adaptor import GitPythonAdapter
 
 
 @dataclass(frozen=True)
@@ -32,13 +34,8 @@ class RepositoryInfo:
 class GitRepositoryScanner:
     """Pure scanner that extracts data without mutation."""
 
-    def __init__(self, git_adapter: GitPythonAdapter) -> None:
-        """Initialize the Git repository scanner.
-
-        Args:
-            git_adapter: The Git adapter to use for Git operations.
-
-        """
+    def __init__(self, git_adapter: "GitAdapter") -> None:
+        """Initialize the Git repository scanner."""
         self._log = structlog.getLogger(__name__)
         self.git_adapter = git_adapter
 
@@ -172,14 +169,8 @@ class GitRepositoryScanner:
 class RepositoryCloner:
     """Pure service for cloning repositories."""
 
-    def __init__(self, git_adapter: GitPythonAdapter, clone_dir: Path) -> None:
-        """Initialize the repository cloner.
-
-        Args:
-            git_adapter: The Git adapter to use for Git operations.
-            clone_dir: The directory where repositories will be cloned.
-
-        """
+    def __init__(self, git_adapter: "GitAdapter", clone_dir: Path) -> None:
+        """Initialize the repository cloner."""
         self._log = structlog.getLogger(__name__)
         self.git_adapter = git_adapter
         self.clone_dir = clone_dir

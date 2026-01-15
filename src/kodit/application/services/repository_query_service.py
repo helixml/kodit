@@ -1,6 +1,7 @@
 """Application service for querying repository information."""
 
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 import structlog
 
@@ -9,7 +10,9 @@ from kodit.domain.protocols import GitRepoRepository
 from kodit.domain.tracking.resolution_service import TrackableResolutionService
 from kodit.domain.tracking.trackable import Trackable, TrackableReferenceType
 from kodit.infrastructure.api.v1.query_params import PaginationParams
-from kodit.infrastructure.cloning.git.git_python_adaptor import GitPythonAdapter
+
+if TYPE_CHECKING:
+    from kodit.domain.protocols import GitAdapter
 
 
 class RepositoryQueryService:
@@ -19,7 +22,7 @@ class RepositoryQueryService:
         self,
         git_repo_repository: GitRepoRepository,
         trackable_resolution: TrackableResolutionService,
-        git_adapter: GitPythonAdapter | None = None,
+        git_adapter: "GitAdapter | None" = None,
     ) -> None:
         """Initialize the repository query service."""
         self.git_repo_repository = git_repo_repository
