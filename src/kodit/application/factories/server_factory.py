@@ -73,6 +73,7 @@ from kodit.domain.protocols import (
     EnrichmentAssociationRepository,
     EnrichmentV2Repository,
     FusionService,
+    GitAdapter,
     GitBranchRepository,
     GitCommitRepository,
     GitFileRepository,
@@ -96,7 +97,7 @@ from kodit.infrastructure.bm25.local_bm25_repository import LocalBM25Repository
 from kodit.infrastructure.bm25.vectorchord_bm25_repository import (
     VectorChordBM25Repository,
 )
-from kodit.infrastructure.cloning.git.git_python_adaptor import GitPythonAdapter
+from kodit.infrastructure.cloning.git.factory import create_git_adapter
 from kodit.infrastructure.database_schema.database_schema_detector import (
     DatabaseSchemaDetector,
 )
@@ -155,7 +156,7 @@ class ServerFactory:
         self.session_factory = session_factory
         self._repo_repository: GitRepoRepository | None = None
         self._snippet_v2_repository: SnippetRepositoryV2 | None = None
-        self._git_adapter: GitPythonAdapter | None = None
+        self._git_adapter: GitAdapter | None = None
         self._scanner: GitRepositoryScanner | None = None
         self._cloner: RepositoryCloner | None = None
         self._commit_indexing_application_service: (
@@ -551,10 +552,10 @@ class ServerFactory:
     # branch_repository and commit_repository removed - now handled by repo_repository
     # as GitRepo is the aggregate root
 
-    def git_adapter(self) -> GitPythonAdapter:
-        """Create a GitPythonAdapter instance."""
+    def git_adapter(self) -> GitAdapter:
+        """Create a GitAdapter instance."""
         if not self._git_adapter:
-            self._git_adapter = GitPythonAdapter()
+            self._git_adapter = create_git_adapter(self.app_context.git.provider)
         return self._git_adapter
 
     # tag_repository removed - now handled by repo_repository

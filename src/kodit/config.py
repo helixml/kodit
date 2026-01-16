@@ -105,6 +105,12 @@ class Search(BaseModel):
     provider: Literal["sqlite", "vectorchord"] = Field(default="sqlite")
 
 
+class Git(BaseModel):
+    """Git adapter configuration."""
+
+    provider: Literal["pygit2", "gitpython", "dulwich"] = Field(default="dulwich")
+
+
 class PeriodicSyncConfig(BaseModel):
     """Configuration for periodic/scheduled syncing."""
 
@@ -156,6 +162,9 @@ class AppContext(BaseSettings):
     )
     default_search: Search = Field(
         default=Search(),
+    )
+    git: Git = Field(
+        default=Git(),
     )
     periodic_sync: PeriodicSyncConfig = Field(
         default=PeriodicSyncConfig(), description="Periodic sync configuration"

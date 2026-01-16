@@ -23,7 +23,7 @@ import structlog
 BASE_HOST = "127.0.0.1"
 BASE_PORT = 8080
 BASE_URL = f"http://{BASE_HOST}:{BASE_PORT}"
-TARGET_URI = "https://gist.github.com/7aa38185e20433c04c533f2b28f4e217.git"
+TARGET_URI = "https://gist.github.com/philwinder/11e4c4f7ea48b1c05b7cedea49367f1a.git"
 
 log = structlog.get_logger(__name__)
 
@@ -129,10 +129,12 @@ def main() -> None:  # noqa: PLR0915
                 )
                 status = response.json()
                 log.info("Indexing status", status=status)
+                # Allow "failed" state for tasks like create_commit_description
+                # which fail on repos without commit history (e.g., gists)
+                terminal_states = {"completed", "skipped", "failed"}
                 return (
                     all(
-                        task["attributes"]["state"] == "completed"
-                        or task["attributes"]["state"] == "skipped"
+                        task["attributes"]["state"] in terminal_states
                         for task in status["data"]
                     )
                     and len(status["data"]) > 5
