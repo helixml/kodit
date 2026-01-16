@@ -11,7 +11,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      pull-requests: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,37 +31,12 @@ jobs:
             echo "changes=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Commit and push changes
+      - name: Commit and push to main
         if: steps.check_changes.outputs.changes == 'true'
         run: |
-          BRANCH_NAME="docs/update-after-tag-${{ github.ref_name }}"
-
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git checkout -b "$BRANCH_NAME"
           git add -A
           git commit -m "docs: update generated docs after tag ${{ github.ref_name }}"
-          git push origin "$BRANCH_NAME"
-
-      - name: Create and auto-merge pull request
-        if: steps.check_changes.outputs.changes == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          BRANCH_NAME="docs/update-after-tag-${{ github.ref_name }}"
-
-          PR_URL=$(gh pr create \
-            --base main \
-            --head "$BRANCH_NAME" \
-            --title "docs: update generated docs after tag ${{ github.ref_name }}" \
-            --body "This PR updates the generated documentation after creating tag \`${{ github.ref_name }}\`.
-
-          The version in \`_version.py\` has been bumped by hatch-vcs, which requires regenerating:
-          - OpenAPI documentation
-          - Configuration documentation
-          - Generated clients
-
-          This PR is automatically created and merged.")
-
-          gh pr merge "$PR_URL" --squash --delete-branch --admin
+          git push origin main
