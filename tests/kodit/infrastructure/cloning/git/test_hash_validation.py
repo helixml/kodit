@@ -3,6 +3,7 @@
 import re
 import subprocess
 import tempfile
+from collections.abc import Generator
 from pathlib import Path
 
 import pytest
@@ -20,13 +21,13 @@ def is_valid_sha(value: str) -> bool:
 
 
 @pytest.fixture
-def temp_repo() -> tuple[Path, str]:
+def temp_repo() -> Generator[tuple[Path, str], None, None]:
     """Create a temporary git repository with one commit."""
     with tempfile.TemporaryDirectory() as tmpdir:
         repo_path = Path(tmpdir)
 
         # Initialize repo with explicit branch name
-        subprocess.run(
+        subprocess.run(  # noqa: S603
             ["git", "init", "-b", "main"],
             cwd=repo_path,
             check=True,
@@ -34,13 +35,13 @@ def temp_repo() -> tuple[Path, str]:
         )
 
         # Configure git user
-        subprocess.run(
+        subprocess.run(  # noqa: S603
             ["git", "config", "user.email", "test@example.com"],
             cwd=repo_path,
             check=True,
             capture_output=True,
         )
-        subprocess.run(
+        subprocess.run(  # noqa: S603
             ["git", "config", "user.name", "Test User"],
             cwd=repo_path,
             check=True,
@@ -52,13 +53,13 @@ def temp_repo() -> tuple[Path, str]:
         test_file.write_text("Hello, World!\n")
 
         # Add and commit
-        subprocess.run(
+        subprocess.run(  # noqa: S603
             ["git", "add", "test.txt"],
             cwd=repo_path,
             check=True,
             capture_output=True,
         )
-        subprocess.run(
+        subprocess.run(  # noqa: S603
             ["git", "commit", "-m", "Initial commit"],
             cwd=repo_path,
             check=True,
@@ -287,24 +288,24 @@ async def test_dulwich_get_all_commits_bulk_returns_valid_hashes(
 
 
 @pytest.fixture
-def temp_repo_with_parent() -> tuple[Path, str]:
+def temp_repo_with_parent() -> Generator[tuple[Path, str], None, None]:
     """Create a temporary git repository with two commits (to test parent_sha)."""
     with tempfile.TemporaryDirectory() as tmpdir:
         repo_path = Path(tmpdir)
 
-        subprocess.run(
+        subprocess.run(  # noqa: S603
             ["git", "init", "-b", "main"],
             cwd=repo_path,
             check=True,
             capture_output=True,
         )
-        subprocess.run(
+        subprocess.run(  # noqa: S603
             ["git", "config", "user.email", "test@example.com"],
             cwd=repo_path,
             check=True,
             capture_output=True,
         )
-        subprocess.run(
+        subprocess.run(  # noqa: S603
             ["git", "config", "user.name", "Test User"],
             cwd=repo_path,
             check=True,
@@ -314,13 +315,13 @@ def temp_repo_with_parent() -> tuple[Path, str]:
         # First commit
         test_file = repo_path / "test.txt"
         test_file.write_text("First version\n")
-        subprocess.run(
+        subprocess.run(  # noqa: S603
             ["git", "add", "test.txt"],
             cwd=repo_path,
             check=True,
             capture_output=True,
         )
-        subprocess.run(
+        subprocess.run(  # noqa: S603
             ["git", "commit", "-m", "First commit"],
             cwd=repo_path,
             check=True,
@@ -329,13 +330,13 @@ def temp_repo_with_parent() -> tuple[Path, str]:
 
         # Second commit
         test_file.write_text("Second version\n")
-        subprocess.run(
+        subprocess.run(  # noqa: S603
             ["git", "add", "test.txt"],
             cwd=repo_path,
             check=True,
             capture_output=True,
         )
-        subprocess.run(
+        subprocess.run(  # noqa: S603
             ["git", "commit", "-m", "Second commit"],
             cwd=repo_path,
             check=True,
@@ -363,24 +364,24 @@ async def test_dulwich_parent_sha_is_valid(
 
 
 @pytest.fixture
-def temp_repo_with_tag() -> tuple[Path, str]:
+def temp_repo_with_tag() -> Generator[tuple[Path, str], None, None]:
     """Create a temporary git repository with a tag."""
     with tempfile.TemporaryDirectory() as tmpdir:
         repo_path = Path(tmpdir)
 
-        subprocess.run(
+        subprocess.run(  # noqa: S603
             ["git", "init", "-b", "main"],
             cwd=repo_path,
             check=True,
             capture_output=True,
         )
-        subprocess.run(
+        subprocess.run(  # noqa: S603
             ["git", "config", "user.email", "test@example.com"],
             cwd=repo_path,
             check=True,
             capture_output=True,
         )
-        subprocess.run(
+        subprocess.run(  # noqa: S603
             ["git", "config", "user.name", "Test User"],
             cwd=repo_path,
             check=True,
@@ -389,13 +390,13 @@ def temp_repo_with_tag() -> tuple[Path, str]:
 
         test_file = repo_path / "test.txt"
         test_file.write_text("Hello\n")
-        subprocess.run(
+        subprocess.run(  # noqa: S603
             ["git", "add", "test.txt"],
             cwd=repo_path,
             check=True,
             capture_output=True,
         )
-        subprocess.run(
+        subprocess.run(  # noqa: S603
             ["git", "commit", "-m", "Initial commit"],
             cwd=repo_path,
             check=True,
@@ -403,7 +404,7 @@ def temp_repo_with_tag() -> tuple[Path, str]:
         )
 
         # Create a lightweight tag
-        subprocess.run(
+        subprocess.run(  # noqa: S603
             ["git", "tag", "v1.0"],
             cwd=repo_path,
             check=True,
@@ -425,8 +426,8 @@ async def test_dulwich_get_all_tags_returns_valid_hashes(
     assert len(tags) >= 1
 
     for tag in tags:
-        sha = tag["commit_sha"]
-        assert is_valid_sha(sha), f"Invalid commit_sha in tag: {sha}"
+        sha = tag["target_commit_sha"]
+        assert is_valid_sha(sha), f"Invalid target_commit_sha in tag: {sha}"
 
 
 # Tests for Dulwich input handling (bytes.fromhex bug)

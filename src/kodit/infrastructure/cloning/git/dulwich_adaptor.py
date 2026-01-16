@@ -131,7 +131,7 @@ class DulwichAdapter:
                     {
                         "name": branch_name,
                         "type": "local",
-                        "head_commit_sha": self._refs_get(repo, ref).hex(),
+                        "head_commit_sha": self._refs_get(repo, ref).decode(),
                         "is_active": branch_name == active_branch_name,
                     }
                 )
@@ -147,7 +147,7 @@ class DulwichAdapter:
                         {
                             "name": branch_name,
                             "type": "remote",
-                            "head_commit_sha": self._refs_get(repo, ref_name).hex(),
+                            "head_commit_sha": self._refs_get(repo, ref_name).decode(),
                             "is_active": False,
                             "remote": "origin",
                         }
@@ -163,13 +163,13 @@ class DulwichAdapter:
         """Convert a dulwich commit to a dictionary."""
         parent_sha = ""
         if commit.parents:
-            parent_sha = commit.parents[0].hex()
+            parent_sha = commit.parents[0].decode()
 
         author = commit.author.decode(errors="replace")
         committer = commit.committer.decode(errors="replace")
 
         return {
-            "sha": commit.id.hex(),
+            "sha": commit.id.decode(),
             "date": datetime.fromtimestamp(commit.commit_time, UTC),
             "message": commit.message.decode(errors="replace").strip(),
             "parent_sha": parent_sha,
@@ -177,7 +177,7 @@ class DulwichAdapter:
             "author_email": self._extract_email(author),
             "committer_name": committer.split(" <")[0],
             "committer_email": self._extract_email(committer),
-            "tree_sha": commit.tree.hex(),
+            "tree_sha": commit.tree.decode(),
         }
 
     def _extract_email(self, identity: str) -> str:
@@ -246,7 +246,7 @@ class DulwichAdapter:
                         if commit_time < since_date:
                             continue
 
-                    commits_map[commit.id.hex()] = self._commit_to_dict(commit)
+                    commits_map[commit.id.decode()] = self._commit_to_dict(commit)
 
             if since_date:
                 self._log.info(
@@ -289,7 +289,7 @@ class DulwichAdapter:
                 raise AssertionError("unreachable")
 
             return [
-                entry.commit.id.hex()
+                entry.commit.id.decode()
                 for entry in repo.get_walker(include=[target])  # type: ignore[list-item]
             ]
 
@@ -309,7 +309,7 @@ class DulwichAdapter:
             for branch_name in branch_names:
                 target = self._resolve_branch(repo, branch_name)
                 if target is not None:
-                    result[branch_name] = target.hex()
+                    result[branch_name] = target.decode()
                 else:
                     self._log.warning(
                         "Branch %s not found in local or remote branches", branch_name
@@ -328,7 +328,7 @@ class DulwichAdapter:
 
         def _get_files() -> list[dict[str, Any]]:
             repo = Repo(str(local_path))
-            commit_bytes = bytes.fromhex(commit_sha)
+            commit_bytes = commit_sha.encode()
             commit = repo[commit_bytes]
 
             if not isinstance(commit, Commit):
@@ -353,7 +353,7 @@ class DulwichAdapter:
                         files.append(
                             {
                                 "path": entry_path,
-                                "blob_sha": sha.hex(),
+                                "blob_sha": sha.decode(),
                                 "size": len(obj.data),
                                 "mode": oct(mode),
                                 "mime_type": mime_type,
@@ -394,7 +394,7 @@ class DulwichAdapter:
 
         def _get_commit_details() -> dict[str, Any]:
             repo = Repo(str(local_path))
-            commit_bytes = bytes.fromhex(commit_sha)
+            commit_bytes = commit_sha.encode()
             commit = repo[commit_bytes]
 
             if not isinstance(commit, Commit):
@@ -549,11 +549,11 @@ class DulwichAdapter:
             repo = Repo(str(local_path))
 
             if branch_name == "HEAD":
-                return repo.head().hex()
+                return repo.head().decode()
 
             target = self._resolve_branch(repo, branch_name)
             if target is not None:
-                return target.hex()
+                return target.decode()
 
             self._raise_branch_not_found_error(branch_name)
             raise AssertionError("unreachable")
@@ -581,9 +581,9 @@ class DulwichAdapter:
 
                 obj = repo[target_sha]
                 if isinstance(obj, Tag):
-                    commit_sha = obj.object[1].hex()
+                    commit_sha = obj.object[1].decode()
                 elif isinstance(obj, Commit):
-                    commit_sha = obj.id.hex()
+                    commit_sha = obj.id.decode()
                 else:
                     continue
 
@@ -604,7 +604,7 @@ class DulwichAdapter:
 
         def _get_diff() -> str:
             repo = Repo(str(local_path))
-            commit_bytes = bytes.fromhex(commit_sha)
+            commit_bytes = commit_sha.encode()
             commit = repo[commit_bytes]
 
             if not isinstance(commit, Commit):
