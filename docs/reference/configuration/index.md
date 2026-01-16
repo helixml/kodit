@@ -43,6 +43,8 @@ Global context for the kodit project. Provides a shared state for the app.
 | `ENRICHMENT_ENDPOINT_MAX_TOKENS` | int | `8000` | Conservative token limit for the embedding model |
 | `DEFAULT_SEARCH` | Search | `provider='sqlite'` |  |
 | `DEFAULT_SEARCH_PROVIDER` | Literal | `sqlite` |  |
+| `GIT` | Git | `provider='dulwich'` |  |
+| `GIT_PROVIDER` | Literal | `dulwich` |  |
 | `PERIODIC_SYNC` | PeriodicSyncConfig | `enabled=True interval_seconds=1800 retry_attempts=3` | Periodic sync configuration |
 | `PERIODIC_SYNC_ENABLED` | bool | `True` | Enable periodic sync |
 | `PERIODIC_SYNC_INTERVAL_SECONDS` | float | `1800` | Interval between periodic syncs in seconds |
