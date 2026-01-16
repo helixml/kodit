@@ -25,7 +25,7 @@ def is_valid_sha(value: str) -> bool:
 
 def git(repo: Path, *args: str) -> None:
     """Run a git command in the given repo."""
-    subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True)  # noqa: S603
+    subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True)  # noqa: S603, S607
 
 
 def init_repo(repo: Path) -> None:
