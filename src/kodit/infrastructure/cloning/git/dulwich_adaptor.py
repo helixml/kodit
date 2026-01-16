@@ -77,7 +77,9 @@ class DulwichAdapter:
         """Checkout a specific branch."""
 
         def _checkout() -> None:
-            porcelain.checkout_branch(str(local_path), branch_name.encode())
+            # Reset working tree to discard any local modifications before checkout
+            porcelain.reset(str(local_path), "hard")
+            porcelain.checkout_branch(str(local_path), branch_name.encode(), force=True)
 
         await asyncio.get_event_loop().run_in_executor(self._executor, _checkout)
 
