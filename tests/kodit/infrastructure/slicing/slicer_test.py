@@ -23,6 +23,7 @@ class TestSlicer:
             ("javascript", ".js"),
             ("python", ".py"),
             ("rust", ".rs"),
+            ("tsx", ".tsx"),
         ],
     )
     def test_extract_snippets_from_language(

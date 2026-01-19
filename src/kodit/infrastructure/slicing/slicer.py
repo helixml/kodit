@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from kodit.infrastructure.slicing.code_elements import (
         FunctionDefinition,
         ParsedFile,
+        TypeDefinition,
     )
 
 
@@ -48,7 +49,7 @@ class Slicer:
         """Initialize an empty slicer."""
         self.log = structlog.get_logger(__name__)
 
-    def extract_snippets_from_git_files(
+    def extract_snippets_from_git_files(  # noqa: C901
         self, files: list[GitFile], language: str = "python"
     ) -> list[SnippetV2]:
         """Extract code snippets from a list of files.
@@ -96,13 +97,16 @@ class Slicer:
         if not parsed_files:
             return []
 
-        functions, _, _ = analyzer.extract_definitions(
+        functions, _, types = analyzer.extract_definitions(
             parsed_files, include_private=True
         )
 
         # Build state from ASTAnalyzer results
         state = self._build_state_from_ast_analyzer(parsed_files, functions)
         lang_analyzer = language_analyzer_factory(language)
+
+        # Build type lookup by simple name for prepending to function snippets
+        type_lookup: dict[str, TypeDefinition] = {t.simple_name: t for t in types}
 
         # Build call graph and snippets (Slicer-specific logic)
         self._build_call_graph(state, lang_analyzer)
@@ -119,10 +123,41 @@ class Slicer:
                 {"max_depth": 2, "max_functions": 8},
             )
             if "not found" not in snippet_content:
+                # Prepend referenced types for TypeScript/TSX
+                if language in ("typescript", "ts", "tsx"):
+                    snippet_content = self._prepend_referenced_types(
+                        qualified_name,
+                        snippet_content,
+                        state,
+                        type_lookup,
+                        file_contents,
+                        lang_analyzer,
+                    )
+
                 snippet = self._create_snippet_entity_from_git_files(
                     qualified_name, snippet_content, language, state, path_to_file_map
                 )
                 snippets.append(snippet)
+
+        # Extract snippets for types (interfaces, type aliases)
+        for type_def in types:
+            type_snippet = self._create_type_snippet(
+                type_def, language, path_to_file_map, file_contents
+            )
+            if type_snippet:
+                snippets.append(type_snippet)
+
+        # Extract JSX snippets from functions with large JSX returns
+        jsx_snippets = self._extract_jsx_snippets(
+            state, language, path_to_file_map, file_contents
+        )
+        snippets.extend(jsx_snippets)
+
+        # Extract top-level entry point expressions (e.g., ReactDOM.render calls)
+        entry_point_snippets = self._extract_entry_point_snippets(
+            parsed_files, language, path_to_file_map, file_contents
+        )
+        snippets.extend(entry_point_snippets)
 
         return snippets
 
@@ -240,6 +275,19 @@ class Slicer:
             function_name, state, max_depth, max_functions
         )
 
+        # Filter out nested functions (they're already separate snippets)
+        func_info = state.def_index[function_name]
+        nested_func_names = {
+            name
+            for name, info in state.def_index.items()
+            if (
+                info.file == func_info.file
+                and info.span[0] > func_info.span[0]
+                and info.span[1] <= func_info.span[1]
+            )
+        }
+        dependencies = dependencies - nested_func_names
+
         # Sort dependencies topologically
         sorted_deps = self._topological_sort(dependencies, state)
 
@@ -258,7 +306,7 @@ class Slicer:
         )
         snippet_lines.append(target_source)
 
-        # Add dependencies
+        # Add dependencies (excluding nested functions)
         if dependencies:
             snippet_lines.append("")
             snippet_lines.append("# === DEPENDENCIES ===")
@@ -306,6 +354,172 @@ class Slicer:
             extension=language,
             sha=SnippetV2.compute_sha(snippet_content),
         )
+
+    def _create_type_snippet(
+        self,
+        type_def: "TypeDefinition",
+        language: str,
+        path_to_file_map: dict[Path, GitFile],
+        file_contents: dict[Path, str],
+    ) -> SnippetV2 | None:
+        """Create a snippet from a type definition (interface, type alias)."""
+        # Get the source content for this type
+        file_content = self._get_file_content(type_def.file, file_contents)
+        source_bytes = file_content.encode("utf-8")
+        start_byte, end_byte = type_def.span
+        type_source = source_bytes[start_byte:end_byte].decode("utf-8")
+
+        if not type_source.strip():
+            return None
+
+        # Find the source file
+        derives_from: list[GitFile] = []
+        if type_def.file in path_to_file_map:
+            derives_from.append(path_to_file_map[type_def.file])
+
+        return SnippetV2(
+            derives_from=derives_from,
+            content=type_source,
+            extension=language,
+            sha=SnippetV2.compute_sha(type_source),
+        )
+
+    def _extract_jsx_snippets(
+        self,
+        state: AnalyzerState,
+        language: str,
+        path_to_file_map: dict[Path, GitFile],
+        file_contents: dict[Path, str],
+    ) -> list[SnippetV2]:
+        """Extract JSX return statements as separate snippets."""
+        jsx_snippets: list[SnippetV2] = []
+        min_lines = 5  # Only extract JSX returns with at least this many lines
+
+        for qualified_name, func_info in state.def_index.items():
+            file_content = self._get_file_content(func_info.file, file_contents)
+            source_bytes = file_content.encode("utf-8")
+            start_byte, end_byte = func_info.span
+            func_source = source_bytes[start_byte:end_byte].decode("utf-8")
+
+            # Look for JSX return statements
+            jsx_content = self._extract_jsx_return_content(func_source, min_lines)
+            if jsx_content:
+                # Create snippet for the JSX
+                simple_name = qualified_name.split(".")[-1]
+                jsx_header = f"// JSX from {simple_name}\n"
+
+                derives_from: list[GitFile] = []
+                if func_info.file in path_to_file_map:
+                    derives_from.append(path_to_file_map[func_info.file])
+
+                jsx_snippets.append(
+                    SnippetV2(
+                        derives_from=derives_from,
+                        content=jsx_header + jsx_content,
+                        extension=language,
+                        sha=SnippetV2.compute_sha(jsx_header + jsx_content),
+                    )
+                )
+
+        return jsx_snippets
+
+    def _extract_entry_point_snippets(
+        self,
+        parsed_files: list["ParsedFile"],
+        language: str,
+        path_to_file_map: dict[Path, GitFile],
+        file_contents: dict[Path, str],
+    ) -> list[SnippetV2]:
+        """Extract top-level entry point expressions (e.g., ReactDOM.render calls)."""
+        entry_snippets: list[SnippetV2] = []
+
+        for parsed in parsed_files:
+            file_content = self._get_file_content(parsed.path, file_contents)
+            source_bytes = file_content.encode("utf-8")
+
+            # Look for top-level expression statements
+            for child in parsed.tree.root_node.children:
+                if child.type == "expression_statement":
+                    # Check if this is a meaningful entry point (render call, etc.)
+                    expr_text = source_bytes[child.start_byte : child.end_byte].decode(
+                        "utf-8"
+                    )
+
+                    # Skip trivial expressions (single identifiers, etc.)
+                    if self._is_entry_point_expression(expr_text):
+                        content = expr_text
+
+                        derives_from: list[GitFile] = []
+                        if parsed.path in path_to_file_map:
+                            derives_from.append(path_to_file_map[parsed.path])
+
+                        entry_snippets.append(
+                            SnippetV2(
+                                derives_from=derives_from,
+                                content=content,
+                                extension=language,
+                                sha=SnippetV2.compute_sha(content),
+                            )
+                        )
+
+        return entry_snippets
+
+    def _is_entry_point_expression(self, expr_text: str) -> bool:
+        """Check if an expression statement is a meaningful entry point."""
+        import re
+
+        # Check for common entry point patterns
+        entry_patterns = [
+            r"ReactDOM\.(createRoot|render)",  # React entry points
+            r"render\s*\(",  # Generic render calls
+            r"mount\s*\(",  # Vue/other framework mounts
+            r"bootstrap\s*\(",  # Bootstrap patterns
+            r"createApp\s*\(",  # Vue 3
+        ]
+
+        for pattern in entry_patterns:
+            if re.search(pattern, expr_text):
+                return True
+
+        # Also check if expression contains JSX (indicates UI entry point)
+        return bool(re.search(r"<\w+", expr_text))
+
+    def _extract_jsx_return_content(
+        self, func_source: str, min_lines: int = 5
+    ) -> str | None:
+        """Extract the JSX content from a return statement if it's large enough."""
+        import re
+
+        lines = func_source.split("\n")
+        i = 0
+
+        while i < len(lines):
+            line = lines[i]
+            stripped = line.strip()
+
+            # Check if this is the start of a return statement
+            if stripped.startswith("return (") or stripped == "return (":
+                # Find the matching closing paren
+                paren_count = line.count("(") - line.count(")")
+                return_lines = [line]
+
+                j = i + 1
+                while j < len(lines) and paren_count > 0:
+                    return_lines.append(lines[j])
+                    paren_count += lines[j].count("(") - lines[j].count(")")
+                    j += 1
+
+                # Check if return contains JSX (has < tag)
+                return_content = "\n".join(return_lines)
+                has_jsx = bool(re.search(r"<\w+", return_content))
+
+                # If it's a large JSX return, extract it
+                if has_jsx and len(return_lines) >= min_lines:
+                    return return_content
+
+            i += 1
+
+        return None
 
     def _find_source_files_for_snippet_from_git_files(
         self,
@@ -543,17 +757,163 @@ class Slicer:
     def _extract_function_source(
         self, qualified_name: str, state: AnalyzerState, file_contents: dict[Path, str]
     ) -> str:
-        """Extract complete function source code."""
+        """Extract complete function source code, summarizing nested functions."""
         if qualified_name not in state.def_index:
             return f"# Function {qualified_name} not found"
 
         func_info = state.def_index[qualified_name]
         file_content = self._get_file_content(func_info.file, file_contents)
+        source_bytes = file_content.encode("utf-8")
 
         # Extract function source using byte positions
         start_byte, end_byte = func_info.span
-        source_bytes = file_content.encode("utf-8")
-        return source_bytes[start_byte:end_byte].decode("utf-8")
+        func_source = source_bytes[start_byte:end_byte].decode("utf-8")
+
+        # Find nested functions that are contained within this function's span
+        nested_functions = self._find_nested_functions(
+            func_info, state, source_bytes, start_byte
+        )
+
+        # If there are nested functions, summarize them
+        if nested_functions:
+            func_source = self._summarize_nested_functions(
+                func_source, nested_functions, start_byte
+            )
+
+        # Summarize large JSX return statements
+        return self._summarize_jsx_return(func_source)
+
+
+    def _find_nested_functions(
+        self,
+        parent_func: FunctionInfo,
+        state: AnalyzerState,
+        source_bytes: bytes,
+        parent_start: int,
+    ) -> list[tuple[str, int, int, str]]:
+        """Find functions nested within a parent function.
+
+        Returns list of (name, relative_start, relative_end, signature) tuples.
+        """
+        parent_start_byte, parent_end_byte = parent_func.span
+        nested = []
+
+        for name, info in state.def_index.items():
+            # Skip self
+            if name == parent_func.qualified_name:
+                continue
+
+            # Check if this function is nested within the parent
+            if (
+                info.file == parent_func.file
+                and info.span[0] > parent_start_byte
+                and info.span[1] <= parent_end_byte
+            ):
+                # Get the signature (first line up to the opening brace or arrow)
+                func_bytes = source_bytes[info.span[0] : info.span[1]]
+                func_text = func_bytes.decode("utf-8")
+                signature = self._extract_function_signature(func_text)
+
+                # Store relative positions within parent function
+                rel_start = info.span[0] - parent_start
+                rel_end = info.span[1] - parent_start
+                nested.append((name.split(".")[-1], rel_start, rel_end, signature))
+
+        # Sort by position (descending) so we can replace from end to start
+        nested.sort(key=lambda x: x[1], reverse=True)
+        return nested
+
+    def _extract_function_signature(self, func_text: str) -> str:
+        """Extract the signature part of a function (before the body)."""
+        # For arrow functions: const foo = (args) => { ... }
+        # We want: const foo = (args) =>
+        if "=>" in func_text:
+            arrow_pos = func_text.find("=>")
+            return func_text[: arrow_pos + 2].strip()
+
+        # For regular functions: function foo(args) { ... }
+        # We want: function foo(args)
+        if "{" in func_text:
+            brace_pos = func_text.find("{")
+            return func_text[:brace_pos].strip()
+
+        return func_text.split("\n")[0].strip()
+
+    def _summarize_nested_functions(
+        self,
+        func_source: str,
+        nested_functions: list[tuple[str, int, int, str]],
+        _parent_start: int,
+    ) -> str:
+        """Replace nested function bodies with '{ ... }' placeholders."""
+        result = func_source
+
+        for _name, rel_start, rel_end, signature in nested_functions:
+            # Replace the entire nested function with just its signature + ...
+            nested_text = result[rel_start:rel_end]
+
+            # Preserve the indentation
+            line_start = result.rfind("\n", 0, rel_start)
+            if line_start != -1:
+                line_content = result[line_start + 1 : rel_start]
+                line_content[: len(line_content) - len(line_content.lstrip())]
+
+            # Check if it ends with semicolon (for const declarations)
+            ends_with_semi = nested_text.rstrip().endswith(";")
+            suffix = ";" if ends_with_semi else ""
+
+            # Create summarized version
+            summarized = f"{signature} {{ ... }}{suffix}"
+            result = result[:rel_start] + summarized + result[rel_end:]
+
+        return result
+
+    def _summarize_jsx_return(self, func_source: str, min_lines: int = 5) -> str:
+        """Summarize large JSX return statements to 'return ( ... );'."""
+        import re
+
+        # Look for return statements with JSX (parenthesized expressions with <)
+        # Pattern: return ( ... ); or return ( ... )
+        # We need to handle multi-line returns with JSX
+
+        lines = func_source.split("\n")
+        result_lines = []
+        i = 0
+
+        while i < len(lines):
+            line = lines[i]
+            stripped = line.strip()
+
+            # Check if this is the start of a return statement
+            if stripped.startswith("return (") or stripped == "return (":
+                # Find the matching closing paren
+                paren_count = line.count("(") - line.count(")")
+                return_lines = [line]
+
+                j = i + 1
+                while j < len(lines) and paren_count > 0:
+                    return_lines.append(lines[j])
+                    paren_count += lines[j].count("(") - lines[j].count(")")
+                    j += 1
+
+                # Check if return contains JSX (has < tag)
+                return_content = "\n".join(return_lines)
+                has_jsx = bool(re.search(r"<\w+", return_content))
+
+                # If it's a large JSX return, summarize it
+                if has_jsx and len(return_lines) >= min_lines:
+                    # Get the indentation from the return line
+                    indent = line[: len(line) - len(line.lstrip())]
+                    result_lines.append(f"{indent}return ( ... );")
+                    i = j
+                else:
+                    result_lines.append(line)
+                    i += 1
+            else:
+                result_lines.append(line)
+                i += 1
+
+        return "\n".join(result_lines)
 
     def _find_function_call_line(
         self,
@@ -586,3 +946,52 @@ class Slicer:
                     return clean_line
 
         return f"# calls {target_name}"
+
+    def _prepend_referenced_types(  # noqa: PLR0913
+        self,
+        qualified_name: str,
+        snippet_content: str,
+        state: AnalyzerState,
+        type_lookup: dict[str, "TypeDefinition"],
+        file_contents: dict[Path, str],
+        lang_analyzer: Any,
+    ) -> str:
+        """Prepend referenced type definitions to a function snippet."""
+        if qualified_name not in state.def_index:
+            return snippet_content
+
+        func_info = state.def_index[qualified_name]
+
+        # Check if the analyzer supports type reference extraction
+        if not hasattr(lang_analyzer, "extract_type_references"):
+            return snippet_content
+
+        # Extract type references from the function node
+        type_refs = lang_analyzer.extract_type_references(func_info.node)
+        if not type_refs:
+            return snippet_content
+
+        # Find matching type definitions
+        type_sources: list[str] = []
+        for type_name in sorted(type_refs):
+            if type_name in type_lookup:
+                type_def = type_lookup[type_name]
+                type_source = self._get_type_source(type_def, file_contents)
+                if type_source:
+                    type_sources.append(type_source)
+
+        if not type_sources:
+            return snippet_content
+
+        # Prepend types to snippet
+        return "\n\n".join(type_sources) + "\n\n" + snippet_content
+
+    def _get_type_source(
+        self, type_def: "TypeDefinition", file_contents: dict[Path, str]
+    ) -> str | None:
+        """Get the source code for a type definition."""
+        file_content = self._get_file_content(type_def.file, file_contents)
+        source_bytes = file_content.encode("utf-8")
+        start_byte, end_byte = type_def.span
+        type_source = source_bytes[start_byte:end_byte].decode("utf-8")
+        return type_source.strip() if type_source.strip() else None

@@ -174,7 +174,9 @@ class ASTAnalyzer:
                 if not include_private and not is_public:
                     continue
 
-                span = (node.start_byte, node.end_byte)
+                # For arrow functions in variable declarations, use the full
+                # declaration span (const foo = () => {}) not just the arrow
+                span = self._get_function_span(node)
                 docstring = self.analyzer.extract_docstring(node)
                 is_method = self.analyzer.is_method(node)
 
@@ -194,6 +196,23 @@ class ASTAnalyzer:
                 )
 
         return functions
+
+    def _get_function_span(self, node: Node) -> tuple[int, int]:
+        """Get the byte span for a function, including variable declaration."""
+        # For arrow functions, include the full lexical_declaration
+        # (e.g., "const addTodo = () => {}" not just "() => {}")
+        if node.type == "arrow_function":
+            parent = node.parent
+            # Walk up to find lexical_declaration
+            while parent is not None:
+                if parent.type == "lexical_declaration":
+                    return (parent.start_byte, parent.end_byte)
+                if parent.type in ("program", "statement_block"):
+                    # Don't go past the containing block
+                    break
+                parent = parent.parent
+
+        return (node.start_byte, node.end_byte)
 
     def _group_by_module(
         self, parsed_files: list[ParsedFile]

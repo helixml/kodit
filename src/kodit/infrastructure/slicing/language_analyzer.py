@@ -832,9 +832,34 @@ class JavaScriptAnalyzer(LanguageAnalyzer):
 
     def extract_function_name(self, node: Node) -> str | None:
         """Extract function name from a function definition node."""
-        for child in node.children:
-            if child.type == "identifier" and child.text is not None:
-                return child.text.decode("utf-8")
+        # For function declarations, the name is a direct child
+        if node.type in ("function_declaration", "function_expression"):
+            for child in node.children:
+                if child.type == "identifier" and child.text is not None:
+                    return child.text.decode("utf-8")
+            return None
+
+        # For arrow functions, check if it's a named binding (const foo = () => {})
+        if node.type == "arrow_function":
+            return self._get_arrow_function_name(node)
+
+        return None
+
+    def _get_arrow_function_name(self, node: Node) -> str | None:
+        """Get the name of an arrow function from its variable binding."""
+        # Arrow function should be inside a variable_declarator
+        # Pattern: const foo = () => {} or let foo = () => {}
+        parent = node.parent
+        if parent is None:
+            return None
+
+        if parent.type == "variable_declarator":
+            # Find the identifier sibling
+            for child in parent.children:
+                if child.type == "identifier" and child.text is not None:
+                    return child.text.decode("utf-8")
+
+        # Not a named arrow function (e.g., inline callback like .filter(x => x))
         return None
 
     def is_public(self, node: Node, name: str) -> bool:  # noqa: ARG002
@@ -844,6 +869,21 @@ class JavaScriptAnalyzer(LanguageAnalyzer):
     def extract_docstring(self, node: Node) -> str | None:  # noqa: ARG002
         """Extract documentation comment for a definition."""
         return None
+
+    def _walk_tree(self, node: Node):  # noqa: ANN202
+        """Walk the AST tree, yielding all nodes."""
+        queue = [node]
+        visited: set[int] = set()
+
+        while queue:
+            current = queue.pop(0)
+            node_id = id(current)
+            if node_id in visited:
+                continue
+            visited.add(node_id)
+
+            yield current
+            queue.extend(current.children)
 
     def extract_module_path(self, parsed: ParsedFile) -> str:
         """Extract module path based on file path."""
@@ -883,6 +923,85 @@ class TypeScriptAnalyzer(JavaScriptAnalyzer):
             extension=".ts",
             name_field=None,
             tree_sitter_name="typescript",
+        )
+
+    def extract_types(
+        self, parsed: ParsedFile, *, include_private: bool  # noqa: ARG002
+    ) -> list[TypeDefinition]:
+        """Extract TypeScript interface and type alias definitions."""
+        types = []
+
+        for node in self._walk_tree(parsed.tree.root_node):
+            if node.type in ("interface_declaration", "type_alias_declaration"):
+                type_name = self._extract_type_name(node)
+                if not type_name:
+                    continue
+
+                module_name = parsed.path.stem
+                qualified_name = f"{module_name}.{type_name}"
+                kind = "interface" if node.type == "interface_declaration" else "type"
+
+                types.append(
+                    TypeDefinition(
+                        file=parsed.path,
+                        node=node,
+                        span=(node.start_byte, node.end_byte),
+                        qualified_name=qualified_name,
+                        simple_name=type_name,
+                        is_public=True,
+                        docstring=None,
+                        kind=kind,
+                        constructor_params=[],
+                    )
+                )
+
+        return types
+
+    def _extract_type_name(self, node: Node) -> str | None:
+        """Extract the name from an interface or type alias declaration."""
+        for child in node.children:
+            if child.type == "type_identifier" and child.text is not None:
+                return child.text.decode("utf-8")
+        return None
+
+    def extract_type_references(self, node: Node) -> set[str]:
+        """Extract type names referenced in a function's signature."""
+        type_refs: set[str] = set()
+
+        # Built-in types to exclude
+        builtins = {
+            "string",
+            "number",
+            "boolean",
+            "void",
+            "null",
+            "undefined",
+            "any",
+            "never",
+            "unknown",
+            "object",
+            "symbol",
+            "bigint",
+        }
+
+        for child in self._walk_tree(node):
+            if child.type == "type_identifier" and child.text is not None:
+                type_name = child.text.decode("utf-8")
+                if type_name.lower() not in builtins:
+                    type_refs.add(type_name)
+
+        return type_refs
+
+
+class TsxAnalyzer(TypeScriptAnalyzer):
+    """TSX-specific analyzer (TypeScript with JSX)."""
+
+    def metadata(self) -> LanguageMetadata:
+        """Metadata for TSX."""
+        return LanguageMetadata(
+            extension=".tsx",
+            name_field=None,
+            tree_sitter_name="tsx",
         )
 
 
@@ -966,6 +1085,7 @@ def language_analyzer_factory(language: str) -> LanguageAnalyzer:
         "js": JavaScriptAnalyzer(),
         "typescript": TypeScriptAnalyzer(),
         "ts": TypeScriptAnalyzer(),
+        "tsx": TsxAnalyzer(),
         "csharp": CSharpAnalyzer(),
         "c#": CSharpAnalyzer(),
         "cs": CSharpAnalyzer(),
