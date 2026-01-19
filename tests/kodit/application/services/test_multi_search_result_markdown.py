@@ -275,7 +275,7 @@ class TestMultiSearchResultToMarkdown:
             ("js", "javascript"),
             ("jsx", "javascript"),
             ("ts", "typescript"),
-            ("tsx", "typescript"),
+            ("tsx", "tsx"),  # TSX is its own language (separate tree-sitter parser)
             ("go", "go"),
             ("rs", "rust"),
             ("java", "java"),
