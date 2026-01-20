@@ -12,7 +12,7 @@ look at the [hosted version](https://kodit.helix.ml/docs).
 This is the REST API for the Kodit server. Please refer to the
 [Kodit documentation](https://docs.helix.ml/kodit/) for more information.
     
-Current version: 0.5.19
+Current version: 0.5.20
 
 ## Authentication
 
@@ -352,6 +352,34 @@ Delete a specific enrichment for a commit.
 - 422: Invalid request
 
 - 404: Repository, commit, or enrichment not found
+
+### POST /api/v1/repositories/{repo_id}/commits/{commit_sha}/rescan
+
+Initiate a rescan of a specific commit.
+
+Deletes all downstream artifacts (enrichments, embeddings, BM25 indices)
+and re-triggers the full commit indexing pipeline.
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| repo_id | string | True |  |
+| commit_sha | string | True |  |
+
+
+#### Responses
+
+- 204: Successful Response
+
+- 500: Internal server error
+
+- 401: Unauthorized
+
+- 422: Invalid request
+
+- 404: Repository or commit not found
 
 ### GET /api/v1/repositories
 
