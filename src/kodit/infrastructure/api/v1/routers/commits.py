@@ -12,6 +12,7 @@ from kodit.domain.enrichments.development.snippet.snippet import (
 from kodit.domain.entities.git import GitFile
 from kodit.infrastructure.api.middleware.auth import api_key_auth
 from kodit.infrastructure.api.v1.dependencies import (
+    CommitIndexingAppServiceDep,
     GitCommitRepositoryDep,
     GitFileRepositoryDep,
     GitRepositoryDep,
@@ -480,5 +481,43 @@ async def delete_commit_enrichment(  # noqa: PLR0913
         await enrichment_v2_repository.delete(enrichment)
     except ValueError as e:
         raise HTTPException(status_code=404, detail="Enrichment not found") from e
+
+
+@router.post(
+    "/{repo_id}/commits/{commit_sha}/rescan",
+    summary="Rescan a commit",
+    responses={404: {"description": "Repository or commit not found"}},
+    status_code=204,
+)
+async def rescan_commit(
+    repo_id: str,
+    commit_sha: str,
+    git_repository: GitRepositoryDep,
+    git_commit_repository: GitCommitRepositoryDep,
+    commit_indexing_service: CommitIndexingAppServiceDep,
+) -> None:
+    """Initiate a rescan of a specific commit.
+
+    Deletes all downstream artifacts (enrichments, embeddings, BM25 indices)
+    and re-triggers the full commit indexing pipeline.
+    """
+    # Validate repository exists
+    if not await git_repository.exists(int(repo_id)):
+        raise HTTPException(status_code=404, detail="Repository not found")
+
+    # Validate commit exists
+    if not await git_commit_repository.exists(commit_sha):
+        raise HTTPException(status_code=404, detail="Commit not found")
+
+    # Get commit to validate it belongs to the repository
+    commit = await git_commit_repository.get(commit_sha)
+    if commit.repo_id != int(repo_id):
+        raise HTTPException(
+            status_code=404,
+            detail=f"Commit {commit_sha} does not belong to repository {repo_id}",
+        )
+
+    # Trigger rescan
+    await commit_indexing_service.rescan_commit(int(repo_id), commit_sha)
 
 

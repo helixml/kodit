@@ -31,6 +31,7 @@ const (
 	KoditCommitCreateSummaryEnrichment        TaskOperation = "kodit.commit.create_summary_enrichment"
 	KoditCommitExtractExamples                TaskOperation = "kodit.commit.extract_examples"
 	KoditCommitExtractSnippets                TaskOperation = "kodit.commit.extract_snippets"
+	KoditCommitRescan                         TaskOperation = "kodit.commit.rescan"
 	KoditCommitScan                           TaskOperation = "kodit.commit.scan"
 	KoditIndexCreate                          TaskOperation = "kodit.index.create"
 	KoditIndexRun                             TaskOperation = "kodit.index.run"
