@@ -616,11 +616,13 @@ class DulwichAdapter:
             output = io.BytesIO()
             if not commit.parents:
                 # For first commit, diff against empty tree
+                # We must add the empty tree to the object store so dulwich can find it
                 empty_tree = Tree()
+                repo.object_store.add_object(empty_tree)
                 porcelain.diff_tree(
                     repo,
-                    empty_tree,
-                    commit_bytes,
+                    empty_tree.id,
+                    commit.tree,
                     outstream=output,
                 )
             else:

@@ -10,7 +10,7 @@ from typing import Any
 
 import structlog
 
-from git import Blob, GitCommandError, InvalidGitRepositoryError, Repo, Tree
+from git import NULL_TREE, Blob, GitCommandError, InvalidGitRepositoryError, Repo, Tree
 
 
 def _collect_unique_commits(repo: Repo, log: Any) -> set:
@@ -721,18 +721,12 @@ class GitPythonAdapter:
 
                 # If this is the first commit (no parents), show diff against empty tree
                 if not commit.parents:
-                    diffs = commit.diff(None, create_patch=True)
-                    if not diffs:
-                        return ""
-                    first_diff = diffs[0]
-                    diff_bytes = first_diff.diff
-                    if isinstance(diff_bytes, bytes):
-                        return diff_bytes.decode("utf-8")
-                    return str(diff_bytes) if diff_bytes is not None else ""
-
-                # For commits with parents, show diff against first parent
-                parent = commit.parents[0]
-                diffs = parent.diff(commit, create_patch=True)
+                    # NULL_TREE represents an empty tree to diff against
+                    diffs = commit.diff(NULL_TREE, create_patch=True)
+                else:
+                    # For commits with parents, show diff against first parent
+                    parent = commit.parents[0]
+                    diffs = parent.diff(commit, create_patch=True)
 
                 # Combine all diffs into a single string
                 diff_text = ""
