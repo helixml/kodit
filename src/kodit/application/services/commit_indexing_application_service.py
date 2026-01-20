@@ -66,6 +66,14 @@ class CommitIndexingApplicationService:
         await handler.execute({"repository_id": repo_id})
         return True
 
+    async def rescan_commit(self, repo_id: int, commit_sha: str) -> None:
+        """Rescan a commit by deleting artifacts and re-triggering indexing."""
+        handler = self.handler_registry.handler(TaskOperation.RESCAN_COMMIT)
+        await handler.execute({
+            "repository_id": repo_id,
+            "commit_sha": commit_sha,
+        })
+
     async def run_task(self, task: Task) -> None:
         """Run a task by delegating to the appropriate handler."""
         handler = self.handler_registry.handler(task.type)

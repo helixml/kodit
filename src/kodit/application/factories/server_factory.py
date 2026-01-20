@@ -37,6 +37,7 @@ from kodit.application.handlers.commit.create_summary_enrichment import (
 from kodit.application.handlers.commit.database_schema import DatabaseSchemaHandler
 from kodit.application.handlers.commit.extract_examples import ExtractExamplesHandler
 from kodit.application.handlers.commit.extract_snippets import ExtractSnippetsHandler
+from kodit.application.handlers.commit.rescan_commit import RescanCommitHandler
 from kodit.application.handlers.commit.scan_commit import ScanCommitHandler
 from kodit.application.handlers.registry import TaskHandlerRegistry
 from kodit.application.handlers.repository.clone_repository import (
@@ -516,6 +517,19 @@ class ServerFactory:
                     enrichment_v2_repository=self.enrichment_v2_repository(),
                     enrichment_association_repository=self.enrichment_association_repository(),
                     enrichment_query_service=self.enrichment_query_service(),
+                    operation=self.operation(),
+                ),
+            )
+            registry.register(
+                TaskOperation.RESCAN_COMMIT,
+                RescanCommitHandler(
+                    git_file_repository=self.git_file_repository(),
+                    bm25_service=self.bm25_service(),
+                    embedding_repository=self.embedding_repository(),
+                    enrichment_v2_repository=self.enrichment_v2_repository(),
+                    enrichment_association_repository=self.enrichment_association_repository(),
+                    enrichment_query_service=self.enrichment_query_service(),
+                    queue=self.queue_service(),
                     operation=self.operation(),
                 ),
             )
