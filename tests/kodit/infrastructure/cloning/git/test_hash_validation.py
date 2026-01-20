@@ -33,6 +33,7 @@ def init_repo(repo: Path) -> None:
     git(repo, "init", "-b", "main")
     git(repo, "config", "user.email", "test@example.com")
     git(repo, "config", "user.name", "Test User")
+    git(repo, "config", "commit.gpgsign", "false")
 
 
 def commit_file(repo: Path, filename: str, content: str, message: str) -> None:
@@ -186,3 +187,18 @@ async def test_dulwich_accepts_valid_sha_input(
 
     diff = await dulwich.get_commit_diff(repo, sha)
     assert isinstance(diff, str)
+
+
+@pytest.mark.asyncio
+async def test_get_commit_diff_single_commit(
+    temp_repo: tuple[Path, str], adapter: GitAdapter
+) -> None:
+    """Test get_commit_diff works for repos with only a single commit (no parent)."""
+    repo, _ = temp_repo
+
+    sha = await adapter.get_latest_commit_sha(repo)
+    diff = await adapter.get_commit_diff(repo, sha)
+
+    assert isinstance(diff, str)
+    # The diff should contain the file content from the initial commit
+    assert "Hello" in diff or "test.txt" in diff
