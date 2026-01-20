@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -31,12 +32,30 @@ jobs:
             echo "changes=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Commit and push to main
+      - name: Create branch and push changes
         if: steps.check_changes.outputs.changes == 'true'
         run: |
+          BRANCH_NAME="docs/update-after-tag-${{ github.ref_name }}"
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+          git checkout -b "$BRANCH_NAME"
           git add -A
           git commit -m "docs: update generated docs after tag ${{ github.ref_name }}"
-          git push origin main
+          git push origin "$BRANCH_NAME"
+
+      - name: Create pull request
+        if: steps.check_changes.outputs.changes == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH_NAME="docs/update-after-tag-${{ github.ref_name }}"
+
+          gh pr create \
+            --base main \
+            --head "$BRANCH_NAME" \
+            --title "docs: update generated docs after tag ${{ github.ref_name }}" \
+            --body "This PR updates the generated documentation after creating tag \`${{ github.ref_name }}\`.
+
+          **Manual merge required** due to branch protection rules."
