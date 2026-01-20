@@ -40,7 +40,7 @@ class CreateBM25IndexHandler:
             TaskOperation.CREATE_BM25_INDEX_FOR_COMMIT,
             trackable_type=TrackableType.KODIT_REPOSITORY,
             trackable_id=repository_id,
-        ):
+        ) as step:
             # Index both snippets and examples
             snippets = await self.enrichment_query_service.get_all_snippets_for_commit(
                 commit_sha
@@ -50,6 +50,12 @@ class CreateBM25IndexHandler:
             )
             all_enrichments = snippets + examples
 
+            if not all_enrichments:
+                await step.skip("No enrichments to index")
+                return
+
+            await step.set_total(len(all_enrichments))
+
             await self.bm25_service.index_documents(
                 IndexRequest(
                     documents=[
@@ -58,4 +64,8 @@ class CreateBM25IndexHandler:
                         if enrichment.id
                     ]
                 )
+            )
+
+            await step.set_current(
+                len(all_enrichments), "BM25 index created for commit"
             )
