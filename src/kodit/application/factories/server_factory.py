@@ -543,6 +543,7 @@ class ServerFactory:
             self._commit_indexing_application_service = (
                 CommitIndexingApplicationService(
                     repo_repository=self.repo_repository(),
+                    task_status_repository=self.task_status_repository(),
                     operation=self.operation(),
                     queue=self.queue_service(),
                     handler_registry=self.handler_registry(),
@@ -608,6 +609,7 @@ class ServerFactory:
             self._sync_scheduler_service = SyncSchedulerService(
                 queue_service=self.queue_service(),
                 repo_repository=self.repo_repository(),
+                task_status_repository=self.task_status_repository(),
             )
         return self._sync_scheduler_service
 
