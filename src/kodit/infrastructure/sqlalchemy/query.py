@@ -352,3 +352,23 @@ class GitFileQueryBuilder(QueryBuilder):
             blob_sha,
         )
         return self
+
+
+class TaskStatusQueryBuilder(QueryBuilder):
+    """Query builder for task status entities."""
+
+    def for_repository(self, repository_id: int) -> Self:
+        """Build a query for task statuses by repository."""
+        from kodit.domain.value_objects import TrackableType
+
+        self.filter(
+            db_entities.TaskStatus.trackable_type.key,
+            FilterOperator.EQ,
+            str(TrackableType.KODIT_REPOSITORY),
+        )
+        self.filter(
+            db_entities.TaskStatus.trackable_id.key,
+            FilterOperator.EQ,
+            repository_id,
+        )
+        return self

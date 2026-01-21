@@ -6,12 +6,12 @@ from contextlib import suppress
 import structlog
 
 from kodit.application.services.queue_service import QueueService
-from kodit.domain.protocols import GitRepoRepository
+from kodit.domain.protocols import GitRepoRepository, TaskStatusRepository
 from kodit.domain.value_objects import (
     PrescribedOperations,
     QueuePriority,
 )
-from kodit.infrastructure.sqlalchemy.query import QueryBuilder
+from kodit.infrastructure.sqlalchemy.query import QueryBuilder, TaskStatusQueryBuilder
 
 
 class SyncSchedulerService:
@@ -21,10 +21,12 @@ class SyncSchedulerService:
         self,
         queue_service: QueueService,
         repo_repository: GitRepoRepository,
+        task_status_repository: TaskStatusRepository,
     ) -> None:
         """Initialize the sync scheduler service."""
         self.queue_service = queue_service
         self.repo_repository = repo_repository
+        self.task_status_repository = task_status_repository
         self.log = structlog.get_logger(__name__)
         self._sync_task: asyncio.Task | None = None
         self._shutdown_event = asyncio.Event()
@@ -70,6 +72,12 @@ class SyncSchedulerService:
 
         # Sync each index - queue all 5 tasks with priority ordering
         for repo in await self.repo_repository.find(QueryBuilder()):
+            if repo.id:
+                # Clear existing task statuses for fresh progress tracking
+                await self.task_status_repository.delete_by_query(
+                    TaskStatusQueryBuilder().for_repository(repo.id)
+                )
+
             await self.queue_service.enqueue_tasks(
                 tasks=PrescribedOperations.SYNC_REPOSITORY,
                 base_priority=QueuePriority.BACKGROUND,
