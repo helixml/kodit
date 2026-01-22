@@ -13,6 +13,7 @@ from kodit.application.factories.server_factory import ServerFactory
 from kodit.application.services.reporting import ProgressTracker
 from kodit.config import AppContext
 from kodit.domain.entities import Task
+from kodit.infrastructure.sqlalchemy.query import TaskQueryBuilder
 from kodit.infrastructure.sqlalchemy.task_repository import create_task_repository
 
 
@@ -68,14 +69,14 @@ class IndexingWorkerService:
         while not self._shutdown_event.is_set():
             try:
                 async with self.session_factory() as session:
-                    task = await self.task_repository.next()
+                    tasks = await self.task_repository.find(TaskQueryBuilder().next())
                     await session.commit()
 
                 # If there's a task, process it in a new thread
-                if task:
-                    await self._process_task(task)
+                if tasks:
+                    await self._process_task(tasks[0])
                     # Only remove the task if it was processed successfully
-                    await self.task_repository.delete(task)
+                    await self.task_repository.delete(tasks[0])
                     continue
 
                 # If no task, sleep for a bit

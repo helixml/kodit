@@ -155,7 +155,8 @@ class Task(BaseModel):
     is no status associated.
     """
 
-    id: str  # Is a unique key to deduplicate items in the queue
+    id: int | None = None  # Is populated by repository
+    dedup_key: str  # Is a unique key to deduplicate items in the queue
     type: TaskOperation  # Task operation
     priority: int  # Priority (higher number = higher priority)
     payload: dict[str, Any]  # Task-specific data
@@ -169,14 +170,14 @@ class Task(BaseModel):
     ) -> "Task":
         """Create a task."""
         return Task(
-            id=Task.create_id(operation, payload),
+            dedup_key=Task.create_dedup_key(operation, payload),
             type=operation,
             priority=priority,
             payload=payload,
         )
 
     @staticmethod
-    def create_id(operation: TaskOperation, payload: dict[str, Any]) -> str:
+    def create_dedup_key(operation: TaskOperation, payload: dict[str, Any]) -> str:
         """Create a unique id for a task."""
         first_id = next(iter(payload.values()), None)
         return f"{operation}:{first_id}"
@@ -312,9 +313,7 @@ class RepositoryStatusSummary(BaseModel):
             if t.state in (ReportingState.STARTED, ReportingState.IN_PROGRESS)
         ]
         if in_progress_tasks:
-            most_recent_in_progress = max(
-                in_progress_tasks, key=lambda t: t.updated_at
-            )
+            most_recent_in_progress = max(in_progress_tasks, key=lambda t: t.updated_at)
             return RepositoryStatusSummary(
                 status=IndexStatus.IN_PROGRESS,
                 updated_at=most_recent_in_progress.updated_at,

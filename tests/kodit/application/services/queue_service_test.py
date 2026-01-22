@@ -34,7 +34,7 @@ async def test_enqueue_task_new_task(
     # Verify the task was added
     tasks = await queue_service.list_tasks()
     assert len(tasks) == 1
-    assert tasks[0].id == task.id
+    assert tasks[0].dedup_key == task.dedup_key
     assert tasks[0].type == TaskOperation.REFRESH_WORKING_COPY
     assert tasks[0].payload["index_id"] == 1
     assert tasks[0].priority == QueuePriority.USER_INITIATED
@@ -57,7 +57,7 @@ async def test_enqueue_task_existing_task_updates_priority(
 
     # Create the same task with background priority
     background_priority_task = Task(
-        id=task.id,
+        dedup_key=task.dedup_key,
         type=TaskOperation.REFRESH_WORKING_COPY,
         payload={"index_id": 1},
         priority=QueuePriority.BACKGROUND,
@@ -67,7 +67,7 @@ async def test_enqueue_task_existing_task_updates_priority(
     # Verify only one task exists with updated priority
     tasks = await queue_service.list_tasks()
     assert len(tasks) == 1
-    assert tasks[0].id == task.id
+    assert tasks[0].dedup_key == task.dedup_key
     assert tasks[0].priority == QueuePriority.BACKGROUND
 
 
@@ -93,10 +93,10 @@ async def test_enqueue_multiple_tasks(
     queued_tasks = await queue_service.list_tasks()
     assert len(queued_tasks) == 3
 
-    # Verify task IDs match
-    queued_ids = {t.id for t in queued_tasks}
-    expected_ids = {t.id for t in tasks}
-    assert queued_ids == expected_ids
+    # Verify task dedup_keys match
+    queued_keys = {t.dedup_key for t in queued_tasks}
+    expected_keys = {t.dedup_key for t in tasks}
+    assert queued_keys == expected_keys
 
 
 @pytest.mark.asyncio

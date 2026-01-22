@@ -37,7 +37,7 @@ async def list_queue_tasks(
         data=[
             TaskData(
                 type="task",
-                id=task.id,
+                id=task.dedup_key,
                 attributes=TaskAttributes(
                     type=str(task.type),
                     priority=task.priority,
@@ -64,7 +64,7 @@ async def get_queue_task(
     return TaskResponse(
         data=TaskData(
             type="task",
-            id=task.id,
+            id=task.dedup_key,
             attributes=TaskAttributes(
                 type=str(task.type),
                 priority=task.priority,

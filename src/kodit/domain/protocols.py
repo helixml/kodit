@@ -121,6 +121,7 @@ class GitAdapter(Protocol):
         """Get the diff for a specific commit."""
         ...
 
+
 T = TypeVar("T")
 
 
@@ -131,9 +132,7 @@ class Repository[T](Protocol):
         """Get entity by primary key."""
         ...
 
-    async def get_or_create(
-        self, entity: T, unique_field: str
-    ) -> tuple[T, bool]:
+    async def get_or_create(self, entity: T, unique_field: str) -> tuple[T, bool]:
         """Get existing entity or create new one atomically.
 
         Handles race conditions by catching unique constraint violations.
@@ -174,9 +173,6 @@ class Repository[T](Protocol):
 
 class TaskRepository(Repository[Task], Protocol):
     """Repository interface for Task entities."""
-
-    async def next(self) -> Task | None:
-        """Take a task for processing."""
 
 
 class ReportingModule(Protocol):

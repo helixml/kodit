@@ -372,3 +372,20 @@ class TaskStatusQueryBuilder(QueryBuilder):
             repository_id,
         )
         return self
+
+
+class TaskQueryBuilder(QueryBuilder):
+    """Query builder for task entities."""
+
+    def next(self) -> Self:
+        """Build a query for the next task."""
+        self.sort(
+            db_entities.Task.priority.key,
+            descending=True,
+        )
+        self.sort(
+            db_entities.Task.created_at.key,
+            descending=True,
+        )
+        self.paginate(PaginationParams(page_size=1))
+        return self
