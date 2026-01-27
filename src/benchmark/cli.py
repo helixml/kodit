@@ -15,12 +15,23 @@ from benchmark.server import (
     DEFAULT_PORT,
     ServerProcess,
 )
-from benchmark.swebench.repository import DEFAULT_REPOS_DIR
+from benchmark.swebench.generator import BenchmarkRunner, PatchGenerator
+from benchmark.swebench.loader import DatasetLoader
+from benchmark.swebench.prediction import PredictionWriter
+from benchmark.swebench.repository import (
+    DEFAULT_REPOS_DIR,
+    RepositoryCloneError,
+    RepositoryIndexError,
+    RepositoryPreparer,
+)
+from benchmark.swebench.retriever import KoditRetriever
 from kodit.config import AppContext
 from kodit.log import configure_logging
 
 DEFAULT_OUTPUT_DIR = Path("benchmarks/data")
+DEFAULT_RESULTS_DIR = Path("benchmarks/results")
 DEFAULT_DATASET_FILE = DEFAULT_OUTPUT_DIR / "swebench-lite.json"
+DEFAULT_MODEL = "openrouter/qwen/qwen3-coder-flash"
 
 
 @click.group(context_settings={"max_content_width": 100})
@@ -99,7 +110,6 @@ def stop_kodit() -> None:
 
     if server.stop():
         log.info("Kodit server stopped")
-        click.echo("Kodit server stopped")
     else:
         log.error("Failed to stop Kodit server")
         raise SystemExit(1)
@@ -120,8 +130,6 @@ def stop_kodit() -> None:
 )
 def download(dataset: str, output: Path | None) -> None:
     """Download SWE-bench dataset from HuggingFace and save as JSON."""
-    from benchmark.swebench.loader import DatasetLoader
-
     log = structlog.get_logger(__name__)
 
     if output is None:
@@ -133,7 +141,7 @@ def download(dataset: str, output: Path | None) -> None:
     instances = loader.download(dataset)
     loader.save(instances, output)
 
-    click.echo(f"Downloaded {len(instances)} instances to {output}")
+    log.info("Download complete", count=len(instances), output=str(output))
 
 
 @cli.command("prepare-instance")
@@ -181,13 +189,6 @@ def prepare_instance(  # noqa: PLR0913
 
     INSTANCE_ID is the SWE-bench instance identifier (e.g., django__django-11049).
     """
-    from benchmark.swebench.loader import DatasetLoader
-    from benchmark.swebench.repository import (
-        RepositoryCloneError,
-        RepositoryIndexError,
-        RepositoryPreparer,
-    )
-
     log = structlog.get_logger(__name__)
 
     # Load dataset and find instance
@@ -217,13 +218,132 @@ def prepare_instance(  # noqa: PLR0913
 
     try:
         repo_id = preparer.prepare(instance)
-        click.echo(f"Instance {instance_id} prepared successfully (repo_id={repo_id})")
+        log.info("Instance prepared", instance_id=instance_id, repo_id=repo_id)
     except RepositoryCloneError as e:
         log.exception("Clone failed", error=str(e))
         raise SystemExit(1) from e
     except RepositoryIndexError as e:
         log.exception("Indexing failed", error=str(e))
         raise SystemExit(1) from e
+
+
+@cli.command("generate")
+@click.argument("instance_id")
+@click.option(
+    "--condition",
+    type=click.Choice(["baseline", "kodit"]),
+    required=True,
+    help="Retrieval condition: baseline (no retrieval) or kodit (with Kodit search)",
+)
+@click.option(
+    "--dataset-file",
+    type=click.Path(path_type=Path, exists=True),
+    default=DEFAULT_DATASET_FILE,
+    help="Path to SWE-bench dataset JSON file",
+)
+@click.option(
+    "--output",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="Output JSONL file (default: benchmarks/results/{condition}.jsonl)",
+)
+@click.option(
+    "--model",
+    default=DEFAULT_MODEL,
+    help="LiteLLM model identifier",
+)
+@click.option(
+    "--top-k",
+    default=10,
+    type=int,
+    help="Number of snippets to retrieve (for kodit condition)",
+)
+@click.option(
+    "--kodit-url",
+    default=None,
+    help="Kodit server URL (for kodit condition)",
+)
+@click.option(
+    "--host",
+    default=DEFAULT_HOST,
+    help="Kodit server host (used if --kodit-url not provided)",
+)
+@click.option(
+    "--port",
+    default=DEFAULT_PORT,
+    type=int,
+    help="Kodit server port (used if --kodit-url not provided)",
+)
+def generate(  # noqa: PLR0913
+    instance_id: str,
+    condition: str,
+    dataset_file: Path,
+    output: Path | None,
+    model: str,
+    top_k: int,
+    kodit_url: str | None,
+    host: str,
+    port: int,
+) -> None:
+    """Generate a patch prediction for a SWE-bench instance.
+
+    INSTANCE_ID is the SWE-bench instance identifier (e.g., django__django-11049).
+
+    This command generates a patch prediction using either:
+    - baseline: LLM with only the problem statement
+    - kodit: LLM with Kodit-retrieved code context
+
+    Output is appended to a JSONL file compatible with SWE-bench evaluation.
+    """
+    log = structlog.get_logger(__name__)
+
+    # Determine output path
+    if output is None:
+        output = DEFAULT_RESULTS_DIR / f"{condition}.jsonl"
+
+    # Load dataset and find instance
+    loader = DatasetLoader()
+    instances = loader.load(dataset_file)
+
+    instance = next((i for i in instances if i.instance_id == instance_id), None)
+    if instance is None:
+        log.error("Instance not found", instance_id=instance_id)
+        raise SystemExit(1)
+
+    log.info(
+        "Generating prediction",
+        instance_id=instance.instance_id,
+        condition=condition,
+        model=model,
+    )
+
+    # Create generator
+    generator = PatchGenerator(model=model)
+
+    # Create retriever if needed
+    retriever = None
+    if condition == "kodit":
+        base_url = kodit_url or f"http://{host}:{port}"
+        retriever = KoditRetriever(kodit_base_url=base_url)
+
+    # Run prediction
+    runner = BenchmarkRunner(generator=generator, retriever=retriever)
+
+    if condition == "baseline":
+        prediction = runner.run_baseline(instance)
+    else:
+        prediction = runner.run_kodit(instance, top_k=top_k)
+
+    # Write prediction
+    writer = PredictionWriter(output)
+    writer.write(prediction)
+
+    log.info(
+        "Prediction written",
+        output=str(output),
+        instance_id=prediction.instance_id,
+        model=prediction.model_name_or_path,
+    )
 
 
 if __name__ == "__main__":
