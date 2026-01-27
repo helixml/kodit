@@ -1,5 +1,7 @@
 """Command line interface for kodit benchmarks."""
 
+from pathlib import Path
+
 import click
 import structlog
 
@@ -15,6 +17,8 @@ from benchmark.server import (
 )
 from kodit.config import AppContext
 from kodit.log import configure_logging
+
+DEFAULT_OUTPUT_DIR = Path("benchmarks/data")
 
 
 @click.group(context_settings={"max_content_width": 100})
@@ -97,6 +101,37 @@ def stop_kodit() -> None:
     else:
         log.error("Failed to stop Kodit server")
         raise SystemExit(1)
+
+
+@cli.command("download")
+@click.option(
+    "--dataset",
+    type=click.Choice(["lite", "verified"]),
+    default="lite",
+    help="SWE-bench dataset variant",
+)
+@click.option(
+    "--output",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="Output JSON file path (default: benchmarks/data/swebench-{variant}.json)",
+)
+def download(dataset: str, output: Path | None) -> None:
+    """Download SWE-bench dataset from HuggingFace and save as JSON."""
+    from benchmark.swebench.loader import DatasetLoader
+
+    log = structlog.get_logger(__name__)
+
+    if output is None:
+        output = DEFAULT_OUTPUT_DIR / f"swebench-{dataset}.json"
+
+    log.info("Downloading SWE-bench dataset", variant=dataset, output=str(output))
+
+    loader = DatasetLoader()
+    instances = loader.download(dataset)
+    loader.save(instances, output)
+
+    click.echo(f"Downloaded {len(instances)} instances to {output}")
 
 
 if __name__ == "__main__":

@@ -58,6 +58,7 @@ dependencies = [
     "pystemmer>=3.0.0",
     "litellm>=1.77.1",
     "openai==1.99.9",
+    "datasets>=3.0.0",
 ]
 
 [dependency-groups]

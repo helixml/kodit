@@ -135,6 +135,42 @@ Evaluation uses the official SWE-bench harness with Docker containers:
 3. Verify `PASS_TO_PASS` tests still pass (no regressions)
 4. Instance is "resolved" only if all conditions met
 
+#### Running the SWE-bench Harness
+
+Install and run the official evaluation harness:
+
+```bash
+# Install SWE-bench
+pip install swebench
+
+# Run evaluation (requires Docker with ~100GB disk space)
+python -m swebench.harness.run_evaluation \
+    --dataset_name princeton-nlp/SWE-bench_Lite \
+    --predictions_path results/predictions.jsonl \
+    --max_workers 8 \
+    --run_id kodit_eval
+
+# For Mac M-series (ARM), build images locally:
+python -m swebench.harness.run_evaluation \
+    --dataset_name princeton-nlp/SWE-bench_Lite \
+    --predictions_path results/predictions.jsonl \
+    --max_workers 8 \
+    --namespace '' \
+    --run_id kodit_eval
+```
+
+**Performance**: ~30 mins for Lite (300 instances) on 16 cores with `cache_level=env`.
+
+**Cloud option**: Run on Modal to avoid local Docker setup:
+```bash
+pip install modal swebench[modal]
+modal setup
+python -m swebench.harness.run_evaluation \
+    --dataset_name princeton-nlp/SWE-bench_Lite \
+    --predictions_path results/predictions.jsonl \
+    --modal true
+```
+
 ---
 
 ## 4. Running the Benchmark
@@ -295,13 +331,25 @@ Generate a patch in unified diff format that resolves the issue.
 Only output the patch, no explanations.
 ```
 
-### 6.3 Prediction Format
+### 6.3 Prediction Format (Target Output)
 
-Output follows SWE-bench evaluation format:
+Our benchmark must produce a JSONL file compatible with the SWE-bench evaluation harness:
 
 ```jsonl
-{"instance_id": "django__django-11049", "model_name_or_path": "kodit-claude", "model_patch": "diff --git a/..."}
+{"instance_id": "django__django-11049", "model_name_or_path": "kodit-claude", "model_patch": "diff --git a/django/db/models/fields/__init__.py b/django/db/models/fields/__init__.py\nindex abc123..def456 100644\n--- a/django/db/models/fields/__init__.py\n+++ b/django/db/models/fields/__init__.py\n@@ -1000,7 +1000,7 @@\n-                     \"[DD] [HH:[MM:]]ss[.uuuuuu] format.\")\n+                     \"[DD] [[HH:]MM:]ss[.uuuuuu] format.\")"}
 {"instance_id": "django__django-13447", "model_name_or_path": "kodit-claude", "model_patch": "diff --git a/..."}
+```
+
+**Required fields:**
+- `instance_id`: Must match exactly (e.g., `django__django-11049`)
+- `model_name_or_path`: Identifier for tracking (e.g., `kodit-claude-sonnet`)
+- `model_patch`: Unified diff format with `diff --git` header
+
+This file is then passed to the SWE-bench harness:
+```bash
+python -m swebench.harness.run_evaluation \
+    --predictions_path results/predictions.jsonl \
+    ...
 ```
 
 ---
@@ -397,16 +445,38 @@ Based on SWE-bench leaderboard data and CodeRAG-Bench findings:
 
 | # | Task | Priority | Status |
 |---|------|----------|--------|
-| 1 | Create `SWEBenchInstance` dataclass | High | TODO |
-| 2 | Implement HuggingFace dataset loader | High | TODO |
-| 3 | Implement repository clone/checkout | High | TODO |
+| 1 | Create `SWEBenchInstance` dataclass | High | ✅ DONE |
+| 2 | Implement HuggingFace dataset loader (`download` command) | High | ✅ DONE |
+| 3 | Implement `prepare-instance` command (clone repo, index with Kodit) | High | TODO |
 | 4 | Implement Kodit retrieval wrapper | High | TODO |
 | 5 | Implement prompt builder | High | TODO |
 | 6 | Implement patch generator | High | TODO |
-| 7 | Integrate SWE-bench evaluation harness | High | TODO |
-| 8 | Add CLI commands | Medium | TODO |
-| 9 | Add result aggregation and reporting | Medium | TODO |
-| 10 | Add BM25 baseline comparison | Medium | TODO |
+| 7 | Output predictions in SWE-bench JSONL format | High | TODO |
+| 8 | Add result aggregation and reporting | Medium | TODO |
+| 9 | Add BM25 baseline comparison | Medium | TODO |
+
+### Completed
+
+- **`SWEBenchInstance`** (`src/benchmark/swebench/instance.py`): Immutable dataclass with all SWE-bench fields
+- **`DatasetLoader`** (`src/benchmark/swebench/loader.py`): Downloads from HuggingFace, saves/loads JSON
+- **`download` command**: `uv run kodit-benchmark download --dataset lite`
+- **Dataset stored at**: `benchmarks/data/swebench-lite.json` (300 instances)
+
+### Next Step
+
+**`prepare-instance` command**: Takes a single instance ID, clones the repo at the exact commit, starts a fresh Kodit server, and indexes the repository.
+
+```bash
+uv run kodit-benchmark prepare-instance django__django-11049
+```
+
+This will:
+1. Look up the instance from the downloaded dataset
+2. Clone `django/django` to `benchmarks/repos/django__django-11049/`
+3. Checkout the exact `base_commit`
+4. Start a fresh Kodit server (using existing `start-kodit` infrastructure)
+5. Index the repository via Kodit API
+6. Wait for indexing to complete
 
 ---
 
@@ -414,6 +484,8 @@ Based on SWE-bench leaderboard data and CodeRAG-Bench findings:
 
 - [SWE-bench Website](https://www.swebench.com/)
 - [SWE-bench GitHub](https://github.com/SWE-bench/SWE-bench)
+- [SWE-bench Evaluation Guide](https://www.swebench.com/SWE-bench/guides/evaluation/)
+- [SWE-bench Docker Setup](https://www.swebench.com/SWE-bench/guides/docker_setup/)
 - [SWE-bench Paper](https://arxiv.org/abs/2310.06770)
 - [SWE-bench Lite Dataset](https://huggingface.co/datasets/princeton-nlp/SWE-bench_Lite)
 - [Agentless Paper](https://arxiv.org/abs/2407.01489) - RAG-based approach achieving 32%
