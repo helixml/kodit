@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 import structlog
 
 from kodit.application.services.reporting import ProgressTracker
-from kodit.domain.entities.git import SnippetV2
+from kodit.domain.entities.git import GitFile, SnippetV2
 from kodit.domain.protocols import FusionService
 from kodit.domain.services.bm25_service import BM25DomainService
 from kodit.domain.services.embedding_service import EmbeddingDomainService
@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from kodit.application.services.enrichment_query_service import (
         EnrichmentQueryService,
     )
+    from kodit.domain.protocols import GitFileRepository
 
 
 @dataclass
@@ -135,6 +136,7 @@ class CodeSearchApplicationService:
         progress_tracker: ProgressTracker,
         fusion_service: FusionService,
         enrichment_query_service: "EnrichmentQueryService",
+        git_file_repository: "GitFileRepository | None" = None,
     ) -> None:
         """Initialize the code search application service."""
         self.bm25_service = bm25_service
@@ -143,9 +145,10 @@ class CodeSearchApplicationService:
         self.progress_tracker = progress_tracker
         self.fusion_service = fusion_service
         self.enrichment_query_service = enrichment_query_service
+        self.git_file_repository = git_file_repository
         self.log = structlog.get_logger(__name__)
 
-    async def search(self, request: MultiSearchRequest) -> list[MultiSearchResult]:  # noqa: C901, PLR0912
+    async def search(self, request: MultiSearchRequest) -> list[MultiSearchResult]:  # noqa: C901, PLR0912, PLR0915
         """Search for relevant snippets across all indexes."""
         log_event("kodit.index.search")
 
@@ -297,6 +300,41 @@ class CodeSearchApplicationService:
             len_final_enrichments=len(final_enrichments),
         )
 
+        # Get file associations for derives_from
+        enrichment_to_blob_shas = (
+            await self.enrichment_query_service.file_blob_shas_for_enrichments(
+                [e.id for e in final_enrichments if e.id]
+            )
+        )
+
+        # Build derives_from mapping
+        enrichment_to_derives_from: dict[int, list[GitFile]] = {}
+        if self.git_file_repository:
+            # Collect all unique blob SHAs
+            all_blob_shas = list(
+                {
+                    sha
+                    for shas in enrichment_to_blob_shas.values()
+                    for sha in shas
+                }
+            )
+            if all_blob_shas:
+                # Query for all files at once
+                from kodit.infrastructure.sqlalchemy.query import GitFileQueryBuilder
+
+                git_files = await self.git_file_repository.find(
+                    GitFileQueryBuilder().for_blob_shas(all_blob_shas)
+                )
+                blob_sha_to_file = {f.blob_sha: f for f in git_files}
+
+                # Build derives_from for each enrichment
+                for eid, blob_shas in enrichment_to_blob_shas.items():
+                    enrichment_to_derives_from[eid] = [
+                        blob_sha_to_file[sha]
+                        for sha in blob_shas
+                        if sha in blob_sha_to_file
+                    ]
+
         # Convert enrichments to SnippetV2 domain objects
         # Map enrichment ID to snippet and type info for correct ordering
         enrichment_id_to_snippet: dict[int | None, SnippetV2] = {}
@@ -306,11 +344,17 @@ class CodeSearchApplicationService:
             enrichment_extras = (
                 extra_enrichments[enrichment.id] if enrichment.id is not None else []
             )
+            # Get derives_from files for this enrichment
+            derives_from = (
+                enrichment_to_derives_from.get(enrichment.id, [])
+                if enrichment.id is not None
+                else []
+            )
             enrichment_id_to_snippet[enrichment.id] = SnippetV2(
                 sha=str(enrichment.id),  # The snippet SHA
                 content=enrichment.content,  # The code content
                 extension="",  # Not available in enrichment
-                derives_from=[],  # Not available in enrichment
+                derives_from=derives_from,
                 created_at=enrichment.created_at,
                 updated_at=enrichment.updated_at,
                 enrichments=[

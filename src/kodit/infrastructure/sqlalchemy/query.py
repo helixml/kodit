@@ -353,6 +353,15 @@ class GitFileQueryBuilder(QueryBuilder):
         )
         return self
 
+    def for_blob_shas(self, blob_shas: list[str]) -> Self:
+        """Build a query for git files by multiple blob SHAs."""
+        self.filter(
+            db_entities.GitCommitFile.blob_sha.key,
+            FilterOperator.IN,
+            blob_shas,
+        )
+        return self
+
 
 class TaskStatusQueryBuilder(QueryBuilder):
     """Query builder for task status entities."""

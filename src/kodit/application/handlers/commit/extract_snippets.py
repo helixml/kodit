@@ -141,18 +141,44 @@ class ExtractSnippetsHandler:
                     for snippet in deduplicated_snippets
                 ]
             )
-            saved_associations = await self.enrichment_association_repository.save_bulk(
-                [
-                    EnrichmentAssociation(
-                        enrichment_id=enrichment.id,
-                        entity_type=db_entities.GitCommit.__tablename__,
-                        entity_id=commit_sha,
+
+            # Create mapping from snippet content to enrichment for file associations
+            content_to_enrichment = {
+                e.content: e for e in saved_enrichments if e.id
+            }
+
+            # Create commit associations
+            commit_associations = [
+                EnrichmentAssociation(
+                    enrichment_id=enrichment.id,
+                    entity_type=db_entities.GitCommit.__tablename__,
+                    entity_id=commit_sha,
+                )
+                for enrichment in saved_enrichments
+                if enrichment.id
+            ]
+
+            # Create file associations for derives_from
+            file_associations: list[EnrichmentAssociation] = []
+            for snippet in deduplicated_snippets:
+                enrichment = content_to_enrichment.get(snippet.content)
+                if enrichment and enrichment.id:
+                    file_associations.extend(
+                        EnrichmentAssociation(
+                            enrichment_id=enrichment.id,
+                            entity_type=db_entities.GitCommitFile.__tablename__,
+                            entity_id=git_file.blob_sha,
+                        )
+                        for git_file in snippet.derives_from
                     )
-                    for enrichment in saved_enrichments
-                    if enrichment.id
-                ]
+
+            # Save all associations
+            all_associations = commit_associations + file_associations
+            await self.enrichment_association_repository.save_bulk(
+                all_associations
             )
             self._log.info(
-                f"Saved {len(saved_enrichments)} snippet enrichments and "
-                f"{len(saved_associations)} associations for commit {commit_sha}"
+                f"Saved {len(saved_enrichments)} snippet enrichments, "
+                f"{len(commit_associations)} commit associations, and "
+                f"{len(file_associations)} file associations for commit {commit_sha}"
             )

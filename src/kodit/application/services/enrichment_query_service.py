@@ -397,3 +397,25 @@ class EnrichmentQueryService:
             if enrichment_type_map[int(assoc.entity_id)]
             in {ENRICHMENT_SUBTYPE_SNIPPET, ENRICHMENT_SUBTYPE_EXAMPLE}
         }
+
+    async def file_blob_shas_for_enrichments(
+        self, enrichment_ids: list[int]
+    ) -> dict[int, list[str]]:
+        """Get file blob SHAs for enrichments, grouped by enrichment ID."""
+        if not enrichment_ids:
+            return {}
+
+        # Get file associations for these enrichments
+        associations = await self.enrichment_association_repository.find(
+            EnrichmentAssociationQueryBuilder()
+            .for_enrichment_ids(enrichment_ids)
+            .for_entity_type(db_entities.GitCommitFile.__tablename__)
+        )
+
+        # Group blob SHAs by enrichment ID
+        result: dict[int, list[str]] = {eid: [] for eid in enrichment_ids}
+        for assoc in associations:
+            if assoc.enrichment_id in result:
+                result[assoc.enrichment_id].append(assoc.entity_id)
+
+        return result

@@ -637,6 +637,7 @@ class ServerFactory:
                 progress_tracker=self.operation(),
                 fusion_service=self.fusion_service(),
                 enrichment_query_service=self.enrichment_query_service(),
+                git_file_repository=self.git_file_repository(),
             )
         return self._code_search_application_service
 
