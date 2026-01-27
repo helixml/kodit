@@ -25,7 +25,7 @@ class KoditRetriever:
         kodit_base_url: str,
         timeout: float = 30.0,
     ) -> None:
-        """Initialize retriever with Kodit server URL."""
+        """Initialize with Kodit server URL."""
         self._base_url = kodit_base_url.rstrip("/")
         self._timeout = timeout
         self._log = structlog.get_logger(__name__)
@@ -36,24 +36,48 @@ class KoditRetriever:
         top_k: int = 10,
     ) -> list[RetrievedSnippet]:
         """Retrieve relevant snippets for a SWE-bench instance."""
+        repo_url = f"github.com/{instance.repo}"
+
         self._log.info(
             "Retrieving snippets",
             instance_id=instance.instance_id,
+            repo_url=repo_url,
             top_k=top_k,
         )
 
+        snippets = self._search(
+            query=instance.problem_statement,
+            repo_url=repo_url,
+            limit=top_k,
+        )
+
+        self._log.info(
+            "Retrieved snippets",
+            instance_id=instance.instance_id,
+            count=len(snippets),
+        )
+
+        return snippets
+
+    def _search(
+        self,
+        query: str,
+        repo_url: str,
+        limit: int,
+    ) -> list[RetrievedSnippet]:
+        """Execute a search query."""
         payload = {
             "data": {
                 "type": "search",
                 "attributes": {
-                    "text": instance.problem_statement,
-                    "limit": top_k,
+                    "text": query,
+                    "limit": limit,
+                    "repo_url": repo_url,
                 },
             }
         }
 
         url = f"{self._base_url}/api/v1/search"
-
         response = httpx.post(url, json=payload, timeout=self._timeout)
 
         if response.status_code != 200:
@@ -65,15 +89,7 @@ class KoditRetriever:
             return []
 
         data = response.json()
-        snippets = self._parse_results(data)
-
-        self._log.info(
-            "Retrieved snippets",
-            instance_id=instance.instance_id,
-            count=len(snippets),
-        )
-
-        return snippets
+        return self._parse_results(data)
 
     def _parse_results(self, data: dict) -> list[RetrievedSnippet]:
         """Parse search results into RetrievedSnippet objects."""

@@ -24,7 +24,7 @@ DEFAULT_DB_PORT = 5432
 
 # Default enrichment endpoint (OpenRouter)
 DEFAULT_ENRICHMENT_BASE_URL = "https://openrouter.ai/api/v1"
-DEFAULT_ENRICHMENT_MODEL = "openrouter/qwen/qwen3-coder-flash"
+DEFAULT_ENRICHMENT_MODEL = "openrouter/anthropic/claude-haiku-4.5"
 DEFAULT_ENRICHMENT_PARALLEL_TASKS = 5
 DEFAULT_ENRICHMENT_TIMEOUT = 30
 

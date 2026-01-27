@@ -1,6 +1,8 @@
 """LLM patch generation for SWE-bench benchmarking."""
 
+import difflib
 import re
+from dataclasses import dataclass
 
 import structlog
 from litellm import completion
@@ -9,6 +11,15 @@ from benchmark.swebench.instance import SWEBenchInstance
 from benchmark.swebench.prediction import Prediction
 from benchmark.swebench.prompt import PromptBuilder
 from benchmark.swebench.retriever import KoditRetriever, RetrievedSnippet
+
+
+@dataclass
+class SearchReplace:
+    """A single search/replace operation."""
+
+    file_path: str
+    search: str
+    replace: str
 
 
 class PatchGenerator:
@@ -89,29 +100,182 @@ class PatchGenerator:
         return choice.message.content or ""
 
     def _extract_patch(self, response: str) -> str:
-        """Extract the patch from the LLM response."""
-        # First try to find a diff block in code fences
+        """Extract and convert patch from the LLM response."""
+        # First try search/replace format
+        replacements = self._parse_search_replace(response)
+        if replacements:
+            self._log.info(
+                "Found search/replace blocks",
+                count=len(replacements),
+            )
+            return self._convert_to_diff(replacements)
+
+        # Fall back to diff extraction
         code_block_pattern = r"```(?:diff)?\n(diff --git.*?)```"
         match = re.search(code_block_pattern, response, re.DOTALL)
         if match:
             patch = match.group(1).strip()
+            patch = self._normalize_patch(patch)
             self._validate_diff(patch)
             return patch
 
-        # Otherwise, find content starting with 'diff --git'
         diff_pattern = r"(diff --git.*)"
         match = re.search(diff_pattern, response, re.DOTALL)
         if match:
             patch = match.group(1).strip()
+            patch = self._normalize_patch(patch)
             self._validate_diff(patch)
             return patch
 
-        # If no diff found, return the whole response (may fail evaluation)
         self._log.warning(
             "Could not extract patch from response",
             response_preview=response[:200],
         )
         return response.strip()
+
+    def _parse_search_replace(self, response: str) -> list[SearchReplace]:
+        """Parse search/replace blocks from response."""
+        results = []
+        current_file = None
+
+        # Find file markers
+        file_pattern = r"\[file:\s*([^\]]+)\]"
+
+        # Find search/replace blocks
+        block_pattern = (
+            r"<<<<<<+\s*SEARCH\s*\n(.*?)\n======+\s*\n(.*?)\n>>>>>>+\s*REPLACE"
+        )
+
+        # Split by file markers
+        parts = re.split(file_pattern, response)
+
+        for i, part in enumerate(parts):
+            # Odd indices are file paths from the split
+            if i % 2 == 1:
+                current_file = part.strip()
+                continue
+
+            # Even indices are content between file markers
+            if current_file is None:
+                # Try to find file path in the content itself
+                file_match = re.search(r"^\s*([^\s]+\.py)\s*$", part, re.MULTILINE)
+                if file_match:
+                    current_file = file_match.group(1)
+
+            # Find all search/replace blocks in this part
+            for match in re.finditer(block_pattern, part, re.DOTALL):
+                search_text = match.group(1)
+                replace_text = match.group(2)
+
+                if current_file:
+                    results.append(
+                        SearchReplace(
+                            file_path=current_file,
+                            search=search_text,
+                            replace=replace_text,
+                        )
+                    )
+
+        return results
+
+    def _convert_to_diff(self, replacements: list[SearchReplace]) -> str:
+        """Convert search/replace blocks to unified diff format."""
+        diffs = []
+
+        # Group by file
+        by_file: dict[str, list[SearchReplace]] = {}
+        for r in replacements:
+            by_file.setdefault(r.file_path, []).append(r)
+
+        for file_path, file_replacements in by_file.items():
+            # Create a mock "original" content by concatenating search blocks
+            # and apply replacements to generate "new" content
+            # This is a simplified approach - we generate diff from search->replace
+
+            for replacement in file_replacements:
+                old_lines = replacement.search.splitlines(keepends=True)
+                new_lines = replacement.replace.splitlines(keepends=True)
+
+                # Ensure lines end with newline
+                if old_lines and not old_lines[-1].endswith("\n"):
+                    old_lines[-1] += "\n"
+                if new_lines and not new_lines[-1].endswith("\n"):
+                    new_lines[-1] += "\n"
+
+                # Generate unified diff
+                diff = list(
+                    difflib.unified_diff(
+                        old_lines,
+                        new_lines,
+                        fromfile=f"a/{file_path}",
+                        tofile=f"b/{file_path}",
+                    )
+                )
+
+                if diff:
+                    # Replace the standard header with git-style header
+                    diff_text = "".join(diff)
+                    diff_text = f"diff --git a/{file_path} b/{file_path}\n{diff_text}"
+                    diffs.append(diff_text)
+
+        result = "\n".join(diffs)
+        if result and not result.endswith("\n"):
+            result += "\n"
+        return result
+
+    def _normalize_patch(self, patch: str) -> str:
+        """Normalize patch to handle common issues."""
+        # Split multiple diffs and keep only the first complete one
+        parts = re.split(r"(?=diff --git)", patch)
+        valid_parts = [p for p in parts if p.strip()]
+
+        if len(valid_parts) > 1:
+            self._log.warning(
+                "Multiple diffs found, using first valid one",
+                diff_count=len(valid_parts),
+            )
+            for part in valid_parts:
+                if "--- " in part and "+++ " in part and "@@ " in part:
+                    patch = part.strip()
+                    break
+            else:
+                patch = valid_parts[0].strip()
+
+        # Fix missing space prefixes on context lines within hunks
+        patch = self._fix_context_lines(patch)
+
+        # Ensure patch ends with newline
+        if patch and not patch.endswith("\n"):
+            patch += "\n"
+        return patch
+
+    def _fix_context_lines(self, patch: str) -> str:
+        """Add missing space prefixes to context lines in hunks."""
+        lines = patch.split("\n")
+        result = []
+        in_hunk = False
+
+        for line in lines:
+            # Detect hunk start
+            if line.startswith("@@") and "@@" in line[2:]:
+                in_hunk = True
+                result.append(line)
+                continue
+
+            # Detect headers (not in hunk)
+            if line.startswith(("diff --git", "---", "+++")):
+                in_hunk = False
+                result.append(line)
+                continue
+
+            # Inside a hunk - ensure proper prefix
+            if in_hunk and line and not line.startswith((" ", "+", "-", "\\")):
+                # Missing prefix - add space for context line
+                result.append(" " + line)
+            else:
+                result.append(line)
+
+        return "\n".join(result)
 
     def _validate_diff(self, patch: str) -> None:
         """Log warnings if the diff appears malformed."""

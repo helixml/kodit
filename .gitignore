@@ -186,3 +186,5 @@ benchmarks/cache/
 
 # Generated OpenAPI files (intermediate files only)
 docs/reference/api/openapi.3.0.json
+logs/**/*
+*.json

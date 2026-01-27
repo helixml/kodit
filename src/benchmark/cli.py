@@ -37,7 +37,7 @@ from kodit.log import configure_logging
 DEFAULT_OUTPUT_DIR = Path("benchmarks/data")
 DEFAULT_RESULTS_DIR = Path("benchmarks/results")
 DEFAULT_DATASET_FILE = DEFAULT_OUTPUT_DIR / "swebench-lite.json"
-DEFAULT_MODEL = "openrouter/qwen/qwen3-coder-flash"
+DEFAULT_MODEL = "openrouter/anthropic/claude-haiku-4.5"
 
 
 @click.group(context_settings={"max_content_width": 100})
