@@ -15,10 +15,12 @@ from benchmark.server import (
     DEFAULT_PORT,
     ServerProcess,
 )
+from benchmark.swebench.repository import DEFAULT_REPOS_DIR
 from kodit.config import AppContext
 from kodit.log import configure_logging
 
 DEFAULT_OUTPUT_DIR = Path("benchmarks/data")
+DEFAULT_DATASET_FILE = DEFAULT_OUTPUT_DIR / "swebench-lite.json"
 
 
 @click.group(context_settings={"max_content_width": 100})
@@ -132,6 +134,96 @@ def download(dataset: str, output: Path | None) -> None:
     loader.save(instances, output)
 
     click.echo(f"Downloaded {len(instances)} instances to {output}")
+
+
+@cli.command("prepare-instance")
+@click.argument("instance_id")
+@click.option(
+    "--dataset-file",
+    type=click.Path(path_type=Path, exists=True),
+    default=DEFAULT_DATASET_FILE,
+    help="Path to SWE-bench dataset JSON file",
+)
+@click.option(
+    "--repos-dir",
+    type=click.Path(path_type=Path),
+    default=DEFAULT_REPOS_DIR,
+    help="Directory to clone repositories into",
+)
+@click.option(
+    "--kodit-url",
+    default=None,
+    help="Kodit server URL (default: http://{host}:{port} from start-kodit)",
+)
+@click.option(
+    "--host",
+    default=DEFAULT_HOST,
+    help="Kodit server host (used if --kodit-url not provided)",
+)
+@click.option(
+    "--port",
+    default=DEFAULT_PORT,
+    type=int,
+    help="Kodit server port (used if --kodit-url not provided)",
+)
+def prepare_instance(  # noqa: PLR0913
+    instance_id: str,
+    dataset_file: Path,
+    repos_dir: Path,
+    kodit_url: str | None,
+    host: str,
+    port: int,
+) -> None:
+    """Prepare a SWE-bench instance for benchmarking.
+
+    Clones the repository at the exact commit and indexes it with a running
+    Kodit server.
+
+    INSTANCE_ID is the SWE-bench instance identifier (e.g., django__django-11049).
+    """
+    from benchmark.swebench.loader import DatasetLoader
+    from benchmark.swebench.repository import (
+        RepositoryCloneError,
+        RepositoryIndexError,
+        RepositoryPreparer,
+    )
+
+    log = structlog.get_logger(__name__)
+
+    # Load dataset and find instance
+    loader = DatasetLoader()
+    instances = loader.load(dataset_file)
+
+    instance = next((i for i in instances if i.instance_id == instance_id), None)
+    if instance is None:
+        log.error("Instance not found", instance_id=instance_id)
+        raise SystemExit(1)
+
+    log.info(
+        "Found instance",
+        instance_id=instance.instance_id,
+        repo=instance.repo,
+        commit=instance.base_commit[:12],
+    )
+
+    # Determine Kodit URL
+    base_url = kodit_url or f"http://{host}:{port}"
+
+    # Prepare repository
+    preparer = RepositoryPreparer(
+        kodit_base_url=base_url,
+        repos_dir=repos_dir,
+    )
+
+    try:
+        repo_id = preparer.prepare(instance)
+        click.echo(f"Instance {instance_id} prepared successfully (repo_id={repo_id})")
+    except RepositoryCloneError as e:
+        log.exception("Clone failed", error=str(e))
+        raise SystemExit(1) from e
+    except RepositoryIndexError as e:
+        log.exception("Indexing failed", error=str(e))
+        raise SystemExit(1) from e
 
 
 if __name__ == "__main__":
