@@ -84,6 +84,7 @@ Changelog = "https://github.com/helixml/kodit/releases"
 
 [project.scripts]
 kodit = "kodit.cli:cli"
+kodit-benchmark = "benchmark.cli:cli"
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
