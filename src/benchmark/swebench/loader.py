@@ -90,3 +90,16 @@ class DatasetLoader:
         instances = [SWEBenchInstance.from_dict(d) for d in data["instances"]]
         self._log.info("Loaded from file", path=str(input_path), count=len(instances))
         return instances
+
+    def find(self, input_path: Path, instance_id: str) -> SWEBenchInstance:
+        """Load dataset and find a specific instance by ID."""
+        instances = self.load(input_path)
+        instance = next((i for i in instances if i.instance_id == instance_id), None)
+        if instance is None:
+            msg = f"Instance not found: {instance_id}"
+            raise InstanceNotFoundError(msg)
+        return instance
+
+
+class InstanceNotFoundError(Exception):
+    """Raised when an instance is not found in the dataset."""
