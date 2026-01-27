@@ -17,13 +17,15 @@ class PatchGenerator:
     def __init__(
         self,
         model: str = "claude-3-5-sonnet-20241022",
-        max_tokens: int = 4096,
+        max_tokens: int = 32768,
         temperature: float = 0.0,
+        api_key: str | None = None,
     ) -> None:
         """Initialize generator with LLM settings."""
         self._model = model
         self._max_tokens = max_tokens
         self._temperature = temperature
+        self._api_key = api_key
         self._prompt_builder = PromptBuilder()
         self._log = structlog.get_logger(__name__)
 
@@ -73,9 +75,18 @@ class PatchGenerator:
             messages=[{"role": "user", "content": prompt}],
             max_tokens=self._max_tokens,
             temperature=self._temperature,
+            api_key=self._api_key,
         )
 
-        return response.choices[0].message.content or ""
+        choice = response.choices[0]
+        if choice.finish_reason == "length":
+            self._log.warning(
+                "Response truncated due to max_tokens limit",
+                model=self._model,
+                max_tokens=self._max_tokens,
+            )
+
+        return choice.message.content or ""
 
     def _extract_patch(self, response: str) -> str:
         """Extract the patch from the LLM response."""
@@ -83,13 +94,17 @@ class PatchGenerator:
         code_block_pattern = r"```(?:diff)?\n(diff --git.*?)```"
         match = re.search(code_block_pattern, response, re.DOTALL)
         if match:
-            return match.group(1).strip()
+            patch = match.group(1).strip()
+            self._validate_diff(patch)
+            return patch
 
         # Otherwise, find content starting with 'diff --git'
         diff_pattern = r"(diff --git.*)"
         match = re.search(diff_pattern, response, re.DOTALL)
         if match:
-            return match.group(1).strip()
+            patch = match.group(1).strip()
+            self._validate_diff(patch)
+            return patch
 
         # If no diff found, return the whole response (may fail evaluation)
         self._log.warning(
@@ -97,6 +112,23 @@ class PatchGenerator:
             response_preview=response[:200],
         )
         return response.strip()
+
+    def _validate_diff(self, patch: str) -> None:
+        """Log warnings if the diff appears malformed."""
+        has_file_headers = "--- " in patch and "+++ " in patch
+        has_hunk_header = bool(re.search(r"@@ .+ @@", patch))
+
+        if not has_file_headers:
+            self._log.warning(
+                "Patch missing file headers (--- / +++)",
+                patch_preview=patch[:200],
+            )
+
+        if not has_hunk_header:
+            self._log.warning(
+                "Patch missing hunk header (@@ ... @@)",
+                patch_preview=patch[:200],
+            )
 
 
 class BenchmarkRunner:

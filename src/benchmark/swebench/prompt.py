@@ -11,9 +11,12 @@ BASELINE_TEMPLATE = (
     "{problem_statement}\n"
     "</issue>\n\n"
     "Based on the issue description, generate a patch in unified diff format "
-    "that resolves the issue.\n"
-    "The patch must use the standard git diff format with headers like:\n"
-    "diff --git a/path/to/file.py b/path/to/file.py\n\n"
+    "that resolves the issue.\n\n"
+    "The patch must use the standard git diff format:\n"
+    "diff --git a/path/to/file.py b/path/to/file.py\n"
+    "--- a/path/to/file.py\n"
+    "+++ b/path/to/file.py\n"
+    "@@ -line,count +line,count @@\n\n"
     "Only output the patch, no explanations."
 )
 
@@ -27,9 +30,14 @@ KODIT_TEMPLATE = (
     "{code_context}\n"
     "</code>\n\n"
     "Based on the issue description and the provided code context, "
-    "generate a patch in unified diff format that resolves the issue.\n"
-    "The patch must use the standard git diff format with headers like:\n"
-    "diff --git a/path/to/file.py b/path/to/file.py\n\n"
+    "generate a patch in unified diff format that resolves the issue.\n\n"
+    "IMPORTANT: Use the EXACT file paths shown in the code context above. "
+    "Do not guess or modify paths.\n\n"
+    "The patch must use the standard git diff format:\n"
+    "diff --git a/path/to/file.py b/path/to/file.py\n"
+    "--- a/path/to/file.py\n"
+    "+++ b/path/to/file.py\n"
+    "@@ -line,count +line,count @@\n\n"
     "Only output the patch, no explanations."
 )
 # fmt: on

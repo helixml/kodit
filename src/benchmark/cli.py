@@ -1,5 +1,6 @@
 """Command line interface for kodit benchmarks."""
 
+import json
 from pathlib import Path
 
 import click
@@ -14,6 +15,11 @@ from benchmark.server import (
     DEFAULT_HOST,
     DEFAULT_PORT,
     ServerProcess,
+)
+from benchmark.swebench.evaluator import (
+    EvaluationError,
+    Evaluator,
+    PredictionLoader,
 )
 from benchmark.swebench.generator import BenchmarkRunner, PatchGenerator
 from benchmark.swebench.loader import DatasetLoader
@@ -259,6 +265,11 @@ def prepare_instance(  # noqa: PLR0913
     help="Number of snippets to retrieve (for kodit condition)",
 )
 @click.option(
+    "--api-key",
+    envvar="ENRICHMENT_ENDPOINT_API_KEY",
+    help="LLM API key (or set ENRICHMENT_ENDPOINT_API_KEY)",
+)
+@click.option(
     "--kodit-url",
     default=None,
     help="Kodit server URL (for kodit condition)",
@@ -281,6 +292,7 @@ def generate(  # noqa: PLR0913
     output: Path | None,
     model: str,
     top_k: int,
+    api_key: str | None,
     kodit_url: str | None,
     host: str,
     port: int,
@@ -318,7 +330,7 @@ def generate(  # noqa: PLR0913
     )
 
     # Create generator
-    generator = PatchGenerator(model=model)
+    generator = PatchGenerator(model=model, api_key=api_key)
 
     # Create retriever if needed
     retriever = None
@@ -343,6 +355,86 @@ def generate(  # noqa: PLR0913
         output=str(output),
         instance_id=prediction.instance_id,
         model=prediction.model_name_or_path,
+    )
+
+
+@cli.command("evaluate")
+@click.argument("predictions_file", type=click.Path(path_type=Path, exists=True))
+@click.option(
+    "--output",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="Output JSON file for results (default: predictions_file with .results.json)",
+)
+@click.option(
+    "--max-workers",
+    default=4,
+    type=int,
+    help="Number of parallel workers for evaluation",
+)
+@click.option(
+    "--run-id",
+    default="kodit_eval",
+    help="Run ID for SWE-bench evaluation",
+)
+def evaluate(
+    predictions_file: Path,
+    output: Path | None,
+    max_workers: int,
+    run_id: str,
+) -> None:
+    """Evaluate predictions against SWE-bench using the official harness.
+
+    PREDICTIONS_FILE is the path to a JSONL file with predictions.
+
+    Requires Docker and the swebench package to be installed.
+    """
+    log = structlog.get_logger(__name__)
+
+    # Determine output path
+    if output is None:
+        output = predictions_file.with_suffix(".results.json")
+
+    log.info(
+        "Loading predictions",
+        predictions_file=str(predictions_file),
+    )
+
+    # Load predictions
+    prediction_loader = PredictionLoader()
+    predictions = prediction_loader.load(predictions_file)
+
+    log.info("Loaded predictions", count=len(predictions))
+
+    # Run evaluation
+    evaluator = Evaluator()
+
+    log.info(
+        "Running SWE-bench evaluation",
+        max_workers=max_workers,
+        run_id=run_id,
+    )
+
+    try:
+        result = evaluator.evaluate_full(
+            predictions_path=predictions_file,
+            max_workers=max_workers,
+            run_id=run_id,
+        )
+    except EvaluationError as e:
+        log.error("Evaluation failed", error=str(e))  # noqa: TRY400
+        raise SystemExit(1) from None
+
+    # Write results
+    with output.open("w") as f:
+        json.dump(result.as_dict(), f, indent=2)
+
+    log.info(
+        "Evaluation complete",
+        output=str(output),
+        total_predictions=result.total_predictions,
+        resolved=result.resolved,
+        resolve_rate=f"{result.resolve_rate:.1%}",
     )
 
 

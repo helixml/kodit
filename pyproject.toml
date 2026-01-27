@@ -74,6 +74,7 @@ dev = [
     "types-aiofiles>=24.1.0.20250708",
     "openapi-markdown>=0.4.3",
     "types-pyyaml>=6.0.12.20250915",
+    "swebench>=4.1.0",
 ]
 
 [project.urls]
