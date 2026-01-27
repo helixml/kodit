@@ -1,5 +1,6 @@
 """Orchestrates benchmark runs for SWE-bench instances."""
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -80,6 +81,7 @@ class BenchmarkOperations:
         model: str,
         api_key: str | None = None,
         top_k: int = 10,
+        llm_timeout: int = 60,
     ) -> None:
         """Initialize operations with server URL and paths."""
         self._base_url = kodit_base_url
@@ -88,6 +90,7 @@ class BenchmarkOperations:
         self._model = model
         self._api_key = api_key
         self._top_k = top_k
+        self._llm_timeout = llm_timeout
         self._log = structlog.get_logger(__name__)
 
     def prepare(self, instance: SWEBenchInstance) -> int:
@@ -105,7 +108,11 @@ class BenchmarkOperations:
         condition: str,
     ) -> Prediction:
         """Generate a prediction for baseline or kodit condition."""
-        generator = PatchGenerator(model=self._model, api_key=self._api_key)
+        generator = PatchGenerator(
+            model=self._model,
+            api_key=self._api_key,
+            timeout=self._llm_timeout,
+        )
 
         if condition == "baseline":
             self._log.info("Generating baseline prediction")
@@ -252,3 +259,165 @@ class InstanceRunner:
 
 class InstanceRunError(Exception):
     """Raised when an instance run fails."""
+
+
+@dataclass(frozen=True)
+class BatchResult:
+    """Result of running benchmarks for multiple instances."""
+
+    total: int
+    succeeded: int
+    failed: int
+    failures: list[str]
+
+    def as_dict(self) -> dict:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "total": self.total,
+            "succeeded": self.succeeded,
+            "failed": self.failed,
+            "failures": self.failures,
+        }
+
+
+@dataclass(frozen=True)
+class BatchConfig:
+    """Configuration for batch benchmark runs."""
+
+    repos_dir: Path
+    results_dir: Path
+    model: str
+    api_key: str | None
+    top_k: int
+    skip_evaluation: bool
+    host: str
+    port: int
+    db_port: int
+    enrichment_base_url: str
+    enrichment_model: str
+    enrichment_parallel_tasks: int
+    enrichment_timeout: int
+    llm_timeout: int = 60
+
+
+class BatchRunner:
+    """Runs benchmarks for multiple SWE-bench instances sequentially."""
+
+    def __init__(self, config: BatchConfig) -> None:
+        """Initialize with configuration."""
+        self._config = config
+        self._log = structlog.get_logger(__name__)
+
+    def run(
+        self,
+        instances: list[SWEBenchInstance],
+        on_instance_complete: Callable[[str, bool, int, int], None] | None = None,
+    ) -> BatchResult:
+        """Run benchmarks for all instances sequentially."""
+        total = len(instances)
+        self._log.info("Starting batch benchmark run", total=total)
+
+        succeeded = 0
+        failed = 0
+        failures: list[str] = []
+
+        for i, instance in enumerate(instances, start=1):
+            instance_id = instance.instance_id
+            self._log.info(
+                "Running instance",
+                progress=f"{i}/{total}",
+                instance_id=instance_id,
+            )
+
+            success = self._run_single(instance)
+
+            if success:
+                succeeded += 1
+            else:
+                failed += 1
+                failures.append(instance_id)
+
+            if on_instance_complete:
+                on_instance_complete(instance_id, success, i, total)
+
+        self._log.info(
+            "Batch benchmark complete",
+            total=total,
+            succeeded=succeeded,
+            failed=failed,
+        )
+
+        return BatchResult(
+            total=total,
+            succeeded=succeeded,
+            failed=failed,
+            failures=failures,
+        )
+
+    def _run_single(self, instance: SWEBenchInstance) -> bool:
+        """Run benchmark for a single instance. Returns True on success."""
+        server = ServerProcess(
+            host=self._config.host,
+            port=self._config.port,
+            db_port=self._config.db_port,
+            enrichment_base_url=self._config.enrichment_base_url,
+            enrichment_model=self._config.enrichment_model,
+            enrichment_api_key=self._config.api_key,
+            enrichment_parallel_tasks=self._config.enrichment_parallel_tasks,
+            enrichment_timeout=self._config.enrichment_timeout,
+        )
+
+        operations = BenchmarkOperations(
+            kodit_base_url=server.base_url,
+            repos_dir=self._config.repos_dir,
+            results_dir=self._config.results_dir,
+            model=self._config.model,
+            api_key=self._config.api_key,
+            top_k=self._config.top_k,
+            llm_timeout=self._config.llm_timeout,
+        )
+
+        runner = InstanceRunner(server=server, operations=operations)
+
+        try:
+            result = runner.run(instance, skip_evaluation=self._config.skip_evaluation)
+        except InstanceRunError as e:
+            self._log.error(
+                "Benchmark run failed",
+                instance_id=instance.instance_id,
+                error=str(e),
+            )
+            return False
+        except TimeoutError as e:
+            self._log.error(
+                "Benchmark run timed out",
+                instance_id=instance.instance_id,
+                error=str(e),
+            )
+            return False
+        except Exception as e:  # noqa: BLE001
+            self._log.error(
+                "Unexpected error during benchmark run",
+                instance_id=instance.instance_id,
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+            return False
+
+        self._write_comparison(instance.instance_id, result)
+        return True
+
+    def _write_comparison(self, instance_id: str, result: ComparisonResult) -> None:
+        """Write comparison result to file."""
+        import json
+
+        comparison_path = self._config.results_dir / f"{instance_id}.comparison.json"
+        comparison_path.parent.mkdir(parents=True, exist_ok=True)
+        with comparison_path.open("w") as f:
+            json.dump(result.as_dict(), f, indent=2)
+
+        self._log.info(
+            "Comparison written",
+            instance_id=instance_id,
+            path=str(comparison_path),
+        )

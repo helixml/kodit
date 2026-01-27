@@ -26,7 +26,7 @@ DEFAULT_DB_PORT = 5432
 DEFAULT_ENRICHMENT_BASE_URL = "https://openrouter.ai/api/v1"
 DEFAULT_ENRICHMENT_MODEL = "openrouter/anthropic/claude-haiku-4.5"
 DEFAULT_ENRICHMENT_PARALLEL_TASKS = 5
-DEFAULT_ENRICHMENT_TIMEOUT = 30
+DEFAULT_ENRICHMENT_TIMEOUT = 60
 
 
 def build_db_url(host: str, port: int, password: str, db_name: str) -> str:

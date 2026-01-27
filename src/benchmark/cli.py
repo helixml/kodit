@@ -6,7 +6,11 @@ from pathlib import Path
 import click
 import structlog
 
-from benchmark.runner import BenchmarkOperations, InstanceRunError, InstanceRunner
+from benchmark.runner import (
+    BatchConfig,
+    BatchRunner,
+    BenchmarkOperations,
+)
 from benchmark.server import (
     DEFAULT_DB_PORT,
     DEFAULT_ENRICHMENT_BASE_URL,
@@ -533,67 +537,165 @@ def run_instance(  # noqa: PLR0913
         log.exception("Instance not found", instance_id=instance_id)
         raise SystemExit(1) from None
 
-    log.info(
-        "Starting benchmark run",
-        instance_id=instance.instance_id,
-        repo=instance.repo,
-        commit=instance.base_commit[:12],
-    )
-
-    # Create server process
-    server = ServerProcess(
-        host=host,
-        port=port,
-        db_port=db_port,
-        enrichment_base_url=enrichment_base_url,
-        enrichment_model=enrichment_model,
-        enrichment_api_key=api_key,
-        enrichment_parallel_tasks=enrichment_parallel_tasks,
-        enrichment_timeout=enrichment_timeout,
-    )
-
-    # Create operations
-    operations = BenchmarkOperations(
-        kodit_base_url=server.base_url,
+    # Create batch config and runner
+    config = BatchConfig(
         repos_dir=repos_dir,
         results_dir=results_dir,
         model=model,
         api_key=api_key,
         top_k=top_k,
+        skip_evaluation=skip_evaluation,
+        host=host,
+        port=port,
+        db_port=db_port,
+        enrichment_base_url=enrichment_base_url,
+        enrichment_model=enrichment_model,
+        enrichment_parallel_tasks=enrichment_parallel_tasks,
+        enrichment_timeout=enrichment_timeout,
     )
 
-    # Create and run instance runner
-    runner = InstanceRunner(server=server, operations=operations)
+    runner = BatchRunner(config)
+    result = runner.run([instance])
 
-    try:
-        result = runner.run(instance, skip_evaluation=skip_evaluation)
-    except InstanceRunError as e:
-        log.error("Benchmark run failed", error=str(e))  # noqa: TRY400
-        raise SystemExit(1) from None
-
-    # Write comparison result
-    comparison_path = results_dir / f"{instance_id}.comparison.json"
-    comparison_path.parent.mkdir(parents=True, exist_ok=True)
-    with comparison_path.open("w") as f:
-        json.dump(result.as_dict(), f, indent=2)
-
-    # Log summary
-    log.info(
-        "Benchmark complete",
-        instance_id=result.instance_id,
-        baseline_resolved=result.baseline_resolved,
-        kodit_resolved=result.kodit_resolved,
-        comparison_file=str(comparison_path),
-    )
-
-    # Print summary to stdout
+    # Print summary
     click.echo("\n" + "=" * 60)
-    click.echo(f"Benchmark Results: {result.instance_id}")
+    click.echo(f"Benchmark Results: {instance_id}")
     click.echo("=" * 60)
-    click.echo(f"Baseline resolved: {result.baseline_resolved}")
-    click.echo(f"Kodit resolved:    {result.kodit_resolved}")
-    click.echo(f"Results written to: {comparison_path}")
+    click.echo(f"Succeeded: {result.succeeded}")
+    click.echo(f"Failed: {result.failed}")
     click.echo("=" * 60)
+
+    if result.failed > 0:
+        raise SystemExit(1)
+
+
+@cli.command("run-all")
+@click.option(
+    "--dataset-file",
+    type=click.Path(path_type=Path, exists=True),
+    default=DEFAULT_DATASET_FILE,
+    help="Path to SWE-bench dataset JSON file",
+)
+@click.option(
+    "--repos-dir",
+    type=click.Path(path_type=Path),
+    default=DEFAULT_REPOS_DIR,
+    help="Directory to clone repositories into",
+)
+@click.option(
+    "--results-dir",
+    type=click.Path(path_type=Path),
+    default=DEFAULT_RESULTS_DIR,
+    help="Directory to write results to",
+)
+@click.option(
+    "--model",
+    default=DEFAULT_MODEL,
+    help="LiteLLM model identifier for patch generation",
+)
+@click.option(
+    "--api-key",
+    envvar="ENRICHMENT_ENDPOINT_API_KEY",
+    help="LLM API key (or set ENRICHMENT_ENDPOINT_API_KEY)",
+)
+@click.option(
+    "--top-k",
+    default=10,
+    type=int,
+    help="Number of snippets to retrieve for kodit condition",
+)
+@click.option(
+    "--skip-evaluation",
+    is_flag=True,
+    help="Skip SWE-bench evaluation (only generate predictions)",
+)
+@click.option("--host", default=DEFAULT_HOST, help="Host to bind the server to")
+@click.option("--port", default=DEFAULT_PORT, type=int, help="Port to bind the server")
+@click.option("--db-port", default=DEFAULT_DB_PORT, type=int, help="Database port")
+@click.option(
+    "--enrichment-base-url",
+    default=DEFAULT_ENRICHMENT_BASE_URL,
+    help="Enrichment endpoint base URL",
+)
+@click.option(
+    "--enrichment-model",
+    default=DEFAULT_ENRICHMENT_MODEL,
+    help="Enrichment model name",
+)
+@click.option(
+    "--enrichment-parallel-tasks",
+    default=DEFAULT_ENRICHMENT_PARALLEL_TASKS,
+    type=int,
+    help="Number of parallel enrichment tasks",
+)
+@click.option(
+    "--enrichment-timeout",
+    default=DEFAULT_ENRICHMENT_TIMEOUT,
+    type=int,
+    help="Enrichment request timeout in seconds",
+)
+def run_all(  # noqa: PLR0913
+    dataset_file: Path,
+    repos_dir: Path,
+    results_dir: Path,
+    model: str,
+    api_key: str | None,
+    top_k: int,
+    skip_evaluation: bool,  # noqa: FBT001
+    host: str,
+    port: int,
+    db_port: int,
+    enrichment_base_url: str,
+    enrichment_model: str,
+    enrichment_parallel_tasks: int,
+    enrichment_timeout: int,
+) -> None:
+    """Run benchmarks for all instances in the dataset file.
+
+    Reads the dataset JSON file and runs run-instance for each test ID
+    sequentially. Results are tracked and a summary is printed at the end.
+    """
+    # Load all instances from the dataset file
+    loader = DatasetLoader()
+    instances = loader.load(dataset_file)
+
+    # Create batch config and runner
+    config = BatchConfig(
+        repos_dir=repos_dir,
+        results_dir=results_dir,
+        model=model,
+        api_key=api_key,
+        top_k=top_k,
+        skip_evaluation=skip_evaluation,
+        host=host,
+        port=port,
+        db_port=db_port,
+        enrichment_base_url=enrichment_base_url,
+        enrichment_model=enrichment_model,
+        enrichment_parallel_tasks=enrichment_parallel_tasks,
+        enrichment_timeout=enrichment_timeout,
+    )
+
+    def on_progress(instance_id: str, success: bool, current: int, total: int) -> None:  # noqa: FBT001
+        status = "✓" if success else "✗"
+        click.echo(f"[{current}/{total}] {status} {instance_id}")
+
+    runner = BatchRunner(config)
+    result = runner.run(instances, on_instance_complete=on_progress)
+
+    # Print final summary
+    click.echo("\n" + "=" * 60)
+    click.echo("BENCHMARK RUN COMPLETE")
+    click.echo("=" * 60)
+    click.echo(f"Total instances: {result.total}")
+    click.echo(f"Succeeded: {result.succeeded}")
+    click.echo(f"Failed: {result.failed}")
+    if result.failures:
+        click.echo(f"Failed instances: {', '.join(result.failures)}")
+    click.echo("=" * 60)
+
+    if result.failed > 0:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

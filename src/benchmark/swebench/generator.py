@@ -31,12 +31,14 @@ class PatchGenerator:
         max_tokens: int = 32768,
         temperature: float = 0.0,
         api_key: str | None = None,
+        timeout: int = 60,
     ) -> None:
         """Initialize generator with LLM settings."""
         self._model = model
         self._max_tokens = max_tokens
         self._temperature = temperature
         self._api_key = api_key
+        self._timeout = timeout
         self._prompt_builder = PromptBuilder()
         self._log = structlog.get_logger(__name__)
 
@@ -79,25 +81,50 @@ class PatchGenerator:
             model_patch=patch,
         )
 
-    def _call_llm(self, prompt: str) -> str:
+    def _call_llm(self, prompt: str, retries: int = 3) -> str:
         """Call the LLM and return the response."""
-        response = completion(
+        from httpx import ReadTimeout
+
+        self._log.info(
+            "Calling LLM",
             model=self._model,
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=self._max_tokens,
-            temperature=self._temperature,
-            api_key=self._api_key,
+            timeout=self._timeout,
+            prompt_length=len(prompt),
         )
 
-        choice = response.choices[0]
-        if choice.finish_reason == "length":
-            self._log.warning(
-                "Response truncated due to max_tokens limit",
-                model=self._model,
-                max_tokens=self._max_tokens,
-            )
+        last_error: Exception | None = None
+        for attempt in range(retries):
+            try:
+                response = completion(
+                    model=self._model,
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=self._max_tokens,
+                    temperature=self._temperature,
+                    api_key=self._api_key,
+                    timeout=float(self._timeout),
+                )
+            except ReadTimeout as e:
+                last_error = e
+                self._log.warning(
+                    "LLM request timed out, retrying",
+                    attempt=attempt + 1,
+                    retries=retries,
+                    error=str(e),
+                )
+                continue
 
-        return choice.message.content or ""
+            choice = response.choices[0]
+            if choice.finish_reason == "length":
+                self._log.warning(
+                    "Response truncated due to max_tokens limit",
+                    model=self._model,
+                    max_tokens=self._max_tokens,
+                )
+
+            return choice.message.content or ""
+
+        msg = f"LLM request failed after {retries} retries"
+        raise TimeoutError(msg) from last_error
 
     def _extract_patch(self, response: str) -> str:
         """Extract and convert patch from the LLM response."""
