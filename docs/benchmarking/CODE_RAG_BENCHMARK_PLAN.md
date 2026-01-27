@@ -1,16 +1,14 @@
-# Kodit Benchmark Plan: RepoEval Adaptation
+# Kodit Benchmark: RepoEval Implementation
 
-## Executive Summary
+## Overview
 
-This document outlines a plan to benchmark Kodit's code retrieval capabilities using the RepoEval dataset from [CodeRAG-Bench](https://github.com/code-rag-bench/code-rag-bench). RepoEval is the ideal benchmark for Kodit because it tests repository-level code completion—the exact use case Kodit is designed for. We will start with 5 repositories to validate the approach before expanding.
+This document describes the RepoEval benchmark implementation for evaluating Kodit's code retrieval capabilities. The benchmark uses function-level code completion tasks from the [CodeRAG-Bench](https://github.com/code-rag-bench/code-rag-bench) dataset to measure how much Kodit's retrieval improves LLM code generation.
 
 ---
 
 ## 1. Why RepoEval?
 
-### 1.1 Alignment with Kodit's Purpose
-
-Kodit indexes external codebases to help AI coding assistants. RepoEval tests exactly this:
+RepoEval tests repository-level code completion—the exact use case Kodit is designed for:
 
 | Kodit Capability | RepoEval Requirement | Alignment |
 |------------------|---------------------|-----------|
@@ -19,72 +17,63 @@ Kodit indexes external codebases to help AI coding assistants. RepoEval tests ex
 | AST-based snippet extraction | Function/class definitions needed | ✅ Perfect |
 | Filter by repository | Tasks are repo-specific | ✅ Perfect |
 
-### 1.2 CodeRAG-Bench Findings
-
 From the [CodeRAG-Bench paper](https://arxiv.org/abs/2406.14497):
 - Models gain **up to 17 points** on RepoEval with retrieved code snippets
 - RepoEval shows the **largest improvement** from retrieval among all benchmarks
-- This directly validates Kodit's value proposition
-
-### 1.3 RepoEval Task Types
-
-RepoEval covers three completion scenarios:
-
-| Type | Description | Example |
-|------|-------------|---------|
-| **Line Completion** | Complete a single line of code | `result = model.` → `model.forward(x)` |
-| **API Invocation** | Complete an API call | `torch.` → `torch.tensor([1,2,3])` |
-| **Function Body** | Complete entire function body | Given signature + docstring, write implementation |
-
-We will focus on **function body completion** as it best demonstrates Kodit's ability to provide relevant context.
 
 ---
 
-## 2. Selected Repositories (Initial 5)
+## 2. Dataset
 
-From the [RepoCoder dataset](https://github.com/microsoft/CodeT/tree/main/RepoCoder), we select 5 repositories for initial benchmarking:
+### 2.1 Data Sources
 
-| # | Repository | Description | Why Selected |
-|---|------------|-------------|--------------|
-| 1 | [CarperAI/trlx](https://github.com/CarperAI/trlx) | RLHF training library | Popular ML library, moderate size |
-| 2 | [lucidrains/imagen-pytorch](https://github.com/lucidrains/imagen-pytorch) | Text-to-image diffusion | Well-documented, clear APIs |
-| 3 | [maxhumber/redframes](https://github.com/maxhumber/redframes) | Data manipulation library | Small, fast to index |
-| 4 | [huggingface/evaluate](https://github.com/huggingface/evaluate) | ML evaluation metrics | Familiar domain, good docs |
-| 5 | [google/vizier](https://github.com/google/vizier) | Hyperparameter optimization | Clean Python, clear structure |
+The benchmark uses pre-packaged data from RepoCoder:
 
-### 2.1 Selection Criteria
+| Resource | URL |
+|----------|-----|
+| Tasks | `https://github.com/microsoft/CodeT/raw/main/RepoCoder/datasets/datasets.zip` |
+| Repository Snapshots | `https://github.com/Veronicium/repoeval_debug/raw/main/function_level.zip` |
 
-1. **Python-focused**: Kodit's best-supported language
-2. **Moderate size**: Indexable without excessive time
-3. **Well-structured**: Clear function/class definitions for AST extraction
-4. **Diverse domains**: ML training, image gen, data manipulation, evaluation, optimization
+The repository snapshots are frozen at the exact commits used for the benchmark, ensuring reproducibility and preventing data leakage (solutions aren't indexed).
+
+### 2.2 Repositories
+
+The dataset contains 8 Python repositories with 910 function completion tasks:
+
+| Repository | Tasks | Description |
+|------------|-------|-------------|
+| CarperAI/trlx | 92 | RLHF training library |
+| amazon-science/patchcore-inspection | 64 | Anomaly detection |
+| deepmind/tracr | 292 | Transformer circuits |
+| facebookresearch/omnivore | 44 | Multi-modal learning |
+| google/lightweight_mmm | 128 | Marketing mix modeling |
+| leopard-ai/betty | 72 | Bilevel optimization |
+| lucidrains/imagen-pytorch | 134 | Text-to-image diffusion |
+| maxhumber/redframes | 84 | Data manipulation |
+
+### 2.3 Task Format
+
+Each task provides a function signature and asks the LLM to complete the body:
+
+```json
+{
+  "task_id": "CarperAI--trlx/idx",
+  "repo": "CarperAI/trlx",
+  "file_path": "",
+  "function_signature": "def save_pretrained(self, directory: str) -> None:\n    \"\"\"Save model and tokenizer.\"\"\"",
+  "docstring": "",
+  "ground_truth": "",
+  "context_snippets": []
+}
+```
+
+Note: The RepoCoder format embeds the repo in the task_id as `owner--repo/suffix`. The parser extracts this to populate the `repo` field.
 
 ---
 
-## 3. Benchmark Design
+## 3. Experimental Design
 
-### 3.1 Evaluation Framework
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    RepoEval Benchmark Pipeline                   │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌─────────────┐    ┌──────────────┐    ┌──────────────────┐   │
-│  │  RepoEval   │───▶│    Index     │───▶│     Retrieve     │   │
-│  │   Tasks     │    │   w/ Kodit   │    │    w/ Kodit      │   │
-│  └─────────────┘    └──────────────┘    └────────┬─────────┘   │
-│                                                   │             │
-│                                                   ▼             │
-│  ┌─────────────┐    ┌──────────────┐    ┌──────────────────┐   │
-│  │  Execution  │◀───│  Generation  │◀───│  Prompt Assembly │   │
-│  │  Evaluation │    │    (LLM)     │    │  (Task + Context)│   │
-│  └─────────────┘    └──────────────┘    └──────────────────┘   │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### 3.2 Experimental Conditions
+### 3.1 Conditions
 
 | Condition | Description |
 |-----------|-------------|
@@ -92,389 +81,382 @@ From the [RepoCoder dataset](https://github.com/microsoft/CodeT/tree/main/RepoCo
 | **Kodit RAG** | LLM generates code with task prompt + top-5 Kodit results |
 | **Gold Context** | LLM generates code with task prompt + ground-truth snippets (upper bound) |
 
-### 3.3 Metrics
+### 3.2 Metrics
 
 **Primary Metric**:
-- **Pass@1**: Execution correctness of generated code
-- **Pass@1 Delta**: `Pass@1(with Kodit) - Pass@1(baseline)` — the value Kodit adds
+- **Pass@1**: Correctness of generated code (token similarity with ground truth)
+- **Pass@1 Delta**: `Pass@1(Kodit) - Pass@1(baseline)` — the value Kodit adds
 
 **Secondary Metric**:
 - **Retrieval Recall@5**: Fraction of ground-truth snippets found in top-5 results
 
+### 3.3 Evaluation
+
+Code correctness is evaluated using token-based similarity between generated code and ground truth. A threshold of 0.7 similarity indicates a pass. This approach is used because:
+1. Full execution evaluation requires complex test harness setup per repository
+2. Token similarity correlates well with functional correctness for completion tasks
+3. It's fast and deterministic
+
 ---
 
-## 4. Implementation Plan
+## 4. Running the Benchmark
 
-### Phase 1: Data Preparation
-
-#### 4.1.1 Download RepoEval Dataset
-
-```python
-# scripts/download_repoeval.py
-
-from huggingface_hub import hf_hub_download
-import json
-
-def download_repoeval():
-    """Download RepoEval function completion tasks."""
-    # RepoEval is part of CodeRAG-Bench on HuggingFace
-    # Or download from Microsoft's RepoCoder repo
-    pass
-```
-
-#### 4.1.2 Clone Target Repositories
-
-```python
-# scripts/clone_repos.py
-
-REPOS = [
-    ("CarperAI/trlx", "main"),
-    ("lucidrains/imagen-pytorch", "main"),
-    ("maxhumber/redframes", "main"),
-    ("huggingface/evaluate", "main"),
-    ("google/vizier", "main"),
-]
-
-async def clone_repos(output_dir: Path):
-    """Clone repos at specific commits matching RepoEval checkpoints."""
-    for repo, ref in REPOS:
-        # Clone to output_dir/repo_name
-        pass
-```
-
-#### 4.1.3 Filter Tasks for Selected Repos
-
-```python
-# scripts/filter_tasks.py
-
-def filter_tasks_for_repos(
-    all_tasks: list[dict],
-    target_repos: list[str],
-) -> list[dict]:
-    """Keep only tasks from our 5 selected repositories."""
-    return [t for t in all_tasks if t["repo"] in target_repos]
-```
-
-### Phase 2: Index with Kodit
-
-#### 4.2.1 Index Each Repository
+### 4.1 Quick Start
 
 ```bash
-# Index each repository
-for repo in trlx imagen-pytorch redframes evaluate vizier; do
-    uv run kodit index --path ./repos/$repo
-done
+# Step 1: Download repos and index with Kodit (takes ~30 min per repo)
+uv run python -m benchmarks.run_benchmark setup
+
+# Step 2: Run the benchmark
+uv run python -m benchmarks.run_benchmark run
+
+# Step 3: Analyze existing results
+uv run python -m benchmarks.run_benchmark analyze benchmarks/results/repoeval_*.json
 ```
 
-#### 4.2.2 Verify Indexing
+### 4.2 CLI Commands
+
+```bash
+# Show help
+uv run python -m benchmarks.run_benchmark --help
+
+# Create sample dataset for testing
+uv run python -m benchmarks.run_benchmark create-sample
+
+# Run with specific options
+uv run python -m benchmarks.run_benchmark run \
+    --model openrouter/qwen/qwen3-coder \
+    --temperature 1.0 \
+    --limit 10 \
+    --conditions baseline kodit
+```
+
+### 4.3 Configuration Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--model` | `openrouter/qwen/qwen3-coder` | LiteLLM model identifier |
+| `--temperature` | `1.0` | Generation temperature |
+| `--max-tokens` | `8192` | Max tokens per generation |
+| `--limit` | `0` (all) | Limit number of tasks |
+| `--conditions` | `baseline kodit gold` | Conditions to run |
+| `--timeout` | `1800` | Indexing timeout per repo (setup only) |
+
+---
+
+## 5. Architecture
+
+### 5.1 Directory Structure
+
+```
+benchmarks/
+├── run_benchmark.py          # CLI entry point
+├── repoeval/
+│   ├── task.py               # Task and result dataclasses
+│   ├── loader.py             # Dataset loader
+│   ├── retriever.py          # Kodit search wrapper
+│   ├── prompts.py            # Prompt templates
+│   ├── executor.py           # Code similarity checker
+│   ├── runner.py             # Benchmark orchestrator
+│   └── analysis.py           # Results analysis
+├── scripts/
+│   ├── download_repoeval.py  # Download tasks and repos
+│   └── clone_repos.py        # Repository configuration
+├── data/
+│   └── repoeval_tasks.json   # Downloaded task data
+├── repos/                    # Repository snapshots
+│   ├── CarperAI_trlx/
+│   ├── lucidrains_imagen-pytorch/
+│   └── ...
+└── results/                  # Benchmark outputs
+    └── repoeval_YYYY-MM-DD_HH-MM-SS.json
+```
+
+### 5.2 Setup Process
+
+The `setup` command performs these steps:
+
+1. **Download snapshots**: Fetches `function_level.zip` containing repository snapshots at the exact commits used by RepoEval
+
+2. **Initialize git repos**: The snapshots are plain directories without `.git`. The setup initializes them as git repositories so Kodit can index them:
+   ```bash
+   git init
+   git add .
+   git commit -m "RepoEval snapshot"
+   ```
+
+3. **Start Kodit server**: Launches Kodit on port 8765
+
+4. **Index repositories**: For each repo:
+   - POST to `/api/v1/repositories` with `file://` URI
+   - Poll `/api/v1/repositories/{id}/status/summary` until status is `completed`
+   - The indexing pipeline runs: clone → scan → parse → extract → embed
+
+5. **Shutdown**: Stops the server after all repos are indexed
+
+### 5.3 Benchmark Pipeline
+
+```
+┌─────────────┐    ┌──────────────┐    ┌──────────────────┐
+│  Load Tasks │───▶│   Retrieve   │───▶│  Build Prompt    │
+│  from JSON  │    │  from Kodit  │    │  (task+context)  │
+└─────────────┘    └──────────────┘    └────────┬─────────┘
+                                                │
+┌─────────────┐    ┌──────────────┐             │
+│   Report    │◀───│   Evaluate   │◀────────────┘
+│   Results   │    │  Similarity  │
+└─────────────┘    └──────────────┘
+```
+
+---
+
+## 6. Implementation Details
+
+### 6.1 Retrieval
+
+The `KoditRetriever` queries Kodit's search endpoint:
 
 ```python
-# scripts/verify_index.py
+async def retrieve(self, task: RepoEvalTask, k: int = 5) -> list[str]:
+    query = f"{task.function_signature}\n{task.docstring}"
 
-async def verify_index(repo_path: str) -> IndexStats:
-    """Verify repository was indexed correctly."""
-    return IndexStats(
-        total_snippets=...,
-        functions=...,
-        classes=...,
-        languages=...,
+    results = await self._search_service.search(
+        user_intent=query,
+        keywords=[],
+        related_file_paths=[],
+        related_file_contents=[],
     )
+
+    return [r.content for r in results[:k]]
 ```
 
-### Phase 3: Run Benchmark
+### 6.2 Prompt Templates
 
-#### 4.3.1 Benchmark Task Structure
-
-```python
-# benchmarks/repoeval/task.py
-
-@dataclass
-class RepoEvalTask:
-    task_id: str
-    repo: str                      # e.g., "CarperAI/trlx"
-    file_path: str                 # e.g., "trlx/trainer/base.py"
-    function_signature: str        # Function to complete
-    docstring: str                 # Function docstring
-    ground_truth: str              # Expected function body
-    context_snippets: list[str]    # Known relevant code (for gold condition)
+**Baseline prompt** (no retrieval):
 ```
+Complete the following Python function body.
 
-#### 4.3.2 Retrieval with Kodit
-
-```python
-# benchmarks/repoeval/retriever.py
-
-class KoditRetriever:
-    """Retrieve relevant code for a RepoEval task."""
-
-    async def retrieve(
-        self,
-        task: RepoEvalTask,
-        k: int = 5,
-    ) -> list[Snippet]:
-        """
-        Query Kodit for relevant snippets.
-
-        Uses function signature + docstring as the query,
-        filtered to the task's repository.
-        """
-        query = f"{task.function_signature}\n{task.docstring}"
-
-        results = await self.kodit.search(
-            user_intent=query,
-            filters={"source_repo": task.repo},
-            limit=k,
-        )
-        return results
-```
-
-#### 4.3.3 Prompt Assembly
-
-```python
-# benchmarks/repoeval/prompts.py
-
-BASELINE_TEMPLATE = '''Complete the following Python function.
-
-```python
 {function_signature}
-    """{docstring}"""
+
+Provide only the function body implementation.
 ```
 
-Return only the function body (no signature or docstring).
-'''
+**RAG prompt** (with retrieved context):
+```
+Complete the following Python function body.
 
-RAG_TEMPLATE = '''Complete the following Python function.
-
-## Relevant Code from Repository
+Here is relevant code from the repository that may help:
 
 {retrieved_snippets}
 
-## Function to Complete
+Now complete this function:
 
-```python
 {function_signature}
-    """{docstring}"""
+
+Provide only the function body implementation.
 ```
 
-Return only the function body (no signature or docstring).
-'''
+### 6.3 Code Evaluation
 
-def build_prompt(
-    task: RepoEvalTask,
-    retrieved: list[Snippet] | None = None,
-) -> str:
-    if retrieved:
-        snippets_text = "\n\n".join(
-            f"```python\n{s.content}\n```"
-            for s in retrieved
-        )
-        return RAG_TEMPLATE.format(
-            retrieved_snippets=snippets_text,
-            function_signature=task.function_signature,
-            docstring=task.docstring,
-        )
-    else:
-        return BASELINE_TEMPLATE.format(
-            function_signature=task.function_signature,
-            docstring=task.docstring,
-        )
-```
-
-#### 4.3.4 Generation and Evaluation
+Token-based similarity using Python's `difflib.SequenceMatcher`:
 
 ```python
-# benchmarks/repoeval/runner.py
-
-async def run_benchmark(
-    tasks: list[RepoEvalTask],
-    model: str = "gpt-4o",
-    conditions: list[str] = ["baseline", "kodit", "gold"],
-) -> BenchmarkResults:
-    """Run benchmark across all conditions."""
-
-    results = {}
-
-    for condition in conditions:
-        condition_results = []
-
-        for task in tasks:
-            # Get context based on condition
-            if condition == "baseline":
-                retrieved = None
-            elif condition == "kodit":
-                retrieved = await kodit_retriever.retrieve(task, k=5)
-            elif condition == "gold":
-                retrieved = task.context_snippets
-
-            # Build prompt and generate
-            prompt = build_prompt(task, retrieved)
-            generated = await llm.generate(prompt, model=model)
-
-            # Execute and check correctness
-            passed = await executor.check(
-                generated_code=generated,
-                ground_truth=task.ground_truth,
-                file_path=task.file_path,
-            )
-
-            condition_results.append(TaskResult(
-                task_id=task.task_id,
-                passed=passed,
-                generated=generated,
-            ))
-
-        results[condition] = condition_results
-
-    return BenchmarkResults(results)
+def check(self, generated: str, ground_truth: str) -> ExecutionResult:
+    similarity = SequenceMatcher(None, gen_tokens, gt_tokens).ratio()
+    passed = similarity >= 0.7
+    return ExecutionResult(passed=passed, similarity=similarity)
 ```
 
-### Phase 4: Analyze Results
+---
 
-#### 4.4.1 Output Format
+## 7. Results Format
 
 ```json
 {
   "benchmark": "repoeval",
-  "model": "gpt-4o",
-  "repositories": [
-    "CarperAI/trlx",
-    "lucidrains/imagen-pytorch",
-    "maxhumber/redframes",
-    "huggingface/evaluate",
-    "google/vizier"
-  ],
+  "model": "openrouter/qwen/qwen3-coder",
+  "repositories": ["CarperAI/trlx", "..."],
   "results": {
     "baseline": {
       "pass_at_1": 0.35,
-      "tasks_evaluated": 50
+      "retrieval_recall_5": 0.0
     },
-    "kodit_rag": {
+    "kodit": {
       "pass_at_1": 0.52,
-      "retrieval_recall_5": 0.68,
-      "tasks_evaluated": 50
+      "retrieval_recall_5": 0.68
     },
-    "gold_context": {
+    "gold": {
       "pass_at_1": 0.78,
-      "tasks_evaluated": 50
+      "retrieval_recall_5": 1.0
     }
-  },
-  "delta": {
-    "kodit_vs_baseline": 0.17,
-    "gold_vs_baseline": 0.43,
-    "kodit_ceiling_pct": 39.5
-  },
-  "per_repo": {
-    "CarperAI/trlx": { "baseline": 0.30, "kodit": 0.48, "gold": 0.75 },
-    "lucidrains/imagen-pytorch": { "baseline": 0.32, "kodit": 0.50, "gold": 0.80 },
-    "maxhumber/redframes": { "baseline": 0.45, "kodit": 0.60, "gold": 0.82 },
-    "huggingface/evaluate": { "baseline": 0.38, "kodit": 0.55, "gold": 0.78 },
-    "google/vizier": { "baseline": 0.30, "kodit": 0.47, "gold": 0.75 }
   }
 }
 ```
 
----
-
-## 5. Directory Structure
-
-```
-benchmarks/
-├── repoeval/
-│   ├── __init__.py
-│   ├── task.py              # RepoEvalTask dataclass
-│   ├── loader.py            # Load tasks from dataset
-│   ├── retriever.py         # Kodit retrieval wrapper
-│   ├── prompts.py           # Prompt templates
-│   ├── executor.py          # Code execution sandbox
-│   ├── runner.py            # Main benchmark orchestrator
-│   └── analysis.py          # Results analysis and reporting
-├── scripts/
-│   ├── download_repoeval.py # Download dataset
-│   ├── clone_repos.py       # Clone target repositories
-│   ├── filter_tasks.py      # Filter to 5 repos
-│   └── verify_index.py      # Check indexing worked
-├── repos/                   # Cloned repositories
-│   ├── trlx/
-│   ├── imagen-pytorch/
-│   ├── redframes/
-│   ├── evaluate/
-│   └── vizier/
-└── results/                 # Benchmark outputs
-    └── repoeval_YYYY-MM-DD.json
-```
+The analysis report shows:
+- Overall Pass@1 for each condition
+- Delta between Kodit and baseline
+- Ceiling percentage (how much of the possible improvement Kodit captures)
+- Per-repository breakdown
 
 ---
 
-## 6. Success Criteria
+## 8. Expected Results
 
-### 6.1 Minimum Viable Benchmark
+Based on CodeRAG-Bench findings:
 
-- [ ] Clone and index all 5 repositories
-- [ ] Extract at least 10 tasks per repository (50 total)
-- [ ] Run baseline and Kodit RAG conditions
-- [ ] Calculate Pass@1 for both conditions
-- [ ] **Show positive delta** (Kodit RAG > baseline)
-
-### 6.2 Expected Results
-
-Based on CodeRAG-Bench findings for RepoEval:
-
-| Metric | Expected Value |
-|--------|---------------|
+| Metric | Expected |
+|--------|----------|
 | Baseline Pass@1 | ~35% |
 | Kodit RAG Pass@1 | ~50% |
 | Gold Context Pass@1 | ~78% |
 | **Kodit Delta** | **+15%** |
 
-The +15% improvement would demonstrate Kodit's value for repository-level coding tasks.
+A positive delta demonstrates Kodit's value for repository-level coding tasks.
 
 ---
 
-## 7. Risks and Mitigations
+## 9. Troubleshooting
 
-| Risk | Mitigation |
-|------|------------|
-| Repository checkpoints don't match RepoEval | Use exact commit SHAs from RepoCoder dataset |
-| Task filtering leaves too few tasks | Expand to more repos or use line/API completion too |
-| Code execution is flaky | Use Docker isolation; retry failed executions |
-| Ground-truth snippets hard to map | Start with tasks that have clear snippet references |
+### Indexing takes too long
+- Each repository takes ~5-30 minutes to fully index
+- The setup waits for completion by polling the status summary endpoint
+- Use `--timeout` to adjust the per-repo timeout
 
----
+### API key issues
+- Set `OPENROUTER_API_KEY` for OpenRouter models
+- Or use other LiteLLM-compatible providers (OpenAI, Anthropic, etc.)
 
-## 8. Future Extensions
+### Database conflicts
+- Clear the database: `rm ~/.kodit/kodit.db`
+- Clear clones: `rm -rf ~/.kodit/clones/*`
 
-After validating with 5 repos:
-
-1. **Expand to all 16 RepoEval repositories**
-2. **Add line and API completion tasks** (not just function body)
-3. **Compare retrieval modes**: BM25-only vs semantic-only vs hybrid
-4. **Test multiple LLMs**: GPT-4o, Claude, Gemini
-5. **Ablation on k**: Test k=1, 3, 5, 10 retrieved snippets
+### Port already in use
+- The setup uses port 8765
+- Kill any existing Kodit processes before running setup
 
 ---
 
-## 9. References
+## 10. Known Issues and Required Fixes
+
+This section documents issues identified during implementation review that must be resolved before the benchmark can accurately measure Kodit's value.
+
+### 10.1 Critical Issues
+
+#### Issue 1: Repository Source Mismatch in Retriever
+
+**Status**: NOT IMPLEMENTED
+
+**Problem**: The `KoditRetriever` filters search results by `source_repo` using GitHub-style URLs (`github.com/CarperAI/trlx`), but repositories are indexed with local file URIs (`file:///path/to/CarperAI_trlx`). This mismatch causes the Kodit condition to return zero results.
+
+**Location**: `benchmarks/repoeval/retriever.py:43-47`
+
+```python
+# Current implementation (broken)
+def _normalize_repo(self, repo: str) -> str:
+    if repo.startswith("github.com/"):
+        return repo
+    return f"github.com/{repo}"  # Returns: github.com/CarperAI/trlx
+```
+
+**Fix Options**:
+
+1. **Option A (Recommended)**: Remove the `source_repo` filter entirely. Since each benchmark run uses a fresh database with only the target repositories, filtering is unnecessary.
+2. **Option B**: Store GitHub URLs as metadata during indexing and filter on that metadata field.
+3. **Option C**: Map local paths back to GitHub URLs in the retriever.
+
+---
+
+#### Issue 2: Setup Command Doesn't Download Tasks
+
+**Status**: NOT IMPLEMENTED
+
+**Problem**: The `setup` command downloads repository snapshots but does not download the RepoEval task data. Running `setup` followed by `run` will fail because `benchmarks/data/repoeval_tasks.json` won't exist.
+
+**Location**: `benchmarks/run_benchmark.py:345` (setup command)
+
+**Fix**: Add a call to `download_repoeval()` at the start of the setup command:
+
+```python
+@cli.command()
+def setup(timeout: int, repos_dir: Path) -> None:
+    # Step 0: Download task data (NEW)
+    tasks_path = Path("benchmarks/data/repoeval_tasks.json")
+    if not tasks_path.exists():
+        log.info("Downloading RepoEval tasks")
+        download_repoeval(tasks_path)
+
+    # Step 1: Download repository snapshots...
+```
+
+---
+
+#### Issue 3: Missing Ground Truth Context Snippets
+
+**Status**: NEEDS VERIFICATION
+
+**Problem**: The RepoCoder dataset may not include `reference_code` (ground truth context snippets) for all tasks. Without these:
+
+- The "gold" condition provides no context (same as baseline)
+- Retrieval recall calculations return 0.0
+- The "ceiling" metric becomes meaningless
+
+**Location**: `benchmarks/scripts/download_repoeval.py:87`
+
+**Fix**:
+
+1. Download the actual task data and inspect the `reference_code` field
+2. If empty, consider using an alternative data source or computing reference code from the repository snapshots
+3. Document clearly if gold condition is not available
+
+---
+
+### 10.2 Secondary Issues
+
+#### Issue 4: No Pre-Run Verification
+
+**Problem**: The benchmark doesn't verify that repositories are indexed before running. If indexing failed or the database was cleared, results would be meaningless.
+
+**Fix**: Add a verification step in the `run` command that:
+
+1. Checks that `benchmarks/data/repoeval_tasks.json` exists
+2. Queries Kodit to verify each target repository is indexed
+3. Fails fast with a clear error message if prerequisites aren't met
+
+---
+
+#### Issue 5: Evaluation May Be Too Lenient
+
+**Problem**: The `CodeExecutor` has multiple fallback checks including a "50% method overlap" heuristic that may pass functionally incorrect code, potentially masking the delta between baseline and Kodit.
+
+**Location**: `benchmarks/repoeval/executor.py:47-48`
+
+**Recommendation**: Consider making the evaluation stricter:
+
+1. Remove the `_contains_key_operations` fallback
+2. Increase similarity threshold from 0.7 to 0.8
+3. Or run benchmarks with both strict and lenient evaluation for comparison
+
+---
+
+### 10.3 Implementation Checklist
+
+Before the benchmark can demonstrate Kodit's value, complete these items:
+
+| #   | Task                                              | Priority | Status |
+| --- | ------------------------------------------------- | -------- | ------ |
+| 1   | Fix retriever source_repo filter mismatch         | Critical | TODO   |
+| 2   | Add task download to setup command                | Critical | TODO   |
+| 3   | Verify ground truth context_snippets exist        | Critical | TODO   |
+| 4   | Add pre-run verification checks                   | High     | TODO   |
+| 5   | Review and potentially tighten evaluation criteria| Medium   | TODO   |
+| 6   | Update Quick Start docs after fixes               | Medium   | TODO   |
+
+---
+
+## 11. References
 
 - [CodeRAG-Bench Paper](https://arxiv.org/abs/2406.14497)
 - [RepoCoder Paper (introduced RepoEval)](https://arxiv.org/abs/2303.12570)
-- [RepoCoder GitHub (contains RepoEval data)](https://github.com/microsoft/CodeT/tree/main/RepoCoder)
-- [CodeRAG-Bench HuggingFace](https://huggingface.co/code-rag-bench)
-
----
-
-## Appendix: RepoEval Task Example
-
-```json
-{
-  "task_id": "trlx_func_001",
-  "repo": "CarperAI/trlx",
-  "file_path": "trlx/trainer/accelerate_base_trainer.py",
-  "function_signature": "def save_pretrained(self, directory: str) -> None:",
-  "docstring": "Save the model and tokenizer to the given directory.",
-  "ground_truth": "self.model.save_pretrained(directory)\nself.tokenizer.save_pretrained(directory)",
-  "context_snippets": [
-    "# From trlx/models/modeling_ppo.py\ndef save_pretrained(self, save_directory):\n    self.base_model.save_pretrained(save_directory)\n    ...",
-    "# From trlx/utils/loading.py\ndef get_checkpoint_path(config):\n    ..."
-  ]
-}
-```
+- [RepoCoder GitHub](https://github.com/microsoft/CodeT/tree/main/RepoCoder)
+- [RepoEval Debug Snapshots](https://github.com/Veronicium/repoeval_debug)
