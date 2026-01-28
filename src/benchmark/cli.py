@@ -42,6 +42,26 @@ DEFAULT_DATASET_FILE = DEFAULT_OUTPUT_DIR / "swebench-lite.json"
 DEFAULT_MODEL = "openrouter/anthropic/claude-haiku-4.5"
 
 
+class MissingApiKeyError(click.ClickException):
+    """Raised when ENRICHMENT_ENDPOINT_API_KEY is not set."""
+
+    message = (
+        "ENRICHMENT_ENDPOINT_API_KEY environment variable is required.\n"
+        "Set it with: export ENRICHMENT_ENDPOINT_API_KEY=your-api-key"
+    )
+
+    def __init__(self) -> None:
+        """Initialize with the error message."""
+        super().__init__(self.message)
+
+
+def require_api_key(api_key: str | None) -> str:
+    """Validate that API key is provided, raising an error if not."""
+    if not api_key:
+        raise MissingApiKeyError
+    return api_key
+
+
 @click.group(context_settings={"max_content_width": 100})
 def cli() -> None:
     """kodit-benchmark CLI - Benchmark Kodit's retrieval capabilities."""
@@ -90,6 +110,7 @@ def start_kodit(  # noqa: PLR0913
     enrichment_timeout: int,
 ) -> None:
     """Start database and Kodit server for benchmarking."""
+    enrichment_api_key = require_api_key(enrichment_api_key)
     log = structlog.get_logger(__name__)
 
     server = ServerProcess(
@@ -528,6 +549,7 @@ def run_instance(  # noqa: PLR0913
     Results are written to the results directory as JSONL files and a comparison
     JSON file summarizing both conditions.
     """
+    api_key = require_api_key(api_key)
     log = structlog.get_logger(__name__)
 
     # Find instance
@@ -663,6 +685,7 @@ def run_all(  # noqa: PLR0913
     Reads the dataset JSON file and runs run-instance for each test ID
     sequentially. Results are tracked and a summary is printed at the end.
     """
+    api_key = require_api_key(api_key)
     log = structlog.get_logger(__name__)
 
     # Load all instances from the dataset file
@@ -786,6 +809,7 @@ def mini_run_baseline(  # noqa: PLR0913, PLR0915, C901
     This runs mini-swe-agent against SWE-bench instances with only the
     problem statement, providing a baseline for comparison.
     """
+    api_key = require_api_key(api_key)
     log = structlog.get_logger(__name__)
 
     # Load instances
@@ -1004,6 +1028,7 @@ def mini_run_kodit(  # noqa: PLR0913, PLR0915, C901
     6. Runs mini-swe-agent with the augmented problem statement
     7. Stops the Kodit server
     """
+    api_key = require_api_key(api_key)
     log = structlog.get_logger(__name__)
 
     # Load instances

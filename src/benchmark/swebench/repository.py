@@ -142,6 +142,7 @@ class RepositoryPreparer:
         url = f"{self._kodit_base_url}/api/v1/repositories/{repo_id}/status/summary"
         deadline = time.monotonic() + self._index_timeout
         poll_interval = 5.0  # seconds
+        status_timeout = 60.0  # longer timeout for busy servers
 
         self._log.info(
             "Waiting for indexing to complete",
@@ -151,7 +152,15 @@ class RepositoryPreparer:
 
         last_status = None
         while time.monotonic() < deadline:
-            response = httpx.get(url, timeout=10.0)
+            try:
+                response = httpx.get(url, timeout=status_timeout)
+            except httpx.TimeoutException:
+                self._log.warning(
+                    "Status check timed out, retrying",
+                    repo_id=repo_id,
+                )
+                time.sleep(poll_interval)
+                continue
 
             if response.status_code != 200:
                 self._log.warning(
