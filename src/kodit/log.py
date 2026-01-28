@@ -120,14 +120,24 @@ def configure_logging(app_context: AppContext) -> None:
     if not hasattr(litellm.Logging, "debug"):
         litellm.Logging.debug = lambda _self, *_args, **_kwargs: None  # type: ignore[attr-defined]
 
-    # Configure SQLAlchemy loggers to use our structlog setup
-    for _log in ["sqlalchemy.engine", "alembic"]:
-        engine_logger = logging.getLogger(_log)
-        engine_logger.setLevel(logging.WARNING)  # Hide INFO logs by default
+    # Configure database-related loggers
+    # Set to ERROR by default so connection errors are always visible,
+    # but INFO/DEBUG spam is hidden. In DEBUG mode, show everything.
+    db_loggers = [
+        "sqlalchemy.engine",
+        "sqlalchemy.pool",
+        "sqlalchemy.dialects",
+        "sqlalchemy.orm",
+        "alembic",
+        "aiosqlite",
+        "asyncpg",
+    ]
+    for _log in db_loggers:
+        db_logger = logging.getLogger(_log)
         if app_context.log_level.upper() == "DEBUG":
-            engine_logger.setLevel(
-                logging.DEBUG
-            )  # Only show all logs when in DEBUG mode
+            db_logger.setLevel(logging.DEBUG)
+        else:
+            db_logger.setLevel(logging.ERROR)
 
     def handle_exception(
         exc_type: type[BaseException],
