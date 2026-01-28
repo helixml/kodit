@@ -188,3 +188,5 @@ benchmarks/cache/
 docs/reference/api/openapi.3.0.json
 logs/**/*
 *.json
+*.jsonl
+benchmarks/minisweagent/**/*

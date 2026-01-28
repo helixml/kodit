@@ -75,6 +75,7 @@ dev = [
     "openapi-markdown>=0.4.3",
     "types-pyyaml>=6.0.12.20250915",
     "swebench>=4.1.0",
+    "mini-swe-agent>=0.1.0",
 ]
 
 [project.urls]
