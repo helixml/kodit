@@ -37,6 +37,7 @@ from kodit.application.handlers.commit.create_summary_enrichment import (
 from kodit.application.handlers.commit.database_schema import DatabaseSchemaHandler
 from kodit.application.handlers.commit.extract_examples import ExtractExamplesHandler
 from kodit.application.handlers.commit.extract_snippets import ExtractSnippetsHandler
+from kodit.application.handlers.commit.rescan_commit import RescanCommitHandler
 from kodit.application.handlers.commit.scan_commit import ScanCommitHandler
 from kodit.application.handlers.registry import TaskHandlerRegistry
 from kodit.application.handlers.repository.clone_repository import (
@@ -519,6 +520,19 @@ class ServerFactory:
                     operation=self.operation(),
                 ),
             )
+            registry.register(
+                TaskOperation.RESCAN_COMMIT,
+                RescanCommitHandler(
+                    git_file_repository=self.git_file_repository(),
+                    bm25_service=self.bm25_service(),
+                    embedding_repository=self.embedding_repository(),
+                    enrichment_v2_repository=self.enrichment_v2_repository(),
+                    enrichment_association_repository=self.enrichment_association_repository(),
+                    enrichment_query_service=self.enrichment_query_service(),
+                    queue=self.queue_service(),
+                    operation=self.operation(),
+                ),
+            )
 
             self._handler_registry = registry
         return self._handler_registry
@@ -529,6 +543,7 @@ class ServerFactory:
             self._commit_indexing_application_service = (
                 CommitIndexingApplicationService(
                     repo_repository=self.repo_repository(),
+                    task_status_repository=self.task_status_repository(),
                     operation=self.operation(),
                     queue=self.queue_service(),
                     handler_registry=self.handler_registry(),
@@ -594,6 +609,7 @@ class ServerFactory:
             self._sync_scheduler_service = SyncSchedulerService(
                 queue_service=self.queue_service(),
                 repo_repository=self.repo_repository(),
+                task_status_repository=self.task_status_repository(),
             )
         return self._sync_scheduler_service
 

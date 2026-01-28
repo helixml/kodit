@@ -9,12 +9,13 @@ from kodit.application.services.reporting import ProgressTracker
 from kodit.domain.entities import Task
 from kodit.domain.entities.git import GitRepo
 from kodit.domain.factories.git_repo_factory import GitRepoFactory
-from kodit.domain.protocols import GitRepoRepository
+from kodit.domain.protocols import GitRepoRepository, TaskStatusRepository
 from kodit.domain.value_objects import (
     PrescribedOperations,
     QueuePriority,
     TaskOperation,
 )
+from kodit.infrastructure.sqlalchemy.query import TaskStatusQueryBuilder
 
 
 class CommitIndexingApplicationService:
@@ -23,12 +24,14 @@ class CommitIndexingApplicationService:
     def __init__(
         self,
         repo_repository: GitRepoRepository,
+        task_status_repository: TaskStatusRepository,
         operation: ProgressTracker,
         queue: QueueService,
         handler_registry: TaskHandlerRegistry,
     ) -> None:
         """Initialize the commit indexing application service."""
         self.repo_repository = repo_repository
+        self.task_status_repository = task_status_repository
         self.operation = operation
         self.queue = queue
         self.handler_registry = handler_registry
@@ -48,6 +51,12 @@ class CommitIndexingApplicationService:
             repo.remote_uri = remote_uri
             repo = await self.repo_repository.save(repo)
 
+        # Clear existing task statuses immediately for fresh progress tracking
+        if repo.id:
+            await self.task_status_repository.delete_by_query(
+                TaskStatusQueryBuilder().for_repository(repo.id)
+            )
+
         await self.queue.enqueue_tasks(
             tasks=PrescribedOperations.CREATE_NEW_REPOSITORY,
             base_priority=QueuePriority.USER_INITIATED,
@@ -65,6 +74,19 @@ class CommitIndexingApplicationService:
         handler = self.handler_registry.handler(TaskOperation.DELETE_REPOSITORY)
         await handler.execute({"repository_id": repo_id})
         return True
+
+    async def rescan_commit(self, repo_id: int, commit_sha: str) -> None:
+        """Rescan a commit by deleting artifacts and re-triggering indexing."""
+        # Clear existing task statuses immediately for fresh progress tracking
+        await self.task_status_repository.delete_by_query(
+            TaskStatusQueryBuilder().for_repository(repo_id)
+        )
+
+        handler = self.handler_registry.handler(TaskOperation.RESCAN_COMMIT)
+        await handler.execute({
+            "repository_id": repo_id,
+            "commit_sha": commit_sha,
+        })
 
     async def run_task(self, task: Task) -> None:
         """Run a task by delegating to the appropriate handler."""

@@ -6,7 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from kodit.domain.entities import Task
 from kodit.domain.value_objects import TaskOperation
-from kodit.infrastructure.sqlalchemy.query import FilterOperator, QueryBuilder
+from kodit.infrastructure.sqlalchemy.query import (
+    FilterOperator,
+    QueryBuilder,
+    TaskQueryBuilder,
+)
 from kodit.infrastructure.sqlalchemy.task_repository import create_task_repository
 
 
@@ -21,7 +25,8 @@ async def test_add_and_get_task(
         payload={"index_id": 1},
     )
 
-    await repository.save(task)
+    task = await repository.save(task)
+    assert task.id is not None
 
     loaded = await repository.get(task.id)
     assert loaded is not None
@@ -48,9 +53,9 @@ async def test_next_returns_highest_priority(
     await repository.save(low_priority)
     await repository.save(high_priority)
 
-    next_task = await repository.next()
+    next_task = await repository.find(TaskQueryBuilder().next())
     assert next_task is not None
-    assert next_task.id == high_priority.id
+    assert next_task[0].dedup_key == high_priority.dedup_key
 
 
 async def test_remove_task(
@@ -82,12 +87,12 @@ async def test_update_task(
         payload={"index_id": 1},
     )
 
-    await repository.save(task)
+    saved_task = await repository.save(task)
 
-    task.priority = 50
-    await repository.save(task)
+    saved_task.priority = 50
+    await repository.save(saved_task)
 
-    loaded = await repository.get(task.id)
+    loaded = await repository.get(saved_task.id)
     assert loaded is not None
     assert loaded.priority == 50
 

@@ -3,7 +3,7 @@
   "info": {
     "title": "kodit API",
     "description": "\nThis is the REST API for the Kodit server. Please refer to the\n[Kodit documentation](https://docs.helix.ml/kodit/) for more information.\n    ",
-    "version": "0.5.19"
+    "version": "0.5.23"
   },
   "paths": {
     "/healthz": {
@@ -796,6 +796,58 @@
           },
           "404": {
             "description": "Repository, commit, or enrichment not found"
+          }
+        }
+      }
+    },
+    "/api/v1/repositories/{repo_id}/commits/{commit_sha}/rescan": {
+      "post": {
+        "tags": [
+          "commits"
+        ],
+        "summary": "Rescan a commit",
+        "description": "Initiate a rescan of a specific commit.\n\nDeletes all downstream artifacts (enrichments, embeddings, BM25 indices)\nand re-triggers the full commit indexing pipeline.",
+        "operationId": "rescan_commit_api_v1_repositories__repo_id__commits__commit_sha__rescan_post",
+        "security": [
+          {
+            "Header (X-API-KEY)": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "repo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Repo Id"
+            }
+          },
+          {
+            "name": "commit_sha",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Commit Sha"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "500": {
+            "description": "Internal server error"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Invalid request"
+          },
+          "404": {
+            "description": "Repository or commit not found"
           }
         }
       }
@@ -3140,7 +3192,8 @@
           "kodit.commit.create_example_summary",
           "kodit.commit.create_example_code_embeddings",
           "kodit.commit.create_example_summary_embeddings",
-          "kodit.commit.scan"
+          "kodit.commit.scan",
+          "kodit.commit.rescan"
         ],
         "title": "TaskOperation",
         "description": "Task operation."

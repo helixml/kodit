@@ -31,15 +31,19 @@ class QueueService:
 
     async def enqueue_task(self, task: Task) -> None:
         """Queue a task in the database."""
-        # Check if task already exists
-        exists = await self.task_repository.exists(task.id)
-        await self.task_repository.save(task)
-        if exists:
-            self.log.info("Task updated", task_id=task.id, task_type=task.type)
+        # Check if task already exists by dedup_key (upsert semantics)
+        existing, created = await self.task_repository.get_or_create(task, "dedup_key")
+        if not created:
+            # Task already exists - update priority if needed
+            existing.priority = task.priority
+            await self.task_repository.save(existing)
+            self.log.info(
+                "Task updated", task_dedup_key=task.dedup_key, task_type=task.type
+            )
         else:
             self.log.info(
                 "Task queued",
-                task_id=task.id,
+                task_dedup_key=task.dedup_key,
                 task_type=task.type,
                 payload=task.payload,
             )
@@ -73,9 +77,8 @@ class QueueService:
         query.sort("created_at", descending=True)
         return await self.task_repository.find(query)
 
-    async def get_task(self, task_id: str) -> Task | None:
-        """Get a specific task by ID."""
-        try:
-            return await self.task_repository.get(task_id)
-        except ValueError:
-            return None
+    async def get_task(self, dedup_key: str) -> Task | None:
+        """Get a specific task by dedup_key."""
+        query = QueryBuilder().filter("dedup_key", FilterOperator.EQ, dedup_key)
+        tasks = await self.task_repository.find(query)
+        return tasks[0] if tasks else None

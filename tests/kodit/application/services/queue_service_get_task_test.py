@@ -22,10 +22,10 @@ async def test_get_task_existing(session_factory: Callable[[], AsyncSession]) ->
     await queue_service.enqueue_task(task)
 
     # Get the task by ID
-    retrieved_task = await queue_service.get_task(task.id)
+    retrieved_task = await queue_service.get_task(task.dedup_key)
 
     assert retrieved_task is not None
-    assert retrieved_task.id == task.id
+    assert retrieved_task.dedup_key == task.dedup_key
     assert retrieved_task.type == TaskOperation.REFRESH_WORKING_COPY
     assert retrieved_task.payload["index_id"] == 1
     assert retrieved_task.priority == QueuePriority.USER_INITIATED
@@ -62,9 +62,9 @@ async def test_get_task_after_multiple_tasks(
 
     # Get a specific task by ID
     target_task = tasks[1]
-    retrieved_task = await queue_service.get_task(target_task.id)
+    retrieved_task = await queue_service.get_task(target_task.dedup_key)
 
     assert retrieved_task is not None
-    assert retrieved_task.id == target_task.id
+    assert retrieved_task.dedup_key == target_task.dedup_key
     assert retrieved_task.payload["index_id"] == 1
     assert retrieved_task.priority == QueuePriority.USER_INITIATED

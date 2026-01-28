@@ -117,6 +117,7 @@ class SyncRepositoryHandler:
             self._log.info(
                 f"New commit {commit_sha[:8]} detected, enqueuing scan and indexing"
             )
+
             await self.queue.enqueue_tasks(
                 tasks=PrescribedOperations.SCAN_AND_INDEX_COMMIT,
                 base_priority=QueuePriority.BACKGROUND,

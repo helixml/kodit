@@ -147,6 +147,9 @@ type ClientInterface interface {
 	// GetCommitFileApiV1RepositoriesRepoIdCommitsCommitShaFilesBlobShaGet request
 	GetCommitFileApiV1RepositoriesRepoIdCommitsCommitShaFilesBlobShaGet(ctx context.Context, repoId string, commitSha string, blobSha string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// RescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPost request
+	RescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPost(ctx context.Context, repoId string, commitSha string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippetsGet request
 	ListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippetsGet(ctx context.Context, repoId string, commitSha string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -412,6 +415,18 @@ func (c *Client) ListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGet(
 
 func (c *Client) GetCommitFileApiV1RepositoriesRepoIdCommitsCommitShaFilesBlobShaGet(ctx context.Context, repoId string, commitSha string, blobSha string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetCommitFileApiV1RepositoriesRepoIdCommitsCommitShaFilesBlobShaGetRequest(c.Server, repoId, commitSha, blobSha)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPost(ctx context.Context, repoId string, commitSha string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostRequest(c.Server, repoId, commitSha)
 	if err != nil {
 		return nil, err
 	}
@@ -1483,6 +1498,47 @@ func NewGetCommitFileApiV1RepositoriesRepoIdCommitsCommitShaFilesBlobShaGetReque
 	return req, nil
 }
 
+// NewRescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostRequest generates requests for RescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPost
+func NewRescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostRequest(server string, repoId string, commitSha string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "repo_id", runtime.ParamLocationPath, repoId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "commit_sha", runtime.ParamLocationPath, commitSha)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/repositories/%s/commits/%s/rescan", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippetsGetRequest generates requests for ListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippetsGet
 func NewListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippetsGetRequest(server string, repoId string, commitSha string) (*http.Request, error) {
 	var err error
@@ -2020,6 +2076,9 @@ type ClientWithResponsesInterface interface {
 	// GetCommitFileApiV1RepositoriesRepoIdCommitsCommitShaFilesBlobShaGetWithResponse request
 	GetCommitFileApiV1RepositoriesRepoIdCommitsCommitShaFilesBlobShaGetWithResponse(ctx context.Context, repoId string, commitSha string, blobSha string, reqEditors ...RequestEditorFn) (*GetCommitFileApiV1RepositoriesRepoIdCommitsCommitShaFilesBlobShaGetResponse, error)
 
+	// RescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostWithResponse request
+	RescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostWithResponse(ctx context.Context, repoId string, commitSha string, reqEditors ...RequestEditorFn) (*RescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostResponse, error)
+
 	// ListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippetsGetWithResponse request
 	ListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippetsGetWithResponse(ctx context.Context, repoId string, commitSha string, reqEditors ...RequestEditorFn) (*ListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippetsGetResponse, error)
 
@@ -2447,6 +2506,27 @@ func (r GetCommitFileApiV1RepositoriesRepoIdCommitsCommitShaFilesBlobShaGetRespo
 	return 0
 }
 
+type RescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+}
+
+// Status returns HTTPResponse.Status
+func (r RescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippetsGetResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -2844,6 +2924,15 @@ func (c *ClientWithResponses) GetCommitFileApiV1RepositoriesRepoIdCommitsCommitS
 		return nil, err
 	}
 	return ParseGetCommitFileApiV1RepositoriesRepoIdCommitsCommitShaFilesBlobShaGetResponse(rsp)
+}
+
+// RescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostWithResponse request returning *RescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostResponse
+func (c *ClientWithResponses) RescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostWithResponse(ctx context.Context, repoId string, commitSha string, reqEditors ...RequestEditorFn) (*RescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostResponse, error) {
+	rsp, err := c.RescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPost(ctx, repoId, commitSha, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostResponse(rsp)
 }
 
 // ListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippetsGetWithResponse request returning *ListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippetsGetResponse
@@ -3375,6 +3464,22 @@ func ParseGetCommitFileApiV1RepositoriesRepoIdCommitsCommitShaFilesBlobShaGetRes
 		}
 		response.JSON200 = &dest
 
+	}
+
+	return response, nil
+}
+
+// ParseRescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostResponse parses an HTTP response from a RescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostWithResponse call
+func ParseRescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostResponse(rsp *http.Response) (*RescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
 	}
 
 	return response, nil

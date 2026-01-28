@@ -646,6 +646,7 @@ class TaskOperation(StrEnum):
         "kodit.commit.create_example_summary_embeddings"
     )
     SCAN_COMMIT = "kodit.commit.scan"
+    RESCAN_COMMIT = "kodit.commit.rescan"
 
     def is_repository_operation(self) -> bool:
         """Check if the task operation is a repository operation."""
