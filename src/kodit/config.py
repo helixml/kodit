@@ -47,6 +47,15 @@ class ReportingConfig(BaseModel):
     )
 
 
+class LiteLLMCacheConfig(BaseModel):
+    """LiteLLM cache configuration."""
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable LiteLLM disk caching for API responses",
+    )
+
+
 class Endpoint(BaseModel):
     """Endpoint provides configuration for an AI service."""
 
@@ -179,6 +188,9 @@ class AppContext(BaseSettings):
     reporting: ReportingConfig = Field(
         default=ReportingConfig(), description="Reporting configuration"
     )
+    litellm_cache: LiteLLMCacheConfig = Field(
+        default=LiteLLMCacheConfig(), description="LiteLLM cache configuration"
+    )
 
     @field_validator("api_keys", mode="before")
     @classmethod
@@ -216,6 +228,12 @@ class AppContext(BaseSettings):
         clone_dir = self.get_data_dir() / "clones"
         clone_dir.mkdir(parents=True, exist_ok=True)
         return clone_dir
+
+    def get_litellm_cache_dir(self) -> Path:
+        """Get the LiteLLM cache directory."""
+        cache_dir = self.get_data_dir() / "litellm_cache"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        return cache_dir
 
     async def get_db(self, *, run_migrations: bool = True) -> Database:
         """Get the database."""
