@@ -178,5 +178,15 @@ cython_debug/
 benchmark.db
 profile.prof
 
+# Benchmark data (cloned repos, downloaded datasets)
+benchmarks/repos/
+benchmarks/datasets/
+benchmarks/results/
+benchmarks/cache/
+
 # Generated OpenAPI files (intermediate files only)
 docs/reference/api/openapi.3.0.json
+logs/**/*
+*.json
+*.jsonl
+benchmarks/minisweagent/**/*

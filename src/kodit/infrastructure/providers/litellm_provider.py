@@ -8,9 +8,13 @@ from typing import Any
 import httpx
 import litellm
 import structlog
-from litellm import acompletion, aembedding
+from litellm import Cache, acompletion, aembedding
+from litellm.caching.caching import LiteLLMCacheType
 
 from kodit.config import Endpoint
+
+# Enable disk caching for all LiteLLM calls
+litellm.cache = Cache(type=LiteLLMCacheType.DISK, disk_cache_dir="/tmp/litellm_cache")
 
 ProviderMaxRetriesError = Exception("LiteLLM API error: Max retries exceeded")
 
