@@ -26,6 +26,7 @@ from kodit.infrastructure.api.v1.routers.repositories import (
 )
 from kodit.infrastructure.api.v1.routers.search import router as search_router
 from kodit.infrastructure.api.v1.schemas.context import AppLifespanState
+from kodit.infrastructure.providers.litellm_cache import configure_litellm_cache
 from kodit.infrastructure.sqlalchemy.task_status_repository import (
     create_task_status_repository,
 )
@@ -48,6 +49,13 @@ async def app_lifespan(_: FastAPI) -> AsyncIterator[AppLifespanState]:
 
     # App context has already been configured by the CLI.
     app_context = AppContext()
+
+    # Initialize LiteLLM cache if enabled
+    configure_litellm_cache(
+        app_context.get_litellm_cache_dir(),
+        enabled=app_context.litellm_cache.enabled,
+    )
+
     db = await app_context.get_db()
     log = structlog.get_logger(__name__)
     operation = create_server_operation(
