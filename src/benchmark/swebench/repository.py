@@ -12,7 +12,7 @@ from benchmark.swebench.instance import SWEBenchInstance
 
 DEFAULT_REPOS_DIR = Path("benchmarks/repos")
 DEFAULT_CLONE_TIMEOUT = 600  # 10 minutes for large repos
-DEFAULT_INDEX_TIMEOUT = 1800  # 30 minutes for indexing
+DEFAULT_INDEX_TIMEOUT = 7200  # 2 hours for indexing
 
 
 class RepositoryPreparer:

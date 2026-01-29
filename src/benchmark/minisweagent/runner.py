@@ -189,22 +189,12 @@ class MiniSweAgentRunner:
             )
 
             # Clone and index the repository using existing infrastructure
-            try:
-                repo_id = operations.prepare(instance)
-                self._log.info(
-                    "Repository prepared",
-                    instance_id=instance.instance_id,
-                    repo_id=repo_id,
-                )
-            except Exception as e:  # noqa: BLE001
-                self._log.error(
-                    "Failed to prepare repository, skipping Kodit context",
-                    instance_id=instance.instance_id,
-                    error=str(e),
-                )
-                # Continue without augmentation if preparation fails
-                augmented.append(instance)
-                continue
+            repo_id = operations.prepare(instance)
+            self._log.info(
+                "Repository prepared",
+                instance_id=instance.instance_id,
+                repo_id=repo_id,
+            )
 
             # Retrieve snippets and augment problem statement
             augmented_statement = context_provider.augment_problem_statement(

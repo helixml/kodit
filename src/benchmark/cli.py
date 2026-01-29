@@ -39,7 +39,7 @@ from kodit.log import configure_logging
 DEFAULT_OUTPUT_DIR = Path("benchmarks/data")
 DEFAULT_RESULTS_DIR = Path("benchmarks/results")
 DEFAULT_DATASET_FILE = DEFAULT_OUTPUT_DIR / "swebench-lite.json"
-DEFAULT_MODEL = "openrouter/anthropic/claude-haiku-4.5"
+DEFAULT_MODEL = "openrouter/google/gemini-2.5-flash-lite"
 
 
 class MissingApiKeyError(click.ClickException):
