@@ -94,12 +94,10 @@ def configure_logging(app_context: AppContext) -> None:
     root_logger.addHandler(handler)
     root_logger.setLevel(app_context.log_level.upper())
 
-    # Configure uvicorn loggers to use our structlog setup
-    # Uvicorn spits out loads of exception logs when sse server doesn't shut down
-    # gracefully, so we hide them unless in DEBUG mode
+    # Configure noisy loggers - disable in non-DEBUG mode to reduce spam
+    # Note: uvicorn.error is NOT disabled so application errors remain visible
     for _log in [
         "uvicorn",
-        "uvicorn.error",
         "uvicorn.access",
         "bm25s",
         "sentence_transformers.SentenceTransformer",
@@ -120,24 +118,16 @@ def configure_logging(app_context: AppContext) -> None:
     if not hasattr(litellm.Logging, "debug"):
         litellm.Logging.debug = lambda _self, *_args, **_kwargs: None  # type: ignore[attr-defined]
 
-    # Configure database-related loggers
-    # Set to ERROR by default so connection errors are always visible,
-    # but INFO/DEBUG spam is hidden. In DEBUG mode, show everything.
-    db_loggers = [
-        "sqlalchemy.engine",
-        "sqlalchemy.pool",
-        "sqlalchemy.dialects",
-        "sqlalchemy.orm",
-        "alembic",
-        "aiosqlite",
-        "asyncpg",
-    ]
-    for _log in db_loggers:
-        db_logger = logging.getLogger(_log)
-        if app_context.log_level.upper() == "DEBUG":
-            db_logger.setLevel(logging.DEBUG)
-        else:
-            db_logger.setLevel(logging.ERROR)
+    # Configure database loggers to WARNING to hide DEBUG/INFO spam.
+    # Connection errors are still visible via exceptions logged at ERROR level.
+    # In DEBUG mode, show all database activity.
+    db_log_level = (
+        logging.DEBUG
+        if app_context.log_level.upper() == "DEBUG"
+        else logging.WARNING
+    )
+    for _log in ["sqlalchemy", "alembic", "aiosqlite", "asyncpg"]:
+        logging.getLogger(_log).setLevel(db_log_level)
 
     def handle_exception(
         exc_type: type[BaseException],
