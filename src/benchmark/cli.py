@@ -12,16 +12,7 @@ from benchmark.runner import (
     BatchRunner,
     BenchmarkOperations,
 )
-from benchmark.server import (
-    DEFAULT_DB_PORT,
-    DEFAULT_ENRICHMENT_BASE_URL,
-    DEFAULT_ENRICHMENT_MODEL,
-    DEFAULT_ENRICHMENT_PARALLEL_TASKS,
-    DEFAULT_ENRICHMENT_TIMEOUT,
-    DEFAULT_HOST,
-    DEFAULT_PORT,
-    ServerProcess,
-)
+from benchmark.server import ServerProcess
 from benchmark.swebench.evaluator import (
     EvaluationError,
     Evaluator,
@@ -39,7 +30,26 @@ from kodit.log import configure_logging
 DEFAULT_OUTPUT_DIR = Path("benchmarks/data")
 DEFAULT_RESULTS_DIR = Path("benchmarks/results")
 DEFAULT_DATASET_FILE = DEFAULT_OUTPUT_DIR / "swebench-lite.json"
-DEFAULT_MODEL = "openrouter/google/gemini-2.5-flash-lite"
+
+# Server defaults
+DEFAULT_HOST = "127.0.0.1"
+DEFAULT_PORT = 8765
+DEFAULT_DB_PORT = 5432
+
+# Enrichment defaults
+# Note: When using openrouter/* prefixed models, do NOT set base_url.
+# LiteLLM automatically routes to OpenRouter based on the model prefix.
+DEFAULT_ENRICHMENT_BASE_URL = ""
+DEFAULT_ENRICHMENT_PARALLEL_TASKS = 25
+DEFAULT_ENRICHMENT_TIMEOUT = 60
+DEFAULT_EMBEDDING_BASE_URL = ""
+DEFAULT_EMBEDDING_PARALLEL_TASKS = 25
+DEFAULT_EMBEDDING_TIMEOUT = 60
+
+# Model defaults
+DEFAULT_EMBEDDING_MODEL = "openrouter/mistralai/codestral-embed-2505"
+DEFAULT_SWE_AGENT_MODEL = "openrouter/anthropic/claude-haiku-4.5"
+DEFAULT_KODIT_ENRICHMENT_MODEL = "openrouter/mistralai/ministral-8b-2512"
 
 
 class MissingApiKeyError(click.ClickException):
@@ -55,10 +65,30 @@ class MissingApiKeyError(click.ClickException):
         super().__init__(self.message)
 
 
+class MissingEmbeddingApiKeyError(click.ClickException):
+    """Raised when EMBEDDING_ENDPOINT_API_KEY is not set."""
+
+    message = (
+        "EMBEDDING_ENDPOINT_API_KEY environment variable is required.\n"
+        "Set it with: export EMBEDDING_ENDPOINT_API_KEY=your-api-key"
+    )
+
+    def __init__(self) -> None:
+        """Initialize with the error message."""
+        super().__init__(self.message)
+
+
 def require_api_key(api_key: str | None) -> str:
     """Validate that API key is provided, raising an error if not."""
     if not api_key:
         raise MissingApiKeyError
+    return api_key
+
+
+def require_embedding_api_key(api_key: str | None) -> str:
+    """Validate that embedding API key is provided, raising an error if not."""
+    if not api_key:
+        raise MissingEmbeddingApiKeyError
     return api_key
 
 
@@ -78,8 +108,8 @@ def cli() -> None:
     help="Enrichment endpoint base URL",
 )
 @click.option(
-    "--enrichment-model",
-    default=DEFAULT_ENRICHMENT_MODEL,
+    "--kodit-enrichment-model",
+    default=DEFAULT_KODIT_ENRICHMENT_MODEL,
     help="Enrichment model name",
 )
 @click.option(
@@ -99,18 +129,51 @@ def cli() -> None:
     type=int,
     help="Enrichment request timeout in seconds",
 )
+@click.option(
+    "--embedding-base-url",
+    default=DEFAULT_EMBEDDING_BASE_URL,
+    help="Embedding endpoint base URL",
+)
+@click.option(
+    "--embedding-model",
+    default=DEFAULT_EMBEDDING_MODEL,
+    help="Embedding model name",
+)
+@click.option(
+    "--embedding-api-key",
+    envvar="EMBEDDING_ENDPOINT_API_KEY",
+    help="Embedding API key (or set EMBEDDING_ENDPOINT_API_KEY)",
+)
+@click.option(
+    "--embedding-parallel-tasks",
+    default=DEFAULT_EMBEDDING_PARALLEL_TASKS,
+    type=int,
+    help="Number of parallel embedding tasks",
+)
+@click.option(
+    "--embedding-timeout",
+    default=DEFAULT_EMBEDDING_TIMEOUT,
+    type=int,
+    help="Embedding request timeout in seconds",
+)
 def start_kodit(  # noqa: PLR0913
     host: str,
     port: int,
     db_port: int,
     enrichment_base_url: str,
-    enrichment_model: str,
+    kodit_enrichment_model: str,
     enrichment_api_key: str | None,
     enrichment_parallel_tasks: int,
     enrichment_timeout: int,
+    embedding_base_url: str,
+    embedding_model: str,
+    embedding_api_key: str | None,
+    embedding_parallel_tasks: int,
+    embedding_timeout: int,
 ) -> None:
     """Start database and Kodit server for benchmarking."""
     enrichment_api_key = require_api_key(enrichment_api_key)
+    embedding_api_key = require_embedding_api_key(embedding_api_key)
     log = structlog.get_logger(__name__)
 
     server = ServerProcess(
@@ -118,10 +181,15 @@ def start_kodit(  # noqa: PLR0913
         port=port,
         db_port=db_port,
         enrichment_base_url=enrichment_base_url,
-        enrichment_model=enrichment_model,
+        enrichment_model=kodit_enrichment_model,
         enrichment_api_key=enrichment_api_key,
         enrichment_parallel_tasks=enrichment_parallel_tasks,
         enrichment_timeout=enrichment_timeout,
+        embedding_base_url=embedding_base_url,
+        embedding_model=embedding_model,
+        embedding_api_key=embedding_api_key,
+        embedding_parallel_tasks=embedding_parallel_tasks,
+        embedding_timeout=embedding_timeout,
     )
 
     if server.start():
@@ -132,10 +200,85 @@ def start_kodit(  # noqa: PLR0913
 
 
 @cli.command("stop-kodit")
-def stop_kodit() -> None:
+@click.option("--host", default=DEFAULT_HOST, help="Host the server was bound to")
+@click.option(
+    "--port", default=DEFAULT_PORT, type=int, help="Port the server was bound to"
+)
+@click.option("--db-port", default=DEFAULT_DB_PORT, type=int, help="Database port")
+@click.option(
+    "--enrichment-base-url",
+    default=DEFAULT_ENRICHMENT_BASE_URL,
+    help="Enrichment endpoint base URL",
+)
+@click.option(
+    "--kodit-enrichment-model",
+    default=DEFAULT_KODIT_ENRICHMENT_MODEL,
+    help="Enrichment model name",
+)
+@click.option(
+    "--enrichment-parallel-tasks",
+    default=DEFAULT_ENRICHMENT_PARALLEL_TASKS,
+    type=int,
+    help="Number of parallel enrichment tasks",
+)
+@click.option(
+    "--enrichment-timeout",
+    default=DEFAULT_ENRICHMENT_TIMEOUT,
+    type=int,
+    help="Enrichment request timeout in seconds",
+)
+@click.option(
+    "--embedding-base-url",
+    default=DEFAULT_EMBEDDING_BASE_URL,
+    help="Embedding endpoint base URL",
+)
+@click.option(
+    "--embedding-model",
+    default=DEFAULT_EMBEDDING_MODEL,
+    help="Embedding model name",
+)
+@click.option(
+    "--embedding-parallel-tasks",
+    default=DEFAULT_EMBEDDING_PARALLEL_TASKS,
+    type=int,
+    help="Number of parallel embedding tasks",
+)
+@click.option(
+    "--embedding-timeout",
+    default=DEFAULT_EMBEDDING_TIMEOUT,
+    type=int,
+    help="Embedding request timeout in seconds",
+)
+def stop_kodit(  # noqa: PLR0913
+    host: str,
+    port: int,
+    db_port: int,
+    enrichment_base_url: str,
+    kodit_enrichment_model: str,
+    enrichment_parallel_tasks: int,
+    enrichment_timeout: int,
+    embedding_base_url: str,
+    embedding_model: str,
+    embedding_parallel_tasks: int,
+    embedding_timeout: int,
+) -> None:
     """Stop the Kodit server and database."""
     log = structlog.get_logger(__name__)
-    server = ServerProcess()
+    server = ServerProcess(
+        host=host,
+        port=port,
+        db_port=db_port,
+        enrichment_base_url=enrichment_base_url,
+        enrichment_model=kodit_enrichment_model,
+        enrichment_api_key="",  # Not needed for stop
+        enrichment_parallel_tasks=enrichment_parallel_tasks,
+        enrichment_timeout=enrichment_timeout,
+        embedding_base_url=embedding_base_url,
+        embedding_model=embedding_model,
+        embedding_api_key="",  # Not needed for stop
+        embedding_parallel_tasks=embedding_parallel_tasks,
+        embedding_timeout=embedding_timeout,
+    )
 
     if server.stop():
         log.info("Kodit server stopped")
@@ -241,7 +384,7 @@ def prepare_instance(  # noqa: PLR0913
         kodit_base_url=base_url,
         repos_dir=repos_dir,
         results_dir=DEFAULT_RESULTS_DIR,
-        model=DEFAULT_MODEL,
+        model=DEFAULT_SWE_AGENT_MODEL,
     )
 
     try:
@@ -276,8 +419,8 @@ def prepare_instance(  # noqa: PLR0913
     help="Output JSONL file (default: benchmarks/results/{condition}.jsonl)",
 )
 @click.option(
-    "--model",
-    default=DEFAULT_MODEL,
+    "--swe-agent-model",
+    default=DEFAULT_SWE_AGENT_MODEL,
     help="LiteLLM model identifier",
 )
 @click.option(
@@ -312,7 +455,7 @@ def generate(  # noqa: PLR0913
     condition: str,
     dataset_file: Path,
     output: Path | None,
-    model: str,
+    swe_agent_model: str,
     top_k: int,
     api_key: str | None,
     kodit_url: str | None,
@@ -343,7 +486,7 @@ def generate(  # noqa: PLR0913
         "Generating prediction",
         instance_id=instance.instance_id,
         condition=condition,
-        model=model,
+        model=swe_agent_model,
     )
 
     # Generate using BenchmarkOperations
@@ -352,7 +495,7 @@ def generate(  # noqa: PLR0913
         kodit_base_url=base_url,
         repos_dir=DEFAULT_REPOS_DIR,
         results_dir=DEFAULT_RESULTS_DIR,
-        model=model,
+        model=swe_agent_model,
         api_key=api_key,
         top_k=top_k,
     )
@@ -472,8 +615,8 @@ def evaluate(
     help="Directory to write results to",
 )
 @click.option(
-    "--model",
-    default=DEFAULT_MODEL,
+    "--swe-agent-model",
+    default=DEFAULT_SWE_AGENT_MODEL,
     help="LiteLLM model identifier for patch generation",
 )
 @click.option(
@@ -501,8 +644,8 @@ def evaluate(
     help="Enrichment endpoint base URL",
 )
 @click.option(
-    "--enrichment-model",
-    default=DEFAULT_ENRICHMENT_MODEL,
+    "--kodit-enrichment-model",
+    default=DEFAULT_KODIT_ENRICHMENT_MODEL,
     help="Enrichment model name",
 )
 @click.option(
@@ -517,12 +660,34 @@ def evaluate(
     type=int,
     help="Enrichment request timeout in seconds",
 )
+@click.option(
+    "--embedding-base-url",
+    default=DEFAULT_EMBEDDING_BASE_URL,
+    help="Embedding endpoint base URL",
+)
+@click.option(
+    "--embedding-model",
+    default=DEFAULT_EMBEDDING_MODEL,
+    help="Embedding model name",
+)
+@click.option(
+    "--embedding-parallel-tasks",
+    default=DEFAULT_EMBEDDING_PARALLEL_TASKS,
+    type=int,
+    help="Number of parallel embedding tasks",
+)
+@click.option(
+    "--embedding-timeout",
+    default=DEFAULT_EMBEDDING_TIMEOUT,
+    type=int,
+    help="Embedding request timeout in seconds",
+)
 def run_instance(  # noqa: PLR0913
     instance_id: str,
     dataset_file: Path,
     repos_dir: Path,
     results_dir: Path,
-    model: str,
+    swe_agent_model: str,
     api_key: str | None,
     top_k: int,
     skip_evaluation: bool,  # noqa: FBT001
@@ -530,9 +695,13 @@ def run_instance(  # noqa: PLR0913
     port: int,
     db_port: int,
     enrichment_base_url: str,
-    enrichment_model: str,
+    kodit_enrichment_model: str,
     enrichment_parallel_tasks: int,
     enrichment_timeout: int,
+    embedding_base_url: str,
+    embedding_model: str,
+    embedding_parallel_tasks: int,
+    embedding_timeout: int,
 ) -> None:
     """Run a complete benchmark for a single SWE-bench instance.
 
@@ -564,7 +733,7 @@ def run_instance(  # noqa: PLR0913
     config = BatchConfig(
         repos_dir=repos_dir,
         results_dir=results_dir,
-        model=model,
+        model=swe_agent_model,
         api_key=api_key,
         top_k=top_k,
         skip_evaluation=skip_evaluation,
@@ -572,9 +741,13 @@ def run_instance(  # noqa: PLR0913
         port=port,
         db_port=db_port,
         enrichment_base_url=enrichment_base_url,
-        enrichment_model=enrichment_model,
+        enrichment_model=kodit_enrichment_model,
         enrichment_parallel_tasks=enrichment_parallel_tasks,
         enrichment_timeout=enrichment_timeout,
+        embedding_base_url=embedding_base_url,
+        embedding_model=embedding_model,
+        embedding_parallel_tasks=embedding_parallel_tasks,
+        embedding_timeout=embedding_timeout,
     )
 
     runner = BatchRunner(config)
@@ -612,8 +785,8 @@ def run_instance(  # noqa: PLR0913
     help="Directory to write results to",
 )
 @click.option(
-    "--model",
-    default=DEFAULT_MODEL,
+    "--swe-agent-model",
+    default=DEFAULT_SWE_AGENT_MODEL,
     help="LiteLLM model identifier for patch generation",
 )
 @click.option(
@@ -641,8 +814,8 @@ def run_instance(  # noqa: PLR0913
     help="Enrichment endpoint base URL",
 )
 @click.option(
-    "--enrichment-model",
-    default=DEFAULT_ENRICHMENT_MODEL,
+    "--kodit-enrichment-model",
+    default=DEFAULT_KODIT_ENRICHMENT_MODEL,
     help="Enrichment model name",
 )
 @click.option(
@@ -658,6 +831,28 @@ def run_instance(  # noqa: PLR0913
     help="Enrichment request timeout in seconds",
 )
 @click.option(
+    "--embedding-base-url",
+    default=DEFAULT_EMBEDDING_BASE_URL,
+    help="Embedding endpoint base URL",
+)
+@click.option(
+    "--embedding-model",
+    default=DEFAULT_EMBEDDING_MODEL,
+    help="Embedding model name",
+)
+@click.option(
+    "--embedding-parallel-tasks",
+    default=DEFAULT_EMBEDDING_PARALLEL_TASKS,
+    type=int,
+    help="Number of parallel embedding tasks",
+)
+@click.option(
+    "--embedding-timeout",
+    default=DEFAULT_EMBEDDING_TIMEOUT,
+    type=int,
+    help="Embedding request timeout in seconds",
+)
+@click.option(
     "--limit",
     default=None,
     type=int,
@@ -667,7 +862,7 @@ def run_all(  # noqa: PLR0913
     dataset_file: Path,
     repos_dir: Path,
     results_dir: Path,
-    model: str,
+    swe_agent_model: str,
     api_key: str | None,
     top_k: int,
     skip_evaluation: bool,  # noqa: FBT001
@@ -675,9 +870,13 @@ def run_all(  # noqa: PLR0913
     port: int,
     db_port: int,
     enrichment_base_url: str,
-    enrichment_model: str,
+    kodit_enrichment_model: str,
     enrichment_parallel_tasks: int,
     enrichment_timeout: int,
+    embedding_base_url: str,
+    embedding_model: str,
+    embedding_parallel_tasks: int,
+    embedding_timeout: int,
     limit: int | None,
 ) -> None:
     """Run benchmarks for all instances in the dataset file.
@@ -700,7 +899,7 @@ def run_all(  # noqa: PLR0913
     config = BatchConfig(
         repos_dir=repos_dir,
         results_dir=results_dir,
-        model=model,
+        model=swe_agent_model,
         api_key=api_key,
         top_k=top_k,
         skip_evaluation=skip_evaluation,
@@ -708,9 +907,13 @@ def run_all(  # noqa: PLR0913
         port=port,
         db_port=db_port,
         enrichment_base_url=enrichment_base_url,
-        enrichment_model=enrichment_model,
+        enrichment_model=kodit_enrichment_model,
         enrichment_parallel_tasks=enrichment_parallel_tasks,
         enrichment_timeout=enrichment_timeout,
+        embedding_base_url=embedding_base_url,
+        embedding_model=embedding_model,
+        embedding_parallel_tasks=embedding_parallel_tasks,
+        embedding_timeout=embedding_timeout,
     )
 
     def on_progress(instance_id: str, success: bool, current: int, total: int) -> None:  # noqa: FBT001
@@ -785,6 +988,11 @@ def mini_swe_agent_group() -> None:
     help="LLM API key (or set ENRICHMENT_ENDPOINT_API_KEY)",
 )
 @click.option(
+    "--swe-agent-model",
+    default=DEFAULT_SWE_AGENT_MODEL,
+    help="LiteLLM model identifier for mini-swe-agent",
+)
+@click.option(
     "--evaluate/--no-evaluate",
     default=True,
     help="Run SWE-bench evaluation after completion",
@@ -801,6 +1009,7 @@ def mini_run_baseline(  # noqa: PLR0913, PLR0915, C901
     limit: int | None,
     instance_id: str | None,
     api_key: str | None,
+    swe_agent_model: str,
     evaluate: bool,  # noqa: FBT001
     stream: bool,  # noqa: FBT001
 ) -> None:
@@ -837,6 +1046,7 @@ def mini_run_baseline(  # noqa: PLR0913, PLR0915, C901
     config = RunConfig(
         config_path=MINI_SWE_AGENT_CONFIG_DIR / "baseline.yaml",
         output_dir=output_dir,
+        model=swe_agent_model,
         workers=workers,
         api_key=api_key,
         stream_output=stream,
@@ -952,8 +1162,8 @@ def mini_run_baseline(  # noqa: PLR0913, PLR0915, C901
     help="Enrichment endpoint base URL",
 )
 @click.option(
-    "--enrichment-model",
-    default=DEFAULT_ENRICHMENT_MODEL,
+    "--kodit-enrichment-model",
+    default=DEFAULT_KODIT_ENRICHMENT_MODEL,
     help="Enrichment model name",
 )
 @click.option(
@@ -967,6 +1177,33 @@ def mini_run_baseline(  # noqa: PLR0913, PLR0915, C901
     default=DEFAULT_ENRICHMENT_TIMEOUT,
     type=int,
     help="Enrichment request timeout in seconds",
+)
+@click.option(
+    "--embedding-base-url",
+    default=DEFAULT_EMBEDDING_BASE_URL,
+    help="Embedding endpoint base URL",
+)
+@click.option(
+    "--embedding-model",
+    default=DEFAULT_EMBEDDING_MODEL,
+    help="Embedding model name",
+)
+@click.option(
+    "--embedding-api-key",
+    envvar="EMBEDDING_ENDPOINT_API_KEY",
+    help="Embedding API key (or set EMBEDDING_ENDPOINT_API_KEY)",
+)
+@click.option(
+    "--embedding-parallel-tasks",
+    default=DEFAULT_EMBEDDING_PARALLEL_TASKS,
+    type=int,
+    help="Number of parallel embedding tasks",
+)
+@click.option(
+    "--embedding-timeout",
+    default=DEFAULT_EMBEDDING_TIMEOUT,
+    type=int,
+    help="Embedding request timeout in seconds",
 )
 @click.option(
     "--limit",
@@ -984,6 +1221,11 @@ def mini_run_baseline(  # noqa: PLR0913, PLR0915, C901
     "--api-key",
     envvar="ENRICHMENT_ENDPOINT_API_KEY",
     help="LLM API key (or set ENRICHMENT_ENDPOINT_API_KEY)",
+)
+@click.option(
+    "--swe-agent-model",
+    default=DEFAULT_SWE_AGENT_MODEL,
+    help="LiteLLM model identifier for mini-swe-agent",
 )
 @click.option(
     "--stream/--no-stream",
@@ -1005,12 +1247,18 @@ def mini_run_kodit(  # noqa: PLR0913, PLR0915, C901
     port: int,
     db_port: int,
     enrichment_base_url: str,
-    enrichment_model: str,
+    kodit_enrichment_model: str,
     enrichment_parallel_tasks: int,
     enrichment_timeout: int,
+    embedding_base_url: str,
+    embedding_model: str,
+    embedding_api_key: str | None,
+    embedding_parallel_tasks: int,
+    embedding_timeout: int,
     limit: int | None,
     instance_id: str | None,
     api_key: str | None,
+    swe_agent_model: str,
     stream: bool,  # noqa: FBT001
     evaluate: bool,  # noqa: FBT001
 ) -> None:
@@ -1029,6 +1277,7 @@ def mini_run_kodit(  # noqa: PLR0913, PLR0915, C901
     7. Stops the Kodit server
     """
     api_key = require_api_key(api_key)
+    embedding_api_key = require_embedding_api_key(embedding_api_key)
     log = structlog.get_logger(__name__)
 
     # Load instances
@@ -1045,50 +1294,52 @@ def mini_run_kodit(  # noqa: PLR0913, PLR0915, C901
         instances = instances[:limit]
         log.info("Limited instances", limit=limit)
 
-    # Start Kodit server
-    server = ServerProcess(
-        host=host,
-        port=port,
-        db_port=db_port,
-        enrichment_base_url=enrichment_base_url,
-        enrichment_model=enrichment_model,
-        enrichment_api_key=api_key,
-        enrichment_parallel_tasks=enrichment_parallel_tasks,
-        enrichment_timeout=enrichment_timeout,
+    log.info(
+        "Running mini-swe-agent with Kodit",
+        instance_count=len(instances),
+        workers=workers,
+        top_k=top_k,
+        repos_dir=str(repos_dir),
     )
 
-    log.info("Starting Kodit server")
-    if not server.start():
-        log.error("Failed to start Kodit server")
-        raise SystemExit(1)
+    # Helper to create a fresh server for each instance
+    def create_server() -> ServerProcess:
+        return ServerProcess(
+            host=host,
+            port=port,
+            db_port=db_port,
+            enrichment_base_url=enrichment_base_url,
+            enrichment_model=kodit_enrichment_model,
+            enrichment_api_key=api_key,
+            enrichment_parallel_tasks=enrichment_parallel_tasks,
+            enrichment_timeout=enrichment_timeout,
+            embedding_base_url=embedding_base_url,
+            embedding_model=embedding_model,
+            embedding_api_key=embedding_api_key,
+            embedding_parallel_tasks=embedding_parallel_tasks,
+            embedding_timeout=embedding_timeout,
+        )
 
     base_url = f"http://{host}:{port}"
 
-    try:
-        log.info(
-            "Running mini-swe-agent with Kodit",
-            instance_count=len(instances),
-            workers=workers,
-            kodit_url=base_url,
-            top_k=top_k,
-            repos_dir=str(repos_dir),
-        )
+    # Create runner and config
+    runner = MiniSweAgentRunner(kodit_base_url=base_url, top_k=top_k)
+    config = RunConfig(
+        config_path=MINI_SWE_AGENT_CONFIG_DIR / "kodit.yaml",
+        output_dir=output_dir,
+        model=swe_agent_model,
+        repos_dir=repos_dir,
+        workers=workers,
+        api_key=api_key,
+        stream_output=stream,
+    )
 
-        # Create runner and config
-        runner = MiniSweAgentRunner(kodit_base_url=base_url, top_k=top_k)
-        config = RunConfig(
-            config_path=MINI_SWE_AGENT_CONFIG_DIR / "kodit.yaml",
-            output_dir=output_dir,
-            repos_dir=repos_dir,
-            workers=workers,
-            api_key=api_key,
-            stream_output=stream,
-        )
-
-        result = runner.run_with_kodit(config, instances)
-    finally:
-        log.info("Stopping Kodit server")
-        server.stop()
+    # Process each instance with fresh server start/stop
+    result = runner.run_with_kodit_per_instance(
+        config=config,
+        instances=instances,
+        server_factory=create_server,
+    )
 
     click.echo("\n" + "=" * 60)
     click.echo("MINI-SWE-AGENT WITH KODIT COMPLETE")

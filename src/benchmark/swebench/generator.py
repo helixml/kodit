@@ -27,7 +27,7 @@ class PatchGenerator:
 
     def __init__(
         self,
-        model: str = "claude-3-5-sonnet-20241022",
+        model: str,
         max_tokens: int = 32768,
         temperature: float = 0.0,
         api_key: str | None = None,

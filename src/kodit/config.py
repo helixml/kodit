@@ -100,7 +100,7 @@ class Endpoint(BaseModel):
         description="Extra provider-specific non-secret parameters for LiteLLM",
     )
     max_tokens: int = Field(
-        default=8000,  # Reasonable default (with headroom) for most models.
+        default=4000,  # Very conservative to account for tokenizer mismatch between tiktoken and actual model.
         description="Conservative token limit for the embedding model",
     )
 

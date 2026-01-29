@@ -1,10 +1,11 @@
 """Runner for mini-swe-agent benchmarks with Kodit comparison."""
 
+from __future__ import annotations
+
 import json
 import subprocess
-from collections.abc import Callable
 from dataclasses import dataclass
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import structlog
 
@@ -13,6 +14,12 @@ from benchmark.runner import BenchmarkOperations
 from benchmark.swebench.instance import SWEBenchInstance
 from benchmark.swebench.repository import DEFAULT_REPOS_DIR
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
+    from pathlib import Path
+
+    from benchmark.server import ServerProcess
+
 
 @dataclass(frozen=True)
 class RunConfig:
@@ -20,10 +27,10 @@ class RunConfig:
 
     config_path: Path
     output_dir: Path
+    model: str
     repos_dir: Path = DEFAULT_REPOS_DIR
     workers: int = 4
     subset: str = "verified"
-    model: str = "openrouter/anthropic/claude-haiku-4.5"
     api_key: str | None = None
     stream_output: bool = True
 
@@ -169,6 +176,131 @@ class MiniSweAgentRunner:
             condition="kodit",
             instances=augmented_instances,
         )
+
+    def run_with_kodit_per_instance(
+        self,
+        config: RunConfig,
+        instances: list[SWEBenchInstance],
+        server_factory: Callable[[], ServerProcess],
+    ) -> RunResult:
+        """Run mini-swe-agent with Kodit, starting/stopping server per instance.
+
+        Unlike run_with_kodit which keeps the server running for all instances,
+        this method starts and stops the Kodit server for each instance to
+        ensure a clean database state between tests.
+        """
+        # Import here to avoid circular dependency at module level
+        from benchmark.server import ServerProcess  # noqa: F401
+
+        if not self._kodit_url:
+            msg = "Kodit URL required for augmented runs"
+            raise ValueError(msg)
+
+        self._log.info(
+            "Running mini-swe-agent with Kodit (per-instance server lifecycle)",
+            config=str(config.config_path),
+            output_dir=str(config.output_dir),
+            workers=config.workers,
+            top_k=self._top_k,
+        )
+
+        # Prepare and augment each instance with fresh server
+        kodit_url = self._kodit_url  # Validated above, type narrowing
+        augmented_instances = self._prepare_and_augment_per_instance(
+            config=config,
+            instances=instances,
+            server_factory=server_factory,
+            kodit_url=kodit_url,
+        )
+
+        return self._run_mini_swe_agent(
+            config=config,
+            condition="kodit",
+            instances=augmented_instances,
+        )
+
+    def _prepare_and_augment_per_instance(
+        self,
+        config: RunConfig,
+        instances: list[SWEBenchInstance],
+        server_factory: Callable[[], ServerProcess],
+        kodit_url: str,
+    ) -> list[SWEBenchInstance]:
+        """Prepare repositories with fresh server per instance."""
+        augmented = []
+        total = len(instances)
+
+        for i, instance in enumerate(instances, start=1):
+            self._log.info(
+                "Preparing instance for Kodit retrieval",
+                progress=f"{i}/{total}",
+                instance_id=instance.instance_id,
+                repo=instance.repo,
+            )
+
+            # Start fresh server for this instance
+            server = server_factory()
+            self._log.info("Starting Kodit server for instance")
+            if not server.start():
+                self._log.error(
+                    "Failed to start Kodit server",
+                    instance_id=instance.instance_id,
+                )
+                continue
+
+            try:
+                # Create fresh operations and context provider
+                operations = BenchmarkOperations(
+                    kodit_base_url=kodit_url,
+                    repos_dir=config.repos_dir,
+                    results_dir=config.output_dir,
+                    model=config.model,
+                    top_k=self._top_k,
+                )
+
+                context_provider = KoditContextProvider(
+                    kodit_base_url=kodit_url,
+                    top_k=self._top_k,
+                )
+
+                # Clone and index the repository
+                repo_id = operations.prepare(instance)
+                self._log.info(
+                    "Repository prepared",
+                    instance_id=instance.instance_id,
+                    repo_id=repo_id,
+                )
+
+                # Retrieve snippets and augment problem statement
+                augmented_statement = context_provider.augment_problem_statement(
+                    instance
+                )
+
+                # Create a new instance with augmented problem statement
+                augmented.append(
+                    SWEBenchInstance(
+                        instance_id=instance.instance_id,
+                        repo=instance.repo,
+                        base_commit=instance.base_commit,
+                        problem_statement=augmented_statement,
+                        patch=instance.patch,
+                        test_patch=instance.test_patch,
+                        fail_to_pass=instance.fail_to_pass,
+                        pass_to_pass=instance.pass_to_pass,
+                        version=instance.version,
+                        environment_setup_commit=instance.environment_setup_commit,
+                        hints_text=instance.hints_text,
+                    )
+                )
+            finally:
+                # Stop server to ensure clean state for next instance
+                self._log.info(
+                    "Stopping Kodit server after instance",
+                    instance_id=instance.instance_id,
+                )
+                server.stop()
+
+        return augmented
 
     def _prepare_and_augment_instances(
         self,

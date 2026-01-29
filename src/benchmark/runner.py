@@ -287,7 +287,7 @@ class BatchConfig:
     repos_dir: Path
     results_dir: Path
     model: str
-    api_key: str | None
+    api_key: str
     top_k: int
     skip_evaluation: bool
     host: str
@@ -297,6 +297,10 @@ class BatchConfig:
     enrichment_model: str
     enrichment_parallel_tasks: int
     enrichment_timeout: int
+    embedding_base_url: str
+    embedding_model: str
+    embedding_parallel_tasks: int
+    embedding_timeout: int
     llm_timeout: int = 60
 
 
@@ -365,6 +369,11 @@ class BatchRunner:
             enrichment_api_key=self._config.api_key,
             enrichment_parallel_tasks=self._config.enrichment_parallel_tasks,
             enrichment_timeout=self._config.enrichment_timeout,
+            embedding_base_url=self._config.embedding_base_url,
+            embedding_model=self._config.embedding_model,
+            embedding_api_key=self._config.api_key,
+            embedding_parallel_tasks=self._config.embedding_parallel_tasks,
+            embedding_timeout=self._config.embedding_timeout,
         )
 
         operations = BenchmarkOperations(

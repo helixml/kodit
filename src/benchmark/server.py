@@ -11,8 +11,6 @@ from pathlib import Path
 import httpx
 import structlog
 
-DEFAULT_HOST = "127.0.0.1"
-DEFAULT_PORT = 8765
 DEFAULT_PID_FILE = Path("/tmp/kodit-benchmark.pid")
 DEFAULT_STARTUP_TIMEOUT = 60
 
@@ -20,13 +18,6 @@ DEFAULT_DOCKER_IMAGE = "tensorchord/vchord-suite:pg17-20250601"
 DEFAULT_DOCKER_NAME = "kodit-benchmark-db"
 DEFAULT_DB_PASSWORD = "benchmarkpassword"  # noqa: S105
 DEFAULT_DB_NAME = "kodit"
-DEFAULT_DB_PORT = 5432
-
-# Default enrichment endpoint (OpenRouter)
-DEFAULT_ENRICHMENT_BASE_URL = "https://openrouter.ai/api/v1"
-DEFAULT_ENRICHMENT_MODEL = "openrouter/anthropic/claude-haiku-4.5"
-DEFAULT_ENRICHMENT_PARALLEL_TASKS = 5
-DEFAULT_ENRICHMENT_TIMEOUT = 60
 
 
 def build_db_url(host: str, port: int, password: str, db_name: str) -> str:
@@ -39,9 +30,9 @@ class DatabaseContainer:
 
     def __init__(
         self,
+        port: int,
         name: str = DEFAULT_DOCKER_NAME,
         image: str = DEFAULT_DOCKER_IMAGE,
-        port: int = DEFAULT_DB_PORT,
         password: str = DEFAULT_DB_PASSWORD,
         db_name: str = DEFAULT_DB_NAME,
     ) -> None:
@@ -145,16 +136,21 @@ class ServerProcess:
 
     def __init__(  # noqa: PLR0913
         self,
-        host: str = DEFAULT_HOST,
-        port: int = DEFAULT_PORT,
+        host: str,
+        port: int,
+        db_port: int,
+        enrichment_base_url: str,
+        enrichment_model: str,
+        enrichment_api_key: str,
+        enrichment_parallel_tasks: int,
+        enrichment_timeout: int,
+        embedding_base_url: str,
+        embedding_model: str,
+        embedding_api_key: str,
+        embedding_parallel_tasks: int,
+        embedding_timeout: int,
         pid_file: Path = DEFAULT_PID_FILE,
         startup_timeout: int = DEFAULT_STARTUP_TIMEOUT,
-        db_port: int = DEFAULT_DB_PORT,
-        enrichment_base_url: str | None = None,
-        enrichment_model: str | None = None,
-        enrichment_api_key: str | None = None,
-        enrichment_parallel_tasks: int = DEFAULT_ENRICHMENT_PARALLEL_TASKS,
-        enrichment_timeout: int = DEFAULT_ENRICHMENT_TIMEOUT,
     ) -> None:
         """Initialize server process manager."""
         self._host = host
@@ -167,6 +163,11 @@ class ServerProcess:
         self._enrichment_api_key = enrichment_api_key
         self._enrichment_parallel_tasks = enrichment_parallel_tasks
         self._enrichment_timeout = enrichment_timeout
+        self._embedding_base_url = embedding_base_url
+        self._embedding_model = embedding_model
+        self._embedding_api_key = embedding_api_key
+        self._embedding_parallel_tasks = embedding_parallel_tasks
+        self._embedding_timeout = embedding_timeout
         self._log = structlog.get_logger(__name__)
 
     @property
@@ -233,16 +234,22 @@ class ServerProcess:
         env["DEFAULT_SEARCH_PROVIDER"] = "vectorchord"
 
         # Enrichment endpoint configuration
-        if self._enrichment_base_url:
-            env["ENRICHMENT_ENDPOINT_BASE_URL"] = self._enrichment_base_url
-        if self._enrichment_model:
-            env["ENRICHMENT_ENDPOINT_MODEL"] = self._enrichment_model
-        if self._enrichment_api_key:
-            env["ENRICHMENT_ENDPOINT_API_KEY"] = self._enrichment_api_key
+        env["ENRICHMENT_ENDPOINT_BASE_URL"] = self._enrichment_base_url
+        env["ENRICHMENT_ENDPOINT_MODEL"] = self._enrichment_model
+        env["ENRICHMENT_ENDPOINT_API_KEY"] = self._enrichment_api_key
         env["ENRICHMENT_ENDPOINT_NUM_PARALLEL_TASKS"] = str(
             self._enrichment_parallel_tasks
         )
         env["ENRICHMENT_ENDPOINT_TIMEOUT"] = str(self._enrichment_timeout)
+
+        # Embedding endpoint configuration
+        env["EMBEDDING_ENDPOINT_BASE_URL"] = self._embedding_base_url
+        env["EMBEDDING_ENDPOINT_MODEL"] = self._embedding_model
+        env["EMBEDDING_ENDPOINT_API_KEY"] = self._embedding_api_key
+        env["EMBEDDING_ENDPOINT_NUM_PARALLEL_TASKS"] = str(
+            self._embedding_parallel_tasks
+        )
+        env["EMBEDDING_ENDPOINT_TIMEOUT"] = str(self._embedding_timeout)
 
         return env
 
