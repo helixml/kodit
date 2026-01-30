@@ -33,6 +33,7 @@ class RunConfig:
     subset: str = "verified"
     api_key: str | None = None
     stream_output: bool = True
+    force_reindex: bool = False
 
 
 @dataclass
@@ -91,6 +92,196 @@ class ComparisonResult:
     neither_resolved: list[str]
 
 
+class PreparedInstanceCache:
+    """Cache for prepared (augmented) instances with incremental persistence."""
+
+    def __init__(self, cache_path: Path) -> None:
+        """Initialize with path to cached JSONL file."""
+        self._path = cache_path
+        self._log = structlog.get_logger(__name__)
+
+    @property
+    def path(self) -> Path:
+        """Return cache file path."""
+        return self._path
+
+    def prepared_ids(self) -> frozenset[str]:
+        """Return set of instance IDs that have been prepared."""
+        if not self._path.exists():
+            return frozenset()
+
+        ids: set[str] = set()
+        with self._path.open() as f:
+            for line in f:
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                try:
+                    record = json.loads(stripped)
+                    ids.add(record["instance_id"])
+                except (json.JSONDecodeError, KeyError):
+                    continue
+        return frozenset(ids)
+
+    def load(self) -> list[SWEBenchInstance]:
+        """Load all prepared instances from cache."""
+        if not self._path.exists():
+            return []
+
+        instances = []
+        with self._path.open() as f:
+            for line in f:
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                try:
+                    record = json.loads(stripped)
+                    fail_to_pass = json.loads(record.get("FAIL_TO_PASS", "[]"))
+                    pass_to_pass = json.loads(record.get("PASS_TO_PASS", "[]"))
+
+                    instances.append(
+                        SWEBenchInstance(
+                            instance_id=record["instance_id"],
+                            repo=record["repo"],
+                            base_commit=record["base_commit"],
+                            problem_statement=record["problem_statement"],
+                            patch=record.get("patch", ""),
+                            test_patch=record.get("test_patch", ""),
+                            fail_to_pass=fail_to_pass,
+                            pass_to_pass=pass_to_pass,
+                            version=record.get("version", ""),
+                            environment_setup_commit=record.get(
+                                "environment_setup_commit", ""
+                            ),
+                            hints_text=record.get("hints_text", ""),
+                        )
+                    )
+                except (json.JSONDecodeError, KeyError) as e:
+                    self._log.warning("Failed to parse cached instance", error=str(e))
+                    continue
+
+        self._log.info(
+            "Loaded cached instances", path=str(self._path), count=len(instances)
+        )
+        return instances
+
+    def filter_unprepared(
+        self, instances: list[SWEBenchInstance]
+    ) -> list[SWEBenchInstance]:
+        """Return instances that are not yet prepared."""
+        prepared = self.prepared_ids()
+        return [i for i in instances if i.instance_id not in prepared]
+
+    def append(self, instance: SWEBenchInstance) -> None:
+        """Append a single prepared instance to the cache file."""
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+
+        record = {
+            "instance_id": instance.instance_id,
+            "repo": instance.repo,
+            "base_commit": instance.base_commit,
+            "problem_statement": instance.problem_statement,
+            "patch": instance.patch,
+            "test_patch": instance.test_patch,
+            "FAIL_TO_PASS": json.dumps(instance.fail_to_pass),
+            "PASS_TO_PASS": json.dumps(instance.pass_to_pass),
+            "version": instance.version,
+            "environment_setup_commit": instance.environment_setup_commit,
+            "hints_text": instance.hints_text,
+        }
+
+        with self._path.open("a") as f:
+            f.write(json.dumps(record) + "\n")
+
+        self._log.debug("Appended instance to cache", instance_id=instance.instance_id)
+
+    def clear(self) -> None:
+        """Remove the cache file."""
+        if self._path.exists():
+            self._path.unlink()
+            self._log.info("Cleared cache", path=str(self._path))
+
+
+class InstancePreparer:
+    """Prepares instances for mini-swe-agent with Kodit context."""
+
+    def __init__(
+        self,
+        kodit_url: str,
+        repos_dir: Path,
+        top_k: int = 10,
+    ) -> None:
+        """Initialize with Kodit configuration."""
+        self._kodit_url = kodit_url
+        self._repos_dir = repos_dir
+        self._top_k = top_k
+        self._log = structlog.get_logger(__name__)
+
+    def prepare(
+        self,
+        instance: SWEBenchInstance,
+        output_dir: Path,
+    ) -> SWEBenchInstance | None:
+        """Prepare a single instance by indexing and augmenting with context.
+
+        Returns the augmented instance, or None if preparation failed.
+        """
+        self._log.info(
+            "Preparing instance",
+            instance_id=instance.instance_id,
+            repo=instance.repo,
+        )
+
+        # Create operations for cloning and indexing
+        operations = BenchmarkOperations(
+            kodit_base_url=self._kodit_url,
+            repos_dir=self._repos_dir,
+            results_dir=output_dir,
+            model="",  # Not used for preparation
+            top_k=self._top_k,
+        )
+
+        # Create context provider for retrieval
+        context_provider = KoditContextProvider(
+            kodit_base_url=self._kodit_url,
+            top_k=self._top_k,
+        )
+
+        try:
+            # Clone and index the repository
+            repo_id = operations.prepare(instance)
+            self._log.info(
+                "Repository prepared",
+                instance_id=instance.instance_id,
+                repo_id=repo_id,
+            )
+
+            # Retrieve snippets and augment problem statement
+            augmented_statement = context_provider.augment_problem_statement(instance)
+
+            # Create augmented instance
+            return SWEBenchInstance(
+                instance_id=instance.instance_id,
+                repo=instance.repo,
+                base_commit=instance.base_commit,
+                problem_statement=augmented_statement,
+                patch=instance.patch,
+                test_patch=instance.test_patch,
+                fail_to_pass=instance.fail_to_pass,
+                pass_to_pass=instance.pass_to_pass,
+                version=instance.version,
+                environment_setup_commit=instance.environment_setup_commit,
+                hints_text=instance.hints_text,
+            )
+        except Exception as e:  # noqa: BLE001
+            self._log.exception(
+                "Failed to prepare instance",
+                instance_id=instance.instance_id,
+                error=str(e),
+            )
+            return None
+
+
 class MiniSweAgentRunner:
     """Runs mini-swe-agent for Kodit benchmark comparisons."""
 
@@ -123,60 +314,6 @@ class MiniSweAgentRunner:
             instances=instances,
         )
 
-    def run_with_kodit(
-        self,
-        config: RunConfig,
-        instances: list[SWEBenchInstance],
-    ) -> RunResult:
-        """Run mini-swe-agent with Kodit-augmented problem statements.
-
-        For each instance, this:
-        1. Clones the repository at the exact commit
-        2. Indexes it with Kodit and waits for completion
-        3. Retrieves relevant code snippets
-        4. Augments the problem statement with the retrieved context
-        5. Runs mini-swe-agent with the augmented problem statement
-        """
-        if not self._kodit_url:
-            msg = "Kodit URL required for augmented runs"
-            raise ValueError(msg)
-
-        self._log.info(
-            "Running mini-swe-agent with Kodit context",
-            config=str(config.config_path),
-            output_dir=str(config.output_dir),
-            workers=config.workers,
-            top_k=self._top_k,
-        )
-
-        # Reuse BenchmarkOperations for repository preparation
-        operations = BenchmarkOperations(
-            kodit_base_url=self._kodit_url,
-            repos_dir=config.repos_dir,
-            results_dir=config.output_dir,
-            model=config.model,
-            top_k=self._top_k,
-        )
-
-        # Create context provider for retrieval
-        context_provider = KoditContextProvider(
-            kodit_base_url=self._kodit_url,
-            top_k=self._top_k,
-        )
-
-        # Prepare and augment each instance
-        augmented_instances = self._prepare_and_augment_instances(
-            instances=instances,
-            operations=operations,
-            context_provider=context_provider,
-        )
-
-        return self._run_mini_swe_agent(
-            config=config,
-            condition="kodit",
-            instances=augmented_instances,
-        )
-
     def run_with_kodit_per_instance(
         self,
         config: RunConfig,
@@ -185,13 +322,12 @@ class MiniSweAgentRunner:
     ) -> RunResult:
         """Run mini-swe-agent with Kodit, starting/stopping server per instance.
 
-        Unlike run_with_kodit which keeps the server running for all instances,
-        this method starts and stops the Kodit server for each instance to
-        ensure a clean database state between tests.
-        """
-        # Import here to avoid circular dependency at module level
-        from benchmark.server import ServerProcess  # noqa: F401
+        Uses incremental saving - each prepared instance is immediately saved
+        to the cache file. If preparation fails partway through, previously
+        prepared instances are preserved.
 
+        Supports resumption - already-prepared instances are skipped.
+        """
         if not self._kodit_url:
             msg = "Kodit URL required for augmented runs"
             raise ValueError(msg)
@@ -204,14 +340,39 @@ class MiniSweAgentRunner:
             top_k=self._top_k,
         )
 
-        # Prepare and augment each instance with fresh server
-        kodit_url = self._kodit_url  # Validated above, type narrowing
-        augmented_instances = self._prepare_and_augment_per_instance(
+        # Set up cache for incremental saving
+        output_dir = config.output_dir / "kodit"
+        cache_path = output_dir / "dataset" / "test.jsonl"
+        cache = PreparedInstanceCache(cache_path)
+
+        # Ensure cache directory exists
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Clear cache if force_reindex is set
+        if config.force_reindex:
+            cache.clear()
+
+        # Filter to only unprepared instances
+        unprepared = cache.filter_unprepared(instances)
+        already_prepared = len(instances) - len(unprepared)
+
+        if already_prepared > 0:
+            self._log.info(
+                "Resuming preparation",
+                already_prepared=already_prepared,
+                remaining=len(unprepared),
+            )
+
+        # Prepare remaining instances with incremental saving
+        self._prepare_instances_incrementally(
             config=config,
-            instances=instances,
+            instances=unprepared,
             server_factory=server_factory,
-            kodit_url=kodit_url,
+            cache=cache,
         )
+
+        # Load all prepared instances (old + new)
+        augmented_instances = cache.load()
 
         return self._run_mini_swe_agent(
             config=config,
@@ -219,16 +380,27 @@ class MiniSweAgentRunner:
             instances=augmented_instances,
         )
 
-    def _prepare_and_augment_per_instance(
+    def _prepare_instances_incrementally(
         self,
         config: RunConfig,
         instances: list[SWEBenchInstance],
         server_factory: Callable[[], ServerProcess],
-        kodit_url: str,
-    ) -> list[SWEBenchInstance]:
-        """Prepare repositories with fresh server per instance."""
-        augmented = []
+        cache: PreparedInstanceCache,
+    ) -> None:
+        """Prepare instances with incremental saving after each success."""
+        if not instances:
+            return
+
         total = len(instances)
+        kodit_url = self._kodit_url
+        if not kodit_url:
+            return
+
+        preparer = InstancePreparer(
+            kodit_url=kodit_url,
+            repos_dir=config.repos_dir,
+            top_k=self._top_k,
+        )
 
         for i, instance in enumerate(instances, start=1):
             self._log.info(
@@ -249,49 +421,16 @@ class MiniSweAgentRunner:
                 continue
 
             try:
-                # Create fresh operations and context provider
-                operations = BenchmarkOperations(
-                    kodit_base_url=kodit_url,
-                    repos_dir=config.repos_dir,
-                    results_dir=config.output_dir,
-                    model=config.model,
-                    top_k=self._top_k,
-                )
+                # Prepare and get augmented instance
+                augmented = preparer.prepare(instance, config.output_dir)
 
-                context_provider = KoditContextProvider(
-                    kodit_base_url=kodit_url,
-                    top_k=self._top_k,
-                )
-
-                # Clone and index the repository
-                repo_id = operations.prepare(instance)
-                self._log.info(
-                    "Repository prepared",
-                    instance_id=instance.instance_id,
-                    repo_id=repo_id,
-                )
-
-                # Retrieve snippets and augment problem statement
-                augmented_statement = context_provider.augment_problem_statement(
-                    instance
-                )
-
-                # Create a new instance with augmented problem statement
-                augmented.append(
-                    SWEBenchInstance(
+                if augmented:
+                    # Save immediately to cache
+                    cache.append(augmented)
+                    self._log.info(
+                        "Instance prepared and saved",
                         instance_id=instance.instance_id,
-                        repo=instance.repo,
-                        base_commit=instance.base_commit,
-                        problem_statement=augmented_statement,
-                        patch=instance.patch,
-                        test_patch=instance.test_patch,
-                        fail_to_pass=instance.fail_to_pass,
-                        pass_to_pass=instance.pass_to_pass,
-                        version=instance.version,
-                        environment_setup_commit=instance.environment_setup_commit,
-                        hints_text=instance.hints_text,
                     )
-                )
             finally:
                 # Stop server to ensure clean state for next instance
                 self._log.info(
@@ -299,58 +438,6 @@ class MiniSweAgentRunner:
                     instance_id=instance.instance_id,
                 )
                 server.stop()
-
-        return augmented
-
-    def _prepare_and_augment_instances(
-        self,
-        instances: list[SWEBenchInstance],
-        operations: BenchmarkOperations,
-        context_provider: KoditContextProvider,
-    ) -> list[SWEBenchInstance]:
-        """Prepare repositories and augment instances with Kodit context."""
-        augmented = []
-        total = len(instances)
-
-        for i, instance in enumerate(instances, start=1):
-            self._log.info(
-                "Preparing instance for Kodit retrieval",
-                progress=f"{i}/{total}",
-                instance_id=instance.instance_id,
-                repo=instance.repo,
-            )
-
-            # Clone and index the repository using existing infrastructure
-            repo_id = operations.prepare(instance)
-            self._log.info(
-                "Repository prepared",
-                instance_id=instance.instance_id,
-                repo_id=repo_id,
-            )
-
-            # Retrieve snippets and augment problem statement
-            augmented_statement = context_provider.augment_problem_statement(
-                instance
-            )
-
-            # Create a new instance with augmented problem statement
-            augmented.append(
-                SWEBenchInstance(
-                    instance_id=instance.instance_id,
-                    repo=instance.repo,
-                    base_commit=instance.base_commit,
-                    problem_statement=augmented_statement,
-                    patch=instance.patch,
-                    test_patch=instance.test_patch,
-                    fail_to_pass=instance.fail_to_pass,
-                    pass_to_pass=instance.pass_to_pass,
-                    version=instance.version,
-                    environment_setup_commit=instance.environment_setup_commit,
-                    hints_text=instance.hints_text,
-                )
-            )
-
-        return augmented
 
     def _build_env(self, api_key: str | None) -> dict[str, str]:
         """Build environment with API key for mini-swe-agent."""
@@ -668,53 +755,3 @@ class MiniSweAgentRunner:
             both_resolved=both_resolved,
             neither_resolved=neither_resolved,
         )
-
-
-class BatchRunner:
-    """Runs mini-swe-agent benchmarks in batch mode with progress tracking."""
-
-    def __init__(
-        self,
-        runner: MiniSweAgentRunner,
-        baseline_config: RunConfig,
-        kodit_config: RunConfig,
-    ) -> None:
-        """Initialize batch runner with configs."""
-        self._runner = runner
-        self._baseline_config = baseline_config
-        self._kodit_config = kodit_config
-        self._log = structlog.get_logger(__name__)
-
-    def run_comparison(
-        self,
-        instances: list[SWEBenchInstance],
-        on_progress: Callable[[str, int, int], None] | None = None,
-    ) -> ComparisonResult:
-        """Run both baseline and kodit conditions and compare."""
-        self._log.info(
-            "Starting comparison benchmark",
-            instance_count=len(instances),
-        )
-
-        # Run baseline
-        if on_progress:
-            on_progress("baseline", 0, 2)
-
-        baseline_result = self._runner.run_baseline(
-            config=self._baseline_config,
-            instances=instances,
-        )
-
-        # Run kodit
-        if on_progress:
-            on_progress("kodit", 1, 2)
-
-        kodit_result = self._runner.run_with_kodit(
-            config=self._kodit_config,
-            instances=instances,
-        )
-
-        if on_progress:
-            on_progress("complete", 2, 2)
-
-        return self._runner.compare_results(baseline_result, kodit_result)

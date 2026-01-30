@@ -7,29 +7,275 @@ import click
 import structlog
 
 from benchmark.minisweagent.runner import MiniSweAgentRunner, RunConfig
-from benchmark.runner import (
-    BatchConfig,
-    BatchRunner,
-    BenchmarkOperations,
-)
 from benchmark.server import ServerProcess
 from benchmark.swebench.evaluator import (
     EvaluationError,
     Evaluator,
-    PredictionLoader,
 )
-from benchmark.swebench.loader import DatasetLoader, InstanceNotFoundError
+from benchmark.swebench.loader import DatasetLoader
 from benchmark.swebench.repository import (
     DEFAULT_REPOS_DIR,
-    RepositoryCloneError,
-    RepositoryIndexError,
 )
 from kodit.config import AppContext
 from kodit.log import configure_logging
 
 DEFAULT_OUTPUT_DIR = Path("benchmarks/data")
-DEFAULT_RESULTS_DIR = Path("benchmarks/results")
-DEFAULT_DATASET_FILE = DEFAULT_OUTPUT_DIR / "swebench-lite.json"
+
+
+def _extract_run_stats(output_dir: Path) -> dict:
+    """Extract cost and token statistics from trajectory files."""
+    stats: dict = {
+        "total_cost": 0.0,
+        "total_api_calls": 0,
+        "total_tokens_sent": 0,
+        "total_tokens_received": 0,
+        "instance_count": 0,
+        "instances_with_patch": 0,
+        "instance_stats": {},
+    }
+
+    # Load predictions to check for patches
+    predictions_path = output_dir / "preds.json"
+    predictions = {}
+    if predictions_path.exists():
+        with predictions_path.open() as f:
+            predictions = json.load(f)
+
+    # Extract stats from trajectory files
+    for trajectory_path in output_dir.glob("*/*.traj.json"):
+        try:
+            with trajectory_path.open() as f:
+                trajectory = json.load(f)
+
+            default_id = trajectory_path.stem.replace(".traj", "")
+            instance_id = trajectory.get("instance_id", default_id)
+            info = trajectory.get("info", {})
+            model_stats = info.get("model_stats", {})
+
+            cost = model_stats.get("instance_cost", 0.0)
+            api_calls = model_stats.get("api_calls", 0)
+            tokens_sent = model_stats.get("tokens_sent", 0)
+            tokens_received = model_stats.get("tokens_received", 0)
+
+            stats["total_cost"] += cost
+            stats["total_api_calls"] += api_calls
+            stats["total_tokens_sent"] += tokens_sent
+            stats["total_tokens_received"] += tokens_received
+            stats["instance_count"] += 1
+
+            has_patch = bool(
+                predictions.get(instance_id, {}).get("model_patch", "").strip()
+            )
+            if has_patch:
+                stats["instances_with_patch"] += 1
+
+            stats["instance_stats"][instance_id] = {
+                "cost": cost,
+                "api_calls": api_calls,
+                "tokens_sent": tokens_sent,
+                "tokens_received": tokens_received,
+                "has_patch": has_patch,
+                "exit_status": info.get("exit_status", "Unknown"),
+            }
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    return stats
+
+
+def _load_evaluation_results(
+    eval_path: Path | None,
+    output_dir: Path,
+    run_id: str,
+) -> dict:
+    """Load evaluation results from JSON file."""
+    log = structlog.get_logger(__name__)
+    results: dict = {
+        "resolved_ids": set(),
+        "unresolved_ids": set(),
+        "error_ids": set(),
+        "empty_patch_ids": set(),
+        "total": 0,
+        "resolved": 0,
+    }
+
+    # Try to find evaluation file
+    if eval_path and eval_path.exists():
+        path = eval_path
+    else:
+        # Look for evaluation results in common locations
+        candidates = [
+            Path.cwd() / f"mini-swe-agent.{run_id}.json",
+            output_dir / f"mini-swe-agent.{run_id}.json",
+            Path.cwd() / f"unknown.{run_id}.json",
+        ]
+        candidates.extend(list(Path.cwd().glob(f"*.{run_id}.json")))
+
+        path = None
+        for candidate in candidates:
+            if candidate.exists():
+                path = candidate
+                break
+
+    if path and path.exists():
+        log.info("Found evaluation results", path=str(path))
+        with path.open() as f:
+            data = json.load(f)
+            results["resolved_ids"] = set(data.get("resolved_ids", []))
+            results["unresolved_ids"] = set(data.get("unresolved_ids", []))
+            results["error_ids"] = set(data.get("error_ids", []))
+            results["empty_patch_ids"] = set(data.get("empty_patch_ids", []))
+            results["total"] = data.get("total_instances", 0)
+            results["resolved"] = data.get("resolved_instances", 0)
+    else:
+        log.warning("No evaluation results found", run_id=run_id)
+
+    return results
+
+
+def _print_section(title: str, divider: str = "-") -> None:
+    """Print a section header."""
+    click.echo("\n" + divider * 70)
+    click.echo(title)
+    click.echo(divider * 70)
+
+
+def _print_metric_row(label: str, baseline_val: str, kodit_val: str) -> None:
+    """Print a single metric comparison row."""
+    click.echo(f"{label:<30} {baseline_val:>15} {kodit_val:>15}")
+
+
+def _display_comparison_report(
+    baseline_stats: dict,
+    kodit_stats: dict,
+    baseline_results: dict,
+    kodit_results: dict,
+    output: Path,
+) -> None:
+    """Display formatted comparison report to terminal."""
+    # Compute instance sets
+    b_resolved_ids = baseline_results["resolved_ids"]
+    k_resolved_ids = kodit_results["resolved_ids"]
+    both = b_resolved_ids & k_resolved_ids
+    baseline_only = b_resolved_ids - k_resolved_ids
+    kodit_only = k_resolved_ids - b_resolved_ids
+
+    all_ids = (
+        baseline_results["resolved_ids"]
+        | baseline_results["unresolved_ids"]
+        | baseline_results["error_ids"]
+        | baseline_results["empty_patch_ids"]
+        | kodit_results["resolved_ids"]
+        | kodit_results["unresolved_ids"]
+        | kodit_results["error_ids"]
+        | kodit_results["empty_patch_ids"]
+    )
+    neither = all_ids - b_resolved_ids - k_resolved_ids
+
+    # Header
+    _print_section("BENCHMARK COMPARISON: BASELINE vs KODIT", "=")
+
+    # Performance section
+    _print_section("PERFORMANCE (Pass/Fail)")
+    _print_metric_row("Metric", "Baseline", "Kodit")
+    click.echo("-" * 70)
+
+    b_total = baseline_results["total"]
+    k_total = kodit_results["total"]
+    b_res = baseline_results["resolved"]
+    k_res = kodit_results["resolved"]
+    b_rate = b_res / b_total if b_total > 0 else 0.0
+    k_rate = k_res / k_total if k_total > 0 else 0.0
+
+    _print_metric_row("Instances evaluated", str(b_total), str(k_total))
+    _print_metric_row("Resolved (passed)", str(b_res), str(k_res))
+    _print_metric_row("Resolve rate", f"{b_rate:.1%}", f"{k_rate:.1%}")
+
+    # Instance breakdown
+    _print_section("INSTANCE BREAKDOWN")
+    click.echo(f"Both resolved:           {len(both):>5}")
+    click.echo(f"Baseline only resolved:  {len(baseline_only):>5}")
+    click.echo(f"Kodit only resolved:     {len(kodit_only):>5}")
+    click.echo(f"Neither resolved:        {len(neither):>5}")
+
+    # Cost section
+    _print_section("COST & TOKEN USAGE")
+    _print_metric_row("Metric", "Baseline", "Kodit")
+    click.echo("-" * 70)
+
+    b_cost = baseline_stats["total_cost"]
+    k_cost = kodit_stats["total_cost"]
+    _print_metric_row("Total cost", f"${b_cost:.4f}", f"${k_cost:.4f}")
+    _print_metric_row(
+        "Total API calls",
+        f"{baseline_stats['total_api_calls']:,}",
+        f"{kodit_stats['total_api_calls']:,}",
+    )
+    _print_metric_row(
+        "Tokens sent",
+        f"{baseline_stats['total_tokens_sent']:,}",
+        f"{kodit_stats['total_tokens_sent']:,}",
+    )
+    _print_metric_row(
+        "Tokens received",
+        f"{baseline_stats['total_tokens_received']:,}",
+        f"{kodit_stats['total_tokens_received']:,}",
+    )
+    b_sent = baseline_stats["total_tokens_sent"]
+    b_recv = baseline_stats["total_tokens_received"]
+    k_sent = kodit_stats["total_tokens_sent"]
+    k_recv = kodit_stats["total_tokens_received"]
+    b_tokens = b_sent + b_recv
+    k_tokens = k_sent + k_recv
+    _print_metric_row("Total tokens", f"{b_tokens:,}", f"{k_tokens:,}")
+
+    # Summary
+    _print_section("SUMMARY", "=")
+    _print_summary(baseline_only, kodit_only, b_res, k_res)
+    click.echo(f"\nDetailed results saved to: {output}")
+    click.echo("=" * 70)
+
+    # Resolution differences
+    _print_resolution_differences(baseline_only, kodit_only)
+
+
+def _print_summary(
+    baseline_only: set, kodit_only: set, b_resolved: int, k_resolved: int
+) -> None:
+    """Print the summary section."""
+    improvement = len(kodit_only) - len(baseline_only)
+    if improvement > 0:
+        click.echo(f"Kodit resolved {improvement} more instance(s) than baseline")
+    elif improvement < 0:
+        click.echo(f"Baseline resolved {-improvement} more instance(s) than Kodit")
+    else:
+        click.echo("Both approaches resolved the same number of unique instances")
+
+    if k_resolved > b_resolved:
+        diff = k_resolved - b_resolved
+        click.echo(f"Overall: Kodit has {diff} more total resolutions")
+    elif b_resolved > k_resolved:
+        diff = b_resolved - k_resolved
+        click.echo(f"Overall: Baseline has {diff} more total resolutions")
+
+
+def _print_resolution_differences(baseline_only: set, kodit_only: set) -> None:
+    """Print the resolution differences section."""
+    if not baseline_only and not kodit_only:
+        return
+
+    _print_section("RESOLUTION DIFFERENCES")
+
+    if baseline_only:
+        click.echo("\nBaseline resolved but Kodit did not:")
+        for instance_id in sorted(baseline_only):
+            click.echo(f"  - {instance_id}")
+
+    if kodit_only:
+        click.echo("\nKodit resolved but Baseline did not:")
+        for instance_id in sorted(kodit_only):
+            click.echo(f"  + {instance_id}")
+
 
 # Server defaults
 DEFAULT_HOST = "127.0.0.1"
@@ -98,195 +344,6 @@ def cli() -> None:
     configure_logging(AppContext())
 
 
-@cli.command("start-kodit")
-@click.option("--host", default=DEFAULT_HOST, help="Host to bind the server to")
-@click.option("--port", default=DEFAULT_PORT, type=int, help="Port to bind the server")
-@click.option("--db-port", default=DEFAULT_DB_PORT, type=int, help="Database port")
-@click.option(
-    "--enrichment-base-url",
-    default=DEFAULT_ENRICHMENT_BASE_URL,
-    help="Enrichment endpoint base URL",
-)
-@click.option(
-    "--kodit-enrichment-model",
-    default=DEFAULT_KODIT_ENRICHMENT_MODEL,
-    help="Enrichment model name",
-)
-@click.option(
-    "--enrichment-api-key",
-    envvar="ENRICHMENT_ENDPOINT_API_KEY",
-    help="Enrichment API key (or set ENRICHMENT_ENDPOINT_API_KEY)",
-)
-@click.option(
-    "--enrichment-parallel-tasks",
-    default=DEFAULT_ENRICHMENT_PARALLEL_TASKS,
-    type=int,
-    help="Number of parallel enrichment tasks",
-)
-@click.option(
-    "--enrichment-timeout",
-    default=DEFAULT_ENRICHMENT_TIMEOUT,
-    type=int,
-    help="Enrichment request timeout in seconds",
-)
-@click.option(
-    "--embedding-base-url",
-    default=DEFAULT_EMBEDDING_BASE_URL,
-    help="Embedding endpoint base URL",
-)
-@click.option(
-    "--embedding-model",
-    default=DEFAULT_EMBEDDING_MODEL,
-    help="Embedding model name",
-)
-@click.option(
-    "--embedding-api-key",
-    envvar="EMBEDDING_ENDPOINT_API_KEY",
-    help="Embedding API key (or set EMBEDDING_ENDPOINT_API_KEY)",
-)
-@click.option(
-    "--embedding-parallel-tasks",
-    default=DEFAULT_EMBEDDING_PARALLEL_TASKS,
-    type=int,
-    help="Number of parallel embedding tasks",
-)
-@click.option(
-    "--embedding-timeout",
-    default=DEFAULT_EMBEDDING_TIMEOUT,
-    type=int,
-    help="Embedding request timeout in seconds",
-)
-def start_kodit(  # noqa: PLR0913
-    host: str,
-    port: int,
-    db_port: int,
-    enrichment_base_url: str,
-    kodit_enrichment_model: str,
-    enrichment_api_key: str | None,
-    enrichment_parallel_tasks: int,
-    enrichment_timeout: int,
-    embedding_base_url: str,
-    embedding_model: str,
-    embedding_api_key: str | None,
-    embedding_parallel_tasks: int,
-    embedding_timeout: int,
-) -> None:
-    """Start database and Kodit server for benchmarking."""
-    enrichment_api_key = require_api_key(enrichment_api_key)
-    embedding_api_key = require_embedding_api_key(embedding_api_key)
-    log = structlog.get_logger(__name__)
-
-    server = ServerProcess(
-        host=host,
-        port=port,
-        db_port=db_port,
-        enrichment_base_url=enrichment_base_url,
-        enrichment_model=kodit_enrichment_model,
-        enrichment_api_key=enrichment_api_key,
-        enrichment_parallel_tasks=enrichment_parallel_tasks,
-        enrichment_timeout=enrichment_timeout,
-        embedding_base_url=embedding_base_url,
-        embedding_model=embedding_model,
-        embedding_api_key=embedding_api_key,
-        embedding_parallel_tasks=embedding_parallel_tasks,
-        embedding_timeout=embedding_timeout,
-    )
-
-    if server.start():
-        log.info("Kodit server started", url=server.base_url)
-    else:
-        log.error("Failed to start Kodit server")
-        raise SystemExit(1)
-
-
-@cli.command("stop-kodit")
-@click.option("--host", default=DEFAULT_HOST, help="Host the server was bound to")
-@click.option(
-    "--port", default=DEFAULT_PORT, type=int, help="Port the server was bound to"
-)
-@click.option("--db-port", default=DEFAULT_DB_PORT, type=int, help="Database port")
-@click.option(
-    "--enrichment-base-url",
-    default=DEFAULT_ENRICHMENT_BASE_URL,
-    help="Enrichment endpoint base URL",
-)
-@click.option(
-    "--kodit-enrichment-model",
-    default=DEFAULT_KODIT_ENRICHMENT_MODEL,
-    help="Enrichment model name",
-)
-@click.option(
-    "--enrichment-parallel-tasks",
-    default=DEFAULT_ENRICHMENT_PARALLEL_TASKS,
-    type=int,
-    help="Number of parallel enrichment tasks",
-)
-@click.option(
-    "--enrichment-timeout",
-    default=DEFAULT_ENRICHMENT_TIMEOUT,
-    type=int,
-    help="Enrichment request timeout in seconds",
-)
-@click.option(
-    "--embedding-base-url",
-    default=DEFAULT_EMBEDDING_BASE_URL,
-    help="Embedding endpoint base URL",
-)
-@click.option(
-    "--embedding-model",
-    default=DEFAULT_EMBEDDING_MODEL,
-    help="Embedding model name",
-)
-@click.option(
-    "--embedding-parallel-tasks",
-    default=DEFAULT_EMBEDDING_PARALLEL_TASKS,
-    type=int,
-    help="Number of parallel embedding tasks",
-)
-@click.option(
-    "--embedding-timeout",
-    default=DEFAULT_EMBEDDING_TIMEOUT,
-    type=int,
-    help="Embedding request timeout in seconds",
-)
-def stop_kodit(  # noqa: PLR0913
-    host: str,
-    port: int,
-    db_port: int,
-    enrichment_base_url: str,
-    kodit_enrichment_model: str,
-    enrichment_parallel_tasks: int,
-    enrichment_timeout: int,
-    embedding_base_url: str,
-    embedding_model: str,
-    embedding_parallel_tasks: int,
-    embedding_timeout: int,
-) -> None:
-    """Stop the Kodit server and database."""
-    log = structlog.get_logger(__name__)
-    server = ServerProcess(
-        host=host,
-        port=port,
-        db_port=db_port,
-        enrichment_base_url=enrichment_base_url,
-        enrichment_model=kodit_enrichment_model,
-        enrichment_api_key="",  # Not needed for stop
-        enrichment_parallel_tasks=enrichment_parallel_tasks,
-        enrichment_timeout=enrichment_timeout,
-        embedding_base_url=embedding_base_url,
-        embedding_model=embedding_model,
-        embedding_api_key="",  # Not needed for stop
-        embedding_parallel_tasks=embedding_parallel_tasks,
-        embedding_timeout=embedding_timeout,
-    )
-
-    if server.stop():
-        log.info("Kodit server stopped")
-    else:
-        log.error("Failed to stop Kodit server")
-        raise SystemExit(1)
-
-
 @cli.command("download")
 @click.option(
     "--dataset",
@@ -314,628 +371,6 @@ def download(dataset: str, output: Path | None) -> None:
     loader.save(instances, output)
 
     log.info("Download complete", count=len(instances), output=str(output))
-
-
-@cli.command("prepare-instance")
-@click.argument("instance_id")
-@click.option(
-    "--dataset-file",
-    type=click.Path(path_type=Path, exists=True),
-    default=DEFAULT_DATASET_FILE,
-    help="Path to SWE-bench dataset JSON file",
-)
-@click.option(
-    "--repos-dir",
-    type=click.Path(path_type=Path),
-    default=DEFAULT_REPOS_DIR,
-    help="Directory to clone repositories into",
-)
-@click.option(
-    "--kodit-url",
-    default=None,
-    help="Kodit server URL (default: http://{host}:{port} from start-kodit)",
-)
-@click.option(
-    "--host",
-    default=DEFAULT_HOST,
-    help="Kodit server host (used if --kodit-url not provided)",
-)
-@click.option(
-    "--port",
-    default=DEFAULT_PORT,
-    type=int,
-    help="Kodit server port (used if --kodit-url not provided)",
-)
-def prepare_instance(  # noqa: PLR0913
-    instance_id: str,
-    dataset_file: Path,
-    repos_dir: Path,
-    kodit_url: str | None,
-    host: str,
-    port: int,
-) -> None:
-    """Prepare a SWE-bench instance for benchmarking.
-
-    Clones the repository at the exact commit and indexes it with a running
-    Kodit server.
-
-    INSTANCE_ID is the SWE-bench instance identifier (e.g., django__django-11049).
-    """
-    log = structlog.get_logger(__name__)
-
-    # Find instance
-    loader = DatasetLoader()
-    try:
-        instance = loader.find(dataset_file, instance_id)
-    except InstanceNotFoundError:
-        log.exception("Instance not found", instance_id=instance_id)
-        raise SystemExit(1) from None
-
-    log.info(
-        "Found instance",
-        instance_id=instance.instance_id,
-        repo=instance.repo,
-        commit=instance.base_commit[:12],
-    )
-
-    # Prepare using BenchmarkOperations
-    base_url = kodit_url or f"http://{host}:{port}"
-    operations = BenchmarkOperations(
-        kodit_base_url=base_url,
-        repos_dir=repos_dir,
-        results_dir=DEFAULT_RESULTS_DIR,
-        model=DEFAULT_SWE_AGENT_MODEL,
-    )
-
-    try:
-        repo_id = operations.prepare(instance)
-        log.info("Instance prepared", instance_id=instance_id, repo_id=repo_id)
-    except RepositoryCloneError as e:
-        log.exception("Clone failed", error=str(e))
-        raise SystemExit(1) from e
-    except RepositoryIndexError as e:
-        log.exception("Indexing failed", error=str(e))
-        raise SystemExit(1) from e
-
-
-@cli.command("generate")
-@click.argument("instance_id")
-@click.option(
-    "--condition",
-    type=click.Choice(["baseline", "kodit"]),
-    required=True,
-    help="Retrieval condition: baseline (no retrieval) or kodit (with Kodit search)",
-)
-@click.option(
-    "--dataset-file",
-    type=click.Path(path_type=Path, exists=True),
-    default=DEFAULT_DATASET_FILE,
-    help="Path to SWE-bench dataset JSON file",
-)
-@click.option(
-    "--output",
-    type=click.Path(path_type=Path),
-    default=None,
-    help="Output JSONL file (default: benchmarks/results/{condition}.jsonl)",
-)
-@click.option(
-    "--swe-agent-model",
-    default=DEFAULT_SWE_AGENT_MODEL,
-    help="LiteLLM model identifier",
-)
-@click.option(
-    "--top-k",
-    default=10,
-    type=int,
-    help="Number of snippets to retrieve (for kodit condition)",
-)
-@click.option(
-    "--api-key",
-    envvar="ENRICHMENT_ENDPOINT_API_KEY",
-    help="LLM API key (or set ENRICHMENT_ENDPOINT_API_KEY)",
-)
-@click.option(
-    "--kodit-url",
-    default=None,
-    help="Kodit server URL (for kodit condition)",
-)
-@click.option(
-    "--host",
-    default=DEFAULT_HOST,
-    help="Kodit server host (used if --kodit-url not provided)",
-)
-@click.option(
-    "--port",
-    default=DEFAULT_PORT,
-    type=int,
-    help="Kodit server port (used if --kodit-url not provided)",
-)
-def generate(  # noqa: PLR0913
-    instance_id: str,
-    condition: str,
-    dataset_file: Path,
-    output: Path | None,
-    swe_agent_model: str,
-    top_k: int,
-    api_key: str | None,
-    kodit_url: str | None,
-    host: str,
-    port: int,
-) -> None:
-    """Generate a patch prediction for a SWE-bench instance.
-
-    INSTANCE_ID is the SWE-bench instance identifier (e.g., django__django-11049).
-
-    This command generates a patch prediction using either:
-    - baseline: LLM with only the problem statement
-    - kodit: LLM with Kodit-retrieved code context
-
-    Output is appended to a JSONL file compatible with SWE-bench evaluation.
-    """
-    log = structlog.get_logger(__name__)
-
-    # Find instance
-    loader = DatasetLoader()
-    try:
-        instance = loader.find(dataset_file, instance_id)
-    except InstanceNotFoundError:
-        log.exception("Instance not found", instance_id=instance_id)
-        raise SystemExit(1) from None
-
-    log.info(
-        "Generating prediction",
-        instance_id=instance.instance_id,
-        condition=condition,
-        model=swe_agent_model,
-    )
-
-    # Generate using BenchmarkOperations
-    base_url = kodit_url or f"http://{host}:{port}"
-    operations = BenchmarkOperations(
-        kodit_base_url=base_url,
-        repos_dir=DEFAULT_REPOS_DIR,
-        results_dir=DEFAULT_RESULTS_DIR,
-        model=swe_agent_model,
-        api_key=api_key,
-        top_k=top_k,
-    )
-
-    prediction, output_path = operations.generate_and_write(
-        instance,
-        condition,
-        output_path=output,
-    )
-
-    log.info(
-        "Prediction written",
-        output=str(output_path),
-        instance_id=prediction.instance_id,
-        model=prediction.model_name_or_path,
-    )
-
-
-@cli.command("evaluate")
-@click.argument("predictions_file", type=click.Path(path_type=Path, exists=True))
-@click.option(
-    "--output",
-    type=click.Path(path_type=Path),
-    default=None,
-    help="Output JSON file for results (default: predictions_file with .results.json)",
-)
-@click.option(
-    "--max-workers",
-    default=4,
-    type=int,
-    help="Number of parallel workers for evaluation",
-)
-@click.option(
-    "--run-id",
-    default="kodit_eval",
-    help="Run ID for SWE-bench evaluation",
-)
-def evaluate(
-    predictions_file: Path,
-    output: Path | None,
-    max_workers: int,
-    run_id: str,
-) -> None:
-    """Evaluate predictions against SWE-bench using the official harness.
-
-    PREDICTIONS_FILE is the path to a JSONL file with predictions.
-
-    Requires Docker and the swebench package to be installed.
-    """
-    log = structlog.get_logger(__name__)
-
-    # Determine output path
-    if output is None:
-        output = predictions_file.with_suffix(".results.json")
-
-    log.info(
-        "Loading predictions",
-        predictions_file=str(predictions_file),
-    )
-
-    # Load predictions
-    prediction_loader = PredictionLoader()
-    predictions = prediction_loader.load(predictions_file)
-
-    log.info("Loaded predictions", count=len(predictions))
-
-    # Run evaluation
-    evaluator = Evaluator()
-
-    log.info(
-        "Running SWE-bench evaluation",
-        max_workers=max_workers,
-        run_id=run_id,
-    )
-
-    try:
-        result = evaluator.evaluate_full(
-            predictions_path=predictions_file,
-            max_workers=max_workers,
-            run_id=run_id,
-        )
-    except EvaluationError as e:
-        log.error("Evaluation failed", error=str(e))  # noqa: TRY400
-        raise SystemExit(1) from None
-
-    # Write results
-    with output.open("w") as f:
-        json.dump(result.as_dict(), f, indent=2)
-
-    log.info(
-        "Evaluation complete",
-        output=str(output),
-        total_predictions=result.total_predictions,
-        resolved=result.resolved,
-        resolve_rate=f"{result.resolve_rate:.1%}",
-    )
-
-
-@cli.command("run-instance")
-@click.argument("instance_id")
-@click.option(
-    "--dataset-file",
-    type=click.Path(path_type=Path, exists=True),
-    default=DEFAULT_DATASET_FILE,
-    help="Path to SWE-bench dataset JSON file",
-)
-@click.option(
-    "--repos-dir",
-    type=click.Path(path_type=Path),
-    default=DEFAULT_REPOS_DIR,
-    help="Directory to clone repositories into",
-)
-@click.option(
-    "--results-dir",
-    type=click.Path(path_type=Path),
-    default=DEFAULT_RESULTS_DIR,
-    help="Directory to write results to",
-)
-@click.option(
-    "--swe-agent-model",
-    default=DEFAULT_SWE_AGENT_MODEL,
-    help="LiteLLM model identifier for patch generation",
-)
-@click.option(
-    "--api-key",
-    envvar="ENRICHMENT_ENDPOINT_API_KEY",
-    help="LLM API key (or set ENRICHMENT_ENDPOINT_API_KEY)",
-)
-@click.option(
-    "--top-k",
-    default=10,
-    type=int,
-    help="Number of snippets to retrieve for kodit condition",
-)
-@click.option(
-    "--skip-evaluation",
-    is_flag=True,
-    help="Skip SWE-bench evaluation (only generate predictions)",
-)
-@click.option("--host", default=DEFAULT_HOST, help="Host to bind the server to")
-@click.option("--port", default=DEFAULT_PORT, type=int, help="Port to bind the server")
-@click.option("--db-port", default=DEFAULT_DB_PORT, type=int, help="Database port")
-@click.option(
-    "--enrichment-base-url",
-    default=DEFAULT_ENRICHMENT_BASE_URL,
-    help="Enrichment endpoint base URL",
-)
-@click.option(
-    "--kodit-enrichment-model",
-    default=DEFAULT_KODIT_ENRICHMENT_MODEL,
-    help="Enrichment model name",
-)
-@click.option(
-    "--enrichment-parallel-tasks",
-    default=DEFAULT_ENRICHMENT_PARALLEL_TASKS,
-    type=int,
-    help="Number of parallel enrichment tasks",
-)
-@click.option(
-    "--enrichment-timeout",
-    default=DEFAULT_ENRICHMENT_TIMEOUT,
-    type=int,
-    help="Enrichment request timeout in seconds",
-)
-@click.option(
-    "--embedding-base-url",
-    default=DEFAULT_EMBEDDING_BASE_URL,
-    help="Embedding endpoint base URL",
-)
-@click.option(
-    "--embedding-model",
-    default=DEFAULT_EMBEDDING_MODEL,
-    help="Embedding model name",
-)
-@click.option(
-    "--embedding-parallel-tasks",
-    default=DEFAULT_EMBEDDING_PARALLEL_TASKS,
-    type=int,
-    help="Number of parallel embedding tasks",
-)
-@click.option(
-    "--embedding-timeout",
-    default=DEFAULT_EMBEDDING_TIMEOUT,
-    type=int,
-    help="Embedding request timeout in seconds",
-)
-def run_instance(  # noqa: PLR0913
-    instance_id: str,
-    dataset_file: Path,
-    repos_dir: Path,
-    results_dir: Path,
-    swe_agent_model: str,
-    api_key: str | None,
-    top_k: int,
-    skip_evaluation: bool,  # noqa: FBT001
-    host: str,
-    port: int,
-    db_port: int,
-    enrichment_base_url: str,
-    kodit_enrichment_model: str,
-    enrichment_parallel_tasks: int,
-    enrichment_timeout: int,
-    embedding_base_url: str,
-    embedding_model: str,
-    embedding_parallel_tasks: int,
-    embedding_timeout: int,
-) -> None:
-    """Run a complete benchmark for a single SWE-bench instance.
-
-    This command orchestrates the full benchmark workflow:
-    1. Starts the Kodit server and database
-    2. Clones and indexes the repository
-    3. Generates baseline prediction (no retrieval)
-    4. Generates kodit prediction (with retrieval)
-    5. Evaluates both predictions with SWE-bench harness
-    6. Stops the server and cleans up
-
-    INSTANCE_ID is the SWE-bench instance identifier (e.g., django__django-11049).
-
-    Results are written to the results directory as JSONL files and a comparison
-    JSON file summarizing both conditions.
-    """
-    api_key = require_api_key(api_key)
-    log = structlog.get_logger(__name__)
-
-    # Find instance
-    loader = DatasetLoader()
-    try:
-        instance = loader.find(dataset_file, instance_id)
-    except InstanceNotFoundError:
-        log.exception("Instance not found", instance_id=instance_id)
-        raise SystemExit(1) from None
-
-    # Create batch config and runner
-    config = BatchConfig(
-        repos_dir=repos_dir,
-        results_dir=results_dir,
-        model=swe_agent_model,
-        api_key=api_key,
-        top_k=top_k,
-        skip_evaluation=skip_evaluation,
-        host=host,
-        port=port,
-        db_port=db_port,
-        enrichment_base_url=enrichment_base_url,
-        enrichment_model=kodit_enrichment_model,
-        enrichment_parallel_tasks=enrichment_parallel_tasks,
-        enrichment_timeout=enrichment_timeout,
-        embedding_base_url=embedding_base_url,
-        embedding_model=embedding_model,
-        embedding_parallel_tasks=embedding_parallel_tasks,
-        embedding_timeout=embedding_timeout,
-    )
-
-    runner = BatchRunner(config)
-    result = runner.run([instance])
-
-    # Print summary
-    click.echo("\n" + "=" * 60)
-    click.echo(f"Benchmark Results: {instance_id}")
-    click.echo("=" * 60)
-    click.echo(f"Succeeded: {result.succeeded}")
-    click.echo(f"Failed: {result.failed}")
-    click.echo("=" * 60)
-
-    if result.failed > 0:
-        raise SystemExit(1)
-
-
-@cli.command("run-all")
-@click.option(
-    "--dataset-file",
-    type=click.Path(path_type=Path, exists=True),
-    default=DEFAULT_DATASET_FILE,
-    help="Path to SWE-bench dataset JSON file",
-)
-@click.option(
-    "--repos-dir",
-    type=click.Path(path_type=Path),
-    default=DEFAULT_REPOS_DIR,
-    help="Directory to clone repositories into",
-)
-@click.option(
-    "--results-dir",
-    type=click.Path(path_type=Path),
-    default=DEFAULT_RESULTS_DIR,
-    help="Directory to write results to",
-)
-@click.option(
-    "--swe-agent-model",
-    default=DEFAULT_SWE_AGENT_MODEL,
-    help="LiteLLM model identifier for patch generation",
-)
-@click.option(
-    "--api-key",
-    envvar="ENRICHMENT_ENDPOINT_API_KEY",
-    help="LLM API key (or set ENRICHMENT_ENDPOINT_API_KEY)",
-)
-@click.option(
-    "--top-k",
-    default=10,
-    type=int,
-    help="Number of snippets to retrieve for kodit condition",
-)
-@click.option(
-    "--skip-evaluation",
-    is_flag=True,
-    help="Skip SWE-bench evaluation (only generate predictions)",
-)
-@click.option("--host", default=DEFAULT_HOST, help="Host to bind the server to")
-@click.option("--port", default=DEFAULT_PORT, type=int, help="Port to bind the server")
-@click.option("--db-port", default=DEFAULT_DB_PORT, type=int, help="Database port")
-@click.option(
-    "--enrichment-base-url",
-    default=DEFAULT_ENRICHMENT_BASE_URL,
-    help="Enrichment endpoint base URL",
-)
-@click.option(
-    "--kodit-enrichment-model",
-    default=DEFAULT_KODIT_ENRICHMENT_MODEL,
-    help="Enrichment model name",
-)
-@click.option(
-    "--enrichment-parallel-tasks",
-    default=DEFAULT_ENRICHMENT_PARALLEL_TASKS,
-    type=int,
-    help="Number of parallel enrichment tasks",
-)
-@click.option(
-    "--enrichment-timeout",
-    default=DEFAULT_ENRICHMENT_TIMEOUT,
-    type=int,
-    help="Enrichment request timeout in seconds",
-)
-@click.option(
-    "--embedding-base-url",
-    default=DEFAULT_EMBEDDING_BASE_URL,
-    help="Embedding endpoint base URL",
-)
-@click.option(
-    "--embedding-model",
-    default=DEFAULT_EMBEDDING_MODEL,
-    help="Embedding model name",
-)
-@click.option(
-    "--embedding-parallel-tasks",
-    default=DEFAULT_EMBEDDING_PARALLEL_TASKS,
-    type=int,
-    help="Number of parallel embedding tasks",
-)
-@click.option(
-    "--embedding-timeout",
-    default=DEFAULT_EMBEDDING_TIMEOUT,
-    type=int,
-    help="Embedding request timeout in seconds",
-)
-@click.option(
-    "--limit",
-    default=None,
-    type=int,
-    help="Limit number of instances to run (for testing)",
-)
-def run_all(  # noqa: PLR0913
-    dataset_file: Path,
-    repos_dir: Path,
-    results_dir: Path,
-    swe_agent_model: str,
-    api_key: str | None,
-    top_k: int,
-    skip_evaluation: bool,  # noqa: FBT001
-    host: str,
-    port: int,
-    db_port: int,
-    enrichment_base_url: str,
-    kodit_enrichment_model: str,
-    enrichment_parallel_tasks: int,
-    enrichment_timeout: int,
-    embedding_base_url: str,
-    embedding_model: str,
-    embedding_parallel_tasks: int,
-    embedding_timeout: int,
-    limit: int | None,
-) -> None:
-    """Run benchmarks for all instances in the dataset file.
-
-    Reads the dataset JSON file and runs run-instance for each test ID
-    sequentially. Results are tracked and a summary is printed at the end.
-    """
-    api_key = require_api_key(api_key)
-    log = structlog.get_logger(__name__)
-
-    # Load all instances from the dataset file
-    loader = DatasetLoader()
-    instances = loader.load(dataset_file)
-
-    if limit:
-        instances = instances[:limit]
-        log.info("Limited instances", limit=limit)
-
-    # Create batch config and runner
-    config = BatchConfig(
-        repos_dir=repos_dir,
-        results_dir=results_dir,
-        model=swe_agent_model,
-        api_key=api_key,
-        top_k=top_k,
-        skip_evaluation=skip_evaluation,
-        host=host,
-        port=port,
-        db_port=db_port,
-        enrichment_base_url=enrichment_base_url,
-        enrichment_model=kodit_enrichment_model,
-        enrichment_parallel_tasks=enrichment_parallel_tasks,
-        enrichment_timeout=enrichment_timeout,
-        embedding_base_url=embedding_base_url,
-        embedding_model=embedding_model,
-        embedding_parallel_tasks=embedding_parallel_tasks,
-        embedding_timeout=embedding_timeout,
-    )
-
-    def on_progress(instance_id: str, success: bool, current: int, total: int) -> None:  # noqa: FBT001
-        status = "✓" if success else "✗"
-        click.echo(f"[{current}/{total}] {status} {instance_id}")
-
-    runner = BatchRunner(config)
-    result = runner.run(instances, on_instance_complete=on_progress)
-
-    # Print final summary
-    click.echo("\n" + "=" * 60)
-    click.echo("BENCHMARK RUN COMPLETE")
-    click.echo("=" * 60)
-    click.echo(f"Total instances: {result.total}")
-    click.echo(f"Succeeded: {result.succeeded}")
-    click.echo(f"Failed: {result.failed}")
-    if result.failures:
-        click.echo(f"Failed instances: {', '.join(result.failures)}")
-    click.echo("=" * 60)
-
-    if result.failed > 0:
-        raise SystemExit(1)
 
 
 # ============================================================================
@@ -1237,6 +672,11 @@ def mini_run_baseline(  # noqa: PLR0913, PLR0915, C901
     default=True,
     help="Run SWE-bench evaluation after completion",
 )
+@click.option(
+    "--force-reindex",
+    is_flag=True,
+    help="Force re-indexing even if cached augmented instances exist",
+)
 def mini_run_kodit(  # noqa: PLR0913, PLR0915, C901
     dataset_file: Path,
     output_dir: Path,
@@ -1261,11 +701,15 @@ def mini_run_kodit(  # noqa: PLR0913, PLR0915, C901
     swe_agent_model: str,
     stream: bool,  # noqa: FBT001
     evaluate: bool,  # noqa: FBT001
+    force_reindex: bool,  # noqa: FBT001
 ) -> None:
     """Run mini-swe-agent with Kodit retrieval.
 
     This runs mini-swe-agent against SWE-bench instances with problem
     statements augmented with Kodit-retrieved code context.
+
+    If augmented instances have been cached from a previous run, the indexing
+    and retrieval steps are skipped. Use --force-reindex to regenerate.
 
     For each instance, this command:
     1. Starts the Kodit server and database
@@ -1332,6 +776,7 @@ def mini_run_kodit(  # noqa: PLR0913, PLR0915, C901
         workers=workers,
         api_key=api_key,
         stream_output=stream,
+        force_reindex=force_reindex,
     )
 
     # Process each instance with fresh server start/stop
@@ -1411,16 +856,28 @@ def mini_run_kodit(  # noqa: PLR0913, PLR0915, C901
 
 @mini_swe_agent_group.command("compare")
 @click.option(
-    "--baseline-preds",
+    "--baseline-dir",
     type=click.Path(path_type=Path, exists=True),
-    default=MINI_SWE_AGENT_OUTPUT_DIR / "baseline" / "preds.json",
-    help="Path to baseline predictions JSON",
+    default=MINI_SWE_AGENT_OUTPUT_DIR / "baseline",
+    help="Path to baseline output directory",
 )
 @click.option(
-    "--kodit-preds",
+    "--kodit-dir",
     type=click.Path(path_type=Path, exists=True),
-    default=MINI_SWE_AGENT_OUTPUT_DIR / "kodit" / "preds.json",
-    help="Path to Kodit predictions JSON",
+    default=MINI_SWE_AGENT_OUTPUT_DIR / "kodit",
+    help="Path to Kodit output directory",
+)
+@click.option(
+    "--baseline-eval",
+    type=click.Path(path_type=Path, exists=True),
+    default=None,
+    help="Path to baseline evaluation JSON (auto-detected if not specified)",
+)
+@click.option(
+    "--kodit-eval",
+    type=click.Path(path_type=Path, exists=True),
+    default=None,
+    help="Path to Kodit evaluation JSON (auto-detected if not specified)",
 )
 @click.option(
     "--output",
@@ -1429,68 +886,131 @@ def mini_run_kodit(  # noqa: PLR0913, PLR0915, C901
     help="Output JSON file for comparison results",
 )
 def mini_compare(
-    baseline_preds: Path,
-    kodit_preds: Path,
+    baseline_dir: Path,
+    kodit_dir: Path,
+    baseline_eval: Path | None,
+    kodit_eval: Path | None,
     output: Path,
 ) -> None:
     """Compare baseline and Kodit mini-swe-agent results.
 
-    Generates a comparison report showing which instances were resolved
-    by each condition.
+    Compares pass/fail rates, total costs, and token usage between
+    the baseline and Kodit-augmented approaches.
+
+    Requires evaluation results to have been generated (run with --evaluate).
     """
     log = structlog.get_logger(__name__)
-
     log.info(
         "Comparing results",
-        baseline=str(baseline_preds),
-        kodit=str(kodit_preds),
+        baseline_dir=str(baseline_dir),
+        kodit_dir=str(kodit_dir),
     )
 
-    # Load predictions
-    with baseline_preds.open() as f:
-        baseline_data = json.load(f)
+    # Extract stats from both directories
+    baseline_stats = _extract_run_stats(baseline_dir)
+    kodit_stats = _extract_run_stats(kodit_dir)
 
-    with kodit_preds.open() as f:
-        kodit_data = json.load(f)
+    # Load evaluation results
+    baseline_results = _load_evaluation_results(
+        baseline_eval, baseline_dir, "mini_swe_agent_baseline"
+    )
+    kodit_results = _load_evaluation_results(
+        kodit_eval, kodit_dir, "mini_swe_agent_kodit"
+    )
 
-    # Basic comparison (patch presence)
-    baseline_instances = set(baseline_data.keys())
-    kodit_instances = set(kodit_data.keys())
+    # Compute comparison metrics
+    baseline_resolved = baseline_results["resolved_ids"]
+    kodit_resolved = kodit_results["resolved_ids"]
+    both_resolved = baseline_resolved & kodit_resolved
+    baseline_only = baseline_resolved - kodit_resolved
+    kodit_only = kodit_resolved - baseline_resolved
 
-    both = baseline_instances & kodit_instances
-    baseline_only = baseline_instances - kodit_instances
-    kodit_only = kodit_instances - baseline_instances
+    all_instances = (
+        baseline_results["resolved_ids"]
+        | baseline_results["unresolved_ids"]
+        | baseline_results["error_ids"]
+        | baseline_results["empty_patch_ids"]
+        | kodit_results["resolved_ids"]
+        | kodit_results["unresolved_ids"]
+        | kodit_results["error_ids"]
+        | kodit_results["empty_patch_ids"]
+    )
+    neither = all_instances - baseline_resolved - kodit_resolved
 
-    comparison = {
-        "summary": {
-            "baseline_total": len(baseline_instances),
-            "kodit_total": len(kodit_instances),
-            "both": len(both),
-            "baseline_only": len(baseline_only),
-            "kodit_only": len(kodit_only),
-        },
-        "instances": {
-            "both": list(both),
-            "baseline_only": list(baseline_only),
-            "kodit_only": list(kodit_only),
-        },
+    instance_sets = {
+        "both": both_resolved,
+        "baseline_only": baseline_only,
+        "kodit_only": kodit_only,
+        "neither": neither,
     }
 
-    # Write comparison
+    # Build comparison data for JSON output
+    comparison = _build_comparison_dict(
+        baseline_stats, kodit_stats,
+        baseline_results, kodit_results,
+        instance_sets,
+    )
+
+    # Write comparison JSON
     output.parent.mkdir(parents=True, exist_ok=True)
     with output.open("w") as f:
         json.dump(comparison, f, indent=2)
 
-    click.echo("\n" + "=" * 60)
-    click.echo("COMPARISON RESULTS")
-    click.echo("=" * 60)
-    click.echo(f"Baseline instances: {len(baseline_instances)}")
-    click.echo(f"Kodit instances: {len(kodit_instances)}")
-    click.echo(f"Both completed: {len(both)}")
-    click.echo(f"Output: {output}")
-    click.echo("=" * 60)
-    click.echo("\nNote: Run 'evaluate' on each predictions file to get")
-    click.echo("resolution rates before final comparison.")
+    # Display formatted report
+    _display_comparison_report(
+        baseline_stats, kodit_stats,
+        baseline_results, kodit_results,
+        output,
+    )
+
+
+def _build_run_summary(stats: dict, results: dict) -> dict:
+    """Build summary dict for a single run."""
+    total = results["total"]
+    return {
+        "instances_evaluated": total,
+        "resolved": results["resolved"],
+        "resolve_rate": results["resolved"] / total if total > 0 else 0.0,
+        "total_cost": stats["total_cost"],
+        "total_api_calls": stats["total_api_calls"],
+        "total_tokens_sent": stats["total_tokens_sent"],
+        "total_tokens_received": stats["total_tokens_received"],
+        "total_tokens": stats["total_tokens_sent"] + stats["total_tokens_received"],
+    }
+
+
+def _build_comparison_dict(
+    baseline_stats: dict,
+    kodit_stats: dict,
+    baseline_results: dict,
+    kodit_results: dict,
+    instance_sets: dict,
+) -> dict:
+    """Build comparison dictionary for JSON output."""
+    both = instance_sets["both"]
+    baseline_only = instance_sets["baseline_only"]
+    kodit_only = instance_sets["kodit_only"]
+    neither = instance_sets["neither"]
+
+    return {
+        "summary": {
+            "baseline": _build_run_summary(baseline_stats, baseline_results),
+            "kodit": _build_run_summary(kodit_stats, kodit_results),
+            "comparison": {
+                "both_resolved": len(both),
+                "baseline_only_resolved": len(baseline_only),
+                "kodit_only_resolved": len(kodit_only),
+                "neither_resolved": len(neither),
+                "kodit_improvement": len(kodit_only) - len(baseline_only),
+            },
+        },
+        "instances": {
+            "both_resolved": sorted(both),
+            "baseline_only_resolved": sorted(baseline_only),
+            "kodit_only_resolved": sorted(kodit_only),
+            "neither_resolved": sorted(neither),
+        },
+    }
 
 
 if __name__ == "__main__":
