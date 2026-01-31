@@ -345,6 +345,11 @@ class DulwichAdapter:
                     mode = entry.mode
                     sha = entry.sha
 
+                    # Skip submodules (gitlinks) - mode 0o160000
+                    # Submodules reference commits in external repos that aren't fetched
+                    if mode == 0o160000:
+                        continue
+
                     obj = repo[sha]
                     if isinstance(obj, Tree):
                         process_tree(obj, f"{entry_path}/")
