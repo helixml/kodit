@@ -75,9 +75,10 @@ class RepositoryPreparer:
             msg = f"Failed to clone repository: {result.stderr}"
             raise RepositoryCloneError(msg)
 
-        # Checkout the exact commit
+        # Create a branch at the exact commit (not detached HEAD).
+        # This ensures dulwich fetches all objects when Kodit clones from file:// URL.
         result = subprocess.run(  # noqa: S603
-            ["git", "checkout", instance.base_commit],  # noqa: S607
+            ["git", "checkout", "-b", "kodit-index", instance.base_commit],  # noqa: S607
             cwd=str(repo_path),
             capture_output=True,
             text=True,
@@ -85,7 +86,7 @@ class RepositoryPreparer:
         )
 
         if result.returncode != 0:
-            msg = f"Failed to checkout commit {instance.base_commit}: {result.stderr}"
+            msg = f"Failed to create branch at commit {instance.base_commit}: {result.stderr}"
             raise RepositoryCloneError(msg)
 
         self._log.info(
