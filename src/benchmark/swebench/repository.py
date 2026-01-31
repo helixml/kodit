@@ -145,8 +145,8 @@ class RepositoryPreparer:
         """Wait for repository indexing to complete."""
         url = f"{self._kodit_base_url}/api/v1/repositories/{repo_id}/status/summary"
         deadline = time.monotonic() + self._index_timeout
-        poll_interval = 5.0  # seconds
-        status_timeout = 60.0  # longer timeout for busy servers
+        poll_interval = 30.0  # seconds
+        status_timeout = 120.0
 
         self._log.info(
             "Waiting for indexing to complete",
