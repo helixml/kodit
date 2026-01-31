@@ -86,7 +86,10 @@ class RepositoryPreparer:
         )
 
         if result.returncode != 0:
-            msg = f"Failed to create branch at commit {instance.base_commit}: {result.stderr}"
+            msg = (
+                f"Failed to create branch at commit {instance.base_commit}: "
+                f"{result.stderr}"
+            )
             raise RepositoryCloneError(msg)
 
         self._log.info(
