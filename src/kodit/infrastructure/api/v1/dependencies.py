@@ -85,8 +85,11 @@ async def get_task_status_query_service(
     session_factory: DBSessionFactoryDep,
 ) -> TaskStatusQueryService:
     """Get task status query service dependency."""
+    from kodit.infrastructure.sqlalchemy.task_repository import create_task_repository
+
     return TaskStatusQueryService(
-        repository=create_task_status_repository(session_factory=session_factory)
+        repository=create_task_status_repository(session_factory=session_factory),
+        task_repository=create_task_repository(session_factory=session_factory),
     )
 
 

@@ -8,6 +8,7 @@ from typing import Any, Self
 from sqlalchemy import Select
 
 from kodit.domain.enrichments.enrichment import EnrichmentV2
+from kodit.domain.value_objects import TrackableType
 from kodit.infrastructure.api.v1.query_params import PaginationParams
 from kodit.infrastructure.sqlalchemy import entities as db_entities
 
@@ -44,7 +45,10 @@ class FilterCriteria:
 
     def apply(self, model_type: type, stmt: Select) -> Select:  # noqa: C901
         """Apply filter to statement."""
-        column = getattr(model_type, self.field)
+        if isinstance(self.field, str):
+            column = getattr(model_type, self.field)
+        else:
+            column = self.field
 
         # Convert AnyUrl to string for SQLAlchemy comparison
         value = self.value
@@ -359,8 +363,6 @@ class TaskStatusQueryBuilder(QueryBuilder):
 
     def for_repository(self, repository_id: int) -> Self:
         """Build a query for task statuses by repository."""
-        from kodit.domain.value_objects import TrackableType
-
         self.filter(
             db_entities.TaskStatus.trackable_type.key,
             FilterOperator.EQ,
@@ -388,4 +390,13 @@ class TaskQueryBuilder(QueryBuilder):
             descending=True,
         )
         self.paginate(PaginationParams(page_size=1))
+        return self
+
+    def for_repository(self, repository_id: int) -> Self:
+        """Build a query for tasks by repository."""
+        self.filter(
+            db_entities.Task.payload["repository_id"].as_integer(),
+            FilterOperator.EQ,
+            repository_id,
+        )
         return self

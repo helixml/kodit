@@ -286,13 +286,24 @@ class RepositoryStatusSummary(BaseModel):
     updated_at: datetime
 
     @staticmethod
-    def from_tasks(tasks: list["TaskStatus"]) -> "RepositoryStatusSummary":
+    def from_tasks(  # noqa: PLR0911
+        tasks: list["TaskStatus"], pending_task_count: int = 0
+    ) -> "RepositoryStatusSummary":
         """Derive summary from task statuses.
 
-        Priority: failed > in_progress > completed > pending.
+        Priority: failed > in_progress > pending_queue > completed > pending.
         Timestamp reflects the most recent task with the reported status.
+
+        If there are pending queue tasks, the status is IN_PROGRESS even if
+        all current TaskStatus records are terminal.
         """
         if not tasks:
+            # No task status records yet - check if there are pending queue tasks
+            if pending_task_count > 0:
+                return RepositoryStatusSummary(
+                    status=IndexStatus.IN_PROGRESS,
+                    updated_at=datetime.now(UTC),
+                )
             return RepositoryStatusSummary(
                 status=IndexStatus.PENDING,
                 updated_at=datetime.now(UTC),
@@ -317,6 +328,14 @@ class RepositoryStatusSummary(BaseModel):
             return RepositoryStatusSummary(
                 status=IndexStatus.IN_PROGRESS,
                 updated_at=most_recent_in_progress.updated_at,
+            )
+
+        # Check for pending tasks in the queue before declaring completed
+        if pending_task_count > 0:
+            most_recent = max(tasks, key=lambda t: t.updated_at)
+            return RepositoryStatusSummary(
+                status=IndexStatus.IN_PROGRESS,
+                updated_at=most_recent.updated_at,
             )
 
         all_terminal = all(ReportingState.is_terminal(t.state) for t in tasks)
