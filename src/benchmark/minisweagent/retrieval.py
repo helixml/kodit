@@ -6,6 +6,10 @@ from benchmark.swebench.instance import SWEBenchInstance
 from benchmark.swebench.retriever import KoditRetriever, RetrievedSnippet
 
 
+class NoSnippetsRetrievedError(Exception):
+    """Raised when no snippets are retrieved from Kodit."""
+
+
 class KoditContextProvider:
     """Pre-fetches Kodit snippets and formats them for mini-swe-agent."""
 
@@ -34,11 +38,14 @@ class KoditContextProvider:
         snippets = self._retriever.retrieve(instance, top_k=self._top_k)
 
         if not snippets:
-            self._log.warning(
-                "No snippets retrieved",
+            self._log.error(
+                "No snippets retrieved - indexing may not be complete",
                 instance_id=instance.instance_id,
             )
-            return ""
+            raise NoSnippetsRetrievedError(
+                f"No snippets retrieved for instance {instance.instance_id}. "
+                "This likely indicates that indexing is not complete or failed."
+            )
 
         self._log.info(
             "Retrieved snippets",
