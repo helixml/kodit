@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 import structlog
 
+from benchmark.minisweagent.patch_extractor import PatchExtractor
 from benchmark.minisweagent.retrieval import KoditContextProvider
 from benchmark.runner import BenchmarkOperations
 from benchmark.swebench.instance import SWEBenchInstance
@@ -534,6 +535,15 @@ class MiniSweAgentRunner:
         predictions_path = output_dir / "preds.json"
         trajectories_dir = output_dir / "trajectories"
 
+        # Extract patches from trajectories for predictions with empty model_patch
+        extractor = PatchExtractor(output_dir)
+        extracted = extractor.extract_and_update()
+        if extracted:
+            self._log.info(
+                "Extracted patches from trajectories",
+                count=len(extracted),
+            )
+
         return RunResult(
             predictions_path=predictions_path,
             trajectories_dir=trajectories_dir,
@@ -587,6 +597,15 @@ class MiniSweAgentRunner:
 
         predictions_path = output_dir / "preds.json"
         trajectories_dir = output_dir / "trajectories"
+
+        # Extract patches from trajectories for predictions with empty model_patch
+        extractor = PatchExtractor(output_dir)
+        extracted = extractor.extract_and_update()
+        if extracted:
+            self._log.info(
+                "Extracted patches from trajectories",
+                count=len(extracted),
+            )
 
         # Extract stats from trajectory files
         instance_stats = self._extract_stats(output_dir)
