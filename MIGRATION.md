@@ -716,63 +716,63 @@ Bounded contexts ordered by dependencies (least dependencies first):
 
 #### Entities
 
-- [ ] `src/kodit/domain/enrichments/enrichment.py` → `internal/enrichment/enrichment.go`
+- [x] `src/kodit/domain/enrichments/enrichment.py` → `internal/enrichment/enrichment.go`
 
   Description: EnrichmentV2 interface and base types (Type, Subtype, EntityTypeKey)
   Dependencies: None
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/domain/enrichments/architecture/` → `internal/enrichment/architecture.go`
+- [x] `src/kodit/domain/enrichments/architecture/` → `internal/enrichment/architecture.go`
 
   Description: ArchitectureEnrichment subtypes (physical, database_schema)
   Dependencies: EnrichmentV2
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/domain/enrichments/development/` → `internal/enrichment/development.go`
+- [x] `src/kodit/domain/enrichments/development/` → `internal/enrichment/development.go`
 
   Description: DevelopmentEnrichment subtypes (snippet, snippet_summary, example, example_summary)
   Dependencies: EnrichmentV2
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/domain/enrichments/history/` → `internal/enrichment/history.go`
+- [x] `src/kodit/domain/enrichments/history/` → `internal/enrichment/history.go`
 
   Description: HistoryEnrichment subtypes (commit_description)
   Dependencies: EnrichmentV2
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/domain/enrichments/usage/` → `internal/enrichment/usage.go`
+- [x] `src/kodit/domain/enrichments/usage/` → `internal/enrichment/usage.go`
 
   Description: UsageEnrichment subtypes (cookbook, api_docs)
   Dependencies: EnrichmentV2
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 #### Value Objects
 
-- [ ] `src/kodit/domain/enrichments/enrichment.py:EnrichmentAssociation` → `internal/enrichment/association.go`
+- [x] `src/kodit/domain/enrichments/enrichment.py:EnrichmentAssociation` → `internal/enrichment/association.go`
 
   Description: EnrichmentAssociation (links enrichments to snippets)
   Dependencies: EnrichmentV2
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/domain/enrichments/enrichment.py:CommitEnrichmentAssociation` → `internal/enrichment/association.go`
+- [x] `src/kodit/domain/enrichments/enrichment.py:CommitEnrichmentAssociation` → `internal/enrichment/association.go`
 
   Description: CommitEnrichmentAssociation (links enrichments to commits)
   Dependencies: EnrichmentV2
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 #### Repository Interfaces
 
-- [ ] `src/kodit/domain/protocols.py:EnrichmentV2Repository` → `internal/enrichment/repository.go`
+- [x] `src/kodit/domain/protocols.py:EnrichmentV2Repository` → `internal/enrichment/repository.go`
 
   Description: EnrichmentV2Repository interface
   Dependencies: EnrichmentV2
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/domain/protocols.py:EnrichmentAssociationRepository` → `internal/enrichment/repository.go`
+- [x] `src/kodit/domain/protocols.py:EnrichmentAssociationRepository` → `internal/enrichment/repository.go`
 
   Description: EnrichmentAssociationRepository interface
   Dependencies: EnrichmentAssociation
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 ### Application Layer
 
@@ -802,35 +802,35 @@ Bounded contexts ordered by dependencies (least dependencies first):
 
 #### Repository Implementations
 
-- [ ] `src/kodit/infrastructure/sqlalchemy/enrichment_v2_repository.py` → `internal/enrichment/postgres/enrichment_repository.go`
+- [x] `src/kodit/infrastructure/sqlalchemy/enrichment_v2_repository.py` → `internal/enrichment/postgres/enrichment_repository.go`
 
   Description: PostgreSQL EnrichmentV2Repository implementation
   Dependencies: EnrichmentV2, database
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/infrastructure/sqlalchemy/enrichment_association_repository.py` → `internal/enrichment/postgres/association_repository.go`
+- [x] `src/kodit/infrastructure/sqlalchemy/enrichment_association_repository.py` → `internal/enrichment/postgres/association_repository.go`
 
   Description: PostgreSQL EnrichmentAssociationRepository implementation
   Dependencies: EnrichmentAssociation, database
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 #### Enrichment Service (uses shared AI Provider)
 
 Note: The LLM provider abstraction lives in `internal/provider/` (shared). The enrichment context uses it for text generation.
 
-- [ ] `src/kodit/infrastructure/enricher/local_enricher.py` uses shared provider from `internal/provider/`
+- [x] `src/kodit/infrastructure/enricher/local_enricher.py` uses shared provider from `internal/provider/`
 
   Description: Enricher service uses the shared AI provider abstraction for text generation (summaries, cookbooks, API docs, etc.)
   Dependencies: internal/provider
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 #### Enricher
 
-- [ ] `src/kodit/infrastructure/enricher/local_enricher.py` → `internal/enrichment/enricher.go`
+- [x] `src/kodit/infrastructure/enricher/local_enricher.py` → `internal/enrichment/enricher.go`
 
   Description: Enricher service (orchestrates text generation calls via shared AI provider)
   Dependencies: internal/provider
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 #### Example Extraction
 
@@ -842,19 +842,19 @@ Note: The LLM provider abstraction lives in `internal/provider/` (shared). The e
 
 #### Database Entities
 
-- [ ] `src/kodit/infrastructure/sqlalchemy/entities.py:EnrichmentV2` → `internal/enrichment/postgres/entity.go`
+- [x] `src/kodit/infrastructure/sqlalchemy/entities.py:EnrichmentV2` → `internal/enrichment/postgres/entity.go`
 
-  Description: Database entity mappings for enrichments
+  Description: Database entity mappings for enrichments (includes mapper.go)
   Dependencies: database
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 ### Tests
 
-- [ ] `tests/unit/domain/enrichments/` → `internal/enrichment/enrichment_test.go`
+- [x] `tests/unit/domain/enrichments/` → `internal/enrichment/enrichment_test.go`
 
   Description: Enrichment entity and hierarchy tests
   Dependencies: All enrichment types
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 - [ ] `tests/unit/infrastructure/enricher/` → `internal/enrichment/enricher_test.go`
 
@@ -864,7 +864,7 @@ Note: The LLM provider abstraction lives in `internal/provider/` (shared). The e
 
 - [ ] `tests/unit/infrastructure/providers/` → `internal/enrichment/provider/provider_test.go`
 
-  Description: LLM provider tests
+  Description: LLM provider tests (already done in internal/provider/)
   Dependencies: LLMProvider
   Verified: [ ] builds [ ] tests pass
 
@@ -1157,6 +1157,7 @@ Note: The LLM provider abstraction lives in `internal/provider/` (shared). The e
 | 2026-02-02 | Session 9: Continued Snippet Extraction & Indexing Context (13/19 tasks - 68%). Created: postgres/snippet_repository.go (SnippetRepository implementation with content-addressed deduplication, commit associations, search filters), bm25/vectorchord_repository.go (VectorChord BM25 implementation using PostgreSQL extensions), vector/vectorchord_repository.go (VectorChord vector search using provider.Embedder for embeddings). Tests: postgres/snippet_repository_test.go, bm25/vectorchord_repository_test.go, vector/vectorchord_repository_test.go. Remaining: slicer components (config, analyzer, analyzers/, slicer, ast), embedding service, and task handlers. All tests pass, linting clean. |
 | 2026-02-02 | Session 10: Completed Slicer/AST Parsing components (19/19 tasks - 100% for Snippet Extraction core). Created: slicer/config.go (LanguageConfig with 10 supported languages: Python, Go, Java, C, C++, Rust, JavaScript, TypeScript, TSX, C#), slicer/analyzer.go (Analyzer interface with FunctionDefinition, ClassDefinition, TypeDefinition value objects), slicer/ast.go (Walker for AST traversal, CallGraph for dependency tracking), slicer/analyzers/ (language-specific implementations: base.go, python.go, golang.go, javascript.go, typescript.go, java.go, c.go, cpp.go, rust.go, csharp.go, factory.go), slicer/slicer.go (main Slicer service with file parsing, definition extraction, call graph building, snippet generation). Tests: slicer_test.go. Tree-sitter CGo dependency added (github.com/smacker/go-tree-sitter). Remaining in context: embedding service and task handlers. All tests pass, linting clean. |
 | 2026-02-02 | Session 11: Completed Snippet Extraction & Indexing Application Layer handlers (22/22 tasks - 100%). Created: handler/extract_snippets.go (EXTRACT_SNIPPETS_FOR_COMMIT handler with slicer integration, progress tracking), handler/create_bm25.go (CREATE_BM25_INDEX_FOR_COMMIT handler), handler/create_embeddings.go (CREATE_CODE_EMBEDDINGS_FOR_COMMIT handler with embedding deduplication). Tests: handler/handler_test.go with comprehensive tests for BM25 and embedding handlers. Note: embedding_service.go already existed in indexing/ (not a separate subdirectory). Phase 4 Snippet Extraction & Indexing Context is now 100% complete. All tests pass, linting clean. |
+| 2026-02-02 | Session 12: Started Enrichment Context (13/18 tasks - 72%). Created domain layer: enrichment.go (Enrichment with Type/Subtype/EntityTypeKey, immutable value object), architecture.go, development.go, history.go, usage.go (factory functions and type predicates for all enrichment subtypes), association.go (Association and SnippetSummaryLink value objects), repository.go (EnrichmentRepository and AssociationRepository interfaces). Created infrastructure layer: postgres/entity.go (GORM entities), postgres/mapper.go (domain<->entity mappers), postgres/enrichment_repository.go, postgres/association_repository.go. Created enricher.go (ProviderEnricher service using TextGenerator for LLM calls). Tests: enrichment_test.go (comprehensive tests for all types). Remaining: task handlers, PhysicalArchitectureService, CookbookContextService, example extraction. All tests pass, linting clean. |
 
 ### Architecture Decisions
 
