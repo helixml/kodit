@@ -1,0 +1,1166 @@
+# Kodit Python-to-Go Migration Checklist
+
+## Migration Order
+
+Bounded contexts ordered by dependencies (least dependencies first):
+
+| Order | Context | Dependencies | Critical Path |
+|-------|---------|--------------|---------------|
+| 0 | Shared/Common | None | Foundation types |
+| 1 | Git Management | Shared | Root aggregate |
+| 2 | Task Queue & Orchestration | Shared | Infrastructure for all workflows |
+| 3 | Progress Tracking | Task Queue | Needed for handler execution |
+| 4 | Snippet Extraction & Indexing | Git, Task Queue | Core processing |
+| 5 | Enrichment | Snippet Extraction, Task Queue | LLM integration |
+| 6 | Repository Management | Git, Task Queue | Lifecycle operations |
+| 7 | Code Search | Snippet Extraction, Enrichment | Query interface |
+| 8 | API Gateway | All contexts | External interface |
+
+---
+
+## 0. Shared/Common Types
+
+### Domain Layer
+
+#### Value Objects
+
+- [ ] `src/kodit/domain/value_objects.py` → `internal/domain/value.go`
+
+  Description: Core value objects (LanguageMapping, PaginationParams, FilterOperator, QueuePriority, TaskOperation enum)
+  Dependencies: None
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/domain/value_objects.py:605-697` → `internal/queue/operation.go`
+
+  Description: TaskOperation enum (30+ operations) and PrescribedOperations choreography definitions
+  Dependencies: None
+  Verified: [ ] builds [ ] tests pass
+
+#### Error Types
+
+- [ ] `src/kodit/domain/errors.py` → `internal/domain/errors.go`
+
+  Description: Domain error types (EmptySourceError, etc.)
+  Dependencies: None
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/infrastructure/api/client/exceptions.py` → `internal/api/errors.go`
+
+  Description: API error hierarchy (KoditAPIError, AuthenticationError, ServerError)
+  Dependencies: None
+  Verified: [ ] builds [ ] tests pass
+
+#### Configuration
+
+- [ ] `src/kodit/config.py` → `internal/config/config.go`
+
+  Description: AppContext with all settings (DataDir, DBUrl, endpoints, search config, etc.)
+  Dependencies: None
+  Verified: [ ] builds [ ] tests pass
+
+#### Logging
+
+- [ ] `src/kodit/log.py` → `internal/log/logger.go`
+
+  Description: Structured logging setup with correlation IDs
+  Dependencies: config
+  Verified: [ ] builds [ ] tests pass
+
+#### AI Provider Abstraction
+
+- [ ] `src/kodit/infrastructure/providers/litellm_provider.py` + `src/kodit/infrastructure/embedding/embedding_providers/` → `internal/provider/provider.go`
+
+  Description: Unified AI provider interface supporting both text generation (for enrichments) and embedding generation (for vector search)
+  Dependencies: None
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] → `internal/provider/openai.go`
+
+  Description: OpenAI provider implementation (supports both text generation and embeddings)
+  Dependencies: provider interface, sashabaranov/go-openai
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] → `internal/provider/[additional].go`
+
+  Description: Additional providers (Cohere, Anthropic, etc.) added as needed
+  Dependencies: provider interface
+  Verified: [ ] builds [ ] tests pass
+
+### Infrastructure Layer
+
+#### Database Foundation
+
+- [ ] `src/kodit/database.py` → `internal/database/database.go`
+
+  Description: Database connection, migration runner, session factory
+  Dependencies: config
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/infrastructure/sqlalchemy/unit_of_work.py` → `internal/database/transaction.go`
+
+  Description: Transaction wrapper (UnitOfWork pattern)
+  Dependencies: database
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/infrastructure/sqlalchemy/query.py` → `internal/database/query.go`
+
+  Description: QueryBuilder with FilterOperator support (using GORM query building)
+  Dependencies: None
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/infrastructure/sqlalchemy/repository.py` → `internal/database/repository.go`
+
+  Description: Generic GORM repository base with Go generics (to_domain/to_db patterns)
+  Dependencies: query, unit_of_work
+  Verified: [ ] builds [ ] tests pass
+
+#### Database Migrations
+
+- [ ] `src/kodit/migrations/` → `migrations/`
+
+  Description: All Alembic migrations converted to golang-migrate format
+  Dependencies: database
+  Verified: [ ] builds [ ] migrations run
+
+### Tests
+
+- [ ] `tests/conftest.py` → `internal/testutil/fixtures.go`
+
+  Description: Test fixtures, database setup, common test utilities
+  Dependencies: database, config
+  Verified: [ ] builds [ ] tests pass
+
+---
+
+## 1. Git Management Context
+
+### Domain Layer
+
+#### Entities
+
+- [ ] `src/kodit/domain/entities/git.py:GitRepo` → `internal/git/repo.go`
+
+  Description: GitRepo aggregate root (id, remote_url, working_copy, tracking_config)
+  Dependencies: value objects
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/domain/entities/git.py:GitCommit` → `internal/git/commit.go`
+
+  Description: GitCommit entity (sha, repo_id, message, author, timestamp)
+  Dependencies: GitRepo
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/domain/entities/git.py:GitBranch` → `internal/git/branch.go`
+
+  Description: GitBranch entity (repo_id, name, head_commit_sha)
+  Dependencies: GitRepo
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/domain/entities/git.py:GitTag` → `internal/git/tag.go`
+
+  Description: GitTag entity (repo_id, name, commit_sha)
+  Dependencies: GitRepo
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/domain/entities/git.py:GitFile` → `internal/git/file.go`
+
+  Description: GitFile entity (commit_sha, path, language)
+  Dependencies: GitCommit
+  Verified: [ ] builds [ ] tests pass
+
+#### Value Objects
+
+- [ ] `src/kodit/domain/entities/git.py:WorkingCopy` → `internal/git/working_copy.go`
+
+  Description: Immutable value object (path, uri)
+  Dependencies: None
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/domain/entities/git.py:TrackingConfig` → `internal/git/tracking_config.go`
+
+  Description: Immutable config (branch, tag, commit to track)
+  Dependencies: None
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/domain/entities/git.py:RepositoryScanResult` → `internal/git/scan_result.go`
+
+  Description: Immutable scan output (branches, commits, files, tags)
+  Dependencies: GitBranch, GitCommit, GitFile, GitTag
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/domain/entities/git.py:Author` → `internal/git/author.go`
+
+  Description: Immutable author (name, email)
+  Dependencies: None
+  Verified: [ ] builds [ ] tests pass
+
+#### Repository Interfaces
+
+- [ ] `src/kodit/domain/protocols.py:GitRepoRepository` → `internal/git/repository.go`
+
+  Description: GitRepoRepository interface (CRUD + GetByRemoteURL)
+  Dependencies: GitRepo
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/domain/protocols.py:GitCommitRepository` → `internal/git/repository.go`
+
+  Description: GitCommitRepository interface (CRUD + GetByRepoAndSHA)
+  Dependencies: GitCommit
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/domain/protocols.py:GitBranchRepository` → `internal/git/repository.go`
+
+  Description: GitBranchRepository interface (CRUD + GetByName)
+  Dependencies: GitBranch
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/domain/protocols.py:GitTagRepository` → `internal/git/repository.go`
+
+  Description: GitTagRepository interface
+  Dependencies: GitTag
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/domain/protocols.py:GitFileRepository` → `internal/git/repository.go`
+
+  Description: GitFileRepository interface (CRUD + DeleteByCommitSHA)
+  Dependencies: GitFile
+  Verified: [ ] builds [ ] tests pass
+
+#### Domain Services
+
+- [ ] `src/kodit/domain/services/git_repository_service.py` → `internal/git/scanner.go`
+
+  Description: GitRepositoryScanner service (scan repo, extract metadata)
+  Dependencies: All git entities
+  Verified: [ ] builds [ ] tests pass
+
+### Application Layer
+
+- [ ] (No application services in this context - handlers are in Task Queue context)
+
+### Infrastructure Layer
+
+#### Repository Implementations
+
+- [ ] `src/kodit/infrastructure/sqlalchemy/git_repo_repository.py` → `internal/git/postgres/repo_repository.go`
+
+  Description: PostgreSQL GitRepoRepository implementation
+  Dependencies: GitRepo, database
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/infrastructure/sqlalchemy/git_commit_repository.py` → `internal/git/postgres/commit_repository.go`
+
+  Description: PostgreSQL GitCommitRepository implementation
+  Dependencies: GitCommit, database
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/infrastructure/sqlalchemy/git_branch_repository.py` → `internal/git/postgres/branch_repository.go`
+
+  Description: PostgreSQL GitBranchRepository implementation
+  Dependencies: GitBranch, database
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/infrastructure/sqlalchemy/git_tag_repository.py` → `internal/git/postgres/tag_repository.go`
+
+  Description: PostgreSQL GitTagRepository implementation
+  Dependencies: GitTag, database
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/infrastructure/sqlalchemy/git_file_repository.py` → `internal/git/postgres/file_repository.go`
+
+  Description: PostgreSQL GitFileRepository implementation
+  Dependencies: GitFile, database
+  Verified: [ ] builds [ ] tests pass
+
+#### Database Entities
+
+- [ ] `src/kodit/infrastructure/sqlalchemy/entities.py:GitRepo` → `internal/git/postgres/entity.go`
+
+  Description: Database entity mappings for all Git types
+  Dependencies: database
+  Verified: [ ] builds [ ] tests pass
+
+#### Git Adapters
+
+- [ ] `src/kodit/infrastructure/git/` → `internal/git/adapter/`
+
+  Description: Git library adapter interface
+  Dependencies: None
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/infrastructure/cloning/git/git_python_adaptor.py` → `internal/git/adapter/gitea.go`
+
+  Description: Gitea git module implementation (`code.gitea.io/gitea/modules/git`)
+  Dependencies: Git adapter interface
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/infrastructure/cloning/cloner.py` → `internal/git/cloner.go`
+
+  Description: RepositoryCloner service
+  Dependencies: Git adapter
+  Verified: [ ] builds [ ] tests pass
+
+#### Ignore Patterns
+
+- [ ] `src/kodit/infrastructure/ignore/ignore_pattern_provider.py` → `internal/git/ignore.go`
+
+  Description: Gitignore pattern matching
+  Dependencies: Git adapter
+  Verified: [ ] builds [ ] tests pass
+
+### Tests
+
+- [ ] `tests/unit/domain/entities/test_git.py` → `internal/git/entity_test.go`
+
+  Description: Unit tests for Git entities and value objects
+  Dependencies: All git entities
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `tests/unit/infrastructure/sqlalchemy/test_git_*_repository.py` → `internal/git/postgres/repository_test.go`
+
+  Description: Repository integration tests
+  Dependencies: All git repositories
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `tests/unit/infrastructure/git/` → `internal/git/adapter/adapter_test.go`
+
+  Description: Git adapter tests
+  Dependencies: Git adapters
+  Verified: [ ] builds [ ] tests pass
+
+---
+
+## 2. Task Queue & Orchestration Context
+
+### Domain Layer
+
+#### Entities
+
+- [ ] `src/kodit/domain/entities/__init__.py:Task` → `internal/queue/task.go`
+
+  Description: Task entity (id, dedup_key, type, priority, payload, created_at)
+  Dependencies: TaskOperation
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/domain/entities/__init__.py:TaskStatus` → `internal/queue/status.go`
+
+  Description: TaskStatus entity with state machine (STARTED → IN_PROGRESS → COMPLETED/FAILED/SKIPPED)
+  Dependencies: Task
+  Verified: [ ] builds [ ] tests pass
+
+#### Repository Interfaces
+
+- [ ] `src/kodit/domain/protocols.py:TaskRepository` → `internal/queue/repository.go`
+
+  Description: TaskRepository interface (CRUD + dequeue + priority ordering)
+  Dependencies: Task
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/domain/protocols.py:TaskStatusRepository` → `internal/queue/repository.go`
+
+  Description: TaskStatusRepository interface
+  Dependencies: TaskStatus
+  Verified: [ ] builds [ ] tests pass
+
+### Application Layer
+
+#### Services
+
+- [ ] `src/kodit/application/services/queue_service.py` → `internal/queue/service.go`
+
+  Description: QueueService (enqueue_task, enqueue_tasks with choreography)
+  Dependencies: TaskRepository, TaskOperation
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/application/services/indexing_worker_service.py` → `internal/queue/worker.go`
+
+  Description: IndexingWorkerService (poll loop, task processing, graceful shutdown)
+  Dependencies: QueueService, TaskHandlerRegistry
+  Verified: [ ] builds [ ] tests pass
+
+#### Handler Infrastructure
+
+- [ ] `src/kodit/application/handlers/__init__.py:TaskHandler` → `internal/queue/handler.go`
+
+  Description: TaskHandler interface (Execute method)
+  Dependencies: None
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/application/handlers/registry.py` → `internal/queue/registry.go`
+
+  Description: TaskHandlerRegistry (register/lookup handlers by operation)
+  Dependencies: TaskHandler, TaskOperation
+  Verified: [ ] builds [ ] tests pass
+
+### Infrastructure Layer
+
+#### Repository Implementations
+
+- [ ] `src/kodit/infrastructure/sqlalchemy/task_repository.py` → `internal/queue/postgres/task_repository.go`
+
+  Description: PostgreSQL TaskRepository implementation
+  Dependencies: Task, database
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/infrastructure/sqlalchemy/task_status_repository.py` → `internal/queue/postgres/status_repository.go`
+
+  Description: PostgreSQL TaskStatusRepository implementation
+  Dependencies: TaskStatus, database
+  Verified: [ ] builds [ ] tests pass
+
+#### Database Entities
+
+- [ ] `src/kodit/infrastructure/sqlalchemy/entities.py:Task` → `internal/queue/postgres/entity.go`
+
+  Description: Database entity mappings for Task and TaskStatus
+  Dependencies: database
+  Verified: [ ] builds [ ] tests pass
+
+### Tests
+
+- [ ] `tests/unit/domain/entities/test_task.py` → `internal/queue/task_test.go`
+
+  Description: Unit tests for Task entity
+  Dependencies: Task
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `tests/unit/application/services/test_queue_service.py` → `internal/queue/service_test.go`
+
+  Description: QueueService unit tests
+  Dependencies: QueueService
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `tests/unit/application/services/test_indexing_worker_service.py` → `internal/queue/worker_test.go`
+
+  Description: Worker service tests
+  Dependencies: Worker
+  Verified: [ ] builds [ ] tests pass
+
+---
+
+## 3. Progress Tracking Context
+
+### Domain Layer
+
+#### Interfaces
+
+- [ ] `src/kodit/domain/tracking/trackable.py` → `internal/tracking/trackable.go`
+
+  Description: Trackable interface and TrackableType enum
+  Dependencies: None
+  Verified: [ ] builds [ ] tests pass
+
+#### Value Objects
+
+- [ ] `src/kodit/domain/tracking/status.py` → `internal/tracking/status.go`
+
+  Description: RepositoryStatusSummary, IndexStatus value objects
+  Dependencies: Trackable
+  Verified: [ ] builds [ ] tests pass
+
+### Application Layer
+
+#### Services
+
+- [ ] `src/kodit/application/services/reporting.py:ProgressTracker` → `internal/tracking/tracker.go`
+
+  Description: ProgressTracker with observer pattern (notify_subscribers)
+  Dependencies: ReportingModule
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/application/services/reporting.py:ReportingModule` → `internal/tracking/reporter.go`
+
+  Description: ReportingModule interface (observer)
+  Dependencies: None
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/application/services/task_status_query_service.py` → `internal/tracking/query.go`
+
+  Description: TaskStatusQueryService for progress queries
+  Dependencies: TaskStatusRepository
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/application/services/trackable_resolution_service.py` → `internal/tracking/resolver.go`
+
+  Description: TrackableResolutionService (resolve branch/tag/commit references)
+  Dependencies: Git repositories
+  Verified: [ ] builds [ ] tests pass
+
+### Infrastructure Layer
+
+#### Reporting Modules
+
+- [ ] `src/kodit/infrastructure/reporting/logging_module.py` → `internal/tracking/logging_reporter.go`
+
+  Description: LoggingReportingModule subscriber
+  Dependencies: ReportingModule, logger
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/infrastructure/reporting/db_module.py` → `internal/tracking/db_reporter.go`
+
+  Description: DBProgressReportingModule subscriber
+  Dependencies: ReportingModule, TaskStatusRepository
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/infrastructure/reporting/telemetry_module.py` → `internal/tracking/telemetry_reporter.go`
+
+  Description: TelemetryProgressReportingModule subscriber
+  Dependencies: ReportingModule, analytics client
+  Verified: [ ] builds [ ] tests pass
+
+### Tests
+
+- [ ] `tests/unit/domain/tracking/` → `internal/tracking/tracking_test.go`
+
+  Description: Tracking domain tests
+  Dependencies: Trackable, status types
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `tests/unit/application/services/test_reporting.py` → `internal/tracking/tracker_test.go`
+
+  Description: ProgressTracker tests
+  Dependencies: ProgressTracker
+  Verified: [ ] builds [ ] tests pass
+
+---
+
+## 4. Snippet Extraction & Indexing Context
+
+### Domain Layer
+
+#### Entities
+
+- [ ] `src/kodit/domain/entities/git.py:SnippetV2` → `internal/indexing/snippet.go`
+
+  Description: SnippetV2 aggregate (content-addressed by SHA256, with code, language, type)
+  Dependencies: None
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/domain/entities/__init__.py:CommitIndex` → `internal/indexing/commit_index.go`
+
+  Description: CommitIndex aggregate (snippets for a commit with status)
+  Dependencies: SnippetV2
+  Verified: [ ] builds [ ] tests pass
+
+#### Repository Interfaces
+
+- [ ] `src/kodit/domain/protocols.py:SnippetRepositoryV2` → `internal/indexing/repository.go`
+
+  Description: SnippetRepositoryV2 interface
+  Dependencies: SnippetV2
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/domain/services/bm25_service.py:BM25Repository` → `internal/indexing/bm25_repository.go`
+
+  Description: BM25Repository interface (search, index operations)
+  Dependencies: SnippetV2
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/domain/services/embedding_service.py:VectorSearchRepository` → `internal/indexing/vector_repository.go`
+
+  Description: VectorSearchRepository interface (similarity search)
+  Dependencies: SnippetV2
+  Verified: [ ] builds [ ] tests pass
+
+#### Domain Services
+
+- [ ] `src/kodit/domain/services/bm25_service.py:BM25DomainService` → `internal/indexing/bm25_service.go`
+
+  Description: BM25 indexing domain service
+  Dependencies: BM25Repository
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/domain/services/embedding_service.py:EmbeddingDomainService` → `internal/indexing/embedding_service.go`
+
+  Description: Embedding/vector indexing domain service
+  Dependencies: VectorSearchRepository, EmbeddingProvider
+  Verified: [ ] builds [ ] tests pass
+
+### Application Layer
+
+#### Handlers
+
+- [ ] `src/kodit/application/handlers/snippets/extract_snippets_handler.py` → `internal/queue/handler/extract_snippets.go`
+
+  Description: EXTRACT_SNIPPETS_FOR_COMMIT handler
+  Dependencies: Slicer, SnippetRepository
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/application/handlers/indexing/create_bm25_index_handler.py` → `internal/queue/handler/create_bm25.go`
+
+  Description: CREATE_BM25_INDEX_FOR_COMMIT handler
+  Dependencies: BM25DomainService
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/application/handlers/indexing/create_embeddings_handler.py` → `internal/queue/handler/create_embeddings.go`
+
+  Description: CREATE_CODE_EMBEDDINGS_FOR_COMMIT handler
+  Dependencies: EmbeddingDomainService
+  Verified: [ ] builds [ ] tests pass
+
+### Infrastructure Layer
+
+#### Repository Implementations
+
+- [ ] `src/kodit/infrastructure/sqlalchemy/snippet_v2_repository.py` → `internal/indexing/postgres/snippet_repository.go`
+
+  Description: PostgreSQL SnippetRepositoryV2 implementation
+  Dependencies: SnippetV2, database
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/infrastructure/bm25/vectorchord_bm25_repository.py` → `internal/indexing/bm25/vectorchord_repository.go`
+
+  Description: VectorChord BM25 implementation (primary BM25 store, batch-only updates)
+  Dependencies: BM25Repository, GORM
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/infrastructure/embedding/vector_search_repository.py` → `internal/indexing/vector/repository.go`
+
+  Description: Vector search repository implementation
+  Dependencies: VectorSearchRepository
+  Verified: [ ] builds [ ] tests pass
+
+#### Slicing (AST Parsing)
+
+- [ ] `src/kodit/infrastructure/slicing/language_config.py` → `internal/indexing/slicer/config.go`
+
+  Description: Language configuration (supported languages, tree-sitter grammars)
+  Dependencies: None
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/infrastructure/slicing/language_analyzer.py` → `internal/indexing/slicer/analyzer.go`
+
+  Description: LanguageAnalyzer interface (extract functions, classes, etc.)
+  Dependencies: tree-sitter
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/infrastructure/slicing/analyzers/*.py` → `internal/indexing/slicer/analyzers/`
+
+  Description: Language-specific analyzers (Python, Go, JavaScript, TypeScript, etc.)
+  Dependencies: LanguageAnalyzer
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/infrastructure/slicing/slicer.py` → `internal/indexing/slicer/slicer.go`
+
+  Description: Main Slicer service (orchestrates AST parsing)
+  Dependencies: LanguageAnalyzer, tree-sitter
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/infrastructure/slicing/ast_analyzer.py` → `internal/indexing/slicer/ast.go`
+
+  Description: AST traversal utilities
+  Dependencies: tree-sitter
+  Verified: [ ] builds [ ] tests pass
+
+#### Embedding Service (uses shared AI Provider)
+
+- [ ] `src/kodit/infrastructure/embedding/embedding_providers/` → `internal/indexing/embedding/service.go`
+
+  Description: Embedding service that uses the shared AI provider abstraction (`internal/provider/`) for vector generation
+  Dependencies: internal/provider
+  Verified: [ ] builds [ ] tests pass
+
+#### Database Entities
+
+- [ ] `src/kodit/infrastructure/sqlalchemy/entities.py:SnippetV2` → `internal/indexing/postgres/entity.go`
+
+  Description: Database entity mappings for SnippetV2
+  Dependencies: database
+  Verified: [ ] builds [ ] tests pass
+
+### Tests
+
+- [ ] `tests/unit/domain/entities/test_snippet.py` → `internal/indexing/snippet_test.go`
+
+  Description: SnippetV2 entity tests
+  Dependencies: SnippetV2
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `tests/unit/infrastructure/slicing/` → `internal/indexing/slicer/slicer_test.go`
+
+  Description: Slicer and analyzer tests
+  Dependencies: Slicer
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `tests/unit/infrastructure/bm25/` → `internal/indexing/bm25/repository_test.go`
+
+  Description: BM25 repository tests
+  Dependencies: BM25 repositories
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `tests/unit/infrastructure/embedding/` → `internal/indexing/embedding/embedding_test.go`
+
+  Description: Embedding provider tests
+  Dependencies: EmbeddingProviders
+  Verified: [ ] builds [ ] tests pass
+
+---
+
+## 5. Enrichment Context
+
+### Domain Layer
+
+#### Entities
+
+- [ ] `src/kodit/domain/enrichments/enrichment.py` → `internal/enrichment/enrichment.go`
+
+  Description: EnrichmentV2 interface and base types (Type, Subtype, EntityTypeKey)
+  Dependencies: None
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/domain/enrichments/architecture/` → `internal/enrichment/architecture.go`
+
+  Description: ArchitectureEnrichment subtypes (physical, database_schema)
+  Dependencies: EnrichmentV2
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/domain/enrichments/development/` → `internal/enrichment/development.go`
+
+  Description: DevelopmentEnrichment subtypes (snippet, snippet_summary, example, example_summary)
+  Dependencies: EnrichmentV2
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/domain/enrichments/history/` → `internal/enrichment/history.go`
+
+  Description: HistoryEnrichment subtypes (commit_description)
+  Dependencies: EnrichmentV2
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/domain/enrichments/usage/` → `internal/enrichment/usage.go`
+
+  Description: UsageEnrichment subtypes (cookbook, api_docs)
+  Dependencies: EnrichmentV2
+  Verified: [ ] builds [ ] tests pass
+
+#### Value Objects
+
+- [ ] `src/kodit/domain/enrichments/enrichment.py:EnrichmentAssociation` → `internal/enrichment/association.go`
+
+  Description: EnrichmentAssociation (links enrichments to snippets)
+  Dependencies: EnrichmentV2
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/domain/enrichments/enrichment.py:CommitEnrichmentAssociation` → `internal/enrichment/association.go`
+
+  Description: CommitEnrichmentAssociation (links enrichments to commits)
+  Dependencies: EnrichmentV2
+  Verified: [ ] builds [ ] tests pass
+
+#### Repository Interfaces
+
+- [ ] `src/kodit/domain/protocols.py:EnrichmentV2Repository` → `internal/enrichment/repository.go`
+
+  Description: EnrichmentV2Repository interface
+  Dependencies: EnrichmentV2
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/domain/protocols.py:EnrichmentAssociationRepository` → `internal/enrichment/repository.go`
+
+  Description: EnrichmentAssociationRepository interface
+  Dependencies: EnrichmentAssociation
+  Verified: [ ] builds [ ] tests pass
+
+### Application Layer
+
+#### Handlers
+
+- [ ] `src/kodit/application/handlers/enrichments/` → `internal/queue/handler/enrichment/`
+
+  Description: All enrichment task handlers (CREATE_*_ENRICHMENT operations)
+  Dependencies: EnrichmentV2Repository, LLMProvider
+  Verified: [ ] builds [ ] tests pass
+
+#### Services
+
+- [ ] `src/kodit/domain/services/physical_architecture_service.py` → `internal/enrichment/physical_architecture.go`
+
+  Description: PhysicalArchitectureService (system structure discovery)
+  Dependencies: LLMProvider
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/domain/services/cookbook_context_service.py` → `internal/enrichment/cookbook.go`
+
+  Description: CookbookContextService (usage guide generation)
+  Dependencies: LLMProvider, SnippetRepository
+  Verified: [ ] builds [ ] tests pass
+
+### Infrastructure Layer
+
+#### Repository Implementations
+
+- [ ] `src/kodit/infrastructure/sqlalchemy/enrichment_v2_repository.py` → `internal/enrichment/postgres/enrichment_repository.go`
+
+  Description: PostgreSQL EnrichmentV2Repository implementation
+  Dependencies: EnrichmentV2, database
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/infrastructure/sqlalchemy/enrichment_association_repository.py` → `internal/enrichment/postgres/association_repository.go`
+
+  Description: PostgreSQL EnrichmentAssociationRepository implementation
+  Dependencies: EnrichmentAssociation, database
+  Verified: [ ] builds [ ] tests pass
+
+#### Enrichment Service (uses shared AI Provider)
+
+Note: The LLM provider abstraction lives in `internal/provider/` (shared). The enrichment context uses it for text generation.
+
+- [ ] `src/kodit/infrastructure/enricher/local_enricher.py` uses shared provider from `internal/provider/`
+
+  Description: Enricher service uses the shared AI provider abstraction for text generation (summaries, cookbooks, API docs, etc.)
+  Dependencies: internal/provider
+  Verified: [ ] builds [ ] tests pass
+
+#### Enricher
+
+- [ ] `src/kodit/infrastructure/enricher/local_enricher.py` → `internal/enrichment/enricher.go`
+
+  Description: Enricher service (orchestrates text generation calls via shared AI provider)
+  Dependencies: internal/provider
+  Verified: [ ] builds [ ] tests pass
+
+#### Example Extraction
+
+- [ ] `src/kodit/infrastructure/example_extraction/` → `internal/enrichment/example/`
+
+  Description: Example extraction from documentation
+  Dependencies: DocumentationParser
+  Verified: [ ] builds [ ] tests pass
+
+#### Database Entities
+
+- [ ] `src/kodit/infrastructure/sqlalchemy/entities.py:EnrichmentV2` → `internal/enrichment/postgres/entity.go`
+
+  Description: Database entity mappings for enrichments
+  Dependencies: database
+  Verified: [ ] builds [ ] tests pass
+
+### Tests
+
+- [ ] `tests/unit/domain/enrichments/` → `internal/enrichment/enrichment_test.go`
+
+  Description: Enrichment entity and hierarchy tests
+  Dependencies: All enrichment types
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `tests/unit/infrastructure/enricher/` → `internal/enrichment/enricher_test.go`
+
+  Description: Enricher service tests
+  Dependencies: Enricher
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `tests/unit/infrastructure/providers/` → `internal/enrichment/provider/provider_test.go`
+
+  Description: LLM provider tests
+  Dependencies: LLMProvider
+  Verified: [ ] builds [ ] tests pass
+
+---
+
+## 6. Repository Management Context
+
+### Domain Layer
+
+#### Entities
+
+- [ ] `src/kodit/domain/entities/__init__.py:Source` → `internal/repository/source.go`
+
+  Description: Source entity (repository with WorkingCopy reference)
+  Dependencies: WorkingCopy
+  Verified: [ ] builds [ ] tests pass
+
+### Application Layer
+
+#### Handlers
+
+- [ ] `src/kodit/application/handlers/repository/clone_repository_handler.py` → `internal/queue/handler/clone_repository.go`
+
+  Description: CLONE_REPOSITORY handler
+  Dependencies: RepositoryCloner, GitRepoRepository
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/application/handlers/repository/sync_repository_handler.py` → `internal/queue/handler/sync_repository.go`
+
+  Description: SYNC_REPOSITORY handler
+  Dependencies: Git adapter, GitRepoRepository
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/application/handlers/repository/delete_repository_handler.py` → `internal/queue/handler/delete_repository.go`
+
+  Description: DELETE_REPOSITORY handler
+  Dependencies: GitRepoRepository, cleanup services
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/application/handlers/commits/scan_commit_handler.py` → `internal/queue/handler/scan_commit.go`
+
+  Description: SCAN_COMMIT handler
+  Dependencies: GitRepositoryScanner, GitCommitRepository
+  Verified: [ ] builds [ ] tests pass
+
+#### Services
+
+- [ ] `src/kodit/application/services/repository_query_service.py` → `internal/repository/query.go`
+
+  Description: RepositoryQueryService (read-only queries for repos)
+  Dependencies: GitRepoRepository
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/application/services/repository_sync_service.py` → `internal/repository/sync.go`
+
+  Description: RepositorySyncService (sync orchestration)
+  Dependencies: QueueService, GitRepoRepository
+  Verified: [ ] builds [ ] tests pass
+
+### Tests
+
+- [ ] `tests/unit/application/handlers/repository/` → `internal/queue/handler/repository_test.go`
+
+  Description: Repository handler tests
+  Dependencies: All repository handlers
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `tests/unit/application/services/test_repository_*_service.py` → `internal/repository/service_test.go`
+
+  Description: Repository service tests
+  Dependencies: Repository services
+  Verified: [ ] builds [ ] tests pass
+
+---
+
+## 7. Code Search Context
+
+### Domain Layer
+
+#### Value Objects
+
+- [ ] `src/kodit/application/services/code_search_application_service.py:MultiSearchRequest` → `internal/search/request.go`
+
+  Description: MultiSearchRequest (query, filters, pagination)
+  Dependencies: SnippetSearchFilters
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/application/services/code_search_application_service.py:MultiSearchResult` → `internal/search/result.go`
+
+  Description: MultiSearchResult (snippets, enrichments, scores)
+  Dependencies: SnippetV2, EnrichmentV2
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/infrastructure/indexing/fusion_service.py:FusionRequest` → `internal/search/fusion.go`
+
+  Description: FusionRequest (BM25 + vector inputs)
+  Dependencies: None
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/infrastructure/indexing/fusion_service.py:FusionResult` → `internal/search/fusion.go`
+
+  Description: FusionResult (combined scores via reciprocal rank fusion)
+  Dependencies: None
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/domain/value_objects.py:SnippetSearchFilters` → `internal/search/filters.go`
+
+  Description: SnippetSearchFilters (language, author, dates, repo, enrichment types)
+  Dependencies: None
+  Verified: [ ] builds [ ] tests pass
+
+### Application Layer
+
+#### Services
+
+- [ ] `src/kodit/application/services/code_search_application_service.py` → `internal/search/service.go`
+
+  Description: CodeSearchApplicationService (orchestrates hybrid search)
+  Dependencies: BM25Repository, VectorSearchRepository, FusionService
+  Verified: [ ] builds [ ] tests pass
+
+### Infrastructure Layer
+
+#### Services
+
+- [ ] `src/kodit/infrastructure/indexing/fusion_service.py` → `internal/search/fusion_service.go`
+
+  Description: FusionService (reciprocal rank fusion algorithm)
+  Dependencies: None
+  Verified: [ ] builds [ ] tests pass
+
+### Tests
+
+- [ ] `tests/unit/application/services/test_code_search_application_service.py` → `internal/search/service_test.go`
+
+  Description: Search service tests
+  Dependencies: CodeSearchApplicationService
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `tests/unit/infrastructure/indexing/test_fusion_service.py` → `internal/search/fusion_test.go`
+
+  Description: Fusion algorithm tests
+  Dependencies: FusionService
+  Verified: [ ] builds [ ] tests pass
+
+---
+
+## 8. API Gateway Context
+
+### Infrastructure Layer
+
+#### Server Setup
+
+- [ ] `src/kodit/app.py` → `internal/api/server.go`
+
+  Description: HTTP server setup, lifespan management, middleware registration
+  Dependencies: All services
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/cli.py` → `cmd/kodit/main.go`
+
+  Description: CLI entry point (serve, stdio, version commands)
+  Dependencies: Server, config
+  Verified: [ ] builds [ ] tests pass
+
+#### Middleware
+
+- [ ] `src/kodit/infrastructure/api/middleware.py` → `internal/api/middleware/`
+
+  Description: Request logging, correlation ID, error handling middleware
+  Dependencies: Logger
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/infrastructure/api/dependencies.py` → `internal/api/dependencies.go`
+
+  Description: Dependency injection for handlers
+  Dependencies: ServerFactory
+  Verified: [ ] builds [ ] tests pass
+
+#### Routers (Endpoints)
+
+- [ ] `src/kodit/infrastructure/api/v1/routers/repositories.py` → `internal/api/v1/repositories.go`
+
+  Description: /api/v1/repositories endpoints
+  Dependencies: RepositoryQueryService, QueueService
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/infrastructure/api/v1/routers/commits.py` → `internal/api/v1/commits.go`
+
+  Description: /api/v1/commits endpoints
+  Dependencies: GitCommitRepository
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/infrastructure/api/v1/routers/search.py` → `internal/api/v1/search.go`
+
+  Description: /api/v1/search endpoints
+  Dependencies: CodeSearchApplicationService
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/infrastructure/api/v1/routers/enrichments.py` → `internal/api/v1/enrichments.go`
+
+  Description: /api/v1/enrichments endpoints
+  Dependencies: EnrichmentV2Repository
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `src/kodit/infrastructure/api/v1/routers/queue.py` → `internal/api/v1/queue.go`
+
+  Description: /api/v1/queue endpoints
+  Dependencies: TaskRepository, TaskStatusQueryService
+  Verified: [ ] builds [ ] tests pass
+
+#### Schemas (DTOs)
+
+- [ ] `src/kodit/infrastructure/api/v1/schemas/` → `internal/api/v1/dto/`
+
+  Description: Request/response DTOs for all endpoints
+  Dependencies: Domain entities
+  Verified: [ ] builds [ ] tests pass
+
+#### MCP Server (Required for MVP)
+
+- [ ] `src/kodit/mcp.py` → `internal/mcp/server.go`
+
+  Description: MCP (Model Context Protocol) server via Streaming HTTP (not STDIO). Basic tool registration only.
+  Dependencies: All services, mark3labs/mcp-go
+  Verified: [ ] builds [ ] tests pass
+
+### Factory
+
+- [ ] `src/kodit/application/factories/server_factory.py` → `internal/factory/server.go`
+
+  Description: ServerFactory (dependency injection, handler registration)
+  Dependencies: All repositories, services, handlers
+  Verified: [ ] builds [ ] tests pass
+
+### Tests
+
+- [ ] `tests/unit/infrastructure/api/` → `internal/api/api_test.go`
+
+  Description: API endpoint tests
+  Dependencies: All routers
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `tests/integration/` → `internal/api/integration_test.go`
+
+  Description: Full integration tests
+  Dependencies: Server, database
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `tests/e2e/` → `test/e2e/`
+
+  Description: End-to-end tests
+  Dependencies: Full system
+  Verified: [ ] builds [ ] tests pass
+
+---
+
+## Blockers & Decisions
+
+| ID | Category | Issue | Options | Decision | Status |
+|----|----------|-------|---------|----------|--------|
+| B1 | AI Providers | No pure-Go equivalents for LiteLLM or sentence-transformers | 1) Separate abstractions 2) Unified abstraction 3) Keep Python service | Unified AI provider abstraction in `internal/provider/` handling both text generation and embeddings | Resolved |
+| B2 | tree-sitter | CGo required for go-tree-sitter | 1) Accept CGo 2) External parsing service 3) Alternative parser | Accept CGo dependency | Resolved |
+| B4 | Git Libraries | Python uses 3 libraries (GitPython, pygit2, dulwich) | 1) go-git 2) git2go 3) gitea git module | Use Gitea git module (`code.gitea.io/gitea/modules/git`) | Resolved |
+| B5 | BM25 Search | bm25s is Python-specific | 1) bleve full-text search 2) Custom BM25 impl 3) VectorChord | VectorChord (already in use), batch-only updates | Resolved |
+| B6 | Database ORM | SQLAlchemy generic repository pattern | 1) sqlc (generated) 2) sqlx (manual) 3) GORM (ORM) | GORM (full ORM) | Resolved |
+| B7 | Task Payload Compat | Must serialize identically for interop period | Define JSON schema for all payloads | N/A - no interop period, migrating one context at a time | Resolved |
+| D1 | Package Structure | Flat vs nested packages | Follow CLAUDE.md structure | Structure not final, repositories live separately (`internal/repository/`) | Resolved |
+| D2 | Error Handling | Sentinel vs typed errors | Mix: sentinels for common, typed for context | Wrap errors only at boundaries, use jsonapi.org/format#errors for API | Resolved |
+| D3 | Generics | Use Go generics for Repository[T]? | Evaluate per-entity vs generic interfaces | Use Go generics, simplicity over type safety | Resolved |
+
+---
+
+## Notes
+
+<!-- Running log of migration notes, discoveries, and learnings -->
+
+### Session Log
+
+| Date | Note |
+|------|------|
+| | |
+
+### Architecture Decisions
+
+- **Unified AI provider**: Single abstraction in `internal/provider/` handles both text generation (enrichments) and embedding generation (vector search). Providers implement one or both capabilities.
+- **No interop period**: Python and Go services will NOT run simultaneously. Migration is one context at a time with immediate cutover.
+- **Same database**: Go service uses the same database as Python with no schema changes required.
+- **MCP required for MVP**: Model Context Protocol via Streaming HTTP is required.
+- **API compatibility**: Must maintain /api/v1/ compatibility with existing clients. OpenAPI spec exists in Python codebase.
+- **Manual DI**: No dependency injection framework (wire, fx). Use manual construction.
+- **All languages supported**: MVP must support all existing languages for snippet extraction.
+- **All enrichment types**: All ~8 enrichment subtypes required for MVP (one LLM call per enrichment).
+- **No rollback strategy**: Migration is forward-only.
+
+### Known Differences
+
+- **Progress tracking**: Start with API polling (not real-time). WebSocket/SSE not required.
+- **Monitoring**: Basic logging only. No metrics, tracing, or dashboards.
+- **Configuration**: Environment variables for backwards compatibility. Future: API-loaded config stored in database.
+
+### Testing Strategy
+
+- Focus on e2e tests, no unit test coverage requirements.
+- No parity validation between Python and Go implementations.
+- Use fakes, not mocks.
+
+### Performance Observations
+
+- No latency SLOs for API endpoints.
+- No throughput requirements for task queue worker.
+- No memory or CPU constraints.
+- BM25 score parity not required (approximate is acceptable).
