@@ -2,10 +2,12 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/helixml/kodit/internal/database"
 	"github.com/helixml/kodit/internal/git"
+	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
@@ -117,4 +119,17 @@ func (r *FileRepository) DeleteByCommitSHA(ctx context.Context, sha string) erro
 		return fmt.Errorf("delete files by commit: %w", result.Error)
 	}
 	return nil
+}
+
+// GetByCommitAndPath retrieves a file by commit SHA and path.
+func (r *FileRepository) GetByCommitAndPath(ctx context.Context, sha, path string) (git.File, error) {
+	var entity FileEntity
+	result := r.db.Session(ctx).Where("commit_sha = ? AND path = ?", sha, path).First(&entity)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return git.File{}, fmt.Errorf("%w: file %s at %s", database.ErrNotFound, path, sha)
+		}
+		return git.File{}, fmt.Errorf("get file: %w", result.Error)
+	}
+	return r.mapper.ToDomain(entity), nil
 }
