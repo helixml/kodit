@@ -29,7 +29,7 @@ PROMPT='Continue the Python-to-Go migration. Follow this workflow:
    - Note any blockers or partial work
    - List recommended next tasks
 
-Start by reading MIGRATION.md and giving me the Session Start Report.'
+Start by reading MIGRATION.md and giving me the Session Start Report. Then start the migration as you are running in the background.'
 
 ITERATION=0
 
