@@ -1122,11 +1122,11 @@ Note: SnippetSearchFilters, MultiSearchRequest, FusionRequest, and FusionResult 
   Dependencies: Server, database
   Verified: [ ] builds [ ] tests pass
 
-- [ ] `tests/e2e/` → `test/e2e/`
+- [x] `tests/e2e/` → `test/e2e/`
 
-  Description: End-to-end tests (deferred - requires full system)
+  Description: End-to-end tests for API server with SQLite in-memory database
   Dependencies: Full system
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 ---
 
@@ -1170,6 +1170,7 @@ Note: SnippetSearchFilters, MultiSearchRequest, FusionRequest, and FusionResult 
 | 2026-02-02 | Session 14: Completed Repository Management Context (8/8 tasks - 100%). Created: source.go (Source entity wrapping git.Repo with status tracking), clone_repository.go (CLONE_REPOSITORY handler), sync_repository.go (SYNC_REPOSITORY handler with branch scanning and commit scan queueing), delete_repository.go (DELETE_REPOSITORY handler with full cascade delete), scan_commit.go (SCAN_COMMIT handler with file extraction), query.go (QueryService for repository reads with RepositorySummary), sync.go (SyncService for add/sync/delete orchestration). Tests: source_test.go, repository_test.go (handler helper tests), service_test.go (QueryService and SyncService tests). Phase 6 Repository Management Context is now 100% complete. All tests pass, linting clean. |
 | 2026-02-02 | Session 15: Completed Code Search Context (10/10 tasks - 100%). Value objects (SnippetSearchFilters, MultiSearchRequest, FusionRequest, FusionResult) were already created in Phase 0 in internal/domain/value.go. Created: internal/search/fusion_service.go (FusionService with RRF algorithm), internal/search/service.go (Service orchestrating hybrid BM25+vector search, MultiSearchResult value object), fusion_service_test.go (comprehensive RRF algorithm tests), service_test.go (Service tests with fakes for all repository dependencies). Phase 7 Code Search Context is now 100% complete. All tests pass, linting clean. |
 | 2026-02-02 | Session 16: Completed API Gateway Context (16/18 tasks - 89%). Created: internal/api/server.go (HTTP server with chi router), internal/api/middleware/ (logging.go with request logging, correlation.go with correlation ID propagation, error.go with JSON:API error responses), internal/api/v1/dto/ (repository.go, search.go, enrichment.go, commit.go, queue.go DTOs), internal/api/v1/ (repositories.go, commits.go, search.go, enrichments.go, queue.go routers), internal/factory/server.go (ServerFactory with builder pattern for DI), cmd/kodit/main.go (CLI with serve, stdio, version commands using cobra), internal/mcp/server.go (MCP server with search and get_snippet tools using mark3labs/mcp-go). Added chi router, cobra, and mcp-go dependencies. Added API tests: internal/api/server_test.go (server lifecycle tests), internal/api/v1/router_test.go (enrichments router tests with FakeEnrichmentRepository). Integration and e2e tests deferred (require full database setup). All tests pass, linting clean. |
+| 2026-02-02 | Session 17: Completed E2E tests (17/18 tasks - 94%). Created test/e2e/ package with comprehensive end-to-end tests: main_test.go (test suite), helpers_test.go (TestServer with SQLite in-memory database, fake BM25/Vector repositories), health_test.go, repositories_test.go (CRUD operations), search_test.go, enrichments_test.go, queue_test.go. Fixed error middleware to handle both domain.ErrNotFound and database.ErrNotFound for proper 404 responses. 24 e2e tests pass covering all API endpoints. All tests pass, linting clean. |
 
 ### Architecture Decisions
 

@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/helixml/kodit/internal/api"
+	"github.com/helixml/kodit/internal/database"
 	"github.com/helixml/kodit/internal/domain"
 )
 
@@ -63,7 +64,7 @@ func WriteError(w http.ResponseWriter, r *http.Request, err error, logger *slog.
 		status = http.StatusUnauthorized
 		title = "Authentication Failed"
 		detail = authErr.Error()
-	case errors.Is(err, domain.ErrNotFound):
+	case errors.Is(err, domain.ErrNotFound), errors.Is(err, database.ErrNotFound):
 		status = http.StatusNotFound
 		title = "Not Found"
 	case errors.Is(err, domain.ErrValidation):
