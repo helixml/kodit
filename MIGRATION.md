@@ -344,103 +344,109 @@ Bounded contexts ordered by dependencies (least dependencies first):
 
 #### Entities
 
-- [ ] `src/kodit/domain/entities/__init__.py:Task` → `internal/queue/task.go`
+- [x] `src/kodit/domain/entities/__init__.py:Task` → `internal/queue/task.go`
 
   Description: Task entity (id, dedup_key, type, priority, payload, created_at)
   Dependencies: TaskOperation
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/domain/entities/__init__.py:TaskStatus` → `internal/queue/status.go`
+- [x] `src/kodit/domain/entities/__init__.py:TaskStatus` → `internal/queue/status.go`
 
   Description: TaskStatus entity with state machine (STARTED → IN_PROGRESS → COMPLETED/FAILED/SKIPPED)
   Dependencies: Task
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 #### Repository Interfaces
 
-- [ ] `src/kodit/domain/protocols.py:TaskRepository` → `internal/queue/repository.go`
+- [x] `src/kodit/domain/protocols.py:TaskRepository` → `internal/queue/repository.go`
 
   Description: TaskRepository interface (CRUD + dequeue + priority ordering)
   Dependencies: Task
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/domain/protocols.py:TaskStatusRepository` → `internal/queue/repository.go`
+- [x] `src/kodit/domain/protocols.py:TaskStatusRepository` → `internal/queue/repository.go`
 
   Description: TaskStatusRepository interface
   Dependencies: TaskStatus
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 ### Application Layer
 
 #### Services
 
-- [ ] `src/kodit/application/services/queue_service.py` → `internal/queue/service.go`
+- [x] `src/kodit/application/services/queue_service.py` → `internal/queue/service.go`
 
   Description: QueueService (enqueue_task, enqueue_tasks with choreography)
   Dependencies: TaskRepository, TaskOperation
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/application/services/indexing_worker_service.py` → `internal/queue/worker.go`
+- [x] `src/kodit/application/services/indexing_worker_service.py` → `internal/queue/worker.go`
 
   Description: IndexingWorkerService (poll loop, task processing, graceful shutdown)
   Dependencies: QueueService, TaskHandlerRegistry
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 #### Handler Infrastructure
 
-- [ ] `src/kodit/application/handlers/__init__.py:TaskHandler` → `internal/queue/handler.go`
+- [x] `src/kodit/application/handlers/__init__.py:TaskHandler` → `internal/queue/handler.go`
 
   Description: TaskHandler interface (Execute method)
   Dependencies: None
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/application/handlers/registry.py` → `internal/queue/registry.go`
+- [x] `src/kodit/application/handlers/registry.py` → `internal/queue/registry.go`
 
   Description: TaskHandlerRegistry (register/lookup handlers by operation)
   Dependencies: TaskHandler, TaskOperation
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 ### Infrastructure Layer
 
 #### Repository Implementations
 
-- [ ] `src/kodit/infrastructure/sqlalchemy/task_repository.py` → `internal/queue/postgres/task_repository.go`
+- [x] `src/kodit/infrastructure/sqlalchemy/task_repository.py` → `internal/queue/postgres/task_repository.go`
 
   Description: PostgreSQL TaskRepository implementation
   Dependencies: Task, database
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/infrastructure/sqlalchemy/task_status_repository.py` → `internal/queue/postgres/status_repository.go`
+- [x] `src/kodit/infrastructure/sqlalchemy/task_status_repository.py` → `internal/queue/postgres/status_repository.go`
 
   Description: PostgreSQL TaskStatusRepository implementation
   Dependencies: TaskStatus, database
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 #### Database Entities
 
-- [ ] `src/kodit/infrastructure/sqlalchemy/entities.py:Task` → `internal/queue/postgres/entity.go`
+- [x] `src/kodit/infrastructure/sqlalchemy/entities.py:Task` → `internal/queue/postgres/entity.go`
 
-  Description: Database entity mappings for Task and TaskStatus
+  Description: Database entity mappings for Task and TaskStatus (includes mapper.go)
   Dependencies: database
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 ### Tests
 
-- [ ] `tests/unit/domain/entities/test_task.py` → `internal/queue/task_test.go`
+- [x] `tests/unit/domain/entities/test_task.py` → `internal/queue/task_test.go`
 
   Description: Unit tests for Task entity
   Dependencies: Task
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
+
+- [x] → `internal/queue/status_test.go`
+
+  Description: Unit tests for TaskStatus entity
+  Dependencies: TaskStatus
+  Verified: [x] builds [x] tests pass
 
 - [ ] `tests/unit/application/services/test_queue_service.py` → `internal/queue/service_test.go`
 
-  Description: QueueService unit tests
+  Description: QueueService unit tests (requires fake repository)
   Dependencies: QueueService
   Verified: [ ] builds [ ] tests pass
 
 - [ ] `tests/unit/application/services/test_indexing_worker_service.py` → `internal/queue/worker_test.go`
 
-  Description: Worker service tests
+  Description: Worker service tests (requires fake repository)
   Dependencies: Worker
   Verified: [ ] builds [ ] tests pass
 
@@ -1144,6 +1150,7 @@ Note: The LLM provider abstraction lives in `internal/provider/` (shared). The e
 | 2026-02-02 | Session 2: Completed 5 more tasks in Phase 0 Infrastructure Layer. Created database.go (GORM connection), transaction.go (UnitOfWork pattern), query.go (QueryBuilder with FilterOperator), repository.go (generic Repository[D,E]), and testutil/fixtures.go. Database migrations deferred (no schema changes required). Then completed 14 tasks in Phase 1 Git Management Domain Layer: all entities (Repo, Commit, Branch, Tag, File), all value objects (WorkingCopy, TrackingConfig, Author, ScanResult), and all repository interfaces. |
 | 2026-02-02 | Session 3: Completed Git Management Infrastructure Layer. Created: adapter.go (Git Adapter interface), scanner.go (GitRepositoryScanner service), postgres/entity.go (GORM entities), postgres/mapper.go (domain<->entity mappers), postgres/repo_repository.go, postgres/commit_repository.go, postgres/branch_repository.go, postgres/tag_repository.go, postgres/file_repository.go, gitadapter/gogit.go (go-git implementation using github.com/go-git/go-git/v5), and cloner.go (RepositoryCloner service). All tests pass, linting clean. Decision: Use go-git instead of Gitea modules - pure Go, no CGO required. |
 | 2026-02-02 | Session 4: Completed final Git Management tasks. Created: ignore.go (IgnorePattern for gitignore + .noindex patterns), postgres/repository_test.go (comprehensive integration tests for all 5 repository implementations), gitadapter/gogit_test.go (adapter tests covering all operations). Added GetByCommitAndPath method to FileRepository. Git Management Context is now 100% complete. All tests pass, linting clean. |
+| 2026-02-02 | Session 5: Completed Task Queue & Orchestration Context (12/14 tasks). Created: task.go (Task entity with dedup key generation), status.go (TaskStatus with state machine), repository.go (TaskRepository and TaskStatusRepository interfaces), handler.go (Handler interface), registry.go (Registry for operation->handler mapping), service.go (QueueService), worker.go (Worker with poll loop and graceful shutdown), postgres/entity.go (GORM entities), postgres/mapper.go (mappers), postgres/task_repository.go, postgres/status_repository.go. Tests: task_test.go, status_test.go. Remaining: service_test.go and worker_test.go (require fakes). All tests pass, linting clean. |
 
 ### Architecture Decisions
 
