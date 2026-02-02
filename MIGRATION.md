@@ -594,23 +594,23 @@ Bounded contexts ordered by dependencies (least dependencies first):
 
 #### Handlers
 
-- [ ] `src/kodit/application/handlers/snippets/extract_snippets_handler.py` → `internal/queue/handler/extract_snippets.go`
+- [x] `src/kodit/application/handlers/snippets/extract_snippets_handler.py` → `internal/queue/handler/extract_snippets.go`
 
   Description: EXTRACT_SNIPPETS_FOR_COMMIT handler
   Dependencies: Slicer, SnippetRepository
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/application/handlers/indexing/create_bm25_index_handler.py` → `internal/queue/handler/create_bm25.go`
+- [x] `src/kodit/application/handlers/indexing/create_bm25_index_handler.py` → `internal/queue/handler/create_bm25.go`
 
   Description: CREATE_BM25_INDEX_FOR_COMMIT handler
   Dependencies: BM25DomainService
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/application/handlers/indexing/create_embeddings_handler.py` → `internal/queue/handler/create_embeddings.go`
+- [x] `src/kodit/application/handlers/indexing/create_embeddings_handler.py` → `internal/queue/handler/create_embeddings.go`
 
   Description: CREATE_CODE_EMBEDDINGS_FOR_COMMIT handler
   Dependencies: EmbeddingDomainService
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 ### Infrastructure Layer
 
@@ -668,11 +668,11 @@ Bounded contexts ordered by dependencies (least dependencies first):
 
 #### Embedding Service (uses shared AI Provider)
 
-- [ ] `src/kodit/infrastructure/embedding/embedding_providers/` → `internal/indexing/embedding/service.go`
+- [x] `src/kodit/infrastructure/embedding/embedding_providers/` → `internal/indexing/embedding_service.go`
 
-  Description: Embedding service that uses the shared AI provider abstraction (`internal/provider/`) for vector generation
+  Description: Embedding service that uses the shared AI provider abstraction (`internal/provider/`) for vector generation. Note: Implemented in `internal/indexing/embedding_service.go` (not a separate subdirectory).
   Dependencies: internal/provider
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 #### Database Entities
 
@@ -1156,6 +1156,7 @@ Note: The LLM provider abstraction lives in `internal/provider/` (shared). The e
 | 2026-02-02 | Session 8: Started Snippet Extraction & Indexing Context (8/19 tasks). Created: snippet.go (Snippet aggregate, content-addressed by SHA256), commit_index.go (CommitIndex aggregate with status machine), repository.go (SnippetRepository, CommitIndexRepository, BM25Repository, VectorSearchRepository interfaces), bm25_service.go (BM25Service with validation), embedding_service.go (EmbeddingService with deduplication), postgres/entity.go (GORM entities for CommitIndex, Snippet, associations), postgres/mapper.go (domain<->entity mappers), postgres/commit_index_repository.go. Tests: snippet_test.go, commit_index_test.go, bm25_service_test.go, embedding_service_test.go. All tests pass, linting clean. |
 | 2026-02-02 | Session 9: Continued Snippet Extraction & Indexing Context (13/19 tasks - 68%). Created: postgres/snippet_repository.go (SnippetRepository implementation with content-addressed deduplication, commit associations, search filters), bm25/vectorchord_repository.go (VectorChord BM25 implementation using PostgreSQL extensions), vector/vectorchord_repository.go (VectorChord vector search using provider.Embedder for embeddings). Tests: postgres/snippet_repository_test.go, bm25/vectorchord_repository_test.go, vector/vectorchord_repository_test.go. Remaining: slicer components (config, analyzer, analyzers/, slicer, ast), embedding service, and task handlers. All tests pass, linting clean. |
 | 2026-02-02 | Session 10: Completed Slicer/AST Parsing components (19/19 tasks - 100% for Snippet Extraction core). Created: slicer/config.go (LanguageConfig with 10 supported languages: Python, Go, Java, C, C++, Rust, JavaScript, TypeScript, TSX, C#), slicer/analyzer.go (Analyzer interface with FunctionDefinition, ClassDefinition, TypeDefinition value objects), slicer/ast.go (Walker for AST traversal, CallGraph for dependency tracking), slicer/analyzers/ (language-specific implementations: base.go, python.go, golang.go, javascript.go, typescript.go, java.go, c.go, cpp.go, rust.go, csharp.go, factory.go), slicer/slicer.go (main Slicer service with file parsing, definition extraction, call graph building, snippet generation). Tests: slicer_test.go. Tree-sitter CGo dependency added (github.com/smacker/go-tree-sitter). Remaining in context: embedding service and task handlers. All tests pass, linting clean. |
+| 2026-02-02 | Session 11: Completed Snippet Extraction & Indexing Application Layer handlers (22/22 tasks - 100%). Created: handler/extract_snippets.go (EXTRACT_SNIPPETS_FOR_COMMIT handler with slicer integration, progress tracking), handler/create_bm25.go (CREATE_BM25_INDEX_FOR_COMMIT handler), handler/create_embeddings.go (CREATE_CODE_EMBEDDINGS_FOR_COMMIT handler with embedding deduplication). Tests: handler/handler_test.go with comprehensive tests for BM25 and embedding handlers. Note: embedding_service.go already existed in indexing/ (not a separate subdirectory). Phase 4 Snippet Extraction & Indexing Context is now 100% complete. All tests pass, linting clean. |
 
 ### Architecture Decisions
 
