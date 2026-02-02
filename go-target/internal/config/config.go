@@ -1,0 +1,626 @@
+// Package config provides application configuration.
+package config
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+)
+
+// LogFormat represents the log output format.
+type LogFormat string
+
+// LogFormat values.
+const (
+	LogFormatPretty LogFormat = "pretty"
+	LogFormatJSON   LogFormat = "json"
+)
+
+// SearchProvider represents the search backend provider.
+type SearchProvider string
+
+// SearchProvider values.
+const (
+	SearchProviderSQLite      SearchProvider = "sqlite"
+	SearchProviderVectorChord SearchProvider = "vectorchord"
+)
+
+// GitProvider represents the Git library to use.
+type GitProvider string
+
+// GitProvider values.
+const (
+	GitProviderPygit2    GitProvider = "pygit2"
+	GitProviderGitPython GitProvider = "gitpython"
+	GitProviderDulwich   GitProvider = "dulwich"
+)
+
+// ReportingConfig configures progress reporting.
+type ReportingConfig struct {
+	logTimeInterval time.Duration
+}
+
+// NewReportingConfig creates a new ReportingConfig with defaults.
+func NewReportingConfig() ReportingConfig {
+	return ReportingConfig{
+		logTimeInterval: 5 * time.Second,
+	}
+}
+
+// LogTimeInterval returns the time interval for logging progress.
+func (r ReportingConfig) LogTimeInterval() time.Duration {
+	return r.logTimeInterval
+}
+
+// WithLogTimeInterval returns a new config with the specified interval.
+func (r ReportingConfig) WithLogTimeInterval(d time.Duration) ReportingConfig {
+	r.logTimeInterval = d
+	return r
+}
+
+// LiteLLMCacheConfig configures LLM response caching.
+type LiteLLMCacheConfig struct {
+	enabled bool
+}
+
+// NewLiteLLMCacheConfig creates a new LiteLLMCacheConfig with defaults.
+func NewLiteLLMCacheConfig() LiteLLMCacheConfig {
+	return LiteLLMCacheConfig{
+		enabled: true,
+	}
+}
+
+// Enabled returns whether caching is enabled.
+func (c LiteLLMCacheConfig) Enabled() bool {
+	return c.enabled
+}
+
+// WithEnabled returns a new config with the specified enabled state.
+func (c LiteLLMCacheConfig) WithEnabled(enabled bool) LiteLLMCacheConfig {
+	c.enabled = enabled
+	return c
+}
+
+// Endpoint configures an AI service endpoint.
+type Endpoint struct {
+	baseURL          string
+	model            string
+	apiKey           string
+	numParallelTasks int
+	socketPath       string
+	timeout          time.Duration
+	maxRetries       int
+	initialDelay     time.Duration
+	backoffFactor    float64
+	extraParams      map[string]any
+	maxTokens        int
+}
+
+// NewEndpoint creates a new Endpoint with defaults.
+func NewEndpoint() Endpoint {
+	return Endpoint{
+		numParallelTasks: 10,
+		timeout:          60 * time.Second,
+		maxRetries:       5,
+		initialDelay:     2 * time.Second,
+		backoffFactor:    2.0,
+		maxTokens:        4000,
+	}
+}
+
+// BaseURL returns the base URL for the endpoint.
+func (e Endpoint) BaseURL() string { return e.baseURL }
+
+// Model returns the model identifier.
+func (e Endpoint) Model() string { return e.model }
+
+// APIKey returns the API key.
+func (e Endpoint) APIKey() string { return e.apiKey }
+
+// NumParallelTasks returns the number of parallel tasks.
+func (e Endpoint) NumParallelTasks() int { return e.numParallelTasks }
+
+// SocketPath returns the Unix socket path.
+func (e Endpoint) SocketPath() string { return e.socketPath }
+
+// Timeout returns the request timeout.
+func (e Endpoint) Timeout() time.Duration { return e.timeout }
+
+// MaxRetries returns the maximum retry count.
+func (e Endpoint) MaxRetries() int { return e.maxRetries }
+
+// InitialDelay returns the initial retry delay.
+func (e Endpoint) InitialDelay() time.Duration { return e.initialDelay }
+
+// BackoffFactor returns the retry backoff multiplier.
+func (e Endpoint) BackoffFactor() float64 { return e.backoffFactor }
+
+// ExtraParams returns additional provider-specific parameters.
+func (e Endpoint) ExtraParams() map[string]any {
+	if e.extraParams == nil {
+		return nil
+	}
+	result := make(map[string]any, len(e.extraParams))
+	for k, v := range e.extraParams {
+		result[k] = v
+	}
+	return result
+}
+
+// MaxTokens returns the maximum token limit.
+func (e Endpoint) MaxTokens() int { return e.maxTokens }
+
+// IsConfigured returns true if the endpoint has required configuration.
+func (e Endpoint) IsConfigured() bool {
+	return e.model != ""
+}
+
+// EndpointOption is a functional option for Endpoint.
+type EndpointOption func(*Endpoint)
+
+// WithBaseURL sets the base URL.
+func WithBaseURL(url string) EndpointOption {
+	return func(e *Endpoint) { e.baseURL = url }
+}
+
+// WithModel sets the model.
+func WithModel(model string) EndpointOption {
+	return func(e *Endpoint) { e.model = model }
+}
+
+// WithAPIKey sets the API key.
+func WithAPIKey(key string) EndpointOption {
+	return func(e *Endpoint) { e.apiKey = key }
+}
+
+// WithNumParallelTasks sets the parallel task count.
+func WithNumParallelTasks(n int) EndpointOption {
+	return func(e *Endpoint) { e.numParallelTasks = n }
+}
+
+// WithSocketPath sets the Unix socket path.
+func WithSocketPath(path string) EndpointOption {
+	return func(e *Endpoint) { e.socketPath = path }
+}
+
+// WithTimeout sets the request timeout.
+func WithTimeout(d time.Duration) EndpointOption {
+	return func(e *Endpoint) { e.timeout = d }
+}
+
+// WithMaxRetries sets the maximum retry count.
+func WithMaxRetries(n int) EndpointOption {
+	return func(e *Endpoint) { e.maxRetries = n }
+}
+
+// WithInitialDelay sets the initial retry delay.
+func WithInitialDelay(d time.Duration) EndpointOption {
+	return func(e *Endpoint) { e.initialDelay = d }
+}
+
+// WithBackoffFactor sets the retry backoff multiplier.
+func WithBackoffFactor(f float64) EndpointOption {
+	return func(e *Endpoint) { e.backoffFactor = f }
+}
+
+// WithExtraParams sets extra provider parameters.
+func WithExtraParams(params map[string]any) EndpointOption {
+	return func(e *Endpoint) {
+		if params != nil {
+			e.extraParams = make(map[string]any, len(params))
+			for k, v := range params {
+				e.extraParams[k] = v
+			}
+		}
+	}
+}
+
+// WithMaxTokens sets the maximum token limit.
+func WithMaxTokens(n int) EndpointOption {
+	return func(e *Endpoint) { e.maxTokens = n }
+}
+
+// NewEndpointWithOptions creates an Endpoint with functional options.
+func NewEndpointWithOptions(opts ...EndpointOption) Endpoint {
+	e := NewEndpoint()
+	for _, opt := range opts {
+		opt(&e)
+	}
+	return e
+}
+
+// SearchConfig configures search behavior.
+type SearchConfig struct {
+	provider SearchProvider
+}
+
+// NewSearchConfig creates a new SearchConfig with defaults.
+func NewSearchConfig() SearchConfig {
+	return SearchConfig{
+		provider: SearchProviderSQLite,
+	}
+}
+
+// Provider returns the search provider.
+func (s SearchConfig) Provider() SearchProvider {
+	return s.provider
+}
+
+// WithProvider returns a new config with the specified provider.
+func (s SearchConfig) WithProvider(p SearchProvider) SearchConfig {
+	s.provider = p
+	return s
+}
+
+// GitConfig configures Git operations.
+type GitConfig struct {
+	provider GitProvider
+}
+
+// NewGitConfig creates a new GitConfig with defaults.
+func NewGitConfig() GitConfig {
+	return GitConfig{
+		provider: GitProviderDulwich,
+	}
+}
+
+// Provider returns the Git provider.
+func (g GitConfig) Provider() GitProvider {
+	return g.provider
+}
+
+// WithProvider returns a new config with the specified provider.
+func (g GitConfig) WithProvider(p GitProvider) GitConfig {
+	g.provider = p
+	return g
+}
+
+// PeriodicSyncConfig configures periodic repository syncing.
+type PeriodicSyncConfig struct {
+	enabled         bool
+	intervalSeconds float64
+	retryAttempts   int
+}
+
+// NewPeriodicSyncConfig creates a new PeriodicSyncConfig with defaults.
+func NewPeriodicSyncConfig() PeriodicSyncConfig {
+	return PeriodicSyncConfig{
+		enabled:         true,
+		intervalSeconds: 1800,
+		retryAttempts:   3,
+	}
+}
+
+// Enabled returns whether periodic sync is enabled.
+func (p PeriodicSyncConfig) Enabled() bool { return p.enabled }
+
+// Interval returns the sync interval as a duration.
+func (p PeriodicSyncConfig) Interval() time.Duration {
+	return time.Duration(p.intervalSeconds * float64(time.Second))
+}
+
+// RetryAttempts returns the retry count.
+func (p PeriodicSyncConfig) RetryAttempts() int { return p.retryAttempts }
+
+// WithEnabled returns a new config with the specified enabled state.
+func (p PeriodicSyncConfig) WithEnabled(enabled bool) PeriodicSyncConfig {
+	p.enabled = enabled
+	return p
+}
+
+// WithIntervalSeconds returns a new config with the specified interval.
+func (p PeriodicSyncConfig) WithIntervalSeconds(seconds float64) PeriodicSyncConfig {
+	p.intervalSeconds = seconds
+	return p
+}
+
+// WithRetryAttempts returns a new config with the specified retry count.
+func (p PeriodicSyncConfig) WithRetryAttempts(attempts int) PeriodicSyncConfig {
+	p.retryAttempts = attempts
+	return p
+}
+
+// RemoteConfig configures remote server connection.
+type RemoteConfig struct {
+	serverURL  string
+	apiKey     string
+	timeout    time.Duration
+	maxRetries int
+	verifySSL  bool
+}
+
+// NewRemoteConfig creates a new RemoteConfig with defaults.
+func NewRemoteConfig() RemoteConfig {
+	return RemoteConfig{
+		timeout:    30 * time.Second,
+		maxRetries: 3,
+		verifySSL:  true,
+	}
+}
+
+// ServerURL returns the remote server URL.
+func (r RemoteConfig) ServerURL() string { return r.serverURL }
+
+// APIKey returns the API key.
+func (r RemoteConfig) APIKey() string { return r.apiKey }
+
+// Timeout returns the request timeout.
+func (r RemoteConfig) Timeout() time.Duration { return r.timeout }
+
+// MaxRetries returns the maximum retry count.
+func (r RemoteConfig) MaxRetries() int { return r.maxRetries }
+
+// VerifySSL returns whether SSL verification is enabled.
+func (r RemoteConfig) VerifySSL() bool { return r.verifySSL }
+
+// IsConfigured returns true if remote mode is configured.
+func (r RemoteConfig) IsConfigured() bool {
+	return r.serverURL != ""
+}
+
+// RemoteConfigOption is a functional option for RemoteConfig.
+type RemoteConfigOption func(*RemoteConfig)
+
+// WithServerURL sets the server URL.
+func WithServerURL(url string) RemoteConfigOption {
+	return func(r *RemoteConfig) { r.serverURL = url }
+}
+
+// WithRemoteAPIKey sets the API key.
+func WithRemoteAPIKey(key string) RemoteConfigOption {
+	return func(r *RemoteConfig) { r.apiKey = key }
+}
+
+// WithRemoteTimeout sets the timeout.
+func WithRemoteTimeout(d time.Duration) RemoteConfigOption {
+	return func(r *RemoteConfig) { r.timeout = d }
+}
+
+// WithRemoteMaxRetries sets the max retries.
+func WithRemoteMaxRetries(n int) RemoteConfigOption {
+	return func(r *RemoteConfig) { r.maxRetries = n }
+}
+
+// WithVerifySSL sets SSL verification.
+func WithVerifySSL(verify bool) RemoteConfigOption {
+	return func(r *RemoteConfig) { r.verifySSL = verify }
+}
+
+// NewRemoteConfigWithOptions creates a RemoteConfig with options.
+func NewRemoteConfigWithOptions(opts ...RemoteConfigOption) RemoteConfig {
+	r := NewRemoteConfig()
+	for _, opt := range opts {
+		opt(&r)
+	}
+	return r
+}
+
+// AppConfig holds the main application configuration.
+type AppConfig struct {
+	dataDir            string
+	dbURL              string
+	logLevel           string
+	logFormat          LogFormat
+	disableTelemetry   bool
+	embeddingEndpoint  *Endpoint
+	enrichmentEndpoint *Endpoint
+	search             SearchConfig
+	git                GitConfig
+	periodicSync       PeriodicSyncConfig
+	apiKeys            []string
+	remote             RemoteConfig
+	reporting          ReportingConfig
+	litellmCache       LiteLLMCacheConfig
+}
+
+// defaultDataDir returns the default data directory.
+func defaultDataDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ".kodit"
+	}
+	return filepath.Join(home, ".kodit")
+}
+
+// NewAppConfig creates a new AppConfig with defaults.
+func NewAppConfig() AppConfig {
+	dataDir := defaultDataDir()
+	return AppConfig{
+		dataDir:        dataDir,
+		dbURL:          "sqlite:///" + filepath.Join(dataDir, "kodit.db"),
+		logLevel:       "INFO",
+		logFormat:      LogFormatPretty,
+		disableTelemetry: false,
+		search:         NewSearchConfig(),
+		git:            NewGitConfig(),
+		periodicSync:   NewPeriodicSyncConfig(),
+		apiKeys:        []string{},
+		remote:         NewRemoteConfig(),
+		reporting:      NewReportingConfig(),
+		litellmCache:   NewLiteLLMCacheConfig(),
+	}
+}
+
+// DataDir returns the data directory path.
+func (c AppConfig) DataDir() string { return c.dataDir }
+
+// DBURL returns the database connection URL.
+func (c AppConfig) DBURL() string { return c.dbURL }
+
+// LogLevel returns the log level.
+func (c AppConfig) LogLevel() string { return c.logLevel }
+
+// LogFormat returns the log format.
+func (c AppConfig) LogFormat() LogFormat { return c.logFormat }
+
+// DisableTelemetry returns whether telemetry is disabled.
+func (c AppConfig) DisableTelemetry() bool { return c.disableTelemetry }
+
+// EmbeddingEndpoint returns the embedding endpoint config.
+func (c AppConfig) EmbeddingEndpoint() *Endpoint { return c.embeddingEndpoint }
+
+// EnrichmentEndpoint returns the enrichment endpoint config.
+func (c AppConfig) EnrichmentEndpoint() *Endpoint { return c.enrichmentEndpoint }
+
+// Search returns the search config.
+func (c AppConfig) Search() SearchConfig { return c.search }
+
+// Git returns the Git config.
+func (c AppConfig) Git() GitConfig { return c.git }
+
+// PeriodicSync returns the periodic sync config.
+func (c AppConfig) PeriodicSync() PeriodicSyncConfig { return c.periodicSync }
+
+// APIKeys returns the configured API keys.
+func (c AppConfig) APIKeys() []string {
+	keys := make([]string, len(c.apiKeys))
+	copy(keys, c.apiKeys)
+	return keys
+}
+
+// Remote returns the remote config.
+func (c AppConfig) Remote() RemoteConfig { return c.remote }
+
+// Reporting returns the reporting config.
+func (c AppConfig) Reporting() ReportingConfig { return c.reporting }
+
+// LiteLLMCache returns the LiteLLM cache config.
+func (c AppConfig) LiteLLMCache() LiteLLMCacheConfig { return c.litellmCache }
+
+// IsRemote returns true if running in remote mode.
+func (c AppConfig) IsRemote() bool {
+	return c.remote.IsConfigured()
+}
+
+// CloneDir returns the clone directory path.
+func (c AppConfig) CloneDir() string {
+	return filepath.Join(c.dataDir, "clones")
+}
+
+// LiteLLMCacheDir returns the LiteLLM cache directory path.
+func (c AppConfig) LiteLLMCacheDir() string {
+	return filepath.Join(c.dataDir, "litellm_cache")
+}
+
+// EnsureDataDir creates the data directory if it doesn't exist.
+func (c AppConfig) EnsureDataDir() error {
+	return os.MkdirAll(c.dataDir, 0o755)
+}
+
+// EnsureCloneDir creates the clone directory if it doesn't exist.
+func (c AppConfig) EnsureCloneDir() error {
+	return os.MkdirAll(c.CloneDir(), 0o755)
+}
+
+// EnsureLiteLLMCacheDir creates the LiteLLM cache directory if it doesn't exist.
+func (c AppConfig) EnsureLiteLLMCacheDir() error {
+	return os.MkdirAll(c.LiteLLMCacheDir(), 0o755)
+}
+
+// AppConfigOption is a functional option for AppConfig.
+type AppConfigOption func(*AppConfig)
+
+// WithDataDir sets the data directory.
+func WithDataDir(dir string) AppConfigOption {
+	return func(c *AppConfig) {
+		c.dataDir = dir
+		// Update default DB URL when data dir changes
+		if c.dbURL == "" || strings.Contains(c.dbURL, "kodit.db") {
+			c.dbURL = "sqlite:///" + filepath.Join(dir, "kodit.db")
+		}
+	}
+}
+
+// WithDBURL sets the database URL.
+func WithDBURL(url string) AppConfigOption {
+	return func(c *AppConfig) { c.dbURL = url }
+}
+
+// WithLogLevel sets the log level.
+func WithLogLevel(level string) AppConfigOption {
+	return func(c *AppConfig) { c.logLevel = level }
+}
+
+// WithLogFormat sets the log format.
+func WithLogFormat(format LogFormat) AppConfigOption {
+	return func(c *AppConfig) { c.logFormat = format }
+}
+
+// WithDisableTelemetry sets telemetry state.
+func WithDisableTelemetry(disabled bool) AppConfigOption {
+	return func(c *AppConfig) { c.disableTelemetry = disabled }
+}
+
+// WithEmbeddingEndpoint sets the embedding endpoint.
+func WithEmbeddingEndpoint(e Endpoint) AppConfigOption {
+	return func(c *AppConfig) { c.embeddingEndpoint = &e }
+}
+
+// WithEnrichmentEndpoint sets the enrichment endpoint.
+func WithEnrichmentEndpoint(e Endpoint) AppConfigOption {
+	return func(c *AppConfig) { c.enrichmentEndpoint = &e }
+}
+
+// WithSearchConfig sets the search config.
+func WithSearchConfig(s SearchConfig) AppConfigOption {
+	return func(c *AppConfig) { c.search = s }
+}
+
+// WithGitConfig sets the Git config.
+func WithGitConfig(g GitConfig) AppConfigOption {
+	return func(c *AppConfig) { c.git = g }
+}
+
+// WithPeriodicSyncConfig sets the periodic sync config.
+func WithPeriodicSyncConfig(p PeriodicSyncConfig) AppConfigOption {
+	return func(c *AppConfig) { c.periodicSync = p }
+}
+
+// WithAPIKeys sets the API keys.
+func WithAPIKeys(keys []string) AppConfigOption {
+	return func(c *AppConfig) {
+		c.apiKeys = make([]string, len(keys))
+		copy(c.apiKeys, keys)
+	}
+}
+
+// WithRemoteConfig sets the remote config.
+func WithRemoteConfig(r RemoteConfig) AppConfigOption {
+	return func(c *AppConfig) { c.remote = r }
+}
+
+// WithReportingConfig sets the reporting config.
+func WithReportingConfig(r ReportingConfig) AppConfigOption {
+	return func(c *AppConfig) { c.reporting = r }
+}
+
+// WithLiteLLMCacheConfig sets the LiteLLM cache config.
+func WithLiteLLMCacheConfig(l LiteLLMCacheConfig) AppConfigOption {
+	return func(c *AppConfig) { c.litellmCache = l }
+}
+
+// NewAppConfigWithOptions creates an AppConfig with functional options.
+func NewAppConfigWithOptions(opts ...AppConfigOption) AppConfig {
+	c := NewAppConfig()
+	for _, opt := range opts {
+		opt(&c)
+	}
+	return c
+}
+
+// ParseAPIKeys parses a comma-separated string of API keys.
+func ParseAPIKeys(s string) []string {
+	if s == "" {
+		return []string{}
+	}
+	parts := strings.Split(s, ",")
+	keys := make([]string, 0, len(parts))
+	for _, p := range parts {
+		trimmed := strings.TrimSpace(p)
+		if trimmed != "" {
+			keys = append(keys, trimmed)
+		}
+	}
+	return keys
+}
