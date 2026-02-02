@@ -616,23 +616,23 @@ Bounded contexts ordered by dependencies (least dependencies first):
 
 #### Repository Implementations
 
-- [ ] `src/kodit/infrastructure/sqlalchemy/snippet_v2_repository.py` → `internal/indexing/postgres/snippet_repository.go`
+- [x] `src/kodit/infrastructure/sqlalchemy/snippet_v2_repository.py` → `internal/indexing/postgres/snippet_repository.go`
 
   Description: PostgreSQL SnippetRepositoryV2 implementation
   Dependencies: SnippetV2, database
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/infrastructure/bm25/vectorchord_bm25_repository.py` → `internal/indexing/bm25/vectorchord_repository.go`
+- [x] `src/kodit/infrastructure/bm25/vectorchord_bm25_repository.py` → `internal/indexing/bm25/vectorchord_repository.go`
 
   Description: VectorChord BM25 implementation (primary BM25 store, batch-only updates)
   Dependencies: BM25Repository, GORM
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/infrastructure/embedding/vector_search_repository.py` → `internal/indexing/vector/repository.go`
+- [x] `src/kodit/infrastructure/embedding/vectorchord_vector_search_repository.py` → `internal/indexing/vector/vectorchord_repository.go`
 
-  Description: Vector search repository implementation
-  Dependencies: VectorSearchRepository
-  Verified: [ ] builds [ ] tests pass
+  Description: VectorChord vector search repository implementation
+  Dependencies: VectorSearchRepository, provider.Embedder
+  Verified: [x] builds [x] tests pass
 
 #### Slicing (AST Parsing)
 
@@ -696,17 +696,17 @@ Bounded contexts ordered by dependencies (least dependencies first):
   Dependencies: Slicer
   Verified: [ ] builds [ ] tests pass
 
-- [ ] `tests/unit/infrastructure/bm25/` → `internal/indexing/bm25/repository_test.go`
+- [x] `tests/unit/infrastructure/bm25/` → `internal/indexing/bm25/vectorchord_repository_test.go`
 
   Description: BM25 repository tests
   Dependencies: BM25 repositories
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `tests/unit/infrastructure/embedding/` → `internal/indexing/embedding/embedding_test.go`
+- [x] → `internal/indexing/vector/vectorchord_repository_test.go`
 
-  Description: Embedding provider tests
-  Dependencies: EmbeddingProviders
-  Verified: [ ] builds [ ] tests pass
+  Description: Vector search repository tests
+  Dependencies: VectorSearchRepository
+  Verified: [x] builds [x] tests pass
 
 ---
 
@@ -1154,6 +1154,7 @@ Note: The LLM provider abstraction lives in `internal/provider/` (shared). The e
 | 2026-02-02 | Session 6: Completed Task Queue & Orchestration Context (14/14 tasks - 100%). Created: fake.go (FakeTaskRepository, FakeTaskStatusRepository, FakeHandler for testing), service_test.go (QueueService tests), worker_test.go (Worker tests). Phase 2 is now complete. All tests pass, linting clean. |
 | 2026-02-02 | Session 7: Completed Progress Tracking Context (10/11 tasks - 91%). Created: trackable.go (Trackable value object with ReferenceType), status.go (RepositoryStatusSummary with StatusSummaryFromTasks), tracker.go (Tracker with observer pattern), reporter.go (Reporter interface), query.go (QueryService), resolver.go (Resolver for trackable->commits), logging_reporter.go (LoggingReporter), db_reporter.go (DBReporter), tracking_test.go, tracker_test.go. Telemetry reporter deferred (requires analytics client). All tests pass, linting clean. Note: Commit.ParentCommitSHA not yet implemented in Git context, so full parent traversal in Resolver returns single commit. |
 | 2026-02-02 | Session 8: Started Snippet Extraction & Indexing Context (8/19 tasks). Created: snippet.go (Snippet aggregate, content-addressed by SHA256), commit_index.go (CommitIndex aggregate with status machine), repository.go (SnippetRepository, CommitIndexRepository, BM25Repository, VectorSearchRepository interfaces), bm25_service.go (BM25Service with validation), embedding_service.go (EmbeddingService with deduplication), postgres/entity.go (GORM entities for CommitIndex, Snippet, associations), postgres/mapper.go (domain<->entity mappers), postgres/commit_index_repository.go. Tests: snippet_test.go, commit_index_test.go, bm25_service_test.go, embedding_service_test.go. All tests pass, linting clean. |
+| 2026-02-02 | Session 9: Continued Snippet Extraction & Indexing Context (13/19 tasks - 68%). Created: postgres/snippet_repository.go (SnippetRepository implementation with content-addressed deduplication, commit associations, search filters), bm25/vectorchord_repository.go (VectorChord BM25 implementation using PostgreSQL extensions), vector/vectorchord_repository.go (VectorChord vector search using provider.Embedder for embeddings). Tests: postgres/snippet_repository_test.go, bm25/vectorchord_repository_test.go, vector/vectorchord_repository_test.go. Remaining: slicer components (config, analyzer, analyzers/, slicer, ast), embedding service, and task handlers. All tests pass, linting clean. |
 
 ### Architecture Decisions
 
