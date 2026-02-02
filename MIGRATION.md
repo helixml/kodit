@@ -544,51 +544,51 @@ Bounded contexts ordered by dependencies (least dependencies first):
 
 #### Entities
 
-- [ ] `src/kodit/domain/entities/git.py:SnippetV2` → `internal/indexing/snippet.go`
+- [x] `src/kodit/domain/entities/git.py:SnippetV2` → `internal/indexing/snippet.go`
 
   Description: SnippetV2 aggregate (content-addressed by SHA256, with code, language, type)
   Dependencies: None
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/domain/entities/__init__.py:CommitIndex` → `internal/indexing/commit_index.go`
+- [x] `src/kodit/domain/entities/__init__.py:CommitIndex` → `internal/indexing/commit_index.go`
 
   Description: CommitIndex aggregate (snippets for a commit with status)
   Dependencies: SnippetV2
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 #### Repository Interfaces
 
-- [ ] `src/kodit/domain/protocols.py:SnippetRepositoryV2` → `internal/indexing/repository.go`
+- [x] `src/kodit/domain/protocols.py:SnippetRepositoryV2` → `internal/indexing/repository.go`
 
-  Description: SnippetRepositoryV2 interface
+  Description: SnippetRepository, CommitIndexRepository, BM25Repository, VectorSearchRepository interfaces
   Dependencies: SnippetV2
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/domain/services/bm25_service.py:BM25Repository` → `internal/indexing/bm25_repository.go`
+- [x] `src/kodit/domain/services/bm25_service.py:BM25Repository` → `internal/indexing/repository.go`
 
   Description: BM25Repository interface (search, index operations)
   Dependencies: SnippetV2
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/domain/services/embedding_service.py:VectorSearchRepository` → `internal/indexing/vector_repository.go`
+- [x] `src/kodit/domain/services/embedding_service.py:VectorSearchRepository` → `internal/indexing/repository.go`
 
   Description: VectorSearchRepository interface (similarity search)
   Dependencies: SnippetV2
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 #### Domain Services
 
-- [ ] `src/kodit/domain/services/bm25_service.py:BM25DomainService` → `internal/indexing/bm25_service.go`
+- [x] `src/kodit/domain/services/bm25_service.py:BM25DomainService` → `internal/indexing/bm25_service.go`
 
   Description: BM25 indexing domain service
   Dependencies: BM25Repository
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/domain/services/embedding_service.py:EmbeddingDomainService` → `internal/indexing/embedding_service.go`
+- [x] `src/kodit/domain/services/embedding_service.py:EmbeddingDomainService` → `internal/indexing/embedding_service.go`
 
   Description: Embedding/vector indexing domain service
   Dependencies: VectorSearchRepository, EmbeddingProvider
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 ### Application Layer
 
@@ -676,19 +676,19 @@ Bounded contexts ordered by dependencies (least dependencies first):
 
 #### Database Entities
 
-- [ ] `src/kodit/infrastructure/sqlalchemy/entities.py:SnippetV2` → `internal/indexing/postgres/entity.go`
+- [x] `src/kodit/infrastructure/sqlalchemy/entities.py:SnippetV2` → `internal/indexing/postgres/entity.go`
 
-  Description: Database entity mappings for SnippetV2
+  Description: Database entity mappings for CommitIndex, Snippet, and related association tables
   Dependencies: database
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 ### Tests
 
-- [ ] `tests/unit/domain/entities/test_snippet.py` → `internal/indexing/snippet_test.go`
+- [x] `tests/unit/domain/entities/test_snippet.py` → `internal/indexing/snippet_test.go`
 
-  Description: SnippetV2 entity tests
+  Description: SnippetV2, CommitIndex, BM25Service, EmbeddingService entity tests
   Dependencies: SnippetV2
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 - [ ] `tests/unit/infrastructure/slicing/` → `internal/indexing/slicer/slicer_test.go`
 
@@ -1153,6 +1153,7 @@ Note: The LLM provider abstraction lives in `internal/provider/` (shared). The e
 | 2026-02-02 | Session 5: Completed Task Queue & Orchestration Context (12/14 tasks). Created: task.go (Task entity with dedup key generation), status.go (TaskStatus with state machine), repository.go (TaskRepository and TaskStatusRepository interfaces), handler.go (Handler interface), registry.go (Registry for operation->handler mapping), service.go (QueueService), worker.go (Worker with poll loop and graceful shutdown), postgres/entity.go (GORM entities), postgres/mapper.go (mappers), postgres/task_repository.go, postgres/status_repository.go. Tests: task_test.go, status_test.go. Remaining: service_test.go and worker_test.go (require fakes). All tests pass, linting clean. |
 | 2026-02-02 | Session 6: Completed Task Queue & Orchestration Context (14/14 tasks - 100%). Created: fake.go (FakeTaskRepository, FakeTaskStatusRepository, FakeHandler for testing), service_test.go (QueueService tests), worker_test.go (Worker tests). Phase 2 is now complete. All tests pass, linting clean. |
 | 2026-02-02 | Session 7: Completed Progress Tracking Context (10/11 tasks - 91%). Created: trackable.go (Trackable value object with ReferenceType), status.go (RepositoryStatusSummary with StatusSummaryFromTasks), tracker.go (Tracker with observer pattern), reporter.go (Reporter interface), query.go (QueryService), resolver.go (Resolver for trackable->commits), logging_reporter.go (LoggingReporter), db_reporter.go (DBReporter), tracking_test.go, tracker_test.go. Telemetry reporter deferred (requires analytics client). All tests pass, linting clean. Note: Commit.ParentCommitSHA not yet implemented in Git context, so full parent traversal in Resolver returns single commit. |
+| 2026-02-02 | Session 8: Started Snippet Extraction & Indexing Context (8/19 tasks). Created: snippet.go (Snippet aggregate, content-addressed by SHA256), commit_index.go (CommitIndex aggregate with status machine), repository.go (SnippetRepository, CommitIndexRepository, BM25Repository, VectorSearchRepository interfaces), bm25_service.go (BM25Service with validation), embedding_service.go (EmbeddingService with deduplication), postgres/entity.go (GORM entities for CommitIndex, Snippet, associations), postgres/mapper.go (domain<->entity mappers), postgres/commit_index_repository.go. Tests: snippet_test.go, commit_index_test.go, bm25_service_test.go, embedding_service_test.go. All tests pass, linting clean. |
 
 ### Architecture Decisions
 
