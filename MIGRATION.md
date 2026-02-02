@@ -90,29 +90,29 @@ Bounded contexts ordered by dependencies (least dependencies first):
 
 #### Database Foundation
 
-- [ ] `src/kodit/database.py` → `internal/database/database.go`
+- [x] `src/kodit/database.py` → `internal/database/database.go`
 
   Description: Database connection, migration runner, session factory
   Dependencies: config
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/infrastructure/sqlalchemy/unit_of_work.py` → `internal/database/transaction.go`
+- [x] `src/kodit/infrastructure/sqlalchemy/unit_of_work.py` → `internal/database/transaction.go`
 
   Description: Transaction wrapper (UnitOfWork pattern)
   Dependencies: database
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/infrastructure/sqlalchemy/query.py` → `internal/database/query.go`
+- [x] `src/kodit/infrastructure/sqlalchemy/query.py` → `internal/database/query.go`
 
   Description: QueryBuilder with FilterOperator support (using GORM query building)
   Dependencies: None
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/infrastructure/sqlalchemy/repository.py` → `internal/database/repository.go`
+- [x] `src/kodit/infrastructure/sqlalchemy/repository.py` → `internal/database/repository.go`
 
   Description: Generic GORM repository base with Go generics (to_domain/to_db patterns)
   Dependencies: query, unit_of_work
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 #### Database Migrations
 
@@ -124,11 +124,11 @@ Bounded contexts ordered by dependencies (least dependencies first):
 
 ### Tests
 
-- [ ] `tests/conftest.py` → `internal/testutil/fixtures.go`
+- [x] `tests/conftest.py` → `internal/testutil/fixtures.go`
 
   Description: Test fixtures, database setup, common test utilities
   Dependencies: database, config
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 ---
 
@@ -138,93 +138,93 @@ Bounded contexts ordered by dependencies (least dependencies first):
 
 #### Entities
 
-- [ ] `src/kodit/domain/entities/git.py:GitRepo` → `internal/git/repo.go`
+- [x] `src/kodit/domain/entities/git.py:GitRepo` → `internal/git/repo.go`
 
   Description: GitRepo aggregate root (id, remote_url, working_copy, tracking_config)
   Dependencies: value objects
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/domain/entities/git.py:GitCommit` → `internal/git/commit.go`
+- [x] `src/kodit/domain/entities/git.py:GitCommit` → `internal/git/commit.go`
 
   Description: GitCommit entity (sha, repo_id, message, author, timestamp)
   Dependencies: GitRepo
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/domain/entities/git.py:GitBranch` → `internal/git/branch.go`
+- [x] `src/kodit/domain/entities/git.py:GitBranch` → `internal/git/branch.go`
 
   Description: GitBranch entity (repo_id, name, head_commit_sha)
   Dependencies: GitRepo
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/domain/entities/git.py:GitTag` → `internal/git/tag.go`
+- [x] `src/kodit/domain/entities/git.py:GitTag` → `internal/git/tag.go`
 
   Description: GitTag entity (repo_id, name, commit_sha)
   Dependencies: GitRepo
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/domain/entities/git.py:GitFile` → `internal/git/file.go`
+- [x] `src/kodit/domain/entities/git.py:GitFile` → `internal/git/file.go`
 
   Description: GitFile entity (commit_sha, path, language)
   Dependencies: GitCommit
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 #### Value Objects
 
-- [ ] `src/kodit/domain/entities/git.py:WorkingCopy` → `internal/git/working_copy.go`
+- [x] `src/kodit/domain/entities/git.py:WorkingCopy` → `internal/git/working_copy.go`
 
   Description: Immutable value object (path, uri)
   Dependencies: None
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/domain/entities/git.py:TrackingConfig` → `internal/git/tracking_config.go`
+- [x] `src/kodit/domain/entities/git.py:TrackingConfig` → `internal/git/tracking_config.go`
 
   Description: Immutable config (branch, tag, commit to track)
   Dependencies: None
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/domain/entities/git.py:RepositoryScanResult` → `internal/git/scan_result.go`
+- [x] `src/kodit/domain/entities/git.py:RepositoryScanResult` → `internal/git/scan_result.go`
 
   Description: Immutable scan output (branches, commits, files, tags)
   Dependencies: GitBranch, GitCommit, GitFile, GitTag
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/domain/entities/git.py:Author` → `internal/git/author.go`
+- [x] `src/kodit/domain/entities/git.py:Author` → `internal/git/author.go`
 
   Description: Immutable author (name, email)
   Dependencies: None
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 #### Repository Interfaces
 
-- [ ] `src/kodit/domain/protocols.py:GitRepoRepository` → `internal/git/repository.go`
+- [x] `src/kodit/domain/protocols.py:GitRepoRepository` → `internal/git/repository.go`
 
   Description: GitRepoRepository interface (CRUD + GetByRemoteURL)
   Dependencies: GitRepo
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/domain/protocols.py:GitCommitRepository` → `internal/git/repository.go`
+- [x] `src/kodit/domain/protocols.py:GitCommitRepository` → `internal/git/repository.go`
 
   Description: GitCommitRepository interface (CRUD + GetByRepoAndSHA)
   Dependencies: GitCommit
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/domain/protocols.py:GitBranchRepository` → `internal/git/repository.go`
+- [x] `src/kodit/domain/protocols.py:GitBranchRepository` → `internal/git/repository.go`
 
   Description: GitBranchRepository interface (CRUD + GetByName)
   Dependencies: GitBranch
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/domain/protocols.py:GitTagRepository` → `internal/git/repository.go`
+- [x] `src/kodit/domain/protocols.py:GitTagRepository` → `internal/git/repository.go`
 
   Description: GitTagRepository interface
   Dependencies: GitTag
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/domain/protocols.py:GitFileRepository` → `internal/git/repository.go`
+- [x] `src/kodit/domain/protocols.py:GitFileRepository` → `internal/git/repository.go`
 
   Description: GitFileRepository interface (CRUD + DeleteByCommitSHA)
   Dependencies: GitFile
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 #### Domain Services
 
@@ -1133,6 +1133,7 @@ Note: The LLM provider abstraction lives in `internal/provider/` (shared). The e
 | Date | Note |
 |------|------|
 | 2026-02-02 | Session 1: Completed 8 tasks in Phase 0 (Shared/Common Types). Created Go module, domain value objects, queue operations, domain errors, API errors, config, logging, and AI provider interface + OpenAI implementation. All tests passing, linting clean. |
+| 2026-02-02 | Session 2: Completed 5 more tasks in Phase 0 Infrastructure Layer. Created database.go (GORM connection), transaction.go (UnitOfWork pattern), query.go (QueryBuilder with FilterOperator), repository.go (generic Repository[D,E]), and testutil/fixtures.go. Database migrations deferred (no schema changes required). Then completed 14 tasks in Phase 1 Git Management Domain Layer: all entities (Repo, Commit, Branch, Tag, File), all value objects (WorkingCopy, TrackingConfig, Author, ScanResult), and all repository interfaces. |
 
 ### Architecture Decisions
 
