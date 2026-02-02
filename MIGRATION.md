@@ -636,35 +636,35 @@ Bounded contexts ordered by dependencies (least dependencies first):
 
 #### Slicing (AST Parsing)
 
-- [ ] `src/kodit/infrastructure/slicing/language_config.py` → `internal/indexing/slicer/config.go`
+- [x] `src/kodit/infrastructure/slicing/language_config.py` → `internal/indexing/slicer/config.go`
 
   Description: Language configuration (supported languages, tree-sitter grammars)
   Dependencies: None
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/infrastructure/slicing/language_analyzer.py` → `internal/indexing/slicer/analyzer.go`
+- [x] `src/kodit/infrastructure/slicing/language_analyzer.py` → `internal/indexing/slicer/analyzer.go`
 
   Description: LanguageAnalyzer interface (extract functions, classes, etc.)
   Dependencies: tree-sitter
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/infrastructure/slicing/analyzers/*.py` → `internal/indexing/slicer/analyzers/`
+- [x] `src/kodit/infrastructure/slicing/analyzers/*.py` → `internal/indexing/slicer/analyzers/`
 
   Description: Language-specific analyzers (Python, Go, JavaScript, TypeScript, etc.)
   Dependencies: LanguageAnalyzer
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/infrastructure/slicing/slicer.py` → `internal/indexing/slicer/slicer.go`
+- [x] `src/kodit/infrastructure/slicing/slicer.py` → `internal/indexing/slicer/slicer.go`
 
   Description: Main Slicer service (orchestrates AST parsing)
   Dependencies: LanguageAnalyzer, tree-sitter
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/infrastructure/slicing/ast_analyzer.py` → `internal/indexing/slicer/ast.go`
+- [x] `src/kodit/infrastructure/slicing/ast_analyzer.py` → `internal/indexing/slicer/ast.go`
 
   Description: AST traversal utilities
   Dependencies: tree-sitter
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 #### Embedding Service (uses shared AI Provider)
 
@@ -690,11 +690,11 @@ Bounded contexts ordered by dependencies (least dependencies first):
   Dependencies: SnippetV2
   Verified: [x] builds [x] tests pass
 
-- [ ] `tests/unit/infrastructure/slicing/` → `internal/indexing/slicer/slicer_test.go`
+- [x] `tests/unit/infrastructure/slicing/` → `internal/indexing/slicer/slicer_test.go`
 
   Description: Slicer and analyzer tests
   Dependencies: Slicer
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 - [x] `tests/unit/infrastructure/bm25/` → `internal/indexing/bm25/vectorchord_repository_test.go`
 
@@ -1155,6 +1155,7 @@ Note: The LLM provider abstraction lives in `internal/provider/` (shared). The e
 | 2026-02-02 | Session 7: Completed Progress Tracking Context (10/11 tasks - 91%). Created: trackable.go (Trackable value object with ReferenceType), status.go (RepositoryStatusSummary with StatusSummaryFromTasks), tracker.go (Tracker with observer pattern), reporter.go (Reporter interface), query.go (QueryService), resolver.go (Resolver for trackable->commits), logging_reporter.go (LoggingReporter), db_reporter.go (DBReporter), tracking_test.go, tracker_test.go. Telemetry reporter deferred (requires analytics client). All tests pass, linting clean. Note: Commit.ParentCommitSHA not yet implemented in Git context, so full parent traversal in Resolver returns single commit. |
 | 2026-02-02 | Session 8: Started Snippet Extraction & Indexing Context (8/19 tasks). Created: snippet.go (Snippet aggregate, content-addressed by SHA256), commit_index.go (CommitIndex aggregate with status machine), repository.go (SnippetRepository, CommitIndexRepository, BM25Repository, VectorSearchRepository interfaces), bm25_service.go (BM25Service with validation), embedding_service.go (EmbeddingService with deduplication), postgres/entity.go (GORM entities for CommitIndex, Snippet, associations), postgres/mapper.go (domain<->entity mappers), postgres/commit_index_repository.go. Tests: snippet_test.go, commit_index_test.go, bm25_service_test.go, embedding_service_test.go. All tests pass, linting clean. |
 | 2026-02-02 | Session 9: Continued Snippet Extraction & Indexing Context (13/19 tasks - 68%). Created: postgres/snippet_repository.go (SnippetRepository implementation with content-addressed deduplication, commit associations, search filters), bm25/vectorchord_repository.go (VectorChord BM25 implementation using PostgreSQL extensions), vector/vectorchord_repository.go (VectorChord vector search using provider.Embedder for embeddings). Tests: postgres/snippet_repository_test.go, bm25/vectorchord_repository_test.go, vector/vectorchord_repository_test.go. Remaining: slicer components (config, analyzer, analyzers/, slicer, ast), embedding service, and task handlers. All tests pass, linting clean. |
+| 2026-02-02 | Session 10: Completed Slicer/AST Parsing components (19/19 tasks - 100% for Snippet Extraction core). Created: slicer/config.go (LanguageConfig with 10 supported languages: Python, Go, Java, C, C++, Rust, JavaScript, TypeScript, TSX, C#), slicer/analyzer.go (Analyzer interface with FunctionDefinition, ClassDefinition, TypeDefinition value objects), slicer/ast.go (Walker for AST traversal, CallGraph for dependency tracking), slicer/analyzers/ (language-specific implementations: base.go, python.go, golang.go, javascript.go, typescript.go, java.go, c.go, cpp.go, rust.go, csharp.go, factory.go), slicer/slicer.go (main Slicer service with file parsing, definition extraction, call graph building, snippet generation). Tests: slicer_test.go. Tree-sitter CGo dependency added (github.com/smacker/go-tree-sitter). Remaining in context: embedding service and task handlers. All tests pass, linting clean. |
 
 ### Architecture Decisions
 

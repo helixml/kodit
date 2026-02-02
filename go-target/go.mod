@@ -5,6 +5,7 @@ go 1.25.4
 require (
 	github.com/go-git/go-git/v5 v5.16.4
 	github.com/sashabaranov/go-openai v1.41.2
+	github.com/smacker/go-tree-sitter v0.0.0-20240827094217-dd81d9e9be82
 	github.com/stretchr/testify v1.10.0
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/driver/sqlite v1.6.0
