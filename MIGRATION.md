@@ -778,25 +778,31 @@ Bounded contexts ordered by dependencies (least dependencies first):
 
 #### Handlers
 
-- [ ] `src/kodit/application/handlers/enrichments/` → `internal/queue/handler/enrichment/`
+- [x] `src/kodit/application/handlers/enrichments/` → `internal/queue/handler/enrichment/`
 
   Description: All enrichment task handlers (CREATE_*_ENRICHMENT operations)
   Dependencies: EnrichmentV2Repository, LLMProvider
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 #### Services
 
-- [ ] `src/kodit/domain/services/physical_architecture_service.py` → `internal/enrichment/physical_architecture.go`
+- [x] `src/kodit/domain/services/physical_architecture_service.py` → `internal/enrichment/physical_architecture.go`
 
   Description: PhysicalArchitectureService (system structure discovery)
   Dependencies: LLMProvider
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/domain/services/cookbook_context_service.py` → `internal/enrichment/cookbook.go`
+- [x] `src/kodit/domain/services/cookbook_context_service.py` → `internal/enrichment/cookbook_context.go`
 
   Description: CookbookContextService (usage guide generation)
   Dependencies: LLMProvider, SnippetRepository
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
+
+- [x] → `internal/enrichment/query.go`
+
+  Description: EnrichmentQueryService (check for existing enrichments by commit)
+  Dependencies: EnrichmentRepository, AssociationRepository
+  Verified: [x] builds [x] tests pass
 
 ### Infrastructure Layer
 
@@ -834,11 +840,11 @@ Note: The LLM provider abstraction lives in `internal/provider/` (shared). The e
 
 #### Example Extraction
 
-- [ ] `src/kodit/infrastructure/example_extraction/` → `internal/enrichment/example/`
+- [x] `src/kodit/infrastructure/example_extraction/` → `internal/enrichment/example/`
 
-  Description: Example extraction from documentation
+  Description: Example extraction from documentation (CodeBlock, Discovery, MarkdownParser, RstParser)
   Dependencies: DocumentationParser
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 #### Database Entities
 
@@ -856,17 +862,17 @@ Note: The LLM provider abstraction lives in `internal/provider/` (shared). The e
   Dependencies: All enrichment types
   Verified: [x] builds [x] tests pass
 
-- [ ] `tests/unit/infrastructure/enricher/` → `internal/enrichment/enricher_test.go`
+- [x] `tests/unit/infrastructure/enricher/` → `internal/enrichment/enricher_test.go`
 
   Description: Enricher service tests
   Dependencies: Enricher
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `tests/unit/infrastructure/providers/` → `internal/enrichment/provider/provider_test.go`
+- [x] `tests/unit/infrastructure/providers/` → `internal/provider/provider_test.go`
 
-  Description: LLM provider tests (already done in internal/provider/)
+  Description: LLM provider tests (in internal/provider/)
   Dependencies: LLMProvider
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 ---
 
@@ -1158,6 +1164,7 @@ Note: The LLM provider abstraction lives in `internal/provider/` (shared). The e
 | 2026-02-02 | Session 10: Completed Slicer/AST Parsing components (19/19 tasks - 100% for Snippet Extraction core). Created: slicer/config.go (LanguageConfig with 10 supported languages: Python, Go, Java, C, C++, Rust, JavaScript, TypeScript, TSX, C#), slicer/analyzer.go (Analyzer interface with FunctionDefinition, ClassDefinition, TypeDefinition value objects), slicer/ast.go (Walker for AST traversal, CallGraph for dependency tracking), slicer/analyzers/ (language-specific implementations: base.go, python.go, golang.go, javascript.go, typescript.go, java.go, c.go, cpp.go, rust.go, csharp.go, factory.go), slicer/slicer.go (main Slicer service with file parsing, definition extraction, call graph building, snippet generation). Tests: slicer_test.go. Tree-sitter CGo dependency added (github.com/smacker/go-tree-sitter). Remaining in context: embedding service and task handlers. All tests pass, linting clean. |
 | 2026-02-02 | Session 11: Completed Snippet Extraction & Indexing Application Layer handlers (22/22 tasks - 100%). Created: handler/extract_snippets.go (EXTRACT_SNIPPETS_FOR_COMMIT handler with slicer integration, progress tracking), handler/create_bm25.go (CREATE_BM25_INDEX_FOR_COMMIT handler), handler/create_embeddings.go (CREATE_CODE_EMBEDDINGS_FOR_COMMIT handler with embedding deduplication). Tests: handler/handler_test.go with comprehensive tests for BM25 and embedding handlers. Note: embedding_service.go already existed in indexing/ (not a separate subdirectory). Phase 4 Snippet Extraction & Indexing Context is now 100% complete. All tests pass, linting clean. |
 | 2026-02-02 | Session 12: Started Enrichment Context (13/18 tasks - 72%). Created domain layer: enrichment.go (Enrichment with Type/Subtype/EntityTypeKey, immutable value object), architecture.go, development.go, history.go, usage.go (factory functions and type predicates for all enrichment subtypes), association.go (Association and SnippetSummaryLink value objects), repository.go (EnrichmentRepository and AssociationRepository interfaces). Created infrastructure layer: postgres/entity.go (GORM entities), postgres/mapper.go (domain<->entity mappers), postgres/enrichment_repository.go, postgres/association_repository.go. Created enricher.go (ProviderEnricher service using TextGenerator for LLM calls). Tests: enrichment_test.go (comprehensive tests for all types). Remaining: task handlers, PhysicalArchitectureService, CookbookContextService, example extraction. All tests pass, linting clean. |
+| 2026-02-02 | Session 13: Completed Enrichment Context (18/18 tasks - 100%). Created: handler/enrichment/ package with all 8 enrichment task handlers (util.go, create_summary.go, commit_description.go, architecture_discovery.go, database_schema.go, cookbook.go, api_docs.go, extract_examples.go, example_summary.go), query.go (EnrichmentQueryService for idempotency checks), physical_architecture.go (Docker Compose analysis, service detection, port inference), cookbook_context.go (README extraction, package manifest reading, example discovery), example/ package (code_block.go, discovery.go, parser.go with Markdown and RST parsers), enricher_test.go. Tests: handler/enrichment/handler_test.go with comprehensive fakes, example/example_test.go. Phase 5 Enrichment Context is now 100% complete. All tests pass, linting clean. |
 
 ### Architecture Decisions
 
