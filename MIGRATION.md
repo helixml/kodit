@@ -882,67 +882,67 @@ Note: The LLM provider abstraction lives in `internal/provider/` (shared). The e
 
 #### Entities
 
-- [ ] `src/kodit/domain/entities/__init__.py:Source` → `internal/repository/source.go`
+- [x] `src/kodit/domain/entities/__init__.py:Source` → `internal/repository/source.go`
 
   Description: Source entity (repository with WorkingCopy reference)
   Dependencies: WorkingCopy
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 ### Application Layer
 
 #### Handlers
 
-- [ ] `src/kodit/application/handlers/repository/clone_repository_handler.py` → `internal/queue/handler/clone_repository.go`
+- [x] `src/kodit/application/handlers/repository/clone_repository_handler.py` → `internal/queue/handler/clone_repository.go`
 
   Description: CLONE_REPOSITORY handler
   Dependencies: RepositoryCloner, GitRepoRepository
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/application/handlers/repository/sync_repository_handler.py` → `internal/queue/handler/sync_repository.go`
+- [x] `src/kodit/application/handlers/repository/sync_repository_handler.py` → `internal/queue/handler/sync_repository.go`
 
   Description: SYNC_REPOSITORY handler
   Dependencies: Git adapter, GitRepoRepository
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/application/handlers/repository/delete_repository_handler.py` → `internal/queue/handler/delete_repository.go`
+- [x] `src/kodit/application/handlers/repository/delete_repository_handler.py` → `internal/queue/handler/delete_repository.go`
 
   Description: DELETE_REPOSITORY handler
   Dependencies: GitRepoRepository, cleanup services
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/application/handlers/commits/scan_commit_handler.py` → `internal/queue/handler/scan_commit.go`
+- [x] `src/kodit/application/handlers/commits/scan_commit_handler.py` → `internal/queue/handler/scan_commit.go`
 
   Description: SCAN_COMMIT handler
   Dependencies: GitRepositoryScanner, GitCommitRepository
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 #### Services
 
-- [ ] `src/kodit/application/services/repository_query_service.py` → `internal/repository/query.go`
+- [x] `src/kodit/application/services/repository_query_service.py` → `internal/repository/query.go`
 
   Description: RepositoryQueryService (read-only queries for repos)
   Dependencies: GitRepoRepository
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `src/kodit/application/services/repository_sync_service.py` → `internal/repository/sync.go`
+- [x] `src/kodit/application/services/repository_sync_service.py` → `internal/repository/sync.go`
 
   Description: RepositorySyncService (sync orchestration)
   Dependencies: QueueService, GitRepoRepository
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 ### Tests
 
-- [ ] `tests/unit/application/handlers/repository/` → `internal/queue/handler/repository_test.go`
+- [x] `tests/unit/application/handlers/repository/` → `internal/queue/handler/repository_test.go`
 
   Description: Repository handler tests
   Dependencies: All repository handlers
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `tests/unit/application/services/test_repository_*_service.py` → `internal/repository/service_test.go`
+- [x] `tests/unit/application/services/test_repository_*_service.py` → `internal/repository/service_test.go`
 
   Description: Repository service tests
   Dependencies: Repository services
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 ---
 
@@ -1165,6 +1165,7 @@ Note: The LLM provider abstraction lives in `internal/provider/` (shared). The e
 | 2026-02-02 | Session 11: Completed Snippet Extraction & Indexing Application Layer handlers (22/22 tasks - 100%). Created: handler/extract_snippets.go (EXTRACT_SNIPPETS_FOR_COMMIT handler with slicer integration, progress tracking), handler/create_bm25.go (CREATE_BM25_INDEX_FOR_COMMIT handler), handler/create_embeddings.go (CREATE_CODE_EMBEDDINGS_FOR_COMMIT handler with embedding deduplication). Tests: handler/handler_test.go with comprehensive tests for BM25 and embedding handlers. Note: embedding_service.go already existed in indexing/ (not a separate subdirectory). Phase 4 Snippet Extraction & Indexing Context is now 100% complete. All tests pass, linting clean. |
 | 2026-02-02 | Session 12: Started Enrichment Context (13/18 tasks - 72%). Created domain layer: enrichment.go (Enrichment with Type/Subtype/EntityTypeKey, immutable value object), architecture.go, development.go, history.go, usage.go (factory functions and type predicates for all enrichment subtypes), association.go (Association and SnippetSummaryLink value objects), repository.go (EnrichmentRepository and AssociationRepository interfaces). Created infrastructure layer: postgres/entity.go (GORM entities), postgres/mapper.go (domain<->entity mappers), postgres/enrichment_repository.go, postgres/association_repository.go. Created enricher.go (ProviderEnricher service using TextGenerator for LLM calls). Tests: enrichment_test.go (comprehensive tests for all types). Remaining: task handlers, PhysicalArchitectureService, CookbookContextService, example extraction. All tests pass, linting clean. |
 | 2026-02-02 | Session 13: Completed Enrichment Context (18/18 tasks - 100%). Created: handler/enrichment/ package with all 8 enrichment task handlers (util.go, create_summary.go, commit_description.go, architecture_discovery.go, database_schema.go, cookbook.go, api_docs.go, extract_examples.go, example_summary.go), query.go (EnrichmentQueryService for idempotency checks), physical_architecture.go (Docker Compose analysis, service detection, port inference), cookbook_context.go (README extraction, package manifest reading, example discovery), example/ package (code_block.go, discovery.go, parser.go with Markdown and RST parsers), enricher_test.go. Tests: handler/enrichment/handler_test.go with comprehensive fakes, example/example_test.go. Phase 5 Enrichment Context is now 100% complete. All tests pass, linting clean. |
+| 2026-02-02 | Session 14: Completed Repository Management Context (8/8 tasks - 100%). Created: source.go (Source entity wrapping git.Repo with status tracking), clone_repository.go (CLONE_REPOSITORY handler), sync_repository.go (SYNC_REPOSITORY handler with branch scanning and commit scan queueing), delete_repository.go (DELETE_REPOSITORY handler with full cascade delete), scan_commit.go (SCAN_COMMIT handler with file extraction), query.go (QueryService for repository reads with RepositorySummary), sync.go (SyncService for add/sync/delete orchestration). Tests: source_test.go, repository_test.go (handler helper tests), service_test.go (QueryService and SyncService tests). Phase 6 Repository Management Context is now 100% complete. All tests pass, linting clean. |
 
 ### Architecture Decisions
 
