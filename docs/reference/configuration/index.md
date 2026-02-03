@@ -28,7 +28,7 @@ Global context for the kodit project. Provides a shared state for the app.
 | `EMBEDDING_ENDPOINT_INITIAL_DELAY` | float | `2.0` | Initial delay in seconds for the endpoint |
 | `EMBEDDING_ENDPOINT_BACKOFF_FACTOR` | float | `2.0` | Backoff factor for the endpoint |
 | `EMBEDDING_ENDPOINT_EXTRA_PARAMS` | `dict | None` | `None` | Extra provider-specific non-secret parameters for LiteLLM |
-| `EMBEDDING_ENDPOINT_MAX_TOKENS` | int | `8000` | Conservative token limit for the embedding model |
+| `EMBEDDING_ENDPOINT_MAX_TOKENS` | int | `4000` | Conservative token limit for the embedding model |
 | `ENRICHMENT_ENDPOINT` | `Endpoint | None` | `None` | Endpoint to use for enrichment. |
 | `ENRICHMENT_ENDPOINT_BASE_URL` | `str | None` | `None` | Base URL for the endpoint (e.g. 'https://app.helix.ml/v1') |
 | `ENRICHMENT_ENDPOINT_MODEL` | `str | None` | `None` | Model to use for the endpoint in litellm format (e.g. 'openai/text-embedding-3-small' or 'hosted_vllm/Qwen/Qwen3-8B') |
@@ -40,7 +40,7 @@ Global context for the kodit project. Provides a shared state for the app.
 | `ENRICHMENT_ENDPOINT_INITIAL_DELAY` | float | `2.0` | Initial delay in seconds for the endpoint |
 | `ENRICHMENT_ENDPOINT_BACKOFF_FACTOR` | float | `2.0` | Backoff factor for the endpoint |
 | `ENRICHMENT_ENDPOINT_EXTRA_PARAMS` | `dict | None` | `None` | Extra provider-specific non-secret parameters for LiteLLM |
-| `ENRICHMENT_ENDPOINT_MAX_TOKENS` | int | `8000` | Conservative token limit for the embedding model |
+| `ENRICHMENT_ENDPOINT_MAX_TOKENS` | int | `4000` | Conservative token limit for the embedding model |
 | `DEFAULT_SEARCH` | Search | `provider='sqlite'` |  |
 | `DEFAULT_SEARCH_PROVIDER` | Literal | `sqlite` |  |
 | `GIT` | Git | `provider='dulwich'` |  |
@@ -58,6 +58,8 @@ Global context for the kodit project. Provides a shared state for the app.
 | `REMOTE_VERIFY_SSL` | bool | `True` | Verify SSL certificates |
 | `REPORTING` | ReportingConfig | `log_time_interval=datetime.timedelta(seconds=5)` | Reporting configuration |
 | `REPORTING_LOG_TIME_INTERVAL` | timedelta | `0:00:05` | Time interval to log progress in seconds |
+| `LITELLM_CACHE` | LiteLLMCacheConfig | `enabled=True` | LiteLLM cache configuration |
+| `LITELLM_CACHE_ENABLED` | bool | `True` | Enable LiteLLM disk caching for API responses |
 
 ## Applying Configuration
 
