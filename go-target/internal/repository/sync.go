@@ -185,6 +185,35 @@ func (s *SyncService) UpdateTrackingConfig(
 	return NewSource(savedRepo), nil
 }
 
+// RequestRescan queues a rescan operation for a specific commit.
+func (s *SyncService) RequestRescan(ctx context.Context, repoID int64, commitSHA string) error {
+	repo, err := s.repoRepo.Get(ctx, repoID)
+	if err != nil {
+		return fmt.Errorf("get repository: %w", err)
+	}
+
+	if !repo.HasWorkingCopy() {
+		return fmt.Errorf("repository %d has not been cloned", repoID)
+	}
+
+	payload := map[string]any{
+		"repository_id": repoID,
+		"commit_sha":    commitSHA,
+	}
+	operations := queue.PrescribedOperations{}.RescanCommit()
+
+	if err := s.queueService.EnqueueOperations(ctx, operations, domain.QueuePriorityUserInitiated, payload); err != nil {
+		return fmt.Errorf("enqueue rescan: %w", err)
+	}
+
+	s.logger.Info("rescan requested",
+		slog.Int64("repo_id", repoID),
+		slog.String("commit_sha", commitSHA),
+	)
+
+	return nil
+}
+
 // SyncAll queues sync operations for all cloned repositories.
 func (s *SyncService) SyncAll(ctx context.Context) (int, error) {
 	repos, err := s.repoRepo.FindAll(ctx)

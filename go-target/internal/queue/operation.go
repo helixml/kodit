@@ -112,3 +112,24 @@ func (PrescribedOperations) IndexCommit() []TaskOperation {
 		OperationCreateCookbookForCommit,
 	}
 }
+
+// RescanCommit returns the operation sequence for rescanning a commit (full reindex).
+func (PrescribedOperations) RescanCommit() []TaskOperation {
+	return []TaskOperation{
+		OperationRescanCommit,
+		OperationExtractSnippetsForCommit,
+		OperationExtractExamplesForCommit,
+		OperationCreateBM25IndexForCommit,
+		OperationCreateCodeEmbeddingsForCommit,
+		OperationCreateExampleCodeEmbeddingsForCommit,
+		OperationCreateSummaryEnrichmentForCommit,
+		OperationCreateExampleSummaryForCommit,
+		OperationCreateSummaryEmbeddingsForCommit,
+		OperationCreateExampleSummaryEmbeddingsForCommit,
+		OperationCreateArchitectureEnrichmentForCommit,
+		OperationCreatePublicAPIDocsForCommit,
+		OperationCreateCommitDescriptionForCommit,
+		OperationCreateDatabaseSchemaForCommit,
+		OperationCreateCookbookForCommit,
+	}
+}

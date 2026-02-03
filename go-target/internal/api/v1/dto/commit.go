@@ -79,3 +79,26 @@ type FileJSONAPIResponse struct {
 type FileJSONAPIListResponse struct {
 	Data []FileData `json:"data"`
 }
+
+// TagAttributes represents tag attributes in JSON:API format.
+type TagAttributes struct {
+	Name      string `json:"name"`
+	CommitSHA string `json:"commit_sha"`
+}
+
+// TagData represents tag data in JSON:API format.
+type TagData struct {
+	Type       string        `json:"type"`
+	ID         string        `json:"id"`
+	Attributes TagAttributes `json:"attributes"`
+}
+
+// TagJSONAPIResponse represents a single tag in JSON:API format.
+type TagJSONAPIResponse struct {
+	Data TagData `json:"data"`
+}
+
+// TagJSONAPIListResponse represents a list of tags in JSON:API format.
+type TagJSONAPIListResponse struct {
+	Data []TagData `json:"data"`
+}

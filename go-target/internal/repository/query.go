@@ -185,6 +185,19 @@ func (s *QueryService) TagsForRepository(ctx context.Context, repoID int64) ([]g
 	return tags, nil
 }
 
+// TagByID returns a specific tag by ID within a repository.
+func (s *QueryService) TagByID(ctx context.Context, repoID, tagID int64) (git.Tag, error) {
+	tag, err := s.tagRepo.Get(ctx, tagID)
+	if err != nil {
+		return git.Tag{}, fmt.Errorf("get tag: %w", err)
+	}
+	// Verify tag belongs to the repository
+	if tag.RepoID() != repoID {
+		return git.Tag{}, fmt.Errorf("tag %d not found in repository %d", tagID, repoID)
+	}
+	return tag, nil
+}
+
 // CommitBySHA returns a specific commit by SHA within a repository.
 func (s *QueryService) CommitBySHA(ctx context.Context, repoID int64, sha string) (git.Commit, error) {
 	commit, err := s.commitRepo.GetByRepoAndSHA(ctx, repoID, sha)
@@ -204,4 +217,16 @@ func (s *QueryService) FilesForCommit(ctx context.Context, commitSHA string) ([]
 		return nil, fmt.Errorf("find files: %w", err)
 	}
 	return files, nil
+}
+
+// FileByBlobSHA returns a file by commit SHA and blob SHA.
+func (s *QueryService) FileByBlobSHA(ctx context.Context, commitSHA, blobSHA string) (git.File, error) {
+	if s.fileRepo == nil {
+		return git.File{}, fmt.Errorf("file repository not configured")
+	}
+	file, err := s.fileRepo.GetByCommitAndBlobSHA(ctx, commitSHA, blobSHA)
+	if err != nil {
+		return git.File{}, fmt.Errorf("get file: %w", err)
+	}
+	return file, nil
 }

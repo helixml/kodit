@@ -133,3 +133,16 @@ func (r *FileRepository) GetByCommitAndPath(ctx context.Context, sha, path strin
 	}
 	return r.mapper.ToDomain(entity), nil
 }
+
+// GetByCommitAndBlobSHA retrieves a file by commit SHA and blob SHA.
+func (r *FileRepository) GetByCommitAndBlobSHA(ctx context.Context, commitSHA, blobSHA string) (git.File, error) {
+	var entity FileEntity
+	result := r.db.Session(ctx).Where("commit_sha = ? AND blob_sha = ?", commitSHA, blobSHA).First(&entity)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return git.File{}, fmt.Errorf("%w: file with blob %s at commit %s", database.ErrNotFound, blobSHA, commitSHA)
+		}
+		return git.File{}, fmt.Errorf("get file: %w", result.Error)
+	}
+	return r.mapper.ToDomain(entity), nil
+}

@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/helixml/kodit/internal/api/middleware"
 	"github.com/helixml/kodit/internal/api/v1/dto"
+	"github.com/helixml/kodit/internal/enrichment"
 	"github.com/helixml/kodit/internal/git"
 	"github.com/helixml/kodit/internal/repository"
 	"github.com/helixml/kodit/internal/tracking"
@@ -19,10 +20,12 @@ import (
 
 // RepositoriesRouter handles repository API endpoints.
 type RepositoriesRouter struct {
-	queryService        *repository.QueryService
-	syncService         *repository.SyncService
-	trackingQueryService *tracking.QueryService
-	logger              *slog.Logger
+	queryService           *repository.QueryService
+	syncService            *repository.SyncService
+	trackingQueryService   *tracking.QueryService
+	enrichmentQueryService *enrichment.QueryService
+	enrichmentRepo         enrichment.EnrichmentRepository
+	logger                 *slog.Logger
 }
 
 // NewRepositoriesRouter creates a new RepositoriesRouter.
@@ -47,6 +50,16 @@ func (r *RepositoriesRouter) WithTrackingQueryService(svc *tracking.QueryService
 	return r
 }
 
+// WithEnrichmentServices sets the enrichment services for enrichment endpoints.
+func (r *RepositoriesRouter) WithEnrichmentServices(
+	querySvc *enrichment.QueryService,
+	repo enrichment.EnrichmentRepository,
+) *RepositoriesRouter {
+	r.enrichmentQueryService = querySvc
+	r.enrichmentRepo = repo
+	return r
+}
+
 // Routes returns the chi router for repository endpoints.
 func (r *RepositoriesRouter) Routes() chi.Router {
 	router := chi.NewRouter()
@@ -61,6 +74,15 @@ func (r *RepositoriesRouter) Routes() chi.Router {
 	router.Get("/{id}/commits", r.ListCommits)
 	router.Get("/{id}/commits/{commit_sha}", r.GetCommit)
 	router.Get("/{id}/commits/{commit_sha}/files", r.ListCommitFiles)
+	router.Get("/{id}/commits/{commit_sha}/files/{blob_sha}", r.GetCommitFile)
+	router.Get("/{id}/commits/{commit_sha}/enrichments", r.ListCommitEnrichments)
+	router.Get("/{id}/commits/{commit_sha}/enrichments/{enrichment_id}", r.GetCommitEnrichment)
+	router.Get("/{id}/commits/{commit_sha}/snippets", r.ListCommitSnippets)
+	router.Post("/{id}/commits/{commit_sha}/rescan", r.RescanCommit)
+	router.Get("/{id}/tags", r.ListTags)
+	router.Get("/{id}/tags/{tag_id}", r.GetTag)
+	router.Get("/{id}/tracking-config", r.GetTrackingConfig)
+	router.Put("/{id}/tracking-config", r.UpdateTrackingConfig)
 
 	return router
 }
@@ -416,6 +438,405 @@ func (r *RepositoriesRouter) ListCommitFiles(w http.ResponseWriter, req *http.Re
 	}
 
 	middleware.WriteJSON(w, http.StatusOK, dto.FileJSONAPIListResponse{Data: data})
+}
+
+// GetCommitFile handles GET /api/v1/repositories/{id}/commits/{commit_sha}/files/{blob_sha}.
+func (r *RepositoriesRouter) GetCommitFile(w http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+
+	idStr := chi.URLParam(req, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	commitSHA := chi.URLParam(req, "commit_sha")
+	blobSHA := chi.URLParam(req, "blob_sha")
+
+	// Check repository exists
+	_, err = r.queryService.ByID(ctx, id)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	// Check commit exists and belongs to this repo
+	_, err = r.queryService.CommitBySHA(ctx, id, commitSHA)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	file, err := r.queryService.FileByBlobSHA(ctx, commitSHA, blobSHA)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	middleware.WriteJSON(w, http.StatusOK, dto.FileJSONAPIResponse{
+		Data: dto.FileData{
+			Type: "file",
+			ID:   file.BlobSHA(),
+			Attributes: dto.FileAttributes{
+				BlobSHA:   file.BlobSHA(),
+				Path:      file.Path(),
+				MimeType:  file.MimeType(),
+				Size:      file.Size(),
+				Extension: file.Extension(),
+			},
+		},
+	})
+}
+
+// ListCommitEnrichments handles GET /api/v1/repositories/{id}/commits/{commit_sha}/enrichments.
+func (r *RepositoriesRouter) ListCommitEnrichments(w http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+
+	idStr := chi.URLParam(req, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	commitSHA := chi.URLParam(req, "commit_sha")
+
+	// Check repository exists
+	_, err = r.queryService.ByID(ctx, id)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	// Check commit exists and belongs to this repo
+	_, err = r.queryService.CommitBySHA(ctx, id, commitSHA)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	// If enrichment service not configured, return empty list
+	if r.enrichmentQueryService == nil {
+		middleware.WriteJSON(w, http.StatusOK, dto.EnrichmentJSONAPIListResponse{Data: []dto.EnrichmentData{}})
+		return
+	}
+
+	// Parse optional type/subtype filters from query params
+	var typFilter *enrichment.Type
+	var subtypeFilter *enrichment.Subtype
+
+	if typeStr := req.URL.Query().Get("enrichment_type"); typeStr != "" {
+		typ := enrichment.Type(typeStr)
+		typFilter = &typ
+	}
+	if subtypeStr := req.URL.Query().Get("enrichment_subtype"); subtypeStr != "" {
+		sub := enrichment.Subtype(subtypeStr)
+		subtypeFilter = &sub
+	}
+
+	enrichments, err := r.enrichmentQueryService.EnrichmentsForCommit(ctx, commitSHA, typFilter, subtypeFilter)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	data := make([]dto.EnrichmentData, 0, len(enrichments))
+	for _, e := range enrichments {
+		data = append(data, dto.EnrichmentData{
+			Type: "enrichment",
+			ID:   fmt.Sprintf("%d", e.ID()),
+			Attributes: dto.EnrichmentAttributes{
+				Type:      string(e.Type()),
+				Subtype:   string(e.Subtype()),
+				Content:   e.Content(),
+				CreatedAt: e.CreatedAt(),
+				UpdatedAt: e.UpdatedAt(),
+			},
+		})
+	}
+
+	middleware.WriteJSON(w, http.StatusOK, dto.EnrichmentJSONAPIListResponse{Data: data})
+}
+
+// GetCommitEnrichment handles GET /api/v1/repositories/{id}/commits/{commit_sha}/enrichments/{enrichment_id}.
+func (r *RepositoriesRouter) GetCommitEnrichment(w http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+
+	idStr := chi.URLParam(req, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	commitSHA := chi.URLParam(req, "commit_sha")
+	enrichmentIDStr := chi.URLParam(req, "enrichment_id")
+	enrichmentID, err := strconv.ParseInt(enrichmentIDStr, 10, 64)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	// Check repository exists
+	_, err = r.queryService.ByID(ctx, id)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	// Check commit exists and belongs to this repo
+	_, err = r.queryService.CommitBySHA(ctx, id, commitSHA)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	// If enrichment repo not configured, return error
+	if r.enrichmentRepo == nil {
+		middleware.WriteJSON(w, http.StatusNotFound, map[string]string{"error": "enrichments not configured"})
+		return
+	}
+
+	e, err := r.enrichmentRepo.Get(ctx, enrichmentID)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	middleware.WriteJSON(w, http.StatusOK, dto.EnrichmentJSONAPIResponse{
+		Data: dto.EnrichmentData{
+			Type: "enrichment",
+			ID:   fmt.Sprintf("%d", e.ID()),
+			Attributes: dto.EnrichmentAttributes{
+				Type:      string(e.Type()),
+				Subtype:   string(e.Subtype()),
+				Content:   e.Content(),
+				CreatedAt: e.CreatedAt(),
+				UpdatedAt: e.UpdatedAt(),
+			},
+		},
+	})
+}
+
+// ListCommitSnippets handles GET /api/v1/repositories/{id}/commits/{commit_sha}/snippets.
+// This redirects to the enrichments endpoint with type=development and subtype=snippet filters.
+func (r *RepositoriesRouter) ListCommitSnippets(w http.ResponseWriter, req *http.Request) {
+	idStr := chi.URLParam(req, "id")
+	commitSHA := chi.URLParam(req, "commit_sha")
+
+	// Redirect to enrichments endpoint with snippet filters
+	redirectURL := fmt.Sprintf("/api/v1/repositories/%s/commits/%s/enrichments?enrichment_type=development&enrichment_subtype=snippet",
+		idStr, commitSHA)
+
+	http.Redirect(w, req, redirectURL, http.StatusPermanentRedirect)
+}
+
+// RescanCommit handles POST /api/v1/repositories/{id}/commits/{commit_sha}/rescan.
+func (r *RepositoriesRouter) RescanCommit(w http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+
+	idStr := chi.URLParam(req, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	commitSHA := chi.URLParam(req, "commit_sha")
+
+	// Check repository exists
+	_, err = r.queryService.ByID(ctx, id)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	// Check commit exists and belongs to this repo
+	_, err = r.queryService.CommitBySHA(ctx, id, commitSHA)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	if err := r.syncService.RequestRescan(ctx, id, commitSHA); err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	w.WriteHeader(http.StatusAccepted)
+}
+
+// ListTags handles GET /api/v1/repositories/{id}/tags.
+func (r *RepositoriesRouter) ListTags(w http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+
+	idStr := chi.URLParam(req, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	// Check repository exists
+	_, err = r.queryService.ByID(ctx, id)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	tags, err := r.queryService.TagsForRepository(ctx, id)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	data := make([]dto.TagData, 0, len(tags))
+	for _, tag := range tags {
+		data = append(data, dto.TagData{
+			Type: "tag",
+			ID:   fmt.Sprintf("%d", tag.ID()),
+			Attributes: dto.TagAttributes{
+				Name:      tag.Name(),
+				CommitSHA: tag.CommitSHA(),
+			},
+		})
+	}
+
+	middleware.WriteJSON(w, http.StatusOK, dto.TagJSONAPIListResponse{Data: data})
+}
+
+// GetTag handles GET /api/v1/repositories/{id}/tags/{tag_id}.
+func (r *RepositoriesRouter) GetTag(w http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+
+	idStr := chi.URLParam(req, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	tagIDStr := chi.URLParam(req, "tag_id")
+	tagID, err := strconv.ParseInt(tagIDStr, 10, 64)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	// Check repository exists
+	_, err = r.queryService.ByID(ctx, id)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	tag, err := r.queryService.TagByID(ctx, id, tagID)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	middleware.WriteJSON(w, http.StatusOK, dto.TagJSONAPIResponse{
+		Data: dto.TagData{
+			Type: "tag",
+			ID:   fmt.Sprintf("%d", tag.ID()),
+			Attributes: dto.TagAttributes{
+				Name:      tag.Name(),
+				CommitSHA: tag.CommitSHA(),
+			},
+		},
+	})
+}
+
+// GetTrackingConfig handles GET /api/v1/repositories/{id}/tracking-config.
+func (r *RepositoriesRouter) GetTrackingConfig(w http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+
+	idStr := chi.URLParam(req, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	source, err := r.queryService.ByID(ctx, id)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	tc := source.Repo().TrackingConfig()
+	trackingType := "none"
+	if tc.Branch() != "" {
+		trackingType = "branch"
+	} else if tc.Tag() != "" {
+		trackingType = "tag"
+	} else if tc.Commit() != "" {
+		trackingType = "commit"
+	}
+
+	middleware.WriteJSON(w, http.StatusOK, dto.TrackingConfigResponse{
+		Data: dto.TrackingConfigData{
+			Type: "tracking_config",
+			ID:   fmt.Sprintf("%d", id),
+			Attributes: dto.TrackingConfigAttributes{
+				Type:   trackingType,
+				Branch: tc.Branch(),
+				Tag:    tc.Tag(),
+				Commit: tc.Commit(),
+			},
+		},
+	})
+}
+
+// UpdateTrackingConfig handles PUT /api/v1/repositories/{id}/tracking-config.
+func (r *RepositoriesRouter) UpdateTrackingConfig(w http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+
+	idStr := chi.URLParam(req, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	var body dto.TrackingConfigRequest
+	if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	tc := git.NewTrackingConfig(body.Branch, body.Tag, body.Commit)
+
+	source, err := r.syncService.UpdateTrackingConfig(ctx, id, tc)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	updatedTC := source.Repo().TrackingConfig()
+	trackingType := "none"
+	if updatedTC.Branch() != "" {
+		trackingType = "branch"
+	} else if updatedTC.Tag() != "" {
+		trackingType = "tag"
+	} else if updatedTC.Commit() != "" {
+		trackingType = "commit"
+	}
+
+	middleware.WriteJSON(w, http.StatusOK, dto.TrackingConfigResponse{
+		Data: dto.TrackingConfigData{
+			Type: "tracking_config",
+			ID:   fmt.Sprintf("%d", id),
+			Attributes: dto.TrackingConfigAttributes{
+				Type:   trackingType,
+				Branch: updatedTC.Branch(),
+				Tag:    updatedTC.Tag(),
+				Commit: updatedTC.Commit(),
+			},
+		},
+	})
 }
 
 func sourcesToDTO(sources []repository.Source) []dto.RepositoryResponse {

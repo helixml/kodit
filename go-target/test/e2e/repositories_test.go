@@ -363,3 +363,158 @@ func TestRepositories_GetCommit_RepoNotFound(t *testing.T) {
 		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusNotFound)
 	}
 }
+
+func TestRepositories_GetCommitFile(t *testing.T) {
+	ts := NewTestServer(t)
+
+	// Create a repository, commit, and file
+	repo := ts.CreateRepository("https://github.com/test/file-repo.git")
+	commit := ts.CreateCommit(repo, "abc123def", "Test commit")
+	file := ts.CreateFile(commit.SHA(), "src/main.go", "blob123abc", "text/x-go", ".go", 1024)
+
+	resp := ts.GET(fmt.Sprintf("/api/v1/repositories/%d/commits/%s/files/%s", repo.ID(), commit.SHA(), file.BlobSHA()))
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var result dto.FileJSONAPIResponse
+	ts.DecodeJSON(resp, &result)
+
+	if result.Data.Type != "file" {
+		t.Errorf("type = %q, want %q", result.Data.Type, "file")
+	}
+	if result.Data.ID != "blob123abc" {
+		t.Errorf("ID = %q, want %q", result.Data.ID, "blob123abc")
+	}
+	if result.Data.Attributes.BlobSHA != "blob123abc" {
+		t.Errorf("blob_sha = %q, want %q", result.Data.Attributes.BlobSHA, "blob123abc")
+	}
+	if result.Data.Attributes.Path != "src/main.go" {
+		t.Errorf("path = %q, want %q", result.Data.Attributes.Path, "src/main.go")
+	}
+	if result.Data.Attributes.MimeType != "text/x-go" {
+		t.Errorf("mime_type = %q, want %q", result.Data.Attributes.MimeType, "text/x-go")
+	}
+	if result.Data.Attributes.Size != 1024 {
+		t.Errorf("size = %d, want %d", result.Data.Attributes.Size, 1024)
+	}
+	if result.Data.Attributes.Extension != ".go" {
+		t.Errorf("extension = %q, want %q", result.Data.Attributes.Extension, ".go")
+	}
+}
+
+func TestRepositories_GetCommitFile_NotFound(t *testing.T) {
+	ts := NewTestServer(t)
+
+	// Create a repository and commit, but no file
+	repo := ts.CreateRepository("https://github.com/test/file-not-found-repo.git")
+	commit := ts.CreateCommit(repo, "def456abc", "Test commit")
+
+	resp := ts.GET(fmt.Sprintf("/api/v1/repositories/%d/commits/%s/files/nonexistent", repo.ID(), commit.SHA()))
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusNotFound)
+	}
+}
+
+func TestRepositories_GetCommitFile_CommitNotFound(t *testing.T) {
+	ts := NewTestServer(t)
+
+	// Create a repository but no commit
+	repo := ts.CreateRepository("https://github.com/test/commit-not-found-repo.git")
+
+	resp := ts.GET(fmt.Sprintf("/api/v1/repositories/%d/commits/nonexistent/files/blob123", repo.ID()))
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusNotFound)
+	}
+}
+
+func TestRepositories_ListCommitEnrichments_Empty(t *testing.T) {
+	ts := NewTestServer(t)
+
+	// Create a repository and commit
+	repo := ts.CreateRepository("https://github.com/test/enrichments-repo.git")
+	commit := ts.CreateCommit(repo, "enrichment123", "Test commit")
+
+	resp := ts.GET(fmt.Sprintf("/api/v1/repositories/%d/commits/%s/enrichments", repo.ID(), commit.SHA()))
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var result dto.EnrichmentJSONAPIListResponse
+	ts.DecodeJSON(resp, &result)
+
+	if result.Data == nil {
+		t.Error("data should not be nil")
+	}
+	if len(result.Data) != 0 {
+		t.Errorf("len(data) = %d, want 0", len(result.Data))
+	}
+}
+
+func TestRepositories_ListCommitEnrichments_NotFound(t *testing.T) {
+	ts := NewTestServer(t)
+
+	// Create a repository but no commit
+	repo := ts.CreateRepository("https://github.com/test/enrichments-not-found-repo.git")
+
+	resp := ts.GET(fmt.Sprintf("/api/v1/repositories/%d/commits/nonexistent/enrichments", repo.ID()))
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusNotFound)
+	}
+}
+
+func TestRepositories_ListCommitSnippets_Redirect(t *testing.T) {
+	ts := NewTestServer(t)
+
+	// Create a repository and commit
+	repo := ts.CreateRepository("https://github.com/test/snippets-repo.git")
+	commit := ts.CreateCommit(repo, "snippet123", "Test commit")
+
+	// Use a client that doesn't follow redirects
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	resp, err := client.Get(ts.URL() + fmt.Sprintf("/api/v1/repositories/%d/commits/%s/snippets", repo.ID(), commit.SHA()))
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	// Should be a permanent redirect (308)
+	if resp.StatusCode != http.StatusPermanentRedirect {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusPermanentRedirect)
+	}
+
+	// Check redirect location
+	location := resp.Header.Get("Location")
+	expectedPath := fmt.Sprintf("/api/v1/repositories/%d/commits/%s/enrichments?enrichment_type=development&enrichment_subtype=snippet",
+		repo.ID(), commit.SHA())
+	if location != expectedPath {
+		t.Errorf("Location = %q, want %q", location, expectedPath)
+	}
+}

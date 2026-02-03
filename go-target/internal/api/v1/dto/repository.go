@@ -79,3 +79,30 @@ type RepositoryStatusSummaryData struct {
 type RepositoryStatusSummaryResponse struct {
 	Data RepositoryStatusSummaryData `json:"data"`
 }
+
+// TrackingConfigAttributes represents tracking configuration attributes in JSON:API format.
+type TrackingConfigAttributes struct {
+	Type   string `json:"type"`
+	Branch string `json:"branch,omitempty"`
+	Tag    string `json:"tag,omitempty"`
+	Commit string `json:"commit,omitempty"`
+}
+
+// TrackingConfigData represents tracking configuration data in JSON:API format.
+type TrackingConfigData struct {
+	Type       string                   `json:"type"`
+	ID         string                   `json:"id"`
+	Attributes TrackingConfigAttributes `json:"attributes"`
+}
+
+// TrackingConfigResponse represents a tracking configuration response in JSON:API format.
+type TrackingConfigResponse struct {
+	Data TrackingConfigData `json:"data"`
+}
+
+// TrackingConfigRequest represents a request to update tracking configuration.
+type TrackingConfigRequest struct {
+	Branch string `json:"branch,omitempty"`
+	Tag    string `json:"tag,omitempty"`
+	Commit string `json:"commit,omitempty"`
+}

@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/helixml/kodit/internal/api"
@@ -225,7 +226,8 @@ func NewTestServer(t *testing.T) *TestServer {
 
 	// Create services
 	queueService := queue.NewService(taskRepo, logger)
-	queryService := repository.NewQueryService(repoRepo, commitRepo, branchRepo, tagRepo)
+	queryService := repository.NewQueryService(repoRepo, commitRepo, branchRepo, tagRepo).
+		WithFileRepository(fileRepo)
 	syncService := repository.NewSyncService(repoRepo, queueService, logger)
 
 	// Create search service with fakes for BM25 and Vector (no extensions in SQLite)
@@ -414,6 +416,34 @@ func (ts *TestServer) CreateEnrichment(typ enrichment.Type, subtype enrichment.S
 	saved, err := ts.enrichmentRepo.Save(ctx, e)
 	if err != nil {
 		ts.t.Fatalf("save enrichment: %v", err)
+	}
+	return saved
+}
+
+// CreateCommit creates a commit in the database directly.
+func (ts *TestServer) CreateCommit(repo git.Repo, sha, message string) git.Commit {
+	ts.t.Helper()
+	ctx := context.Background()
+
+	author := git.NewAuthor("Test User", "test@example.com")
+	now := time.Now()
+	commit := git.NewCommit(sha, repo.ID(), message, author, author, now, now)
+	saved, err := ts.commitRepo.Save(ctx, commit)
+	if err != nil {
+		ts.t.Fatalf("save commit: %v", err)
+	}
+	return saved
+}
+
+// CreateFile creates a file in the database directly.
+func (ts *TestServer) CreateFile(commitSHA, path, blobSHA, mimeType, extension string, size int64) git.File {
+	ts.t.Helper()
+	ctx := context.Background()
+
+	file := git.NewFileWithDetails(commitSHA, path, blobSHA, mimeType, extension, size)
+	saved, err := ts.fileRepo.Save(ctx, file)
+	if err != nil {
+		ts.t.Fatalf("save file: %v", err)
 	}
 	return saved
 }

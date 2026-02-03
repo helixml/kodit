@@ -61,4 +61,5 @@ type FileRepository interface {
 	Delete(ctx context.Context, file File) error
 	FindByCommitSHA(ctx context.Context, sha string) ([]File, error)
 	DeleteByCommitSHA(ctx context.Context, sha string) error
+	GetByCommitAndBlobSHA(ctx context.Context, commitSHA, blobSHA string) (File, error)
 }
