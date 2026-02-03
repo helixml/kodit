@@ -58,6 +58,44 @@ Bounded contexts ordered by dependencies (least dependencies first):
   Dependencies: None
   Verified: [x] builds [x] tests pass
 
+- [ ] → `internal/config/env.go`
+
+  Description: Environment variable loading using kelseyhightower/envconfig. Loads all configuration from env vars with the following mappings:
+  - `DATA_DIR` → DataDir (default: ~/.kodit)
+  - `DB_URL` → DBURL (default: sqlite:///{data_dir}/kodit.db)
+  - `LOG_LEVEL` → LogLevel (default: INFO)
+  - `LOG_FORMAT` → LogFormat (default: pretty)
+  - `DISABLE_TELEMETRY` → DisableTelemetry (default: false)
+  - `API_KEYS` → APIKeys (comma-separated)
+  - `EMBEDDING_ENDPOINT_*` → EmbeddingEndpoint (nested: BASE_URL, MODEL, API_KEY, NUM_PARALLEL_TASKS, SOCKET_PATH, TIMEOUT, MAX_RETRIES, INITIAL_DELAY, BACKOFF_FACTOR, EXTRA_PARAMS, MAX_TOKENS)
+  - `ENRICHMENT_ENDPOINT_*` → EnrichmentEndpoint (same nested fields as embedding)
+  - `DEFAULT_SEARCH_PROVIDER` → Search.Provider (default: sqlite, options: sqlite/vectorchord)
+  - `GIT_PROVIDER` → Git.Provider (default: dulwich, options: pygit2/gitpython/dulwich)
+  - `PERIODIC_SYNC_ENABLED` → PeriodicSync.Enabled (default: true)
+  - `PERIODIC_SYNC_INTERVAL_SECONDS` → PeriodicSync.IntervalSeconds (default: 1800)
+  - `PERIODIC_SYNC_RETRY_ATTEMPTS` → PeriodicSync.RetryAttempts (default: 3)
+  - `REMOTE_SERVER_URL` → Remote.ServerURL
+  - `REMOTE_API_KEY` → Remote.APIKey
+  - `REMOTE_TIMEOUT` → Remote.Timeout (default: 30s)
+  - `REMOTE_MAX_RETRIES` → Remote.MaxRetries (default: 3)
+  - `REMOTE_VERIFY_SSL` → Remote.VerifySSL (default: true)
+  - `REPORTING_LOG_TIME_INTERVAL` → Reporting.LogTimeInterval (default: 5s)
+  - `LITELLM_CACHE_ENABLED` → LiteLLMCache.Enabled (default: true)
+  Dependencies: config.go, kelseyhightower/envconfig
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] → `internal/config/dotenv.go`
+
+  Description: .env file loading support using joho/godotenv. Loads environment variables from .env file before envconfig processing. Supports optional --env-file CLI flag to specify custom .env file path (default: .env in current directory).
+  Dependencies: env.go, joho/godotenv
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] → `internal/config/env_test.go`
+
+  Description: Tests for environment variable loading: default values, env var overrides, nested endpoint parsing, comma-separated API keys parsing, duration parsing for timeouts/intervals.
+  Dependencies: env.go, dotenv.go
+  Verified: [ ] builds [ ] tests pass
+
 #### Logging
 
 - [x] `src/kodit/log.py` → `internal/log/logger.go`
@@ -1070,6 +1108,12 @@ Note: SnippetSearchFilters, MultiSearchRequest, FusionRequest, and FusionResult 
   Dependencies: Server, config
   Verified: [x] builds [x] tests pass
 
+- [ ] Update `cmd/kodit/main.go` for environment configuration
+
+  Description: Integrate env.go and dotenv.go into CLI startup. Add --env-file flag (default: .env). Load .env file first, then call LoadFromEnv() to populate AppConfig. Pass loaded config to ServerFactory. Ensure all env vars are documented in --help output or README.
+  Dependencies: env.go, dotenv.go, main.go
+  Verified: [ ] builds [ ] tests pass
+
 #### Middleware
 
 - [x] `src/kodit/infrastructure/api/middleware.py` → `internal/api/middleware/`
@@ -1158,6 +1202,38 @@ Note: SnippetSearchFilters, MultiSearchRequest, FusionRequest, and FusionResult 
 
   Description: End-to-end tests for API server with SQLite in-memory database
   Dependencies: Full system
+  Verified: [x] builds [x] tests pass
+
+#### Application Service Integration Tests
+
+- [x] → `internal/testutil/integration.go`
+
+  Description: Integration test helpers (TestSchema, GitTestRepo, FakeEmbedder, FakeBM25Repository, FakeVectorRepository, FakeSnippetRepository, FakeProgressTracker, FakeTrackerFactory, FakeGitAdapter)
+  Dependencies: testutil/fixtures.go, go-git
+  Verified: [x] builds [x] tests pass
+
+- [x] → `internal/queue/integration_test.go`
+
+  Description: Queue service integration tests (enqueue, dedup, priority ordering, PrescribedOperations) - 13 tests mirroring Python queue_service_test.py
+  Dependencies: TestDB, queue service
+  Verified: [x] builds [x] tests pass
+
+- [x] → `internal/search/integration_test.go`
+
+  Description: Search service integration tests (hybrid search, BM25, vector search, fusion scoring, enrichment associations) - 10 tests mirroring Python code_search_application_service_test.py
+  Dependencies: TestDB, FakeEmbedder, search service
+  Verified: [x] builds [x] tests pass
+
+- [x] → `internal/repository/integration_test.go`
+
+  Description: Repository sync and query service integration tests (add repository, sync, tracking config, branches/tags) - 18 tests mirroring Python test_repository_sync_service.py
+  Dependencies: TestDB, repository services
+  Verified: [x] builds [x] tests pass
+
+- [x] → `internal/queue/handler/integration_test.go`
+
+  Description: Handler integration tests (clone, sync, scan commit with fakeAdapter pattern) - 10 tests mirroring Python handler tests
+  Dependencies: All above, handlers, git adapter
   Verified: [x] builds [x] tests pass
 
 ### API Parity with Python OpenAPI Spec
@@ -1406,6 +1482,8 @@ Note: SnippetSearchFilters, MultiSearchRequest, FusionRequest, and FusionResult 
 | 2026-02-03 | Session 21: Completed JSON:API compliance and API Parity (30/30 tasks - 100%). Created: internal/api/jsonapi/response.go (Document, Resource, Error, Meta, Links types with helper functions), internal/api/jsonapi/serializer.go (Serializer for converting domain types to JSON:API resources). Updated all DTOs to use JSON:API structure: dto/repository.go, dto/search.go (SearchRequest with data.attributes, SearchFilters), dto/queue.go, dto/enrichment.go (JSON:API types). Updated routers: search.go (parses nested data.attributes, all filter fields), queue.go (JSON:API format, fixed column filter), repositories.go (JSON:API for tracking config), enrichments.go (JSON:API format, enrichment_type/enrichment_subtype params, pagination). Updated all e2e and unit tests for new JSON:API format. Phase 8 API Gateway Context is now 100% complete with full Python API parity. All tests pass, linting clean. |
 | 2026-02-03 | Session 22: Completed Build Tools (5/5 tasks - 100%). Created: Makefile (build, test, lint, format, run targets with version info via ldflags), swag target in Makefile (OpenAPI spec generation), OpenAPI/swag annotations on all API handlers in repositories.go, search.go, enrichments.go, queue.go (20+ endpoints annotated), internal/api/docs.go with /docs endpoint serving Swagger UI (embedded swagger.json with interactive documentation), Dockerfile (multi-stage build with alpine, tree-sitter CGo deps, static linking, non-root user, healthcheck). Also created .dockerignore. Docker image builds successfully for linux/amd64 and runs. Added swaggo/http-swagger and swaggo/swag dependencies. All tests pass, linting clean. **Migration is now essentially complete** - all 8 bounded contexts migrated with full API parity. Remaining items are deferred optional features (additional AI providers, telemetry reporter, database migrations, integration tests). |
 | 2026-02-03 | Session 23: Verification session. Confirmed all tests pass (34 packages tested), linting clean (0 issues), Docker build works (linux/amd64 builds and runs successfully). Migration status: 98% complete (~147/150 tasks). All core functionality migrated. Remaining deferred items: additional AI providers, database migrations conversion, telemetry reporter, integration tests. The Go service is production-ready for deployment. |
+| 2026-02-03 | Session 24: Added application service integration tests (5/5 tasks - 100%). Created: internal/testutil/integration.go (TestSchema, GitTestRepo, FakeEmbedder, FakeBM25Repository, FakeVectorRepository, FakeSnippetRepository, FakeProgressTracker, FakeTrackerFactory, FakeGitAdapter), internal/queue/integration_test.go (13 tests for queue service), internal/search/integration_test.go (10 tests for search service), internal/repository/integration_test.go (18 tests for repository services), internal/queue/handler/integration_test.go (10 tests for handlers using fakeAdapter pattern). These mirror Python tests in tests/kodit/application/services/. Updated MIGRATION.md with new test tasks. All tests pass, linting clean. Total: 51 new integration tests at application service level (not HTTP). |
+| 2026-02-03 | Config Analysis: Analyzed Python configuration (src/kodit/config.py) vs Go implementation (internal/config/config.go). Go has all configuration structs (AppConfig, Endpoint, SearchConfig, GitConfig, PeriodicSyncConfig, RemoteConfig, ReportingConfig, LiteLLMCacheConfig) but is missing environment variable loading. Python uses pydantic-settings with automatic env loading (DATA_DIR, DB_URL, LOG_LEVEL, etc.) and .env file support. Added 4 new tasks: (1) env.go - environment variable loading with kelseyhightower/envconfig for 28+ env vars including nested endpoint configs (EMBEDDING_ENDPOINT_*, ENRICHMENT_ENDPOINT_*), (2) dotenv.go - .env file loading with joho/godotenv, (3) env_test.go - tests for env loading, (4) Update main.go to integrate --env-file flag and LoadFromEnv(). |
 
 ### Architecture Decisions
 
