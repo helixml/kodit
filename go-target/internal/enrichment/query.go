@@ -163,3 +163,46 @@ func (s *QueryService) ExamplesForCommit(ctx context.Context, commitSHA string) 
 	sub := SubtypeExample
 	return s.EnrichmentsForCommit(ctx, commitSHA, &typ, &sub)
 }
+
+// EnrichmentsForCommits returns enrichments for multiple commits with optional type filter.
+// Results are aggregated across all commits and deduplicated.
+func (s *QueryService) EnrichmentsForCommits(
+	ctx context.Context,
+	commitSHAs []string,
+	typ *Type,
+	limit int,
+) ([]Enrichment, error) {
+	if len(commitSHAs) == 0 {
+		return []Enrichment{}, nil
+	}
+
+	if limit <= 0 {
+		limit = 20 // default limit
+	}
+
+	seen := make(map[int64]struct{})
+	var enrichments []Enrichment
+
+	for _, sha := range commitSHAs {
+		if len(enrichments) >= limit {
+			break
+		}
+
+		commitEnrichments, err := s.EnrichmentsForCommit(ctx, sha, typ, nil)
+		if err != nil {
+			continue
+		}
+
+		for _, e := range commitEnrichments {
+			if len(enrichments) >= limit {
+				break
+			}
+			if _, exists := seen[e.ID()]; !exists {
+				seen[e.ID()] = struct{}{}
+				enrichments = append(enrichments, e)
+			}
+		}
+	}
+
+	return enrichments, nil
+}

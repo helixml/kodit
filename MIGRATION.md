@@ -1212,11 +1212,11 @@ Note: SnippetSearchFilters, MultiSearchRequest, FusionRequest, and FusionResult 
   Dependencies: EnrichmentQueryService
   Verified: [x] builds [x] tests pass
 
-- [ ] `GET /api/v1/repositories/{repo_id}/commits/{commit_sha}/embeddings` → `internal/api/v1/embeddings.go`
+- [x] `GET /api/v1/repositories/{repo_id}/commits/{commit_sha}/embeddings` → `internal/api/v1/repositories.go`
 
-  Description: List embeddings for a commit
-  Dependencies: VectorSearchRepository
-  Verified: [ ] builds [ ] tests pass
+  Description: List embeddings for a commit (added to RepositoriesRouter with WithIndexingServices)
+  Dependencies: VectorSearchRepository, SnippetRepository
+  Verified: [x] builds [x] tests pass
 
 - [x] `GET /api/v1/repositories/{repo_id}/commits/{commit_sha}/enrichments` → `internal/api/v1/repositories.go`
 
@@ -1248,11 +1248,11 @@ Note: SnippetSearchFilters, MultiSearchRequest, FusionRequest, and FusionResult 
   Dependencies: QueryService.TagByID
   Verified: [x] builds [x] tests pass
 
-- [ ] `GET /api/v1/repositories/{repo_id}/enrichments` → `internal/api/v1/enrichments.go`
+- [x] `GET /api/v1/repositories/{repo_id}/enrichments` → `internal/api/v1/repositories.go`
 
-  Description: List all enrichments for a repository (aggregated across commits)
-  Dependencies: EnrichmentRepository
-  Verified: [ ] builds [ ] tests pass
+  Description: List latest enrichments for a repository (aggregated across recent commits with type filter)
+  Dependencies: EnrichmentQueryService
+  Verified: [x] builds [x] tests pass
 
 - [x] `GET /api/v1/repositories/{repo_id}/tracking-config` → `internal/api/v1/repositories.go`
 
@@ -1288,19 +1288,19 @@ Note: SnippetSearchFilters, MultiSearchRequest, FusionRequest, and FusionResult 
 
 #### Authentication
 
-- [ ] → `internal/api/middleware/auth.go`
+- [x] → `internal/api/middleware/auth.go`
 
-  Description: X-API-KEY header authentication middleware
+  Description: X-API-KEY header authentication middleware (applied to all /api/v1 routes via ServerFactory)
   Dependencies: Config
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 #### Pagination
 
-- [ ] → `internal/api/pagination.go`
+- [x] → `internal/api/pagination.go`
 
-  Description: Pagination utilities (page, page_size params with defaults and limits)
+  Description: Pagination utilities (PaginationParams, ParsePagination, PaginatedResponse, defaults: page=1, page_size=20, max: 100)
   Dependencies: None
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 - [ ] Update all list endpoints to support pagination
 
@@ -1310,17 +1310,17 @@ Note: SnippetSearchFilters, MultiSearchRequest, FusionRequest, and FusionResult 
 
 #### Queue Endpoint Path Alignment
 
-- [ ] Rename queue endpoints to match Python API
+- [x] Rename queue endpoints to match Python API
 
-  Description: Change /api/v1/queue/tasks to /api/v1/queue and /api/v1/queue/tasks/{id} to /api/v1/queue/{task_id}
+  Description: Changed /api/v1/queue/tasks to /api/v1/queue and /api/v1/queue/tasks/{id} to /api/v1/queue/{task_id}
   Dependencies: None
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] Add task_type filter to queue list
+- [x] Add task_type filter to queue list
 
-  Description: Support ?task_type=OPERATION filter on queue listing
+  Description: Added ?task_type=OPERATION filter on queue listing
   Dependencies: TaskRepository
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 #### Search Endpoint Enhancements
 
@@ -1338,23 +1338,23 @@ Note: SnippetSearchFilters, MultiSearchRequest, FusionRequest, and FusionResult 
 
 #### Remove Go-Only Endpoints (Not in Python OpenAPI Spec)
 
-- [ ] Remove `POST /api/v1/repositories/{id}/sync`
+- [x] Remove `POST /api/v1/repositories/{id}/sync`
 
-  Description: This endpoint was added in Go but doesn't exist in Python API. Remove for strict parity.
-  Location: internal/api/v1/repositories.go:48, :146-162
-  Verified: [ ] removed [ ] tests updated
+  Description: This endpoint was added in Go but doesn't exist in Python API. Removed for strict parity.
+  Location: internal/api/v1/repositories.go (removed route and handler)
+  Verified: [x] removed [x] tests updated
 
-- [ ] Remove `GET /api/v1/queue/stats`
+- [x] Remove `GET /api/v1/queue/stats`
 
-  Description: This endpoint was added in Go but doesn't exist in Python API. Remove for strict parity.
-  Location: internal/api/v1/queue.go:44, :99-111
-  Verified: [ ] removed [ ] tests updated
+  Description: This endpoint was added in Go but doesn't exist in Python API. Removed for strict parity.
+  Location: internal/api/v1/queue.go (removed route and handler)
+  Verified: [x] removed [x] tests updated
 
-- [ ] Remove `GET /api/v1/search?q=query`
+- [x] Remove `GET /api/v1/search?q=query`
 
-  Description: This GET variant was added in Go but Python only has POST. Remove for strict parity.
-  Location: internal/api/v1/search.go:38, :64-92
-  Verified: [ ] removed [ ] tests updated
+  Description: This GET variant was added in Go but Python only has POST. Removed for strict parity.
+  Location: internal/api/v1/search.go (removed route, handler, and unused parseInt)
+  Verified: [x] removed [x] tests updated
 
 ---
 
@@ -1402,6 +1402,7 @@ Note: SnippetSearchFilters, MultiSearchRequest, FusionRequest, and FusionResult 
 | 2026-02-03 | API Parity Analysis: Compared python-source/docs/reference/api/openapi.json with Go API implementation. Identified 27 new tasks needed for full API parity: 17 missing endpoints, 3 JSON:API compliance tasks, 1 authentication middleware, 2 pagination tasks, 2 queue alignment tasks, 2 search enhancement tasks. Key differences: (1) Go uses flat JSON vs Python JSON:API format, (2) commits nested under /repositories/{id}/commits in Python vs /commits?repository_id in Go, (3) queue paths differ (/queue vs /queue/tasks), (4) missing status, tags, tracking-config, rescan endpoints. Also identified 3 Go-only endpoints to REMOVE for strict parity: POST /repositories/{id}/sync, GET /queue/stats, GET /search?q=query. Total: 30 tasks for full API parity. |
 | 2026-02-03 | Session 18: Started API Parity implementation (6/30 tasks). Updated /health to /healthz for Python API compatibility. Added repository status endpoints: GET /repositories/{id}/status (task status list), GET /repositories/{id}/status/summary (aggregated summary). Added commits nested under repositories: GET /repositories/{id}/commits (JSON:API format), GET /repositories/{id}/commits/{commit_sha} (single commit). Added files endpoint: GET /repositories/{id}/commits/{commit_sha}/files (JSON:API format). Updates: Added ParentCommitSHA to git.Commit domain type, added BlobSHA/MimeType/Extension to git.File domain type, added CommitBySHA and FilesForCommit to QueryService, added JSON:API DTOs (CommitData, CommitAttributes, FileData, FileAttributes). All tests pass, linting clean. |
 | 2026-02-03 | Session 19: Continued API Parity implementation (+10 tasks, 16/30 total). Added: GET /repositories/{id}/commits/{commit_sha}/files/{blob_sha} (file by blob SHA), GET /repositories/{id}/commits/{commit_sha}/enrichments (enrichments for commit with type/subtype filters), GET /repositories/{id}/commits/{commit_sha}/enrichments/{enrichment_id} (single enrichment), GET /repositories/{id}/commits/{commit_sha}/snippets (redirect to enrichments with snippet filters), POST /repositories/{id}/commits/{commit_sha}/rescan (queue rescan task), GET /repositories/{id}/tags (list tags), GET /repositories/{id}/tags/{tag_id} (single tag), GET /repositories/{id}/tracking-config, PUT /repositories/{id}/tracking-config. Updates: Added GetByCommitAndBlobSHA to FileRepository, FileByBlobSHA to QueryService, WithEnrichmentServices to RepositoriesRouter, RescanCommit to PrescribedOperations, RequestRescan to SyncService, TagByID to QueryService, JSON:API DTOs (EnrichmentData, TagData, TrackingConfigData). E2E tests added for file/enrichments endpoints. All tests pass, linting clean. |
+| 2026-02-03 | Session 20: Continued API Parity implementation (+8 tasks, 24/30 total). Added: GET /repositories/{id}/commits/{commit_sha}/embeddings (list embeddings for commit with EmbeddingsForSnippets method in VectorSearchRepository, dto/embedding.go, WithIndexingServices), GET /repositories/{id}/enrichments (list latest repository enrichments with EnrichmentsForCommits in QueryService). Removed Go-only endpoints: POST /repositories/{id}/sync, GET /queue/stats, GET /search?q=query. Renamed queue endpoints: /queue/tasks to /queue, /queue/tasks/{id} to /queue/{task_id}. Added task_type filter to queue listing. Added X-API-KEY authentication middleware (auth.go) applied to all /api/v1 routes. Added pagination utilities (pagination.go with PaginationParams, ParsePagination, defaults page=1, page_size=20, max=100). All tests pass, linting clean. |
 
 ### Architecture Decisions
 

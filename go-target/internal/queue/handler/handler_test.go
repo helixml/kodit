@@ -107,6 +107,10 @@ func (f *fakeVectorRepository) Delete(_ context.Context, _ domain.DeleteRequest)
 	return nil
 }
 
+func (f *fakeVectorRepository) EmbeddingsForSnippets(_ context.Context, _ []string) ([]indexing.EmbeddingInfo, error) {
+	return []indexing.EmbeddingInfo{}, nil
+}
+
 func TestExtractInt64(t *testing.T) {
 	tests := []struct {
 		name    string

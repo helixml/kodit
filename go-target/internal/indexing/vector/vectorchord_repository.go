@@ -345,6 +345,69 @@ func (r *VectorChordRepository) Delete(ctx context.Context, request domain.Delet
 	return r.db.WithContext(ctx).Exec(deleteSQL, ids).Error
 }
 
+// EmbeddingsForSnippets returns embedding info for the specified snippet IDs.
+func (r *VectorChordRepository) EmbeddingsForSnippets(ctx context.Context, snippetIDs []string) ([]indexing.EmbeddingInfo, error) {
+	if err := r.initialize(ctx); err != nil {
+		return nil, err
+	}
+
+	if len(snippetIDs) == 0 {
+		return []indexing.EmbeddingInfo{}, nil
+	}
+
+	var rows []struct {
+		SnippetID string `gorm:"column:snippet_id"`
+		Embedding string `gorm:"column:embedding"`
+	}
+
+	query := fmt.Sprintf("SELECT snippet_id, embedding::text FROM %s WHERE snippet_id IN ?", r.tableName)
+	err := r.db.WithContext(ctx).Raw(query, snippetIDs).Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// Determine embedding type based on table name
+	embType := indexing.EmbeddingTypeCode
+	if r.tableName == "vectorchord_text_embeddings" {
+		embType = indexing.EmbeddingTypeSummary
+	}
+
+	results := make([]indexing.EmbeddingInfo, 0, len(rows))
+	for _, row := range rows {
+		embedding, err := parseEmbedding(row.Embedding)
+		if err != nil {
+			r.logger.Warn("failed to parse embedding", "snippet_id", row.SnippetID, "error", err)
+			continue
+		}
+		results = append(results, indexing.NewEmbeddingInfo(row.SnippetID, embType, embedding))
+	}
+
+	return results, nil
+}
+
+// parseEmbedding parses a PostgreSQL vector string like "[1.0,2.0,3.0]" to []float64.
+func parseEmbedding(s string) ([]float64, error) {
+	// Remove brackets
+	s = strings.TrimPrefix(s, "[")
+	s = strings.TrimSuffix(s, "]")
+
+	if s == "" {
+		return []float64{}, nil
+	}
+
+	parts := strings.Split(s, ",")
+	result := make([]float64, len(parts))
+	for i, part := range parts {
+		var val float64
+		_, err := fmt.Sscanf(strings.TrimSpace(part), "%f", &val)
+		if err != nil {
+			return nil, fmt.Errorf("parse float at index %d: %w", i, err)
+		}
+		result[i] = val
+	}
+	return result, nil
+}
+
 // formatEmbedding formats a float slice as a PostgreSQL vector string.
 func formatEmbedding(embedding []float64) string {
 	parts := make([]string, len(embedding))

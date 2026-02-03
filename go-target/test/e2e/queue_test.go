@@ -11,7 +11,7 @@ import (
 func TestQueue_ListTasks_Empty(t *testing.T) {
 	ts := NewTestServer(t)
 
-	resp := ts.GET("/api/v1/queue/tasks")
+	resp := ts.GET("/api/v1/queue")
 	defer func() {
 		_ = resp.Body.Close()
 	}()
@@ -40,7 +40,7 @@ func TestQueue_ListTasks_WithData(t *testing.T) {
 		"remote_url": "https://github.com/test/repo.git",
 	})
 
-	resp := ts.GET("/api/v1/queue/tasks")
+	resp := ts.GET("/api/v1/queue")
 	defer func() {
 		_ = resp.Body.Close()
 	}()
@@ -63,14 +63,15 @@ func TestQueue_ListTasks_WithData(t *testing.T) {
 	}
 }
 
-func TestQueue_Stats(t *testing.T) {
+func TestQueue_ListTasks_WithFilter(t *testing.T) {
 	ts := NewTestServer(t)
 
-	// Create a few tasks
+	// Create tasks with different operations
 	ts.CreateTask(queue.OperationCloneRepository, map[string]any{"repo_id": 1})
 	ts.CreateTask(queue.OperationSyncRepository, map[string]any{"repo_id": 2})
 
-	resp := ts.GET("/api/v1/queue/stats")
+	// Filter by task_type
+	resp := ts.GET("/api/v1/queue?task_type=kodit.repository.clone")
 	defer func() {
 		_ = resp.Body.Close()
 	}()
@@ -79,11 +80,16 @@ func TestQueue_Stats(t *testing.T) {
 		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusOK)
 	}
 
-	var result dto.QueueStatsResponse
+	var result dto.TaskListResponse
 	ts.DecodeJSON(resp, &result)
 
-	// All tasks should be pending
-	if result.PendingCount != 2 {
-		t.Errorf("pending_count = %d, want 2", result.PendingCount)
+	if result.TotalCount != 1 {
+		t.Errorf("total_count = %d, want 1", result.TotalCount)
+	}
+	if len(result.Data) != 1 {
+		t.Errorf("len(data) = %d, want 1", len(result.Data))
+	}
+	if result.Data[0].Operation != string(queue.OperationCloneRepository) {
+		t.Errorf("operation = %q, want %q", result.Data[0].Operation, queue.OperationCloneRepository)
 	}
 }

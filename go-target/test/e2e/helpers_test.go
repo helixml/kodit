@@ -482,6 +482,10 @@ func (f *fakeVectorRepository) Delete(_ context.Context, _ domain.DeleteRequest)
 	return nil
 }
 
+func (f *fakeVectorRepository) EmbeddingsForSnippets(_ context.Context, _ []string) ([]indexing.EmbeddingInfo, error) {
+	return []indexing.EmbeddingInfo{}, nil
+}
+
 // fakeSnippetRepository is a fake snippet repository for testing.
 type fakeSnippetRepository struct{}
 

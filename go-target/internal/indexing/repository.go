@@ -60,6 +60,47 @@ const (
 	EmbeddingTypeSummary EmbeddingType = "summary"
 )
 
+// EmbeddingInfo holds embedding data for a snippet.
+type EmbeddingInfo struct {
+	snippetID     string
+	embeddingType EmbeddingType
+	embedding     []float64
+}
+
+// NewEmbeddingInfo creates a new EmbeddingInfo.
+func NewEmbeddingInfo(snippetID string, embeddingType EmbeddingType, embedding []float64) EmbeddingInfo {
+	vec := make([]float64, len(embedding))
+	copy(vec, embedding)
+	return EmbeddingInfo{
+		snippetID:     snippetID,
+		embeddingType: embeddingType,
+		embedding:     vec,
+	}
+}
+
+// SnippetID returns the snippet identifier.
+func (e EmbeddingInfo) SnippetID() string { return e.snippetID }
+
+// Type returns the embedding type.
+func (e EmbeddingInfo) Type() EmbeddingType { return e.embeddingType }
+
+// Embedding returns the embedding vector (copy).
+func (e EmbeddingInfo) Embedding() []float64 {
+	result := make([]float64, len(e.embedding))
+	copy(result, e.embedding)
+	return result
+}
+
+// EmbeddingTruncated returns the first n values of the embedding.
+func (e EmbeddingInfo) EmbeddingTruncated(n int) []float64 {
+	if n >= len(e.embedding) {
+		return e.Embedding()
+	}
+	result := make([]float64, n)
+	copy(result, e.embedding[:n])
+	return result
+}
+
 // VectorSearchRepository defines operations for vector similarity search.
 type VectorSearchRepository interface {
 	// Index adds documents to the vector index with embeddings.
@@ -70,6 +111,9 @@ type VectorSearchRepository interface {
 
 	// HasEmbedding checks if a snippet has an embedding of the given type.
 	HasEmbedding(ctx context.Context, snippetID string, embeddingType EmbeddingType) (bool, error)
+
+	// EmbeddingsForSnippets returns embedding info for the specified snippet IDs.
+	EmbeddingsForSnippets(ctx context.Context, snippetIDs []string) ([]EmbeddingInfo, error)
 
 	// Delete removes documents from the vector index.
 	Delete(ctx context.Context, request domain.DeleteRequest) error

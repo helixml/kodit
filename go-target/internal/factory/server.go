@@ -28,6 +28,7 @@ type ServerDependencies struct {
 	GitAdapter      git.Adapter
 	DataDir         string
 	ServerAddr      string
+	APIKey          string // Optional API key for authentication
 }
 
 // ServerFactory constructs and wires all services for the server.
@@ -96,8 +97,13 @@ func (f *ServerFactory) Build() (api.Server, error) {
 	router.Use(apimiddleware.Logging(f.deps.Logger))
 	router.Use(apimiddleware.CorrelationID)
 
+	// Apply authentication middleware if API key is configured
+	authConfig := apimiddleware.NewAuthConfig(f.deps.APIKey)
+
 	// Register API routes
 	router.Route("/api/v1", func(r chi.Router) {
+		// Apply auth middleware to all /api/v1 routes
+		r.Use(apimiddleware.APIKey(authConfig))
 		if f.repoQueryService != nil && f.repoSyncService != nil {
 			reposRouter := v1.NewRepositoriesRouter(f.repoQueryService, f.repoSyncService, f.deps.Logger)
 			r.Mount("/repositories", reposRouter.Routes())

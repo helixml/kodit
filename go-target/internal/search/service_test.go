@@ -74,6 +74,10 @@ func (f *FakeVectorRepository) Delete(ctx context.Context, request domain.Delete
 	return nil
 }
 
+func (f *FakeVectorRepository) EmbeddingsForSnippets(_ context.Context, _ []string) ([]indexing.EmbeddingInfo, error) {
+	return []indexing.EmbeddingInfo{}, nil
+}
+
 // FakeSnippetRepository is a test double for SnippetRepository.
 type FakeSnippetRepository struct {
 	saveFn              func(ctx context.Context, commitSHA string, snippets []indexing.Snippet) error

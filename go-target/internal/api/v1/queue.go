@@ -39,14 +39,14 @@ func NewQueueRouter(
 func (r *QueueRouter) Routes() chi.Router {
 	router := chi.NewRouter()
 
-	router.Get("/tasks", r.ListTasks)
-	router.Get("/tasks/{id}", r.GetTask)
-	router.Get("/stats", r.Stats)
+	router.Get("/", r.ListTasks)
+	router.Get("/{task_id}", r.GetTask)
 
 	return router
 }
 
-// ListTasks handles GET /api/v1/queue/tasks.
+// ListTasks handles GET /api/v1/queue.
+// Supports optional task_type filter.
 func (r *QueueRouter) ListTasks(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
@@ -57,10 +57,15 @@ func (r *QueueRouter) ListTasks(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	// Use Find with a query for pending tasks
+	// Build query with optional task_type filter
 	query := database.NewQuery().
 		OrderDesc("priority").
 		Limit(limit)
+
+	// Add task_type filter if specified
+	if taskType := req.URL.Query().Get("task_type"); taskType != "" {
+		query = query.Equal("operation", taskType)
+	}
 
 	tasks, err := r.taskRepo.Find(ctx, query)
 	if err != nil {
@@ -76,11 +81,11 @@ func (r *QueueRouter) ListTasks(w http.ResponseWriter, req *http.Request) {
 	middleware.WriteJSON(w, http.StatusOK, response)
 }
 
-// GetTask handles GET /api/v1/queue/tasks/{id}.
+// GetTask handles GET /api/v1/queue/{task_id}.
 func (r *QueueRouter) GetTask(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
-	idStr := chi.URLParam(req, "id")
+	idStr := chi.URLParam(req, "task_id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
@@ -94,20 +99,6 @@ func (r *QueueRouter) GetTask(w http.ResponseWriter, req *http.Request) {
 	}
 
 	middleware.WriteJSON(w, http.StatusOK, taskToDTO(task))
-}
-
-// Stats handles GET /api/v1/queue/stats.
-func (r *QueueRouter) Stats(w http.ResponseWriter, req *http.Request) {
-	ctx := req.Context()
-
-	query := database.NewQuery().Limit(1000)
-	count, _ := r.taskRepo.Count(ctx, query)
-
-	response := dto.QueueStatsResponse{
-		PendingCount: int(count),
-	}
-
-	middleware.WriteJSON(w, http.StatusOK, response)
 }
 
 func tasksToDTO(tasks []queue.Task) []dto.TaskResponse {

@@ -53,6 +53,10 @@ func (f *FakeVectorSearchRepository) Delete(_ context.Context, request domain.De
 	return nil
 }
 
+func (f *FakeVectorSearchRepository) EmbeddingsForSnippets(_ context.Context, _ []string) ([]EmbeddingInfo, error) {
+	return []EmbeddingInfo{}, nil
+}
+
 // FakeEmbeddingProvider is a test double for provider.Provider.
 type FakeEmbeddingProvider struct{}
 

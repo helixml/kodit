@@ -14,6 +14,7 @@ import (
 	"github.com/helixml/kodit/internal/api/v1/dto"
 	"github.com/helixml/kodit/internal/enrichment"
 	"github.com/helixml/kodit/internal/git"
+	"github.com/helixml/kodit/internal/indexing"
 	"github.com/helixml/kodit/internal/repository"
 	"github.com/helixml/kodit/internal/tracking"
 )
@@ -25,6 +26,8 @@ type RepositoriesRouter struct {
 	trackingQueryService   *tracking.QueryService
 	enrichmentQueryService *enrichment.QueryService
 	enrichmentRepo         enrichment.EnrichmentRepository
+	snippetRepo            indexing.SnippetRepository
+	vectorRepo             indexing.VectorSearchRepository
 	logger                 *slog.Logger
 }
 
@@ -60,6 +63,16 @@ func (r *RepositoriesRouter) WithEnrichmentServices(
 	return r
 }
 
+// WithIndexingServices sets the indexing services for embedding endpoints.
+func (r *RepositoriesRouter) WithIndexingServices(
+	snippetRepo indexing.SnippetRepository,
+	vectorRepo indexing.VectorSearchRepository,
+) *RepositoriesRouter {
+	r.snippetRepo = snippetRepo
+	r.vectorRepo = vectorRepo
+	return r
+}
+
 // Routes returns the chi router for repository endpoints.
 func (r *RepositoriesRouter) Routes() chi.Router {
 	router := chi.NewRouter()
@@ -68,7 +81,6 @@ func (r *RepositoriesRouter) Routes() chi.Router {
 	router.Post("/", r.Add)
 	router.Get("/{id}", r.Get)
 	router.Delete("/{id}", r.Delete)
-	router.Post("/{id}/sync", r.Sync)
 	router.Get("/{id}/status", r.GetStatus)
 	router.Get("/{id}/status/summary", r.GetStatusSummary)
 	router.Get("/{id}/commits", r.ListCommits)
@@ -78,9 +90,11 @@ func (r *RepositoriesRouter) Routes() chi.Router {
 	router.Get("/{id}/commits/{commit_sha}/enrichments", r.ListCommitEnrichments)
 	router.Get("/{id}/commits/{commit_sha}/enrichments/{enrichment_id}", r.GetCommitEnrichment)
 	router.Get("/{id}/commits/{commit_sha}/snippets", r.ListCommitSnippets)
+	router.Get("/{id}/commits/{commit_sha}/embeddings", r.ListCommitEmbeddings)
 	router.Post("/{id}/commits/{commit_sha}/rescan", r.RescanCommit)
 	router.Get("/{id}/tags", r.ListTags)
 	router.Get("/{id}/tags/{tag_id}", r.GetTag)
+	router.Get("/{id}/enrichments", r.ListRepositoryEnrichments)
 	router.Get("/{id}/tracking-config", r.GetTrackingConfig)
 	router.Put("/{id}/tracking-config", r.UpdateTrackingConfig)
 
@@ -178,25 +192,6 @@ func (r *RepositoriesRouter) Delete(w http.ResponseWriter, req *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
-}
-
-// Sync handles POST /api/v1/repositories/{id}/sync.
-func (r *RepositoriesRouter) Sync(w http.ResponseWriter, req *http.Request) {
-	ctx := req.Context()
-
-	idStr := chi.URLParam(req, "id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		middleware.WriteError(w, req, err, r.logger)
-		return
-	}
-
-	if err := r.syncService.RequestSync(ctx, id); err != nil {
-		middleware.WriteError(w, req, err, r.logger)
-		return
-	}
-
-	w.WriteHeader(http.StatusAccepted)
 }
 
 // GetStatus handles GET /api/v1/repositories/{id}/status.
@@ -665,6 +660,187 @@ func (r *RepositoriesRouter) RescanCommit(w http.ResponseWriter, req *http.Reque
 	}
 
 	w.WriteHeader(http.StatusAccepted)
+}
+
+// ListCommitEmbeddings handles GET /api/v1/repositories/{id}/commits/{commit_sha}/embeddings.
+func (r *RepositoriesRouter) ListCommitEmbeddings(w http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+
+	idStr := chi.URLParam(req, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	commitSHA := chi.URLParam(req, "commit_sha")
+
+	// Check repository exists
+	_, err = r.queryService.ByID(ctx, id)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	// Check commit exists and belongs to this repo
+	_, err = r.queryService.CommitBySHA(ctx, id, commitSHA)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	// If snippet/vector repos not configured, return empty list
+	if r.snippetRepo == nil || r.vectorRepo == nil {
+		middleware.WriteJSON(w, http.StatusOK, dto.EmbeddingJSONAPIListResponse{Data: []dto.EmbeddingData{}})
+		return
+	}
+
+	// Parse optional full parameter (default: false, only return first 5 values)
+	fullStr := req.URL.Query().Get("full")
+	full := fullStr == "true"
+
+	// Get snippets for the commit
+	snippets, err := r.snippetRepo.SnippetsForCommit(ctx, commitSHA)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	if len(snippets) == 0 {
+		middleware.WriteJSON(w, http.StatusOK, dto.EmbeddingJSONAPIListResponse{Data: []dto.EmbeddingData{}})
+		return
+	}
+
+	// Extract snippet IDs
+	snippetIDs := make([]string, 0, len(snippets))
+	for _, s := range snippets {
+		snippetIDs = append(snippetIDs, s.SHA())
+	}
+
+	// Get embeddings for snippets
+	embeddings, err := r.vectorRepo.EmbeddingsForSnippets(ctx, snippetIDs)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	// Build response
+	data := make([]dto.EmbeddingData, 0, len(embeddings))
+	for i, emb := range embeddings {
+		var embVector []float64
+		if full {
+			embVector = emb.Embedding()
+		} else {
+			embVector = emb.EmbeddingTruncated(5)
+		}
+
+		data = append(data, dto.EmbeddingData{
+			Type: "embedding",
+			ID:   fmt.Sprintf("%d", i),
+			Attributes: dto.EmbeddingAttributes{
+				SnippetSHA:    emb.SnippetID(),
+				EmbeddingType: string(emb.Type()),
+				Embedding:     embVector,
+			},
+		})
+	}
+
+	middleware.WriteJSON(w, http.StatusOK, dto.EmbeddingJSONAPIListResponse{Data: data})
+}
+
+// ListRepositoryEnrichments handles GET /api/v1/repositories/{id}/enrichments.
+// Lists the most recent enrichments for a repository across commits.
+func (r *RepositoriesRouter) ListRepositoryEnrichments(w http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+
+	idStr := chi.URLParam(req, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	// Check repository exists
+	_, err = r.queryService.ByID(ctx, id)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	// If enrichment service not configured, return empty list
+	if r.enrichmentQueryService == nil {
+		middleware.WriteJSON(w, http.StatusOK, dto.EnrichmentJSONAPIListResponse{Data: []dto.EnrichmentData{}})
+		return
+	}
+
+	// Parse optional type filter
+	var typFilter *enrichment.Type
+	if typeStr := req.URL.Query().Get("enrichment_type"); typeStr != "" {
+		typ := enrichment.Type(typeStr)
+		typFilter = &typ
+	}
+
+	// Parse max_commits_to_check (default: 100)
+	maxCommits := 100
+	if maxStr := req.URL.Query().Get("max_commits_to_check"); maxStr != "" {
+		if parsed, err := strconv.Atoi(maxStr); err == nil && parsed > 0 {
+			maxCommits = parsed
+		}
+	}
+
+	// Parse page_size (default: 20, max: 100)
+	pageSize := 20
+	if sizeStr := req.URL.Query().Get("page_size"); sizeStr != "" {
+		if parsed, err := strconv.Atoi(sizeStr); err == nil && parsed > 0 {
+			pageSize = parsed
+			if pageSize > 100 {
+				pageSize = 100
+			}
+		}
+	}
+
+	// Get recent commits for the repository
+	commits, err := r.queryService.CommitsForRepository(ctx, id)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	// Limit to most recent commits
+	if len(commits) > maxCommits {
+		commits = commits[:maxCommits]
+	}
+
+	// Extract commit SHAs
+	commitSHAs := make([]string, 0, len(commits))
+	for _, c := range commits {
+		commitSHAs = append(commitSHAs, c.SHA())
+	}
+
+	// Get enrichments across commits
+	enrichments, err := r.enrichmentQueryService.EnrichmentsForCommits(ctx, commitSHAs, typFilter, pageSize)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	// Build response
+	data := make([]dto.EnrichmentData, 0, len(enrichments))
+	for _, e := range enrichments {
+		data = append(data, dto.EnrichmentData{
+			Type: "enrichment",
+			ID:   fmt.Sprintf("%d", e.ID()),
+			Attributes: dto.EnrichmentAttributes{
+				Type:      string(e.Type()),
+				Subtype:   string(e.Subtype()),
+				Content:   e.Content(),
+				CreatedAt: e.CreatedAt(),
+				UpdatedAt: e.UpdatedAt(),
+			},
+		})
+	}
+
+	middleware.WriteJSON(w, http.StatusOK, dto.EnrichmentJSONAPIListResponse{Data: data})
 }
 
 // ListTags handles GET /api/v1/repositories/{id}/tags.

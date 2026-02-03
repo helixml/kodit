@@ -35,7 +35,6 @@ func (r *SearchRouter) Routes() chi.Router {
 	router := chi.NewRouter()
 
 	router.Post("/", r.Search)
-	router.Get("/", r.SearchGet)
 
 	return router
 }
@@ -58,36 +57,6 @@ func (r *SearchRouter) Search(w http.ResponseWriter, req *http.Request) {
 	}
 
 	response := buildSearchResponse(body.Query, result)
-	middleware.WriteJSON(w, http.StatusOK, response)
-}
-
-// SearchGet handles GET /api/v1/search?q=query.
-func (r *SearchRouter) SearchGet(w http.ResponseWriter, req *http.Request) {
-	ctx := req.Context()
-
-	query := req.URL.Query().Get("q")
-	if query == "" {
-		middleware.WriteJSON(w, http.StatusBadRequest, map[string]string{
-			"error": "q parameter is required",
-		})
-		return
-	}
-
-	topK := 10
-	if topKStr := req.URL.Query().Get("top_k"); topKStr != "" {
-		if parsed, err := parseInt(topKStr); err == nil && parsed > 0 {
-			topK = parsed
-		}
-	}
-
-	searchReq := domain.NewMultiSearchRequest(topK, query, query, nil, domain.SnippetSearchFilters{})
-	result, err := r.searchService.Search(ctx, searchReq)
-	if err != nil {
-		middleware.WriteError(w, req, err, r.logger)
-		return
-	}
-
-	response := buildSearchResponse(query, result)
 	middleware.WriteJSON(w, http.StatusOK, response)
 }
 
@@ -159,10 +128,4 @@ func snippetToSearchResult(snippet indexing.Snippet, score float64) dto.SearchRe
 		Score:      score,
 		FilePath:   filePath,
 	}
-}
-
-func parseInt(s string) (int, error) {
-	var result int
-	err := json.Unmarshal([]byte(s), &result)
-	return result, err
 }
