@@ -29,6 +29,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Version information set via ldflags during build.
+var (
+	version = "dev"
+	commit  = "unknown"
+	date    = "unknown"
+)
+
 func main() {
 	if err := rootCmd().Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -52,7 +59,9 @@ func rootCmd() *cobra.Command {
 
 func serveCmd() *cobra.Command {
 	var (
-		addr     string
+		addr    string
+		envFile string
+		// CLI flags override env vars
 		dataDir  string
 		dbURL    string
 		logLevel string
@@ -61,21 +70,58 @@ func serveCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "serve",
 		Short: "Start the HTTP API server",
+		Long: `Start the HTTP API server.
+
+Configuration is loaded in the following order (later sources override earlier):
+  1. Default values
+  2. .env file (if --env-file specified or .env exists in current directory)
+  3. Environment variables
+  4. CLI flags
+
+Environment variables:
+  DATA_DIR                     Data directory (default: ~/.kodit)
+  DB_URL                       Database URL (default: sqlite:///{data_dir}/kodit.db)
+  LOG_LEVEL                    Log level: DEBUG, INFO, WARN, ERROR (default: INFO)
+  LOG_FORMAT                   Log format: pretty, json (default: pretty)
+  DISABLE_TELEMETRY            Disable telemetry (default: false)
+  API_KEYS                     Comma-separated list of valid API keys
+
+  EMBEDDING_ENDPOINT_*         Embedding AI service configuration
+    BASE_URL                   Base URL (e.g., https://api.openai.com/v1)
+    MODEL                      Model identifier (e.g., text-embedding-3-small)
+    API_KEY                    API key for authentication
+    NUM_PARALLEL_TASKS         Concurrent requests (default: 10)
+    TIMEOUT                    Request timeout in seconds (default: 60)
+    MAX_RETRIES                Retry attempts (default: 5)
+
+  ENRICHMENT_ENDPOINT_*        Enrichment AI service configuration
+    (same fields as EMBEDDING_ENDPOINT)
+
+  DEFAULT_SEARCH_PROVIDER      Search backend: sqlite, vectorchord (default: sqlite)
+  GIT_PROVIDER                 Git library: dulwich, pygit2, gitpython (default: dulwich)
+
+  PERIODIC_SYNC_ENABLED        Enable periodic sync (default: true)
+  PERIODIC_SYNC_INTERVAL_SECONDS  Sync interval (default: 1800)
+
+  REMOTE_SERVER_URL            Remote Kodit server URL
+  REMOTE_API_KEY               Remote server API key`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runServe(addr, dataDir, dbURL, logLevel)
+			return runServe(addr, envFile, dataDir, dbURL, logLevel)
 		},
 	}
 
 	cmd.Flags().StringVar(&addr, "addr", ":8080", "Address to listen on")
-	cmd.Flags().StringVar(&dataDir, "data-dir", "", "Data directory (default: ~/.kodit)")
-	cmd.Flags().StringVar(&dbURL, "db-url", "", "Database URL (default: sqlite:///~/.kodit/kodit.db)")
-	cmd.Flags().StringVar(&logLevel, "log-level", "INFO", "Log level (DEBUG, INFO, WARN, ERROR)")
+	cmd.Flags().StringVar(&envFile, "env-file", "", "Path to .env file (default: .env in current directory)")
+	cmd.Flags().StringVar(&dataDir, "data-dir", "", "Data directory (overrides DATA_DIR env var)")
+	cmd.Flags().StringVar(&dbURL, "db-url", "", "Database URL (overrides DB_URL env var)")
+	cmd.Flags().StringVar(&logLevel, "log-level", "", "Log level (overrides LOG_LEVEL env var)")
 
 	return cmd
 }
 
 func stdioCmd() *cobra.Command {
 	var (
+		envFile  string
 		dataDir  string
 		dbURL    string
 		logLevel string
@@ -84,14 +130,19 @@ func stdioCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "stdio",
 		Short: "Start MCP server on stdio",
+		Long: `Start the MCP (Model Context Protocol) server on stdio.
+
+This allows AI assistants to interact with Kodit for code search and understanding.
+Configuration is loaded from environment variables and .env file.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runStdio(dataDir, dbURL, logLevel)
+			return runStdio(envFile, dataDir, dbURL, logLevel)
 		},
 	}
 
-	cmd.Flags().StringVar(&dataDir, "data-dir", "", "Data directory (default: ~/.kodit)")
+	cmd.Flags().StringVar(&envFile, "env-file", "", "Path to .env file")
+	cmd.Flags().StringVar(&dataDir, "data-dir", "", "Data directory")
 	cmd.Flags().StringVar(&dbURL, "db-url", "", "Database URL")
-	cmd.Flags().StringVar(&logLevel, "log-level", "INFO", "Log level")
+	cmd.Flags().StringVar(&logLevel, "log-level", "", "Log level")
 
 	return cmd
 }
@@ -101,25 +152,42 @@ func versionCmd() *cobra.Command {
 		Use:   "version",
 		Short: "Print version information",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println("kodit version 0.1.0")
+			fmt.Printf("kodit version %s\n", version)
+			fmt.Printf("  commit: %s\n", commit)
+			fmt.Printf("  built:  %s\n", date)
 		},
 	}
 }
 
-func runServe(addr, dataDir, dbURL, logLevel string) error {
-	// Build configuration
-	opts := []config.AppConfigOption{}
-	if dataDir != "" {
-		opts = append(opts, config.WithDataDir(dataDir))
-	}
-	if dbURL != "" {
-		opts = append(opts, config.WithDBURL(dbURL))
-	}
-	if logLevel != "" {
-		opts = append(opts, config.WithLogLevel(logLevel))
+// loadConfig loads configuration from .env file and environment variables,
+// then applies CLI flag overrides.
+func loadConfig(envFile, dataDir, dbURL, logLevel string) (config.AppConfig, error) {
+	// Load config from .env file and environment variables
+	cfg, err := config.LoadConfig(envFile)
+	if err != nil {
+		return config.AppConfig{}, fmt.Errorf("load config: %w", err)
 	}
 
-	cfg := config.NewAppConfigWithOptions(opts...)
+	// Apply CLI flag overrides (CLI flags take precedence)
+	if dataDir != "" {
+		config.WithDataDir(dataDir)(&cfg)
+	}
+	if dbURL != "" {
+		config.WithDBURL(dbURL)(&cfg)
+	}
+	if logLevel != "" {
+		config.WithLogLevel(logLevel)(&cfg)
+	}
+
+	return cfg, nil
+}
+
+func runServe(addr, envFile, dataDir, dbURL, logLevel string) error {
+	// Load configuration
+	cfg, err := loadConfig(envFile, dataDir, dbURL, logLevel)
+	if err != nil {
+		return err
+	}
 
 	// Ensure directories exist
 	if err := cfg.EnsureDataDir(); err != nil {
@@ -149,7 +217,7 @@ func runServe(addr, dataDir, dbURL, logLevel string) error {
 	router.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"name":"kodit","version":"0.1.0","docs":"/docs"}`))
+		_, _ = fmt.Fprintf(w, `{"name":"kodit","version":"%s","docs":"/docs"}`, version)
 	})
 
 	// Documentation routes
@@ -158,6 +226,11 @@ func runServe(addr, dataDir, dbURL, logLevel string) error {
 
 	// Register API v1 routes (minimal setup without database)
 	router.Route("/api/v1", func(r chi.Router) {
+		// Apply API key authentication if keys are configured
+		if len(cfg.APIKeys()) > 0 {
+			r.Use(apimiddleware.APIKeyAuth(cfg.APIKeys()))
+		}
+
 		// In production, use ServerFactory with proper dependencies
 		// For now, return 501 Not Implemented for API endpoints
 		r.HandleFunc("/*", func(w http.ResponseWriter, req *http.Request) {
@@ -167,7 +240,12 @@ func runServe(addr, dataDir, dbURL, logLevel string) error {
 		})
 	})
 
-	logger.Info("starting server", slog.String("addr", addr))
+	logger.Info("starting server",
+		slog.String("addr", addr),
+		slog.String("version", version),
+		slog.String("data_dir", cfg.DataDir()),
+		slog.String("log_level", cfg.LogLevel()),
+	)
 
 	// Setup graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
@@ -192,20 +270,20 @@ func runServe(addr, dataDir, dbURL, logLevel string) error {
 	return nil
 }
 
-func runStdio(dataDir, dbURL, logLevel string) error {
-	// Build configuration
-	opts := []config.AppConfigOption{}
-	if dataDir != "" {
-		opts = append(opts, config.WithDataDir(dataDir))
-	}
-	if dbURL != "" {
-		opts = append(opts, config.WithDBURL(dbURL))
-	}
-	if logLevel != "" {
-		opts = append(opts, config.WithLogLevel(logLevel))
+func runStdio(envFile, dataDir, dbURL, logLevel string) error {
+	// Load configuration
+	cfg, err := loadConfig(envFile, dataDir, dbURL, logLevel)
+	if err != nil {
+		return err
 	}
 
-	_ = config.NewAppConfigWithOptions(opts...)
+	// Setup logger to file (can't use stdout for MCP)
+	logger := log.NewLogger(cfg)
+
+	logger.Info("starting MCP server",
+		slog.String("version", version),
+		slog.String("data_dir", cfg.DataDir()),
+	)
 
 	// Note: In a full implementation, we would connect to the database here
 	// and create the search service with proper dependencies.

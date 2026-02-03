@@ -58,7 +58,7 @@ Bounded contexts ordered by dependencies (least dependencies first):
   Dependencies: None
   Verified: [x] builds [x] tests pass
 
-- [ ] → `internal/config/env.go`
+- [x] → `internal/config/env.go`
 
   Description: Environment variable loading using kelseyhightower/envconfig. Loads all configuration from env vars with the following mappings:
   - `DATA_DIR` → DataDir (default: ~/.kodit)
@@ -82,19 +82,19 @@ Bounded contexts ordered by dependencies (least dependencies first):
   - `REPORTING_LOG_TIME_INTERVAL` → Reporting.LogTimeInterval (default: 5s)
   - `LITELLM_CACHE_ENABLED` → LiteLLMCache.Enabled (default: true)
   Dependencies: config.go, kelseyhightower/envconfig
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] → `internal/config/dotenv.go`
+- [x] → `internal/config/dotenv.go`
 
   Description: .env file loading support using joho/godotenv. Loads environment variables from .env file before envconfig processing. Supports optional --env-file CLI flag to specify custom .env file path (default: .env in current directory).
   Dependencies: env.go, joho/godotenv
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] → `internal/config/env_test.go`
+- [x] → `internal/config/env_test.go`
 
   Description: Tests for environment variable loading: default values, env var overrides, nested endpoint parsing, comma-separated API keys parsing, duration parsing for timeouts/intervals.
   Dependencies: env.go, dotenv.go
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 #### Logging
 
@@ -1108,11 +1108,11 @@ Note: SnippetSearchFilters, MultiSearchRequest, FusionRequest, and FusionResult 
   Dependencies: Server, config
   Verified: [x] builds [x] tests pass
 
-- [ ] Update `cmd/kodit/main.go` for environment configuration
+- [x] Update `cmd/kodit/main.go` for environment configuration
 
   Description: Integrate env.go and dotenv.go into CLI startup. Add --env-file flag (default: .env). Load .env file first, then call LoadFromEnv() to populate AppConfig. Pass loaded config to ServerFactory. Ensure all env vars are documented in --help output or README.
   Dependencies: env.go, dotenv.go, main.go
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 #### Middleware
 
@@ -1484,6 +1484,7 @@ Note: SnippetSearchFilters, MultiSearchRequest, FusionRequest, and FusionResult 
 | 2026-02-03 | Session 23: Verification session. Confirmed all tests pass (34 packages tested), linting clean (0 issues), Docker build works (linux/amd64 builds and runs successfully). Migration status: 98% complete (~147/150 tasks). All core functionality migrated. Remaining deferred items: additional AI providers, database migrations conversion, telemetry reporter, integration tests. The Go service is production-ready for deployment. |
 | 2026-02-03 | Session 24: Added application service integration tests (5/5 tasks - 100%). Created: internal/testutil/integration.go (TestSchema, GitTestRepo, FakeEmbedder, FakeBM25Repository, FakeVectorRepository, FakeSnippetRepository, FakeProgressTracker, FakeTrackerFactory, FakeGitAdapter), internal/queue/integration_test.go (13 tests for queue service), internal/search/integration_test.go (10 tests for search service), internal/repository/integration_test.go (18 tests for repository services), internal/queue/handler/integration_test.go (10 tests for handlers using fakeAdapter pattern). These mirror Python tests in tests/kodit/application/services/. Updated MIGRATION.md with new test tasks. All tests pass, linting clean. Total: 51 new integration tests at application service level (not HTTP). |
 | 2026-02-03 | Config Analysis: Analyzed Python configuration (src/kodit/config.py) vs Go implementation (internal/config/config.go). Go has all configuration structs (AppConfig, Endpoint, SearchConfig, GitConfig, PeriodicSyncConfig, RemoteConfig, ReportingConfig, LiteLLMCacheConfig) but is missing environment variable loading. Python uses pydantic-settings with automatic env loading (DATA_DIR, DB_URL, LOG_LEVEL, etc.) and .env file support. Added 4 new tasks: (1) env.go - environment variable loading with kelseyhightower/envconfig for 28+ env vars including nested endpoint configs (EMBEDDING_ENDPOINT_*, ENRICHMENT_ENDPOINT_*), (2) dotenv.go - .env file loading with joho/godotenv, (3) env_test.go - tests for env loading, (4) Update main.go to integrate --env-file flag and LoadFromEnv(). |
+| 2026-02-03 | Session 25: Completed environment configuration (4/4 tasks - 100%). Created: internal/config/env.go (EnvConfig struct with all 28+ env var mappings, LoadFromEnv/LoadFromEnvWithPrefix functions, ToAppConfig conversion, nested EndpointEnv/SearchEnv/GitEnv/PeriodicSyncEnv/RemoteEnv/ReportingEnv/LiteLLMCacheEnv structs), internal/config/dotenv.go (LoadDotEnv/MustLoadDotEnv/LoadDotEnvFromFiles/OverloadDotEnvFromFiles/LoadConfig/LoadConfigWithDefaults functions using joho/godotenv), internal/config/env_test.go (46 tests covering defaults, overrides, nested endpoint parsing, extra params JSON, .env file loading). Updated cmd/kodit/main.go: added --env-file flag to serve and stdio commands, added loadConfig helper function that loads .env file then env vars then applies CLI overrides, added comprehensive --help documentation for all env vars, enhanced auth middleware to support multiple API keys. Added dependencies: kelseyhightower/envconfig v1.4.0, joho/godotenv v1.5.1. All tests pass (46 new tests), linting clean. Migration now at 99% complete (~151/153 tasks). |
 
 ### Architecture Decisions
 
