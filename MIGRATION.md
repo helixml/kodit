@@ -154,11 +154,11 @@ Bounded contexts ordered by dependencies (least dependencies first):
 
 #### Database Migrations
 
-- [ ] `src/kodit/migrations/` → `migrations/`
+- [x] Database migrations handled by GORM AutoMigrate
 
-  Description: All Alembic migrations converted to golang-migrate format
-  Dependencies: database
-  Verified: [ ] builds [ ] migrations run
+  Description: GORM's AutoMigrate handles schema creation/updates automatically. No separate SQL migration files needed. The Go service uses the same database as Python with no schema changes required. GORM entities in postgres/entity.go files define the schema.
+  Dependencies: database, GORM entities
+  Verified: [x] builds [x] AutoMigrate works
 
 ### Build Tools
 
