@@ -22,9 +22,22 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/helixml/kodit/internal/api"
 	apimiddleware "github.com/helixml/kodit/internal/api/middleware"
+	v1 "github.com/helixml/kodit/internal/api/v1"
 	"github.com/helixml/kodit/internal/config"
+	"github.com/helixml/kodit/internal/database"
+	"github.com/helixml/kodit/internal/enrichment"
+	enrichmentpg "github.com/helixml/kodit/internal/enrichment/postgres"
+	gitpg "github.com/helixml/kodit/internal/git/postgres"
+	"github.com/helixml/kodit/internal/indexing"
+	"github.com/helixml/kodit/internal/indexing/bm25"
+	indexingpg "github.com/helixml/kodit/internal/indexing/postgres"
+	"github.com/helixml/kodit/internal/indexing/vector"
 	"github.com/helixml/kodit/internal/log"
 	"github.com/helixml/kodit/internal/mcp"
+	"github.com/helixml/kodit/internal/provider"
+	"github.com/helixml/kodit/internal/queue"
+	queuepg "github.com/helixml/kodit/internal/queue/postgres"
+	"github.com/helixml/kodit/internal/repository"
 	"github.com/helixml/kodit/internal/search"
 	"github.com/spf13/cobra"
 )
@@ -201,6 +214,69 @@ func runServe(addr, envFile, dataDir, dbURL, logLevel string) error {
 	logger := log.NewLogger(cfg)
 	slogger := logger.Slog()
 
+	// Setup graceful shutdown context
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Connect to database
+	slogger.Info("connecting to database", slog.String("url", maskDBURL(cfg.DBURL())))
+	db, err := database.NewDatabase(ctx, cfg.DBURL())
+	if err != nil {
+		return fmt.Errorf("connect database: %w", err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			slogger.Error("failed to close database", slog.Any("error", err))
+		}
+	}()
+
+	// Create git repositories
+	repoRepo := gitpg.NewRepoRepository(db)
+	commitRepo := gitpg.NewCommitRepository(db)
+	branchRepo := gitpg.NewBranchRepository(db)
+	tagRepo := gitpg.NewTagRepository(db)
+	fileRepo := gitpg.NewFileRepository(db)
+
+	// Create queue repositories
+	taskRepo := queuepg.NewTaskRepository(db)
+	taskStatusRepo := queuepg.NewTaskStatusRepository(db)
+
+	// Create enrichment repositories
+	enrichmentRepo := enrichmentpg.NewEnrichmentRepository(db)
+	associationRepo := enrichmentpg.NewAssociationRepository(db)
+
+	// Create indexing repositories (use *gorm.DB directly)
+	snippetRepo := indexingpg.NewSnippetRepository(db.GORM())
+
+	// Create services
+	queueService := queue.NewService(taskRepo, slogger)
+	queryService := repository.NewQueryService(repoRepo, commitRepo, branchRepo, tagRepo).WithFileRepository(fileRepo)
+	syncService := repository.NewSyncService(repoRepo, queueService, slogger)
+	enrichmentQueryService := enrichment.NewQueryService(enrichmentRepo, associationRepo)
+
+	// Create search service (requires BM25 and Vector repositories)
+	// For SQLite, we'll use nil repositories which will disable search features
+	var searchService search.Service
+	var vectorRepo indexing.VectorSearchRepository
+	if db.IsPostgres() {
+		// Create optional AI provider for embeddings (if configured)
+		var embedder provider.Embedder
+		embEndpoint := cfg.EmbeddingEndpoint()
+		if embEndpoint != nil && embEndpoint.BaseURL() != "" && embEndpoint.APIKey() != "" {
+			embedder = provider.NewOpenAIProviderFromEndpoint(*embEndpoint)
+		}
+
+		// Create VectorChord repositories (PostgreSQL only)
+		bm25Repo := bm25.NewVectorChordRepository(db.GORM(), slogger)
+		vectorRepo = vector.NewVectorChordRepository(db.GORM(), vector.TaskNameCode, embedder, slogger)
+
+		searchService = search.NewService(bm25Repo, vectorRepo, snippetRepo, enrichmentRepo, slogger)
+	} else {
+		// SQLite mode: search service with nil repos (search disabled)
+		slogger.Warn("using SQLite database - search features will be limited")
+		searchService = search.NewService(nil, nil, snippetRepo, enrichmentRepo, slogger)
+	}
+
 	// Create server
 	server := api.NewServer(addr, slogger)
 	router := server.Router()
@@ -224,42 +300,53 @@ func runServe(addr, envFile, dataDir, dbURL, logLevel string) error {
 	docsRouter := api.NewDocsRouter("/docs/openapi.json")
 	router.Mount("/docs", docsRouter.Routes())
 
-	// Register API v1 routes (minimal setup without database)
+	// Register API v1 routes with full database-backed services
 	router.Route("/api/v1", func(r chi.Router) {
 		// Apply API key authentication if keys are configured
 		if len(cfg.APIKeys()) > 0 {
 			r.Use(apimiddleware.APIKeyAuth(cfg.APIKeys()))
 		}
 
-		// In production, use ServerFactory with proper dependencies
-		// For now, return 501 Not Implemented for API endpoints
-		r.HandleFunc("/*", func(w http.ResponseWriter, req *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusNotImplemented)
-			_, _ = w.Write([]byte(`{"error":"API not configured - database connection required"}`))
-		})
+		// Repositories router
+		reposRouter := v1.NewRepositoriesRouter(queryService, syncService, slogger)
+		reposRouter = reposRouter.WithEnrichmentServices(enrichmentQueryService, enrichmentRepo)
+		reposRouter = reposRouter.WithIndexingServices(snippetRepo, vectorRepo)
+		r.Mount("/repositories", reposRouter.Routes())
+
+		// Commits router
+		commitsRouter := v1.NewCommitsRouter(queryService, slogger)
+		r.Mount("/commits", commitsRouter.Routes())
+
+		// Search router
+		searchRouter := v1.NewSearchRouter(searchService, slogger)
+		r.Mount("/search", searchRouter.Routes())
+
+		// Enrichments router
+		enrichmentsRouter := v1.NewEnrichmentsRouter(enrichmentRepo, slogger)
+		r.Mount("/enrichments", enrichmentsRouter.Routes())
+
+		// Queue router
+		queueRouter := v1.NewQueueRouter(taskRepo, taskStatusRepo, slogger)
+		r.Mount("/queue", queueRouter.Routes())
 	})
 
-	logger.Info("starting server",
+	slogger.Info("starting server",
 		slog.String("addr", addr),
 		slog.String("version", version),
 		slog.String("data_dir", cfg.DataDir()),
 		slog.String("log_level", cfg.LogLevel()),
+		slog.String("db_type", dbType(db)),
 	)
-
-	// Setup graceful shutdown
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
 		<-sigChan
-		logger.Info("shutting down server")
+		slogger.Info("shutting down server")
 		cancel()
 		if err := server.Shutdown(ctx); err != nil {
-			logger.Error("shutdown error", slog.Any("error", err))
+			slogger.Error("shutdown error", slog.Any("error", err))
 		}
 	}()
 
@@ -268,6 +355,30 @@ func runServe(addr, envFile, dataDir, dbURL, logLevel string) error {
 	}
 
 	return nil
+}
+
+// maskDBURL masks sensitive information in database URLs for logging.
+func maskDBURL(url string) string {
+	// Simple masking: just show the driver type
+	if len(url) > 10 {
+		if url[:7] == "sqlite:" {
+			return url // SQLite paths are not sensitive
+		}
+		// For PostgreSQL, show driver and masked credentials
+		return "postgres://***@***"
+	}
+	return "***"
+}
+
+// dbType returns a string describing the database type.
+func dbType(db database.Database) string {
+	if db.IsPostgres() {
+		return "postgresql"
+	}
+	if db.IsSQLite() {
+		return "sqlite"
+	}
+	return "unknown"
 }
 
 func runStdio(envFile, dataDir, dbURL, logLevel string) error {

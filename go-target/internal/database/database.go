@@ -84,6 +84,12 @@ func (d Database) Session(ctx context.Context) *gorm.DB {
 	return d.db.WithContext(ctx)
 }
 
+// GORM returns the underlying GORM database instance.
+// This is useful for repositories that need direct access to the *gorm.DB.
+func (d Database) GORM() *gorm.DB {
+	return d.db
+}
+
 // Close closes the database connection.
 func (d Database) Close() error {
 	sqlDB, err := d.db.DB()
