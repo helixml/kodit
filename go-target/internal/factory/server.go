@@ -133,6 +133,10 @@ func (f *ServerFactory) Build() (api.Server, error) {
 		w.WriteHeader(http.StatusOK)
 	})
 
+	// Documentation endpoints (Swagger UI)
+	docsRouter := api.NewDocsRouter("/docs/openapi.json")
+	router.Mount("/docs", docsRouter.Routes())
+
 	return server, nil
 }
 

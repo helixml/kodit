@@ -1,4 +1,13 @@
 // Package main is the entry point for the kodit CLI.
+//
+//	@title						Kodit API
+//	@version					1.0
+//	@description				Code understanding platform with hybrid search and LLM-powered enrichments
+//	@host						localhost:8080
+//	@BasePath					/api/v1
+//	@securityDefinitions.apikey	APIKeyAuth
+//	@in							header
+//	@name						X-API-KEY
 package main
 
 import (

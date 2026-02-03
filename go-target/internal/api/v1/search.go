@@ -41,6 +41,18 @@ func (r *SearchRouter) Routes() chi.Router {
 }
 
 // Search handles POST /api/v1/search.
+//
+//	@Summary		Search code
+//	@Description	Hybrid search across code snippets and enrichments
+//	@Tags			search
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		dto.SearchRequest	true	"Search request"
+//	@Success		200		{object}	dto.SearchResponse
+//	@Failure		400		{object}	map[string]string
+//	@Failure		500		{object}	map[string]string
+//	@Security		APIKeyAuth
+//	@Router			/search [post]
 func (r *SearchRouter) Search(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 

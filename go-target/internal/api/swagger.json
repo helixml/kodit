@@ -1,0 +1,443 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "Code understanding platform with hybrid search and LLM-powered enrichments",
+        "title": "Kodit API",
+        "contact": {},
+        "version": "1.0"
+    },
+    "host": "localhost:8080",
+    "basePath": "/api/v1",
+    "paths": {
+        "/repositories": {
+            "get": {
+                "security": [{"APIKeyAuth": []}],
+                "description": "Get all tracked Git repositories",
+                "produces": ["application/json"],
+                "tags": ["repositories"],
+                "summary": "List repositories",
+                "responses": {
+                    "200": {"description": "OK"},
+                    "500": {"description": "Internal Server Error"}
+                }
+            },
+            "post": {
+                "security": [{"APIKeyAuth": []}],
+                "description": "Add a new Git repository to track",
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["repositories"],
+                "summary": "Add repository",
+                "parameters": [{
+                    "description": "Repository request",
+                    "name": "body",
+                    "in": "body",
+                    "required": true,
+                    "schema": {"type": "object", "properties": {"remote_url": {"type": "string"}}}
+                }],
+                "responses": {
+                    "201": {"description": "Created"},
+                    "400": {"description": "Bad Request"},
+                    "500": {"description": "Internal Server Error"}
+                }
+            }
+        },
+        "/repositories/{id}": {
+            "get": {
+                "security": [{"APIKeyAuth": []}],
+                "description": "Get a repository by ID",
+                "produces": ["application/json"],
+                "tags": ["repositories"],
+                "summary": "Get repository",
+                "parameters": [{"type": "integer", "description": "Repository ID", "name": "id", "in": "path", "required": true}],
+                "responses": {
+                    "200": {"description": "OK"},
+                    "404": {"description": "Not Found"},
+                    "500": {"description": "Internal Server Error"}
+                }
+            },
+            "delete": {
+                "security": [{"APIKeyAuth": []}],
+                "description": "Delete a repository by ID",
+                "tags": ["repositories"],
+                "summary": "Delete repository",
+                "parameters": [{"type": "integer", "description": "Repository ID", "name": "id", "in": "path", "required": true}],
+                "responses": {
+                    "204": {"description": "No Content"},
+                    "404": {"description": "Not Found"},
+                    "500": {"description": "Internal Server Error"}
+                }
+            }
+        },
+        "/repositories/{id}/status": {
+            "get": {
+                "security": [{"APIKeyAuth": []}],
+                "description": "Get indexing task status for a repository",
+                "produces": ["application/json"],
+                "tags": ["repositories"],
+                "summary": "Get repository status",
+                "parameters": [{"type": "integer", "description": "Repository ID", "name": "id", "in": "path", "required": true}],
+                "responses": {
+                    "200": {"description": "OK"},
+                    "404": {"description": "Not Found"},
+                    "500": {"description": "Internal Server Error"}
+                }
+            }
+        },
+        "/repositories/{id}/status/summary": {
+            "get": {
+                "security": [{"APIKeyAuth": []}],
+                "description": "Get aggregated indexing status summary for a repository",
+                "produces": ["application/json"],
+                "tags": ["repositories"],
+                "summary": "Get repository status summary",
+                "parameters": [{"type": "integer", "description": "Repository ID", "name": "id", "in": "path", "required": true}],
+                "responses": {
+                    "200": {"description": "OK"},
+                    "404": {"description": "Not Found"},
+                    "500": {"description": "Internal Server Error"}
+                }
+            }
+        },
+        "/repositories/{id}/commits": {
+            "get": {
+                "security": [{"APIKeyAuth": []}],
+                "description": "List commits for a repository",
+                "produces": ["application/json"],
+                "tags": ["repositories"],
+                "summary": "List commits",
+                "parameters": [{"type": "integer", "description": "Repository ID", "name": "id", "in": "path", "required": true}],
+                "responses": {
+                    "200": {"description": "OK"},
+                    "404": {"description": "Not Found"},
+                    "500": {"description": "Internal Server Error"}
+                }
+            }
+        },
+        "/repositories/{id}/commits/{commit_sha}": {
+            "get": {
+                "security": [{"APIKeyAuth": []}],
+                "description": "Get a commit by SHA",
+                "produces": ["application/json"],
+                "tags": ["repositories"],
+                "summary": "Get commit",
+                "parameters": [
+                    {"type": "integer", "description": "Repository ID", "name": "id", "in": "path", "required": true},
+                    {"type": "string", "description": "Commit SHA", "name": "commit_sha", "in": "path", "required": true}
+                ],
+                "responses": {
+                    "200": {"description": "OK"},
+                    "404": {"description": "Not Found"},
+                    "500": {"description": "Internal Server Error"}
+                }
+            }
+        },
+        "/repositories/{id}/commits/{commit_sha}/files": {
+            "get": {
+                "security": [{"APIKeyAuth": []}],
+                "description": "List files for a commit",
+                "produces": ["application/json"],
+                "tags": ["repositories"],
+                "summary": "List commit files",
+                "parameters": [
+                    {"type": "integer", "description": "Repository ID", "name": "id", "in": "path", "required": true},
+                    {"type": "string", "description": "Commit SHA", "name": "commit_sha", "in": "path", "required": true}
+                ],
+                "responses": {
+                    "200": {"description": "OK"},
+                    "404": {"description": "Not Found"},
+                    "500": {"description": "Internal Server Error"}
+                }
+            }
+        },
+        "/repositories/{id}/commits/{commit_sha}/files/{blob_sha}": {
+            "get": {
+                "security": [{"APIKeyAuth": []}],
+                "description": "Get a file by blob SHA",
+                "produces": ["application/json"],
+                "tags": ["repositories"],
+                "summary": "Get commit file",
+                "parameters": [
+                    {"type": "integer", "description": "Repository ID", "name": "id", "in": "path", "required": true},
+                    {"type": "string", "description": "Commit SHA", "name": "commit_sha", "in": "path", "required": true},
+                    {"type": "string", "description": "Blob SHA", "name": "blob_sha", "in": "path", "required": true}
+                ],
+                "responses": {
+                    "200": {"description": "OK"},
+                    "404": {"description": "Not Found"},
+                    "500": {"description": "Internal Server Error"}
+                }
+            }
+        },
+        "/repositories/{id}/commits/{commit_sha}/enrichments": {
+            "get": {
+                "security": [{"APIKeyAuth": []}],
+                "description": "List enrichments for a commit",
+                "produces": ["application/json"],
+                "tags": ["repositories"],
+                "summary": "List commit enrichments",
+                "parameters": [
+                    {"type": "integer", "description": "Repository ID", "name": "id", "in": "path", "required": true},
+                    {"type": "string", "description": "Commit SHA", "name": "commit_sha", "in": "path", "required": true},
+                    {"type": "string", "description": "Filter by enrichment type", "name": "enrichment_type", "in": "query"},
+                    {"type": "string", "description": "Filter by enrichment subtype", "name": "enrichment_subtype", "in": "query"}
+                ],
+                "responses": {
+                    "200": {"description": "OK"},
+                    "404": {"description": "Not Found"},
+                    "500": {"description": "Internal Server Error"}
+                }
+            }
+        },
+        "/repositories/{id}/commits/{commit_sha}/enrichments/{enrichment_id}": {
+            "get": {
+                "security": [{"APIKeyAuth": []}],
+                "description": "Get an enrichment by ID within commit context",
+                "produces": ["application/json"],
+                "tags": ["repositories"],
+                "summary": "Get commit enrichment",
+                "parameters": [
+                    {"type": "integer", "description": "Repository ID", "name": "id", "in": "path", "required": true},
+                    {"type": "string", "description": "Commit SHA", "name": "commit_sha", "in": "path", "required": true},
+                    {"type": "integer", "description": "Enrichment ID", "name": "enrichment_id", "in": "path", "required": true}
+                ],
+                "responses": {
+                    "200": {"description": "OK"},
+                    "404": {"description": "Not Found"},
+                    "500": {"description": "Internal Server Error"}
+                }
+            }
+        },
+        "/repositories/{id}/commits/{commit_sha}/snippets": {
+            "get": {
+                "security": [{"APIKeyAuth": []}],
+                "description": "Redirects to enrichments endpoint with snippet filters",
+                "tags": ["repositories"],
+                "summary": "List commit snippets",
+                "parameters": [
+                    {"type": "integer", "description": "Repository ID", "name": "id", "in": "path", "required": true},
+                    {"type": "string", "description": "Commit SHA", "name": "commit_sha", "in": "path", "required": true}
+                ],
+                "responses": {
+                    "308": {"description": "Permanent Redirect"}
+                }
+            }
+        },
+        "/repositories/{id}/commits/{commit_sha}/embeddings": {
+            "get": {
+                "security": [{"APIKeyAuth": []}],
+                "description": "List embeddings for snippets in a commit",
+                "produces": ["application/json"],
+                "tags": ["repositories"],
+                "summary": "List commit embeddings",
+                "parameters": [
+                    {"type": "integer", "description": "Repository ID", "name": "id", "in": "path", "required": true},
+                    {"type": "string", "description": "Commit SHA", "name": "commit_sha", "in": "path", "required": true},
+                    {"type": "boolean", "description": "Return full embedding vectors", "name": "full", "in": "query"}
+                ],
+                "responses": {
+                    "200": {"description": "OK"},
+                    "404": {"description": "Not Found"},
+                    "500": {"description": "Internal Server Error"}
+                }
+            }
+        },
+        "/repositories/{id}/commits/{commit_sha}/rescan": {
+            "post": {
+                "security": [{"APIKeyAuth": []}],
+                "description": "Trigger a rescan of a specific commit",
+                "tags": ["repositories"],
+                "summary": "Rescan commit",
+                "parameters": [
+                    {"type": "integer", "description": "Repository ID", "name": "id", "in": "path", "required": true},
+                    {"type": "string", "description": "Commit SHA", "name": "commit_sha", "in": "path", "required": true}
+                ],
+                "responses": {
+                    "202": {"description": "Accepted"},
+                    "404": {"description": "Not Found"},
+                    "500": {"description": "Internal Server Error"}
+                }
+            }
+        },
+        "/repositories/{id}/tags": {
+            "get": {
+                "security": [{"APIKeyAuth": []}],
+                "description": "List tags for a repository",
+                "produces": ["application/json"],
+                "tags": ["repositories"],
+                "summary": "List tags",
+                "parameters": [{"type": "integer", "description": "Repository ID", "name": "id", "in": "path", "required": true}],
+                "responses": {
+                    "200": {"description": "OK"},
+                    "404": {"description": "Not Found"},
+                    "500": {"description": "Internal Server Error"}
+                }
+            }
+        },
+        "/repositories/{id}/tags/{tag_id}": {
+            "get": {
+                "security": [{"APIKeyAuth": []}],
+                "description": "Get a tag by ID",
+                "produces": ["application/json"],
+                "tags": ["repositories"],
+                "summary": "Get tag",
+                "parameters": [
+                    {"type": "integer", "description": "Repository ID", "name": "id", "in": "path", "required": true},
+                    {"type": "integer", "description": "Tag ID", "name": "tag_id", "in": "path", "required": true}
+                ],
+                "responses": {
+                    "200": {"description": "OK"},
+                    "404": {"description": "Not Found"},
+                    "500": {"description": "Internal Server Error"}
+                }
+            }
+        },
+        "/repositories/{id}/enrichments": {
+            "get": {
+                "security": [{"APIKeyAuth": []}],
+                "description": "List recent enrichments across commits for a repository",
+                "produces": ["application/json"],
+                "tags": ["repositories"],
+                "summary": "List repository enrichments",
+                "parameters": [
+                    {"type": "integer", "description": "Repository ID", "name": "id", "in": "path", "required": true},
+                    {"type": "string", "description": "Filter by enrichment type", "name": "enrichment_type", "in": "query"},
+                    {"type": "integer", "description": "Max commits to check (default: 100)", "name": "max_commits_to_check", "in": "query"},
+                    {"type": "integer", "description": "Results per page (default: 20, max: 100)", "name": "page_size", "in": "query"}
+                ],
+                "responses": {
+                    "200": {"description": "OK"},
+                    "404": {"description": "Not Found"},
+                    "500": {"description": "Internal Server Error"}
+                }
+            }
+        },
+        "/repositories/{id}/tracking-config": {
+            "get": {
+                "security": [{"APIKeyAuth": []}],
+                "description": "Get current tracking configuration for a repository",
+                "produces": ["application/json"],
+                "tags": ["repositories"],
+                "summary": "Get tracking config",
+                "parameters": [{"type": "integer", "description": "Repository ID", "name": "id", "in": "path", "required": true}],
+                "responses": {
+                    "200": {"description": "OK"},
+                    "404": {"description": "Not Found"},
+                    "500": {"description": "Internal Server Error"}
+                }
+            },
+            "put": {
+                "security": [{"APIKeyAuth": []}],
+                "description": "Update tracking configuration for a repository",
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["repositories"],
+                "summary": "Update tracking config",
+                "parameters": [
+                    {"type": "integer", "description": "Repository ID", "name": "id", "in": "path", "required": true},
+                    {"description": "Tracking config", "name": "body", "in": "body", "required": true, "schema": {"type": "object"}}
+                ],
+                "responses": {
+                    "200": {"description": "OK"},
+                    "404": {"description": "Not Found"},
+                    "500": {"description": "Internal Server Error"}
+                }
+            }
+        },
+        "/search": {
+            "post": {
+                "security": [{"APIKeyAuth": []}],
+                "description": "Hybrid search across code snippets and enrichments",
+                "consumes": ["application/json"],
+                "produces": ["application/json"],
+                "tags": ["search"],
+                "summary": "Search code",
+                "parameters": [{
+                    "description": "Search request",
+                    "name": "body",
+                    "in": "body",
+                    "required": true,
+                    "schema": {"type": "object"}
+                }],
+                "responses": {
+                    "200": {"description": "OK"},
+                    "400": {"description": "Bad Request"},
+                    "500": {"description": "Internal Server Error"}
+                }
+            }
+        },
+        "/enrichments": {
+            "get": {
+                "security": [{"APIKeyAuth": []}],
+                "description": "List enrichments with optional filters",
+                "produces": ["application/json"],
+                "tags": ["enrichments"],
+                "summary": "List enrichments",
+                "parameters": [
+                    {"type": "string", "description": "Filter by enrichment type", "name": "enrichment_type", "in": "query"},
+                    {"type": "string", "description": "Filter by enrichment subtype", "name": "enrichment_subtype", "in": "query"},
+                    {"type": "integer", "description": "Page number (default: 1)", "name": "page", "in": "query"},
+                    {"type": "integer", "description": "Results per page (default: 20, max: 100)", "name": "page_size", "in": "query"}
+                ],
+                "responses": {
+                    "200": {"description": "OK"},
+                    "500": {"description": "Internal Server Error"}
+                }
+            }
+        },
+        "/enrichments/{id}": {
+            "get": {
+                "security": [{"APIKeyAuth": []}],
+                "description": "Get an enrichment by ID",
+                "produces": ["application/json"],
+                "tags": ["enrichments"],
+                "summary": "Get enrichment",
+                "parameters": [{"type": "integer", "description": "Enrichment ID", "name": "id", "in": "path", "required": true}],
+                "responses": {
+                    "200": {"description": "OK"},
+                    "404": {"description": "Not Found"},
+                    "500": {"description": "Internal Server Error"}
+                }
+            }
+        },
+        "/queue": {
+            "get": {
+                "security": [{"APIKeyAuth": []}],
+                "description": "List tasks in the queue",
+                "produces": ["application/json"],
+                "tags": ["queue"],
+                "summary": "List tasks",
+                "parameters": [
+                    {"type": "integer", "description": "Max results (default: 50)", "name": "limit", "in": "query"},
+                    {"type": "string", "description": "Filter by task type", "name": "task_type", "in": "query"}
+                ],
+                "responses": {
+                    "200": {"description": "OK"},
+                    "500": {"description": "Internal Server Error"}
+                }
+            }
+        },
+        "/queue/{task_id}": {
+            "get": {
+                "security": [{"APIKeyAuth": []}],
+                "description": "Get a task by ID",
+                "produces": ["application/json"],
+                "tags": ["queue"],
+                "summary": "Get task",
+                "parameters": [{"type": "integer", "description": "Task ID", "name": "task_id", "in": "path", "required": true}],
+                "responses": {
+                    "200": {"description": "OK"},
+                    "404": {"description": "Not Found"},
+                    "500": {"description": "Internal Server Error"}
+                }
+            }
+        }
+    },
+    "securityDefinitions": {
+        "APIKeyAuth": {
+            "type": "apiKey",
+            "name": "X-API-KEY",
+            "in": "header"
+        }
+    }
+}

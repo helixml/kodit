@@ -48,6 +48,18 @@ func (r *QueueRouter) Routes() chi.Router {
 
 // ListTasks handles GET /api/v1/queue.
 // Supports optional task_type filter.
+//
+//	@Summary		List tasks
+//	@Description	List tasks in the queue
+//	@Tags			queue
+//	@Accept			json
+//	@Produce		json
+//	@Param			limit		query		int		false	"Max results (default: 50)"
+//	@Param			task_type	query		string	false	"Filter by task type"
+//	@Success		200			{object}	dto.TaskListResponse
+//	@Failure		500			{object}	map[string]string
+//	@Security		APIKeyAuth
+//	@Router			/queue [get]
 func (r *QueueRouter) ListTasks(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
@@ -82,6 +94,18 @@ func (r *QueueRouter) ListTasks(w http.ResponseWriter, req *http.Request) {
 }
 
 // GetTask handles GET /api/v1/queue/{task_id}.
+//
+//	@Summary		Get task
+//	@Description	Get a task by ID
+//	@Tags			queue
+//	@Accept			json
+//	@Produce		json
+//	@Param			task_id	path		int	true	"Task ID"
+//	@Success		200		{object}	dto.TaskResponse
+//	@Failure		404		{object}	map[string]string
+//	@Failure		500		{object}	map[string]string
+//	@Security		APIKeyAuth
+//	@Router			/queue/{task_id} [get]
 func (r *QueueRouter) GetTask(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 

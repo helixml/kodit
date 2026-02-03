@@ -102,6 +102,16 @@ func (r *RepositoriesRouter) Routes() chi.Router {
 }
 
 // List handles GET /api/v1/repositories.
+//
+//	@Summary		List repositories
+//	@Description	Get all tracked Git repositories
+//	@Tags			repositories
+//	@Accept			json
+//	@Produce		json
+//	@Success		200	{object}	dto.RepositoryListResponse
+//	@Failure		500	{object}	map[string]string
+//	@Security		APIKeyAuth
+//	@Router			/repositories [get]
 func (r *RepositoriesRouter) List(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
@@ -119,6 +129,18 @@ func (r *RepositoriesRouter) List(w http.ResponseWriter, req *http.Request) {
 }
 
 // Get handles GET /api/v1/repositories/{id}.
+//
+//	@Summary		Get repository
+//	@Description	Get a repository by ID
+//	@Tags			repositories
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path		int	true	"Repository ID"
+//	@Success		200	{object}	dto.RepositoryResponse
+//	@Failure		404	{object}	map[string]string
+//	@Failure		500	{object}	map[string]string
+//	@Security		APIKeyAuth
+//	@Router			/repositories/{id} [get]
 func (r *RepositoriesRouter) Get(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
@@ -139,6 +161,18 @@ func (r *RepositoriesRouter) Get(w http.ResponseWriter, req *http.Request) {
 }
 
 // Add handles POST /api/v1/repositories.
+//
+//	@Summary		Add repository
+//	@Description	Add a new Git repository to track
+//	@Tags			repositories
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		dto.RepositoryRequest	true	"Repository request"
+//	@Success		201		{object}	dto.RepositoryResponse
+//	@Failure		400		{object}	map[string]string
+//	@Failure		500		{object}	map[string]string
+//	@Security		APIKeyAuth
+//	@Router			/repositories [post]
 func (r *RepositoriesRouter) Add(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
@@ -175,6 +209,18 @@ func (r *RepositoriesRouter) Add(w http.ResponseWriter, req *http.Request) {
 }
 
 // Delete handles DELETE /api/v1/repositories/{id}.
+//
+//	@Summary		Delete repository
+//	@Description	Delete a repository by ID
+//	@Tags			repositories
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path	int	true	"Repository ID"
+//	@Success		204
+//	@Failure		404	{object}	map[string]string
+//	@Failure		500	{object}	map[string]string
+//	@Security		APIKeyAuth
+//	@Router			/repositories/{id} [delete]
 func (r *RepositoriesRouter) Delete(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
@@ -194,6 +240,18 @@ func (r *RepositoriesRouter) Delete(w http.ResponseWriter, req *http.Request) {
 }
 
 // GetStatus handles GET /api/v1/repositories/{id}/status.
+//
+//	@Summary		Get repository status
+//	@Description	Get indexing task status for a repository
+//	@Tags			repositories
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path		int	true	"Repository ID"
+//	@Success		200	{object}	dto.TaskStatusListResponse
+//	@Failure		404	{object}	map[string]string
+//	@Failure		500	{object}	map[string]string
+//	@Security		APIKeyAuth
+//	@Router			/repositories/{id}/status [get]
 func (r *RepositoriesRouter) GetStatus(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
@@ -248,6 +306,18 @@ func (r *RepositoriesRouter) GetStatus(w http.ResponseWriter, req *http.Request)
 }
 
 // GetStatusSummary handles GET /api/v1/repositories/{id}/status/summary.
+//
+//	@Summary		Get repository status summary
+//	@Description	Get aggregated indexing status summary for a repository
+//	@Tags			repositories
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path		int	true	"Repository ID"
+//	@Success		200	{object}	dto.RepositoryStatusSummaryResponse
+//	@Failure		404	{object}	map[string]string
+//	@Failure		500	{object}	map[string]string
+//	@Security		APIKeyAuth
+//	@Router			/repositories/{id}/status/summary [get]
 func (r *RepositoriesRouter) GetStatusSummary(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
@@ -301,6 +371,18 @@ func (r *RepositoriesRouter) GetStatusSummary(w http.ResponseWriter, req *http.R
 }
 
 // ListCommits handles GET /api/v1/repositories/{id}/commits.
+//
+//	@Summary		List commits
+//	@Description	List commits for a repository
+//	@Tags			repositories
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path		int	true	"Repository ID"
+//	@Success		200	{object}	dto.CommitJSONAPIListResponse
+//	@Failure		404	{object}	map[string]string
+//	@Failure		500	{object}	map[string]string
+//	@Security		APIKeyAuth
+//	@Router			/repositories/{id}/commits [get]
 func (r *RepositoriesRouter) ListCommits(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
@@ -343,6 +425,19 @@ func (r *RepositoriesRouter) ListCommits(w http.ResponseWriter, req *http.Reques
 }
 
 // GetCommit handles GET /api/v1/repositories/{id}/commits/{commit_sha}.
+//
+//	@Summary		Get commit
+//	@Description	Get a commit by SHA
+//	@Tags			repositories
+//	@Accept			json
+//	@Produce		json
+//	@Param			id			path		int		true	"Repository ID"
+//	@Param			commit_sha	path		string	true	"Commit SHA"
+//	@Success		200			{object}	dto.CommitJSONAPIResponse
+//	@Failure		404			{object}	map[string]string
+//	@Failure		500			{object}	map[string]string
+//	@Security		APIKeyAuth
+//	@Router			/repositories/{id}/commits/{commit_sha} [get]
 func (r *RepositoriesRouter) GetCommit(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
@@ -384,6 +479,19 @@ func (r *RepositoriesRouter) GetCommit(w http.ResponseWriter, req *http.Request)
 }
 
 // ListCommitFiles handles GET /api/v1/repositories/{id}/commits/{commit_sha}/files.
+//
+//	@Summary		List commit files
+//	@Description	List files for a commit
+//	@Tags			repositories
+//	@Accept			json
+//	@Produce		json
+//	@Param			id			path		int		true	"Repository ID"
+//	@Param			commit_sha	path		string	true	"Commit SHA"
+//	@Success		200			{object}	dto.FileJSONAPIListResponse
+//	@Failure		404			{object}	map[string]string
+//	@Failure		500			{object}	map[string]string
+//	@Security		APIKeyAuth
+//	@Router			/repositories/{id}/commits/{commit_sha}/files [get]
 func (r *RepositoriesRouter) ListCommitFiles(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
@@ -435,6 +543,20 @@ func (r *RepositoriesRouter) ListCommitFiles(w http.ResponseWriter, req *http.Re
 }
 
 // GetCommitFile handles GET /api/v1/repositories/{id}/commits/{commit_sha}/files/{blob_sha}.
+//
+//	@Summary		Get commit file
+//	@Description	Get a file by blob SHA
+//	@Tags			repositories
+//	@Accept			json
+//	@Produce		json
+//	@Param			id			path		int		true	"Repository ID"
+//	@Param			commit_sha	path		string	true	"Commit SHA"
+//	@Param			blob_sha	path		string	true	"Blob SHA"
+//	@Success		200			{object}	dto.FileJSONAPIResponse
+//	@Failure		404			{object}	map[string]string
+//	@Failure		500			{object}	map[string]string
+//	@Security		APIKeyAuth
+//	@Router			/repositories/{id}/commits/{commit_sha}/files/{blob_sha} [get]
 func (r *RepositoriesRouter) GetCommitFile(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
@@ -484,6 +606,21 @@ func (r *RepositoriesRouter) GetCommitFile(w http.ResponseWriter, req *http.Requ
 }
 
 // ListCommitEnrichments handles GET /api/v1/repositories/{id}/commits/{commit_sha}/enrichments.
+//
+//	@Summary		List commit enrichments
+//	@Description	List enrichments for a commit
+//	@Tags			repositories
+//	@Accept			json
+//	@Produce		json
+//	@Param			id					path		int		true	"Repository ID"
+//	@Param			commit_sha			path		string	true	"Commit SHA"
+//	@Param			enrichment_type		query		string	false	"Filter by enrichment type"
+//	@Param			enrichment_subtype	query		string	false	"Filter by enrichment subtype"
+//	@Success		200					{object}	dto.EnrichmentJSONAPIListResponse
+//	@Failure		404					{object}	map[string]string
+//	@Failure		500					{object}	map[string]string
+//	@Security		APIKeyAuth
+//	@Router			/repositories/{id}/commits/{commit_sha}/enrichments [get]
 func (r *RepositoriesRouter) ListCommitEnrichments(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
@@ -554,6 +691,20 @@ func (r *RepositoriesRouter) ListCommitEnrichments(w http.ResponseWriter, req *h
 }
 
 // GetCommitEnrichment handles GET /api/v1/repositories/{id}/commits/{commit_sha}/enrichments/{enrichment_id}.
+//
+//	@Summary		Get commit enrichment
+//	@Description	Get an enrichment by ID within commit context
+//	@Tags			repositories
+//	@Accept			json
+//	@Produce		json
+//	@Param			id				path		int		true	"Repository ID"
+//	@Param			commit_sha		path		string	true	"Commit SHA"
+//	@Param			enrichment_id	path		int		true	"Enrichment ID"
+//	@Success		200				{object}	dto.EnrichmentJSONAPIResponse
+//	@Failure		404				{object}	map[string]string
+//	@Failure		500				{object}	map[string]string
+//	@Security		APIKeyAuth
+//	@Router			/repositories/{id}/commits/{commit_sha}/enrichments/{enrichment_id} [get]
 func (r *RepositoriesRouter) GetCommitEnrichment(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
@@ -615,6 +766,17 @@ func (r *RepositoriesRouter) GetCommitEnrichment(w http.ResponseWriter, req *htt
 
 // ListCommitSnippets handles GET /api/v1/repositories/{id}/commits/{commit_sha}/snippets.
 // This redirects to the enrichments endpoint with type=development and subtype=snippet filters.
+//
+//	@Summary		List commit snippets
+//	@Description	Redirects to enrichments endpoint with snippet filters
+//	@Tags			repositories
+//	@Accept			json
+//	@Produce		json
+//	@Param			id			path	int		true	"Repository ID"
+//	@Param			commit_sha	path	string	true	"Commit SHA"
+//	@Success		308
+//	@Security		APIKeyAuth
+//	@Router			/repositories/{id}/commits/{commit_sha}/snippets [get]
 func (r *RepositoriesRouter) ListCommitSnippets(w http.ResponseWriter, req *http.Request) {
 	idStr := chi.URLParam(req, "id")
 	commitSHA := chi.URLParam(req, "commit_sha")
@@ -627,6 +789,19 @@ func (r *RepositoriesRouter) ListCommitSnippets(w http.ResponseWriter, req *http
 }
 
 // RescanCommit handles POST /api/v1/repositories/{id}/commits/{commit_sha}/rescan.
+//
+//	@Summary		Rescan commit
+//	@Description	Trigger a rescan of a specific commit
+//	@Tags			repositories
+//	@Accept			json
+//	@Produce		json
+//	@Param			id			path	int		true	"Repository ID"
+//	@Param			commit_sha	path	string	true	"Commit SHA"
+//	@Success		202
+//	@Failure		404	{object}	map[string]string
+//	@Failure		500	{object}	map[string]string
+//	@Security		APIKeyAuth
+//	@Router			/repositories/{id}/commits/{commit_sha}/rescan [post]
 func (r *RepositoriesRouter) RescanCommit(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
@@ -662,6 +837,20 @@ func (r *RepositoriesRouter) RescanCommit(w http.ResponseWriter, req *http.Reque
 }
 
 // ListCommitEmbeddings handles GET /api/v1/repositories/{id}/commits/{commit_sha}/embeddings.
+//
+//	@Summary		List commit embeddings
+//	@Description	List embeddings for snippets in a commit
+//	@Tags			repositories
+//	@Accept			json
+//	@Produce		json
+//	@Param			id			path		int		true	"Repository ID"
+//	@Param			commit_sha	path		string	true	"Commit SHA"
+//	@Param			full		query		bool	false	"Return full embedding vectors"
+//	@Success		200			{object}	dto.EmbeddingJSONAPIListResponse
+//	@Failure		404			{object}	map[string]string
+//	@Failure		500			{object}	map[string]string
+//	@Security		APIKeyAuth
+//	@Router			/repositories/{id}/commits/{commit_sha}/embeddings [get]
 func (r *RepositoriesRouter) ListCommitEmbeddings(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
@@ -749,6 +938,21 @@ func (r *RepositoriesRouter) ListCommitEmbeddings(w http.ResponseWriter, req *ht
 
 // ListRepositoryEnrichments handles GET /api/v1/repositories/{id}/enrichments.
 // Lists the most recent enrichments for a repository across commits.
+//
+//	@Summary		List repository enrichments
+//	@Description	List recent enrichments across commits for a repository
+//	@Tags			repositories
+//	@Accept			json
+//	@Produce		json
+//	@Param			id					path		int		true	"Repository ID"
+//	@Param			enrichment_type		query		string	false	"Filter by enrichment type"
+//	@Param			max_commits_to_check	query		int		false	"Max commits to check (default: 100)"
+//	@Param			page_size			query		int		false	"Results per page (default: 20, max: 100)"
+//	@Success		200					{object}	dto.EnrichmentJSONAPIListResponse
+//	@Failure		404					{object}	map[string]string
+//	@Failure		500					{object}	map[string]string
+//	@Security		APIKeyAuth
+//	@Router			/repositories/{id}/enrichments [get]
 func (r *RepositoriesRouter) ListRepositoryEnrichments(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
@@ -843,6 +1047,18 @@ func (r *RepositoriesRouter) ListRepositoryEnrichments(w http.ResponseWriter, re
 }
 
 // ListTags handles GET /api/v1/repositories/{id}/tags.
+//
+//	@Summary		List tags
+//	@Description	List tags for a repository
+//	@Tags			repositories
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path		int	true	"Repository ID"
+//	@Success		200	{object}	dto.TagJSONAPIListResponse
+//	@Failure		404	{object}	map[string]string
+//	@Failure		500	{object}	map[string]string
+//	@Security		APIKeyAuth
+//	@Router			/repositories/{id}/tags [get]
 func (r *RepositoriesRouter) ListTags(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
@@ -882,6 +1098,19 @@ func (r *RepositoriesRouter) ListTags(w http.ResponseWriter, req *http.Request) 
 }
 
 // GetTag handles GET /api/v1/repositories/{id}/tags/{tag_id}.
+//
+//	@Summary		Get tag
+//	@Description	Get a tag by ID
+//	@Tags			repositories
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		int	true	"Repository ID"
+//	@Param			tag_id	path		int	true	"Tag ID"
+//	@Success		200		{object}	dto.TagJSONAPIResponse
+//	@Failure		404		{object}	map[string]string
+//	@Failure		500		{object}	map[string]string
+//	@Security		APIKeyAuth
+//	@Router			/repositories/{id}/tags/{tag_id} [get]
 func (r *RepositoriesRouter) GetTag(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
@@ -925,6 +1154,18 @@ func (r *RepositoriesRouter) GetTag(w http.ResponseWriter, req *http.Request) {
 }
 
 // GetTrackingConfig handles GET /api/v1/repositories/{id}/tracking-config.
+//
+//	@Summary		Get tracking config
+//	@Description	Get current tracking configuration for a repository
+//	@Tags			repositories
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path		int	true	"Repository ID"
+//	@Success		200	{object}	dto.TrackingConfigResponse
+//	@Failure		404	{object}	map[string]string
+//	@Failure		500	{object}	map[string]string
+//	@Security		APIKeyAuth
+//	@Router			/repositories/{id}/tracking-config [get]
 func (r *RepositoriesRouter) GetTrackingConfig(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
@@ -946,6 +1187,19 @@ func (r *RepositoriesRouter) GetTrackingConfig(w http.ResponseWriter, req *http.
 }
 
 // UpdateTrackingConfig handles PUT /api/v1/repositories/{id}/tracking-config.
+//
+//	@Summary		Update tracking config
+//	@Description	Update tracking configuration for a repository
+//	@Tags			repositories
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		int									true	"Repository ID"
+//	@Param			body	body		dto.TrackingConfigUpdateRequest		true	"Tracking config"
+//	@Success		200		{object}	dto.TrackingConfigResponse
+//	@Failure		404		{object}	map[string]string
+//	@Failure		500		{object}	map[string]string
+//	@Security		APIKeyAuth
+//	@Router			/repositories/{id}/tracking-config [put]
 func (r *RepositoriesRouter) UpdateTrackingConfig(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 

@@ -42,6 +42,20 @@ func (r *EnrichmentsRouter) Routes() chi.Router {
 
 // List handles GET /api/v1/enrichments.
 // Supports query parameters: enrichment_type, enrichment_subtype, page, page_size
+//
+//	@Summary		List enrichments
+//	@Description	List enrichments with optional filters
+//	@Tags			enrichments
+//	@Accept			json
+//	@Produce		json
+//	@Param			enrichment_type		query		string	false	"Filter by enrichment type"
+//	@Param			enrichment_subtype	query		string	false	"Filter by enrichment subtype"
+//	@Param			page				query		int		false	"Page number (default: 1)"
+//	@Param			page_size			query		int		false	"Results per page (default: 20, max: 100)"
+//	@Success		200					{object}	dto.EnrichmentJSONAPIListResponse
+//	@Failure		500					{object}	map[string]string
+//	@Security		APIKeyAuth
+//	@Router			/enrichments [get]
 func (r *EnrichmentsRouter) List(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
@@ -100,6 +114,18 @@ func (r *EnrichmentsRouter) List(w http.ResponseWriter, req *http.Request) {
 }
 
 // Get handles GET /api/v1/enrichments/{id}.
+//
+//	@Summary		Get enrichment
+//	@Description	Get an enrichment by ID
+//	@Tags			enrichments
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path		int	true	"Enrichment ID"
+//	@Success		200	{object}	dto.EnrichmentJSONAPIResponse
+//	@Failure		404	{object}	map[string]string
+//	@Failure		500	{object}	map[string]string
+//	@Security		APIKeyAuth
+//	@Router			/enrichments/{id} [get]
 func (r *EnrichmentsRouter) Get(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
