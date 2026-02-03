@@ -35,3 +35,47 @@ type RepositorySummaryResponse struct {
 	CommitCount    int                `json:"commit_count"`
 	IndexingStatus string             `json:"indexing_status"`
 }
+
+// TaskStatusAttributes represents task status attributes in JSON:API format.
+type TaskStatusAttributes struct {
+	Step      string     `json:"step"`
+	State     string     `json:"state"`
+	Progress  float64    `json:"progress"`
+	Total     int        `json:"total"`
+	Current   int        `json:"current"`
+	CreatedAt *time.Time `json:"created_at,omitempty"`
+	UpdatedAt *time.Time `json:"updated_at,omitempty"`
+	Error     string     `json:"error"`
+	Message   string     `json:"message"`
+}
+
+// TaskStatusData represents task status data in JSON:API format.
+type TaskStatusData struct {
+	Type       string               `json:"type"`
+	ID         string               `json:"id"`
+	Attributes TaskStatusAttributes `json:"attributes"`
+}
+
+// TaskStatusListResponse represents a list of task statuses in JSON:API format.
+type TaskStatusListResponse struct {
+	Data []TaskStatusData `json:"data"`
+}
+
+// RepositoryStatusSummaryAttributes represents status summary attributes.
+type RepositoryStatusSummaryAttributes struct {
+	Status    string    `json:"status"`
+	Message   string    `json:"message"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// RepositoryStatusSummaryData represents status summary data in JSON:API format.
+type RepositoryStatusSummaryData struct {
+	Type       string                            `json:"type"`
+	ID         string                            `json:"id"`
+	Attributes RepositoryStatusSummaryAttributes `json:"attributes"`
+}
+
+// RepositoryStatusSummaryResponse represents a repository status summary response.
+type RepositoryStatusSummaryResponse struct {
+	Data RepositoryStatusSummaryData `json:"data"`
+}

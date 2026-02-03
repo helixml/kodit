@@ -1164,41 +1164,41 @@ Note: SnippetSearchFilters, MultiSearchRequest, FusionRequest, and FusionResult 
 
 #### Missing Endpoints
 
-- [ ] `GET /healthz` → `internal/api/health.go`
+- [x] `GET /healthz` → `internal/factory/server.go`
 
-  Description: Health check endpoint returning basic status
+  Description: Health check endpoint returning basic status (updated from /health to /healthz)
   Dependencies: None
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `GET /api/v1/repositories/{repo_id}/status` → `internal/api/v1/repositories.go`
+- [x] `GET /api/v1/repositories/{repo_id}/status` → `internal/api/v1/repositories.go`
 
   Description: Get indexing status for repository tasks
   Dependencies: TaskStatusRepository, TrackingService
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `GET /api/v1/repositories/{repo_id}/status/summary` → `internal/api/v1/repositories.go`
+- [x] `GET /api/v1/repositories/{repo_id}/status/summary` → `internal/api/v1/repositories.go`
 
   Description: Get aggregated status summary (status, message, updated_at)
   Dependencies: TrackingService
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `GET /api/v1/repositories/{repo_id}/commits` → `internal/api/v1/commits.go`
+- [x] `GET /api/v1/repositories/{repo_id}/commits` → `internal/api/v1/repositories.go`
 
-  Description: List commits nested under repository (change from /commits?repository_id=X)
+  Description: List commits nested under repository (added to RepositoriesRouter alongside existing /commits endpoint)
   Dependencies: GitCommitRepository
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `GET /api/v1/repositories/{repo_id}/commits/{commit_sha}` → `internal/api/v1/commits.go`
+- [x] `GET /api/v1/repositories/{repo_id}/commits/{commit_sha}` → `internal/api/v1/repositories.go`
 
-  Description: Get single commit by SHA
+  Description: Get single commit by SHA (added to RepositoriesRouter)
   Dependencies: GitCommitRepository
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
-- [ ] `GET /api/v1/repositories/{repo_id}/commits/{commit_sha}/files` → `internal/api/v1/files.go`
+- [x] `GET /api/v1/repositories/{repo_id}/commits/{commit_sha}/files` → `internal/api/v1/repositories.go`
 
-  Description: List files for a commit (with pagination)
+  Description: List files for a commit (added to RepositoriesRouter)
   Dependencies: GitFileRepository
-  Verified: [ ] builds [ ] tests pass
+  Verified: [x] builds [x] tests pass
 
 - [ ] `GET /api/v1/repositories/{repo_id}/commits/{commit_sha}/files/{blob_sha}` → `internal/api/v1/files.go`
 
@@ -1400,6 +1400,7 @@ Note: SnippetSearchFilters, MultiSearchRequest, FusionRequest, and FusionResult 
 | 2026-02-02 | Session 16: Completed API Gateway Context (16/18 tasks - 89%). Created: internal/api/server.go (HTTP server with chi router), internal/api/middleware/ (logging.go with request logging, correlation.go with correlation ID propagation, error.go with JSON:API error responses), internal/api/v1/dto/ (repository.go, search.go, enrichment.go, commit.go, queue.go DTOs), internal/api/v1/ (repositories.go, commits.go, search.go, enrichments.go, queue.go routers), internal/factory/server.go (ServerFactory with builder pattern for DI), cmd/kodit/main.go (CLI with serve, stdio, version commands using cobra), internal/mcp/server.go (MCP server with search and get_snippet tools using mark3labs/mcp-go). Added chi router, cobra, and mcp-go dependencies. Added API tests: internal/api/server_test.go (server lifecycle tests), internal/api/v1/router_test.go (enrichments router tests with FakeEnrichmentRepository). Integration and e2e tests deferred (require full database setup). All tests pass, linting clean. |
 | 2026-02-02 | Session 17: Completed E2E tests (17/18 tasks - 94%). Created test/e2e/ package with comprehensive end-to-end tests: main_test.go (test suite), helpers_test.go (TestServer with SQLite in-memory database, fake BM25/Vector repositories), health_test.go, repositories_test.go (CRUD operations), search_test.go, enrichments_test.go, queue_test.go. Fixed error middleware to handle both domain.ErrNotFound and database.ErrNotFound for proper 404 responses. 24 e2e tests pass covering all API endpoints. All tests pass, linting clean. |
 | 2026-02-03 | API Parity Analysis: Compared python-source/docs/reference/api/openapi.json with Go API implementation. Identified 27 new tasks needed for full API parity: 17 missing endpoints, 3 JSON:API compliance tasks, 1 authentication middleware, 2 pagination tasks, 2 queue alignment tasks, 2 search enhancement tasks. Key differences: (1) Go uses flat JSON vs Python JSON:API format, (2) commits nested under /repositories/{id}/commits in Python vs /commits?repository_id in Go, (3) queue paths differ (/queue vs /queue/tasks), (4) missing status, tags, tracking-config, rescan endpoints. Also identified 3 Go-only endpoints to REMOVE for strict parity: POST /repositories/{id}/sync, GET /queue/stats, GET /search?q=query. Total: 30 tasks for full API parity. |
+| 2026-02-03 | Session 18: Started API Parity implementation (6/30 tasks). Updated /health to /healthz for Python API compatibility. Added repository status endpoints: GET /repositories/{id}/status (task status list), GET /repositories/{id}/status/summary (aggregated summary). Added commits nested under repositories: GET /repositories/{id}/commits (JSON:API format), GET /repositories/{id}/commits/{commit_sha} (single commit). Added files endpoint: GET /repositories/{id}/commits/{commit_sha}/files (JSON:API format). Updates: Added ParentCommitSHA to git.Commit domain type, added BlobSHA/MimeType/Extension to git.File domain type, added CommitBySHA and FilesForCommit to QueryService, added JSON:API DTOs (CommitData, CommitAttributes, FileData, FileAttributes). All tests pass, linting clean. |
 
 ### Architecture Decisions
 

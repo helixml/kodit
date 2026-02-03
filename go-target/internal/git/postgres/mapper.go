@@ -95,6 +95,10 @@ type CommitMapper struct{}
 // ToDomain converts a CommitEntity to a git.Commit.
 func (m CommitMapper) ToDomain(e CommitEntity) git.Commit {
 	author := parseAuthorString(e.Author)
+	parentSHA := ""
+	if e.ParentCommitSHA != nil {
+		parentSHA = *e.ParentCommitSHA
+	}
 	// Use author as committer since we don't store separate committer in DB
 	return git.ReconstructCommit(
 		0, // Commit uses SHA as primary key, not ID
@@ -106,13 +110,17 @@ func (m CommitMapper) ToDomain(e CommitEntity) git.Commit {
 		e.Date,
 		e.Date,
 		e.CreatedAt,
+		parentSHA,
 	)
 }
 
 // ToDatabase converts a git.Commit to a CommitEntity.
 func (m CommitMapper) ToDatabase(c git.Commit) CommitEntity {
 	var parentSHA *string
-	// We don't store parent SHA in domain - skip for now
+	if c.ParentCommitSHA() != "" {
+		p := c.ParentCommitSHA()
+		parentSHA = &p
+	}
 
 	now := time.Now()
 	return CommitEntity{
@@ -264,7 +272,10 @@ func (m FileMapper) ToDomain(e FileEntity) git.File {
 		0, // File uses composite key, not ID
 		e.CommitSHA,
 		e.Path,
-		e.Extension, // Using extension as language for now
+		e.BlobSHA,
+		e.MimeType,
+		e.Extension,
+		e.Extension, // Using extension as language fallback
 		e.Size,
 		e.CreatedAt,
 	)
@@ -272,12 +283,17 @@ func (m FileMapper) ToDomain(e FileEntity) git.File {
 
 // ToDatabase converts a git.File to a FileEntity.
 func (m FileMapper) ToDatabase(f git.File) FileEntity {
+	ext := f.Extension()
+	if ext == "" {
+		// Fallback to language for backwards compatibility
+		ext = f.Language()
+	}
 	return FileEntity{
 		CommitSHA: f.CommitSHA(),
 		Path:      f.Path(),
-		BlobSHA:   "", // We don't store blob SHA in domain
-		MimeType:  "",
-		Extension: f.Language(),
+		BlobSHA:   f.BlobSHA(),
+		MimeType:  f.MimeType(),
+		Extension: ext,
 		Size:      f.Size(),
 		CreatedAt: f.CreatedAt(),
 	}

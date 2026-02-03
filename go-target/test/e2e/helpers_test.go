@@ -260,10 +260,9 @@ func NewTestServer(t *testing.T) *TestServer {
 		r.Mount("/queue", queueRouter.Routes())
 	})
 
-	// Health check
-	router.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+	// Health check (matches Python API /healthz endpoint)
+	router.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"status":"healthy"}`))
 	})
 
 	// Create httptest server

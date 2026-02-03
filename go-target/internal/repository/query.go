@@ -15,6 +15,7 @@ type QueryService struct {
 	commitRepo git.CommitRepository
 	branchRepo git.BranchRepository
 	tagRepo    git.TagRepository
+	fileRepo   git.FileRepository
 }
 
 // NewQueryService creates a new QueryService.
@@ -30,6 +31,12 @@ func NewQueryService(
 		branchRepo: branchRepo,
 		tagRepo:    tagRepo,
 	}
+}
+
+// WithFileRepository sets the file repository (optional).
+func (s *QueryService) WithFileRepository(repo git.FileRepository) *QueryService {
+	s.fileRepo = repo
+	return s
 }
 
 // RepositorySummary provides a summary view of a repository.
@@ -176,4 +183,25 @@ func (s *QueryService) TagsForRepository(ctx context.Context, repoID int64) ([]g
 		return nil, fmt.Errorf("find tags: %w", err)
 	}
 	return tags, nil
+}
+
+// CommitBySHA returns a specific commit by SHA within a repository.
+func (s *QueryService) CommitBySHA(ctx context.Context, repoID int64, sha string) (git.Commit, error) {
+	commit, err := s.commitRepo.GetByRepoAndSHA(ctx, repoID, sha)
+	if err != nil {
+		return git.Commit{}, fmt.Errorf("get commit: %w", err)
+	}
+	return commit, nil
+}
+
+// FilesForCommit returns all files for a commit.
+func (s *QueryService) FilesForCommit(ctx context.Context, commitSHA string) ([]git.File, error) {
+	if s.fileRepo == nil {
+		return []git.File{}, nil
+	}
+	files, err := s.fileRepo.FindByCommitSHA(ctx, commitSHA)
+	if err != nil {
+		return nil, fmt.Errorf("find files: %w", err)
+	}
+	return files, nil
 }

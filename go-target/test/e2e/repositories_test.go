@@ -218,3 +218,148 @@ func TestRepositories_Sync_NotFound(t *testing.T) {
 		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusNotFound)
 	}
 }
+
+func TestRepositories_Status(t *testing.T) {
+	ts := NewTestServer(t)
+
+	// Create a repository
+	repo := ts.CreateRepository("https://github.com/test/status-repo.git")
+
+	resp := ts.GET(fmt.Sprintf("/api/v1/repositories/%d/status", repo.ID()))
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var result dto.TaskStatusListResponse
+	ts.DecodeJSON(resp, &result)
+
+	// Should return empty list (no tracking service configured in test)
+	if result.Data == nil {
+		t.Error("data should not be nil")
+	}
+}
+
+func TestRepositories_Status_NotFound(t *testing.T) {
+	ts := NewTestServer(t)
+
+	resp := ts.GET("/api/v1/repositories/99999/status")
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusNotFound)
+	}
+}
+
+func TestRepositories_StatusSummary(t *testing.T) {
+	ts := NewTestServer(t)
+
+	// Create a repository
+	repo := ts.CreateRepository("https://github.com/test/status-summary-repo.git")
+
+	resp := ts.GET(fmt.Sprintf("/api/v1/repositories/%d/status/summary", repo.ID()))
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var result dto.RepositoryStatusSummaryResponse
+	ts.DecodeJSON(resp, &result)
+
+	// Should return pending status (no tracking service configured in test)
+	if result.Data.Type != "repository_status_summary" {
+		t.Errorf("type = %q, want %q", result.Data.Type, "repository_status_summary")
+	}
+	if result.Data.Attributes.Status != "pending" {
+		t.Errorf("status = %q, want %q", result.Data.Attributes.Status, "pending")
+	}
+}
+
+func TestRepositories_StatusSummary_NotFound(t *testing.T) {
+	ts := NewTestServer(t)
+
+	resp := ts.GET("/api/v1/repositories/99999/status/summary")
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusNotFound)
+	}
+}
+
+func TestRepositories_ListCommits_Empty(t *testing.T) {
+	ts := NewTestServer(t)
+
+	// Create a repository
+	repo := ts.CreateRepository("https://github.com/test/commits-repo.git")
+
+	resp := ts.GET(fmt.Sprintf("/api/v1/repositories/%d/commits", repo.ID()))
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var result dto.CommitJSONAPIListResponse
+	ts.DecodeJSON(resp, &result)
+
+	if result.Data == nil {
+		t.Error("data should not be nil")
+	}
+	if len(result.Data) != 0 {
+		t.Errorf("len(data) = %d, want 0", len(result.Data))
+	}
+}
+
+func TestRepositories_ListCommits_NotFound(t *testing.T) {
+	ts := NewTestServer(t)
+
+	resp := ts.GET("/api/v1/repositories/99999/commits")
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusNotFound)
+	}
+}
+
+func TestRepositories_GetCommit_NotFound(t *testing.T) {
+	ts := NewTestServer(t)
+
+	// Create a repository
+	repo := ts.CreateRepository("https://github.com/test/get-commit-repo.git")
+
+	resp := ts.GET(fmt.Sprintf("/api/v1/repositories/%d/commits/abc123", repo.ID()))
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusNotFound)
+	}
+}
+
+func TestRepositories_GetCommit_RepoNotFound(t *testing.T) {
+	ts := NewTestServer(t)
+
+	resp := ts.GET("/api/v1/repositories/99999/commits/abc123")
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusNotFound)
+	}
+}

@@ -122,10 +122,9 @@ func (f *ServerFactory) Build() (api.Server, error) {
 		}
 	})
 
-	// Health check
-	router.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+	// Health check (matches Python API /healthz endpoint)
+	router.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"status":"healthy"}`))
 	})
 
 	return server, nil

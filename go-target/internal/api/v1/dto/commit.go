@@ -27,3 +27,55 @@ type CommitFilterRequest struct {
 	Since        *time.Time `json:"since,omitempty"`
 	Until        *time.Time `json:"until,omitempty"`
 }
+
+// CommitAttributes represents commit attributes in JSON:API format.
+type CommitAttributes struct {
+	CommitSHA       string    `json:"commit_sha"`
+	Date            time.Time `json:"date"`
+	Message         string    `json:"message"`
+	ParentCommitSHA string    `json:"parent_commit_sha"`
+	Author          string    `json:"author"`
+}
+
+// CommitData represents commit data in JSON:API format.
+type CommitData struct {
+	Type       string           `json:"type"`
+	ID         string           `json:"id"`
+	Attributes CommitAttributes `json:"attributes"`
+}
+
+// CommitJSONAPIListResponse represents a list of commits in JSON:API format.
+type CommitJSONAPIListResponse struct {
+	Data []CommitData `json:"data"`
+}
+
+// CommitJSONAPIResponse represents a single commit in JSON:API format.
+type CommitJSONAPIResponse struct {
+	Data CommitData `json:"data"`
+}
+
+// FileAttributes represents file attributes in JSON:API format.
+type FileAttributes struct {
+	BlobSHA   string `json:"blob_sha"`
+	Path      string `json:"path"`
+	MimeType  string `json:"mime_type"`
+	Size      int64  `json:"size"`
+	Extension string `json:"extension"`
+}
+
+// FileData represents file data in JSON:API format.
+type FileData struct {
+	Type       string         `json:"type"`
+	ID         string         `json:"id"`
+	Attributes FileAttributes `json:"attributes"`
+}
+
+// FileJSONAPIResponse represents a single file in JSON:API format.
+type FileJSONAPIResponse struct {
+	Data FileData `json:"data"`
+}
+
+// FileJSONAPIListResponse represents a list of files in JSON:API format.
+type FileJSONAPIListResponse struct {
+	Data []FileData `json:"data"`
+}

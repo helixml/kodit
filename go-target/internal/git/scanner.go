@@ -193,11 +193,16 @@ func (s Scanner) filesFromInfo(clonedPath string, infos []FileInfo, commitSHA st
 	for _, info := range infos {
 		fullPath := filepath.Join(clonedPath, info.Path)
 		language := languageFromPath(info.Path)
+		extension := extensionFromPath(info.Path)
+		mimeType := mimeTypeFromExtension(extension)
 
 		file := ReconstructFile(
 			0, // ID assigned on save
 			commitSHA,
 			fullPath,
+			info.BlobSHA,
+			mimeType,
+			extension,
 			language,
 			info.Size,
 			now,
@@ -283,5 +288,71 @@ func languageFromPath(path string) string {
 		return "svelte"
 	default:
 		return ext
+	}
+}
+
+func extensionFromPath(path string) string {
+	ext := filepath.Ext(path)
+	if ext == "" {
+		return ""
+	}
+	// Remove leading dot
+	return ext[1:]
+}
+
+func mimeTypeFromExtension(ext string) string {
+	switch ext {
+	case "go":
+		return "text/x-go"
+	case "py":
+		return "text/x-python"
+	case "js":
+		return "text/javascript"
+	case "ts", "tsx":
+		return "text/typescript"
+	case "jsx":
+		return "text/javascript"
+	case "java":
+		return "text/x-java-source"
+	case "c":
+		return "text/x-c"
+	case "cpp", "cc", "cxx":
+		return "text/x-c++"
+	case "h", "hpp":
+		return "text/x-c"
+	case "cs":
+		return "text/x-csharp"
+	case "rs":
+		return "text/x-rust"
+	case "rb":
+		return "text/x-ruby"
+	case "php":
+		return "text/x-php"
+	case "swift":
+		return "text/x-swift"
+	case "kt", "kts":
+		return "text/x-kotlin"
+	case "scala":
+		return "text/x-scala"
+	case "sh", "bash":
+		return "text/x-shellscript"
+	case "sql":
+		return "text/x-sql"
+	case "md", "markdown":
+		return "text/markdown"
+	case "json":
+		return "application/json"
+	case "yaml", "yml":
+		return "text/yaml"
+	case "xml":
+		return "application/xml"
+	case "html", "htm":
+		return "text/html"
+	case "css":
+		return "text/css"
+	case "scss", "sass":
+		return "text/scss"
+	default:
+		return "text/plain"
 	}
 }

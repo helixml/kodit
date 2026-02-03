@@ -4,15 +4,16 @@ import "time"
 
 // Commit represents a Git commit.
 type Commit struct {
-	id          int64
-	sha         string
-	repoID      int64
-	message     string
-	author      Author
-	committer   Author
-	authoredAt  time.Time
-	committedAt time.Time
-	createdAt   time.Time
+	id              int64
+	sha             string
+	repoID          int64
+	message         string
+	author          Author
+	committer       Author
+	authoredAt      time.Time
+	committedAt     time.Time
+	createdAt       time.Time
+	parentCommitSHA string
 }
 
 // NewCommit creates a new Commit.
@@ -29,6 +30,13 @@ func NewCommit(sha string, repoID int64, message string, author, committer Autho
 	}
 }
 
+// NewCommitWithParent creates a new Commit with a parent SHA.
+func NewCommitWithParent(sha string, repoID int64, message string, author, committer Author, authoredAt, committedAt time.Time, parentSHA string) Commit {
+	c := NewCommit(sha, repoID, message, author, committer, authoredAt, committedAt)
+	c.parentCommitSHA = parentSHA
+	return c
+}
+
 // ReconstructCommit reconstructs a Commit from persistence.
 func ReconstructCommit(
 	id int64,
@@ -37,17 +45,19 @@ func ReconstructCommit(
 	message string,
 	author, committer Author,
 	authoredAt, committedAt, createdAt time.Time,
+	parentCommitSHA string,
 ) Commit {
 	return Commit{
-		id:          id,
-		sha:         sha,
-		repoID:      repoID,
-		message:     message,
-		author:      author,
-		committer:   committer,
-		authoredAt:  authoredAt,
-		committedAt: committedAt,
-		createdAt:   createdAt,
+		id:              id,
+		sha:             sha,
+		repoID:          repoID,
+		message:         message,
+		author:          author,
+		committer:       committer,
+		authoredAt:      authoredAt,
+		committedAt:     committedAt,
+		createdAt:       createdAt,
+		parentCommitSHA: parentCommitSHA,
 	}
 }
 
@@ -77,6 +87,9 @@ func (c Commit) CommittedAt() time.Time { return c.committedAt }
 
 // CreatedAt returns the creation timestamp.
 func (c Commit) CreatedAt() time.Time { return c.createdAt }
+
+// ParentCommitSHA returns the parent commit SHA.
+func (c Commit) ParentCommitSHA() string { return c.parentCommitSHA }
 
 // ShortSHA returns the first 7 characters of the SHA.
 func (c Commit) ShortSHA() string {

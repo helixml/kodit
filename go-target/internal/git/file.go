@@ -7,6 +7,9 @@ type File struct {
 	id        int64
 	commitSHA string
 	path      string
+	blobSHA   string
+	mimeType  string
+	extension string
 	language  string
 	size      int64
 	createdAt time.Time
@@ -23,10 +26,23 @@ func NewFile(commitSHA, path, language string, size int64) File {
 	}
 }
 
+// NewFileWithDetails creates a new File with all details.
+func NewFileWithDetails(commitSHA, path, blobSHA, mimeType, extension string, size int64) File {
+	return File{
+		commitSHA: commitSHA,
+		path:      path,
+		blobSHA:   blobSHA,
+		mimeType:  mimeType,
+		extension: extension,
+		size:      size,
+		createdAt: time.Now(),
+	}
+}
+
 // ReconstructFile reconstructs a File from persistence.
 func ReconstructFile(
 	id int64,
-	commitSHA, path, language string,
+	commitSHA, path, blobSHA, mimeType, extension, language string,
 	size int64,
 	createdAt time.Time,
 ) File {
@@ -34,6 +50,9 @@ func ReconstructFile(
 		id:        id,
 		commitSHA: commitSHA,
 		path:      path,
+		blobSHA:   blobSHA,
+		mimeType:  mimeType,
+		extension: extension,
 		language:  language,
 		size:      size,
 		createdAt: createdAt,
@@ -54,6 +73,15 @@ func (f File) Language() string { return f.language }
 
 // Size returns the file size in bytes.
 func (f File) Size() int64 { return f.size }
+
+// BlobSHA returns the blob SHA.
+func (f File) BlobSHA() string { return f.blobSHA }
+
+// MimeType returns the MIME type.
+func (f File) MimeType() string { return f.mimeType }
+
+// Extension returns the file extension.
+func (f File) Extension() string { return f.extension }
 
 // CreatedAt returns the creation timestamp.
 func (f File) CreatedAt() time.Time { return f.createdAt }
