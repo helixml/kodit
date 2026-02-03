@@ -143,17 +143,31 @@ tools: ## Install development tools
 # Swagger/OpenAPI paths
 DOCS_DIR=./docs
 SWAGGER_DIR=$(DOCS_DIR)/swagger
+OPENAPI_EMBED=./internal/api/openapi.json
 
 .PHONY: swag
-swag: ## Generate OpenAPI spec from annotations
-	swag init -g ./cmd/kodit/main.go -o $(SWAGGER_DIR) --parseDependency --parseInternal
+swag: ## Generate Swagger 2.0 spec from annotations
+	swag init -g ./cmd/kodit/main.go -o $(SWAGGER_DIR) --parseInternal -d ./,./internal/api/v1/dto
 
 .PHONY: swag-fmt
 swag-fmt: ## Format swag comments
 	swag fmt
 
+.PHONY: openapi
+openapi: swag ## Generate Swagger 2.0 and convert to OpenAPI 3.0
+	@echo "Converting Swagger 2.0 to OpenAPI 3.0..."
+	npx swagger2openapi $(SWAGGER_DIR)/swagger.json -o $(SWAGGER_DIR)/openapi.json --patch
+	cp $(SWAGGER_DIR)/openapi.json $(OPENAPI_EMBED)
+	@echo "OpenAPI 3.0 spec generated at $(OPENAPI_EMBED)"
+
+.PHONY: openapi-convert
+openapi-convert: ## Convert existing swagger.json to OpenAPI 3.0 (skip swag generation)
+	@echo "Converting existing Swagger 2.0 to OpenAPI 3.0..."
+	npx swagger2openapi $(SWAGGER_DIR)/swagger.json -o $(OPENAPI_EMBED) --patch
+	@echo "OpenAPI 3.0 spec generated at $(OPENAPI_EMBED)"
+
 .PHONY: docs
-docs: swag ## Generate all documentation (OpenAPI)
+docs: openapi ## Generate all documentation (OpenAPI 3.0)
 
 ##@ Database
 

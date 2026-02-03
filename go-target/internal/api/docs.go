@@ -9,8 +9,8 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-//go:embed swagger.json
-var swaggerSpec embed.FS
+//go:embed openapi.json
+var openapiSpec embed.FS
 
 // SwaggerUIHTML returns the HTML template for Swagger UI.
 func SwaggerUIHTML(specURL string) string {
@@ -75,7 +75,7 @@ func (d *DocsRouter) Routes() chi.Router {
 	// Serve OpenAPI spec
 	router.Get("/openapi.json", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		data, err := fs.ReadFile(swaggerSpec, "swagger.json")
+		data, err := fs.ReadFile(openapiSpec, "openapi.json")
 		if err != nil {
 			http.Error(w, "Spec not found", http.StatusNotFound)
 			return

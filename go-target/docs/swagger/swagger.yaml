@@ -1,0 +1,1419 @@
+basePath: /api/v1
+definitions:
+  github_com_helixml_kodit_internal_api_v1_dto.CommitAttributes:
+    properties:
+      author:
+        type: string
+      commit_sha:
+        type: string
+      date:
+        type: string
+      message:
+        type: string
+      parent_commit_sha:
+        type: string
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.CommitData:
+    properties:
+      attributes:
+        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.CommitAttributes'
+      id:
+        type: string
+      type:
+        type: string
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.CommitJSONAPIListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.CommitData'
+        type: array
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.CommitJSONAPIResponse:
+    properties:
+      data:
+        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.CommitData'
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.EmbeddingAttributes:
+    properties:
+      embedding:
+        items:
+          type: number
+        type: array
+      embedding_type:
+        type: string
+      snippet_sha:
+        type: string
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.EmbeddingData:
+    properties:
+      attributes:
+        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.EmbeddingAttributes'
+      id:
+        type: string
+      type:
+        type: string
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.EmbeddingJSONAPIListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.EmbeddingData'
+        type: array
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.EnrichmentAttributes:
+    properties:
+      content:
+        type: string
+      created_at:
+        type: string
+      subtype:
+        type: string
+      type:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.EnrichmentData:
+    properties:
+      attributes:
+        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.EnrichmentAttributes'
+      id:
+        type: string
+      type:
+        type: string
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.EnrichmentJSONAPIListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.EnrichmentData'
+        type: array
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.EnrichmentJSONAPIResponse:
+    properties:
+      data:
+        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.EnrichmentData'
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.EnrichmentSchema:
+    properties:
+      content:
+        type: string
+      type:
+        type: string
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.FileAttributes:
+    properties:
+      blob_sha:
+        type: string
+      extension:
+        type: string
+      mime_type:
+        type: string
+      path:
+        type: string
+      size:
+        type: integer
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.FileData:
+    properties:
+      attributes:
+        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.FileAttributes'
+      id:
+        type: string
+      type:
+        type: string
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.FileJSONAPIListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.FileData'
+        type: array
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.FileJSONAPIResponse:
+    properties:
+      data:
+        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.FileData'
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.GitFileSchema:
+    properties:
+      blob_sha:
+        type: string
+      mime_type:
+        type: string
+      path:
+        type: string
+      size:
+        type: integer
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.RepositoryAttributes:
+    properties:
+      cloned_path:
+        type: string
+      created_at:
+        type: string
+      last_scanned_at:
+        type: string
+      num_branches:
+        type: integer
+      num_commits:
+        type: integer
+      num_tags:
+        type: integer
+      remote_uri:
+        type: string
+      tracking_branch:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.RepositoryData:
+    properties:
+      attributes:
+        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.RepositoryAttributes'
+      id:
+        type: string
+      type:
+        type: string
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.RepositoryListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.RepositoryData'
+        type: array
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.RepositoryRequest:
+    properties:
+      branch:
+        type: string
+      commit:
+        type: string
+      remote_url:
+        type: string
+      tag:
+        type: string
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.RepositoryResponse:
+    properties:
+      data:
+        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.RepositoryData'
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.RepositoryStatusSummaryAttributes:
+    properties:
+      message:
+        type: string
+      status:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.RepositoryStatusSummaryData:
+    properties:
+      attributes:
+        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.RepositoryStatusSummaryAttributes'
+      id:
+        type: string
+      type:
+        type: string
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.RepositoryStatusSummaryResponse:
+    properties:
+      data:
+        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.RepositoryStatusSummaryData'
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.SearchAttributes:
+    properties:
+      code:
+        type: string
+      filters:
+        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.SearchFilters'
+      keywords:
+        items:
+          type: string
+        type: array
+      limit:
+        type: integer
+      text:
+        type: string
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.SearchData:
+    properties:
+      attributes:
+        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.SearchAttributes'
+      type:
+        type: string
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.SearchFilters:
+    properties:
+      authors:
+        items:
+          type: string
+        type: array
+      commit_sha:
+        items:
+          type: string
+        type: array
+      end_date:
+        type: string
+      enrichment_subtypes:
+        items:
+          type: string
+        type: array
+      enrichment_types:
+        items:
+          type: string
+        type: array
+      file_patterns:
+        items:
+          type: string
+        type: array
+      languages:
+        items:
+          type: string
+        type: array
+      sources:
+        items:
+          type: string
+        type: array
+      start_date:
+        type: string
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.SearchRequest:
+    properties:
+      data:
+        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.SearchData'
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.SearchResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.SnippetData'
+        type: array
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.SnippetAttributes:
+    properties:
+      content:
+        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.SnippetContentSchema'
+      created_at:
+        type: string
+      derives_from:
+        items:
+          $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.GitFileSchema'
+        type: array
+      enrichments:
+        items:
+          $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.EnrichmentSchema'
+        type: array
+      original_scores:
+        items:
+          type: number
+        type: array
+      updated_at:
+        type: string
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.SnippetContentSchema:
+    properties:
+      language:
+        type: string
+      value:
+        type: string
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.SnippetData:
+    properties:
+      attributes:
+        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.SnippetAttributes'
+      id:
+        type: string
+      type:
+        type: string
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.TagAttributes:
+    properties:
+      commit_sha:
+        type: string
+      name:
+        type: string
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.TagData:
+    properties:
+      attributes:
+        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TagAttributes'
+      id:
+        type: string
+      type:
+        type: string
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.TagJSONAPIListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TagData'
+        type: array
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.TagJSONAPIResponse:
+    properties:
+      data:
+        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TagData'
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.TaskAttributes:
+    properties:
+      created_at:
+        type: string
+      payload: {}
+      priority:
+        type: integer
+      type:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.TaskData:
+    properties:
+      attributes:
+        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TaskAttributes'
+      id:
+        type: string
+      type:
+        type: string
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.TaskListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TaskData'
+        type: array
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.TaskResponse:
+    properties:
+      data:
+        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TaskData'
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.TaskStatusAttributes:
+    properties:
+      created_at:
+        type: string
+      current:
+        type: integer
+      error:
+        type: string
+      message:
+        type: string
+      progress:
+        type: number
+      state:
+        type: string
+      step:
+        type: string
+      total:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.TaskStatusData:
+    properties:
+      attributes:
+        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TaskStatusAttributes'
+      id:
+        type: string
+      type:
+        type: string
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.TaskStatusListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TaskStatusData'
+        type: array
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigAttributes:
+    properties:
+      mode:
+        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TrackingMode'
+      value:
+        type: string
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigData:
+    properties:
+      attributes:
+        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigAttributes'
+      type:
+        type: string
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigResponse:
+    properties:
+      data:
+        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigData'
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigUpdateAttributes:
+    properties:
+      mode:
+        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TrackingMode'
+      value:
+        type: string
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigUpdateData:
+    properties:
+      attributes:
+        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigUpdateAttributes'
+      type:
+        type: string
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigUpdateRequest:
+    properties:
+      data:
+        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigUpdateData'
+    type: object
+  github_com_helixml_kodit_internal_api_v1_dto.TrackingMode:
+    enum:
+    - branch
+    - tag
+    type: string
+    x-enum-varnames:
+    - TrackingModeBranch
+    - TrackingModeTag
+host: localhost:8080
+info:
+  contact: {}
+  description: Code understanding platform with hybrid search and LLM-powered enrichments
+  title: Kodit API
+  version: "1.0"
+paths:
+  /enrichments:
+    get:
+      consumes:
+      - application/json
+      description: List enrichments with optional filters
+      parameters:
+      - description: Filter by enrichment type
+        in: query
+        name: enrichment_type
+        type: string
+      - description: Filter by enrichment subtype
+        in: query
+        name: enrichment_subtype
+        type: string
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Results per page (default: 20, max: 100)'
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.EnrichmentJSONAPIListResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - APIKeyAuth: []
+      summary: List enrichments
+      tags:
+      - enrichments
+  /enrichments/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Get an enrichment by ID
+      parameters:
+      - description: Enrichment ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.EnrichmentJSONAPIResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - APIKeyAuth: []
+      summary: Get enrichment
+      tags:
+      - enrichments
+  /queue:
+    get:
+      consumes:
+      - application/json
+      description: List tasks in the queue
+      parameters:
+      - description: 'Max results (default: 50)'
+        in: query
+        name: limit
+        type: integer
+      - description: Filter by task type
+        in: query
+        name: task_type
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TaskListResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - APIKeyAuth: []
+      summary: List tasks
+      tags:
+      - queue
+  /queue/{task_id}:
+    get:
+      consumes:
+      - application/json
+      description: Get a task by ID
+      parameters:
+      - description: Task ID
+        in: path
+        name: task_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TaskResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - APIKeyAuth: []
+      summary: Get task
+      tags:
+      - queue
+  /repositories:
+    get:
+      consumes:
+      - application/json
+      description: Get all tracked Git repositories
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.RepositoryListResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - APIKeyAuth: []
+      summary: List repositories
+      tags:
+      - repositories
+    post:
+      consumes:
+      - application/json
+      description: Add a new Git repository to track
+      parameters:
+      - description: Repository request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.RepositoryRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.RepositoryResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - APIKeyAuth: []
+      summary: Add repository
+      tags:
+      - repositories
+  /repositories/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a repository by ID
+      parameters:
+      - description: Repository ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - APIKeyAuth: []
+      summary: Delete repository
+      tags:
+      - repositories
+    get:
+      consumes:
+      - application/json
+      description: Get a repository by ID
+      parameters:
+      - description: Repository ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.RepositoryResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - APIKeyAuth: []
+      summary: Get repository
+      tags:
+      - repositories
+  /repositories/{id}/commits:
+    get:
+      consumes:
+      - application/json
+      description: List commits for a repository
+      parameters:
+      - description: Repository ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.CommitJSONAPIListResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - APIKeyAuth: []
+      summary: List commits
+      tags:
+      - repositories
+  /repositories/{id}/commits/{commit_sha}:
+    get:
+      consumes:
+      - application/json
+      description: Get a commit by SHA
+      parameters:
+      - description: Repository ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Commit SHA
+        in: path
+        name: commit_sha
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.CommitJSONAPIResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - APIKeyAuth: []
+      summary: Get commit
+      tags:
+      - repositories
+  /repositories/{id}/commits/{commit_sha}/embeddings:
+    get:
+      consumes:
+      - application/json
+      description: List embeddings for snippets in a commit
+      parameters:
+      - description: Repository ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Commit SHA
+        in: path
+        name: commit_sha
+        required: true
+        type: string
+      - description: Return full embedding vectors
+        in: query
+        name: full
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.EmbeddingJSONAPIListResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - APIKeyAuth: []
+      summary: List commit embeddings
+      tags:
+      - repositories
+  /repositories/{id}/commits/{commit_sha}/enrichments:
+    get:
+      consumes:
+      - application/json
+      description: List enrichments for a commit
+      parameters:
+      - description: Repository ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Commit SHA
+        in: path
+        name: commit_sha
+        required: true
+        type: string
+      - description: Filter by enrichment type
+        in: query
+        name: enrichment_type
+        type: string
+      - description: Filter by enrichment subtype
+        in: query
+        name: enrichment_subtype
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.EnrichmentJSONAPIListResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - APIKeyAuth: []
+      summary: List commit enrichments
+      tags:
+      - repositories
+  /repositories/{id}/commits/{commit_sha}/enrichments/{enrichment_id}:
+    get:
+      consumes:
+      - application/json
+      description: Get an enrichment by ID within commit context
+      parameters:
+      - description: Repository ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Commit SHA
+        in: path
+        name: commit_sha
+        required: true
+        type: string
+      - description: Enrichment ID
+        in: path
+        name: enrichment_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.EnrichmentJSONAPIResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - APIKeyAuth: []
+      summary: Get commit enrichment
+      tags:
+      - repositories
+  /repositories/{id}/commits/{commit_sha}/files:
+    get:
+      consumes:
+      - application/json
+      description: List files for a commit
+      parameters:
+      - description: Repository ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Commit SHA
+        in: path
+        name: commit_sha
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.FileJSONAPIListResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - APIKeyAuth: []
+      summary: List commit files
+      tags:
+      - repositories
+  /repositories/{id}/commits/{commit_sha}/files/{blob_sha}:
+    get:
+      consumes:
+      - application/json
+      description: Get a file by blob SHA
+      parameters:
+      - description: Repository ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Commit SHA
+        in: path
+        name: commit_sha
+        required: true
+        type: string
+      - description: Blob SHA
+        in: path
+        name: blob_sha
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.FileJSONAPIResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - APIKeyAuth: []
+      summary: Get commit file
+      tags:
+      - repositories
+  /repositories/{id}/commits/{commit_sha}/rescan:
+    post:
+      consumes:
+      - application/json
+      description: Trigger a rescan of a specific commit
+      parameters:
+      - description: Repository ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Commit SHA
+        in: path
+        name: commit_sha
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - APIKeyAuth: []
+      summary: Rescan commit
+      tags:
+      - repositories
+  /repositories/{id}/commits/{commit_sha}/snippets:
+    get:
+      consumes:
+      - application/json
+      description: Redirects to enrichments endpoint with snippet filters
+      parameters:
+      - description: Repository ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Commit SHA
+        in: path
+        name: commit_sha
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "308":
+          description: Permanent Redirect
+      security:
+      - APIKeyAuth: []
+      summary: List commit snippets
+      tags:
+      - repositories
+  /repositories/{id}/enrichments:
+    get:
+      consumes:
+      - application/json
+      description: List recent enrichments across commits for a repository
+      parameters:
+      - description: Repository ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Filter by enrichment type
+        in: query
+        name: enrichment_type
+        type: string
+      - description: 'Max commits to check (default: 100)'
+        in: query
+        name: max_commits_to_check
+        type: integer
+      - description: 'Results per page (default: 20, max: 100)'
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.EnrichmentJSONAPIListResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - APIKeyAuth: []
+      summary: List repository enrichments
+      tags:
+      - repositories
+  /repositories/{id}/status:
+    get:
+      consumes:
+      - application/json
+      description: Get indexing task status for a repository
+      parameters:
+      - description: Repository ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TaskStatusListResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - APIKeyAuth: []
+      summary: Get repository status
+      tags:
+      - repositories
+  /repositories/{id}/status/summary:
+    get:
+      consumes:
+      - application/json
+      description: Get aggregated indexing status summary for a repository
+      parameters:
+      - description: Repository ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.RepositoryStatusSummaryResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - APIKeyAuth: []
+      summary: Get repository status summary
+      tags:
+      - repositories
+  /repositories/{id}/tags:
+    get:
+      consumes:
+      - application/json
+      description: List tags for a repository
+      parameters:
+      - description: Repository ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TagJSONAPIListResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - APIKeyAuth: []
+      summary: List tags
+      tags:
+      - repositories
+  /repositories/{id}/tags/{tag_id}:
+    get:
+      consumes:
+      - application/json
+      description: Get a tag by ID
+      parameters:
+      - description: Repository ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Tag ID
+        in: path
+        name: tag_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TagJSONAPIResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - APIKeyAuth: []
+      summary: Get tag
+      tags:
+      - repositories
+  /repositories/{id}/tracking-config:
+    get:
+      consumes:
+      - application/json
+      description: Get current tracking configuration for a repository
+      parameters:
+      - description: Repository ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - APIKeyAuth: []
+      summary: Get tracking config
+      tags:
+      - repositories
+    put:
+      consumes:
+      - application/json
+      description: Update tracking configuration for a repository
+      parameters:
+      - description: Repository ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Tracking config
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - APIKeyAuth: []
+      summary: Update tracking config
+      tags:
+      - repositories
+  /search:
+    post:
+      consumes:
+      - application/json
+      description: Hybrid search across code snippets and enrichments
+      parameters:
+      - description: Search request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.SearchRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.SearchResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - APIKeyAuth: []
+      summary: Search code
+      tags:
+      - search
+securityDefinitions:
+  APIKeyAuth:
+    in: header
+    name: X-API-KEY
+    type: apiKey
+swagger: "2.0"

@@ -141,15 +141,30 @@ func runServe(addr, dataDir, dbURL, logLevel string) error {
 	router.Use(apimiddleware.Logging(slogger))
 	router.Use(apimiddleware.CorrelationID)
 
-	// Register API routes (minimal setup without database)
-	router.Route("/api/v1", func(r chi.Router) {
-		// Placeholder - in production, use ServerFactory with proper dependencies
+	// Health check endpoints
+	router.Get("/health", healthHandler)
+	router.Get("/healthz", healthHandler)
+
+	// Root endpoint with API info
+	router.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"name":"kodit","version":"0.1.0","docs":"/docs"}`))
 	})
 
-	// Health check
-	router.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"status":"healthy"}`))
+	// Documentation routes
+	docsRouter := api.NewDocsRouter("/docs/openapi.json")
+	router.Mount("/docs", docsRouter.Routes())
+
+	// Register API v1 routes (minimal setup without database)
+	router.Route("/api/v1", func(r chi.Router) {
+		// In production, use ServerFactory with proper dependencies
+		// For now, return 501 Not Implemented for API endpoints
+		r.HandleFunc("/*", func(w http.ResponseWriter, req *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotImplemented)
+			_, _ = w.Write([]byte(`{"error":"API not configured - database connection required"}`))
+		})
 	})
 
 	logger.Info("starting server", slog.String("addr", addr))
@@ -202,4 +217,10 @@ func runStdio(dataDir, dbURL, logLevel string) error {
 
 	// Run on stdio
 	return mcpServer.ServeStdio()
+}
+
+func healthHandler(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`{"status":"healthy"}`))
 }
