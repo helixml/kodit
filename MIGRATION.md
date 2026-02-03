@@ -122,6 +122,38 @@ Bounded contexts ordered by dependencies (least dependencies first):
   Dependencies: database
   Verified: [ ] builds [ ] migrations run
 
+### Build Tools
+
+- [ ] → `Makefile`
+
+  Description: Project Makefile with targets for build, test, lint, format, and run inside go-target. Check CLAUDE.md for coding standards.
+  Dependencies: None
+  Verified: [ ] builds [ ] works
+
+- [ ] → `Makefile` (OpenAPI)
+
+  Description: Add swag target to Makefile for OpenAPI spec generation using github.com/swaggo/swag/cmd/swag
+  Dependencies: Makefile
+  Verified: [ ] builds [ ] generates spec
+
+- [ ] → `internal/api/v1/*.go` (OpenAPI annotations)
+
+  Description: Add swag annotations to all API endpoint handlers for OpenAPI documentation
+  Dependencies: swag tool
+  Verified: [ ] builds [ ] annotations complete
+
+- [ ] → `internal/api/docs.go`
+
+  Description: Add /docs endpoint serving Swagger UI for interactive API documentation, based upon the generated OpenAPI spec.
+  Dependencies: OpenAPI annotations
+  Verified: [ ] builds [ ] serves docs
+
+- [ ] → `Dockerfile`
+
+  Description: Multi-stage Dockerfile for building the Go application. Must include tree-sitter CGo dependencies (build-essential, gcc) for both Linux (amd64/arm64) and handle cross-compilation. Final stage should be minimal (distroless or alpine). Support for Mac development via docker buildx or native builds.
+  Dependencies: go.mod
+  Verified: [ ] builds linux/amd64 [ ] builds linux/arm64 [ ] runs
+
 ### Tests
 
 - [x] `tests/conftest.py` → `internal/testutil/fixtures.go`
@@ -1128,6 +1160,202 @@ Note: SnippetSearchFilters, MultiSearchRequest, FusionRequest, and FusionResult 
   Dependencies: Full system
   Verified: [x] builds [x] tests pass
 
+### API Parity with Python OpenAPI Spec
+
+#### Missing Endpoints
+
+- [ ] `GET /healthz` → `internal/api/health.go`
+
+  Description: Health check endpoint returning basic status
+  Dependencies: None
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `GET /api/v1/repositories/{repo_id}/status` → `internal/api/v1/repositories.go`
+
+  Description: Get indexing status for repository tasks
+  Dependencies: TaskStatusRepository, TrackingService
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `GET /api/v1/repositories/{repo_id}/status/summary` → `internal/api/v1/repositories.go`
+
+  Description: Get aggregated status summary (status, message, updated_at)
+  Dependencies: TrackingService
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `GET /api/v1/repositories/{repo_id}/commits` → `internal/api/v1/commits.go`
+
+  Description: List commits nested under repository (change from /commits?repository_id=X)
+  Dependencies: GitCommitRepository
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `GET /api/v1/repositories/{repo_id}/commits/{commit_sha}` → `internal/api/v1/commits.go`
+
+  Description: Get single commit by SHA
+  Dependencies: GitCommitRepository
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `GET /api/v1/repositories/{repo_id}/commits/{commit_sha}/files` → `internal/api/v1/files.go`
+
+  Description: List files for a commit (with pagination)
+  Dependencies: GitFileRepository
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `GET /api/v1/repositories/{repo_id}/commits/{commit_sha}/files/{blob_sha}` → `internal/api/v1/files.go`
+
+  Description: Get file content by blob SHA
+  Dependencies: GitFileRepository, Git adapter
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `GET /api/v1/repositories/{repo_id}/commits/{commit_sha}/snippets` → `internal/api/v1/snippets.go`
+
+  Description: List snippets for a commit (with pagination)
+  Dependencies: SnippetRepository
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `GET /api/v1/repositories/{repo_id}/commits/{commit_sha}/embeddings` → `internal/api/v1/embeddings.go`
+
+  Description: List embeddings for a commit
+  Dependencies: VectorSearchRepository
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `GET /api/v1/repositories/{repo_id}/commits/{commit_sha}/enrichments` → `internal/api/v1/enrichments.go`
+
+  Description: List enrichments for a commit (with type/subtype filters)
+  Dependencies: EnrichmentRepository, AssociationRepository
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `GET /api/v1/repositories/{repo_id}/commits/{commit_sha}/enrichments/{enrichment_id}` → `internal/api/v1/enrichments.go`
+
+  Description: Get single enrichment by ID within commit context
+  Dependencies: EnrichmentRepository
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `POST /api/v1/repositories/{repo_id}/commits/{commit_sha}/rescan` → `internal/api/v1/commits.go`
+
+  Description: Trigger rescan of a specific commit
+  Dependencies: QueueService
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `GET /api/v1/repositories/{repo_id}/tags` → `internal/api/v1/tags.go`
+
+  Description: List tags for a repository
+  Dependencies: GitTagRepository
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `GET /api/v1/repositories/{repo_id}/tags/{tag_id}` → `internal/api/v1/tags.go`
+
+  Description: Get single tag by ID
+  Dependencies: GitTagRepository
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `GET /api/v1/repositories/{repo_id}/enrichments` → `internal/api/v1/enrichments.go`
+
+  Description: List all enrichments for a repository (aggregated across commits)
+  Dependencies: EnrichmentRepository
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `GET /api/v1/repositories/{repo_id}/tracking-config` → `internal/api/v1/repositories.go`
+
+  Description: Get current tracking configuration (branch/tag/commit)
+  Dependencies: GitRepoRepository
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] `PUT /api/v1/repositories/{repo_id}/tracking-config` → `internal/api/v1/repositories.go`
+
+  Description: Update tracking configuration
+  Dependencies: GitRepoRepository, QueueService
+  Verified: [ ] builds [ ] tests pass
+
+#### Response Format (JSON:API Compliance)
+
+- [ ] → `internal/api/jsonapi/response.go`
+
+  Description: JSON:API response wrapper types (Data, Attributes, Relationships, Links)
+  Dependencies: None
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] → `internal/api/jsonapi/serializer.go`
+
+  Description: Serializers for converting domain types to JSON:API format
+  Dependencies: All domain entities
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] Update all DTOs to use JSON:API structure
+
+  Description: Update repository.go, search.go, enrichment.go, commit.go, queue.go DTOs
+  Dependencies: jsonapi package
+  Verified: [ ] builds [ ] tests pass
+
+#### Authentication
+
+- [ ] → `internal/api/middleware/auth.go`
+
+  Description: X-API-KEY header authentication middleware
+  Dependencies: Config
+  Verified: [ ] builds [ ] tests pass
+
+#### Pagination
+
+- [ ] → `internal/api/pagination.go`
+
+  Description: Pagination utilities (page, page_size params with defaults and limits)
+  Dependencies: None
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] Update all list endpoints to support pagination
+
+  Description: Add page/page_size query params to repositories, commits, enrichments, queue endpoints
+  Dependencies: pagination utilities
+  Verified: [ ] builds [ ] tests pass
+
+#### Queue Endpoint Path Alignment
+
+- [ ] Rename queue endpoints to match Python API
+
+  Description: Change /api/v1/queue/tasks to /api/v1/queue and /api/v1/queue/tasks/{id} to /api/v1/queue/{task_id}
+  Dependencies: None
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] Add task_type filter to queue list
+
+  Description: Support ?task_type=OPERATION filter on queue listing
+  Dependencies: TaskRepository
+  Verified: [ ] builds [ ] tests pass
+
+#### Search Endpoint Enhancements
+
+- [ ] Support JSON:API search request format
+
+  Description: Accept nested data.attributes structure for search request
+  Dependencies: jsonapi package
+  Verified: [ ] builds [ ] tests pass
+
+- [ ] Add additional search filters
+
+  Description: Support languages[], authors[], start_date, end_date, sources[], file_patterns[], enrichment_types[], enrichment_subtypes[] filters
+  Dependencies: SnippetSearchFilters
+  Verified: [ ] builds [ ] tests pass
+
+#### Remove Go-Only Endpoints (Not in Python OpenAPI Spec)
+
+- [ ] Remove `POST /api/v1/repositories/{id}/sync`
+
+  Description: This endpoint was added in Go but doesn't exist in Python API. Remove for strict parity.
+  Location: internal/api/v1/repositories.go:48, :146-162
+  Verified: [ ] removed [ ] tests updated
+
+- [ ] Remove `GET /api/v1/queue/stats`
+
+  Description: This endpoint was added in Go but doesn't exist in Python API. Remove for strict parity.
+  Location: internal/api/v1/queue.go:44, :99-111
+  Verified: [ ] removed [ ] tests updated
+
+- [ ] Remove `GET /api/v1/search?q=query`
+
+  Description: This GET variant was added in Go but Python only has POST. Remove for strict parity.
+  Location: internal/api/v1/search.go:38, :64-92
+  Verified: [ ] removed [ ] tests updated
+
 ---
 
 ## Blockers & Decisions
@@ -1171,6 +1399,7 @@ Note: SnippetSearchFilters, MultiSearchRequest, FusionRequest, and FusionResult 
 | 2026-02-02 | Session 15: Completed Code Search Context (10/10 tasks - 100%). Value objects (SnippetSearchFilters, MultiSearchRequest, FusionRequest, FusionResult) were already created in Phase 0 in internal/domain/value.go. Created: internal/search/fusion_service.go (FusionService with RRF algorithm), internal/search/service.go (Service orchestrating hybrid BM25+vector search, MultiSearchResult value object), fusion_service_test.go (comprehensive RRF algorithm tests), service_test.go (Service tests with fakes for all repository dependencies). Phase 7 Code Search Context is now 100% complete. All tests pass, linting clean. |
 | 2026-02-02 | Session 16: Completed API Gateway Context (16/18 tasks - 89%). Created: internal/api/server.go (HTTP server with chi router), internal/api/middleware/ (logging.go with request logging, correlation.go with correlation ID propagation, error.go with JSON:API error responses), internal/api/v1/dto/ (repository.go, search.go, enrichment.go, commit.go, queue.go DTOs), internal/api/v1/ (repositories.go, commits.go, search.go, enrichments.go, queue.go routers), internal/factory/server.go (ServerFactory with builder pattern for DI), cmd/kodit/main.go (CLI with serve, stdio, version commands using cobra), internal/mcp/server.go (MCP server with search and get_snippet tools using mark3labs/mcp-go). Added chi router, cobra, and mcp-go dependencies. Added API tests: internal/api/server_test.go (server lifecycle tests), internal/api/v1/router_test.go (enrichments router tests with FakeEnrichmentRepository). Integration and e2e tests deferred (require full database setup). All tests pass, linting clean. |
 | 2026-02-02 | Session 17: Completed E2E tests (17/18 tasks - 94%). Created test/e2e/ package with comprehensive end-to-end tests: main_test.go (test suite), helpers_test.go (TestServer with SQLite in-memory database, fake BM25/Vector repositories), health_test.go, repositories_test.go (CRUD operations), search_test.go, enrichments_test.go, queue_test.go. Fixed error middleware to handle both domain.ErrNotFound and database.ErrNotFound for proper 404 responses. 24 e2e tests pass covering all API endpoints. All tests pass, linting clean. |
+| 2026-02-03 | API Parity Analysis: Compared python-source/docs/reference/api/openapi.json with Go API implementation. Identified 27 new tasks needed for full API parity: 17 missing endpoints, 3 JSON:API compliance tasks, 1 authentication middleware, 2 pagination tasks, 2 queue alignment tasks, 2 search enhancement tasks. Key differences: (1) Go uses flat JSON vs Python JSON:API format, (2) commits nested under /repositories/{id}/commits in Python vs /commits?repository_id in Go, (3) queue paths differ (/queue vs /queue/tasks), (4) missing status, tags, tracking-config, rescan endpoints. Also identified 3 Go-only endpoints to REMOVE for strict parity: POST /repositories/{id}/sync, GET /queue/stats, GET /search?q=query. Total: 30 tasks for full API parity. |
 
 ### Architecture Decisions
 
