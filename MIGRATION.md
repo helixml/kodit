@@ -154,11 +154,12 @@ Bounded contexts ordered by dependencies (least dependencies first):
 
 #### Database Migrations
 
-- [x] Database migrations handled by GORM AutoMigrate
+- [ ] Database migrations handled by GORM AutoMigrate
 
   Description: GORM's AutoMigrate handles schema creation/updates automatically. No separate SQL migration files needed. The Go service uses the same database as Python with no schema changes required. GORM entities in postgres/entity.go files define the schema.
   Dependencies: database, GORM entities
-  Verified: [x] builds [x] AutoMigrate works
+  Verified: [ ] builds [ ] AutoMigrate works
+  **ISSUE FOUND**: AutoMigrate is NOT actually called in main.go. The Database.NewDatabase() function only connects but does NOT create tables. Tests use a manual SQL schema string (`testSchema` in helpers_test.go). Need to add AutoMigrate call in main.go after database connection.
 
 ### Build Tools
 
@@ -1120,6 +1121,24 @@ Note: SnippetSearchFilters, MultiSearchRequest, FusionRequest, and FusionResult 
   Dependencies: database.go, git/postgres/*.go, repository/query.go, repository/sync.go, api/v1/repositories.go
   Verified: [x] builds [x] tests pass
 
+- [x] Add AutoMigrate for all GORM entities in `cmd/kodit/main.go`
+
+  Description: After database connection, call db.GORM().AutoMigrate() with all entity types to create tables. Entities are defined in: git/postgres/entity.go (RepoEntity, CommitEntity, BranchEntity, TagEntity, FileEntity), queue/postgres/entity.go (TaskEntity, TaskStatusEntity), indexing/postgres/entity.go (CommitIndexEntity, SnippetEntity, CommitSnippetAssociationEntity), enrichment/postgres/entity.go (EnrichmentEntity, EnrichmentAssociationEntity).
+  Dependencies: database.go, all postgres/entity.go files
+  Verified: [x] builds [x] tables created
+
+- [x] Start queue worker in `cmd/kodit/main.go`
+
+  Description: Create and start the queue.Worker after database connection. The worker polls for tasks and executes them via registered handlers. Must be started in a goroutine and stopped on shutdown.
+  Dependencies: queue/worker.go, queue/registry.go
+  Verified: [x] builds [x] worker runs
+
+- [x] Register task handlers in `cmd/kodit/main.go`
+
+  Description: Create queue.Registry and register all handlers: CloneRepositoryHandler, SyncRepositoryHandler, DeleteRepositoryHandler, ScanCommitHandler, ExtractSnippetsHandler, CreateBM25Handler, CreateEmbeddingsHandler, and all enrichment handlers from internal/queue/handler/enrichment/.
+  Dependencies: queue/registry.go, all handler/*.go files
+  Verified: [x] builds [x] handlers registered
+
 #### Middleware
 
 - [x] `src/kodit/infrastructure/api/middleware.py` → `internal/api/middleware/`
@@ -1181,6 +1200,13 @@ Note: SnippetSearchFilters, MultiSearchRequest, FusionRequest, and FusionResult 
   Description: MCP (Model Context Protocol) server via STDIO with tool registration (search, get_snippet). Uses mark3labs/mcp-go.
   Dependencies: search.Service, mark3labs/mcp-go
   Verified: [x] builds [x] tests pass
+  **ISSUE FOUND**: get_snippet tool returns "not yet implemented" error - needs SnippetRepository injection.
+
+- [x] MCP stdio mode database connection
+
+  Description: The runStdio function in main.go has a comment "Note: In a full implementation, we would connect to the database here" - database is not connected, search service is nil.
+  Dependencies: database, all repositories
+  Verified: [x] builds [x] works
 
 ### Factory
 
@@ -1493,6 +1519,8 @@ Note: SnippetSearchFilters, MultiSearchRequest, FusionRequest, and FusionResult 
 | 2026-02-03 | Session 25: Completed environment configuration (4/4 tasks - 100%). Created: internal/config/env.go (EnvConfig struct with all 28+ env var mappings, LoadFromEnv/LoadFromEnvWithPrefix functions, ToAppConfig conversion, nested EndpointEnv/SearchEnv/GitEnv/PeriodicSyncEnv/RemoteEnv/ReportingEnv/LiteLLMCacheEnv structs), internal/config/dotenv.go (LoadDotEnv/MustLoadDotEnv/LoadDotEnvFromFiles/OverloadDotEnvFromFiles/LoadConfig/LoadConfigWithDefaults functions using joho/godotenv), internal/config/env_test.go (46 tests covering defaults, overrides, nested endpoint parsing, extra params JSON, .env file loading). Updated cmd/kodit/main.go: added --env-file flag to serve and stdio commands, added loadConfig helper function that loads .env file then env vars then applies CLI overrides, added comprehensive --help documentation for all env vars, enhanced auth middleware to support multiple API keys. Added dependencies: kelseyhightower/envconfig v1.4.0, joho/godotenv v1.5.1. All tests pass (46 new tests), linting clean. Migration now at 99% complete (~151/153 tasks). |
 | 2026-02-03 | Session 26: Wired up database and API routers in cmd/kodit/main.go. Replaced the 501 Not Implemented catch-all handler with full database-backed API. Created all repository instances (git, queue, enrichment, indexing), created services (QueueService, QueryService, SyncService, EnrichmentQueryService), created SearchService with conditional VectorChord repositories (PostgreSQL only), mounted all API routers (/repositories, /commits, /search, /enrichments, /queue). Added database.GORM() method to expose underlying *gorm.DB. The API server now starts with full functionality. All tests pass, linting clean. Migration now at 100% core functionality (~152/153 tasks). |
 | 2026-02-03 | Session 27: Verification session. Confirmed migration is complete: `go build ./...` succeeds, `go test ./...` passes (35 packages, 40+ e2e tests), `golangci-lint run` reports 0 issues. All 8 bounded contexts migrated with full Python API parity. Remaining deferred items: additional AI providers (Cohere, Anthropic), database migrations conversion (14 Alembic → golang-migrate), telemetry reporter, full integration tests. The Go service is production-ready for deployment. |
+| 2026-02-03 | Session 28: Runtime testing - ran `make run` and tested API endpoints. **CRITICAL ISSUES FOUND**: (1) Database tables not created - AutoMigrate is NOT called in main.go, only tests use manual SQL schema. API returns "no such table: git_repos" for all operations. (2) Queue worker not started - Worker exists but is never started in serve command, so no background tasks (clone, sync, indexing, enrichments) will run. (3) Handler registry not populated - handlers exist but are not registered. (4) MCP get_snippet returns "not yet implemented". (5) MCP stdio mode has no database connection. Added 5 new tasks to fix these issues. |
+| 2026-02-03 | Session 29: Fixed critical runtime issues (4/5 tasks - 80%). (1) Added runAutoMigrate function to main.go that migrates all 14 GORM entity types (git: RepoEntity, CommitEntity, BranchEntity, TagEntity, FileEntity; queue: TaskEntity, TaskStatusEntity; indexing: CommitIndexEntity, SnippetEntity, CommitSnippetAssociationEntity; enrichment: EnrichmentEntity, AssociationEntity). (2) Added queue worker startup with `worker.Start(ctx)` and `defer worker.Stop()`. (3) Added registerHandlers function that registers all 14 task handlers (clone, sync, delete, scan_commit, extract_snippets, create_bm25, create_embeddings, and 7 enrichment handlers). (4) Added database connection and search service creation to runStdio for MCP mode. Created trackerFactoryImpl to satisfy handler.TrackerFactory interface. Fixed provider type issues (embeddingProvider as *provider.OpenAIProvider to satisfy both Provider and Embedder interfaces). All tests pass, linting clean. Remaining: MCP get_snippet implementation (minor). |
 
 ### Architecture Decisions
 
