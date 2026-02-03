@@ -2,8 +2,37 @@ package dto
 
 import "time"
 
-// TaskResponse represents a task in API responses.
+// TaskAttributes represents task attributes in JSON:API format.
+type TaskAttributes struct {
+	Type      string     `json:"type"`
+	Priority  int        `json:"priority"`
+	Payload   any        `json:"payload"`
+	CreatedAt *time.Time `json:"created_at,omitempty"`
+	UpdatedAt *time.Time `json:"updated_at,omitempty"`
+}
+
+// TaskData represents task data in JSON:API format.
+type TaskData struct {
+	Type       string         `json:"type"`
+	ID         string         `json:"id"`
+	Attributes TaskAttributes `json:"attributes"`
+}
+
+// TaskResponse represents a single task response in JSON:API format.
 type TaskResponse struct {
+	Data TaskData `json:"data"`
+}
+
+// TaskListResponse represents a list of tasks in JSON:API format.
+type TaskListResponse struct {
+	Data []TaskData `json:"data"`
+}
+
+// Legacy types for backwards compatibility
+
+// LegacyTaskResponse represents a legacy task in API responses.
+// Deprecated: Use TaskResponse for JSON:API compliance.
+type LegacyTaskResponse struct {
 	ID        int64     `json:"id"`
 	DedupKey  string    `json:"dedup_key"`
 	Operation string    `json:"operation"`
@@ -13,10 +42,11 @@ type TaskResponse struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-// TaskListResponse represents a list of tasks.
-type TaskListResponse struct {
-	Data       []TaskResponse `json:"data"`
-	TotalCount int            `json:"total_count"`
+// LegacyTaskListResponse represents a legacy list of tasks.
+// Deprecated: Use TaskListResponse for JSON:API compliance.
+type LegacyTaskListResponse struct {
+	Data       []LegacyTaskResponse `json:"data"`
+	TotalCount int                  `json:"total_count"`
 }
 
 // TaskStatusResponse represents a task status in API responses.
@@ -30,12 +60,4 @@ type TaskStatusResponse struct {
 	CompletedAt  *time.Time `json:"completed_at,omitempty"`
 	CreatedAt    time.Time  `json:"created_at"`
 	UpdatedAt    time.Time  `json:"updated_at"`
-}
-
-// QueueStatsResponse represents queue statistics.
-type QueueStatsResponse struct {
-	PendingCount    int `json:"pending_count"`
-	InProgressCount int `json:"in_progress_count"`
-	CompletedCount  int `json:"completed_count"`
-	FailedCount     int `json:"failed_count"`
 }

@@ -1,11 +1,13 @@
 package v1
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/helixml/kodit/internal/api"
 	"github.com/helixml/kodit/internal/api/middleware"
 	"github.com/helixml/kodit/internal/api/v1/dto"
 	"github.com/helixml/kodit/internal/enrichment"
@@ -39,11 +41,24 @@ func (r *EnrichmentsRouter) Routes() chi.Router {
 }
 
 // List handles GET /api/v1/enrichments.
+// Supports query parameters: enrichment_type, enrichment_subtype, page, page_size
 func (r *EnrichmentsRouter) List(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
-	typeParam := req.URL.Query().Get("type")
-	subtypeParam := req.URL.Query().Get("subtype")
+	// Parse filter parameters (matching Python API param names)
+	typeParam := req.URL.Query().Get("enrichment_type")
+	subtypeParam := req.URL.Query().Get("enrichment_subtype")
+
+	// Parse pagination parameters
+	pagination := api.ParsePagination(req)
+
+	// If no filters provided, require at least one filter
+	if typeParam == "" && subtypeParam == "" {
+		middleware.WriteJSON(w, http.StatusOK, dto.EnrichmentJSONAPIListResponse{
+			Data: []dto.EnrichmentData{},
+		})
+		return
+	}
 
 	var enrichments []enrichment.Enrichment
 	var err error
@@ -56,13 +71,6 @@ func (r *EnrichmentsRouter) List(w http.ResponseWriter, req *http.Request) {
 		)
 	} else if typeParam != "" {
 		enrichments, err = r.enrichmentRepo.FindByType(ctx, enrichment.Type(typeParam))
-	} else {
-		// No filters, return empty list (too large to return all)
-		middleware.WriteJSON(w, http.StatusOK, dto.EnrichmentListResponse{
-			Data:       []dto.EnrichmentResponse{},
-			TotalCount: 0,
-		})
-		return
 	}
 
 	if err != nil {
@@ -70,9 +78,22 @@ func (r *EnrichmentsRouter) List(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	response := dto.EnrichmentListResponse{
-		Data:       enrichmentsToDTO(enrichments),
-		TotalCount: len(enrichments),
+	// Apply pagination manually
+	offset := pagination.Offset()
+	limit := pagination.Limit()
+
+	if offset >= len(enrichments) {
+		enrichments = []enrichment.Enrichment{}
+	} else {
+		end := offset + limit
+		if end > len(enrichments) {
+			end = len(enrichments)
+		}
+		enrichments = enrichments[offset:end]
+	}
+
+	response := dto.EnrichmentJSONAPIListResponse{
+		Data: enrichmentsToJSONAPIDTO(enrichments),
 	}
 
 	middleware.WriteJSON(w, http.StatusOK, response)
@@ -95,25 +116,29 @@ func (r *EnrichmentsRouter) Get(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	middleware.WriteJSON(w, http.StatusOK, enrichmentToDTO(e))
+	middleware.WriteJSON(w, http.StatusOK, dto.EnrichmentJSONAPIResponse{
+		Data: enrichmentToJSONAPIDTO(e),
+	})
 }
 
-func enrichmentsToDTO(enrichments []enrichment.Enrichment) []dto.EnrichmentResponse {
-	result := make([]dto.EnrichmentResponse, len(enrichments))
+func enrichmentsToJSONAPIDTO(enrichments []enrichment.Enrichment) []dto.EnrichmentData {
+	result := make([]dto.EnrichmentData, len(enrichments))
 	for i, e := range enrichments {
-		result[i] = enrichmentToDTO(e)
+		result[i] = enrichmentToJSONAPIDTO(e)
 	}
 	return result
 }
 
-func enrichmentToDTO(e enrichment.Enrichment) dto.EnrichmentResponse {
-	return dto.EnrichmentResponse{
-		ID:        e.ID(),
-		Type:      string(e.Type()),
-		Subtype:   string(e.Subtype()),
-		Content:   e.Content(),
-		Language:  e.Language(),
-		CreatedAt: e.CreatedAt(),
-		UpdatedAt: e.UpdatedAt(),
+func enrichmentToJSONAPIDTO(e enrichment.Enrichment) dto.EnrichmentData {
+	return dto.EnrichmentData{
+		Type: "enrichment",
+		ID:   fmt.Sprintf("%d", e.ID()),
+		Attributes: dto.EnrichmentAttributes{
+			Type:      string(e.Type()),
+			Subtype:   string(e.Subtype()),
+			Content:   e.Content(),
+			CreatedAt: e.CreatedAt(),
+			UpdatedAt: e.UpdatedAt(),
+		},
 	}
 }

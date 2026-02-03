@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -64,7 +65,7 @@ func (r *QueueRouter) ListTasks(w http.ResponseWriter, req *http.Request) {
 
 	// Add task_type filter if specified
 	if taskType := req.URL.Query().Get("task_type"); taskType != "" {
-		query = query.Equal("operation", taskType)
+		query = query.Equal("type", taskType)
 	}
 
 	tasks, err := r.taskRepo.Find(ctx, query)
@@ -74,8 +75,7 @@ func (r *QueueRouter) ListTasks(w http.ResponseWriter, req *http.Request) {
 	}
 
 	response := dto.TaskListResponse{
-		Data:       tasksToDTO(tasks),
-		TotalCount: len(tasks),
+		Data: tasksToDTO(tasks),
 	}
 
 	middleware.WriteJSON(w, http.StatusOK, response)
@@ -98,25 +98,30 @@ func (r *QueueRouter) GetTask(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	middleware.WriteJSON(w, http.StatusOK, taskToDTO(task))
+	middleware.WriteJSON(w, http.StatusOK, dto.TaskResponse{Data: taskToDTO(task)})
 }
 
-func tasksToDTO(tasks []queue.Task) []dto.TaskResponse {
-	result := make([]dto.TaskResponse, len(tasks))
+func tasksToDTO(tasks []queue.Task) []dto.TaskData {
+	result := make([]dto.TaskData, len(tasks))
 	for i, task := range tasks {
 		result[i] = taskToDTO(task)
 	}
 	return result
 }
 
-func taskToDTO(task queue.Task) dto.TaskResponse {
-	return dto.TaskResponse{
-		ID:        task.ID(),
-		DedupKey:  task.DedupKey(),
-		Operation: string(task.Operation()),
-		Priority:  task.Priority(),
-		Payload:   task.Payload(),
-		CreatedAt: task.CreatedAt(),
-		UpdatedAt: task.UpdatedAt(),
+func taskToDTO(task queue.Task) dto.TaskData {
+	createdAt := task.CreatedAt()
+	updatedAt := task.UpdatedAt()
+
+	return dto.TaskData{
+		Type: "task",
+		ID:   fmt.Sprintf("%d", task.ID()),
+		Attributes: dto.TaskAttributes{
+			Type:      string(task.Operation()),
+			Priority:  task.Priority(),
+			Payload:   task.Payload(),
+			CreatedAt: &createdAt,
+			UpdatedAt: &updatedAt,
+		},
 	}
 }

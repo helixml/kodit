@@ -112,8 +112,7 @@ func (r *RepositoriesRouter) List(w http.ResponseWriter, req *http.Request) {
 	}
 
 	response := dto.RepositoryListResponse{
-		Data:       sourcesToDTO(sources),
-		TotalCount: len(sources),
+		Data: sourcesToDTO(sources),
 	}
 
 	middleware.WriteJSON(w, http.StatusOK, response)
@@ -136,7 +135,7 @@ func (r *RepositoriesRouter) Get(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	middleware.WriteJSON(w, http.StatusOK, sourceToDTO(source))
+	middleware.WriteJSON(w, http.StatusOK, dto.RepositoryResponse{Data: sourceToDTO(source)})
 }
 
 // Add handles POST /api/v1/repositories.
@@ -172,7 +171,7 @@ func (r *RepositoriesRouter) Add(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	middleware.WriteJSON(w, http.StatusCreated, sourceToDTO(source))
+	middleware.WriteJSON(w, http.StatusCreated, dto.RepositoryResponse{Data: sourceToDTO(source)})
 }
 
 // Delete handles DELETE /api/v1/repositories/{id}.
@@ -943,27 +942,7 @@ func (r *RepositoriesRouter) GetTrackingConfig(w http.ResponseWriter, req *http.
 	}
 
 	tc := source.Repo().TrackingConfig()
-	trackingType := "none"
-	if tc.Branch() != "" {
-		trackingType = "branch"
-	} else if tc.Tag() != "" {
-		trackingType = "tag"
-	} else if tc.Commit() != "" {
-		trackingType = "commit"
-	}
-
-	middleware.WriteJSON(w, http.StatusOK, dto.TrackingConfigResponse{
-		Data: dto.TrackingConfigData{
-			Type: "tracking_config",
-			ID:   fmt.Sprintf("%d", id),
-			Attributes: dto.TrackingConfigAttributes{
-				Type:   trackingType,
-				Branch: tc.Branch(),
-				Tag:    tc.Tag(),
-				Commit: tc.Commit(),
-			},
-		},
-	})
+	middleware.WriteJSON(w, http.StatusOK, trackingConfigToResponse(tc))
 }
 
 // UpdateTrackingConfig handles PUT /api/v1/repositories/{id}/tracking-config.
@@ -977,13 +956,26 @@ func (r *RepositoriesRouter) UpdateTrackingConfig(w http.ResponseWriter, req *ht
 		return
 	}
 
-	var body dto.TrackingConfigRequest
+	var body dto.TrackingConfigUpdateRequest
 	if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
 
-	tc := git.NewTrackingConfig(body.Branch, body.Tag, body.Commit)
+	// Convert JSON:API request to domain tracking config
+	var branch, tag, commit string
+	switch body.Data.Attributes.Mode {
+	case dto.TrackingModeBranch:
+		if body.Data.Attributes.Value != nil {
+			branch = *body.Data.Attributes.Value
+		}
+	case dto.TrackingModeTag:
+		if body.Data.Attributes.Value != nil {
+			tag = *body.Data.Attributes.Value
+		}
+	}
+
+	tc := git.NewTrackingConfig(branch, tag, commit)
 
 	source, err := r.syncService.UpdateTrackingConfig(ctx, id, tc)
 	if err != nil {
@@ -992,60 +984,65 @@ func (r *RepositoriesRouter) UpdateTrackingConfig(w http.ResponseWriter, req *ht
 	}
 
 	updatedTC := source.Repo().TrackingConfig()
-	trackingType := "none"
-	if updatedTC.Branch() != "" {
-		trackingType = "branch"
-	} else if updatedTC.Tag() != "" {
-		trackingType = "tag"
-	} else if updatedTC.Commit() != "" {
-		trackingType = "commit"
-	}
-
-	middleware.WriteJSON(w, http.StatusOK, dto.TrackingConfigResponse{
-		Data: dto.TrackingConfigData{
-			Type: "tracking_config",
-			ID:   fmt.Sprintf("%d", id),
-			Attributes: dto.TrackingConfigAttributes{
-				Type:   trackingType,
-				Branch: updatedTC.Branch(),
-				Tag:    updatedTC.Tag(),
-				Commit: updatedTC.Commit(),
-			},
-		},
-	})
+	middleware.WriteJSON(w, http.StatusOK, trackingConfigToResponse(updatedTC))
 }
 
-func sourcesToDTO(sources []repository.Source) []dto.RepositoryResponse {
-	result := make([]dto.RepositoryResponse, len(sources))
+func trackingConfigToResponse(tc git.TrackingConfig) dto.TrackingConfigResponse {
+	mode := dto.TrackingModeBranch
+	var value *string
+
+	if tc.Tag() != "" {
+		mode = dto.TrackingModeTag
+		v := tc.Tag()
+		value = &v
+	} else if tc.Branch() != "" {
+		v := tc.Branch()
+		value = &v
+	}
+
+	return dto.TrackingConfigResponse{
+		Data: dto.TrackingConfigData{
+			Type: "tracking-config",
+			Attributes: dto.TrackingConfigAttributes{
+				Mode:  mode,
+				Value: value,
+			},
+		},
+	}
+}
+
+func sourcesToDTO(sources []repository.Source) []dto.RepositoryData {
+	result := make([]dto.RepositoryData, len(sources))
 	for i, source := range sources {
 		result[i] = sourceToDTO(source)
 	}
 	return result
 }
 
-func sourceToDTO(source repository.Source) dto.RepositoryResponse {
+func sourceToDTO(source repository.Source) dto.RepositoryData {
 	repo := source.Repo()
-	trackingType := ""
-	trackingValue := ""
+	createdAt := repo.CreatedAt()
+	updatedAt := repo.UpdatedAt()
+	clonedPath := repo.WorkingCopy().Path()
 
-	if tc := repo.TrackingConfig(); tc.Branch() != "" {
-		trackingType = "branch"
-		trackingValue = tc.Branch()
-	} else if tc.Tag() != "" {
-		trackingType = "tag"
-		trackingValue = tc.Tag()
-	} else if tc.Commit() != "" {
-		trackingType = "commit"
-		trackingValue = tc.Commit()
+	attrs := dto.RepositoryAttributes{
+		RemoteURI:   repo.RemoteURL(),
+		CreatedAt:   &createdAt,
+		UpdatedAt:   &updatedAt,
+		ClonedPath:  &clonedPath,
+		NumCommits:  0,
+		NumBranches: 0,
+		NumTags:     0,
 	}
 
-	return dto.RepositoryResponse{
-		ID:            repo.ID(),
-		RemoteURL:     repo.RemoteURL(),
-		WorkingCopy:   repo.WorkingCopy().Path(),
-		TrackingType:  trackingType,
-		TrackingValue: trackingValue,
-		CreatedAt:     repo.CreatedAt(),
-		UpdatedAt:     repo.UpdatedAt(),
+	if tc := repo.TrackingConfig(); tc.Branch() != "" {
+		branch := tc.Branch()
+		attrs.TrackingBranch = &branch
+	}
+
+	return dto.RepositoryData{
+		Type:       "repository",
+		ID:         fmt.Sprintf("%d", repo.ID()),
+		Attributes: attrs,
 	}
 }

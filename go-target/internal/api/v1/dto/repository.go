@@ -3,37 +3,72 @@ package dto
 
 import "time"
 
-// RepositoryRequest represents a request to add a repository.
-type RepositoryRequest struct {
-	RemoteURL string `json:"remote_url"`
-	Branch    string `json:"branch,omitempty"`
-	Tag       string `json:"tag,omitempty"`
-	Commit    string `json:"commit,omitempty"`
+// RepositoryAttributes represents repository attributes in JSON:API format.
+type RepositoryAttributes struct {
+	RemoteURI      string     `json:"remote_uri"`
+	CreatedAt      *time.Time `json:"created_at,omitempty"`
+	UpdatedAt      *time.Time `json:"updated_at,omitempty"`
+	LastScannedAt  *time.Time `json:"last_scanned_at,omitempty"`
+	ClonedPath     *string    `json:"cloned_path,omitempty"`
+	TrackingBranch *string    `json:"tracking_branch,omitempty"`
+	NumCommits     int        `json:"num_commits"`
+	NumBranches    int        `json:"num_branches"`
+	NumTags        int        `json:"num_tags"`
 }
 
-// RepositoryResponse represents a repository in API responses.
+// RepositoryData represents repository data in JSON:API format.
+type RepositoryData struct {
+	Type       string               `json:"type"`
+	ID         string               `json:"id"`
+	Attributes RepositoryAttributes `json:"attributes"`
+}
+
+// RepositoryResponse represents a single repository response in JSON:API format.
 type RepositoryResponse struct {
-	ID            int64     `json:"id"`
-	RemoteURL     string    `json:"remote_url"`
-	WorkingCopy   string    `json:"working_copy,omitempty"`
-	TrackingType  string    `json:"tracking_type,omitempty"`
-	TrackingValue string    `json:"tracking_value,omitempty"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	Data RepositoryData `json:"data"`
 }
 
-// RepositoryListResponse represents a list of repositories.
+// RepositoryListResponse represents a list of repositories in JSON:API format.
 type RepositoryListResponse struct {
-	Data       []RepositoryResponse `json:"data"`
-	TotalCount int                  `json:"total_count"`
+	Data []RepositoryData `json:"data"`
 }
 
-// RepositorySummaryResponse represents a repository summary with status.
-type RepositorySummaryResponse struct {
-	Repository     RepositoryResponse `json:"repository"`
-	SnippetCount   int                `json:"snippet_count"`
-	CommitCount    int                `json:"commit_count"`
-	IndexingStatus string             `json:"indexing_status"`
+// RepositoryBranchData represents branch data for repository details.
+type RepositoryBranchData struct {
+	Name        string `json:"name"`
+	IsDefault   bool   `json:"is_default"`
+	CommitCount int    `json:"commit_count"`
+}
+
+// RepositoryCommitData represents commit data for repository details.
+type RepositoryCommitData struct {
+	SHA       string    `json:"sha"`
+	Message   string    `json:"message"`
+	Author    string    `json:"author"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
+// RepositoryDetailsResponse represents repository details with branches and commits.
+type RepositoryDetailsResponse struct {
+	Data          RepositoryData         `json:"data"`
+	Branches      []RepositoryBranchData `json:"branches"`
+	RecentCommits []RepositoryCommitData `json:"recent_commits"`
+}
+
+// RepositoryCreateAttributes represents repository creation attributes.
+type RepositoryCreateAttributes struct {
+	RemoteURI string `json:"remote_uri"`
+}
+
+// RepositoryCreateData represents repository creation data.
+type RepositoryCreateData struct {
+	Type       string                     `json:"type"`
+	Attributes RepositoryCreateAttributes `json:"attributes"`
+}
+
+// RepositoryCreateRequest represents a repository creation request in JSON:API format.
+type RepositoryCreateRequest struct {
+	Data RepositoryCreateData `json:"data"`
 }
 
 // TaskStatusAttributes represents task status attributes in JSON:API format.
@@ -80,18 +115,23 @@ type RepositoryStatusSummaryResponse struct {
 	Data RepositoryStatusSummaryData `json:"data"`
 }
 
+// TrackingMode represents the tracking mode (branch or tag).
+type TrackingMode string
+
+const (
+	TrackingModeBranch TrackingMode = "branch"
+	TrackingModeTag    TrackingMode = "tag"
+)
+
 // TrackingConfigAttributes represents tracking configuration attributes in JSON:API format.
 type TrackingConfigAttributes struct {
-	Type   string `json:"type"`
-	Branch string `json:"branch,omitempty"`
-	Tag    string `json:"tag,omitempty"`
-	Commit string `json:"commit,omitempty"`
+	Mode  TrackingMode `json:"mode"`
+	Value *string      `json:"value,omitempty"`
 }
 
 // TrackingConfigData represents tracking configuration data in JSON:API format.
 type TrackingConfigData struct {
 	Type       string                   `json:"type"`
-	ID         string                   `json:"id"`
 	Attributes TrackingConfigAttributes `json:"attributes"`
 }
 
@@ -100,7 +140,36 @@ type TrackingConfigResponse struct {
 	Data TrackingConfigData `json:"data"`
 }
 
-// TrackingConfigRequest represents a request to update tracking configuration.
+// TrackingConfigUpdateAttributes represents tracking config update attributes.
+type TrackingConfigUpdateAttributes struct {
+	Mode  TrackingMode `json:"mode"`
+	Value *string      `json:"value,omitempty"`
+}
+
+// TrackingConfigUpdateData represents tracking config update data.
+type TrackingConfigUpdateData struct {
+	Type       string                         `json:"type"`
+	Attributes TrackingConfigUpdateAttributes `json:"attributes"`
+}
+
+// TrackingConfigUpdateRequest represents a tracking config update request.
+type TrackingConfigUpdateRequest struct {
+	Data TrackingConfigUpdateData `json:"data"`
+}
+
+// Legacy types for backwards compatibility during migration
+
+// RepositoryRequest represents a legacy request to add a repository.
+// Deprecated: Use RepositoryCreateRequest for JSON:API compliance.
+type RepositoryRequest struct {
+	RemoteURL string `json:"remote_url"`
+	Branch    string `json:"branch,omitempty"`
+	Tag       string `json:"tag,omitempty"`
+	Commit    string `json:"commit,omitempty"`
+}
+
+// TrackingConfigRequest represents a legacy request to update tracking configuration.
+// Deprecated: Use TrackingConfigUpdateRequest for JSON:API compliance.
 type TrackingConfigRequest struct {
 	Branch string `json:"branch,omitempty"`
 	Tag    string `json:"tag,omitempty"`

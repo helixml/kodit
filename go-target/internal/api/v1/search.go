@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/helixml/kodit/internal/api/middleware"
@@ -56,76 +57,115 @@ func (r *SearchRouter) Search(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	response := buildSearchResponse(body.Query, result)
+	response := buildSearchResponse(result)
 	middleware.WriteJSON(w, http.StatusOK, response)
 }
 
 func buildSearchRequest(body dto.SearchRequest) domain.MultiSearchRequest {
-	topK := body.TopK
-	if topK <= 0 {
-		topK = 10
+	attrs := body.Data.Attributes
+
+	// Determine limit (default 10)
+	topK := 10
+	if attrs.Limit != nil && *attrs.Limit > 0 {
+		topK = *attrs.Limit
 	}
 
-	textQuery := body.TextQuery
-	codeQuery := body.CodeQuery
+	// Determine text and code queries
+	var textQuery, codeQuery string
+	if attrs.Text != nil {
+		textQuery = *attrs.Text
+	}
+	if attrs.Code != nil {
+		codeQuery = *attrs.Code
+	}
 
-	// If neither specified, use the general query for both
-	if textQuery == "" && codeQuery == "" {
-		textQuery = body.Query
-		codeQuery = body.Query
+	// If neither specified, use keywords combined
+	if textQuery == "" && codeQuery == "" && len(attrs.Keywords) > 0 {
+		combined := strings.Join(attrs.Keywords, " ")
+		textQuery = combined
+		codeQuery = combined
 	}
 
 	// Build filters
 	var opts []domain.SnippetSearchFiltersOption
-	if body.Language != "" {
-		opts = append(opts, domain.WithLanguage(body.Language))
-	}
-	if body.Author != "" {
-		opts = append(opts, domain.WithAuthor(body.Author))
-	}
-	if body.SourceRepo != "" {
-		opts = append(opts, domain.WithSourceRepo(body.SourceRepo))
-	}
-	if body.FilePath != "" {
-		opts = append(opts, domain.WithFilePath(body.FilePath))
-	}
-	if len(body.CommitSHAs) > 0 {
-		opts = append(opts, domain.WithCommitSHAs(body.CommitSHAs))
+	if attrs.Filters != nil {
+		f := attrs.Filters
+		if len(f.Languages) > 0 {
+			opts = append(opts, domain.WithLanguage(f.Languages[0]))
+		}
+		if len(f.Authors) > 0 {
+			opts = append(opts, domain.WithAuthor(f.Authors[0]))
+		}
+		if f.StartDate != nil {
+			opts = append(opts, domain.WithCreatedAfter(*f.StartDate))
+		}
+		if f.EndDate != nil {
+			opts = append(opts, domain.WithCreatedBefore(*f.EndDate))
+		}
+		if len(f.Sources) > 0 {
+			opts = append(opts, domain.WithSourceRepo(f.Sources[0]))
+		}
+		if len(f.FilePatterns) > 0 {
+			opts = append(opts, domain.WithFilePath(f.FilePatterns[0]))
+		}
+		if len(f.EnrichmentTypes) > 0 {
+			opts = append(opts, domain.WithEnrichmentTypes(f.EnrichmentTypes))
+		}
+		if len(f.EnrichmentSubtypes) > 0 {
+			opts = append(opts, domain.WithEnrichmentSubtypes(f.EnrichmentSubtypes))
+		}
+		if len(f.CommitSHA) > 0 {
+			opts = append(opts, domain.WithCommitSHAs(f.CommitSHA))
+		}
 	}
 
 	filters := domain.NewSnippetSearchFilters(opts...)
 
-	return domain.NewMultiSearchRequest(topK, textQuery, codeQuery, body.Keywords, filters)
+	return domain.NewMultiSearchRequest(topK, textQuery, codeQuery, attrs.Keywords, filters)
 }
 
-func buildSearchResponse(query string, result search.MultiSearchResult) dto.SearchResponse {
+func buildSearchResponse(result search.MultiSearchResult) dto.SearchResponse {
 	snippets := result.Snippets()
 	scores := result.FusedScores()
 
-	results := make([]dto.SearchResultResponse, len(snippets))
+	data := make([]dto.SnippetData, len(snippets))
 	for i, snippet := range snippets {
-		results[i] = snippetToSearchResult(snippet, scores[snippet.SHA()])
+		data[i] = snippetToSearchResult(snippet, scores[snippet.SHA()])
 	}
 
 	return dto.SearchResponse{
-		Results:    results,
-		TotalCount: len(results),
-		Query:      query,
+		Data: data,
 	}
 }
 
-func snippetToSearchResult(snippet indexing.Snippet, score float64) dto.SearchResultResponse {
-	var filePath string
+func snippetToSearchResult(snippet indexing.Snippet, score float64) dto.SnippetData {
 	derivesFrom := snippet.DerivesFrom()
-	if len(derivesFrom) > 0 {
-		filePath = derivesFrom[0].Path()
+	derivesFromSchemas := make([]dto.GitFileSchema, len(derivesFrom))
+	for i, f := range derivesFrom {
+		derivesFromSchemas[i] = dto.GitFileSchema{
+			BlobSHA:  f.BlobSHA(),
+			Path:     f.Path(),
+			MimeType: f.MimeType(),
+			Size:     f.Size(),
+		}
 	}
 
-	return dto.SearchResultResponse{
-		SnippetSHA: snippet.SHA(),
-		Content:    snippet.Content(),
-		Extension:  snippet.Extension(),
-		Score:      score,
-		FilePath:   filePath,
+	createdAt := snippet.CreatedAt()
+	updatedAt := snippet.UpdatedAt()
+
+	return dto.SnippetData{
+		Type: "snippet",
+		ID:   snippet.SHA(),
+		Attributes: dto.SnippetAttributes{
+			CreatedAt:   &createdAt,
+			UpdatedAt:   &updatedAt,
+			DerivesFrom: derivesFromSchemas,
+			Content: dto.SnippetContentSchema{
+				Value:    snippet.Content(),
+				Language: snippet.Extension(),
+			},
+			Enrichments:    []dto.EnrichmentSchema{},
+			OriginalScores: []float64{score},
+		},
 	}
 }

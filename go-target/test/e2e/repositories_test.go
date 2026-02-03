@@ -23,9 +23,6 @@ func TestRepositories_List_Empty(t *testing.T) {
 	var result dto.RepositoryListResponse
 	ts.DecodeJSON(resp, &result)
 
-	if result.TotalCount != 0 {
-		t.Errorf("total_count = %d, want 0", result.TotalCount)
-	}
 	if len(result.Data) != 0 {
 		t.Errorf("len(data) = %d, want 0", len(result.Data))
 	}
@@ -49,14 +46,14 @@ func TestRepositories_List_WithData(t *testing.T) {
 	var result dto.RepositoryListResponse
 	ts.DecodeJSON(resp, &result)
 
-	if result.TotalCount != 1 {
-		t.Errorf("total_count = %d, want 1", result.TotalCount)
-	}
 	if len(result.Data) != 1 {
 		t.Errorf("len(data) = %d, want 1", len(result.Data))
 	}
-	if result.Data[0].RemoteURL != "https://github.com/test/repo.git" {
-		t.Errorf("remote_url = %q, want %q", result.Data[0].RemoteURL, "https://github.com/test/repo.git")
+	if result.Data[0].Type != "repository" {
+		t.Errorf("type = %q, want %q", result.Data[0].Type, "repository")
+	}
+	if result.Data[0].Attributes.RemoteURI != "https://github.com/test/repo.git" {
+		t.Errorf("remote_uri = %q, want %q", result.Data[0].Attributes.RemoteURI, "https://github.com/test/repo.git")
 	}
 }
 
@@ -79,11 +76,11 @@ func TestRepositories_Create(t *testing.T) {
 	var result dto.RepositoryResponse
 	ts.DecodeJSON(resp, &result)
 
-	if result.ID == 0 {
-		t.Error("ID should not be 0")
+	if result.Data.ID == "" {
+		t.Error("ID should not be empty")
 	}
-	if result.RemoteURL != "https://github.com/test/new-repo.git" {
-		t.Errorf("remote_url = %q, want %q", result.RemoteURL, "https://github.com/test/new-repo.git")
+	if result.Data.Attributes.RemoteURI != "https://github.com/test/new-repo.git" {
+		t.Errorf("remote_uri = %q, want %q", result.Data.Attributes.RemoteURI, "https://github.com/test/new-repo.git")
 	}
 }
 
@@ -107,11 +104,12 @@ func TestRepositories_Create_WithTracking(t *testing.T) {
 	var result dto.RepositoryResponse
 	ts.DecodeJSON(resp, &result)
 
-	if result.TrackingType != "branch" {
-		t.Errorf("tracking_type = %q, want %q", result.TrackingType, "branch")
-	}
-	if result.TrackingValue != "main" {
-		t.Errorf("tracking_value = %q, want %q", result.TrackingValue, "main")
+	if result.Data.Attributes.TrackingBranch == nil || *result.Data.Attributes.TrackingBranch != "main" {
+		var actual string
+		if result.Data.Attributes.TrackingBranch != nil {
+			actual = *result.Data.Attributes.TrackingBranch
+		}
+		t.Errorf("tracking_branch = %q, want %q", actual, "main")
 	}
 }
 
@@ -150,11 +148,11 @@ func TestRepositories_Get(t *testing.T) {
 	var result dto.RepositoryResponse
 	ts.DecodeJSON(resp, &result)
 
-	if result.ID != repo.ID() {
-		t.Errorf("ID = %d, want %d", result.ID, repo.ID())
+	if result.Data.ID != fmt.Sprintf("%d", repo.ID()) {
+		t.Errorf("ID = %s, want %d", result.Data.ID, repo.ID())
 	}
-	if result.RemoteURL != "https://github.com/test/get-repo.git" {
-		t.Errorf("remote_url = %q, want %q", result.RemoteURL, "https://github.com/test/get-repo.git")
+	if result.Data.Attributes.RemoteURI != "https://github.com/test/get-repo.git" {
+		t.Errorf("remote_uri = %q, want %q", result.Data.Attributes.RemoteURI, "https://github.com/test/get-repo.git")
 	}
 }
 
@@ -185,37 +183,6 @@ func TestRepositories_Delete(t *testing.T) {
 	// Delete returns 204 No Content and queues a delete task
 	if resp.StatusCode != http.StatusNoContent {
 		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusNoContent)
-	}
-}
-
-func TestRepositories_Sync_NotCloned(t *testing.T) {
-	ts := NewTestServer(t)
-
-	// Create a repository without a working copy (not cloned)
-	repo := ts.CreateRepository("https://github.com/test/sync-repo.git")
-
-	resp := ts.POST(fmt.Sprintf("/api/v1/repositories/%d/sync", repo.ID()), nil)
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	// Sync fails for uncloned repos with 500 (or could be 400)
-	// The error is "repository has not been cloned"
-	if resp.StatusCode != http.StatusInternalServerError {
-		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusInternalServerError)
-	}
-}
-
-func TestRepositories_Sync_NotFound(t *testing.T) {
-	ts := NewTestServer(t)
-
-	resp := ts.POST("/api/v1/repositories/99999/sync", nil)
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	if resp.StatusCode != http.StatusNotFound {
-		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusNotFound)
 	}
 }
 

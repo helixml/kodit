@@ -81,7 +81,7 @@ func (r *FakeTaskRepository) matches(task Task, query database.Query) bool {
 
 func (r *FakeTaskRepository) matchFilter(task Task, filter database.Filter) bool {
 	switch filter.Field() {
-	case "type":
+	case "type", "operation":
 		val, ok := filter.Value().(string)
 		if !ok {
 			return false

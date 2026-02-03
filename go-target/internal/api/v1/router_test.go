@@ -78,8 +78,8 @@ func TestEnrichmentsRouter_List(t *testing.T) {
 	router := NewEnrichmentsRouter(fake, slog.Default())
 	routes := router.Routes()
 
-	// List endpoint requires type query parameter
-	req := httptest.NewRequest(http.MethodGet, "/?type=development", nil)
+	// List endpoint requires enrichment_type query parameter
+	req := httptest.NewRequest(http.MethodGet, "/?enrichment_type=development", nil)
 	w := httptest.NewRecorder()
 
 	routes.ServeHTTP(w, req)
@@ -88,13 +88,16 @@ func TestEnrichmentsRouter_List(t *testing.T) {
 		t.Errorf("status code = %v, want %v", w.Code, http.StatusOK)
 	}
 
-	var response dto.EnrichmentListResponse
+	var response dto.EnrichmentJSONAPIListResponse
 	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
 
 	if len(response.Data) != 1 {
 		t.Errorf("len(Data) = %v, want 1", len(response.Data))
+	}
+	if response.Data[0].Type != "enrichment" {
+		t.Errorf("type = %v, want enrichment", response.Data[0].Type)
 	}
 }
 
@@ -113,7 +116,7 @@ func TestEnrichmentsRouter_List_NoFilter(t *testing.T) {
 	router := NewEnrichmentsRouter(fake, slog.Default())
 	routes := router.Routes()
 
-	// Without type filter, should return empty list
+	// Without enrichment_type filter, should return empty list
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := httptest.NewRecorder()
 
@@ -123,7 +126,7 @@ func TestEnrichmentsRouter_List_NoFilter(t *testing.T) {
 		t.Errorf("status code = %v, want %v", w.Code, http.StatusOK)
 	}
 
-	var response dto.EnrichmentListResponse
+	var response dto.EnrichmentJSONAPIListResponse
 	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
@@ -157,13 +160,16 @@ func TestEnrichmentsRouter_Get(t *testing.T) {
 		t.Errorf("status code = %v, want %v", w.Code, http.StatusOK)
 	}
 
-	var response dto.EnrichmentResponse
+	var response dto.EnrichmentJSONAPIResponse
 	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
 
-	if response.ID != 1 {
-		t.Errorf("ID = %v, want 1", response.ID)
+	if response.Data.ID != "1" {
+		t.Errorf("ID = %v, want 1", response.Data.ID)
+	}
+	if response.Data.Type != "enrichment" {
+		t.Errorf("type = %v, want enrichment", response.Data.Type)
 	}
 }
 

@@ -23,9 +23,6 @@ func TestQueue_ListTasks_Empty(t *testing.T) {
 	var result dto.TaskListResponse
 	ts.DecodeJSON(resp, &result)
 
-	if result.TotalCount != 0 {
-		t.Errorf("total_count = %d, want 0", result.TotalCount)
-	}
 	if len(result.Data) != 0 {
 		t.Errorf("len(data) = %d, want 0", len(result.Data))
 	}
@@ -52,14 +49,14 @@ func TestQueue_ListTasks_WithData(t *testing.T) {
 	var result dto.TaskListResponse
 	ts.DecodeJSON(resp, &result)
 
-	if result.TotalCount != 1 {
-		t.Errorf("total_count = %d, want 1", result.TotalCount)
-	}
 	if len(result.Data) != 1 {
 		t.Errorf("len(data) = %d, want 1", len(result.Data))
 	}
-	if result.Data[0].Operation != string(queue.OperationCloneRepository) {
-		t.Errorf("operation = %q, want %q", result.Data[0].Operation, queue.OperationCloneRepository)
+	if result.Data[0].Type != "task" {
+		t.Errorf("type = %q, want %q", result.Data[0].Type, "task")
+	}
+	if result.Data[0].Attributes.Type != string(queue.OperationCloneRepository) {
+		t.Errorf("attributes.type = %q, want %q", result.Data[0].Attributes.Type, queue.OperationCloneRepository)
 	}
 }
 
@@ -83,13 +80,10 @@ func TestQueue_ListTasks_WithFilter(t *testing.T) {
 	var result dto.TaskListResponse
 	ts.DecodeJSON(resp, &result)
 
-	if result.TotalCount != 1 {
-		t.Errorf("total_count = %d, want 1", result.TotalCount)
-	}
 	if len(result.Data) != 1 {
 		t.Errorf("len(data) = %d, want 1", len(result.Data))
 	}
-	if result.Data[0].Operation != string(queue.OperationCloneRepository) {
-		t.Errorf("operation = %q, want %q", result.Data[0].Operation, queue.OperationCloneRepository)
+	if result.Data[0].Attributes.Type != string(queue.OperationCloneRepository) {
+		t.Errorf("attributes.type = %q, want %q", result.Data[0].Attributes.Type, queue.OperationCloneRepository)
 	}
 }
