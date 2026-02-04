@@ -13,35 +13,35 @@ import (
 // SQL statements for SQLite FTS5 BM25 operations.
 const (
 	sqliteCreateFTS5Table = `
-CREATE VIRTUAL TABLE IF NOT EXISTS sqlite_bm25_documents USING fts5(
+CREATE VIRTUAL TABLE IF NOT EXISTS kodit_bm25_documents USING fts5(
     snippet_id UNINDEXED,
     passage,
     content=''
 )`
 
 	sqliteInsertQuery = `
-INSERT INTO sqlite_bm25_documents (rowid, snippet_id, passage)
+INSERT INTO kodit_bm25_documents (rowid, snippet_id, passage)
 VALUES (?, ?, ?)`
 
 	sqliteSearchQuery = `
-SELECT snippet_id, bm25(sqlite_bm25_documents) as score
-FROM sqlite_bm25_documents
-WHERE sqlite_bm25_documents MATCH ?
+SELECT snippet_id, bm25(kodit_bm25_documents) as score
+FROM kodit_bm25_documents
+WHERE kodit_bm25_documents MATCH ?
 ORDER BY score
 LIMIT ?`
 
 	sqliteSearchQueryWithFilter = `
-SELECT snippet_id, bm25(sqlite_bm25_documents) as score
-FROM sqlite_bm25_documents
-WHERE sqlite_bm25_documents MATCH ? AND snippet_id IN ?
+SELECT snippet_id, bm25(kodit_bm25_documents) as score
+FROM kodit_bm25_documents
+WHERE kodit_bm25_documents MATCH ? AND snippet_id IN ?
 ORDER BY score
 LIMIT ?`
 
-	sqliteDeleteQuery = `DELETE FROM sqlite_bm25_documents WHERE snippet_id IN ?`
+	sqliteDeleteQuery = `DELETE FROM kodit_bm25_documents WHERE snippet_id IN ?`
 
-	sqliteCheckExistingQuery = `SELECT snippet_id FROM sqlite_bm25_documents WHERE snippet_id IN ?`
+	sqliteCheckExistingQuery = `SELECT snippet_id FROM kodit_bm25_documents WHERE snippet_id IN ?`
 
-	sqliteMaxRowIDQuery = `SELECT COALESCE(MAX(rowid), 0) FROM sqlite_bm25_documents`
+	sqliteMaxRowIDQuery = `SELECT COALESCE(MAX(rowid), 0) FROM kodit_bm25_documents`
 )
 
 // ErrSQLiteBM25InitializationFailed indicates SQLite FTS5 initialization failed.

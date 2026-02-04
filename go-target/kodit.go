@@ -43,12 +43,14 @@ import (
 	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
+	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/domain/snippet"
 	"github.com/helixml/kodit/domain/task"
 	"github.com/helixml/kodit/infrastructure/api"
 	"github.com/helixml/kodit/infrastructure/api/middleware"
 	v1 "github.com/helixml/kodit/infrastructure/api/v1"
 	"github.com/helixml/kodit/infrastructure/persistence"
+	infraSearch "github.com/helixml/kodit/infrastructure/search"
 )
 
 // Client is the main entry point for the kodit library.
@@ -67,11 +69,16 @@ type Client struct {
 	taskStore        persistence.TaskStore
 	statusStore      persistence.StatusStore
 
+	// Search stores (may be nil if not configured)
+	bm25Store   search.BM25Store
+	vectorStore search.VectorStore
+
 	// Application services
 	repoSync      *service.RepositorySync
 	repoQuery     *service.RepositoryQuery
 	enrichQ       *service.EnrichmentQuery
 	trackingQuery *service.TrackingQuery
+	codeSearch    *service.CodeSearch
 	queue         *service.Queue
 	worker        *service.Worker
 	registry      *service.Registry
@@ -150,6 +157,30 @@ func New(opts ...Option) (*Client, error) {
 	taskStore := persistence.NewTaskStore(db)
 	statusStore := persistence.NewStatusStore(db)
 
+	// Create search stores based on storage type
+	var bm25Store search.BM25Store
+	var vectorStore search.VectorStore
+
+	gormDB := db.GORM()
+	switch cfg.storage {
+	case storageSQLite:
+		bm25Store = infraSearch.NewSQLiteBM25Store(gormDB, logger)
+		// SQLite vector search not implemented - would require external library
+	case storagePostgres:
+		bm25Store = infraSearch.NewPostgresBM25Store(gormDB, logger)
+		// pgvector not available in plain Postgres mode
+	case storagePostgresPgvector:
+		bm25Store = infraSearch.NewPostgresBM25Store(gormDB, logger)
+		if cfg.embeddingProvider != nil {
+			vectorStore = infraSearch.NewPgvectorStore(gormDB, infraSearch.TaskNameCode, cfg.embeddingProvider, logger)
+		}
+	case storagePostgresVectorchord:
+		bm25Store = infraSearch.NewVectorChordBM25Store(gormDB, logger)
+		if cfg.embeddingProvider != nil {
+			vectorStore = infraSearch.NewVectorChordVectorStore(gormDB, infraSearch.TaskNameCode, cfg.embeddingProvider, logger)
+		}
+	}
+
 	// Create application services
 	registry := service.NewRegistry()
 	queue := service.NewQueue(taskStore, logger)
@@ -159,6 +190,13 @@ func New(opts ...Option) (*Client, error) {
 	repoQuerySvc := service.NewRepositoryQuery(repoStore, commitStore, branchStore, tagStore)
 	enrichQSvc := service.NewEnrichmentQuery(enrichmentStore, associationStore)
 	trackingQSvc := service.NewTrackingQuery(statusStore, taskStore)
+
+	// Create code search service if search stores are available
+	var codeSearchSvc *service.CodeSearch
+	if bm25Store != nil || vectorStore != nil {
+		cs := service.NewCodeSearch(bm25Store, vectorStore, snippetStore, enrichmentStore, logger)
+		codeSearchSvc = &cs
+	}
 
 	client := &Client{
 		db:               db,
@@ -171,10 +209,13 @@ func New(opts ...Option) (*Client, error) {
 		associationStore: associationStore,
 		taskStore:        taskStore,
 		statusStore:      statusStore,
+		bm25Store:        bm25Store,
+		vectorStore:      vectorStore,
 		repoSync:         repoSyncSvc,
 		repoQuery:        repoQuerySvc,
 		enrichQ:          enrichQSvc,
 		trackingQuery:    trackingQSvc,
+		codeSearch:       codeSearchSvc,
 		queue:            queue,
 		worker:           worker,
 		registry:         registry,
@@ -219,29 +260,46 @@ func (c *Client) Repositories() Repositories {
 }
 
 // Search performs a hybrid code search.
-// Note: Search functionality requires additional infrastructure setup.
+// Returns empty results if search infrastructure is not configured (no embedding provider).
 func (c *Client) Search(ctx context.Context, query string, opts ...SearchOption) (SearchResult, error) {
 	if c.closed.Load() {
 		return SearchResult{}, ErrClientClosed
 	}
 
-	// Search configuration (currently unused until search infrastructure is wired)
-	_ = &searchConfig{
-		semanticWeight:  0.5,
-		limit:           10,
-		includeSnippets: true,
+	// Apply search options
+	cfg := &searchConfig{
+		limit: 10,
 	}
-
 	for _, opt := range opts {
-		cfg := &searchConfig{}
 		opt(cfg)
 	}
 
-	// TODO: Wire up BM25 and vector search stores when infrastructure alignment is complete
-	// For now, return empty result
-	_ = query
-	_ = ctx
-	return SearchResult{}, nil
+	// If no search service configured, return empty result
+	if c.codeSearch == nil {
+		return SearchResult{}, nil
+	}
+
+	// Build filters from options
+	var filterOpts []search.FiltersOption
+	if len(cfg.languages) > 0 && len(cfg.languages) == 1 {
+		filterOpts = append(filterOpts, search.WithLanguage(cfg.languages[0]))
+	}
+	filters := search.NewFilters(filterOpts...)
+
+	// Build multi-search request
+	// Use query for both text (BM25) and code (vector) queries
+	request := search.NewMultiRequest(cfg.limit, query, query, nil, filters)
+
+	result, err := c.codeSearch.Search(ctx, request)
+	if err != nil {
+		return SearchResult{}, err
+	}
+
+	return SearchResult{
+		snippets:    result.Snippets(),
+		enrichments: result.Enrichments(),
+		scores:      result.FusedScores(),
+	}, nil
 }
 
 // Enrichments returns the enrichment query interface.
@@ -455,7 +513,7 @@ func (a *apiServerImpl) ListenAndServe(addr string) error {
 	)
 	reposRouter.WithTrackingQueryService(a.client.trackingQuery)
 	reposRouter.WithEnrichmentServices(a.client.enrichQ, a.client.enrichmentStore)
-	reposRouter.WithIndexingServices(a.client.snippetStore, nil) // vector store nil for now
+	reposRouter.WithIndexingServices(a.client.snippetStore, a.client.vectorStore)
 
 	// Queue router
 	queueRouter := v1.NewQueueRouter(
@@ -473,8 +531,12 @@ func (a *apiServerImpl) ListenAndServe(addr string) error {
 		r.Mount("/repositories", reposRouter.Routes())
 		r.Mount("/queue", queueRouter.Routes())
 		r.Mount("/enrichments", enrichmentsRouter.Routes())
-		// Note: Search router requires CodeSearch service with BM25/Vector stores
-		// which requires additional configuration via options
+
+		// Mount search router if search service is configured
+		if a.client.codeSearch != nil {
+			searchRouter := v1.NewSearchRouter(*a.client.codeSearch, a.logger)
+			r.Mount("/search", searchRouter.Routes())
+		}
 	})
 
 	return server.Start()

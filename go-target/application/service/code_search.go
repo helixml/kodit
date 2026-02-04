@@ -109,8 +109,8 @@ func (s CodeSearch) Search(ctx context.Context, request search.MultiRequest) (Mu
 
 	var bm25Results, vectorResults []search.Result
 
-	// Run BM25 search if text query provided
-	if textQuery != "" {
+	// Run BM25 search if text query provided and store is available
+	if textQuery != "" && s.bm25Store != nil {
 		searchReq := search.NewRequest(textQuery, topK*2, nil) // Get more for fusion
 		results, err := s.bm25Store.Search(ctx, searchReq)
 		if err != nil {
@@ -120,8 +120,8 @@ func (s CodeSearch) Search(ctx context.Context, request search.MultiRequest) (Mu
 		}
 	}
 
-	// Run vector search if code query provided
-	if codeQuery != "" {
+	// Run vector search if code query provided and store is available
+	if codeQuery != "" && s.vectorStore != nil {
 		searchReq := search.NewRequest(codeQuery, topK*2, nil)
 		results, err := s.vectorStore.Search(ctx, searchReq)
 		if err != nil {

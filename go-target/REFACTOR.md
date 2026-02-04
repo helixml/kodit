@@ -1569,3 +1569,52 @@ domain/application/infrastructure layers.
 - Phase 5.2 now more complete: `client.API().ListenAndServe()` serves actual routes
 - Remaining: Search router requires BM25/VectorStore wiring
 - Remaining: Full CLI migration to use library (optional optimization)
+
+### 2026-02-04 Session 18
+
+**Completed:**
+- Fully wired search infrastructure in `kodit.go`:
+  - Added `bm25Store` and `vectorStore` fields to Client struct
+  - Added `codeSearch` service field to Client struct
+  - Created BM25Store based on storage type (SQLite FTS5, PostgreSQL native, VectorChord)
+  - Created VectorStore when embedding provider is configured (pgvector, VectorChord)
+  - Created CodeSearch service when either BM25 or vector store is available
+  - Implemented functional `Search()` method using CodeSearch service
+  - Wired search router in API when CodeSearch service is available
+
+- Fixed SQLite FTS5 table name: renamed from `sqlite_bm25_documents` to `kodit_bm25_documents` (SQLite reserves the `sqlite_` prefix)
+
+- Made CodeSearch service nil-safe: BM25 and vector searches now check if stores are non-nil before calling them
+
+**Search Infrastructure by Storage Type:**
+| Storage Type | BM25 Store | Vector Store |
+|-------------|------------|--------------|
+| SQLite | SQLiteBM25Store (FTS5) | None (would require external library) |
+| PostgreSQL | PostgresBM25Store (native FTS) | None (no pgvector in plain mode) |
+| PostgreSQL + pgvector | PostgresBM25Store | PgvectorStore (requires embedding provider) |
+| PostgreSQL + VectorChord | VectorChordBM25Store | VectorChordVectorStore (requires embedding provider) |
+
+**API Routes Now Available:**
+- `/api/v1/repositories` - Repository CRUD, status, commits, files, enrichments
+- `/api/v1/queue` - Task queue listing
+- `/api/v1/enrichments` - Enrichment listing and retrieval
+- `/api/v1/search` - Hybrid code search (when CodeSearch service is configured) ← NEW
+
+**Verified:**
+- `go build ./...` ✓
+- `go test ./...` ✓ (all tests pass)
+- `golangci-lint run` ✓ (0 issues)
+
+**Design Decisions Made:**
+- BM25 store is always created for any storage backend (even SQLite)
+- Vector store only created when embedding provider is configured via `WithOpenAI()` or similar
+- CodeSearch service created when either BM25 or vector store is available
+- Search gracefully returns empty results if no search infrastructure configured
+- Search gracefully handles store initialization failures (logs warning, returns empty results)
+
+**Session Progress Summary:**
+- Search infrastructure is now fully wired in the library
+- `client.Search()` method is functional (uses BM25 with optional vector fusion)
+- `/api/v1/search` endpoint is mounted when CodeSearch is available
+- All success criteria are met
+- Refactor status: COMPLETE with full search functionality
