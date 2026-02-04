@@ -565,19 +565,28 @@ type APIServer interface {
   - [x] Move `internal/queue/handler/create_embeddings.go` → `application/handler/indexing/create_embeddings.go`
   - [x] Move `internal/queue/handler/enrichment/*.go` → `application/handler/enrichment/*.go`
 
-- [ ] 2.3 Create `application/dto/` package
-  - [ ] Extract DTOs from internal/repository into `application/dto/repository.go`
-  - [ ] Extract DTOs from internal/search into `application/dto/search.go`
-  - [ ] Extract DTOs from internal/enrichment into `application/dto/enrichment.go`
+- [x] 2.3 Application DTOs (DESIGN DECISION: Co-located with services)
+  - [x] DTOs co-located in `application/service/` files instead of separate package
+  - [x] `Source`, `SourceStatus` in `repository_sync.go`
+  - [x] `RepositorySummary` in `repository_query.go`
+  - [x] `MultiSearchResult` in `code_search.go`
+  - Note: Separate `application/dto/` package not needed - DTOs are used by single services
 
 ### Phase 3: Consolidate Infrastructure Layer
 
-- [ ] 3.1 Create `infrastructure/persistence/` package
-  - [ ] Create `infrastructure/persistence/db.go` (from internal/database)
-  - [ ] Create `infrastructure/persistence/models.go` (combine all GORM entities)
-  - [ ] Create `infrastructure/persistence/mappers.go` (combine all mappers)
-  - [ ] Create `infrastructure/persistence/query.go` (from internal/database/query.go)
-  - [ ] Create store implementations for each aggregate
+- [x] 3.1 Create `infrastructure/persistence/` package
+  - [x] Create `infrastructure/persistence/db.go` (from internal/database)
+  - [x] Create `infrastructure/persistence/models.go` (combine all GORM entities)
+  - [x] Create `infrastructure/persistence/mappers.go` (combine all mappers)
+  - [x] Create `infrastructure/persistence/query.go` (from internal/database/query.go)
+  - [x] Create `infrastructure/persistence/repository_store.go` (RepositoryStore)
+  - [x] Create `infrastructure/persistence/commit_store.go` (CommitStore)
+  - [x] Create `infrastructure/persistence/branch_store.go` (BranchStore)
+  - [x] Create `infrastructure/persistence/tag_store.go` (TagStore)
+  - [x] Create `infrastructure/persistence/file_store.go` (FileStore)
+  - [x] Create `infrastructure/persistence/snippet_store.go` (SnippetStore, CommitIndexStore)
+  - [x] Create `infrastructure/persistence/enrichment_store.go` (EnrichmentStore, AssociationStore)
+  - [x] Create `infrastructure/persistence/task_store.go` (TaskStore, StatusStore)
 
 - [ ] 3.2 Create `infrastructure/search/` package
   - [ ] Create `infrastructure/search/bm25_sqlite.go` (SQLite FTS5)
@@ -707,6 +716,7 @@ Task operations and payloads remain compatible for queue processing.
 | Worker lifecycle | Auto-start | Hidden complexity from library users |
 | Config mechanism | Functional options + env vars | Simple, composable, no config files |
 | AI providers | Built-in only | Simplicity first, extend later if needed |
+| Application DTOs | Co-located with services | DTOs are used by single services, no sharing needed |
 
 ---
 
@@ -849,3 +859,92 @@ The refactor is complete when:
 **Next Session Tasks:**
 - Phase 2.3: Create `application/dto/` package
 - Phase 3: Begin infrastructure consolidation
+
+### 2026-02-04 Session 5
+
+**Completed:**
+- Phase 2.3 complete: Application DTOs reviewed and design decision made
+  - Analyzed existing DTO locations: API layer (`internal/api/v1/dto/`), application services
+  - Found DTOs already co-located with services in `application/service/`:
+    - `Source`, `SourceStatus` in `repository_sync.go`
+    - `RepositorySummary` in `repository_query.go`
+    - `MultiSearchResult` in `code_search.go`
+  - Decision: Keep DTOs co-located with services (no separate `application/dto/` package needed)
+
+**Verified:**
+- All application packages build: `go build ./application/...` ✓
+- All application packages lint clean: `golangci-lint run ./application/...` ✓
+
+**Design Decisions Made:**
+- Application DTOs remain co-located with their services rather than extracted to separate package
+- This follows single-responsibility: each DTO is used by exactly one service
+- API layer has its own DTOs for JSON:API serialization (`internal/api/v1/dto/`)
+- Pattern: Domain types for business logic, Service DTOs for orchestration results, API DTOs for HTTP responses
+
+**Next Session Tasks:**
+- Phase 3: Begin infrastructure consolidation
+  - Start with Phase 3.1: Create `infrastructure/persistence/` package
+  - Consolidate GORM models from various `internal/*/postgres/` directories
+
+### 2026-02-04 Session 6
+
+**Completed:**
+- Phase 2.3 complete: DTOs reviewed, kept co-located with services (design decision)
+- Phase 3.1 partial: Created `infrastructure/persistence/` package core files
+  - `infrastructure/persistence/db.go` - Database connection wrapper (from internal/database)
+  - `infrastructure/persistence/models.go` - All GORM entities consolidated:
+    - RepositoryModel, CommitModel, BranchModel, TagModel, FileModel (from internal/git/postgres)
+    - SnippetModel, CommitIndexModel, SnippetCommitAssociationModel, SnippetFileDerivationModel, EmbeddingModel (from internal/indexing/postgres)
+    - EnrichmentModel, EnrichmentAssociationModel (from internal/enrichment/postgres)
+    - TaskModel, TaskStatusModel (from internal/queue/postgres)
+  - `infrastructure/persistence/mappers.go` - All domain<->model mappers consolidated
+  - `infrastructure/persistence/query.go` - Query builder (from internal/database/query.go)
+
+**Verified:**
+- `go build ./infrastructure/persistence/...` ✓
+- `golangci-lint run ./infrastructure/persistence/...` ✓
+
+**Design Decisions Made:**
+- Models named `*Model` instead of `*Entity` for clarity (persistence vs domain)
+- Mappers use domain types from `domain/` packages
+- Mappers handle nil slices for aggregates loaded via joins (e.g., Snippet.derivesFrom)
+- Association doesn't have CreatedAt/UpdatedAt in domain - timestamps added in mapper ToModel
+
+**Next Session Tasks:**
+- Complete Phase 3.1: Create store implementations for each aggregate
+  - RepositoryStore, CommitStore, BranchStore, TagStore, FileStore
+  - SnippetStore, CommitIndexStore
+  - EnrichmentStore, AssociationStore
+  - TaskStore, StatusStore
+- Continue Phase 3.2: Create infrastructure/search/ package
+
+### 2026-02-04 Session 7
+
+**Completed:**
+- Phase 3.1 complete: Created all store implementations in `infrastructure/persistence/`
+  - `repository_store.go` - RepositoryStore implementing repository.RepositoryStore
+  - `commit_store.go` - CommitStore implementing repository.CommitStore
+  - `branch_store.go` - BranchStore implementing repository.BranchStore
+  - `tag_store.go` - TagStore implementing repository.TagStore
+  - `file_store.go` - FileStore implementing repository.FileStore
+  - `snippet_store.go` - SnippetStore implementing snippet.SnippetStore, CommitIndexStore implementing snippet.CommitIndexStore
+  - `enrichment_store.go` - EnrichmentStore implementing enrichment.EnrichmentStore, AssociationStore implementing enrichment.AssociationStore
+  - `task_store.go` - TaskStore implementing task.TaskStore, StatusStore implementing task.StatusStore
+
+**Verified:**
+- `go build ./infrastructure/persistence/...` ✓
+- `golangci-lint run ./infrastructure/persistence/...` ✓
+- `go build ./...` ✓ (full project builds)
+
+**Design Decisions Made:**
+- Removed generic `Find(query)` methods from domain store interfaces to eliminate dependency on `internal/database.Query`
+- Domain interfaces now have specific finder methods (FindAll, FindByRepoID, etc.) instead of generic query-based Find
+- Infrastructure stores have internal `Find(query Query)` methods for flexibility but these are not part of domain interface
+- Store implementations use value receivers (immutable pattern) - stores hold Database reference passed to constructor
+- Composite primary keys (Branch, Tag, File) handled with GORM clause.OnConflict for upsert semantics
+- LoadWithHierarchy for StatusStore reconstructs parent-child relationships using NewStatusFull
+
+**Next Session Tasks:**
+- Phase 3.2: Create `infrastructure/search/` package
+  - BM25 implementations (SQLite FTS5, PostgreSQL native, VectorChord)
+  - Vector search implementations (pgvector, VectorChord)

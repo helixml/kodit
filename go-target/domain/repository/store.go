@@ -2,14 +2,11 @@ package repository
 
 import (
 	"context"
-
-	"github.com/helixml/kodit/internal/database"
 )
 
 // RepositoryStore defines the interface for Repository persistence.
 type RepositoryStore interface {
 	Get(ctx context.Context, id int64) (Repository, error)
-	Find(ctx context.Context, query database.Query) ([]Repository, error)
 	FindAll(ctx context.Context) ([]Repository, error)
 	Save(ctx context.Context, repo Repository) (Repository, error)
 	Delete(ctx context.Context, repo Repository) error
@@ -20,7 +17,6 @@ type RepositoryStore interface {
 // CommitStore defines the interface for Commit persistence.
 type CommitStore interface {
 	Get(ctx context.Context, id int64) (Commit, error)
-	Find(ctx context.Context, query database.Query) ([]Commit, error)
 	Save(ctx context.Context, commit Commit) (Commit, error)
 	SaveAll(ctx context.Context, commits []Commit) ([]Commit, error)
 	Delete(ctx context.Context, commit Commit) error
@@ -32,7 +28,6 @@ type CommitStore interface {
 // BranchStore defines the interface for Branch persistence.
 type BranchStore interface {
 	Get(ctx context.Context, id int64) (Branch, error)
-	Find(ctx context.Context, query database.Query) ([]Branch, error)
 	Save(ctx context.Context, branch Branch) (Branch, error)
 	SaveAll(ctx context.Context, branches []Branch) ([]Branch, error)
 	Delete(ctx context.Context, branch Branch) error
@@ -44,7 +39,6 @@ type BranchStore interface {
 // TagStore defines the interface for Tag persistence.
 type TagStore interface {
 	Get(ctx context.Context, id int64) (Tag, error)
-	Find(ctx context.Context, query database.Query) ([]Tag, error)
 	Save(ctx context.Context, tag Tag) (Tag, error)
 	SaveAll(ctx context.Context, tags []Tag) ([]Tag, error)
 	Delete(ctx context.Context, tag Tag) error
@@ -55,7 +49,6 @@ type TagStore interface {
 // FileStore defines the interface for File persistence.
 type FileStore interface {
 	Get(ctx context.Context, id int64) (File, error)
-	Find(ctx context.Context, query database.Query) ([]File, error)
 	Save(ctx context.Context, file File) (File, error)
 	SaveAll(ctx context.Context, files []File) ([]File, error)
 	Delete(ctx context.Context, file File) error
