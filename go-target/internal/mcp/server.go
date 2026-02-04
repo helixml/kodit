@@ -8,6 +8,7 @@ import (
 	"log/slog"
 
 	"github.com/helixml/kodit/internal/domain"
+	"github.com/helixml/kodit/internal/indexing"
 	"github.com/helixml/kodit/internal/search"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -17,17 +18,19 @@ import (
 type Server struct {
 	mcpServer     *server.MCPServer
 	searchService search.Service
+	snippetRepo   indexing.SnippetRepository
 	logger        *slog.Logger
 }
 
 // NewServer creates a new MCP server with the given dependencies.
-func NewServer(searchService search.Service, logger *slog.Logger) *Server {
+func NewServer(searchService search.Service, snippetRepo indexing.SnippetRepository, logger *slog.Logger) *Server {
 	if logger == nil {
 		logger = slog.Default()
 	}
 
 	s := &Server{
 		searchService: searchService,
+		snippetRepo:   snippetRepo,
 		logger:        logger,
 	}
 
@@ -132,16 +135,45 @@ func (s *Server) handleSearch(ctx context.Context, request mcp.CallToolRequest) 
 }
 
 // handleGetSnippet handles the get_snippet tool invocation.
-func (s *Server) handleGetSnippet(_ context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (s *Server) handleGetSnippet(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	sha, err := request.RequireString("sha")
 	if err != nil {
 		return mcp.NewToolResultError("sha is required"), nil
 	}
 
-	// Note: This would require a SnippetRepository to be injected
-	// For now, return an error indicating the feature is not yet implemented
-	_ = sha
-	return mcp.NewToolResultError("get_snippet not yet implemented - requires SnippetRepository"), nil
+	if s.snippetRepo == nil {
+		return mcp.NewToolResultError("snippet repository not configured"), nil
+	}
+
+	snippet, err := s.snippetRepo.BySHA(ctx, sha)
+	if err != nil {
+		s.logger.Error("failed to get snippet", slog.String("sha", sha), slog.Any("error", err))
+		return mcp.NewToolResultError(fmt.Sprintf("failed to get snippet: %v", err)), nil
+	}
+
+	// Check if snippet was found (empty SHA means not found)
+	if snippet.SHA() == "" {
+		return mcp.NewToolResultError(fmt.Sprintf("snippet not found: %s", sha)), nil
+	}
+
+	type snippetResult struct {
+		SHA       string `json:"sha"`
+		Content   string `json:"content"`
+		Extension string `json:"extension"`
+	}
+
+	result := snippetResult{
+		SHA:       snippet.SHA(),
+		Content:   snippet.Content(),
+		Extension: snippet.Extension(),
+	}
+
+	jsonBytes, err := json.Marshal(result)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("failed to marshal result: %v", err)), nil
+	}
+
+	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
 // MCPServer returns the underlying MCP server for stdio serving.

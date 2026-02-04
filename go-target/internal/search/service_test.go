@@ -85,6 +85,7 @@ type FakeSnippetRepository struct {
 	deleteForCommitFn   func(ctx context.Context, commitSHA string) error
 	searchFn            func(ctx context.Context, request domain.MultiSearchRequest) ([]indexing.Snippet, error)
 	byIDsFn             func(ctx context.Context, ids []string) ([]indexing.Snippet, error)
+	bySHAFn             func(ctx context.Context, sha string) (indexing.Snippet, error)
 }
 
 func (f *FakeSnippetRepository) Save(ctx context.Context, commitSHA string, snippets []indexing.Snippet) error {
@@ -120,6 +121,13 @@ func (f *FakeSnippetRepository) ByIDs(ctx context.Context, ids []string) ([]inde
 		return f.byIDsFn(ctx, ids)
 	}
 	return nil, nil
+}
+
+func (f *FakeSnippetRepository) BySHA(ctx context.Context, sha string) (indexing.Snippet, error) {
+	if f.bySHAFn != nil {
+		return f.bySHAFn(ctx, sha)
+	}
+	return indexing.Snippet{}, nil
 }
 
 // FakeEnrichmentRepository is a test double for EnrichmentRepository.

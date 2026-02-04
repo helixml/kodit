@@ -22,6 +22,9 @@ type SnippetRepository interface {
 
 	// ByIDs returns snippets by their SHA identifiers.
 	ByIDs(ctx context.Context, ids []string) ([]Snippet, error)
+
+	// BySHA returns a single snippet by its SHA identifier.
+	BySHA(ctx context.Context, sha string) (Snippet, error)
 }
 
 // CommitIndexRepository defines operations for commit index persistence.

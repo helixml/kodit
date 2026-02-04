@@ -210,3 +210,17 @@ func (r *SnippetRepository) ByIDs(ctx context.Context, ids []string) ([]indexing
 
 	return snippets, nil
 }
+
+// BySHA returns a single snippet by its SHA identifier.
+func (r *SnippetRepository) BySHA(ctx context.Context, sha string) (indexing.Snippet, error) {
+	var entity SnippetEntity
+	err := r.db.WithContext(ctx).Where("sha = ?", sha).First(&entity).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return indexing.Snippet{}, ErrSnippetNotFound
+		}
+		return indexing.Snippet{}, err
+	}
+
+	return r.mapper.ToDomain(entity), nil
+}

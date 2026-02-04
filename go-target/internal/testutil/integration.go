@@ -612,6 +612,17 @@ func (f *FakeSnippetRepository) ByIDs(_ context.Context, ids []string) ([]indexi
 	return result, nil
 }
 
+// BySHA returns a single snippet by its SHA.
+func (f *FakeSnippetRepository) BySHA(_ context.Context, sha string) (indexing.Snippet, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	if s, ok := f.snippets[sha]; ok {
+		return s, nil
+	}
+	return indexing.Snippet{}, nil
+}
+
 // AddSnippet adds a snippet directly (for test setup).
 func (f *FakeSnippetRepository) AddSnippet(snippet indexing.Snippet) {
 	f.mu.Lock()

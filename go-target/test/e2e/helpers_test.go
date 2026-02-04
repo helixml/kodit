@@ -508,3 +508,7 @@ func (f *fakeSnippetRepository) Search(_ context.Context, _ domain.MultiSearchRe
 func (f *fakeSnippetRepository) ByIDs(_ context.Context, _ []string) ([]indexing.Snippet, error) {
 	return []indexing.Snippet{}, nil
 }
+
+func (f *fakeSnippetRepository) BySHA(_ context.Context, _ string) (indexing.Snippet, error) {
+	return indexing.Snippet{}, nil
+}

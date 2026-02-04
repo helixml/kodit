@@ -54,6 +54,17 @@ func (f *fakeSnippetRepository) ByIDs(_ context.Context, _ []string) ([]indexing
 	return nil, nil
 }
 
+func (f *fakeSnippetRepository) BySHA(_ context.Context, sha string) (indexing.Snippet, error) {
+	for _, snippets := range f.snippetsByCommit {
+		for _, snippet := range snippets {
+			if snippet.SHA() == sha {
+				return snippet, nil
+			}
+		}
+	}
+	return indexing.Snippet{}, nil
+}
+
 type fakeBM25Repository struct {
 	indexed []domain.IndexRequest
 }

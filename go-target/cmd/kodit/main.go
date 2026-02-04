@@ -492,8 +492,8 @@ func runStdio(envFile, dataDir, dbURL, logLevel string) error {
 		searchService = search.NewService(nil, nil, snippetRepo, enrichmentRepo, slogger)
 	}
 
-	// Create MCP server with database-backed search
-	mcpServer := mcp.NewServer(searchService, slogger)
+	// Create MCP server with database-backed search and snippet repository
+	mcpServer := mcp.NewServer(searchService, snippetRepo, slogger)
 
 	// Run on stdio
 	return mcpServer.ServeStdio()

@@ -223,6 +223,17 @@ func (f *fakeSnippetRepo) ByIDs(_ context.Context, _ []string) ([]indexing.Snipp
 	return nil, nil
 }
 
+func (f *fakeSnippetRepo) BySHA(_ context.Context, sha string) (indexing.Snippet, error) {
+	for _, snippets := range f.snippets {
+		for _, snippet := range snippets {
+			if snippet.SHA() == sha {
+				return snippet, nil
+			}
+		}
+	}
+	return indexing.Snippet{}, nil
+}
+
 type fakeGitAdapter struct {
 	diff  string
 	files []git.FileInfo
