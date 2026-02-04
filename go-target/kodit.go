@@ -39,12 +39,15 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/snippet"
 	"github.com/helixml/kodit/domain/task"
 	"github.com/helixml/kodit/infrastructure/api"
+	"github.com/helixml/kodit/infrastructure/api/middleware"
+	v1 "github.com/helixml/kodit/infrastructure/api/v1"
 	"github.com/helixml/kodit/infrastructure/persistence"
 )
 
@@ -62,14 +65,16 @@ type Client struct {
 	enrichmentStore  persistence.EnrichmentStore
 	associationStore persistence.AssociationStore
 	taskStore        persistence.TaskStore
+	statusStore      persistence.StatusStore
 
 	// Application services
-	repoSync  *service.RepositorySync
-	repoQuery *service.RepositoryQuery
-	enrichQ   *service.EnrichmentQuery
-	queue     *service.Queue
-	worker    *service.Worker
-	registry  *service.Registry
+	repoSync      *service.RepositorySync
+	repoQuery     *service.RepositoryQuery
+	enrichQ       *service.EnrichmentQuery
+	trackingQuery *service.TrackingQuery
+	queue         *service.Queue
+	worker        *service.Worker
+	registry      *service.Registry
 
 	logger  *slog.Logger
 	dataDir string
@@ -143,6 +148,7 @@ func New(opts ...Option) (*Client, error) {
 	enrichmentStore := persistence.NewEnrichmentStore(db)
 	associationStore := persistence.NewAssociationStore(db)
 	taskStore := persistence.NewTaskStore(db)
+	statusStore := persistence.NewStatusStore(db)
 
 	// Create application services
 	registry := service.NewRegistry()
@@ -152,6 +158,7 @@ func New(opts ...Option) (*Client, error) {
 	repoSyncSvc := service.NewRepositorySync(repoStore, queue, logger)
 	repoQuerySvc := service.NewRepositoryQuery(repoStore, commitStore, branchStore, tagStore)
 	enrichQSvc := service.NewEnrichmentQuery(enrichmentStore, associationStore)
+	trackingQSvc := service.NewTrackingQuery(statusStore, taskStore)
 
 	client := &Client{
 		db:               db,
@@ -163,9 +170,11 @@ func New(opts ...Option) (*Client, error) {
 		enrichmentStore:  enrichmentStore,
 		associationStore: associationStore,
 		taskStore:        taskStore,
+		statusStore:      statusStore,
 		repoSync:         repoSyncSvc,
 		repoQuery:        repoQuerySvc,
 		enrichQ:          enrichQSvc,
+		trackingQuery:    trackingQSvc,
 		queue:            queue,
 		worker:           worker,
 		registry:         registry,
@@ -431,7 +440,42 @@ func (a *apiServerImpl) ListenAndServe(addr string) error {
 	server := api.NewServer(addr, a.logger)
 	a.server = &server
 
-	// TODO: Register routes with services
+	router := server.Router()
+
+	// Apply auth middleware if API keys configured
+	if len(a.client.apiKeys) > 0 {
+		router.Use(middleware.APIKeyAuth(a.client.apiKeys))
+	}
+
+	// Repositories router
+	reposRouter := v1.NewRepositoriesRouter(
+		a.client.repoQuery,
+		a.client.repoSync,
+		a.logger,
+	)
+	reposRouter.WithTrackingQueryService(a.client.trackingQuery)
+	reposRouter.WithEnrichmentServices(a.client.enrichQ, a.client.enrichmentStore)
+	reposRouter.WithIndexingServices(a.client.snippetStore, nil) // vector store nil for now
+
+	// Queue router
+	queueRouter := v1.NewQueueRouter(
+		a.client.queue,
+		a.client.taskStore,
+		a.client.statusStore,
+		a.logger,
+	)
+
+	// Enrichments router
+	enrichmentsRouter := v1.NewEnrichmentsRouter(a.client.enrichmentStore, a.logger)
+
+	// Mount routes
+	router.Route("/api/v1", func(r chi.Router) {
+		r.Mount("/repositories", reposRouter.Routes())
+		r.Mount("/queue", queueRouter.Routes())
+		r.Mount("/enrichments", enrichmentsRouter.Routes())
+		// Note: Search router requires CodeSearch service with BM25/Vector stores
+		// which requires additional configuration via options
+	})
 
 	return server.Start()
 }

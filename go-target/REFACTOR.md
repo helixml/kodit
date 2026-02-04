@@ -1532,3 +1532,40 @@ The library-first architecture refactoring is complete. The kodit package provid
 for embedded usage while preserving all existing functionality through the CLI. The internal packages
 remain as legacy code that can be incrementally removed as components are migrated to use the new
 domain/application/infrastructure layers.
+
+### 2026-02-04 Session 17
+
+**Completed:**
+- Wired API routes in `kodit.go` `ListenAndServe` method:
+  - Added `StatusStore` to Client struct
+  - Added `TrackingQuery` service to Client struct
+  - Wired `RepositoriesRouter` with all optional services (TrackingQuery, EnrichmentQuery, etc.)
+  - Wired `QueueRouter` for task management endpoints
+  - Wired `EnrichmentsRouter` for enrichment endpoints
+  - Added API key auth middleware when keys are configured
+  - Mounted all routes under `/api/v1/`
+
+**API Routes Now Available via `client.API().ListenAndServe()`:**
+- `/api/v1/repositories` - Repository CRUD, status, commits, files, enrichments
+- `/api/v1/queue` - Task queue listing
+- `/api/v1/enrichments` - Enrichment listing and retrieval
+
+**Not Yet Wired:**
+- `/api/v1/search` - Requires `CodeSearch` service which needs BM25Store and VectorStore
+  - These require additional options (`WithPostgresVectorchord`, etc.) to be properly configured
+  - Library users must explicitly configure search infrastructure
+
+**Verified:**
+- `go build ./...` ✓
+- `go test ./...` ✓ (all tests pass)
+- `golangci-lint run` ✓ (0 issues)
+
+**Design Decisions Made:**
+- VectorStore passed as nil to RepositoriesRouter for embedding endpoints - proper wiring would require search infrastructure configuration
+- Search router not mounted - requires infrastructure stores that need explicit configuration via options
+- API key auth middleware applied only when `WithAPIKey()` option is used
+
+**Session Progress Summary:**
+- Phase 5.2 now more complete: `client.API().ListenAndServe()` serves actual routes
+- Remaining: Search router requires BM25/VectorStore wiring
+- Remaining: Full CLI migration to use library (optional optimization)
