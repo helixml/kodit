@@ -204,7 +204,7 @@ const (
 // TaskModel represents a task in the database.
 type TaskModel struct {
 	ID        int64           `gorm:"column:id;primaryKey;autoIncrement"`
-	DedupKey  string          `gorm:"column:dedup_key;type:varchar(255);index;not null"`
+	DedupKey  string          `gorm:"column:dedup_key;type:varchar(255);uniqueIndex;not null"`
 	Type      string          `gorm:"column:type;type:varchar(255);index;not null"`
 	Payload   json.RawMessage `gorm:"column:payload;type:jsonb"`
 	Priority  int             `gorm:"column:priority;not null"`
