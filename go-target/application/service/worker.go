@@ -42,6 +42,18 @@ func (r *Registry) Handler(operation task.Operation) (Handler, bool) {
 	return handler, ok
 }
 
+// Operations returns all registered operations.
+func (r *Registry) Operations() []task.Operation {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	ops := make([]task.Operation, 0, len(r.handlers))
+	for op := range r.handlers {
+		ops = append(ops, op)
+	}
+	return ops
+}
+
 // Worker processes tasks from the queue.
 type Worker struct {
 	store      task.TaskStore

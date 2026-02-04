@@ -8,8 +8,6 @@ import (
 
 	"github.com/helixml/kodit/infrastructure/api"
 	"github.com/helixml/kodit/infrastructure/persistence"
-	"github.com/helixml/kodit/internal/database"
-	"github.com/helixml/kodit/internal/domain"
 )
 
 // JSONAPIError represents a JSON:API error response.
@@ -65,13 +63,13 @@ func WriteError(w http.ResponseWriter, r *http.Request, err error, logger *slog.
 		status = http.StatusUnauthorized
 		title = "Authentication Failed"
 		detail = authErr.Error()
-	case errors.Is(err, domain.ErrNotFound), errors.Is(err, database.ErrNotFound), errors.Is(err, persistence.ErrNotFound):
+	case errors.Is(err, persistence.ErrNotFound):
 		status = http.StatusNotFound
 		title = "Not Found"
-	case errors.Is(err, domain.ErrValidation):
+	case errors.Is(err, api.ErrValidation):
 		status = http.StatusBadRequest
 		title = "Validation Error"
-	case errors.Is(err, domain.ErrConflict):
+	case errors.Is(err, api.ErrConflict):
 		status = http.StatusConflict
 		title = "Conflict"
 	}

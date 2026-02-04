@@ -9,7 +9,7 @@ import (
 
 	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/domain/snippet"
-	"github.com/helixml/kodit/internal/provider"
+	"github.com/helixml/kodit/infrastructure/provider"
 	"gorm.io/gorm"
 )
 

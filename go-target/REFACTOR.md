@@ -1355,3 +1355,74 @@ The middleware still has internal imports for error type compatibility during th
 - Phase 4: Public API ✓ (complete)
 - Phase 5: CLI split ✓ (partial - CLI uses internal packages)
 - Phase 6: Cleanup (in progress - API v1 layer migrated, CLI still uses internal packages)
+
+### 2026-02-04 Session 14
+
+**Completed:**
+- Phase 6 (continued): Migrated CLI commands to use new infrastructure packages
+  - `cmd/kodit/serve.go` - Fully migrated to use domain/, application/, infrastructure/ packages
+  - `cmd/kodit/stdio.go` - Fully migrated to use new packages
+  - `internal/mcp/server.go` - Updated to use application/service.CodeSearch and domain types
+
+**Key Changes Made:**
+
+1. **Domain Embedding Service** (`domain/service/embedding.go`):
+   - Added `EmbeddingService` struct implementing `Embedding` interface
+   - Added `NewEmbedding(store search.VectorStore)` constructor
+   - Wraps VectorStore with domain validation logic
+
+2. **API Type Simplification** (`infrastructure/api/v1/repositories.go`):
+   - Changed `VectorStoreForAPI` to use `snippet.EmbeddingInfo` directly
+   - Removed separate `EmbeddingInfo` interface - uses domain type instead
+
+3. **Domain Type Fix** (`domain/snippet/store.go`):
+   - `EmbeddingInfo.Type()` now returns `string` instead of `EmbeddingType`
+   - Added `EmbeddingType()` method for cases needing the typed value
+   - Enables domain type to satisfy API interface requirements
+
+4. **serve.go Migration**:
+   - All imports now from domain/, application/, infrastructure/
+   - Only remaining internal imports: `internal/log`, `internal/config`
+   - Handler registration uses `indexinghandler.NewCreateCodeEmbeddings` (correct name)
+
+5. **stdio.go Migration**:
+   - Uses `persistence.NewDatabase`, `persistence.NewSnippetStore`, `persistence.NewEnrichmentStore`
+   - Uses `infraSearch.NewVectorChordBM25Store`, `infraSearch.NewVectorChordVectorStore`
+   - Uses `provider.NewOpenAIProviderFromConfig` instead of old endpoint helper
+
+6. **MCP Server Update** (`internal/mcp/server.go`):
+   - Uses `service.CodeSearch` instead of `search.Service`
+   - Uses `snippet.SnippetStore` instead of `indexing.SnippetRepository`
+   - Uses `search.NewFilters`, `search.NewMultiRequest` domain types
+
+**Verified:**
+- `go build ./...` ✓
+- `go test ./...` ✓ (all tests pass)
+- `golangci-lint run` ✓ (0 issues)
+
+**Remaining Internal Package Dependencies:**
+The CLI still depends on these internal packages:
+- `internal/config` - Configuration loading
+- `internal/log` - Logger setup
+- `internal/mcp` - MCP server (but now uses domain/application types internally)
+
+These can be migrated in a future session or kept as internal utilities.
+
+**E2E Tests:**
+The e2e tests in `test/e2e/` still use internal packages extensively. These would need migration if full internal package removal is desired.
+
+**Current Status:**
+Phase 6 is essentially complete for the main functionality:
+- ✓ CLI commands use new package structure
+- ✓ All infrastructure layers migrated
+- ✓ Domain and application services in place
+- Remaining: internal/config, internal/log kept for CLI utilities
+- Remaining: e2e tests still use internal packages
+
+**Session Progress Summary:**
+- Phase 1: Domain layer ✓ (complete)
+- Phase 2: Application layer ✓ (complete)
+- Phase 3: Infrastructure layer ✓ (complete)
+- Phase 4: Public API ✓ (complete)
+- Phase 5: CLI split ✓ (complete - CLI uses new packages)
+- Phase 6: Cleanup ✓ (core complete - internal/config, internal/log, internal/mcp retained for CLI)

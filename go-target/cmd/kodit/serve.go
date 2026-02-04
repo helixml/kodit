@@ -10,32 +10,27 @@ import (
 	"syscall"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/helixml/kodit/internal/api"
-	apimiddleware "github.com/helixml/kodit/internal/api/middleware"
-	v1 "github.com/helixml/kodit/internal/api/v1"
-	"github.com/helixml/kodit/internal/database"
-	"github.com/helixml/kodit/internal/domain"
-	"github.com/helixml/kodit/internal/enrichment"
-	"github.com/helixml/kodit/internal/enrichment/example"
-	enrichmentpg "github.com/helixml/kodit/internal/enrichment/postgres"
-	"github.com/helixml/kodit/internal/git"
-	"github.com/helixml/kodit/internal/git/gitadapter"
-	gitpg "github.com/helixml/kodit/internal/git/postgres"
-	"github.com/helixml/kodit/internal/indexing"
-	"github.com/helixml/kodit/internal/indexing/bm25"
-	indexingpg "github.com/helixml/kodit/internal/indexing/postgres"
-	"github.com/helixml/kodit/internal/indexing/slicer"
-	"github.com/helixml/kodit/internal/indexing/slicer/analyzers"
-	"github.com/helixml/kodit/internal/indexing/vector"
+	"github.com/helixml/kodit/application/handler"
+	commithandler "github.com/helixml/kodit/application/handler/commit"
+	enrichmenthandler "github.com/helixml/kodit/application/handler/enrichment"
+	indexinghandler "github.com/helixml/kodit/application/handler/indexing"
+	repohandler "github.com/helixml/kodit/application/handler/repository"
+	"github.com/helixml/kodit/application/service"
+	domainservice "github.com/helixml/kodit/domain/service"
+	"github.com/helixml/kodit/domain/task"
+	"github.com/helixml/kodit/infrastructure/api"
+	apimiddleware "github.com/helixml/kodit/infrastructure/api/middleware"
+	v1 "github.com/helixml/kodit/infrastructure/api/v1"
+	"github.com/helixml/kodit/infrastructure/enricher"
+	"github.com/helixml/kodit/infrastructure/enricher/example"
+	"github.com/helixml/kodit/infrastructure/git"
+	"github.com/helixml/kodit/infrastructure/persistence"
+	"github.com/helixml/kodit/infrastructure/provider"
+	infraSearch "github.com/helixml/kodit/infrastructure/search"
+	"github.com/helixml/kodit/infrastructure/slicing"
+	"github.com/helixml/kodit/infrastructure/slicing/language"
+	"github.com/helixml/kodit/infrastructure/tracking"
 	"github.com/helixml/kodit/internal/log"
-	"github.com/helixml/kodit/internal/provider"
-	"github.com/helixml/kodit/internal/queue"
-	"github.com/helixml/kodit/internal/queue/handler"
-	enrichmenthandler "github.com/helixml/kodit/internal/queue/handler/enrichment"
-	queuepg "github.com/helixml/kodit/internal/queue/postgres"
-	"github.com/helixml/kodit/internal/repository"
-	"github.com/helixml/kodit/internal/search"
-	"github.com/helixml/kodit/internal/tracking"
 	"github.com/spf13/cobra"
 )
 
@@ -126,7 +121,7 @@ func runServe(addr, envFile, dataDir, dbURL, logLevel string) error {
 
 	// Connect to database
 	slogger.Info("connecting to database", slog.String("url", maskDBURL(cfg.DBURL())))
-	db, err := database.NewDatabase(ctx, cfg.DBURL())
+	db, err := persistence.NewDatabase(ctx, cfg.DBURL())
 	if err != nil {
 		return fmt.Errorf("connect database: %w", err)
 	}
@@ -137,48 +132,43 @@ func runServe(addr, envFile, dataDir, dbURL, logLevel string) error {
 	}()
 
 	// Run database migrations (AutoMigrate for all GORM entities)
-	if err := runAutoMigrate(db, slogger); err != nil {
+	if err := db.AutoMigrate(); err != nil {
 		return fmt.Errorf("run migrations: %w", err)
 	}
 
-	// Create git repositories
-	repoRepo := gitpg.NewRepoRepository(db)
-	commitRepo := gitpg.NewCommitRepository(db)
-	branchRepo := gitpg.NewBranchRepository(db)
-	tagRepo := gitpg.NewTagRepository(db)
-	fileRepo := gitpg.NewFileRepository(db)
+	// Create persistence stores
+	repoStore := persistence.NewRepositoryStore(db)
+	commitStore := persistence.NewCommitStore(db)
+	branchStore := persistence.NewBranchStore(db)
+	tagStore := persistence.NewTagStore(db)
+	fileStore := persistence.NewFileStore(db)
+	snippetStore := persistence.NewSnippetStore(db)
+	enrichmentStore := persistence.NewEnrichmentStore(db)
+	associationStore := persistence.NewAssociationStore(db)
+	taskStore := persistence.NewTaskStore(db)
+	statusStore := persistence.NewStatusStore(db)
 
-	// Create queue repositories
-	taskRepo := queuepg.NewTaskRepository(db)
-	taskStatusRepo := queuepg.NewTaskStatusRepository(db)
-
-	// Create enrichment repositories
-	enrichmentRepo := enrichmentpg.NewEnrichmentRepository(db)
-	associationRepo := enrichmentpg.NewAssociationRepository(db)
-
-	// Create indexing repositories (use *gorm.DB directly)
-	snippetRepo := indexingpg.NewSnippetRepository(db.GORM())
-
-	// Create services
-	queueService := queue.NewService(taskRepo, slogger)
-	queryService := repository.NewQueryService(repoRepo, commitRepo, branchRepo, tagRepo).WithFileRepository(fileRepo)
-	syncService := repository.NewSyncService(repoRepo, queueService, slogger)
-	enrichmentQueryService := enrichment.NewQueryService(enrichmentRepo, associationRepo)
+	// Create application services
+	queueService := service.NewQueue(taskStore, slogger)
+	queryService := service.NewRepositoryQuery(repoStore, commitStore, branchStore, tagStore).WithFileStore(fileStore)
+	syncService := service.NewRepositorySync(repoStore, queueService, slogger)
+	enrichmentQueryService := service.NewEnrichmentQuery(enrichmentStore, associationStore)
+	trackingQueryService := service.NewTrackingQuery(statusStore, taskStore)
 
 	// Create git adapter and helpers
-	gitAdapter := gitadapter.NewGoGit(slogger)
-	cloner := git.NewCloner(gitAdapter, cfg.CloneDir(), slogger)
-	scanner := git.NewScanner(gitAdapter, slogger)
+	gitAdapter := git.NewGoGitAdapter(slogger)
+	cloner := git.NewRepositoryCloner(gitAdapter, cfg.CloneDir(), slogger)
+	scanner := git.NewRepositoryScanner(gitAdapter, slogger)
 
 	// Create slicer for code extraction
-	langConfig := slicer.NewLanguageConfig()
-	analyzerFactory := analyzers.NewFactory(langConfig)
-	slicerInstance := slicer.NewSlicer(langConfig, analyzerFactory)
+	langConfig := slicing.NewLanguageConfig()
+	analyzerFactory := language.NewFactory(langConfig)
+	slicerInstance := slicing.NewSlicer(langConfig, analyzerFactory)
 
-	// Create search service (requires BM25 and Vector repositories)
-	var searchService search.Service
-	var vectorRepo indexing.VectorSearchRepository
-	var bm25Repo indexing.BM25Repository
+	// Create search service (requires BM25 and Vector stores)
+	var searchService service.CodeSearch
+	var vectorStore *infraSearch.VectorChordVectorStore
+	var bm25Store *infraSearch.VectorChordBM25Store
 	var embeddingProvider *provider.OpenAIProvider
 	var textGenerator provider.TextGenerator
 
@@ -186,46 +176,60 @@ func runServe(addr, envFile, dataDir, dbURL, logLevel string) error {
 		// Create optional AI provider for embeddings (if configured)
 		embEndpoint := cfg.EmbeddingEndpoint()
 		if embEndpoint != nil && embEndpoint.BaseURL() != "" && embEndpoint.APIKey() != "" {
-			embeddingProvider = provider.NewOpenAIProviderFromEndpoint(*embEndpoint)
+			embeddingProvider = provider.NewOpenAIProviderFromConfig(provider.OpenAIConfig{
+				APIKey:         embEndpoint.APIKey(),
+				BaseURL:        embEndpoint.BaseURL(),
+				EmbeddingModel: embEndpoint.Model(),
+				Timeout:        embEndpoint.Timeout(),
+				MaxRetries:     embEndpoint.MaxRetries(),
+			})
 		}
 
 		// Create optional AI provider for text generation (if configured)
 		enrichEndpoint := cfg.EnrichmentEndpoint()
 		if enrichEndpoint != nil && enrichEndpoint.BaseURL() != "" && enrichEndpoint.APIKey() != "" {
-			textGenerator = provider.NewOpenAIProviderFromEndpoint(*enrichEndpoint)
+			textGenerator = provider.NewOpenAIProviderFromConfig(provider.OpenAIConfig{
+				APIKey:     enrichEndpoint.APIKey(),
+				BaseURL:    enrichEndpoint.BaseURL(),
+				ChatModel:  enrichEndpoint.Model(),
+				Timeout:    enrichEndpoint.Timeout(),
+				MaxRetries: enrichEndpoint.MaxRetries(),
+			})
 		}
 
-		// Create VectorChord repositories (PostgreSQL only)
-		bm25Repo = bm25.NewVectorChordRepository(db.GORM(), slogger)
-		vectorRepo = vector.NewVectorChordRepository(db.GORM(), vector.TaskNameCode, embeddingProvider, slogger)
+		// Create VectorChord stores (PostgreSQL only)
+		bm25Store = infraSearch.NewVectorChordBM25Store(db.GORM(), slogger)
+		if embeddingProvider != nil {
+			vectorStore = infraSearch.NewVectorChordVectorStore(db.GORM(), infraSearch.TaskNameCode, embeddingProvider, slogger)
+		}
 
-		searchService = search.NewService(bm25Repo, vectorRepo, snippetRepo, enrichmentRepo, slogger)
+		searchService = service.NewCodeSearch(bm25Store, vectorStore, snippetStore, enrichmentStore, slogger)
 	} else {
-		// SQLite mode: search service with nil repos (search disabled)
+		// SQLite mode: search service with nil stores (search disabled)
 		slogger.Warn("using SQLite database - search features will be limited")
-		searchService = search.NewService(nil, nil, snippetRepo, enrichmentRepo, slogger)
+		searchService = service.NewCodeSearch(nil, nil, snippetStore, enrichmentStore, slogger)
 	}
 
 	// Create tracker factory for progress reporting
-	dbReporter := tracking.NewDBReporter(taskStatusRepo, slogger)
+	dbReporter := tracking.NewDBReporter(statusStore, slogger)
 	trackerFactory := &trackerFactoryImpl{
 		dbReporter: dbReporter,
 		logger:     slogger,
 	}
 
 	// Create handler registry and register handlers
-	registry := queue.NewRegistry()
+	registry := handler.NewRegistry()
 	registerHandlers(
 		registry, slogger,
-		repoRepo, commitRepo, branchRepo, fileRepo, tagRepo,
-		snippetRepo, bm25Repo, vectorRepo,
-		enrichmentRepo, associationRepo, enrichmentQueryService,
+		repoStore, commitStore, branchStore, fileStore, tagStore,
+		snippetStore, bm25Store, vectorStore,
+		enrichmentStore, associationStore, enrichmentQueryService,
 		queueService, gitAdapter, cloner, scanner, slicerInstance,
 		embeddingProvider, textGenerator, trackerFactory,
 	)
 
 	// Create and start queue worker
-	worker := queue.NewWorker(taskRepo, registry, slogger)
+	worker := service.NewWorker(taskStore, toServiceRegistry(registry), slogger)
 	worker.Start(ctx)
 	defer worker.Stop()
 
@@ -261,8 +265,9 @@ func runServe(addr, envFile, dataDir, dbURL, logLevel string) error {
 
 		// Repositories router
 		reposRouter := v1.NewRepositoriesRouter(queryService, syncService, slogger)
-		reposRouter = reposRouter.WithEnrichmentServices(enrichmentQueryService, enrichmentRepo)
-		reposRouter = reposRouter.WithIndexingServices(snippetRepo, vectorRepo)
+		reposRouter = reposRouter.WithTrackingQueryService(trackingQueryService)
+		reposRouter = reposRouter.WithEnrichmentServices(enrichmentQueryService, enrichmentStore)
+		reposRouter = reposRouter.WithIndexingServices(snippetStore, vectorStore)
 		r.Mount("/repositories", reposRouter.Routes())
 
 		// Commits router
@@ -274,11 +279,11 @@ func runServe(addr, envFile, dataDir, dbURL, logLevel string) error {
 		r.Mount("/search", searchRouter.Routes())
 
 		// Enrichments router
-		enrichmentsRouter := v1.NewEnrichmentsRouter(enrichmentRepo, slogger)
+		enrichmentsRouter := v1.NewEnrichmentsRouter(enrichmentStore, slogger)
 		r.Mount("/enrichments", enrichmentsRouter.Routes())
 
 		// Queue router
-		queueRouter := v1.NewQueueRouter(taskRepo, taskStatusRepo, slogger)
+		queueRouter := v1.NewQueueRouter(queueService, taskStore, statusStore, slogger)
 		r.Mount("/queue", queueRouter.Routes())
 	})
 
@@ -324,7 +329,7 @@ func maskDBURL(url string) string {
 }
 
 // dbType returns a string describing the database type.
-func dbType(db database.Database) string {
+func dbType(db persistence.Database) string {
 	if db.IsPostgres() {
 		return "postgresql"
 	}
@@ -340,38 +345,6 @@ func healthHandler(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write([]byte(`{"status":"healthy"}`))
 }
 
-// runAutoMigrate runs GORM AutoMigrate for all entity types.
-func runAutoMigrate(db database.Database, logger *slog.Logger) error {
-	logger.Info("running database migrations")
-
-	// AutoMigrate all entities
-	err := db.GORM().AutoMigrate(
-		// Git entities
-		&gitpg.RepoEntity{},
-		&gitpg.CommitEntity{},
-		&gitpg.BranchEntity{},
-		&gitpg.TagEntity{},
-		&gitpg.FileEntity{},
-		// Queue entities
-		&queuepg.TaskEntity{},
-		&queuepg.TaskStatusEntity{},
-		// Indexing entities
-		&indexingpg.CommitIndexEntity{},
-		&indexingpg.SnippetEntity{},
-		&indexingpg.SnippetCommitAssociationEntity{},
-		&indexingpg.SnippetFileDerivationEntity{},
-		// Enrichment entities
-		&enrichmentpg.EnrichmentEntity{},
-		&enrichmentpg.AssociationEntity{},
-	)
-	if err != nil {
-		return fmt.Errorf("auto migrate: %w", err)
-	}
-
-	logger.Info("database migrations complete")
-	return nil
-}
-
 // trackerFactoryImpl implements handler.TrackerFactory.
 type trackerFactoryImpl struct {
 	dbReporter *tracking.DBReporter
@@ -379,7 +352,7 @@ type trackerFactoryImpl struct {
 }
 
 // ForOperation creates a Tracker for the given operation.
-func (f *trackerFactoryImpl) ForOperation(operation queue.TaskOperation, trackableType domain.TrackableType, trackableID int64) *tracking.Tracker {
+func (f *trackerFactoryImpl) ForOperation(operation task.Operation, trackableType task.TrackableType, trackableID int64) handler.Tracker {
 	tracker := tracking.TrackerForOperation(operation, f.logger, trackableType, trackableID)
 	if f.dbReporter != nil {
 		tracker.Subscribe(f.dbReporter)
@@ -387,95 +360,107 @@ func (f *trackerFactoryImpl) ForOperation(operation queue.TaskOperation, trackab
 	return tracker
 }
 
+// toServiceRegistry converts handler.Registry to service.Registry for the worker.
+func toServiceRegistry(hr *handler.Registry) *service.Registry {
+	sr := service.NewRegistry()
+	for _, op := range hr.Operations() {
+		h, err := hr.Handler(op)
+		if err == nil {
+			sr.Register(op, h)
+		}
+	}
+	return sr
+}
+
 // registerHandlers registers all task handlers with the registry.
 func registerHandlers(
-	registry *queue.Registry,
+	registry *handler.Registry,
 	logger *slog.Logger,
-	repoRepo git.RepoRepository,
-	commitRepo git.CommitRepository,
-	branchRepo git.BranchRepository,
-	fileRepo git.FileRepository,
-	tagRepo git.TagRepository,
-	snippetRepo indexing.SnippetRepository,
-	bm25Repo indexing.BM25Repository,
-	vectorRepo indexing.VectorSearchRepository,
-	enrichmentRepo enrichment.EnrichmentRepository,
-	associationRepo enrichment.AssociationRepository,
-	enrichmentQueryService *enrichment.QueryService,
-	queueService *queue.Service,
+	repoStore persistence.RepositoryStore,
+	commitStore persistence.CommitStore,
+	branchStore persistence.BranchStore,
+	fileStore persistence.FileStore,
+	tagStore persistence.TagStore,
+	snippetStore persistence.SnippetStore,
+	bm25Store *infraSearch.VectorChordBM25Store,
+	vectorStore *infraSearch.VectorChordVectorStore,
+	enrichmentStore persistence.EnrichmentStore,
+	associationStore persistence.AssociationStore,
+	enrichmentQueryService *service.EnrichmentQuery,
+	queueService *service.Queue,
 	gitAdapter git.Adapter,
-	cloner git.Cloner,
-	scanner git.Scanner,
-	slicerInstance *slicer.Slicer,
+	cloner domainservice.Cloner,
+	scanner domainservice.Scanner,
+	slicerInstance *slicing.Slicer,
 	embeddingProvider *provider.OpenAIProvider,
 	textGenerator provider.TextGenerator,
 	trackerFactory handler.TrackerFactory,
 ) {
 	// Repository handlers
-	registry.Register(queue.OperationCloneRepository, handler.NewCloneRepository(
-		repoRepo, cloner, queueService, trackerFactory, logger,
+	registry.Register(task.OperationCloneRepository, repohandler.NewClone(
+		repoStore, cloner, queueService, trackerFactory, logger,
 	))
-	registry.Register(queue.OperationSyncRepository, handler.NewSyncRepository(
-		repoRepo, branchRepo, cloner, scanner, queueService, trackerFactory, logger,
+	registry.Register(task.OperationSyncRepository, repohandler.NewSync(
+		repoStore, branchStore, cloner, scanner, queueService, trackerFactory, logger,
 	))
-	registry.Register(queue.OperationDeleteRepository, handler.NewDeleteRepository(
-		repoRepo, commitRepo, branchRepo, tagRepo, fileRepo, snippetRepo, trackerFactory, logger,
+	registry.Register(task.OperationDeleteRepository, repohandler.NewDelete(
+		repoStore, commitStore, branchStore, tagStore, fileStore, snippetStore, trackerFactory, logger,
 	))
-	registry.Register(queue.OperationScanCommit, handler.NewScanCommit(
-		repoRepo, commitRepo, fileRepo, scanner, trackerFactory, logger,
+	registry.Register(task.OperationScanCommit, commithandler.NewScan(
+		repoStore, commitStore, fileStore, scanner, trackerFactory, logger,
 	))
 
 	// Indexing handlers
-	registry.Register(queue.OperationExtractSnippetsForCommit, handler.NewExtractSnippets(
-		repoRepo, commitRepo, snippetRepo, gitAdapter, slicerInstance, trackerFactory, logger,
+	registry.Register(task.OperationExtractSnippetsForCommit, indexinghandler.NewExtractSnippets(
+		repoStore, snippetStore, gitAdapter, slicerInstance, trackerFactory, logger,
 	))
 
 	// BM25 handler requires BM25 service
-	if bm25Repo != nil {
-		bm25Service := indexing.NewBM25Service(bm25Repo)
-		registry.Register(queue.OperationCreateBM25IndexForCommit, handler.NewCreateBM25Index(
-			bm25Service, snippetRepo, trackerFactory, logger,
+	if bm25Store != nil {
+		bm25Service := domainservice.NewBM25(bm25Store)
+		registry.Register(task.OperationCreateBM25IndexForCommit, indexinghandler.NewCreateBM25Index(
+			bm25Service, snippetStore, trackerFactory, logger,
 		))
 	}
 
-	// Embeddings handler requires embedding service and vector repo
-	if vectorRepo != nil && embeddingProvider != nil {
-		embeddingService := indexing.NewEmbeddingService(embeddingProvider, vectorRepo)
-		registry.Register(queue.OperationCreateCodeEmbeddingsForCommit, handler.NewCreateCodeEmbeddings(
-			embeddingService, snippetRepo, vectorRepo, trackerFactory, logger,
+	// Embeddings handler requires embedding service and vector store
+	if vectorStore != nil && embeddingProvider != nil {
+		embeddingService := domainservice.NewEmbedding(vectorStore)
+		registry.Register(task.OperationCreateCodeEmbeddingsForCommit, indexinghandler.NewCreateCodeEmbeddings(
+			embeddingService, snippetStore, vectorStore, trackerFactory, logger,
 		))
 	}
 
 	// Enrichment handlers (only if text generator is configured)
 	if textGenerator != nil {
-		enricher := enrichment.NewProviderEnricher(textGenerator, logger)
+		providerEnricher := enricher.NewProviderEnricher(textGenerator, logger)
 
 		// Summary enrichment
-		registry.Register(queue.OperationCreateSummaryEnrichmentForCommit, enrichmenthandler.NewCreateSummary(
-			snippetRepo, enrichmentRepo, associationRepo, enrichmentQueryService, enricher, trackerFactory, logger,
+		registry.Register(task.OperationCreateSummaryEnrichmentForCommit, enrichmenthandler.NewCreateSummary(
+			snippetStore, enrichmentStore, associationStore, enrichmentQueryService, providerEnricher, trackerFactory, logger,
 		))
 
 		// Commit description
-		registry.Register(queue.OperationCreateCommitDescriptionForCommit, enrichmenthandler.NewCommitDescription(
-			repoRepo, enrichmentRepo, associationRepo, enrichmentQueryService, gitAdapter, enricher, trackerFactory, logger,
+		registry.Register(task.OperationCreateCommitDescriptionForCommit, enrichmenthandler.NewCommitDescription(
+			repoStore, enrichmentStore, associationStore, enrichmentQueryService, gitAdapter, providerEnricher, trackerFactory, logger,
 		))
 
 		// Architecture discovery
-		archDiscoverer := enrichment.NewPhysicalArchitectureService()
-		registry.Register(queue.OperationCreateArchitectureEnrichmentForCommit, enrichmenthandler.NewArchitectureDiscovery(
-			repoRepo, enrichmentRepo, associationRepo, enrichmentQueryService, archDiscoverer, enricher, trackerFactory, logger,
+		archDiscoverer := enricher.NewPhysicalArchitectureService()
+		registry.Register(task.OperationCreateArchitectureEnrichmentForCommit, enrichmenthandler.NewArchitectureDiscovery(
+			repoStore, enrichmentStore, associationStore, enrichmentQueryService, archDiscoverer, providerEnricher, trackerFactory, logger,
 		))
 
 		// Example summary
-		registry.Register(queue.OperationCreateExampleSummaryForCommit, enrichmenthandler.NewExampleSummary(
-			enrichmentRepo, associationRepo, enrichmentQueryService, enricher, trackerFactory, logger,
+		registry.Register(task.OperationCreateExampleSummaryForCommit, enrichmenthandler.NewExampleSummary(
+			enrichmentStore, associationStore, enrichmentQueryService, providerEnricher, trackerFactory, logger,
 		))
 	}
 
 	// Example extraction handler (doesn't require LLM)
 	exampleDiscoverer := example.NewDiscovery()
-	registry.Register(queue.OperationExtractExamplesForCommit, enrichmenthandler.NewExtractExamples(
-		repoRepo, commitRepo, gitAdapter, enrichmentRepo, associationRepo, enrichmentQueryService, exampleDiscoverer, trackerFactory, logger,
+	registry.Register(task.OperationExtractExamplesForCommit, enrichmenthandler.NewExtractExamples(
+		repoStore, commitStore, gitAdapter, enrichmentStore, associationStore, enrichmentQueryService, exampleDiscoverer, trackerFactory, logger,
 	))
 
 	logger.Info("registered task handlers", slog.Int("count", len(registry.Operations())))

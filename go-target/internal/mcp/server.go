@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/helixml/kodit/internal/domain"
-	"github.com/helixml/kodit/internal/indexing"
-	"github.com/helixml/kodit/internal/search"
+	"github.com/helixml/kodit/application/service"
+	"github.com/helixml/kodit/domain/search"
+	"github.com/helixml/kodit/domain/snippet"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -17,20 +17,20 @@ import (
 // Server wraps the MCP server with kodit-specific tools.
 type Server struct {
 	mcpServer     *server.MCPServer
-	searchService search.Service
-	snippetRepo   indexing.SnippetRepository
+	searchService service.CodeSearch
+	snippetStore  snippet.SnippetStore
 	logger        *slog.Logger
 }
 
 // NewServer creates a new MCP server with the given dependencies.
-func NewServer(searchService search.Service, snippetRepo indexing.SnippetRepository, logger *slog.Logger) *Server {
+func NewServer(searchService service.CodeSearch, snippetStore snippet.SnippetStore, logger *slog.Logger) *Server {
 	if logger == nil {
 		logger = slog.Default()
 	}
 
 	s := &Server{
 		searchService: searchService,
-		snippetRepo:   snippetRepo,
+		snippetStore:  snippetStore,
 		logger:        logger,
 	}
 
@@ -90,13 +90,13 @@ func (s *Server) handleSearch(ctx context.Context, request mcp.CallToolRequest) 
 	topK := request.GetInt("top_k", 10)
 
 	// Build filters
-	var opts []domain.SnippetSearchFiltersOption
+	var opts []search.FiltersOption
 	if lang := request.GetString("language", ""); lang != "" {
-		opts = append(opts, domain.WithLanguage(lang))
+		opts = append(opts, search.WithLanguage(lang))
 	}
 
-	filters := domain.NewSnippetSearchFilters(opts...)
-	searchReq := domain.NewMultiSearchRequest(topK, query, query, nil, filters)
+	filters := search.NewFilters(opts...)
+	searchReq := search.NewMultiRequest(topK, query, query, nil, filters)
 
 	// Execute search
 	result, err := s.searchService.Search(ctx, searchReq)
@@ -117,12 +117,12 @@ func (s *Server) handleSearch(ctx context.Context, request mcp.CallToolRequest) 
 	}
 
 	results := make([]searchResult, len(snippets))
-	for i, snippet := range snippets {
+	for i, snip := range snippets {
 		results[i] = searchResult{
-			SHA:      snippet.SHA(),
-			Content:  snippet.Content(),
-			Language: snippet.Extension(),
-			Score:    scores[snippet.SHA()],
+			SHA:      snip.SHA(),
+			Content:  snip.Content(),
+			Language: snip.Extension(),
+			Score:    scores[snip.SHA()],
 		}
 	}
 
@@ -141,18 +141,18 @@ func (s *Server) handleGetSnippet(ctx context.Context, request mcp.CallToolReque
 		return mcp.NewToolResultError("sha is required"), nil
 	}
 
-	if s.snippetRepo == nil {
-		return mcp.NewToolResultError("snippet repository not configured"), nil
+	if s.snippetStore == nil {
+		return mcp.NewToolResultError("snippet store not configured"), nil
 	}
 
-	snippet, err := s.snippetRepo.BySHA(ctx, sha)
+	snip, err := s.snippetStore.BySHA(ctx, sha)
 	if err != nil {
 		s.logger.Error("failed to get snippet", slog.String("sha", sha), slog.Any("error", err))
 		return mcp.NewToolResultError(fmt.Sprintf("failed to get snippet: %v", err)), nil
 	}
 
 	// Check if snippet was found (empty SHA means not found)
-	if snippet.SHA() == "" {
+	if snip.SHA() == "" {
 		return mcp.NewToolResultError(fmt.Sprintf("snippet not found: %s", sha)), nil
 	}
 
@@ -163,9 +163,9 @@ func (s *Server) handleGetSnippet(ctx context.Context, request mcp.CallToolReque
 	}
 
 	result := snippetResult{
-		SHA:       snippet.SHA(),
-		Content:   snippet.Content(),
-		Extension: snippet.Extension(),
+		SHA:       snip.SHA(),
+		Content:   snip.Content(),
+		Extension: snip.Extension(),
 	}
 
 	jsonBytes, err := json.Marshal(result)

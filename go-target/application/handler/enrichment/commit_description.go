@@ -11,7 +11,7 @@ import (
 	"github.com/helixml/kodit/domain/repository"
 	domainservice "github.com/helixml/kodit/domain/service"
 	"github.com/helixml/kodit/domain/task"
-	"github.com/helixml/kodit/internal/git"
+	infraGit "github.com/helixml/kodit/infrastructure/git"
 )
 
 const commitDescriptionSystemPrompt = `
@@ -25,7 +25,7 @@ type CommitDescription struct {
 	enrichmentStore  enrichment.EnrichmentStore
 	associationStore enrichment.AssociationStore
 	queryService     *service.EnrichmentQuery
-	adapter          git.Adapter
+	adapter          infraGit.Adapter
 	enricher         domainservice.Enricher
 	trackerFactory   handler.TrackerFactory
 	logger           *slog.Logger
@@ -37,7 +37,7 @@ func NewCommitDescription(
 	enrichmentStore enrichment.EnrichmentStore,
 	associationStore enrichment.AssociationStore,
 	queryService *service.EnrichmentQuery,
-	adapter git.Adapter,
+	adapter infraGit.Adapter,
 	enricher domainservice.Enricher,
 	trackerFactory handler.TrackerFactory,
 	logger *slog.Logger,

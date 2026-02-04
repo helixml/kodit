@@ -5,15 +5,12 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/helixml/kodit/internal/database"
-	enrichmentpg "github.com/helixml/kodit/internal/enrichment/postgres"
-	"github.com/helixml/kodit/internal/indexing/bm25"
-	indexingpg "github.com/helixml/kodit/internal/indexing/postgres"
-	"github.com/helixml/kodit/internal/indexing/vector"
+	"github.com/helixml/kodit/application/service"
+	"github.com/helixml/kodit/infrastructure/persistence"
+	"github.com/helixml/kodit/infrastructure/provider"
+	infraSearch "github.com/helixml/kodit/infrastructure/search"
 	"github.com/helixml/kodit/internal/log"
 	"github.com/helixml/kodit/internal/mcp"
-	"github.com/helixml/kodit/internal/provider"
-	"github.com/helixml/kodit/internal/search"
 	"github.com/spf13/cobra"
 )
 
@@ -70,7 +67,7 @@ func runStdio(envFile, dataDir, dbURL, logLevel string) error {
 	ctx := context.Background()
 
 	// Connect to database
-	db, err := database.NewDatabase(ctx, cfg.DBURL())
+	db, err := persistence.NewDatabase(ctx, cfg.DBURL())
 	if err != nil {
 		return fmt.Errorf("connect database: %w", err)
 	}
@@ -80,28 +77,34 @@ func runStdio(envFile, dataDir, dbURL, logLevel string) error {
 		}
 	}()
 
-	// Create repositories
-	snippetRepo := indexingpg.NewSnippetRepository(db.GORM())
-	enrichmentRepo := enrichmentpg.NewEnrichmentRepository(db)
+	// Create stores
+	snippetStore := persistence.NewSnippetStore(db)
+	enrichmentStore := persistence.NewEnrichmentStore(db)
 
 	// Create search service
-	var searchService search.Service
+	var searchService service.CodeSearch
 	if db.IsPostgres() {
 		var embedder provider.Embedder
 		embEndpoint := cfg.EmbeddingEndpoint()
 		if embEndpoint != nil && embEndpoint.BaseURL() != "" && embEndpoint.APIKey() != "" {
-			embedder = provider.NewOpenAIProviderFromEndpoint(*embEndpoint)
+			embedder = provider.NewOpenAIProviderFromConfig(provider.OpenAIConfig{
+				APIKey:         embEndpoint.APIKey(),
+				BaseURL:        embEndpoint.BaseURL(),
+				EmbeddingModel: embEndpoint.Model(),
+				Timeout:        embEndpoint.Timeout(),
+				MaxRetries:     embEndpoint.MaxRetries(),
+			})
 		}
 
-		bm25Repo := bm25.NewVectorChordRepository(db.GORM(), slogger)
-		vectorRepo := vector.NewVectorChordRepository(db.GORM(), vector.TaskNameCode, embedder, slogger)
-		searchService = search.NewService(bm25Repo, vectorRepo, snippetRepo, enrichmentRepo, slogger)
+		bm25Store := infraSearch.NewVectorChordBM25Store(db.GORM(), slogger)
+		vectorStore := infraSearch.NewVectorChordVectorStore(db.GORM(), infraSearch.TaskNameCode, embedder, slogger)
+		searchService = service.NewCodeSearch(bm25Store, vectorStore, snippetStore, enrichmentStore, slogger)
 	} else {
-		searchService = search.NewService(nil, nil, snippetRepo, enrichmentRepo, slogger)
+		searchService = service.NewCodeSearch(nil, nil, snippetStore, enrichmentStore, slogger)
 	}
 
-	// Create MCP server with database-backed search and snippet repository
-	mcpServer := mcp.NewServer(searchService, snippetRepo, slogger)
+	// Create MCP server with database-backed search and snippet store
+	mcpServer := mcp.NewServer(searchService, snippetStore, slogger)
 
 	// Run on stdio
 	return mcpServer.ServeStdio()

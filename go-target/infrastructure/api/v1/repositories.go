@@ -33,15 +33,7 @@ type RepositoriesRouter struct {
 
 // VectorStoreForAPI provides embedding access for API endpoints.
 type VectorStoreForAPI interface {
-	EmbeddingsForSnippets(ctx context.Context, snippetIDs []string) ([]EmbeddingInfo, error)
-}
-
-// EmbeddingInfo represents embedding information for API responses.
-type EmbeddingInfo interface {
-	SnippetID() string
-	Type() string
-	Embedding() []float64
-	EmbeddingTruncated(n int) []float64
+	EmbeddingsForSnippets(ctx context.Context, snippetIDs []string) ([]snippet.EmbeddingInfo, error)
 }
 
 // NewRepositoriesRouter creates a new RepositoriesRouter.

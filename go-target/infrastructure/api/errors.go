@@ -19,6 +19,12 @@ var (
 
 	// ErrServer indicates the server returned an error response.
 	ErrServer = errors.New("server error")
+
+	// ErrValidation indicates input validation failure.
+	ErrValidation = errors.New("validation error")
+
+	// ErrConflict indicates a resource conflict.
+	ErrConflict = errors.New("conflict")
 )
 
 // APIError represents a structured API error with additional context.

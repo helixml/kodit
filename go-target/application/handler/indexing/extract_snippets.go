@@ -8,19 +8,18 @@ import (
 
 	"github.com/helixml/kodit/application/handler"
 	"github.com/helixml/kodit/domain/repository"
-	domainsnippet "github.com/helixml/kodit/domain/snippet"
+	"github.com/helixml/kodit/domain/snippet"
 	"github.com/helixml/kodit/domain/task"
-	"github.com/helixml/kodit/internal/git"
-	"github.com/helixml/kodit/internal/indexing"
-	"github.com/helixml/kodit/internal/indexing/slicer"
+	infraGit "github.com/helixml/kodit/infrastructure/git"
+	"github.com/helixml/kodit/infrastructure/slicing"
 )
 
 // ExtractSnippets extracts code snippets from commit files using AST parsing.
 type ExtractSnippets struct {
 	repoStore      repository.RepositoryStore
-	snippetStore   domainsnippet.SnippetStore
-	adapter        git.Adapter
-	slicer         *slicer.Slicer
+	snippetStore   snippet.SnippetStore
+	adapter        infraGit.Adapter
+	slicer         *slicing.Slicer
 	trackerFactory handler.TrackerFactory
 	logger         *slog.Logger
 }
@@ -28,9 +27,9 @@ type ExtractSnippets struct {
 // NewExtractSnippets creates a new ExtractSnippets handler.
 func NewExtractSnippets(
 	repoStore repository.RepositoryStore,
-	snippetStore domainsnippet.SnippetStore,
-	adapter git.Adapter,
-	slicerInstance *slicer.Slicer,
+	snippetStore snippet.SnippetStore,
+	adapter infraGit.Adapter,
+	slicerInstance *slicing.Slicer,
 	trackerFactory handler.TrackerFactory,
 	logger *slog.Logger,
 ) *ExtractSnippets {
@@ -90,15 +89,15 @@ func (h *ExtractSnippets) Execute(ctx context.Context, payload map[string]any) e
 		return fmt.Errorf("get commit files: %w", err)
 	}
 
-	gitFiles := h.convertToGitFiles(files, commitSHA)
-	langFiles := h.groupFilesByExtension(gitFiles)
+	domainFiles := h.convertToDomainFiles(files, commitSHA)
+	langFiles := h.groupFilesByExtension(domainFiles)
 
 	if setTotalErr := tracker.SetTotal(ctx, len(langFiles)); setTotalErr != nil {
 		h.logger.Warn("failed to set tracker total", slog.String("error", setTotalErr.Error()))
 	}
 
-	cfg := slicer.DefaultSliceConfig()
-	var allSnippets []domainsnippet.Snippet
+	cfg := slicing.DefaultSliceConfig()
+	var allSnippets []snippet.Snippet
 
 	processed := 0
 	for ext, extFiles := range langFiles {
@@ -117,7 +116,7 @@ func (h *ExtractSnippets) Execute(ctx context.Context, payload map[string]any) e
 			continue
 		}
 
-		allSnippets = append(allSnippets, h.convertSnippets(result.Snippets())...)
+		allSnippets = append(allSnippets, result.Snippets()...)
 		processed++
 	}
 
@@ -140,9 +139,9 @@ func (h *ExtractSnippets) Execute(ctx context.Context, payload map[string]any) e
 	return nil
 }
 
-func (h *ExtractSnippets) convertToGitFiles(files []git.FileInfo, commitSHA string) []git.File {
-	result := make([]git.File, 0, len(files))
-	language := domainsnippet.Language{}
+func (h *ExtractSnippets) convertToDomainFiles(files []infraGit.FileInfo, commitSHA string) []repository.File {
+	result := make([]repository.File, 0, len(files))
+	language := snippet.Language{}
 
 	for _, f := range files {
 		ext := filepath.Ext(f.Path)
@@ -151,15 +150,15 @@ func (h *ExtractSnippets) convertToGitFiles(files []git.FileInfo, commitSHA stri
 			continue
 		}
 
-		gitFile := git.NewFile(commitSHA, f.Path, lang, f.Size)
-		result = append(result, gitFile)
+		domainFile := repository.NewFile(commitSHA, f.Path, lang, f.Size)
+		result = append(result, domainFile)
 	}
 
 	return result
 }
 
-func (h *ExtractSnippets) groupFilesByExtension(files []git.File) map[string][]git.File {
-	result := make(map[string][]git.File)
+func (h *ExtractSnippets) groupFilesByExtension(files []repository.File) map[string][]repository.File {
+	result := make(map[string][]repository.File)
 
 	for _, f := range files {
 		ext := filepath.Ext(f.Path())
@@ -169,26 +168,9 @@ func (h *ExtractSnippets) groupFilesByExtension(files []git.File) map[string][]g
 	return result
 }
 
-func (h *ExtractSnippets) convertSnippets(internal []indexing.Snippet) []domainsnippet.Snippet {
-	result := make([]domainsnippet.Snippet, 0, len(internal))
-	for _, s := range internal {
-		// Convert internal/git.File to domain/repository.File
-		internalFiles := s.DerivesFrom()
-		domainFiles := make([]repository.File, 0, len(internalFiles))
-		for _, f := range internalFiles {
-			domainFile := repository.NewFile(f.CommitSHA(), f.Path(), f.Language(), f.Size())
-			domainFiles = append(domainFiles, domainFile)
-		}
-
-		domainSnippet := domainsnippet.NewSnippet(s.Content(), s.Extension(), domainFiles)
-		result = append(result, domainSnippet)
-	}
-	return result
-}
-
-func (h *ExtractSnippets) deduplicateSnippets(snippets []domainsnippet.Snippet) []domainsnippet.Snippet {
+func (h *ExtractSnippets) deduplicateSnippets(snippets []snippet.Snippet) []snippet.Snippet {
 	seen := make(map[string]bool)
-	result := make([]domainsnippet.Snippet, 0, len(snippets))
+	result := make([]snippet.Snippet, 0, len(snippets))
 
 	for _, s := range snippets {
 		if !seen[s.SHA()] {

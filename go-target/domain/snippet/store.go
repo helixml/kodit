@@ -67,8 +67,11 @@ func NewEmbeddingInfo(snippetID string, embeddingType EmbeddingType, embedding [
 // SnippetID returns the snippet identifier.
 func (e EmbeddingInfo) SnippetID() string { return e.snippetID }
 
-// Type returns the embedding type.
-func (e EmbeddingInfo) Type() EmbeddingType { return e.embeddingType }
+// Type returns the embedding type as a string.
+func (e EmbeddingInfo) Type() string { return string(e.embeddingType) }
+
+// EmbeddingType returns the embedding type.
+func (e EmbeddingInfo) EmbeddingType() EmbeddingType { return e.embeddingType }
 
 // Embedding returns the embedding vector (copy).
 func (e EmbeddingInfo) Embedding() []float64 {

@@ -14,7 +14,7 @@ import (
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/snippet"
 	"github.com/helixml/kodit/domain/task"
-	"github.com/helixml/kodit/internal/git"
+	infraGit "github.com/helixml/kodit/infrastructure/git"
 )
 
 // ExampleDiscoverer determines if files are example candidates.
@@ -27,7 +27,7 @@ type ExampleDiscoverer interface {
 type ExtractExamples struct {
 	repoStore        repository.RepositoryStore
 	commitStore      repository.CommitStore
-	adapter          git.Adapter
+	adapter          infraGit.Adapter
 	enrichmentStore  enrichment.EnrichmentStore
 	associationStore enrichment.AssociationStore
 	queryService     *service.EnrichmentQuery
@@ -40,7 +40,7 @@ type ExtractExamples struct {
 func NewExtractExamples(
 	repoStore repository.RepositoryStore,
 	commitStore repository.CommitStore,
-	adapter git.Adapter,
+	adapter infraGit.Adapter,
 	enrichmentStore enrichment.EnrichmentStore,
 	associationStore enrichment.AssociationStore,
 	queryService *service.EnrichmentQuery,
@@ -107,7 +107,7 @@ func (h *ExtractExamples) Execute(ctx context.Context, payload map[string]any) e
 		return fmt.Errorf("get commit files: %w", err)
 	}
 
-	var candidates []git.FileInfo
+	var candidates []infraGit.FileInfo
 	for _, f := range files {
 		fullPath := filepath.Join(clonedPath, f.Path)
 		if h.discoverer.IsExampleCandidate(fullPath) {

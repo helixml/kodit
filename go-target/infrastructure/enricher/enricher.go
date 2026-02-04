@@ -6,56 +6,9 @@ import (
 	"fmt"
 	"log/slog"
 
+	domainservice "github.com/helixml/kodit/domain/service"
 	"github.com/helixml/kodit/infrastructure/provider"
 )
-
-// Request represents an enrichment request with a custom system prompt.
-type Request struct {
-	id           string
-	text         string
-	systemPrompt string
-}
-
-// NewRequest creates a new enrichment request.
-func NewRequest(id, text, systemPrompt string) Request {
-	return Request{
-		id:           id,
-		text:         text,
-		systemPrompt: systemPrompt,
-	}
-}
-
-// ID returns the request identifier.
-func (r Request) ID() string { return r.id }
-
-// Text returns the text to be enriched.
-func (r Request) Text() string { return r.text }
-
-// SystemPrompt returns the custom system prompt.
-func (r Request) SystemPrompt() string { return r.systemPrompt }
-
-// Response represents an enrichment response.
-type Response struct {
-	id   string
-	text string
-}
-
-// NewResponse creates a new enrichment response.
-func NewResponse(id, text string) Response {
-	return Response{id: id, text: text}
-}
-
-// ID returns the response identifier (matches the request ID).
-func (r Response) ID() string { return r.id }
-
-// Text returns the enriched text.
-func (r Response) Text() string { return r.text }
-
-// Enricher generates enrichments using an AI provider.
-type Enricher interface {
-	// Enrich processes requests and returns responses for each.
-	Enrich(ctx context.Context, requests []Request) ([]Response, error)
-}
 
 // ProviderEnricher uses a TextGenerator to create enrichments.
 type ProviderEnricher struct {
@@ -88,10 +41,11 @@ func (e *ProviderEnricher) WithTemperature(t float64) *ProviderEnricher {
 }
 
 // Enrich processes requests sequentially and returns responses.
-func (e *ProviderEnricher) Enrich(ctx context.Context, requests []Request) ([]Response, error) {
-	var filtered []Request
+// Implements domainservice.Enricher interface.
+func (e *ProviderEnricher) Enrich(ctx context.Context, requests []domainservice.EnrichmentRequest) ([]domainservice.EnrichmentResponse, error) {
+	var filtered []domainservice.EnrichmentRequest
 	for _, req := range requests {
-		if req.text != "" {
+		if req.Text() != "" {
 			filtered = append(filtered, req)
 		}
 	}
@@ -101,7 +55,7 @@ func (e *ProviderEnricher) Enrich(ctx context.Context, requests []Request) ([]Re
 		return nil, nil
 	}
 
-	responses := make([]Response, 0, len(filtered))
+	responses := make([]domainservice.EnrichmentResponse, 0, len(filtered))
 
 	for _, req := range filtered {
 		select {
@@ -113,10 +67,10 @@ func (e *ProviderEnricher) Enrich(ctx context.Context, requests []Request) ([]Re
 		response, err := e.processRequest(ctx, req)
 		if err != nil {
 			e.log.Error("enrichment failed",
-				"request_id", req.id,
+				"request_id", req.ID(),
 				"error", err,
 			)
-			return responses, fmt.Errorf("enrich request %s: %w", req.id, err)
+			return responses, fmt.Errorf("enrich request %s: %w", req.ID(), err)
 		}
 
 		responses = append(responses, response)
@@ -125,10 +79,10 @@ func (e *ProviderEnricher) Enrich(ctx context.Context, requests []Request) ([]Re
 	return responses, nil
 }
 
-func (e *ProviderEnricher) processRequest(ctx context.Context, req Request) (Response, error) {
+func (e *ProviderEnricher) processRequest(ctx context.Context, req domainservice.EnrichmentRequest) (domainservice.EnrichmentResponse, error) {
 	messages := []provider.Message{
-		provider.SystemMessage(req.systemPrompt),
-		provider.UserMessage(req.text),
+		provider.SystemMessage(req.SystemPrompt()),
+		provider.UserMessage(req.Text()),
 	}
 
 	chatReq := provider.NewChatCompletionRequest(messages).
@@ -137,12 +91,12 @@ func (e *ProviderEnricher) processRequest(ctx context.Context, req Request) (Res
 
 	chatResp, err := e.generator.ChatCompletion(ctx, chatReq)
 	if err != nil {
-		return Response{}, err
+		return domainservice.EnrichmentResponse{}, err
 	}
 
 	content := cleanThinkingTags(chatResp.Content())
 
-	return NewResponse(req.id, content), nil
+	return domainservice.NewEnrichmentResponse(req.ID(), content), nil
 }
 
 // cleanThinkingTags removes any <think>...</think> tags from model output.
@@ -176,5 +130,5 @@ func indexOf(s, substr string) int {
 	return -1
 }
 
-// Ensure ProviderEnricher implements Enricher.
-var _ Enricher = (*ProviderEnricher)(nil)
+// Ensure ProviderEnricher implements domainservice.Enricher.
+var _ domainservice.Enricher = (*ProviderEnricher)(nil)

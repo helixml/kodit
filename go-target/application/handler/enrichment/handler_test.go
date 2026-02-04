@@ -15,9 +15,7 @@ import (
 	domainservice "github.com/helixml/kodit/domain/service"
 	"github.com/helixml/kodit/domain/snippet"
 	"github.com/helixml/kodit/domain/task"
-	"github.com/helixml/kodit/internal/database"
-	"github.com/helixml/kodit/internal/domain"
-	"github.com/helixml/kodit/internal/git"
+	infraGit "github.com/helixml/kodit/infrastructure/git"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -223,10 +221,6 @@ func (f *fakeSnippetStore) DeleteForCommit(_ context.Context, commitSHA string) 
 	return nil
 }
 
-func (f *fakeSnippetStore) Search(_ context.Context, _ domain.MultiSearchRequest) ([]snippet.Snippet, error) {
-	return nil, nil
-}
-
 func (f *fakeSnippetStore) ByIDs(_ context.Context, _ []string) ([]snippet.Snippet, error) {
 	return nil, nil
 }
@@ -244,7 +238,7 @@ func (f *fakeSnippetStore) BySHA(_ context.Context, sha string) (snippet.Snippet
 
 type fakeGitAdapter struct {
 	diff  string
-	files []git.FileInfo
+	files []infraGit.FileInfo
 	err   error
 }
 
@@ -268,15 +262,15 @@ func (f *fakeGitAdapter) PullRepository(_ context.Context, _ string) error {
 	return nil
 }
 
-func (f *fakeGitAdapter) AllBranches(_ context.Context, _ string) ([]git.BranchInfo, error) {
+func (f *fakeGitAdapter) AllBranches(_ context.Context, _ string) ([]infraGit.BranchInfo, error) {
 	return nil, nil
 }
 
-func (f *fakeGitAdapter) BranchCommits(_ context.Context, _, _ string) ([]git.CommitInfo, error) {
+func (f *fakeGitAdapter) BranchCommits(_ context.Context, _, _ string) ([]infraGit.CommitInfo, error) {
 	return nil, nil
 }
 
-func (f *fakeGitAdapter) AllCommitsBulk(_ context.Context, _ string, _ *time.Time) (map[string]git.CommitInfo, error) {
+func (f *fakeGitAdapter) AllCommitsBulk(_ context.Context, _ string, _ *time.Time) (map[string]infraGit.CommitInfo, error) {
 	return nil, nil
 }
 
@@ -288,7 +282,7 @@ func (f *fakeGitAdapter) AllBranchHeadSHAs(_ context.Context, _ string, _ []stri
 	return nil, nil
 }
 
-func (f *fakeGitAdapter) CommitFiles(_ context.Context, _, _ string) ([]git.FileInfo, error) {
+func (f *fakeGitAdapter) CommitFiles(_ context.Context, _, _ string) ([]infraGit.FileInfo, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -299,8 +293,8 @@ func (f *fakeGitAdapter) RepositoryExists(_ context.Context, _ string) (bool, er
 	return true, nil
 }
 
-func (f *fakeGitAdapter) CommitDetails(_ context.Context, _, _ string) (git.CommitInfo, error) {
-	return git.CommitInfo{}, nil
+func (f *fakeGitAdapter) CommitDetails(_ context.Context, _, _ string) (infraGit.CommitInfo, error) {
+	return infraGit.CommitInfo{}, nil
 }
 
 func (f *fakeGitAdapter) EnsureRepository(_ context.Context, _, _ string) error {
@@ -319,7 +313,7 @@ func (f *fakeGitAdapter) LatestCommitSHA(_ context.Context, _, _ string) (string
 	return "", nil
 }
 
-func (f *fakeGitAdapter) AllTags(_ context.Context, _ string) ([]git.TagInfo, error) {
+func (f *fakeGitAdapter) AllTags(_ context.Context, _ string) ([]infraGit.TagInfo, error) {
 	return nil, nil
 }
 
@@ -346,10 +340,6 @@ func (f *fakeRepoStore) Get(_ context.Context, id int64) (repository.Repository,
 		return repository.Repository{}, errors.New("not found")
 	}
 	return r, nil
-}
-
-func (f *fakeRepoStore) Find(_ context.Context, _ database.Query) ([]repository.Repository, error) {
-	return nil, nil
 }
 
 func (f *fakeRepoStore) FindAll(_ context.Context) ([]repository.Repository, error) {
