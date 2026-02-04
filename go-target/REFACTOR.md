@@ -607,24 +607,24 @@ type APIServer interface {
   - [x] Move `internal/git/scanner.go` → `infrastructure/git/scanner.go`
   - [x] Move `internal/git/ignore.go` → `infrastructure/git/ignore.go`
 
-- [ ] 3.5 Create `infrastructure/slicing/` package
-  - [ ] Move `internal/indexing/slicer/*.go` → `infrastructure/slicing/*.go`
-  - [ ] Move `internal/indexing/slicer/analyzers/*.go` → `infrastructure/slicing/language/*.go`
+- [x] 3.5 Create `infrastructure/slicing/` package
+  - [x] Move `internal/indexing/slicer/*.go` → `infrastructure/slicing/*.go`
+  - [x] Move `internal/indexing/slicer/analyzers/*.go` → `infrastructure/slicing/language/*.go`
 
-- [ ] 3.6 Create `infrastructure/enricher/` package
-  - [ ] Move `internal/enrichment/enricher.go` → `infrastructure/enricher/enricher.go`
-  - [ ] Move `internal/enrichment/physical_architecture.go` → `infrastructure/enricher/physical_architecture.go`
-  - [ ] Move `internal/enrichment/cookbook_context.go` → `infrastructure/enricher/cookbook_context.go`
-  - [ ] Move `internal/enrichment/example/*.go` → `infrastructure/enricher/example/*.go`
+- [x] 3.6 Create `infrastructure/enricher/` package
+  - [x] Move `internal/enrichment/enricher.go` → `infrastructure/enricher/enricher.go`
+  - [x] Move `internal/enrichment/physical_architecture.go` → `infrastructure/enricher/physical_architecture.go`
+  - [x] Move `internal/enrichment/cookbook_context.go` → `infrastructure/enricher/cookbook_context.go`
+  - [x] Move `internal/enrichment/example/*.go` → `infrastructure/enricher/example/*.go`
 
-- [ ] 3.7 Create `infrastructure/tracking/` package
-  - [ ] Move `internal/tracking/tracker.go` → `infrastructure/tracking/tracker.go`
-  - [ ] Move `internal/tracking/reporter.go` → `infrastructure/tracking/reporter.go`
-  - [ ] Move `internal/tracking/logging_reporter.go` → `infrastructure/tracking/logging.go`
-  - [ ] Move `internal/tracking/db_reporter.go` → `infrastructure/tracking/db.go`
+- [x] 3.7 Create `infrastructure/tracking/` package
+  - [x] Move `internal/tracking/tracker.go` → `infrastructure/tracking/tracker.go`
+  - [x] Move `internal/tracking/reporter.go` → `infrastructure/tracking/reporter.go`
+  - [x] Move `internal/tracking/logging_reporter.go` → `infrastructure/tracking/logging.go`
+  - [x] Move `internal/tracking/db_reporter.go` → `infrastructure/tracking/db.go`
 
-- [ ] 3.8 Move `infrastructure/api/` package
-  - [ ] Move `internal/api/*.go` → `infrastructure/api/*.go`
+- [x] 3.8 Move `infrastructure/api/` package
+  - [x] Move `internal/api/*.go` → `infrastructure/api/*.go`
 
 ### Phase 4: Create Public API
 
@@ -1030,3 +1030,48 @@ The refactor is complete when:
 - Phase 3.6: Create `infrastructure/enricher/` package
 - Phase 3.7: Create `infrastructure/tracking/` package
 - Phase 3.8: Move `infrastructure/api/` package
+
+### 2026-02-04 Session 9
+
+**Completed:**
+- Phase 3.5 complete: Created `infrastructure/slicing/` package
+  - Added missing language analyzers: `c.go`, `cpp.go`, `rust.go`, `csharp.go`
+  - Updated all imports to use `domain/repository`, `domain/snippet`, `infrastructure/slicing`
+  - Created `slicer_test.go` with updated imports
+
+- Phase 3.6 complete: Created `infrastructure/enricher/` package
+  - `infrastructure/enricher/enricher.go` - Enricher implementation using TextGenerator
+  - `infrastructure/enricher/physical_architecture.go` - Docker Compose analysis
+  - `infrastructure/enricher/cookbook_context.go` - README/manifest parsing
+  - `infrastructure/enricher/example/code_block.go` - CodeBlock value object
+  - `infrastructure/enricher/example/discovery.go` - Example file discovery
+  - `infrastructure/enricher/example/parser.go` - Markdown/RST parsers
+
+- Phase 3.7 complete: Created `infrastructure/tracking/` package
+  - `infrastructure/tracking/tracker.go` - Tracker wrapping task.Status with subscriber notification
+  - `infrastructure/tracking/reporter.go` - Reporter interface
+  - `infrastructure/tracking/logging.go` - LoggingReporter implementation
+  - `infrastructure/tracking/db.go` - DBReporter implementation using task.StatusStore
+
+- Phase 3.8 complete: Moved `infrastructure/api/` package
+  - Copied all files from `internal/api/` to `infrastructure/api/`
+  - Updated internal api imports to infrastructure/api
+  - Preserved all middleware, jsonapi, v1 routers and DTOs
+  - Tests pass, lint clean
+
+**Verified:**
+- `go build ./...` ✓ (full project builds)
+- `go test ./infrastructure/...` ✓
+- `golangci-lint run ./infrastructure/...` ✓
+
+**Design Decisions Made:**
+- Infrastructure tracking uses `domain/task.Status` instead of `internal/queue.TaskStatus`
+- Infrastructure tracking uses `domain/task.StatusStore` instead of `internal/queue.TaskStatusRepository`
+- API package retains dependencies on internal packages (will be updated in Phase 6 cleanup)
+- Language analyzers (C, C++, Rust, C#) follow same pattern as existing analyzers
+
+**Next Session Tasks:**
+- Phase 4: Create Public API
+  - Create `kodit.go` with `Client` type and `New()` constructor
+  - Create `options.go` with functional options
+  - Create `errors.go` with exported errors
