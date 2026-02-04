@@ -655,16 +655,16 @@ type APIServer interface {
 
 ### Phase 5: Simplify CLI
 
-- [ ] 5.1 Split `cmd/kodit/main.go` into separate files
-  - [ ] Create `cmd/kodit/main.go` (root command only)
-  - [ ] Create `cmd/kodit/serve.go` (serve subcommand)
-  - [ ] Create `cmd/kodit/stdio.go` (stdio/MCP subcommand)
-  - [ ] Create `cmd/kodit/version.go` (version subcommand)
+- [x] 5.1 Split `cmd/kodit/main.go` into separate files
+  - [x] Create `cmd/kodit/main.go` (root command only)
+  - [x] Create `cmd/kodit/serve.go` (serve subcommand)
+  - [x] Create `cmd/kodit/stdio.go` (stdio/MCP subcommand)
+  - [x] Create `cmd/kodit/version.go` (version subcommand)
 
-- [ ] 5.2 Simplify CLI to use library
-  - [ ] Update serve.go to use `kodit.New()` and `client.API().ListenAndServe()`
-  - [ ] Update stdio.go to use `kodit.New()` for MCP (inline MCP code)
-  - [ ] Remove `internal/factory/` package
+- [x] 5.2 Simplify CLI to use library (PARTIAL)
+  - [ ] Update serve.go to use `kodit.New()` and `client.API().ListenAndServe()` (DEFERRED - requires API wiring)
+  - [ ] Update stdio.go to use `kodit.New()` for MCP (DEFERRED - requires MCP wiring)
+  - [x] Remove `internal/factory/` package
 
 ### Phase 6: Cleanup
 
@@ -1132,3 +1132,51 @@ The refactor is complete when:
   - Split cmd/kodit/main.go into separate files
   - Update CLI to use kodit.New() and client.API()
 - Consider aligning infrastructure/search interfaces with domain/search interfaces
+
+### 2026-02-04 Session 11
+
+**Completed:**
+- Phase 5.1 complete: Split CLI into separate files
+  - `cmd/kodit/main.go` - Root command, loadConfig helper, version vars (66 lines)
+  - `cmd/kodit/serve.go` - HTTP server command with full handler wiring (379 lines)
+  - `cmd/kodit/stdio.go` - MCP server command (104 lines)
+  - `cmd/kodit/version.go` - Version subcommand (18 lines)
+
+- Phase 5.2 partial:
+  - Removed unused `internal/factory/` package
+  - DEFERRED: Full migration to `kodit.New()` + `client.API()` requires completing API route wiring in library
+
+**Verified:**
+- `go build ./cmd/kodit/...` ✓
+- `golangci-lint run ./cmd/kodit/...` ✓ (0 issues)
+- `go build ./...` ✓ (full project builds)
+
+**Design Decisions Made:**
+- CLI split maintains original functionality using internal packages
+- Full library-first CLI migration deferred until `client.API()` is fully wired with routes
+- The library API (`kodit.go`) is functional for basic operations (repositories, tasks, search placeholder)
+- `internal/factory/` removed as it was unused
+
+**Rationale for Deferring Full CLI Migration:**
+The current library public API (`kodit.go`) provides:
+- Storage configuration (SQLite, PostgreSQL, VectorChord)
+- Provider configuration (OpenAI, Anthropic)
+- Repository operations (Clone, Get, List, Delete, Sync)
+- Task operations (List, Get, Cancel)
+- Enrichment queries (ForCommit, Get)
+- Search (placeholder - needs infrastructure alignment)
+- API server (shell - needs route wiring)
+
+However, `client.API().ListenAndServe()` only creates an empty server without routes.
+Full wiring would require:
+1. Handler registration in the library
+2. Search infrastructure alignment (BM25/vector stores)
+3. Git adapter/cloner/scanner configuration via options
+4. TrackerFactory wiring for progress reporting
+
+These changes are significant and belong in Phase 6 cleanup or a follow-up refactor.
+
+**Next Session Tasks:**
+- Phase 6: Cleanup
+  - Remove old internal packages (careful: CLI still uses them)
+  - Or: Complete API wiring in library, then finish Phase 5.2
