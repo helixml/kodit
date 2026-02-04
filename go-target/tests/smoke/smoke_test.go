@@ -88,6 +88,7 @@ func TestSmoke(t *testing.T) {
 	cmd.Env = append(os.Environ(),
 		"DISABLE_TELEMETRY=true",
 		"DB_URL=sqlite:///:memory:",
+		"SKIP_PROVIDER_VALIDATION=true",
 	)
 	if smokeDBURL := os.Getenv("SMOKE_DB_URL"); smokeDBURL != "" {
 		cmd.Env = append(cmd.Env, "DB_URL="+smokeDBURL)

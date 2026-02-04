@@ -398,20 +398,21 @@ func NewRemoteConfigWithOptions(opts ...RemoteConfigOption) RemoteConfig {
 
 // AppConfig holds the main application configuration.
 type AppConfig struct {
-	dataDir            string
-	dbURL              string
-	logLevel           string
-	logFormat          LogFormat
-	disableTelemetry   bool
-	embeddingEndpoint  *Endpoint
-	enrichmentEndpoint *Endpoint
-	search             SearchConfig
-	git                GitConfig
-	periodicSync       PeriodicSyncConfig
-	apiKeys            []string
-	remote             RemoteConfig
-	reporting          ReportingConfig
-	litellmCache       LiteLLMCacheConfig
+	dataDir                string
+	dbURL                  string
+	logLevel               string
+	logFormat              LogFormat
+	disableTelemetry       bool
+	skipProviderValidation bool
+	embeddingEndpoint      *Endpoint
+	enrichmentEndpoint     *Endpoint
+	search                 SearchConfig
+	git                    GitConfig
+	periodicSync           PeriodicSyncConfig
+	apiKeys                []string
+	remote                 RemoteConfig
+	reporting              ReportingConfig
+	litellmCache           LiteLLMCacheConfig
 }
 
 // defaultDataDir returns the default data directory.
@@ -456,6 +457,10 @@ func (c AppConfig) LogFormat() LogFormat { return c.logFormat }
 
 // DisableTelemetry returns whether telemetry is disabled.
 func (c AppConfig) DisableTelemetry() bool { return c.disableTelemetry }
+
+// SkipProviderValidation returns whether to skip provider validation at startup.
+// This is intended for testing only.
+func (c AppConfig) SkipProviderValidation() bool { return c.skipProviderValidation }
 
 // EmbeddingEndpoint returns the embedding endpoint config.
 func (c AppConfig) EmbeddingEndpoint() *Endpoint { return c.embeddingEndpoint }
@@ -550,6 +555,12 @@ func WithLogFormat(format LogFormat) AppConfigOption {
 // WithDisableTelemetry sets telemetry state.
 func WithDisableTelemetry(disabled bool) AppConfigOption {
 	return func(c *AppConfig) { c.disableTelemetry = disabled }
+}
+
+// WithSkipProviderValidation sets whether to skip provider validation.
+// WARNING: For testing only. Kodit requires providers for full functionality.
+func WithSkipProviderValidation(skip bool) AppConfigOption {
+	return func(c *AppConfig) { c.skipProviderValidation = skip }
 }
 
 // WithEmbeddingEndpoint sets the embedding endpoint.

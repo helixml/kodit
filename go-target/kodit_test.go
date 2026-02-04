@@ -22,6 +22,7 @@ func TestNew_WithSQLite(t *testing.T) {
 
 	client, err := kodit.New(
 		kodit.WithSQLite(dbPath),
+		kodit.WithSkipProviderValidation(),
 	)
 	require.NoError(t, err)
 	defer func() {
@@ -40,6 +41,7 @@ func TestClient_Close_Idempotent(t *testing.T) {
 
 	client, err := kodit.New(
 		kodit.WithSQLite(dbPath),
+		kodit.WithSkipProviderValidation(),
 	)
 	require.NoError(t, err)
 
@@ -58,6 +60,7 @@ func TestClient_Repositories_List_Empty(t *testing.T) {
 
 	client, err := kodit.New(
 		kodit.WithSQLite(dbPath),
+		kodit.WithSkipProviderValidation(),
 	)
 	require.NoError(t, err)
 	defer func() { _ = client.Close() }()
@@ -74,6 +77,7 @@ func TestClient_Tasks_List_Empty(t *testing.T) {
 
 	client, err := kodit.New(
 		kodit.WithSQLite(dbPath),
+		kodit.WithSkipProviderValidation(),
 	)
 	require.NoError(t, err)
 	defer func() { _ = client.Close() }()
@@ -90,6 +94,7 @@ func TestClient_Search_ReturnsEmpty(t *testing.T) {
 
 	client, err := kodit.New(
 		kodit.WithSQLite(dbPath),
+		kodit.WithSkipProviderValidation(),
 	)
 	require.NoError(t, err)
 	defer func() { _ = client.Close() }()
@@ -109,6 +114,7 @@ func TestClient_Search_AfterClose_ReturnsError(t *testing.T) {
 
 	client, err := kodit.New(
 		kodit.WithSQLite(dbPath),
+		kodit.WithSkipProviderValidation(),
 	)
 	require.NoError(t, err)
 
@@ -128,6 +134,7 @@ func TestWithDataDir_CreatesDirectory(t *testing.T) {
 	client, err := kodit.New(
 		kodit.WithSQLite(dbPath),
 		kodit.WithDataDir(dataDir),
+		kodit.WithSkipProviderValidation(),
 	)
 	require.NoError(t, err)
 	defer func() { _ = client.Close() }()

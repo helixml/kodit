@@ -140,6 +140,7 @@ func TestIntegration_IndexRepository_QueuesCloneTask(t *testing.T) {
 	client, err := kodit.New(
 		kodit.WithSQLite(dbPath),
 		kodit.WithDataDir(dataDir),
+		kodit.WithSkipProviderValidation(),
 	)
 	require.NoError(t, err)
 	defer func() { _ = client.Close() }()
@@ -174,6 +175,7 @@ func TestIntegration_FullIndexingWorkflow(t *testing.T) {
 		kodit.WithSQLite(dbPath),
 		kodit.WithDataDir(dataDir),
 		kodit.WithCloneDir(cloneDir),
+		kodit.WithSkipProviderValidation(),
 	)
 	require.NoError(t, err)
 	defer func() { _ = client.Close() }()
@@ -225,6 +227,7 @@ func TestIntegration_SearchAfterIndexing(t *testing.T) {
 		kodit.WithSQLite(dbPath),
 		kodit.WithDataDir(dataDir),
 		kodit.WithCloneDir(cloneDir),
+		kodit.WithSkipProviderValidation(),
 	)
 	require.NoError(t, err)
 	defer func() { _ = client.Close() }()
@@ -266,6 +269,7 @@ func TestIntegration_DeleteRepository(t *testing.T) {
 		kodit.WithSQLite(dbPath),
 		kodit.WithDataDir(dataDir),
 		kodit.WithCloneDir(cloneDir),
+		kodit.WithSkipProviderValidation(),
 	)
 	require.NoError(t, err)
 	defer func() { _ = client.Close() }()
@@ -310,6 +314,7 @@ func TestIntegration_MultipleRepositories(t *testing.T) {
 		kodit.WithSQLite(dbPath),
 		kodit.WithDataDir(dataDir),
 		kodit.WithCloneDir(cloneDir),
+		kodit.WithSkipProviderValidation(),
 	)
 	require.NoError(t, err)
 	defer func() { _ = client.Close() }()

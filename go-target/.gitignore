@@ -1,0 +1,4 @@
+*.db
+.kodit/
+build/
+*.env

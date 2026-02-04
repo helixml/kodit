@@ -39,7 +39,7 @@ Configuration is loaded in the following order (later sources override earlier):
   4. CLI flags
 
 Environment variables:
-  DATA_DIR                     Data directory (default: ~/.kodit)
+  DATA_DIR                     Data directory (default: .kodit)
   DB_URL                       Database URL (default: sqlite:///{data_dir}/kodit.db)
   LOG_LEVEL                    Log level: DEBUG, INFO, WARN, ERROR (default: INFO)
   LOG_FORMAT                   Log format: pretty, json (default: pretty)
@@ -147,6 +147,11 @@ func runServe(addr, envFile, dataDir, dbURL, logLevel string) error {
 	// Configure API keys
 	if keys := cfg.APIKeys(); len(keys) > 0 {
 		opts = append(opts, kodit.WithAPIKeys(keys...))
+	}
+
+	// Skip provider validation if explicitly disabled (for testing)
+	if cfg.SkipProviderValidation() {
+		opts = append(opts, kodit.WithSkipProviderValidation())
 	}
 
 	// Create kodit client

@@ -6,7 +6,7 @@
 // Basic usage:
 //
 //	client, err := kodit.New(
-//	    kodit.WithSQLite("~/.kodit/data.db"),
+//	    kodit.WithSQLite(".kodit/data.db"),
 //	    kodit.WithOpenAI(os.Getenv("OPENAI_API_KEY")),
 //	)
 //	if err != nil {
@@ -55,11 +55,11 @@ import (
 	"github.com/helixml/kodit/infrastructure/api"
 	"github.com/helixml/kodit/infrastructure/api/middleware"
 	v1 "github.com/helixml/kodit/infrastructure/api/v1"
+	"github.com/helixml/kodit/infrastructure/enricher"
+	"github.com/helixml/kodit/infrastructure/enricher/example"
 	"github.com/helixml/kodit/infrastructure/git"
 	"github.com/helixml/kodit/infrastructure/persistence"
 	infraSearch "github.com/helixml/kodit/infrastructure/search"
-	"github.com/helixml/kodit/infrastructure/enricher"
-	"github.com/helixml/kodit/infrastructure/enricher/example"
 	"github.com/helixml/kodit/infrastructure/slicing"
 	"github.com/helixml/kodit/infrastructure/slicing/language"
 	"github.com/helixml/kodit/infrastructure/tracking"
@@ -260,6 +260,19 @@ func New(opts ...Option) (*Client, error) {
 		logger:     logger,
 	}
 
+	// Validate required providers (unless skipped for testing)
+	if !cfg.skipProviderValidation {
+		if cfg.embeddingProvider == nil {
+			return nil, fmt.Errorf("embedding provider is required: set EMBEDDING_ENDPOINT_BASE_URL and EMBEDDING_ENDPOINT_API_KEY environment variables")
+		}
+		if cfg.textProvider == nil {
+			return nil, fmt.Errorf("text provider is required: set ENRICHMENT_ENDPOINT_BASE_URL and ENRICHMENT_ENDPOINT_API_KEY environment variables")
+		}
+		if vectorStore == nil {
+			return nil, fmt.Errorf("vector store is required: use PostgreSQL with pgvector or VectorChord extension (DB_URL=postgres://... with pgvector or vectorchord storage type)")
+		}
+	}
+
 	// Create enricher infrastructure (only if text provider is configured)
 	var enricherImpl *enricher.ProviderEnricher
 	if cfg.textProvider != nil {
@@ -274,31 +287,31 @@ func New(opts ...Option) (*Client, error) {
 	cookbookContext := enricher.NewCookbookContextService()
 
 	client := &Client{
-		db:               db,
-		repositoryStore:  repoStore,
-		commitStore:      commitStore,
-		branchStore:      branchStore,
-		tagStore:         tagStore,
-		fileStore:        fileStore,
-		snippetStore:     snippetStore,
-		enrichmentStore:  enrichmentStore,
-		associationStore: associationStore,
-		taskStore:        taskStore,
-		statusStore:      statusStore,
-		bm25Store:        bm25Store,
-		vectorStore:      vectorStore,
-		repoSync:         repoSyncSvc,
-		repoQuery:        repoQuerySvc,
-		enrichQ:          enrichQSvc,
-		trackingQuery:    trackingQSvc,
-		codeSearch:       codeSearchSvc,
-		queue:            queue,
-		worker:           worker,
-		registry:         registry,
-		gitAdapter:       gitAdapter,
-		cloner:           cloner,
-		scanner:          scanner,
-		slicer:           slicer,
+		db:                db,
+		repositoryStore:   repoStore,
+		commitStore:       commitStore,
+		branchStore:       branchStore,
+		tagStore:          tagStore,
+		fileStore:         fileStore,
+		snippetStore:      snippetStore,
+		enrichmentStore:   enrichmentStore,
+		associationStore:  associationStore,
+		taskStore:         taskStore,
+		statusStore:       statusStore,
+		bm25Store:         bm25Store,
+		vectorStore:       vectorStore,
+		repoSync:          repoSyncSvc,
+		repoQuery:         repoQuerySvc,
+		enrichQ:           enrichQSvc,
+		trackingQuery:     trackingQSvc,
+		codeSearch:        codeSearchSvc,
+		queue:             queue,
+		worker:            worker,
+		registry:          registry,
+		gitAdapter:        gitAdapter,
+		cloner:            cloner,
+		scanner:           scanner,
+		slicer:            slicer,
 		trackerFactory:    trackerFactory,
 		enricherImpl:      enricherImpl,
 		archDiscoverer:    archDiscoverer,
@@ -371,7 +384,7 @@ func (c *Client) registerHandlers() {
 		))
 	}
 
-	// Embeddings handler (requires vector store)
+	// Embeddings handlers (require vector store)
 	if c.vectorStore != nil {
 		embeddingService := domainservice.NewEmbedding(c.vectorStore)
 
@@ -396,7 +409,7 @@ func (c *Client) registerHandlers() {
 		))
 	}
 
-	// Enrichment handlers (only if text provider is configured)
+	// Enrichment handlers (require text provider)
 	if c.enricherImpl != nil {
 		// Summary enrichment
 		c.registry.Register(task.OperationCreateSummaryEnrichmentForCommit, enrichmenthandler.NewCreateSummary(

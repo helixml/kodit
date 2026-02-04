@@ -22,7 +22,7 @@ This document outlines the refactoring of Kodit from an application-centric stru
 ```go
 // Embedded usage (no HTTP server)
 client, _ := kodit.New(
-    kodit.WithSQLite("~/.kodit/data.db"),
+    kodit.WithSQLite(".kodit/data.db"),
     kodit.WithOpenAI(apiKey),
 )
 

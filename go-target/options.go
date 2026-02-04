@@ -20,16 +20,17 @@ const (
 
 // clientConfig holds configuration for Client construction.
 type clientConfig struct {
-	storage           storageType
-	dbPath            string
-	dbDSN             string
-	dataDir           string
-	cloneDir          string
-	textProvider      provider.TextGenerator
-	embeddingProvider provider.Embedder
-	logger            *slog.Logger
-	apiKeys           []string
-	workerCount       int
+	storage                storageType
+	dbPath                 string
+	dbDSN                  string
+	dataDir                string
+	cloneDir               string
+	textProvider           provider.TextGenerator
+	embeddingProvider      provider.Embedder
+	logger                 *slog.Logger
+	apiKeys                []string
+	workerCount            int
+	skipProviderValidation bool
 }
 
 // Option configures the Client.
@@ -155,6 +156,15 @@ func WithWorkerCount(n int) Option {
 		if n > 0 {
 			c.workerCount = n
 		}
+	}
+}
+
+// WithSkipProviderValidation skips the provider configuration validation.
+// This is intended for testing only. In production, embedding and text
+// providers are required for full functionality.
+func WithSkipProviderValidation() Option {
+	return func(c *clientConfig) {
+		c.skipProviderValidation = true
 	}
 }
 

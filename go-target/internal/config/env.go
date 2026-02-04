@@ -14,7 +14,7 @@ import (
 // Nested structs use underscore delimiter (e.g., EMBEDDING_ENDPOINT_BASE_URL).
 type EnvConfig struct {
 	// DataDir is the data directory path.
-	// Env: DATA_DIR (default: ~/.kodit)
+	// Env: DATA_DIR (default: .kodit)
 	DataDir string `envconfig:"DATA_DIR"`
 
 	// DBURL is the database connection URL.
@@ -32,6 +32,11 @@ type EnvConfig struct {
 	// DisableTelemetry controls telemetry collection.
 	// Env: DISABLE_TELEMETRY (default: false)
 	DisableTelemetry bool `envconfig:"DISABLE_TELEMETRY" default:"false"`
+
+	// SkipProviderValidation skips provider requirement validation at startup.
+	// Env: SKIP_PROVIDER_VALIDATION (default: false)
+	// WARNING: For testing only. Kodit requires providers for full functionality.
+	SkipProviderValidation bool `envconfig:"SKIP_PROVIDER_VALIDATION" default:"false"`
 
 	// APIKeys is a comma-separated list of valid API keys.
 	// Env: API_KEYS
@@ -213,6 +218,7 @@ func (e EnvConfig) ToAppConfig() AppConfig {
 		cfg = applyOption(cfg, WithLogFormat(parseLogFormat(e.LogFormat)))
 	}
 	cfg = applyOption(cfg, WithDisableTelemetry(e.DisableTelemetry))
+	cfg = applyOption(cfg, WithSkipProviderValidation(e.SkipProviderValidation))
 
 	if e.APIKeys != "" {
 		cfg = applyOption(cfg, WithAPIKeys(ParseAPIKeys(e.APIKeys)))
