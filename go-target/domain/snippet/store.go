@@ -2,8 +2,6 @@ package snippet
 
 import (
 	"context"
-
-	"github.com/helixml/kodit/internal/domain"
 )
 
 // SnippetStore defines operations for snippet persistence.
@@ -16,9 +14,6 @@ type SnippetStore interface {
 
 	// DeleteForCommit removes all snippet associations for a commit.
 	DeleteForCommit(ctx context.Context, commitSHA string) error
-
-	// Search finds snippets matching the search request.
-	Search(ctx context.Context, request domain.MultiSearchRequest) ([]Snippet, error)
 
 	// ByIDs returns snippets by their SHA identifiers.
 	ByIDs(ctx context.Context, ids []string) ([]Snippet, error)
