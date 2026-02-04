@@ -13,6 +13,14 @@ import (
 // Field names map to environment variables with KODIT_ prefix removed.
 // Nested structs use underscore delimiter (e.g., EMBEDDING_ENDPOINT_BASE_URL).
 type EnvConfig struct {
+	// Host is the server host to bind to.
+	// Env: HOST (default: 0.0.0.0)
+	Host string `envconfig:"HOST" default:"0.0.0.0"`
+
+	// Port is the server port to listen on.
+	// Env: PORT (default: 8080)
+	Port int `envconfig:"PORT" default:"8080"`
+
 	// DataDir is the data directory path.
 	// Env: DATA_DIR (default: .kodit)
 	DataDir string `envconfig:"DATA_DIR"`
@@ -205,6 +213,12 @@ func (e EnvConfig) ToAppConfig() AppConfig {
 	cfg := NewAppConfig()
 
 	// Apply overrides from environment
+	if e.Host != "" {
+		cfg = applyOption(cfg, WithHost(e.Host))
+	}
+	if e.Port != 0 {
+		cfg = applyOption(cfg, WithPort(e.Port))
+	}
 	if e.DataDir != "" {
 		cfg = applyOption(cfg, WithDataDir(e.DataDir))
 	}

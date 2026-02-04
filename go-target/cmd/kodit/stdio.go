@@ -12,12 +12,7 @@ import (
 )
 
 func stdioCmd() *cobra.Command {
-	var (
-		envFile  string
-		dataDir  string
-		dbURL    string
-		logLevel string
-	)
+	var envFile string
 
 	cmd := &cobra.Command{
 		Use:   "stdio",
@@ -27,21 +22,18 @@ func stdioCmd() *cobra.Command {
 This allows AI assistants to interact with Kodit for code search and understanding.
 Configuration is loaded from environment variables and .env file.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runStdio(envFile, dataDir, dbURL, logLevel)
+			return runStdio(envFile)
 		},
 	}
 
 	cmd.Flags().StringVar(&envFile, "env-file", "", "Path to .env file")
-	cmd.Flags().StringVar(&dataDir, "data-dir", "", "Data directory")
-	cmd.Flags().StringVar(&dbURL, "db-url", "", "Database URL")
-	cmd.Flags().StringVar(&logLevel, "log-level", "", "Log level")
 
 	return cmd
 }
 
-func runStdio(envFile, dataDir, dbURL, logLevel string) error {
+func runStdio(envFile string) error {
 	// Load configuration
-	cfg, err := loadConfig(envFile, dataDir, dbURL, logLevel)
+	cfg, err := loadConfig(envFile)
 	if err != nil {
 		return err
 	}

@@ -80,18 +80,3 @@ func LoadConfig(envPath string) (AppConfig, error) {
 	return envCfg.ToAppConfig(), nil
 }
 
-// LoadConfigWithDefaults loads configuration with custom default data directory.
-// This is useful when the data directory is specified via CLI flag.
-func LoadConfigWithDefaults(envPath string, dataDir string) (AppConfig, error) {
-	cfg, err := LoadConfig(envPath)
-	if err != nil {
-		return AppConfig{}, err
-	}
-
-	// Override data directory if provided
-	if dataDir != "" {
-		WithDataDir(dataDir)(&cfg)
-	}
-
-	return cfg, nil
-}

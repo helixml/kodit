@@ -46,25 +46,11 @@ func rootCmd() *cobra.Command {
 	return cmd
 }
 
-// loadConfig loads configuration from .env file and environment variables,
-// then applies CLI flag overrides.
-func loadConfig(envFile, dataDir, dbURL, logLevel string) (config.AppConfig, error) {
-	// Load config from .env file and environment variables
+// loadConfig loads configuration from .env file and environment variables.
+func loadConfig(envFile string) (config.AppConfig, error) {
 	cfg, err := config.LoadConfig(envFile)
 	if err != nil {
 		return config.AppConfig{}, fmt.Errorf("load config: %w", err)
 	}
-
-	// Apply CLI flag overrides (CLI flags take precedence)
-	if dataDir != "" {
-		config.WithDataDir(dataDir)(&cfg)
-	}
-	if dbURL != "" {
-		config.WithDBURL(dbURL)(&cfg)
-	}
-	if logLevel != "" {
-		config.WithLogLevel(logLevel)(&cfg)
-	}
-
 	return cfg, nil
 }

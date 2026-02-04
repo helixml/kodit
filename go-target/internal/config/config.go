@@ -2,6 +2,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -398,6 +399,8 @@ func NewRemoteConfigWithOptions(opts ...RemoteConfigOption) RemoteConfig {
 
 // AppConfig holds the main application configuration.
 type AppConfig struct {
+	host                   string
+	port                   int
 	dataDir                string
 	dbURL                  string
 	logLevel               string
@@ -428,19 +431,32 @@ func defaultDataDir() string {
 func NewAppConfig() AppConfig {
 	dataDir := defaultDataDir()
 	return AppConfig{
-		dataDir:        dataDir,
-		dbURL:          "sqlite:///" + filepath.Join(dataDir, "kodit.db"),
-		logLevel:       "INFO",
-		logFormat:      LogFormatPretty,
+		host:             "0.0.0.0",
+		port:             8080,
+		dataDir:          dataDir,
+		dbURL:            "sqlite:///" + filepath.Join(dataDir, "kodit.db"),
+		logLevel:         "INFO",
+		logFormat:        LogFormatPretty,
 		disableTelemetry: false,
-		search:         NewSearchConfig(),
-		git:            NewGitConfig(),
-		periodicSync:   NewPeriodicSyncConfig(),
-		apiKeys:        []string{},
-		remote:         NewRemoteConfig(),
-		reporting:      NewReportingConfig(),
-		litellmCache:   NewLiteLLMCacheConfig(),
+		search:           NewSearchConfig(),
+		git:              NewGitConfig(),
+		periodicSync:     NewPeriodicSyncConfig(),
+		apiKeys:          []string{},
+		remote:           NewRemoteConfig(),
+		reporting:        NewReportingConfig(),
+		litellmCache:     NewLiteLLMCacheConfig(),
 	}
+}
+
+// Host returns the server host to bind to.
+func (c AppConfig) Host() string { return c.host }
+
+// Port returns the server port to listen on.
+func (c AppConfig) Port() int { return c.port }
+
+// Addr returns the combined host:port address.
+func (c AppConfig) Addr() string {
+	return fmt.Sprintf("%s:%d", c.host, c.port)
 }
 
 // DataDir returns the data directory path.
@@ -525,6 +541,16 @@ func (c AppConfig) EnsureLiteLLMCacheDir() error {
 
 // AppConfigOption is a functional option for AppConfig.
 type AppConfigOption func(*AppConfig)
+
+// WithHost sets the server host.
+func WithHost(host string) AppConfigOption {
+	return func(c *AppConfig) { c.host = host }
+}
+
+// WithPort sets the server port.
+func WithPort(port int) AppConfigOption {
+	return func(c *AppConfig) { c.port = port }
+}
 
 // WithDataDir sets the data directory.
 func WithDataDir(dir string) AppConfigOption {

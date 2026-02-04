@@ -13,18 +13,16 @@ import (
 	"github.com/helixml/kodit/infrastructure/api"
 	apimiddleware "github.com/helixml/kodit/infrastructure/api/middleware"
 	"github.com/helixml/kodit/infrastructure/provider"
+	"github.com/helixml/kodit/internal/config"
 	"github.com/helixml/kodit/internal/log"
 	"github.com/spf13/cobra"
 )
 
 func serveCmd() *cobra.Command {
 	var (
-		addr    string
 		envFile string
-		// CLI flags override env vars
-		dataDir  string
-		dbURL    string
-		logLevel string
+		host    string
+		port    int
 	)
 
 	cmd := &cobra.Command{
@@ -36,9 +34,11 @@ Configuration is loaded in the following order (later sources override earlier):
   1. Default values
   2. .env file (if --env-file specified or .env exists in current directory)
   3. Environment variables
-  4. CLI flags
+  4. Command line flags
 
 Environment variables:
+  HOST                         Server host to bind to (default: 0.0.0.0)
+  PORT                         Server port to listen on (default: 8080)
   DATA_DIR                     Data directory (default: .kodit)
   DB_URL                       Database URL (default: sqlite:///{data_dir}/kodit.db)
   LOG_LEVEL                    Log level: DEBUG, INFO, WARN, ERROR (default: INFO)
@@ -66,25 +66,28 @@ Environment variables:
   REMOTE_SERVER_URL            Remote Kodit server URL
   REMOTE_API_KEY               Remote server API key`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runServe(addr, envFile, dataDir, dbURL, logLevel)
+			return runServe(envFile, host, port)
 		},
 	}
 
-	cmd.Flags().StringVar(&addr, "addr", ":8080", "Address to listen on")
 	cmd.Flags().StringVar(&envFile, "env-file", "", "Path to .env file (default: .env in current directory)")
-	cmd.Flags().StringVar(&dataDir, "data-dir", "", "Data directory (overrides DATA_DIR env var)")
-	cmd.Flags().StringVar(&dbURL, "db-url", "", "Database URL (overrides DB_URL env var)")
-	cmd.Flags().StringVar(&logLevel, "log-level", "", "Log level (overrides LOG_LEVEL env var)")
+	cmd.Flags().StringVar(&host, "host", "", "Server host to bind to (default: 0.0.0.0)")
+	cmd.Flags().IntVar(&port, "port", 0, "Server port to listen on (default: 8080)")
 
 	return cmd
 }
 
-func runServe(addr, envFile, dataDir, dbURL, logLevel string) error {
+func runServe(envFile, host string, port int) error {
 	// Load configuration
-	cfg, err := loadConfig(envFile, dataDir, dbURL, logLevel)
+	cfg, err := loadConfig(envFile)
 	if err != nil {
 		return err
 	}
+
+	// Apply command line overrides (flags take precedence over env vars)
+	cfg = applyServeOverrides(cfg, host, port)
+
+	addr := cfg.Addr()
 
 	// Ensure directories exist
 	if err := cfg.EnsureDataDir(); err != nil {
@@ -247,4 +250,45 @@ func healthHandler(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(`{"status":"healthy"}`))
+}
+
+// applyServeOverrides applies command line flag overrides to the config.
+func applyServeOverrides(cfg config.AppConfig, host string, port int) config.AppConfig {
+	opts := []config.AppConfigOption{}
+
+	if host != "" {
+		opts = append(opts, config.WithHost(host))
+	}
+	if port != 0 {
+		opts = append(opts, config.WithPort(port))
+	}
+
+	if len(opts) == 0 {
+		return cfg
+	}
+
+	// Create new config with all existing values plus overrides
+	return config.NewAppConfigWithOptions(
+		config.WithHost(cfg.Host()),
+		config.WithPort(cfg.Port()),
+		config.WithDataDir(cfg.DataDir()),
+		config.WithDBURL(cfg.DBURL()),
+		config.WithLogLevel(cfg.LogLevel()),
+		config.WithLogFormat(cfg.LogFormat()),
+		config.WithDisableTelemetry(cfg.DisableTelemetry()),
+		config.WithSkipProviderValidation(cfg.SkipProviderValidation()),
+		config.WithAPIKeys(cfg.APIKeys()),
+		config.WithSearchConfig(cfg.Search()),
+		config.WithGitConfig(cfg.Git()),
+		config.WithPeriodicSyncConfig(cfg.PeriodicSync()),
+		config.WithRemoteConfig(cfg.Remote()),
+		config.WithReportingConfig(cfg.Reporting()),
+		config.WithLiteLLMCacheConfig(cfg.LiteLLMCache()),
+		// Now apply the overrides (these will take precedence)
+		func(c *config.AppConfig) {
+			for _, opt := range opts {
+				opt(c)
+			}
+		},
+	)
 }

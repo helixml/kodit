@@ -18,6 +18,8 @@ func TestLoadFromEnv_Defaults(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check defaults
+	assert.Equal(t, "0.0.0.0", cfg.Host)
+	assert.Equal(t, 8080, cfg.Port)
 	assert.Equal(t, "", cfg.DataDir)
 	assert.Equal(t, "", cfg.DBURL)
 	assert.Equal(t, "INFO", cfg.LogLevel)
@@ -42,6 +44,8 @@ func TestLoadFromEnv_OverrideValues(t *testing.T) {
 	clearEnvVars(t)
 
 	// Set environment variables
+	t.Setenv("HOST", "127.0.0.1")
+	t.Setenv("PORT", "9000")
 	t.Setenv("DATA_DIR", "/custom/data")
 	t.Setenv("DB_URL", "postgres://localhost/kodit")
 	t.Setenv("LOG_LEVEL", "DEBUG")
@@ -52,6 +56,8 @@ func TestLoadFromEnv_OverrideValues(t *testing.T) {
 	cfg, err := LoadFromEnv()
 	require.NoError(t, err)
 
+	assert.Equal(t, "127.0.0.1", cfg.Host)
+	assert.Equal(t, 9000, cfg.Port)
 	assert.Equal(t, "/custom/data", cfg.DataDir)
 	assert.Equal(t, "postgres://localhost/kodit", cfg.DBURL)
 	assert.Equal(t, "DEBUG", cfg.LogLevel)
@@ -366,16 +372,6 @@ EMBEDDING_ENDPOINT_MODEL=test-embedding
 	assert.Equal(t, "test-embedding", cfg.EmbeddingEndpoint().Model())
 }
 
-func TestLoadConfigWithDefaults(t *testing.T) {
-	clearEnvVars(t)
-
-	// Load with custom data dir
-	cfg, err := LoadConfigWithDefaults("", "/custom/override")
-	require.NoError(t, err)
-
-	assert.Equal(t, "/custom/override", cfg.DataDir())
-}
-
 func TestLoadDotEnvFromFiles(t *testing.T) {
 	tmpDir := t.TempDir()
 
@@ -430,6 +426,8 @@ func clearEnvVars(t *testing.T) {
 	t.Helper()
 
 	vars := []string{
+		"HOST",
+		"PORT",
 		"DATA_DIR",
 		"DB_URL",
 		"LOG_LEVEL",
