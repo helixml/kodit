@@ -553,7 +553,7 @@ type APIServer interface {
   - [x] Move `internal/queue/service.go` → `application/service/queue.go`
   - [x] Move `internal/queue/worker.go` → `application/service/worker.go`
 
-- [x] 2.2 Create `application/handler/` package (partial)
+- [x] 2.2 Create `application/handler/` package
   - [x] Move `internal/queue/handler.go` → `application/handler/handler.go`
   - [x] Merge `internal/queue/registry.go` into `application/handler/handler.go`
   - [x] Move `internal/queue/handler/clone_repository.go` → `application/handler/repository/clone.go`
@@ -563,7 +563,7 @@ type APIServer interface {
   - [x] Move `internal/queue/handler/extract_snippets.go` → `application/handler/indexing/extract_snippets.go`
   - [x] Move `internal/queue/handler/create_bm25.go` → `application/handler/indexing/create_bm25.go`
   - [x] Move `internal/queue/handler/create_embeddings.go` → `application/handler/indexing/create_embeddings.go`
-  - [ ] Move `internal/queue/handler/enrichment/*.go` → `application/handler/enrichment/*.go`
+  - [x] Move `internal/queue/handler/enrichment/*.go` → `application/handler/enrichment/*.go`
 
 - [ ] 2.3 Create `application/dto/` package
   - [ ] Extract DTOs from internal/repository into `application/dto/repository.go`
@@ -814,7 +814,38 @@ The refactor is complete when:
 - Language mapping moved to domain/snippet package for reuse
 
 **Next Session Tasks:**
-- Complete enrichment handlers in Phase 2.2:
-  - `application/handler/enrichment/*.go` (summary, architecture, cookbook, API docs, etc.)
+- Phase 2.3: Create `application/dto/` package
+- Phase 3: Begin infrastructure consolidation
+
+### 2026-02-04 Session 4
+
+**Completed:**
+- Phase 2.2 complete: All enrichment handlers migrated to `application/handler/enrichment/`
+  - `application/handler/enrichment/util.go` - Utility functions (TruncateDiff, MaxDiffLength)
+  - `application/handler/enrichment/create_summary.go` - Create snippet summaries with LLM
+  - `application/handler/enrichment/commit_description.go` - Generate commit descriptions from diffs
+  - `application/handler/enrichment/architecture_discovery.go` - Discover physical architecture
+  - `application/handler/enrichment/database_schema.go` - Extract and document database schemas
+  - `application/handler/enrichment/cookbook.go` - Generate cookbook examples
+  - `application/handler/enrichment/api_docs.go` - Extract API documentation
+  - `application/handler/enrichment/extract_examples.go` - Extract code examples from docs
+  - `application/handler/enrichment/example_summary.go` - Summarize extracted examples
+  - `application/handler/enrichment/handler_test.go` - Tests for commit description and create summary handlers
+
+**Verified:**
+- All enrichment handlers build: `go build ./application/handler/enrichment/...` ✓
+- All enrichment tests pass: `go test ./application/handler/enrichment/...` ✓
+- Lint clean: `golangci-lint run ./application/handler/enrichment/...` ✓
+- Full project builds: `go build ./...` ✓
+
+**Design Decisions Made:**
+- Handlers use domain types from `domain/enrichment`, `domain/repository`, `domain/snippet`, `domain/task`
+- EnrichmentQuery service from `application/service` used for checking existing enrichments
+- Enricher interface from `domain/service` used for LLM enrichment
+- TrackerFactory interface from `application/handler` used for progress tracking
+- Git adapter temporarily uses `internal/git` (will be moved to infrastructure later)
+- Handler-specific interfaces defined locally (ArchitectureDiscoverer, SchemaDiscoverer, CookbookContextGatherer, etc.)
+
+**Next Session Tasks:**
 - Phase 2.3: Create `application/dto/` package
 - Phase 3: Begin infrastructure consolidation
