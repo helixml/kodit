@@ -557,12 +557,12 @@ type APIServer interface {
   - [x] Move `internal/queue/handler.go` → `application/handler/handler.go`
   - [x] Merge `internal/queue/registry.go` into `application/handler/handler.go`
   - [x] Move `internal/queue/handler/clone_repository.go` → `application/handler/repository/clone.go`
-  - [ ] Move `internal/queue/handler/sync_repository.go` → `application/handler/repository/sync.go`
-  - [ ] Move `internal/queue/handler/delete_repository.go` → `application/handler/repository/delete.go`
+  - [x] Move `internal/queue/handler/sync_repository.go` → `application/handler/repository/sync.go`
+  - [x] Move `internal/queue/handler/delete_repository.go` → `application/handler/repository/delete.go`
   - [x] Move `internal/queue/handler/scan_commit.go` → `application/handler/commit/scan.go`
-  - [ ] Move `internal/queue/handler/extract_snippets.go` → `application/handler/indexing/extract_snippets.go`
-  - [ ] Move `internal/queue/handler/create_bm25.go` → `application/handler/indexing/create_bm25.go`
-  - [ ] Move `internal/queue/handler/create_embeddings.go` → `application/handler/indexing/create_embeddings.go`
+  - [x] Move `internal/queue/handler/extract_snippets.go` → `application/handler/indexing/extract_snippets.go`
+  - [x] Move `internal/queue/handler/create_bm25.go` → `application/handler/indexing/create_bm25.go`
+  - [x] Move `internal/queue/handler/create_embeddings.go` → `application/handler/indexing/create_embeddings.go`
   - [ ] Move `internal/queue/handler/enrichment/*.go` → `application/handler/enrichment/*.go`
 
 - [ ] 2.3 Create `application/dto/` package
@@ -790,5 +790,31 @@ The refactor is complete when:
   - `application/handler/repository/delete.go`
   - `application/handler/indexing/*.go`
   - `application/handler/enrichment/*.go`
+- Phase 2.3: Create `application/dto/` package
+- Phase 3: Begin infrastructure consolidation
+
+### 2026-02-04 Session 3
+
+**Completed:**
+- Phase 2.2 handlers (core indexing handlers):
+  - `application/handler/repository/sync.go` - Sync repository handler
+  - `application/handler/repository/delete.go` - Delete repository handler
+  - `application/handler/indexing/extract_snippets.go` - Extract code snippets via AST parsing
+  - `application/handler/indexing/create_bm25.go` - Create BM25 keyword index
+  - `application/handler/indexing/create_embeddings.go` - Create vector embeddings
+
+**Verified:**
+- All application packages build: `go build ./application/...` ✓
+- All application packages lint clean: `golangci-lint run ./application/...` ✓
+- Full project still builds: `go build ./...` ✓
+
+**Design Decisions Made:**
+- Indexing handlers use internal slicer/adapter temporarily (will be moved to infrastructure later)
+- Snippet conversion between internal/indexing.Snippet and domain/snippet.Snippet handled in handler
+- Language mapping moved to domain/snippet package for reuse
+
+**Next Session Tasks:**
+- Complete enrichment handlers in Phase 2.2:
+  - `application/handler/enrichment/*.go` (summary, architecture, cookbook, API docs, etc.)
 - Phase 2.3: Create `application/dto/` package
 - Phase 3: Begin infrastructure consolidation
