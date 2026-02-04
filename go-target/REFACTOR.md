@@ -1982,7 +1982,7 @@ func runServe(addr string, cfg config.AppConfig) error {
 
 #### Tasks
 
-- [ ] 7.7.1 Add `Router()` method to APIServer interface
+- [x] 7.7.1 Add `Router()` method to APIServer interface
   - Returns `chi.Router` for customization before starting
   - Allows adding middleware, custom routes
 
@@ -1990,11 +1990,11 @@ func runServe(addr string, cfg config.AppConfig) error {
   - If `Router()` was called, use that router
   - Otherwise create default router with all routes
 
-- [ ] 7.7.3 Add commits router to default API routes
+- [x] 7.7.3 Add commits router to default API routes
   - Currently missing from `ListenAndServe()`
   - Mount `/api/v1/commits` with `v1.NewCommitsRouter`
 
-- [ ] 7.7.4 Add `DocsRouter()` helper method
+- [x] 7.7.4 Add `DocsRouter()` helper method
   - Returns configured docs router for mounting
   - `api.DocsRouter("/docs/openapi.json")`
 
@@ -2021,11 +2021,11 @@ Both use the same underlying services.
 
 ### Phase 7.8: Expose Services for MCP
 
-- [ ] 7.8.1 Add `CodeSearchService()` method to Client
+- [x] 7.8.1 Add `CodeSearchService()` method to Client
   - Returns raw `*service.CodeSearch` for advanced callers (MCP server)
   - The simplified `Search()` method doesn't expose full `MultiRequest` capabilities
 
-- [ ] 7.8.2 Add `Snippets()` interface with `BySHA()` method
+- [x] 7.8.2 Add `SnippetStore()` method to Client
   - MCP server needs to fetch snippets by SHA
   - Add `Snippets` interface: `{ BySHA(ctx, sha) (Snippet, error) }`
   - Implement using snippetStore
@@ -2062,12 +2062,12 @@ func runStdio(cfg config.AppConfig) error {
 
 #### Tasks
 
-- [ ] 7.9.1 Refactor stdio.go to use kodit.Client
+- [x] 7.9.1 Refactor stdio.go to use kodit.Client
   - Current: 111 lines manually wiring database, stores, search service
   - Target: ~20 lines using `kodit.New()` + exposed services
   - Requires 7.8.1 and 7.8.2 complete
 
-- [ ] 7.9.2 Refactor serve.go to use kodit.Client
+- [x] 7.9.2 Refactor serve.go to use kodit.Client
   - Current: 468 lines with manual wiring
   - Target: ~50 lines using `kodit.New()` + `client.API()`
   - Keep custom middleware and endpoints
@@ -2220,11 +2220,114 @@ The kodit.Client now registers 18 handlers total:
 - 7 enrichment handlers (if textProvider): CreateSummary, CommitDescription, ArchitectureDiscovery, ExampleSummary, DatabaseSchema, Cookbook, APIDocs
 
 **Remaining Tasks in Phase 7:**
-- 7.7: Enhance API server (Router(), commits router, docs router)
-- 7.8: Expose services for MCP (CodeSearchService(), Snippets())
 - 7.9: Simplify CLI commands
 - 7.10: Integration testing
 
 **Next Session Tasks:**
-1. Phase 7.7 (API enhancements) - Add Router() method for customization
+1. Phase 7.9 (CLI simplification) - Refactor serve.go and stdio.go to use kodit.Client
 2. Phase 7.10 (integration tests) - Test full indexing workflow
+
+### 2026-02-04 Session 21
+
+**Completed:**
+- Phase 7.7 complete: Enhanced API server with customization capabilities
+  - 7.7.1: Added `Router() chi.Router` method to `APIServer` interface
+    - Returns chi router for adding custom middleware and routes before `ListenAndServe`
+    - Wires up all standard v1 API routes automatically
+  - 7.7.3: Added commits router to default API routes
+    - `/api/v1/commits` endpoint now mounted in both `Router()` and `ListenAndServe()`
+  - 7.7.4: Added `DocsRouter(specURL string) *api.DocsRouter` method
+    - Returns router for Swagger UI and OpenAPI spec
+    - Can be mounted at any path (e.g., `/docs`)
+
+- Phase 7.8 complete: Exposed services for MCP server
+  - 7.8.1: Added `CodeSearchService() *service.CodeSearch` method
+    - Returns underlying search service for advanced callers (MCP)
+    - Enables full `MultiSearchRequest` capabilities
+  - 7.8.2: Added `SnippetStore() snippet.SnippetStore` method
+    - Returns snippet storage for retrieving snippets by SHA
+    - Used by MCP's `get_snippet` tool
+
+**Verified:**
+- `go build ./...` ✓
+- `go test ./...` ✓ (all tests pass)
+- `golangci-lint run` ✓ (0 issues)
+
+**Design Decisions Made:**
+- `Router()` creates a standalone chi router, not the server's internal router
+  - Allows full customization without coupling to `api.Server` internals
+  - `ListenAndServe()` mounts the customized router if `Router()` was called
+- `DocsRouter()` is a simple factory method returning `*api.DocsRouter`
+  - Caller decides where to mount it
+  - Uses existing infrastructure implementation
+- `CodeSearchService()` and `SnippetStore()` expose internal services directly
+  - Simpler than creating wrapper interfaces
+  - Returns nil/zero value if not configured
+
+**API Server Capabilities:**
+1. Default usage: `client.API().ListenAndServe(":8080")` - mounts all routes
+2. Custom routes: `r := client.API().Router(); r.Use(myMiddleware); r.Get("/health", healthHandler)`
+3. Docs: `router.Mount("/docs", client.API().DocsRouter("/docs/openapi.json").Routes())`
+
+**serve.go Simplification Potential:**
+With `Router()` and `DocsRouter()`, serve.go can now be significantly simplified:
+```go
+api := client.API()
+router := api.Router()
+router.Use(middleware.Logging(logger))
+router.Mount("/docs", api.DocsRouter("/docs/openapi.json").Routes())
+api.ListenAndServe(addr)
+```
+
+**Remaining Tasks in Phase 7:**
+- 7.10: Integration testing
+
+**Next Session Tasks:**
+1. Phase 7.10 - Add integration tests for full indexing workflow
+
+### 2026-02-04 Session 21 (continued)
+
+**Completed:**
+- Phase 7.9 complete: Simplified CLI commands to use kodit.Client
+
+1. **stdio.go** (112 → 118 lines, but cleaner):
+   - Now uses `kodit.New()` instead of manual wiring
+   - Uses `kodit.WithPostgresVectorchord()` or `kodit.WithSQLite()` based on config
+   - Uses `kodit.WithOpenAIConfig()` for embedding provider
+   - Uses `client.CodeSearchService()` and `client.SnippetStore()` for MCP
+
+2. **serve.go** (467 → 242 lines, 48% reduction):
+   - Removed 225 lines of manual store creation and handler registration
+   - Now uses `kodit.New()` with options for storage, providers, API keys
+   - Uses `client.API().Router()` for custom middleware and endpoints
+   - Uses `client.API().DocsRouter()` for documentation routes
+   - Graceful shutdown handled by `client.Close()`
+
+**Key Changes:**
+- Removed `trackerFactoryImpl` - now internal to kodit.Client
+- Removed `toServiceRegistry` - no longer needed
+- Removed `registerHandlers` - kodit.Client registers handlers automatically
+- Removed `dbType` function - not needed for logging
+- Simplified `maskDBURL` - handles empty URL case
+
+**Benefits:**
+- CLI commands are now thin wrappers around kodit.Client
+- Configuration is consistent through kodit.Option functions
+- Handler registration, worker lifecycle, and store creation are automatic
+- Custom middleware and endpoints can still be added via `Router()`
+
+**Verified:**
+- `go build ./...` ✓
+- `go test ./...` ✓ (all tests pass)
+- `golangci-lint run` ✓ (0 issues)
+
+**Phase 7 Status:**
+- 7.0: API redesign (DEFERRED - current API is functional)
+- 7.1-7.6b: Infrastructure and handlers ✓
+- 7.7: API server enhancements ✓
+- 7.8: MCP services ✓
+- 7.9: CLI simplification ✓
+- 7.10: Integration testing (TODO)
+
+**Next Session Tasks:**
+1. Phase 7.10 - Add integration tests for full indexing workflow

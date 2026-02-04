@@ -517,6 +517,20 @@ func (c *Client) API() APIServer {
 	}
 }
 
+// CodeSearchService returns the underlying code search service.
+// This is useful for advanced callers like MCP servers that need
+// full control over search requests (e.g., MultiSearchRequest).
+// Returns nil if no search stores are configured.
+func (c *Client) CodeSearchService() *service.CodeSearch {
+	return c.codeSearch
+}
+
+// SnippetStore returns access to the snippet storage.
+// This is useful for callers that need to retrieve snippets by SHA.
+func (c *Client) SnippetStore() snippet.SnippetStore {
+	return c.snippetStore
+}
+
 // SearchResult represents the result of a hybrid search.
 type SearchResult struct {
 	snippets    []snippet.Snippet
@@ -593,6 +607,16 @@ type Tasks interface {
 
 // APIServer is an HTTP server.
 type APIServer interface {
+	// Router returns the chi router for customization before starting.
+	// Calling this method allows adding custom middleware and routes before ListenAndServe.
+	// If not called, ListenAndServe creates a default router with all standard routes.
+	Router() chi.Router
+
+	// DocsRouter returns a router for Swagger UI and OpenAPI spec.
+	// The specURL parameter is the URL path where the OpenAPI spec will be served.
+	// Mount the returned router at your preferred path (e.g., router.Mount("/docs", api.DocsRouter("/docs/openapi.json").Routes())).
+	DocsRouter(specURL string) *api.DocsRouter
+
 	// ListenAndServe starts the HTTP server.
 	ListenAndServe(addr string) error
 
@@ -680,22 +704,39 @@ func (t *tasksImpl) Cancel(ctx context.Context, id int64) error {
 
 // apiServerImpl implements APIServer.
 type apiServerImpl struct {
-	client *Client
-	server *api.Server
-	logger *slog.Logger
+	client       *Client
+	server       *api.Server
+	router       chi.Router
+	routerCalled bool
+	logger       *slog.Logger
 }
 
-func (a *apiServerImpl) ListenAndServe(addr string) error {
-	server := api.NewServer(addr, a.logger)
-	a.server = &server
+// Router returns the chi router for customization.
+// Calling this method wires up all standard API routes and returns the router
+// for adding custom middleware and routes before starting.
+func (a *apiServerImpl) Router() chi.Router {
+	if a.router != nil {
+		return a.router
+	}
 
-	router := server.Router()
+	// Create a standalone chi router for customization
+	router := chi.NewRouter()
 
 	// Apply auth middleware if API keys configured
 	if len(a.client.apiKeys) > 0 {
 		router.Use(middleware.APIKeyAuth(a.client.apiKeys))
 	}
 
+	// Wire up all v1 API routes
+	a.mountAPIRoutes(router)
+
+	a.router = router
+	a.routerCalled = true
+	return router
+}
+
+// mountAPIRoutes wires up all v1 API routes on the given router.
+func (a *apiServerImpl) mountAPIRoutes(router chi.Router) {
 	// Repositories router
 	reposRouter := v1.NewRepositoriesRouter(
 		a.client.repoQuery,
@@ -717,9 +758,16 @@ func (a *apiServerImpl) ListenAndServe(addr string) error {
 	// Enrichments router
 	enrichmentsRouter := v1.NewEnrichmentsRouter(a.client.enrichmentStore, a.logger)
 
+	// Commits router
+	commitsRouter := v1.NewCommitsRouter(
+		a.client.repoQuery,
+		a.logger,
+	)
+
 	// Mount routes
 	router.Route("/api/v1", func(r chi.Router) {
 		r.Mount("/repositories", reposRouter.Routes())
+		r.Mount("/commits", commitsRouter.Routes())
 		r.Mount("/queue", queueRouter.Routes())
 		r.Mount("/enrichments", enrichmentsRouter.Routes())
 
@@ -729,8 +777,33 @@ func (a *apiServerImpl) ListenAndServe(addr string) error {
 			r.Mount("/search", searchRouter.Routes())
 		}
 	})
+}
+
+func (a *apiServerImpl) ListenAndServe(addr string) error {
+	server := api.NewServer(addr, a.logger)
+	a.server = &server
+
+	if a.routerCalled && a.router != nil {
+		// Use the pre-configured router by mounting it on the server's router
+		server.Router().Mount("/", a.router)
+	} else {
+		// Mount routes directly on the server's router
+		router := server.Router()
+
+		// Apply auth middleware if API keys configured
+		if len(a.client.apiKeys) > 0 {
+			router.Use(middleware.APIKeyAuth(a.client.apiKeys))
+		}
+
+		a.mountAPIRoutes(router)
+	}
 
 	return server.Start()
+}
+
+// DocsRouter returns a router for Swagger UI and OpenAPI spec.
+func (a *apiServerImpl) DocsRouter(specURL string) *api.DocsRouter {
+	return api.NewDocsRouter(specURL)
 }
 
 func (a *apiServerImpl) Shutdown(ctx context.Context) error {

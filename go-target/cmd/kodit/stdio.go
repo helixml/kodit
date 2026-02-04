@@ -1,14 +1,11 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 
-	"github.com/helixml/kodit/application/service"
-	"github.com/helixml/kodit/infrastructure/persistence"
+	"github.com/helixml/kodit"
 	"github.com/helixml/kodit/infrastructure/provider"
-	infraSearch "github.com/helixml/kodit/infrastructure/search"
 	"github.com/helixml/kodit/internal/log"
 	"github.com/helixml/kodit/internal/mcp"
 	"github.com/spf13/cobra"
@@ -63,48 +60,58 @@ func runStdio(envFile, dataDir, dbURL, logLevel string) error {
 		slog.String("data_dir", cfg.DataDir()),
 	)
 
-	// Setup context
-	ctx := context.Background()
+	// Build kodit client options
+	opts := []kodit.Option{
+		kodit.WithDataDir(cfg.DataDir()),
+		kodit.WithLogger(slogger),
+	}
 
-	// Connect to database
-	db, err := persistence.NewDatabase(ctx, cfg.DBURL())
+	// Configure storage based on database URL
+	if cfg.DBURL() != "" {
+		// Assume VectorChord for PostgreSQL databases (default for kodit)
+		opts = append(opts, kodit.WithPostgresVectorchord(cfg.DBURL()))
+	} else {
+		// Fall back to SQLite
+		opts = append(opts, kodit.WithSQLite(cfg.DataDir()+"/kodit.db"))
+	}
+
+	// Configure embedding provider if available
+	embEndpoint := cfg.EmbeddingEndpoint()
+	if embEndpoint != nil && embEndpoint.BaseURL() != "" && embEndpoint.APIKey() != "" {
+		opts = append(opts, kodit.WithOpenAIConfig(provider.OpenAIConfig{
+			APIKey:         embEndpoint.APIKey(),
+			BaseURL:        embEndpoint.BaseURL(),
+			EmbeddingModel: embEndpoint.Model(),
+			Timeout:        embEndpoint.Timeout(),
+			MaxRetries:     embEndpoint.MaxRetries(),
+		}))
+	}
+
+	// Create kodit client
+	client, err := kodit.New(opts...)
 	if err != nil {
-		return fmt.Errorf("connect database: %w", err)
+		return fmt.Errorf("create kodit client: %w", err)
 	}
 	defer func() {
-		if err := db.Close(); err != nil {
-			slogger.Error("failed to close database", slog.Any("error", err))
+		if err := client.Close(); err != nil {
+			slogger.Error("failed to close kodit client", slog.Any("error", err))
 		}
 	}()
 
-	// Create stores
-	snippetStore := persistence.NewSnippetStore(db)
-	enrichmentStore := persistence.NewEnrichmentStore(db)
+	// Get code search service and snippet store from client
+	codeSearch := client.CodeSearchService()
+	snippetStore := client.SnippetStore()
 
-	// Create search service
-	var searchService service.CodeSearch
-	if db.IsPostgres() {
-		var embedder provider.Embedder
-		embEndpoint := cfg.EmbeddingEndpoint()
-		if embEndpoint != nil && embEndpoint.BaseURL() != "" && embEndpoint.APIKey() != "" {
-			embedder = provider.NewOpenAIProviderFromConfig(provider.OpenAIConfig{
-				APIKey:         embEndpoint.APIKey(),
-				BaseURL:        embEndpoint.BaseURL(),
-				EmbeddingModel: embEndpoint.Model(),
-				Timeout:        embEndpoint.Timeout(),
-				MaxRetries:     embEndpoint.MaxRetries(),
-			})
-		}
-
-		bm25Store := infraSearch.NewVectorChordBM25Store(db.GORM(), slogger)
-		vectorStore := infraSearch.NewVectorChordVectorStore(db.GORM(), infraSearch.TaskNameCode, embedder, slogger)
-		searchService = service.NewCodeSearch(bm25Store, vectorStore, snippetStore, enrichmentStore, slogger)
+	// Create MCP server
+	// Note: codeSearch may be nil if no search stores configured, MCP server handles this
+	var mcpServer *mcp.Server
+	if codeSearch != nil {
+		mcpServer = mcp.NewServer(*codeSearch, snippetStore, slogger)
 	} else {
-		searchService = service.NewCodeSearch(nil, nil, snippetStore, enrichmentStore, slogger)
+		// Create with empty search service - search will return errors
+		slogger.Warn("code search service not available - search will not work")
+		return fmt.Errorf("code search service not available: configure database and embedding provider")
 	}
-
-	// Create MCP server with database-backed search and snippet store
-	mcpServer := mcp.NewServer(searchService, snippetStore, slogger)
 
 	// Run on stdio
 	return mcpServer.ServeStdio()
