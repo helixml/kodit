@@ -1618,3 +1618,487 @@ domain/application/infrastructure layers.
 - `/api/v1/search` endpoint is mounted when CodeSearch is available
 - All success criteria are met
 - Refactor status: COMPLETE with full search functionality
+
+---
+
+## Phase 7: Complete Library Functionality
+
+The goal is to make `kodit.Client` a fully functional Kodit instance that can:
+1. Index code from URLs or local paths
+2. Search the indexed code
+3. Control what gets indexed (snippets, embeddings, enrichments)
+4. Optionally serve the HTTP API
+
+Currently, `kodit.Client` is missing critical infrastructure - most importantly, **no task handlers are registered**, so the worker cannot process any tasks.
+
+### Phase 7.0: Redesign Public API
+
+The current API is implementation-focused (`Repositories().Clone()`), not user-focused. Users want to:
+1. **Index code** - not "clone repositories"
+2. **Search** - already good
+3. **Control the indexing process** - what enrichments, embeddings, etc.
+4. **See what's indexed** - not "list repositories"
+
+#### Proposed New API
+
+```go
+// Index code from a URL (clear intent)
+source, _ := client.Index(ctx, "https://github.com/kubernetes/kubernetes")
+
+// With options for control
+source, _ := client.Index(ctx, "https://github.com/kubernetes/kubernetes",
+    kodit.TrackBranch("main"),
+    kodit.IndexingProfile(kodit.ProfileBasic),  // Control what gets indexed
+)
+
+// See what's indexed
+sources, _ := client.Sources(ctx)
+source, _ := client.Source(ctx, id)
+
+// Search (unchanged - already good)
+results, _ := client.Search(ctx, "create deployment")
+
+// Update/re-index
+client.Reindex(ctx, sourceID)
+
+// Remove from index
+client.Remove(ctx, sourceID)
+
+// Enrichments for a source
+enrichments, _ := client.Enrichments().ForSource(ctx, sourceID)
+
+// Tasks/progress
+tasks, _ := client.Tasks().ForSource(ctx, sourceID)
+```
+
+#### Indexing Profiles (control over what gets indexed)
+
+| Profile | Operations | Use Case |
+|---------|------------|----------|
+| `ProfileFast` | Snippets + BM25 | Quick keyword search, no AI costs |
+| `ProfileBasic` | + Vector embeddings | Semantic search |
+| `ProfileFull` | + All enrichments | Full documentation (default) |
+| `ProfileCustom(ops...)` | User-specified | Fine-grained control |
+
+```go
+// Fast: just code extraction and keyword search
+client.Index(ctx, url, kodit.IndexingProfile(kodit.ProfileFast))
+
+// Basic: add semantic search via embeddings
+client.Index(ctx, url, kodit.IndexingProfile(kodit.ProfileBasic))
+
+// Full: generate all enrichments (summaries, docs, architecture)
+client.Index(ctx, url, kodit.IndexingProfile(kodit.ProfileFull))
+
+// Custom: pick specific operations
+client.Index(ctx, url, kodit.IndexingProfile(kodit.ProfileCustom(
+    kodit.OpExtractSnippets,
+    kodit.OpCreateBM25Index,
+    kodit.OpCreateSummaries,  // Just summaries, no other enrichments
+)))
+```
+
+#### Index Options
+
+```go
+// Track a specific branch
+kodit.TrackBranch("main")
+
+// Track a specific commit
+kodit.TrackCommit("abc123")
+
+// Track a tag
+kodit.TrackTag("v1.0.0")
+
+// Local path instead of URL
+kodit.FromPath("/local/code/path")
+```
+
+#### Tasks for API Redesign
+
+- [ ] 7.0.1 Add `Index(ctx, url, opts...)` method
+  - Creates source record
+  - Queues clone operation (or skips if local path)
+  - Queues indexing operations based on profile
+  - Returns `Source` with ID for tracking
+
+- [ ] 7.0.2 Add `IndexingProfile` option and profile constants
+  - `ProfileFast`, `ProfileBasic`, `ProfileFull`, `ProfileCustom`
+  - Maps profiles to operation lists
+
+- [ ] 7.0.3 Add `Sources(ctx)` and `Source(ctx, id)` methods
+  - Replace `Repositories().List()` and `Repositories().Get()`
+  - Returns user-friendly `Source` type (not domain `Repository`)
+
+- [ ] 7.0.4 Add `Reindex(ctx, sourceID, opts...)` method
+  - Triggers re-sync and re-indexing
+  - Respects indexing profile
+
+- [ ] 7.0.5 Add `Remove(ctx, sourceID)` method
+  - Removes source and all indexed data
+  - Replace `Repositories().Delete()`
+
+- [ ] 7.0.6 Add tracking options (`TrackBranch`, `TrackCommit`, `TrackTag`)
+  - Configure what branch/commit/tag to track
+
+- [ ] 7.0.7 Add `FromPath(path)` option for local directories
+  - Index local code without cloning
+
+- [ ] 7.0.8 Update `Enrichments()` interface
+  - Add `ForSource(ctx, sourceID)` method
+  - Rename/alias `ForCommit` for backwards compatibility
+
+- [ ] 7.0.9 Update `Tasks()` interface
+  - Add `ForSource(ctx, sourceID)` method
+  - Filter tasks by source
+
+- [ ] 7.0.10 Deprecate old API methods
+  - Mark `Repositories()` as deprecated
+  - Keep for backwards compatibility during transition
+
+### Gap Analysis: serve.go vs kodit.go
+
+| Feature | serve.go | kodit.go | Status |
+|---------|----------|----------|--------|
+| Clone directory | ✓ | ✗ | Missing option |
+| File store | ✓ | ✗ | Missing store |
+| Git adapter | ✓ | ✗ | Missing |
+| Repository cloner | ✓ | ✗ | Missing |
+| Repository scanner | ✓ | ✗ | Missing |
+| Slicer | ✓ | ✗ | Missing |
+| Tracker factory | ✓ | ✗ | Missing |
+| Handler registration | ✓ (12+ handlers) | ✗ Empty | **Critical** |
+| Enricher | ✓ | ✗ | Missing |
+| Health endpoints | ✓ | ✗ | Missing |
+| Docs endpoints | ✓ | ✗ | Missing |
+| Logging middleware | ✓ | ✗ | Missing |
+
+### Phase 7.1: Add Missing Infrastructure Configuration
+
+- [ ] 7.1.1 Add clone directory configuration
+  - Add `cloneDir string` to `clientConfig`
+  - Add `WithCloneDir(path string) Option`
+  - Default to `{dataDir}/repos` if not specified
+  - Ensure clone directory exists in `New()`
+
+- [ ] 7.1.2 Add file store to Client
+  - Add `fileStore persistence.FileStore` to Client struct
+  - Create in `New()` alongside other stores
+  - Used by delete repository and scan commit handlers
+
+### Phase 7.2: Create Git Infrastructure in Library
+
+- [ ] 7.2.1 Create git adapter in `New()`
+  - Add `gitAdapter git.Adapter` to Client (internal)
+  - Create `git.NewGoGitAdapter(logger)`
+
+- [ ] 7.2.2 Create repository cloner in `New()`
+  - Add `cloner domainservice.Cloner` to Client (internal)
+  - Create `git.NewRepositoryCloner(gitAdapter, cloneDir, logger)`
+  - Requires clone directory to be configured
+
+- [ ] 7.2.3 Create repository scanner in `New()`
+  - Add `scanner domainservice.Scanner` to Client (internal)
+  - Create `git.NewRepositoryScanner(gitAdapter, logger)`
+
+### Phase 7.3: Create Slicer Infrastructure
+
+- [ ] 7.3.1 Create slicer in `New()`
+  - Add `slicer *slicing.Slicer` to Client (internal)
+  - Create language config, analyzer factory, slicer
+  - Used by extract snippets handler
+
+### Phase 7.4: Create Tracker Factory
+
+- [ ] 7.4.1 Create tracker factory in `New()`
+  - Add `trackerFactory handler.TrackerFactory` to Client (internal)
+  - Create `tracking.NewDBReporter(statusStore, logger)`
+  - Implement `TrackerFactory` interface using `tracking.TrackerForOperation`
+  - Used by all handlers for progress reporting
+
+### Phase 7.5: Create Enricher Infrastructure
+
+- [ ] 7.5.1 Create enricher in `New()` when text provider is configured
+  - Add `enricher *enricher.ProviderEnricher` to Client (internal)
+  - Create `enricher.NewProviderEnricher(textProvider, logger)`
+  - Used by enrichment handlers
+
+- [ ] 7.5.2 Create architecture discoverer
+  - Add `archDiscoverer *enricher.PhysicalArchitectureService` to Client (internal)
+  - Create `enricher.NewPhysicalArchitectureService()`
+
+- [ ] 7.5.3 Create example discoverer
+  - Add `exampleDiscoverer *example.Discovery` to Client (internal)
+  - Create `example.NewDiscovery()`
+
+### Task Chain: How Full Indexing Works
+
+When `client.Repositories().Clone(ctx, url)` is called, the following chain executes:
+
+```
+Clone(url)
+    │
+    ▼
+┌─────────────────────────┐
+│ OperationCloneRepository│ ──queues──▶ OperationSyncRepository
+└─────────────────────────┘
+    │
+    ▼
+┌─────────────────────────┐
+│ OperationSyncRepository │ ──queues──▶ ScanAndIndexCommit() (15 ops)
+└─────────────────────────┘
+    │
+    ▼
+┌───────────────────────────────────────────────────────────────┐
+│ ScanAndIndexCommit() queues 15 operations:                    │
+├───────────────────────────────────────────────────────────────┤
+│ 1.  OperationScanCommit                          [IMPLEMENTED]│
+│ 2.  OperationExtractSnippetsForCommit            [IMPLEMENTED]│
+│ 3.  OperationExtractExamplesForCommit            [IMPLEMENTED]│
+│ 4.  OperationCreateBM25IndexForCommit            [IMPLEMENTED]│
+│ 5.  OperationCreateCodeEmbeddingsForCommit       [IMPLEMENTED]│
+│ 6.  OperationCreateExampleCodeEmbeddingsForCommit    [MISSING]│
+│ 7.  OperationCreateSummaryEnrichmentForCommit    [IMPLEMENTED]│
+│ 8.  OperationCreateExampleSummaryForCommit       [IMPLEMENTED]│
+│ 9.  OperationCreateSummaryEmbeddingsForCommit        [MISSING]│
+│ 10. OperationCreateExampleSummaryEmbeddingsForCommit [MISSING]│
+│ 11. OperationCreateArchitectureEnrichmentForCommit[IMPLEMENTED]│
+│ 12. OperationCreatePublicAPIDocsForCommit            [MISSING]│
+│ 13. OperationCreateCommitDescriptionForCommit    [IMPLEMENTED]│
+│ 14. OperationCreateDatabaseSchemaForCommit           [MISSING]│
+│ 15. OperationCreateCookbookForCommit                 [MISSING]│
+└───────────────────────────────────────────────────────────────┘
+```
+
+**Note:** Tasks without handlers log an error and are deleted (don't block queue).
+
+### Phase 7.6: Register Task Handlers Automatically
+
+This is the **critical task** - without handlers, the worker does nothing.
+
+- [ ] 7.6.1 Register repository handlers (always)
+  - `OperationCloneRepository` - requires cloner, queue, trackerFactory
+  - `OperationSyncRepository` - requires cloner, scanner, queue, trackerFactory
+  - `OperationDeleteRepository` - requires all stores, trackerFactory
+  - `OperationScanCommit` - requires scanner, trackerFactory
+
+- [ ] 7.6.2 Register indexing handlers
+  - `OperationExtractSnippetsForCommit` - always (requires slicer, gitAdapter)
+  - `OperationExtractExamplesForCommit` - always (no LLM required)
+  - `OperationCreateBM25IndexForCommit` - if bm25Store != nil
+  - `OperationCreateCodeEmbeddingsForCommit` - if vectorStore != nil && embeddingProvider != nil
+
+- [ ] 7.6.3 Register enrichment handlers (when textProvider configured)
+  - `OperationCreateSummaryEnrichmentForCommit`
+  - `OperationCreateCommitDescriptionForCommit`
+  - `OperationCreateArchitectureEnrichmentForCommit`
+  - `OperationCreateExampleSummaryForCommit`
+
+### Phase 7.6b: Implement Missing Handlers (6 handlers)
+
+These operations are in `ScanAndIndexCommit()` but have no handlers:
+
+- [ ] 7.6b.1 `OperationCreateExampleCodeEmbeddingsForCommit`
+  - Create vector embeddings for extracted examples
+  - Similar to `CreateCodeEmbeddings` but for example snippets
+
+- [ ] 7.6b.2 `OperationCreateSummaryEmbeddingsForCommit`
+  - Create vector embeddings for snippet summaries (enrichment text)
+  - Enables semantic search on enrichment content
+
+- [ ] 7.6b.3 `OperationCreateExampleSummaryEmbeddingsForCommit`
+  - Create vector embeddings for example summaries
+  - Similar to 7.6b.2 but for examples
+
+- [ ] 7.6b.4 `OperationCreatePublicAPIDocsForCommit`
+  - Generate API documentation from public interfaces
+  - Uses text generator to create docs
+
+- [ ] 7.6b.5 `OperationCreateDatabaseSchemaForCommit`
+  - Extract and document database schema
+  - Parse schema files, generate documentation
+
+- [ ] 7.6b.6 `OperationCreateCookbookForCommit`
+  - Generate cookbook/tutorial content
+  - Task-oriented guides from code patterns
+
+### Phase 7.7: Enhance API Server
+
+The current `client.API().ListenAndServe()` doesn't expose the router for customization.
+serve.go needs to add custom middleware, health endpoints, and docs routes.
+
+#### Target: What serve.go Should Look Like
+
+```go
+func runServe(addr string, cfg config.AppConfig) error {
+    // Create fully-configured client (~10 lines vs current 150+)
+    client, err := kodit.New(
+        kodit.WithPostgresVectorchord(cfg.DBURL()),
+        kodit.WithCloneDir(cfg.CloneDir()),
+        kodit.WithOpenAIConfig(provider.OpenAIConfig{
+            APIKey:         cfg.EmbeddingEndpoint().APIKey(),
+            BaseURL:        cfg.EmbeddingEndpoint().BaseURL(),
+            EmbeddingModel: cfg.EmbeddingEndpoint().Model(),
+        }),
+        kodit.WithTextProvider(enrichmentProvider),
+        kodit.WithLogger(logger),
+        kodit.WithAPIKeys(cfg.APIKeys()...),
+    )
+    if err != nil {
+        return err
+    }
+    defer client.Close()
+
+    // Get API server and customize router
+    api := client.API()
+    router := api.Router()
+
+    // Custom middleware
+    router.Use(middleware.Logging(logger))
+    router.Use(middleware.CorrelationID)
+
+    // Custom endpoints
+    router.Get("/health", healthHandler)
+    router.Get("/healthz", healthHandler)
+    router.Get("/", rootHandler(version))
+    router.Mount("/docs", api.NewDocsRouter("/docs/openapi.json").Routes())
+
+    // Graceful shutdown
+    ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+    defer cancel()
+
+    go func() {
+        <-ctx.Done()
+        logger.Info("shutting down server")
+        api.Shutdown(context.Background())
+    }()
+
+    logger.Info("starting server", slog.String("addr", addr))
+    return api.ListenAndServe(addr)
+}
+```
+
+**Result: ~50 lines instead of 468 lines**
+
+#### Tasks
+
+- [ ] 7.7.1 Add `Router()` method to APIServer interface
+  - Returns `chi.Router` for customization before starting
+  - Allows adding middleware, custom routes
+
+- [ ] 7.7.2 Change `ListenAndServe()` to use pre-configured router
+  - If `Router()` was called, use that router
+  - Otherwise create default router with all routes
+
+- [ ] 7.7.3 Add commits router to default API routes
+  - Currently missing from `ListenAndServe()`
+  - Mount `/api/v1/commits` with `v1.NewCommitsRouter`
+
+- [ ] 7.7.4 Add `DocsRouter()` helper method
+  - Returns configured docs router for mounting
+  - `api.DocsRouter("/docs/openapi.json")`
+
+- [ ] 7.7.5 Wire all v1 API routes in library
+  - Ensure all routes use new library API internally where appropriate
+  - `/api/v1/repositories` - maps to Sources/Index operations
+  - `/api/v1/search` - maps to Search
+  - `/api/v1/enrichments` - maps to Enrichments
+  - `/api/v1/queue` - maps to Tasks
+  - `/api/v1/commits` - commit queries
+
+#### HTTP API vs Library API
+
+Two different interfaces for different consumers:
+
+| Consumer | Interface | Example |
+|----------|-----------|---------|
+| Go developers embedding kodit | Library API | `client.Index(ctx, url)` |
+| Web clients, external tools | HTTP API | `POST /api/v1/repositories` |
+
+The HTTP API keeps its current structure for backwards compatibility.
+The library API provides a cleaner interface for Go developers.
+Both use the same underlying services.
+
+### Phase 7.8: Expose Services for MCP
+
+- [ ] 7.8.1 Add `CodeSearchService()` method to Client
+  - Returns raw `*service.CodeSearch` for advanced callers (MCP server)
+  - The simplified `Search()` method doesn't expose full `MultiRequest` capabilities
+
+- [ ] 7.8.2 Add `Snippets()` interface with `BySHA()` method
+  - MCP server needs to fetch snippets by SHA
+  - Add `Snippets` interface: `{ BySHA(ctx, sha) (Snippet, error) }`
+  - Implement using snippetStore
+
+### Phase 7.9: Simplify CLI Commands
+
+After Phase 7.1-7.8 are complete, the CLI can be simplified.
+
+#### Target: What stdio.go Should Look Like
+
+```go
+func runStdio(cfg config.AppConfig) error {
+    client, err := kodit.New(
+        kodit.WithPostgresVectorchord(cfg.DBURL()),
+        kodit.WithOpenAI(cfg.EmbeddingEndpoint().APIKey()),
+        kodit.WithLogger(logger),
+    )
+    if err != nil {
+        return err
+    }
+    defer client.Close()
+
+    // MCP server uses library's search and snippets
+    mcpServer := mcp.NewServer(
+        client.CodeSearchService(),
+        client.Snippets(),
+        logger,
+    )
+    return mcpServer.ServeStdio()
+}
+```
+
+**Result: ~20 lines instead of 111 lines**
+
+#### Tasks
+
+- [ ] 7.9.1 Refactor stdio.go to use kodit.Client
+  - Current: 111 lines manually wiring database, stores, search service
+  - Target: ~20 lines using `kodit.New()` + exposed services
+  - Requires 7.8.1 and 7.8.2 complete
+
+- [ ] 7.9.2 Refactor serve.go to use kodit.Client
+  - Current: 468 lines with manual wiring
+  - Target: ~50 lines using `kodit.New()` + `client.API()`
+  - Keep custom middleware and endpoints
+  - Requires Phase 7.1-7.7 complete
+
+### Phase 7.10: Integration Testing
+
+- [ ] 7.10.1 Add integration test for full repository indexing workflow
+  - Create client with SQLite
+  - Clone a small test repository
+  - Verify tasks are queued and processed
+  - Verify snippets are extracted
+
+- [ ] 7.10.2 Add integration test for search after indexing
+  - Index a repository with known content
+  - Perform search
+  - Verify results contain expected snippets
+
+---
+
+## Phase 8: Cleanup (After Phase 7)
+
+Once Phase 7 is complete and CLI uses the library:
+
+- [ ] 8.1 Remove redundant code from serve.go
+  - Delete manual store creation
+  - Delete manual handler registration
+  - Delete trackerFactoryImpl (moved to library)
+  - Delete registerHandlers function
+
+- [ ] 8.2 Consider removing internal packages
+  - `internal/config` - Could be replaced by library options
+  - `internal/log` - Could be replaced by WithLogger option
+  - Assessment: Keep if useful for CLI-specific concerns
