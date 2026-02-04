@@ -491,57 +491,57 @@ type APIServer interface {
 
 ### Phase 1: Create Domain Layer Structure
 
-- [ ] 1.1 Create `domain/repository/` package
-  - [ ] Move `internal/git/repo.go` → `domain/repository/repository.go`
-  - [ ] Move `internal/git/commit.go` → `domain/repository/commit.go`
-  - [ ] Move `internal/git/branch.go` → `domain/repository/branch.go`
-  - [ ] Move `internal/git/tag.go` → `domain/repository/tag.go`
-  - [ ] Move `internal/git/file.go` → `domain/repository/file.go`
-  - [ ] Move `internal/git/author.go` → `domain/repository/author.go`
-  - [ ] Move `internal/git/working_copy.go` → `domain/repository/working_copy.go`
-  - [ ] Move `internal/git/tracking_config.go` → `domain/repository/tracking_config.go`
-  - [ ] Create `domain/repository/store.go` from `internal/git/repository.go`
+- [x] 1.1 Create `domain/repository/` package
+  - [x] Move `internal/git/repo.go` → `domain/repository/repository.go`
+  - [x] Move `internal/git/commit.go` → `domain/repository/commit.go`
+  - [x] Move `internal/git/branch.go` → `domain/repository/branch.go`
+  - [x] Move `internal/git/tag.go` → `domain/repository/tag.go`
+  - [x] Move `internal/git/file.go` → `domain/repository/file.go`
+  - [x] Move `internal/git/author.go` → `domain/repository/author.go`
+  - [x] Move `internal/git/working_copy.go` → `domain/repository/working_copy.go`
+  - [x] Move `internal/git/tracking_config.go` → `domain/repository/tracking_config.go`
+  - [x] Create `domain/repository/store.go` from `internal/git/repository.go`
 
-- [ ] 1.2 Create `domain/snippet/` package
-  - [ ] Move `internal/indexing/snippet.go` → `domain/snippet/snippet.go`
-  - [ ] Move `internal/indexing/commit_index.go` → `domain/snippet/index.go`
-  - [ ] Create `domain/snippet/language.go` (extract from value.go)
-  - [ ] Create `domain/snippet/store.go` from `internal/indexing/repository.go`
+- [x] 1.2 Create `domain/snippet/` package
+  - [x] Move `internal/indexing/snippet.go` → `domain/snippet/snippet.go`
+  - [x] Move `internal/indexing/commit_index.go` → `domain/snippet/index.go`
+  - [x] Create `domain/snippet/language.go` (extract from value.go)
+  - [x] Create `domain/snippet/store.go` from `internal/indexing/repository.go`
 
-- [ ] 1.3 Create `domain/enrichment/` package
-  - [ ] Move `internal/enrichment/enrichment.go` → `domain/enrichment/enrichment.go`
-  - [ ] Move `internal/enrichment/association.go` → `domain/enrichment/association.go`
-  - [ ] Move `internal/enrichment/development.go` → `domain/enrichment/development.go`
-  - [ ] Move `internal/enrichment/architecture.go` → `domain/enrichment/architecture.go`
-  - [ ] Move `internal/enrichment/history.go` → `domain/enrichment/history.go`
-  - [ ] Move `internal/enrichment/usage.go` → `domain/enrichment/usage.go`
-  - [ ] Create `domain/enrichment/store.go` from `internal/enrichment/repository.go`
+- [x] 1.3 Create `domain/enrichment/` package
+  - [x] Move `internal/enrichment/enrichment.go` → `domain/enrichment/enrichment.go`
+  - [x] Move `internal/enrichment/association.go` → `domain/enrichment/association.go`
+  - [x] Move `internal/enrichment/development.go` → `domain/enrichment/development.go`
+  - [x] Move `internal/enrichment/architecture.go` → `domain/enrichment/architecture.go`
+  - [x] Move `internal/enrichment/history.go` → `domain/enrichment/history.go`
+  - [x] Move `internal/enrichment/usage.go` → `domain/enrichment/usage.go`
+  - [x] Create `domain/enrichment/store.go` from `internal/enrichment/repository.go`
 
-- [ ] 1.4 Create `domain/task/` package
-  - [ ] Move `internal/queue/task.go` → `domain/task/task.go`
-  - [ ] Move `internal/queue/status.go` → `domain/task/status.go`
-  - [ ] Move `internal/queue/operation.go` → `domain/task/operation.go`
-  - [ ] Create `domain/task/store.go` from `internal/queue/repository.go`
+- [x] 1.4 Create `domain/task/` package
+  - [x] Move `internal/queue/task.go` → `domain/task/task.go`
+  - [x] Move `internal/queue/status.go` → `domain/task/status.go`
+  - [x] Move `internal/queue/operation.go` → `domain/task/operation.go`
+  - [x] Create `domain/task/store.go` from `internal/queue/repository.go`
 
-- [ ] 1.5 Create `domain/search/` package
-  - [ ] Create `domain/search/query.go` (extract from value.go)
-  - [ ] Create `domain/search/result.go` (from search/service.go)
-  - [ ] Create `domain/search/filters.go` (extract from value.go)
-  - [ ] Move `internal/search/fusion_service.go` → `domain/search/fusion.go`
-  - [ ] Create `domain/search/bm25.go` (interface from indexing/repository.go)
-  - [ ] Create `domain/search/vector.go` (interface from indexing/repository.go)
+- [x] 1.5 Create `domain/search/` package
+  - [x] Create `domain/search/query.go` (extract from value.go)
+  - [x] Create `domain/search/result.go` (from search/service.go)
+  - [x] Create `domain/search/filters.go` (extract from value.go)
+  - [x] Move `internal/search/fusion_service.go` → `domain/search/fusion.go`
+  - [x] Create `domain/search/bm25.go` (interface from indexing/repository.go)
+  - [x] Create `domain/search/vector.go` (interface from indexing/repository.go)
 
-- [ ] 1.6 Create `domain/tracking/` package
-  - [ ] Move `internal/tracking/trackable.go` → `domain/tracking/trackable.go`
-  - [ ] Move `internal/tracking/status.go` → `domain/tracking/status.go`
-  - [ ] Move `internal/tracking/resolver.go` → `domain/tracking/resolution.go`
+- [x] 1.6 Create `domain/tracking/` package
+  - [x] Move `internal/tracking/trackable.go` → `domain/tracking/trackable.go`
+  - [x] Move `internal/tracking/status.go` → `domain/tracking/status.go`
+  - [x] Move `internal/tracking/resolver.go` → `domain/tracking/resolution.go`
 
-- [ ] 1.7 Create `domain/service/` package
-  - [ ] Create `domain/service/scanner.go` (interface from git/scanner.go)
-  - [ ] Create `domain/service/cloner.go` (interface from git/cloner.go)
-  - [ ] Create `domain/service/enricher.go` (interface from enrichment/enricher.go)
-  - [ ] Create `domain/service/embedding.go` (interface from indexing)
-  - [ ] Move `internal/indexing/bm25_service.go` → `domain/service/bm25.go`
+- [x] 1.7 Create `domain/service/` package
+  - [x] Create `domain/service/scanner.go` (interface from git/scanner.go)
+  - [x] Create `domain/service/cloner.go` (interface from git/cloner.go)
+  - [x] Create `domain/service/enricher.go` (interface from enrichment/enricher.go)
+  - [x] Create `domain/service/embedding.go` (interface from indexing)
+  - [x] Move `internal/indexing/bm25_service.go` → `domain/service/bm25.go`
 
 ### Phase 2: Create Application Layer Structure
 
@@ -721,3 +721,37 @@ The refactor is complete when:
 - [ ] SQLite, PostgreSQL, pgvector, and VectorChord all supported
 - [ ] Worker starts automatically and stops on `Close()`
 - [ ] At least one example program demonstrates embedded usage
+
+---
+
+## Session Notes
+
+### 2026-02-04 Session
+
+**Completed:**
+- Phase 1 complete: Created entire domain layer structure
+  - `domain/repository/` - Git repository aggregate (Repository, Commit, Branch, Tag, File, Author, WorkingCopy, TrackingConfig) + store interfaces
+  - `domain/snippet/` - Snippet aggregate (Snippet, CommitIndex, Language mapping) + store interfaces
+  - `domain/enrichment/` - Enrichment aggregate (Enrichment, Association, type/subtype hierarchy) + store interfaces
+  - `domain/task/` - Task aggregate (Task, Status, Operation) + store interfaces
+  - `domain/search/` - Search domain (Query, Request, Result, Filters, Fusion algorithm) + BM25/Vector store interfaces
+  - `domain/tracking/` - Tracking domain (Trackable, RepositoryStatusSummary, Resolver)
+  - `domain/service/` - Domain service interfaces (Scanner, Cloner, Enricher, Embedding, BM25)
+
+**Verified:**
+- All domain packages build: `go build ./domain/...` ✓
+- All domain packages lint clean: `golangci-lint run ./domain/...` ✓
+- Full project still builds: `go build ./...` ✓
+
+**Design Decisions Made:**
+- Domain types use value semantics (immutable structs with getters)
+- Store interfaces follow pattern: Get, Find, Save, Delete + domain-specific operations
+- Cross-domain references handled via importing domain packages (e.g., snippet imports repository.File)
+- Simple Enrichment value object added to snippet package to avoid circular dependency
+- IndexStatus moved to snippet package alongside CommitIndex
+- ReportingState and TrackableType moved to task package alongside Status
+
+**Next Session Tasks:**
+- Phase 2: Create application layer structure
+  - Start with `application/service/` (CodeSearch, RepositorySynce, etc.)
+  - Then `application/handler/` (task handlers)
