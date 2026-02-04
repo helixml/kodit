@@ -545,21 +545,21 @@ type APIServer interface {
 
 ### Phase 2: Create Application Layer Structure
 
-- [ ] 2.1 Create `application/service/` package
-  - [ ] Move `internal/search/service.go` → `application/service/code_search.go`
-  - [ ] Move `internal/repository/sync.go` → `application/service/repository_sync.go`
-  - [ ] Move `internal/repository/query.go` → `application/service/repository_query.go`
-  - [ ] Move `internal/enrichment/query.go` → `application/service/enrichment_query.go`
-  - [ ] Move `internal/queue/service.go` → `application/service/queue.go`
-  - [ ] Move `internal/queue/worker.go` → `application/service/worker.go`
+- [x] 2.1 Create `application/service/` package
+  - [x] Move `internal/search/service.go` → `application/service/code_search.go`
+  - [x] Move `internal/repository/sync.go` → `application/service/repository_sync.go`
+  - [x] Move `internal/repository/query.go` → `application/service/repository_query.go`
+  - [x] Move `internal/enrichment/query.go` → `application/service/enrichment_query.go`
+  - [x] Move `internal/queue/service.go` → `application/service/queue.go`
+  - [x] Move `internal/queue/worker.go` → `application/service/worker.go`
 
-- [ ] 2.2 Create `application/handler/` package
-  - [ ] Move `internal/queue/handler.go` → `application/handler/handler.go`
-  - [ ] Merge `internal/queue/registry.go` into `application/handler/handler.go`
-  - [ ] Move `internal/queue/handler/clone_repository.go` → `application/handler/repository/clone.go`
+- [x] 2.2 Create `application/handler/` package (partial)
+  - [x] Move `internal/queue/handler.go` → `application/handler/handler.go`
+  - [x] Merge `internal/queue/registry.go` into `application/handler/handler.go`
+  - [x] Move `internal/queue/handler/clone_repository.go` → `application/handler/repository/clone.go`
   - [ ] Move `internal/queue/handler/sync_repository.go` → `application/handler/repository/sync.go`
   - [ ] Move `internal/queue/handler/delete_repository.go` → `application/handler/repository/delete.go`
-  - [ ] Move `internal/queue/handler/scan_commit.go` → `application/handler/commit/scan.go`
+  - [x] Move `internal/queue/handler/scan_commit.go` → `application/handler/commit/scan.go`
   - [ ] Move `internal/queue/handler/extract_snippets.go` → `application/handler/indexing/extract_snippets.go`
   - [ ] Move `internal/queue/handler/create_bm25.go` → `application/handler/indexing/create_bm25.go`
   - [ ] Move `internal/queue/handler/create_embeddings.go` → `application/handler/indexing/create_embeddings.go`
@@ -755,3 +755,40 @@ The refactor is complete when:
 - Phase 2: Create application layer structure
   - Start with `application/service/` (CodeSearch, RepositorySynce, etc.)
   - Then `application/handler/` (task handlers)
+
+### 2026-02-04 Session 2
+
+**Completed:**
+- Phase 2.1 complete: Created `application/service/` package
+  - `application/service/code_search.go` - Hybrid code search orchestration (BM25 + vector)
+  - `application/service/repository_sync.go` - Repository sync/clone operations + Source value object
+  - `application/service/repository_query.go` - Repository read-only queries
+  - `application/service/enrichment_query.go` - Enrichment queries by commit/type
+  - `application/service/queue.go` - Task queue service
+  - `application/service/worker.go` - Background task worker + Handler interface + Registry
+
+- Phase 2.2 partial: Created `application/handler/` base infrastructure
+  - `application/handler/handler.go` - Handler interface, Registry, TrackerFactory, utility functions
+  - `application/handler/repository/clone.go` - Clone repository handler
+  - `application/handler/commit/scan.go` - Scan commit handler
+
+**Verified:**
+- All application packages build: `go build ./application/...` ✓
+- All application packages lint clean: `golangci-lint run ./application/...` ✓
+- Full project still builds: `go build ./...` ✓
+
+**Design Decisions Made:**
+- Application services use domain types from `domain/` packages
+- Source value object moved to application layer (wraps domain.Repository with status tracking)
+- TrackerFactory interface defined in handler package (infrastructure implements)
+- Handler utility functions exported (ExtractInt64, ExtractString, ShortSHA)
+- Priority type added to domain/task package
+
+**Next Session Tasks:**
+- Complete remaining handlers in Phase 2.2:
+  - `application/handler/repository/sync.go`
+  - `application/handler/repository/delete.go`
+  - `application/handler/indexing/*.go`
+  - `application/handler/enrichment/*.go`
+- Phase 2.3: Create `application/dto/` package
+- Phase 3: Begin infrastructure consolidation

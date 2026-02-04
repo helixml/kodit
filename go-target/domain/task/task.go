@@ -8,6 +8,18 @@ import (
 	"time"
 )
 
+// Priority represents task queue priority levels.
+// Values are spaced far apart to ensure batch offsets (up to ~150
+// for 15 tasks) never cause a lower priority level to exceed a higher one.
+type Priority int
+
+// Priority values.
+const (
+	PriorityBackground    Priority = 1000
+	PriorityNormal        Priority = 2000
+	PriorityUserInitiated Priority = 5000
+)
+
 // Task represents an item in the queue waiting to be processed.
 // If the item exists, it is in the queue and waiting to be processed.
 // There is no status associated - existence implies pending.
