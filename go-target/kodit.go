@@ -111,6 +111,9 @@ type Client struct {
 	enricherImpl      *enricher.ProviderEnricher
 	archDiscoverer    *enricher.PhysicalArchitectureService
 	exampleDiscoverer *example.Discovery
+	schemaDiscoverer  *enricher.DatabaseSchemaService
+	apiDocService     *enricher.APIDocService
+	cookbookContext   *enricher.CookbookContextService
 
 	logger   *slog.Logger
 	dataDir  string
@@ -263,9 +266,12 @@ func New(opts ...Option) (*Client, error) {
 		enricherImpl = enricher.NewProviderEnricher(cfg.textProvider, logger)
 	}
 
-	// Create architecture and example discoverers (always available)
+	// Create enrichment infrastructure (always available)
 	archDiscoverer := enricher.NewPhysicalArchitectureService()
 	exampleDiscoverer := example.NewDiscovery()
+	schemaDiscoverer := enricher.NewDatabaseSchemaService()
+	apiDocService := enricher.NewAPIDocService()
+	cookbookContext := enricher.NewCookbookContextService()
 
 	client := &Client{
 		db:               db,
@@ -297,6 +303,9 @@ func New(opts ...Option) (*Client, error) {
 		enricherImpl:      enricherImpl,
 		archDiscoverer:    archDiscoverer,
 		exampleDiscoverer: exampleDiscoverer,
+		schemaDiscoverer:  schemaDiscoverer,
+		apiDocService:     apiDocService,
+		cookbookContext:   cookbookContext,
 		logger:            logger,
 		dataDir:           dataDir,
 		cloneDir:          cloneDir,
@@ -365,8 +374,25 @@ func (c *Client) registerHandlers() {
 	// Embeddings handler (requires vector store)
 	if c.vectorStore != nil {
 		embeddingService := domainservice.NewEmbedding(c.vectorStore)
+
+		// Code embeddings for snippets
 		c.registry.Register(task.OperationCreateCodeEmbeddingsForCommit, indexinghandler.NewCreateCodeEmbeddings(
 			embeddingService, c.snippetStore, c.vectorStore, c.trackerFactory, c.logger,
+		))
+
+		// Example code embeddings (enrichment content from extracted examples)
+		c.registry.Register(task.OperationCreateExampleCodeEmbeddingsForCommit, indexinghandler.NewCreateExampleCodeEmbeddings(
+			embeddingService, c.enrichQ, c.vectorStore, c.trackerFactory, c.logger,
+		))
+
+		// Summary embeddings (enrichment content from snippet summaries)
+		c.registry.Register(task.OperationCreateSummaryEmbeddingsForCommit, indexinghandler.NewCreateSummaryEmbeddings(
+			embeddingService, c.enrichQ, c.vectorStore, c.trackerFactory, c.logger,
+		))
+
+		// Example summary embeddings (enrichment content from example summaries)
+		c.registry.Register(task.OperationCreateExampleSummaryEmbeddingsForCommit, indexinghandler.NewCreateExampleSummaryEmbeddings(
+			embeddingService, c.enrichQ, c.vectorStore, c.trackerFactory, c.logger,
 		))
 	}
 
@@ -390,6 +416,21 @@ func (c *Client) registerHandlers() {
 		// Example summary
 		c.registry.Register(task.OperationCreateExampleSummaryForCommit, enrichmenthandler.NewExampleSummary(
 			c.enrichmentStore, c.associationStore, c.enrichQ, c.enricherImpl, c.trackerFactory, c.logger,
+		))
+
+		// Database schema enrichment
+		c.registry.Register(task.OperationCreateDatabaseSchemaForCommit, enrichmenthandler.NewDatabaseSchema(
+			c.repositoryStore, c.enrichmentStore, c.associationStore, c.enrichQ, c.schemaDiscoverer, c.enricherImpl, c.trackerFactory, c.logger,
+		))
+
+		// Cookbook enrichment
+		c.registry.Register(task.OperationCreateCookbookForCommit, enrichmenthandler.NewCookbook(
+			c.repositoryStore, c.fileStore, c.enrichmentStore, c.associationStore, c.enrichQ, c.cookbookContext, c.enricherImpl, c.trackerFactory, c.logger,
+		))
+
+		// API docs enrichment
+		c.registry.Register(task.OperationCreatePublicAPIDocsForCommit, enrichmenthandler.NewAPIDocs(
+			c.repositoryStore, c.fileStore, c.enrichmentStore, c.associationStore, c.enrichQ, c.apiDocService, c.trackerFactory, c.logger,
 		))
 	}
 

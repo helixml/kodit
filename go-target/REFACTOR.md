@@ -1898,27 +1898,27 @@ This is the **critical task** - without handlers, the worker does nothing.
 
 These operations are in `ScanAndIndexCommit()` but have no handlers:
 
-- [ ] 7.6b.1 `OperationCreateExampleCodeEmbeddingsForCommit`
+- [x] 7.6b.1 `OperationCreateExampleCodeEmbeddingsForCommit`
   - Create vector embeddings for extracted examples
   - Similar to `CreateCodeEmbeddings` but for example snippets
 
-- [ ] 7.6b.2 `OperationCreateSummaryEmbeddingsForCommit`
+- [x] 7.6b.2 `OperationCreateSummaryEmbeddingsForCommit`
   - Create vector embeddings for snippet summaries (enrichment text)
   - Enables semantic search on enrichment content
 
-- [ ] 7.6b.3 `OperationCreateExampleSummaryEmbeddingsForCommit`
+- [x] 7.6b.3 `OperationCreateExampleSummaryEmbeddingsForCommit`
   - Create vector embeddings for example summaries
   - Similar to 7.6b.2 but for examples
 
-- [ ] 7.6b.4 `OperationCreatePublicAPIDocsForCommit`
+- [x] 7.6b.4 `OperationCreatePublicAPIDocsForCommit`
   - Generate API documentation from public interfaces
   - Uses text generator to create docs
 
-- [ ] 7.6b.5 `OperationCreateDatabaseSchemaForCommit`
+- [x] 7.6b.5 `OperationCreateDatabaseSchemaForCommit`
   - Extract and document database schema
   - Parse schema files, generate documentation
 
-- [ ] 7.6b.6 `OperationCreateCookbookForCommit`
+- [x] 7.6b.6 `OperationCreateCookbookForCommit`
   - Generate cookbook/tutorial content
   - Task-oriented guides from code patterns
 
@@ -2176,3 +2176,55 @@ Once Phase 7 is complete and CLI uses the library:
 1. Consider implementing Phase 7.7 (API enhancements) for better CLI integration
 2. Or implement Phase 7.10 (integration tests) to verify full indexing workflow
 3. Phase 7.6b (missing handlers) can be deferred as current handlers cover core functionality
+
+### 2026-02-04 Session 20
+
+**Completed:**
+- Phase 7.6b complete: Implemented all 6 missing handlers for full indexing workflow
+
+1. **Embedding handlers** (`application/handler/indexing/create_enrichment_embeddings.go`):
+   - `CreateSummaryEmbeddings` - Vector embeddings for snippet summaries
+   - `CreateExampleCodeEmbeddings` - Vector embeddings for extracted example code
+   - `CreateExampleSummaryEmbeddings` - Vector embeddings for example summaries
+   - Helper functions: `enrichmentDocID()`, `ParseEnrichmentDocID()`, `IsEnrichmentDocID()`
+
+2. **Infrastructure services** (`infrastructure/enricher/`):
+   - `DatabaseSchemaService` - Discovers database schemas from SQL files, migrations, ORMs
+   - `APIDocService` - Extracts public API signatures from code files
+
+3. **Handler registration in `kodit.go`**:
+   - Registered all 3 embedding handlers (when vectorStore configured)
+   - Registered all 3 advanced enrichment handlers (when textProvider configured):
+     - `OperationCreateDatabaseSchemaForCommit`
+     - `OperationCreateCookbookForCommit`
+     - `OperationCreatePublicAPIDocsForCommit`
+   - Added infrastructure fields: `schemaDiscoverer`, `apiDocService`, `cookbookContext`
+
+**Verified:**
+- `go build ./...` ✓
+- `go test ./...` ✓ (all tests pass)
+- `golangci-lint run` ✓ (0 issues)
+
+**Design Decisions Made:**
+- Enrichment embeddings use `enrichment:{id}` format for document IDs to differentiate from snippet SHA IDs
+- Embedding type for summaries uses `EmbeddingTypeSummary`, code uses `EmbeddingTypeCode`
+- Infrastructure services are always created (not dependent on provider configuration)
+- Handler registration is conditional: embedding handlers require vectorStore, enrichment handlers require textProvider
+
+**Handler Registration Summary:**
+The kodit.Client now registers 18 handlers total:
+- 4 repository handlers (always): Clone, Sync, Delete, ScanCommit
+- 2 indexing handlers (always): ExtractSnippets, ExtractExamples
+- 1 BM25 handler (if bm25Store): CreateBM25Index
+- 4 embedding handlers (if vectorStore): CreateCodeEmbeddings, CreateExampleCodeEmbeddings, CreateSummaryEmbeddings, CreateExampleSummaryEmbeddings
+- 7 enrichment handlers (if textProvider): CreateSummary, CommitDescription, ArchitectureDiscovery, ExampleSummary, DatabaseSchema, Cookbook, APIDocs
+
+**Remaining Tasks in Phase 7:**
+- 7.7: Enhance API server (Router(), commits router, docs router)
+- 7.8: Expose services for MCP (CodeSearchService(), Snippets())
+- 7.9: Simplify CLI commands
+- 7.10: Integration testing
+
+**Next Session Tasks:**
+1. Phase 7.7 (API enhancements) - Add Router() method for customization
+2. Phase 7.10 (integration tests) - Test full indexing workflow
