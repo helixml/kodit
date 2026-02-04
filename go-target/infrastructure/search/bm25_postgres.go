@@ -1,0 +1,288 @@
+package search
+
+import (
+	"context"
+	"errors"
+	"log/slog"
+	"strings"
+	"sync"
+
+	"github.com/helixml/kodit/domain/search"
+	"gorm.io/gorm"
+)
+
+// SQL statements for PostgreSQL native full-text search operations.
+const (
+	pgCreateBM25Table = `
+CREATE TABLE IF NOT EXISTS postgres_bm25_documents (
+    id SERIAL PRIMARY KEY,
+    snippet_id VARCHAR(255) NOT NULL UNIQUE,
+    passage TEXT NOT NULL,
+    tsv TSVECTOR
+)`
+
+	pgCreateTSVIndex = `
+CREATE INDEX IF NOT EXISTS postgres_bm25_documents_tsv_idx
+ON postgres_bm25_documents
+USING GIN(tsv)`
+
+	pgCreateTriggerFunction = `
+CREATE OR REPLACE FUNCTION postgres_bm25_update_tsv()
+RETURNS trigger AS $$
+BEGIN
+    NEW.tsv := to_tsvector('english', NEW.passage);
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql`
+
+	pgCreateTrigger = `
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger WHERE tgname = 'postgres_bm25_tsv_trigger'
+    ) THEN
+        CREATE TRIGGER postgres_bm25_tsv_trigger
+        BEFORE INSERT OR UPDATE ON postgres_bm25_documents
+        FOR EACH ROW EXECUTE FUNCTION postgres_bm25_update_tsv();
+    END IF;
+END;
+$$`
+
+	pgInsertQuery = `
+INSERT INTO postgres_bm25_documents (snippet_id, passage)
+VALUES (?, ?)
+ON CONFLICT (snippet_id) DO UPDATE
+SET passage = EXCLUDED.passage`
+
+	pgSearchQuery = `
+SELECT snippet_id, ts_rank_cd(tsv, plainto_tsquery('english', ?)) as score
+FROM postgres_bm25_documents
+WHERE tsv @@ plainto_tsquery('english', ?)
+ORDER BY score DESC
+LIMIT ?`
+
+	pgSearchQueryWithFilter = `
+SELECT snippet_id, ts_rank_cd(tsv, plainto_tsquery('english', ?)) as score
+FROM postgres_bm25_documents
+WHERE tsv @@ plainto_tsquery('english', ?) AND snippet_id IN ?
+ORDER BY score DESC
+LIMIT ?`
+
+	pgDeleteQuery = `DELETE FROM postgres_bm25_documents WHERE snippet_id IN ?`
+
+	pgCheckExistingIDsQuery = `SELECT snippet_id FROM postgres_bm25_documents WHERE snippet_id IN ?`
+)
+
+// ErrPostgresBM25InitializationFailed indicates PostgreSQL FTS initialization failed.
+var ErrPostgresBM25InitializationFailed = errors.New("failed to initialize PostgreSQL FTS BM25 store")
+
+// PostgresBM25Store implements search.BM25Store using PostgreSQL native full-text search.
+type PostgresBM25Store struct {
+	db          *gorm.DB
+	logger      *slog.Logger
+	initialized bool
+	mu          sync.Mutex
+}
+
+// NewPostgresBM25Store creates a new PostgresBM25Store.
+func NewPostgresBM25Store(db *gorm.DB, logger *slog.Logger) *PostgresBM25Store {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	return &PostgresBM25Store{
+		db:     db,
+		logger: logger,
+	}
+}
+
+func (s *PostgresBM25Store) initialize(ctx context.Context) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.initialized {
+		return nil
+	}
+
+	if err := s.createTable(ctx); err != nil {
+		return errors.Join(ErrPostgresBM25InitializationFailed, err)
+	}
+
+	if err := s.createTrigger(ctx); err != nil {
+		return errors.Join(ErrPostgresBM25InitializationFailed, err)
+	}
+
+	s.initialized = true
+	return nil
+}
+
+func (s *PostgresBM25Store) createTable(ctx context.Context) error {
+	db := s.db.WithContext(ctx)
+
+	if err := db.Exec(pgCreateBM25Table).Error; err != nil {
+		return err
+	}
+	if err := db.Exec(pgCreateTSVIndex).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *PostgresBM25Store) createTrigger(ctx context.Context) error {
+	db := s.db.WithContext(ctx)
+
+	if err := db.Exec(pgCreateTriggerFunction).Error; err != nil {
+		return err
+	}
+	if err := db.Exec(pgCreateTrigger).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *PostgresBM25Store) existingIDs(ctx context.Context, ids []string) (map[string]struct{}, error) {
+	if len(ids) == 0 {
+		return map[string]struct{}{}, nil
+	}
+
+	var existingIDs []string
+	err := s.db.WithContext(ctx).Raw(pgCheckExistingIDsQuery, ids).Scan(&existingIDs).Error
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]struct{}, len(existingIDs))
+	for _, id := range existingIDs {
+		result[id] = struct{}{}
+	}
+	return result, nil
+}
+
+// Index adds documents to the BM25 index.
+func (s *PostgresBM25Store) Index(ctx context.Context, request search.IndexRequest) error {
+	if err := s.initialize(ctx); err != nil {
+		return err
+	}
+
+	documents := request.Documents()
+
+	// Filter out invalid documents
+	var valid []search.Document
+	for _, doc := range documents {
+		if doc.SnippetID() != "" && doc.Text() != "" {
+			valid = append(valid, doc)
+		}
+	}
+
+	if len(valid) == 0 {
+		s.logger.Warn("corpus is empty, skipping bm25 index")
+		return nil
+	}
+
+	// Filter out already indexed documents
+	ids := make([]string, len(valid))
+	for i, doc := range valid {
+		ids[i] = doc.SnippetID()
+	}
+
+	existing, err := s.existingIDs(ctx, ids)
+	if err != nil {
+		return err
+	}
+
+	var toIndex []search.Document
+	for _, doc := range valid {
+		if _, exists := existing[doc.SnippetID()]; !exists {
+			toIndex = append(toIndex, doc)
+		}
+	}
+
+	if len(toIndex) == 0 {
+		s.logger.Info("no new documents to index")
+		return nil
+	}
+
+	// Execute inserts in a transaction
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		for _, doc := range toIndex {
+			if err := tx.Exec(pgInsertQuery, doc.SnippetID(), doc.Text()).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// Search performs BM25-style keyword search using PostgreSQL ts_rank_cd.
+func (s *PostgresBM25Store) Search(ctx context.Context, request search.Request) ([]search.Result, error) {
+	if err := s.initialize(ctx); err != nil {
+		return nil, err
+	}
+
+	query := request.Query()
+	if query == "" {
+		return []search.Result{}, nil
+	}
+
+	topK := request.TopK()
+	if topK <= 0 {
+		topK = 10
+	}
+
+	// Sanitize query - remove special characters that could break the query
+	sanitizedQuery := sanitizePostgresQuery(query)
+
+	var rows []struct {
+		SnippetID string  `gorm:"column:snippet_id"`
+		Score     float64 `gorm:"column:score"`
+	}
+
+	var err error
+	snippetIDs := request.SnippetIDs()
+	if len(snippetIDs) > 0 {
+		err = s.db.WithContext(ctx).Raw(pgSearchQueryWithFilter, sanitizedQuery, sanitizedQuery, snippetIDs, topK).Scan(&rows).Error
+	} else {
+		err = s.db.WithContext(ctx).Raw(pgSearchQuery, sanitizedQuery, sanitizedQuery, topK).Scan(&rows).Error
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	results := make([]search.Result, len(rows))
+	for i, row := range rows {
+		// PostgreSQL ts_rank_cd returns positive scores (higher is better)
+		results[i] = search.NewResult(row.SnippetID, row.Score)
+	}
+
+	return results, nil
+}
+
+// Delete removes documents from the BM25 index.
+func (s *PostgresBM25Store) Delete(ctx context.Context, request search.DeleteRequest) error {
+	if err := s.initialize(ctx); err != nil {
+		return err
+	}
+
+	ids := request.SnippetIDs()
+	if len(ids) == 0 {
+		return nil
+	}
+
+	return s.db.WithContext(ctx).Exec(pgDeleteQuery, ids).Error
+}
+
+// sanitizePostgresQuery removes characters that could cause issues with plainto_tsquery.
+func sanitizePostgresQuery(query string) string {
+	// Replace characters that might cause issues
+	replacer := strings.NewReplacer(
+		"'", " ",
+		"\"", " ",
+		"(", " ",
+		")", " ",
+		":", " ",
+		"!", " ",
+		"&", " ",
+		"|", " ",
+	)
+	return replacer.Replace(query)
+}

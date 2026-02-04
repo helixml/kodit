@@ -588,24 +588,24 @@ type APIServer interface {
   - [x] Create `infrastructure/persistence/enrichment_store.go` (EnrichmentStore, AssociationStore)
   - [x] Create `infrastructure/persistence/task_store.go` (TaskStore, StatusStore)
 
-- [ ] 3.2 Create `infrastructure/search/` package
-  - [ ] Create `infrastructure/search/bm25_sqlite.go` (SQLite FTS5)
-  - [ ] Create `infrastructure/search/bm25_postgres.go` (PostgreSQL native)
-  - [ ] Move VectorChord BM25 → `infrastructure/search/bm25_vectorchord.go`
-  - [ ] Create `infrastructure/search/vector_postgres.go` (pgvector)
-  - [ ] Move VectorChord vector → `infrastructure/search/vector_vectorchord.go`
+- [x] 3.2 Create `infrastructure/search/` package
+  - [x] Create `infrastructure/search/bm25_sqlite.go` (SQLite FTS5)
+  - [x] Create `infrastructure/search/bm25_postgres.go` (PostgreSQL native)
+  - [x] Move VectorChord BM25 → `infrastructure/search/bm25_vectorchord.go`
+  - [x] Create `infrastructure/search/vector_postgres.go` (pgvector)
+  - [x] Move VectorChord vector → `infrastructure/search/vector_vectorchord.go`
 
-- [ ] 3.3 Create `infrastructure/provider/` package
-  - [ ] Move `internal/provider/provider.go` → `infrastructure/provider/provider.go`
-  - [ ] Move `internal/provider/openai.go` → `infrastructure/provider/openai.go`
-  - [ ] Create `infrastructure/provider/anthropic.go`
+- [x] 3.3 Create `infrastructure/provider/` package
+  - [x] Move `internal/provider/provider.go` → `infrastructure/provider/provider.go`
+  - [x] Move `internal/provider/openai.go` → `infrastructure/provider/openai.go`
+  - [x] Create `infrastructure/provider/anthropic.go`
 
-- [ ] 3.4 Create `infrastructure/git/` package
-  - [ ] Move `internal/git/adapter.go` → `infrastructure/git/adapter.go`
-  - [ ] Move `internal/git/gitadapter/gogit.go` → `infrastructure/git/gogit.go`
-  - [ ] Move `internal/git/cloner.go` → `infrastructure/git/cloner.go`
-  - [ ] Move `internal/git/scanner.go` → `infrastructure/git/scanner.go`
-  - [ ] Move `internal/git/ignore.go` → `infrastructure/git/ignore.go`
+- [x] 3.4 Create `infrastructure/git/` package
+  - [x] Move `internal/git/adapter.go` → `infrastructure/git/adapter.go`
+  - [x] Move `internal/git/gitadapter/gogit.go` → `infrastructure/git/gogit.go`
+  - [x] Move `internal/git/cloner.go` → `infrastructure/git/cloner.go`
+  - [x] Move `internal/git/scanner.go` → `infrastructure/git/scanner.go`
+  - [x] Move `internal/git/ignore.go` → `infrastructure/git/ignore.go`
 
 - [ ] 3.5 Create `infrastructure/slicing/` package
   - [ ] Move `internal/indexing/slicer/*.go` → `infrastructure/slicing/*.go`
@@ -948,3 +948,85 @@ The refactor is complete when:
 - Phase 3.2: Create `infrastructure/search/` package
   - BM25 implementations (SQLite FTS5, PostgreSQL native, VectorChord)
   - Vector search implementations (pgvector, VectorChord)
+
+### 2026-02-04 Session 8
+
+**Completed:**
+- Phase 3.2 complete: Created `infrastructure/search/` package with all implementations
+  - `bm25_vectorchord.go` - VectorChordBM25Store implementing search.BM25Store (PostgreSQL VectorChord extension)
+  - `bm25_sqlite.go` - SQLiteBM25Store implementing search.BM25Store (SQLite FTS5)
+  - `bm25_postgres.go` - PostgresBM25Store implementing search.BM25Store (PostgreSQL native full-text search)
+  - `vector_vectorchord.go` - VectorChordVectorStore implementing search.VectorStore (PostgreSQL VectorChord extension)
+  - `vector_postgres.go` - PgvectorStore implementing search.VectorStore (PostgreSQL pgvector extension)
+
+**Verified:**
+- `go build ./infrastructure/search/...` ✓
+- `golangci-lint run ./infrastructure/search/...` ✓
+- `go build ./...` ✓ (full project builds)
+
+**Design Decisions Made:**
+- All stores implement domain interfaces from `domain/search` package (BM25Store, VectorStore)
+- Stores use lazy initialization pattern with mutex protection for thread safety
+- BM25 stores: SQLite FTS5, PostgreSQL native ts_rank_cd, VectorChord BERT tokenizer
+- Vector stores: pgvector with IVFFlat index, VectorChord with residual quantization
+- Score normalization: negative BM25 scores converted to positive, cosine distance converted to similarity
+- Separate tables per task type (code/text) for vector stores to enable different embedding strategies
+- Embedder interface from `internal/provider` used (will move to `infrastructure/provider` in Phase 3.3)
+
+**Next Session Tasks:**
+- Phase 3.3: Create `infrastructure/provider/` package
+  - Move provider interfaces and OpenAI implementation
+  - Create Anthropic Claude provider
+
+### 2026-02-04 Session 8 (continued)
+
+**Completed:**
+- Phase 3.3 complete: Created `infrastructure/provider/` package
+  - `provider.go` - Core types: Message, ChatCompletionRequest/Response, EmbeddingRequest/Response, Usage, interfaces (TextGenerator, Embedder, Provider, FullProvider)
+  - `openai.go` - OpenAIProvider implementing FullProvider (text + embeddings) with retry logic
+  - `anthropic.go` - AnthropicProvider implementing TextOnlyProvider (Claude API)
+
+**Verified:**
+- `go build ./infrastructure/provider/...` ✓
+- `golangci-lint run ./infrastructure/provider/...` ✓
+- `go build ./...` ✓ (full project builds)
+
+**Design Decisions Made:**
+- Provider package is self-contained - no dependency on internal/config
+- OpenAIConfig struct replaces config.Endpoint for cleaner API
+- AnthropicProvider implements TextOnlyProvider (Anthropic doesn't provide embeddings)
+- Both providers use exponential backoff retry with configurable parameters
+- Functional options pattern for provider configuration
+
+**Next Session Tasks:**
+- Phase 3.4: Create `infrastructure/git/` package
+  - Move git adapter, cloner, scanner, ignore implementations
+
+### 2026-02-04 Session 8 (continued - Part 2)
+
+**Completed:**
+- Phase 3.4 complete: Created `infrastructure/git/` package
+  - `adapter.go` - Adapter interface and info types (CommitInfo, BranchInfo, FileInfo, TagInfo)
+  - `gogit.go` - GoGitAdapter implementing Adapter using go-git library
+  - `cloner.go` - RepositoryCloner implementing domain/service.Cloner
+  - `scanner.go` - RepositoryScanner implementing domain/service.Scanner
+  - `ignore.go` - IgnorePattern for gitignore and .noindex pattern matching
+
+**Verified:**
+- `go build ./infrastructure/git/...` ✓
+- `golangci-lint run ./infrastructure/git/...` ✓
+- `go build ./...` ✓ (full project builds)
+
+**Design Decisions Made:**
+- Adapter interface is self-contained in infrastructure/git (not in domain)
+- Info types (CommitInfo, etc.) are transport DTOs between adapter and domain converters
+- RepositoryCloner and RepositoryScanner implement domain service interfaces
+- Scanner converts adapter info types to domain types (repository.Commit, etc.)
+- Cloner uses domain repository.Repository type directly
+
+**Next Session Tasks:**
+- Phase 3.5: Create `infrastructure/slicing/` package
+  - Move slicer and language analyzers
+- Phase 3.6: Create `infrastructure/enricher/` package
+- Phase 3.7: Create `infrastructure/tracking/` package
+- Phase 3.8: Move `infrastructure/api/` package
