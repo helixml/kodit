@@ -40,17 +40,29 @@ import (
 	"sync/atomic"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/helixml/kodit/application/handler"
+	commithandler "github.com/helixml/kodit/application/handler/commit"
+	enrichmenthandler "github.com/helixml/kodit/application/handler/enrichment"
+	indexinghandler "github.com/helixml/kodit/application/handler/indexing"
+	repohandler "github.com/helixml/kodit/application/handler/repository"
 	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
+	domainservice "github.com/helixml/kodit/domain/service"
 	"github.com/helixml/kodit/domain/snippet"
 	"github.com/helixml/kodit/domain/task"
 	"github.com/helixml/kodit/infrastructure/api"
 	"github.com/helixml/kodit/infrastructure/api/middleware"
 	v1 "github.com/helixml/kodit/infrastructure/api/v1"
+	"github.com/helixml/kodit/infrastructure/git"
 	"github.com/helixml/kodit/infrastructure/persistence"
 	infraSearch "github.com/helixml/kodit/infrastructure/search"
+	"github.com/helixml/kodit/infrastructure/enricher"
+	"github.com/helixml/kodit/infrastructure/enricher/example"
+	"github.com/helixml/kodit/infrastructure/slicing"
+	"github.com/helixml/kodit/infrastructure/slicing/language"
+	"github.com/helixml/kodit/infrastructure/tracking"
 )
 
 // Client is the main entry point for the kodit library.
@@ -63,6 +75,7 @@ type Client struct {
 	commitStore      persistence.CommitStore
 	branchStore      persistence.BranchStore
 	tagStore         persistence.TagStore
+	fileStore        persistence.FileStore
 	snippetStore     persistence.SnippetStore
 	enrichmentStore  persistence.EnrichmentStore
 	associationStore persistence.AssociationStore
@@ -83,11 +96,28 @@ type Client struct {
 	worker        *service.Worker
 	registry      *service.Registry
 
-	logger  *slog.Logger
-	dataDir string
-	apiKeys []string
-	closed  atomic.Bool
-	mu      sync.Mutex
+	// Git infrastructure (internal)
+	gitAdapter git.Adapter
+	cloner     domainservice.Cloner
+	scanner    domainservice.Scanner
+
+	// Code slicing (internal)
+	slicer *slicing.Slicer
+
+	// Progress tracking (internal)
+	trackerFactory handler.TrackerFactory
+
+	// Enrichment (internal, may be nil)
+	enricherImpl      *enricher.ProviderEnricher
+	archDiscoverer    *enricher.PhysicalArchitectureService
+	exampleDiscoverer *example.Discovery
+
+	logger   *slog.Logger
+	dataDir  string
+	cloneDir string
+	apiKeys  []string
+	closed   atomic.Bool
+	mu       sync.Mutex
 }
 
 // New creates a new Client with the given options.
@@ -127,6 +157,17 @@ func New(opts ...Option) (*Client, error) {
 		return nil, fmt.Errorf("create data directory: %w", err)
 	}
 
+	// Set up clone directory
+	cloneDir := cfg.cloneDir
+	if cloneDir == "" {
+		cloneDir = filepath.Join(dataDir, "repos")
+	}
+
+	// Ensure clone directory exists
+	if err := os.MkdirAll(cloneDir, 0o755); err != nil {
+		return nil, fmt.Errorf("create clone directory: %w", err)
+	}
+
 	// Build database URL
 	ctx := context.Background()
 	dbURL, err := buildDatabaseURL(cfg)
@@ -151,6 +192,7 @@ func New(opts ...Option) (*Client, error) {
 	commitStore := persistence.NewCommitStore(db)
 	branchStore := persistence.NewBranchStore(db)
 	tagStore := persistence.NewTagStore(db)
+	fileStore := persistence.NewFileStore(db)
 	snippetStore := persistence.NewSnippetStore(db)
 	enrichmentStore := persistence.NewEnrichmentStore(db)
 	associationStore := persistence.NewAssociationStore(db)
@@ -187,7 +229,7 @@ func New(opts ...Option) (*Client, error) {
 	worker := service.NewWorker(taskStore, registry, logger)
 
 	repoSyncSvc := service.NewRepositorySync(repoStore, queue, logger)
-	repoQuerySvc := service.NewRepositoryQuery(repoStore, commitStore, branchStore, tagStore)
+	repoQuerySvc := service.NewRepositoryQuery(repoStore, commitStore, branchStore, tagStore).WithFileStore(fileStore)
 	enrichQSvc := service.NewEnrichmentQuery(enrichmentStore, associationStore)
 	trackingQSvc := service.NewTrackingQuery(statusStore, taskStore)
 
@@ -198,12 +240,40 @@ func New(opts ...Option) (*Client, error) {
 		codeSearchSvc = &cs
 	}
 
+	// Create git infrastructure
+	gitAdapter := git.NewGoGitAdapter(logger)
+	cloner := git.NewRepositoryCloner(gitAdapter, cloneDir, logger)
+	scanner := git.NewRepositoryScanner(gitAdapter, logger)
+
+	// Create slicer for code extraction
+	langConfig := slicing.NewLanguageConfig()
+	analyzerFactory := language.NewFactory(langConfig)
+	slicer := slicing.NewSlicer(langConfig, analyzerFactory)
+
+	// Create tracker factory for progress reporting
+	dbReporter := tracking.NewDBReporter(statusStore, logger)
+	trackerFactory := &trackerFactoryImpl{
+		dbReporter: dbReporter,
+		logger:     logger,
+	}
+
+	// Create enricher infrastructure (only if text provider is configured)
+	var enricherImpl *enricher.ProviderEnricher
+	if cfg.textProvider != nil {
+		enricherImpl = enricher.NewProviderEnricher(cfg.textProvider, logger)
+	}
+
+	// Create architecture and example discoverers (always available)
+	archDiscoverer := enricher.NewPhysicalArchitectureService()
+	exampleDiscoverer := example.NewDiscovery()
+
 	client := &Client{
 		db:               db,
 		repositoryStore:  repoStore,
 		commitStore:      commitStore,
 		branchStore:      branchStore,
 		tagStore:         tagStore,
+		fileStore:        fileStore,
 		snippetStore:     snippetStore,
 		enrichmentStore:  enrichmentStore,
 		associationStore: associationStore,
@@ -219,10 +289,22 @@ func New(opts ...Option) (*Client, error) {
 		queue:            queue,
 		worker:           worker,
 		registry:         registry,
-		logger:           logger,
-		dataDir:          dataDir,
-		apiKeys:          cfg.apiKeys,
+		gitAdapter:       gitAdapter,
+		cloner:           cloner,
+		scanner:          scanner,
+		slicer:           slicer,
+		trackerFactory:    trackerFactory,
+		enricherImpl:      enricherImpl,
+		archDiscoverer:    archDiscoverer,
+		exampleDiscoverer: exampleDiscoverer,
+		logger:            logger,
+		dataDir:           dataDir,
+		cloneDir:          cloneDir,
+		apiKeys:           cfg.apiKeys,
 	}
+
+	// Register task handlers
+	client.registerHandlers()
 
 	// Start the background worker
 	worker.Start(ctx)
@@ -249,6 +331,74 @@ func (c *Client) Close() error {
 
 	c.logger.Info("kodit client closed")
 	return nil
+}
+
+// registerHandlers registers all task handlers with the worker registry.
+func (c *Client) registerHandlers() {
+	// Repository handlers (always registered)
+	c.registry.Register(task.OperationCloneRepository, repohandler.NewClone(
+		c.repositoryStore, c.cloner, c.queue, c.trackerFactory, c.logger,
+	))
+	c.registry.Register(task.OperationSyncRepository, repohandler.NewSync(
+		c.repositoryStore, c.branchStore, c.cloner, c.scanner, c.queue, c.trackerFactory, c.logger,
+	))
+	c.registry.Register(task.OperationDeleteRepository, repohandler.NewDelete(
+		c.repositoryStore, c.commitStore, c.branchStore, c.tagStore, c.fileStore, c.snippetStore, c.trackerFactory, c.logger,
+	))
+	c.registry.Register(task.OperationScanCommit, commithandler.NewScan(
+		c.repositoryStore, c.commitStore, c.fileStore, c.scanner, c.trackerFactory, c.logger,
+	))
+
+	// Indexing handlers (always registered for snippet extraction)
+	c.registry.Register(task.OperationExtractSnippetsForCommit, indexinghandler.NewExtractSnippets(
+		c.repositoryStore, c.snippetStore, c.gitAdapter, c.slicer, c.trackerFactory, c.logger,
+	))
+
+	// BM25 handler (requires BM25 store)
+	if c.bm25Store != nil {
+		bm25Service := domainservice.NewBM25(c.bm25Store)
+		c.registry.Register(task.OperationCreateBM25IndexForCommit, indexinghandler.NewCreateBM25Index(
+			bm25Service, c.snippetStore, c.trackerFactory, c.logger,
+		))
+	}
+
+	// Embeddings handler (requires vector store)
+	if c.vectorStore != nil {
+		embeddingService := domainservice.NewEmbedding(c.vectorStore)
+		c.registry.Register(task.OperationCreateCodeEmbeddingsForCommit, indexinghandler.NewCreateCodeEmbeddings(
+			embeddingService, c.snippetStore, c.vectorStore, c.trackerFactory, c.logger,
+		))
+	}
+
+	// Enrichment handlers (only if text provider is configured)
+	if c.enricherImpl != nil {
+		// Summary enrichment
+		c.registry.Register(task.OperationCreateSummaryEnrichmentForCommit, enrichmenthandler.NewCreateSummary(
+			c.snippetStore, c.enrichmentStore, c.associationStore, c.enrichQ, c.enricherImpl, c.trackerFactory, c.logger,
+		))
+
+		// Commit description
+		c.registry.Register(task.OperationCreateCommitDescriptionForCommit, enrichmenthandler.NewCommitDescription(
+			c.repositoryStore, c.enrichmentStore, c.associationStore, c.enrichQ, c.gitAdapter, c.enricherImpl, c.trackerFactory, c.logger,
+		))
+
+		// Architecture discovery
+		c.registry.Register(task.OperationCreateArchitectureEnrichmentForCommit, enrichmenthandler.NewArchitectureDiscovery(
+			c.repositoryStore, c.enrichmentStore, c.associationStore, c.enrichQ, c.archDiscoverer, c.enricherImpl, c.trackerFactory, c.logger,
+		))
+
+		// Example summary
+		c.registry.Register(task.OperationCreateExampleSummaryForCommit, enrichmenthandler.NewExampleSummary(
+			c.enrichmentStore, c.associationStore, c.enrichQ, c.enricherImpl, c.trackerFactory, c.logger,
+		))
+	}
+
+	// Example extraction handler (doesn't require LLM, always registered)
+	c.registry.Register(task.OperationExtractExamplesForCommit, enrichmenthandler.NewExtractExamples(
+		c.repositoryStore, c.commitStore, c.gitAdapter, c.enrichmentStore, c.associationStore, c.enrichQ, c.exampleDiscoverer, c.trackerFactory, c.logger,
+	))
+
+	c.logger.Info("registered task handlers", slog.Int("count", len(c.registry.Operations())))
 }
 
 // Repositories returns the repository management interface.
@@ -559,4 +709,19 @@ func buildDatabaseURL(cfg *clientConfig) (string, error) {
 	default:
 		return "", ErrNoStorage
 	}
+}
+
+// trackerFactoryImpl implements handler.TrackerFactory for progress reporting.
+type trackerFactoryImpl struct {
+	dbReporter *tracking.DBReporter
+	logger     *slog.Logger
+}
+
+// ForOperation creates a Tracker for the given operation.
+func (f *trackerFactoryImpl) ForOperation(operation task.Operation, trackableType task.TrackableType, trackableID int64) handler.Tracker {
+	tracker := tracking.TrackerForOperation(operation, f.logger, trackableType, trackableID)
+	if f.dbReporter != nil {
+		tracker.Subscribe(f.dbReporter)
+	}
+	return tracker
 }

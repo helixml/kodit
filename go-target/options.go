@@ -24,6 +24,7 @@ type clientConfig struct {
 	dbPath            string
 	dbDSN             string
 	dataDir           string
+	cloneDir          string
 	textProvider      provider.TextGenerator
 	embeddingProvider provider.Embedder
 	logger            *slog.Logger
@@ -118,10 +119,18 @@ func WithEmbeddingProvider(p provider.Embedder) Option {
 	}
 }
 
-// WithDataDir sets the data directory for cloned repositories.
+// WithDataDir sets the data directory for cloned repositories and database storage.
 func WithDataDir(dir string) Option {
 	return func(c *clientConfig) {
 		c.dataDir = dir
+	}
+}
+
+// WithCloneDir sets the directory where repositories are cloned.
+// If not specified, defaults to {dataDir}/repos.
+func WithCloneDir(dir string) Option {
+	return func(c *clientConfig) {
+		c.cloneDir = dir
 	}
 }
 

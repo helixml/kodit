@@ -1775,42 +1775,42 @@ kodit.FromPath("/local/code/path")
 
 ### Phase 7.1: Add Missing Infrastructure Configuration
 
-- [ ] 7.1.1 Add clone directory configuration
+- [x] 7.1.1 Add clone directory configuration
   - Add `cloneDir string` to `clientConfig`
   - Add `WithCloneDir(path string) Option`
   - Default to `{dataDir}/repos` if not specified
   - Ensure clone directory exists in `New()`
 
-- [ ] 7.1.2 Add file store to Client
+- [x] 7.1.2 Add file store to Client
   - Add `fileStore persistence.FileStore` to Client struct
   - Create in `New()` alongside other stores
   - Used by delete repository and scan commit handlers
 
 ### Phase 7.2: Create Git Infrastructure in Library
 
-- [ ] 7.2.1 Create git adapter in `New()`
+- [x] 7.2.1 Create git adapter in `New()`
   - Add `gitAdapter git.Adapter` to Client (internal)
   - Create `git.NewGoGitAdapter(logger)`
 
-- [ ] 7.2.2 Create repository cloner in `New()`
+- [x] 7.2.2 Create repository cloner in `New()`
   - Add `cloner domainservice.Cloner` to Client (internal)
   - Create `git.NewRepositoryCloner(gitAdapter, cloneDir, logger)`
   - Requires clone directory to be configured
 
-- [ ] 7.2.3 Create repository scanner in `New()`
+- [x] 7.2.3 Create repository scanner in `New()`
   - Add `scanner domainservice.Scanner` to Client (internal)
   - Create `git.NewRepositoryScanner(gitAdapter, logger)`
 
 ### Phase 7.3: Create Slicer Infrastructure
 
-- [ ] 7.3.1 Create slicer in `New()`
+- [x] 7.3.1 Create slicer in `New()`
   - Add `slicer *slicing.Slicer` to Client (internal)
   - Create language config, analyzer factory, slicer
   - Used by extract snippets handler
 
 ### Phase 7.4: Create Tracker Factory
 
-- [ ] 7.4.1 Create tracker factory in `New()`
+- [x] 7.4.1 Create tracker factory in `New()`
   - Add `trackerFactory handler.TrackerFactory` to Client (internal)
   - Create `tracking.NewDBReporter(statusStore, logger)`
   - Implement `TrackerFactory` interface using `tracking.TrackerForOperation`
@@ -1818,16 +1818,16 @@ kodit.FromPath("/local/code/path")
 
 ### Phase 7.5: Create Enricher Infrastructure
 
-- [ ] 7.5.1 Create enricher in `New()` when text provider is configured
+- [x] 7.5.1 Create enricher in `New()` when text provider is configured
   - Add `enricher *enricher.ProviderEnricher` to Client (internal)
   - Create `enricher.NewProviderEnricher(textProvider, logger)`
   - Used by enrichment handlers
 
-- [ ] 7.5.2 Create architecture discoverer
+- [x] 7.5.2 Create architecture discoverer
   - Add `archDiscoverer *enricher.PhysicalArchitectureService` to Client (internal)
   - Create `enricher.NewPhysicalArchitectureService()`
 
-- [ ] 7.5.3 Create example discoverer
+- [x] 7.5.3 Create example discoverer
   - Add `exampleDiscoverer *example.Discovery` to Client (internal)
   - Create `example.NewDiscovery()`
 
@@ -1876,19 +1876,19 @@ Clone(url)
 
 This is the **critical task** - without handlers, the worker does nothing.
 
-- [ ] 7.6.1 Register repository handlers (always)
+- [x] 7.6.1 Register repository handlers (always)
   - `OperationCloneRepository` - requires cloner, queue, trackerFactory
   - `OperationSyncRepository` - requires cloner, scanner, queue, trackerFactory
   - `OperationDeleteRepository` - requires all stores, trackerFactory
   - `OperationScanCommit` - requires scanner, trackerFactory
 
-- [ ] 7.6.2 Register indexing handlers
+- [x] 7.6.2 Register indexing handlers
   - `OperationExtractSnippetsForCommit` - always (requires slicer, gitAdapter)
   - `OperationExtractExamplesForCommit` - always (no LLM required)
   - `OperationCreateBM25IndexForCommit` - if bm25Store != nil
   - `OperationCreateCodeEmbeddingsForCommit` - if vectorStore != nil && embeddingProvider != nil
 
-- [ ] 7.6.3 Register enrichment handlers (when textProvider configured)
+- [x] 7.6.3 Register enrichment handlers (when textProvider configured)
   - `OperationCreateSummaryEnrichmentForCommit`
   - `OperationCreateCommitDescriptionForCommit`
   - `OperationCreateArchitectureEnrichmentForCommit`
@@ -2102,3 +2102,77 @@ Once Phase 7 is complete and CLI uses the library:
   - `internal/config` - Could be replaced by library options
   - `internal/log` - Could be replaced by WithLogger option
   - Assessment: Keep if useful for CLI-specific concerns
+
+---
+
+## Session Notes (Continued)
+
+### 2026-02-04 Session 19
+
+**Completed:**
+- Phase 7.1: Add missing infrastructure configuration
+  - Added `WithCloneDir(path string)` option
+  - Added `cloneDir` field to `clientConfig`
+  - Added `fileStore` to Client struct
+  - Clone directory defaults to `{dataDir}/repos`
+  - Both directories created automatically in `New()`
+
+- Phase 7.2: Create git infrastructure in library
+  - Added `gitAdapter git.Adapter` to Client
+  - Added `cloner domainservice.Cloner` to Client
+  - Added `scanner domainservice.Scanner` to Client
+  - Created using `git.NewGoGitAdapter`, `git.NewRepositoryCloner`, `git.NewRepositoryScanner`
+
+- Phase 7.3: Create slicer infrastructure
+  - Added `slicer *slicing.Slicer` to Client
+  - Created with `slicing.NewLanguageConfig`, `language.NewFactory`, `slicing.NewSlicer`
+
+- Phase 7.4: Create tracker factory
+  - Added `trackerFactory handler.TrackerFactory` to Client
+  - Created `trackerFactoryImpl` type implementing `handler.TrackerFactory`
+  - Uses `tracking.NewDBReporter` and `tracking.TrackerForOperation`
+
+- Phase 7.5: Create enricher infrastructure
+  - Added `enricherImpl *enricher.ProviderEnricher` (conditional on text provider)
+  - Added `archDiscoverer *enricher.PhysicalArchitectureService` (always)
+  - Added `exampleDiscoverer *example.Discovery` (always)
+
+- Phase 7.6: Register task handlers automatically (**CRITICAL**)
+  - Added `registerHandlers()` method to Client
+  - Registered 12 handlers total:
+    - Repository: Clone, Sync, Delete, ScanCommit
+    - Indexing: ExtractSnippets, ExtractExamples, CreateBM25Index (if bm25Store), CreateCodeEmbeddings (if vectorStore)
+    - Enrichment: CreateSummary, CommitDescription, ArchitectureDiscovery, ExampleSummary (if textProvider)
+
+**Verified:**
+- `go build ./...` ✓
+- `go test ./...` ✓ (all tests pass)
+- `golangci-lint run` ✓ (0 issues)
+
+**Design Decisions Made:**
+- Infrastructure components stored directly on Client struct for handler registration
+- Handler registration happens before worker starts in `New()`
+- Conditional handler registration based on available providers:
+  - BM25 handler only if `bm25Store != nil`
+  - Embeddings handler only if `vectorStore != nil`
+  - Enrichment handlers only if `textProvider != nil` (enricherImpl)
+  - Example extraction always registered (no LLM required)
+
+**Impact:**
+`kodit.Client` is now a fully functional Kodit instance that can:
+1. Clone and index repositories (via `Repositories().Clone()`)
+2. Process tasks automatically (worker + handlers)
+3. Create BM25 and vector search indexes
+4. Generate enrichments (when text provider configured)
+
+**Remaining Tasks in Phase 7:**
+- 7.6b: Implement missing handlers (6 handlers for embeddings and advanced enrichments)
+- 7.7: Enhance API server (Router(), commits router, docs router)
+- 7.8: Expose services for MCP (CodeSearchService(), Snippets())
+- 7.9: Simplify CLI commands
+- 7.10: Integration testing
+
+**Next Session Tasks:**
+1. Consider implementing Phase 7.7 (API enhancements) for better CLI integration
+2. Or implement Phase 7.10 (integration tests) to verify full indexing workflow
+3. Phase 7.6b (missing handlers) can be deferred as current handlers cover core functionality
