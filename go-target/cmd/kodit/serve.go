@@ -171,9 +171,12 @@ func runServe(addr, envFile, dataDir, dbURL, logLevel string) error {
 	apiServer := client.API()
 	router := apiServer.Router()
 
-	// Apply custom middleware
+	// Apply custom middleware (MUST be done before MountRoutes)
 	router.Use(apimiddleware.Logging(slogger))
 	router.Use(apimiddleware.CorrelationID)
+
+	// Mount API routes after middleware is configured
+	apiServer.MountRoutes()
 
 	// Health check endpoints
 	router.Get("/health", healthHandler)

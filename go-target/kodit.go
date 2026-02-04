@@ -608,9 +608,13 @@ type Tasks interface {
 // APIServer is an HTTP server.
 type APIServer interface {
 	// Router returns the chi router for customization before starting.
-	// Calling this method allows adding custom middleware and routes before ListenAndServe.
+	// Call this first, add custom middleware with router.Use(), then call MountRoutes().
 	// If not called, ListenAndServe creates a default router with all standard routes.
 	Router() chi.Router
+
+	// MountRoutes wires up all v1 API routes on the router.
+	// Call this after adding any custom middleware via Router().Use().
+	MountRoutes()
 
 	// DocsRouter returns a router for Swagger UI and OpenAPI spec.
 	// The specURL parameter is the URL path where the OpenAPI spec will be served.
@@ -712,8 +716,7 @@ type apiServerImpl struct {
 }
 
 // Router returns the chi router for customization.
-// Calling this method wires up all standard API routes and returns the router
-// for adding custom middleware and routes before starting.
+// Call this first, add custom middleware with router.Use(), then call MountRoutes().
 func (a *apiServerImpl) Router() chi.Router {
 	if a.router != nil {
 		return a.router
@@ -727,12 +730,18 @@ func (a *apiServerImpl) Router() chi.Router {
 		router.Use(middleware.APIKeyAuth(a.client.apiKeys))
 	}
 
-	// Wire up all v1 API routes
-	a.mountAPIRoutes(router)
-
 	a.router = router
 	a.routerCalled = true
 	return router
+}
+
+// MountRoutes wires up all v1 API routes on the router.
+// Call this after adding any custom middleware via Router().Use().
+func (a *apiServerImpl) MountRoutes() {
+	if a.router == nil {
+		a.Router() // Ensure router is created
+	}
+	a.mountAPIRoutes(a.router)
 }
 
 // mountAPIRoutes wires up all v1 API routes on the given router.
