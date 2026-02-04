@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/helixml/kodit/domain/task"
-	"github.com/helixml/kodit/internal/database"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -38,12 +37,27 @@ func (s TaskStore) Get(ctx context.Context, id int64) (task.Task, error) {
 	return s.mapper.ToDomain(model), nil
 }
 
-// Find retrieves tasks matching a query.
-func (s TaskStore) Find(ctx context.Context, query database.Query) ([]task.Task, error) {
+// FindAll retrieves all tasks.
+func (s TaskStore) FindAll(ctx context.Context) ([]task.Task, error) {
 	var models []TaskModel
-	result := query.Apply(s.db.Session(ctx).Model(&TaskModel{})).Find(&models)
+	result := s.db.Session(ctx).Order("priority DESC, created_at ASC").Find(&models)
 	if result.Error != nil {
-		return nil, fmt.Errorf("find tasks: %w", result.Error)
+		return nil, fmt.Errorf("find all tasks: %w", result.Error)
+	}
+
+	tasks := make([]task.Task, len(models))
+	for i, model := range models {
+		tasks[i] = s.mapper.ToDomain(model)
+	}
+	return tasks, nil
+}
+
+// FindPending retrieves all pending tasks ordered by priority.
+func (s TaskStore) FindPending(ctx context.Context) ([]task.Task, error) {
+	var models []TaskModel
+	result := s.db.Session(ctx).Order("priority DESC, created_at ASC").Find(&models)
+	if result.Error != nil {
+		return nil, fmt.Errorf("find pending tasks: %w", result.Error)
 	}
 
 	tasks := make([]task.Task, len(models))
@@ -106,21 +120,21 @@ func (s TaskStore) Delete(ctx context.Context, t task.Task) error {
 	return nil
 }
 
-// DeleteByQuery removes tasks matching a query.
-func (s TaskStore) DeleteByQuery(ctx context.Context, query database.Query) error {
-	result := query.Apply(s.db.Session(ctx).Model(&TaskModel{})).Delete(&TaskModel{})
+// DeleteAll removes all tasks.
+func (s TaskStore) DeleteAll(ctx context.Context) error {
+	result := s.db.Session(ctx).Where("1 = 1").Delete(&TaskModel{})
 	if result.Error != nil {
-		return fmt.Errorf("delete tasks: %w", result.Error)
+		return fmt.Errorf("delete all tasks: %w", result.Error)
 	}
 	return nil
 }
 
-// Count returns the number of tasks matching a query.
-func (s TaskStore) Count(ctx context.Context, query database.Query) (int64, error) {
+// CountPending returns the number of pending tasks.
+func (s TaskStore) CountPending(ctx context.Context) (int64, error) {
 	var count int64
-	result := query.Apply(s.db.Session(ctx).Model(&TaskModel{})).Count(&count)
+	result := s.db.Session(ctx).Model(&TaskModel{}).Count(&count)
 	if result.Error != nil {
-		return 0, fmt.Errorf("count tasks: %w", result.Error)
+		return 0, fmt.Errorf("count pending tasks: %w", result.Error)
 	}
 	return count, nil
 }
@@ -226,10 +240,13 @@ func (s StatusStore) Get(ctx context.Context, id string) (task.Status, error) {
 	return s.mapper.ToDomain(model), nil
 }
 
-// Find retrieves task statuses matching a query.
-func (s StatusStore) Find(ctx context.Context, query database.Query) ([]task.Status, error) {
+// FindByTrackable retrieves task statuses for a trackable entity.
+func (s StatusStore) FindByTrackable(ctx context.Context, trackableType task.TrackableType, trackableID int64) ([]task.Status, error) {
 	var models []TaskStatusModel
-	result := query.Apply(s.db.Session(ctx).Model(&TaskStatusModel{})).Find(&models)
+	result := s.db.Session(ctx).
+		Where("trackable_type = ? AND trackable_id = ?", string(trackableType), trackableID).
+		Order("created_at ASC").
+		Find(&models)
 	if result.Error != nil {
 		return nil, fmt.Errorf("find statuses: %w", result.Error)
 	}
@@ -285,19 +302,21 @@ func (s StatusStore) Delete(ctx context.Context, status task.Status) error {
 	return nil
 }
 
-// DeleteByQuery removes task statuses matching a query.
-func (s StatusStore) DeleteByQuery(ctx context.Context, query database.Query) error {
-	result := query.Apply(s.db.Session(ctx).Model(&TaskStatusModel{})).Delete(&TaskStatusModel{})
+// DeleteByTrackable removes task statuses for a trackable entity.
+func (s StatusStore) DeleteByTrackable(ctx context.Context, trackableType task.TrackableType, trackableID int64) error {
+	result := s.db.Session(ctx).
+		Where("trackable_type = ? AND trackable_id = ?", string(trackableType), trackableID).
+		Delete(&TaskStatusModel{})
 	if result.Error != nil {
 		return fmt.Errorf("delete statuses: %w", result.Error)
 	}
 	return nil
 }
 
-// Count returns the number of task statuses matching a query.
-func (s StatusStore) Count(ctx context.Context, query database.Query) (int64, error) {
+// Count returns the total number of task statuses.
+func (s StatusStore) Count(ctx context.Context) (int64, error) {
 	var count int64
-	result := query.Apply(s.db.Session(ctx).Model(&TaskStatusModel{})).Count(&count)
+	result := s.db.Session(ctx).Model(&TaskStatusModel{}).Count(&count)
 	if result.Error != nil {
 		return 0, fmt.Errorf("count statuses: %w", result.Error)
 	}

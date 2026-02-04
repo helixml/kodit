@@ -7,21 +7,21 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/helixml/kodit/application/service"
+	"github.com/helixml/kodit/domain/search"
+	"github.com/helixml/kodit/domain/snippet"
 	"github.com/helixml/kodit/infrastructure/api/middleware"
 	"github.com/helixml/kodit/infrastructure/api/v1/dto"
-	"github.com/helixml/kodit/internal/domain"
-	"github.com/helixml/kodit/internal/indexing"
-	"github.com/helixml/kodit/internal/search"
 )
 
 // SearchRouter handles search API endpoints.
 type SearchRouter struct {
-	searchService search.Service
+	searchService service.CodeSearch
 	logger        *slog.Logger
 }
 
 // NewSearchRouter creates a new SearchRouter.
-func NewSearchRouter(searchService search.Service, logger *slog.Logger) *SearchRouter {
+func NewSearchRouter(searchService service.CodeSearch, logger *slog.Logger) *SearchRouter {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -73,7 +73,7 @@ func (r *SearchRouter) Search(w http.ResponseWriter, req *http.Request) {
 	middleware.WriteJSON(w, http.StatusOK, response)
 }
 
-func buildSearchRequest(body dto.SearchRequest) domain.MultiSearchRequest {
+func buildSearchRequest(body dto.SearchRequest) search.MultiRequest {
 	attrs := body.Data.Attributes
 
 	// Determine limit (default 10)
@@ -99,50 +99,50 @@ func buildSearchRequest(body dto.SearchRequest) domain.MultiSearchRequest {
 	}
 
 	// Build filters
-	var opts []domain.SnippetSearchFiltersOption
+	var opts []search.FiltersOption
 	if attrs.Filters != nil {
 		f := attrs.Filters
 		if len(f.Languages) > 0 {
-			opts = append(opts, domain.WithLanguage(f.Languages[0]))
+			opts = append(opts, search.WithLanguage(f.Languages[0]))
 		}
 		if len(f.Authors) > 0 {
-			opts = append(opts, domain.WithAuthor(f.Authors[0]))
+			opts = append(opts, search.WithAuthor(f.Authors[0]))
 		}
 		if f.StartDate != nil {
-			opts = append(opts, domain.WithCreatedAfter(*f.StartDate))
+			opts = append(opts, search.WithCreatedAfter(*f.StartDate))
 		}
 		if f.EndDate != nil {
-			opts = append(opts, domain.WithCreatedBefore(*f.EndDate))
+			opts = append(opts, search.WithCreatedBefore(*f.EndDate))
 		}
 		if len(f.Sources) > 0 {
-			opts = append(opts, domain.WithSourceRepo(f.Sources[0]))
+			opts = append(opts, search.WithSourceRepo(f.Sources[0]))
 		}
 		if len(f.FilePatterns) > 0 {
-			opts = append(opts, domain.WithFilePath(f.FilePatterns[0]))
+			opts = append(opts, search.WithFilePath(f.FilePatterns[0]))
 		}
 		if len(f.EnrichmentTypes) > 0 {
-			opts = append(opts, domain.WithEnrichmentTypes(f.EnrichmentTypes))
+			opts = append(opts, search.WithEnrichmentTypes(f.EnrichmentTypes))
 		}
 		if len(f.EnrichmentSubtypes) > 0 {
-			opts = append(opts, domain.WithEnrichmentSubtypes(f.EnrichmentSubtypes))
+			opts = append(opts, search.WithEnrichmentSubtypes(f.EnrichmentSubtypes))
 		}
 		if len(f.CommitSHA) > 0 {
-			opts = append(opts, domain.WithCommitSHAs(f.CommitSHA))
+			opts = append(opts, search.WithCommitSHAs(f.CommitSHA))
 		}
 	}
 
-	filters := domain.NewSnippetSearchFilters(opts...)
+	filters := search.NewFilters(opts...)
 
-	return domain.NewMultiSearchRequest(topK, textQuery, codeQuery, attrs.Keywords, filters)
+	return search.NewMultiRequest(topK, textQuery, codeQuery, attrs.Keywords, filters)
 }
 
-func buildSearchResponse(result search.MultiSearchResult) dto.SearchResponse {
+func buildSearchResponse(result service.MultiSearchResult) dto.SearchResponse {
 	snippets := result.Snippets()
 	scores := result.FusedScores()
 
 	data := make([]dto.SnippetData, len(snippets))
-	for i, snippet := range snippets {
-		data[i] = snippetToSearchResult(snippet, scores[snippet.SHA()])
+	for i, s := range snippets {
+		data[i] = snippetToSearchResult(s, scores[s.SHA()])
 	}
 
 	return dto.SearchResponse{
@@ -150,8 +150,8 @@ func buildSearchResponse(result search.MultiSearchResult) dto.SearchResponse {
 	}
 }
 
-func snippetToSearchResult(snippet indexing.Snippet, score float64) dto.SnippetData {
-	derivesFrom := snippet.DerivesFrom()
+func snippetToSearchResult(s snippet.Snippet, score float64) dto.SnippetData {
+	derivesFrom := s.DerivesFrom()
 	derivesFromSchemas := make([]dto.GitFileSchema, len(derivesFrom))
 	for i, f := range derivesFrom {
 		derivesFromSchemas[i] = dto.GitFileSchema{
@@ -162,19 +162,19 @@ func snippetToSearchResult(snippet indexing.Snippet, score float64) dto.SnippetD
 		}
 	}
 
-	createdAt := snippet.CreatedAt()
-	updatedAt := snippet.UpdatedAt()
+	createdAt := s.CreatedAt()
+	updatedAt := s.UpdatedAt()
 
 	return dto.SnippetData{
 		Type: "snippet",
-		ID:   snippet.SHA(),
+		ID:   s.SHA(),
 		Attributes: dto.SnippetAttributes{
 			CreatedAt:   &createdAt,
 			UpdatedAt:   &updatedAt,
 			DerivesFrom: derivesFromSchemas,
 			Content: dto.SnippetContentSchema{
-				Value:    snippet.Content(),
-				Language: snippet.Extension(),
+				Value:    s.Content(),
+				Language: s.Extension(),
 			},
 			Enrichments:    []dto.EnrichmentSchema{},
 			OriginalScores: []float64{score},

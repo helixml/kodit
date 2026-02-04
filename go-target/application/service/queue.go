@@ -5,7 +5,6 @@ import (
 	"log/slog"
 
 	"github.com/helixml/kodit/domain/task"
-	"github.com/helixml/kodit/internal/database"
 )
 
 // Queue provides the main interface for enqueuing and managing tasks.
@@ -61,37 +60,57 @@ func (s *Queue) EnqueueOperations(
 // List returns all tasks in the queue, optionally filtered by operation.
 // Tasks are sorted by priority (highest first) then by created_at (oldest first).
 func (s *Queue) List(ctx context.Context, operation *task.Operation) ([]task.Task, error) {
-	query := database.NewQuery().
-		OrderDesc("priority").
-		OrderDesc("created_at")
-
-	if operation != nil {
-		query = query.Equal("type", operation.String())
+	tasks, err := s.store.FindPending(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	return s.store.Find(ctx, query)
+	if operation == nil {
+		return tasks, nil
+	}
+
+	// Filter by operation if specified
+	filtered := make([]task.Task, 0, len(tasks))
+	for _, t := range tasks {
+		if t.Operation() == *operation {
+			filtered = append(filtered, t)
+		}
+	}
+	return filtered, nil
 }
 
 // TaskByDedupKey returns a task by its dedup_key.
 func (s *Queue) TaskByDedupKey(ctx context.Context, dedupKey string) (task.Task, bool, error) {
-	query := database.NewQuery().Equal("dedup_key", dedupKey)
-	tasks, err := s.store.Find(ctx, query)
+	tasks, err := s.store.FindPending(ctx)
 	if err != nil {
 		return task.Task{}, false, err
 	}
-	if len(tasks) == 0 {
-		return task.Task{}, false, nil
+
+	for _, t := range tasks {
+		if t.DedupKey() == dedupKey {
+			return t, true, nil
+		}
 	}
-	return tasks[0], true, nil
+	return task.Task{}, false, nil
 }
 
 // PendingCount returns the count of pending tasks.
 func (s *Queue) PendingCount(ctx context.Context) (int64, error) {
-	return s.store.Count(ctx, database.NewQuery())
+	return s.store.CountPending(ctx)
 }
 
 // PendingCountByOperation returns the count of pending tasks for an operation.
 func (s *Queue) PendingCountByOperation(ctx context.Context, operation task.Operation) (int64, error) {
-	query := database.NewQuery().Equal("type", operation.String())
-	return s.store.Count(ctx, query)
+	tasks, err := s.store.FindPending(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	var count int64
+	for _, t := range tasks {
+		if t.Operation() == operation {
+			count++
+		}
+	}
+	return count, nil
 }

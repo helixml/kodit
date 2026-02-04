@@ -1180,3 +1180,178 @@ These changes are significant and belong in Phase 6 cleanup or a follow-up refac
 - Phase 6: Cleanup
   - Remove old internal packages (careful: CLI still uses them)
   - Or: Complete API wiring in library, then finish Phase 5.2
+
+### 2026-02-04 Session 12
+
+**Completed:**
+- Updated domain/task/store.go interfaces to remove dependency on internal/database.Query
+  - TaskStore: Replaced Find(query) with FindAll(), FindPending()
+  - TaskStore: Replaced Count(query) with CountPending()
+  - TaskStore: Replaced DeleteByQuery(query) with DeleteAll()
+  - StatusStore: Replaced Find(query) with FindByTrackable(trackableType, trackableID)
+  - StatusStore: Replaced DeleteByQuery(query) with DeleteByTrackable(trackableType, trackableID)
+  - StatusStore: Updated Count() to take no arguments
+- Updated infrastructure/persistence/task_store.go to implement new interfaces
+- Updated application/service/queue.go to use new TaskStore interface
+- Created application/service/tracking_query.go (TrackingQuery service)
+- Added Repo() method to application/service.Source for API compatibility
+
+**Verified:**
+- `go build ./...` ✓
+- `go test ./...` ✓ (all tests pass)
+- `golangci-lint run` ✓ (0 issues)
+
+**Design Decisions Made:**
+- Domain store interfaces should use domain-specific finder methods rather than generic query-based methods
+- This eliminates dependency on internal/database.Query from domain layer
+- TrackingQuery service added to application layer to mirror internal/tracking.QueryService
+
+**Current State:**
+Phase 6 is now the focus. The domain, application, and infrastructure layers are complete:
+- Domain layer: Pure types and interfaces, no internal dependencies
+- Application layer: Services using domain interfaces
+- Infrastructure layer: Implementations of domain interfaces
+
+Remaining work:
+- CLI and infrastructure/api still use internal packages
+- Need to migrate infrastructure/api to use domain/application types
+- Then CLI can be migrated to use new packages
+- Finally, internal packages can be removed
+
+**Blockers:**
+The infrastructure/api package uses internal types for:
+- repository.Source, repository.QueryService, repository.SyncService
+- enrichment.Enrichment, enrichment.QueryService, enrichment.EnrichmentRepository
+- git.Commit, git.File, git.Tag, git.TrackingConfig
+- queue.Task, queue.TaskStatus
+- indexing.Snippet, indexing.SnippetRepository, indexing.VectorSearchRepository
+- tracking.QueryService, tracking.RepositoryStatusSummary
+
+These need to be mapped to domain/application equivalents before removal can proceed.
+
+**Next Steps:**
+1. Update infrastructure/api/v1/repositories.go to use application/service types
+2. Update infrastructure/api/jsonapi/serializer.go to use domain types
+3. Update remaining API routers
+4. Update CLI to use new packages
+5. Remove internal packages
+
+**Assessment of Migration Complexity:**
+
+The migration from internal to domain/application/infrastructure requires these changes:
+
+| Internal Type | New Type | Notes |
+|---------------|----------|-------|
+| `internal/repository.Source` | `application/service.Source` | Direct replacement |
+| `internal/repository.QueryService` | `application/service.RepositoryQuery` | Method names match |
+| `internal/repository.SyncService` | `application/service.RepositorySync` | Method names match |
+| `internal/tracking.QueryService` | `application/service.TrackingQuery` | Method names match |
+| `internal/enrichment.QueryService` | `application/service.EnrichmentQuery` | Method names match |
+| `internal/git.Repo` | `domain/repository.Repository` | Similar structure |
+| `internal/git.Commit` | `domain/repository.Commit` | Similar structure |
+| `internal/git.File` | `domain/repository.File` | Similar structure |
+| `internal/git.Tag` | `domain/repository.Tag` | Similar structure |
+| `internal/git.TrackingConfig` | `domain/repository.TrackingConfig` | Similar structure |
+| `internal/enrichment.Enrichment` | `domain/enrichment.Enrichment` | Similar structure |
+| `internal/enrichment.EnrichmentRepository` | `domain/enrichment.EnrichmentStore` | Interface rename |
+| `internal/queue.Task` | `domain/task.Task` | Similar structure |
+| `internal/queue.TaskStatus` | `domain/task.Status` | Similar structure |
+| `internal/indexing.Snippet` | `domain/snippet.Snippet` | Similar structure |
+| `internal/indexing.SnippetRepository` | `domain/snippet.SnippetStore` | Interface rename |
+
+Files requiring updates:
+- `infrastructure/api/v1/repositories.go` (24 imports to change)
+- `infrastructure/api/v1/commits.go` (2 imports)
+- `infrastructure/api/v1/search.go` (3 imports)
+- `infrastructure/api/v1/queue.go` (2 imports)
+- `infrastructure/api/v1/enrichments.go` (1 import)
+- `infrastructure/api/jsonapi/serializer.go` (6 imports)
+- `infrastructure/api/middleware/error.go` (2 imports)
+- `cmd/kodit/serve.go` (26 imports)
+- `cmd/kodit/stdio.go` (7 imports)
+- `cmd/kodit/main.go` (1 import)
+
+**Recommended Approach for Phase 6:**
+1. Create adapter functions that convert between internal and domain types
+2. Or update infrastructure/api to use domain types directly
+3. CLI migration can happen last since it's the outermost layer
+4. Consider keeping internal packages as deprecated but functional during transition
+
+### 2026-02-04 Session 12 (continued)
+
+**Completed:**
+- Updated `infrastructure/api/v1/repositories.go` to use domain/application types
+  - Imports changed from `internal/*` to `domain/*` and `application/service`
+  - Now uses `service.Source`, `service.RepositoryQuery`, `service.RepositorySync`
+  - Now uses `service.TrackingQuery`, `service.EnrichmentQuery`
+  - Now uses `domain/repository.Repository`, `domain/repository.Commit`, etc.
+  - Now uses `domain/enrichment.Enrichment`, `domain/snippet.SnippetStore`
+  - Defined VectorStoreForAPI interface for embedding access
+
+**Verified:**
+- `go build ./...` ✓
+- `go test ./...` ✓ (all tests pass)
+- `golangci-lint run` ✓ (0 issues)
+
+**Remaining Tasks for Phase 6:**
+1. Update `infrastructure/api/jsonapi/serializer.go` to use domain types
+2. Update `infrastructure/api/v1/commits.go` to use domain types
+3. Update `infrastructure/api/v1/search.go` to use domain types
+4. Update `infrastructure/api/v1/queue.go` to use domain types
+5. Update `infrastructure/api/v1/enrichments.go` to use domain types
+6. Update `infrastructure/api/middleware/error.go` to use domain errors
+7. Update CLI (`cmd/kodit/serve.go`, `cmd/kodit/stdio.go`) to use new packages
+8. Remove old internal packages
+
+**Session Progress Summary:**
+- Phase 1: Domain layer ✓ (complete)
+- Phase 2: Application layer ✓ (complete)
+- Phase 3: Infrastructure layer ✓ (complete)
+- Phase 4: Public API ✓ (complete)
+- Phase 5: CLI split ✓ (partial - CLI uses internal packages)
+- Phase 6: Cleanup (in progress - repositories.go migrated)
+
+### 2026-02-04 Session 13
+
+**Completed:**
+- Phase 6 (continued): Migrated remaining `infrastructure/api/v1/` files to use domain/application types
+  - `infrastructure/api/v1/router_test.go` - Updated FakeEnrichmentRepository to FakeEnrichmentStore, uses `domain/enrichment.Enrichment`
+  - `infrastructure/api/middleware/error.go` - Added `persistence.ErrNotFound` check for 404 responses
+  - `infrastructure/api/v1/search.go` - Updated to use `service.CodeSearch`, `domain/search.MultiRequest`, `domain/snippet.Snippet`
+
+**Verified:**
+- `go build ./...` ✓
+- `go test ./...` ✓ (all tests pass, including router_test.go)
+- `golangci-lint run` ✓ (0 issues)
+
+**Files Now Using Domain/Application Types:**
+- `infrastructure/api/v1/repositories.go` - Complete
+- `infrastructure/api/v1/commits.go` - Complete
+- `infrastructure/api/v1/queue.go` - Complete
+- `infrastructure/api/v1/enrichments.go` - Complete
+- `infrastructure/api/v1/search.go` - Complete ← NEW
+- `infrastructure/api/v1/router_test.go` - Complete ← NEW
+- `infrastructure/api/jsonapi/serializer.go` - Complete
+- `infrastructure/api/middleware/error.go` - Partial (still imports internal/domain, internal/database for compatibility)
+
+**Design Decisions Made:**
+- The middleware error handler keeps backward compatibility by checking both `internal/domain.ErrNotFound`, `internal/database.ErrNotFound`, AND `infrastructure/persistence.ErrNotFound`
+- This allows API routes using new domain types to work correctly alongside any remaining internal usages
+
+**Current Status:**
+All `infrastructure/api/v1/*.go` files now use domain/application types instead of internal types.
+The middleware still has internal imports for error type compatibility during the transition.
+
+**Remaining Tasks for Phase 6:**
+1. Update CLI (`cmd/kodit/serve.go`, `cmd/kodit/stdio.go`) to use new packages
+2. Remove old internal packages once CLI is migrated
+3. Define domain-level error types to replace internal/domain errors
+4. Remove internal imports from middleware/error.go
+
+**Session Progress Summary:**
+- Phase 1: Domain layer ✓ (complete)
+- Phase 2: Application layer ✓ (complete)
+- Phase 3: Infrastructure layer ✓ (complete)
+- Phase 4: Public API ✓ (complete)
+- Phase 5: CLI split ✓ (partial - CLI uses internal packages)
+- Phase 6: Cleanup (in progress - API v1 layer migrated, CLI still uses internal packages)

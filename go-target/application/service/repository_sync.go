@@ -86,6 +86,11 @@ func (s Source) Repository() repository.Repository {
 	return s.repo
 }
 
+// Repo returns the underlying Repository (alias for Repository() for API compatibility).
+func (s Source) Repo() repository.Repository {
+	return s.repo
+}
+
 // Status returns the current source status.
 func (s Source) Status() SourceStatus {
 	return s.status

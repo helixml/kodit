@@ -7,32 +7,35 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/helixml/kodit/application/service"
+	"github.com/helixml/kodit/domain/task"
 	"github.com/helixml/kodit/infrastructure/api/middleware"
 	"github.com/helixml/kodit/infrastructure/api/v1/dto"
-	"github.com/helixml/kodit/internal/database"
-	"github.com/helixml/kodit/internal/queue"
 )
 
 // QueueRouter handles queue API endpoints.
 type QueueRouter struct {
-	taskRepo       queue.TaskRepository
-	taskStatusRepo queue.TaskStatusRepository
-	logger         *slog.Logger
+	queueService *service.Queue
+	taskStore    task.TaskStore
+	statusStore  task.StatusStore
+	logger       *slog.Logger
 }
 
 // NewQueueRouter creates a new QueueRouter.
 func NewQueueRouter(
-	taskRepo queue.TaskRepository,
-	taskStatusRepo queue.TaskStatusRepository,
+	queueService *service.Queue,
+	taskStore task.TaskStore,
+	statusStore task.StatusStore,
 	logger *slog.Logger,
 ) *QueueRouter {
 	if logger == nil {
 		logger = slog.Default()
 	}
 	return &QueueRouter{
-		taskRepo:       taskRepo,
-		taskStatusRepo: taskStatusRepo,
-		logger:         logger,
+		queueService: queueService,
+		taskStore:    taskStore,
+		statusStore:  statusStore,
+		logger:       logger,
 	}
 }
 
@@ -70,20 +73,22 @@ func (r *QueueRouter) ListTasks(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	// Build query with optional task_type filter
-	query := database.NewQuery().
-		OrderDesc("priority").
-		Limit(limit)
-
-	// Add task_type filter if specified
+	// Get task type filter if specified
+	var operation *task.Operation
 	if taskType := req.URL.Query().Get("task_type"); taskType != "" {
-		query = query.Equal("type", taskType)
+		op := task.Operation(taskType)
+		operation = &op
 	}
 
-	tasks, err := r.taskRepo.Find(ctx, query)
+	tasks, err := r.queueService.List(ctx, operation)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
+	}
+
+	// Apply limit
+	if len(tasks) > limit {
+		tasks = tasks[:limit]
 	}
 
 	response := dto.TaskListResponse{
@@ -116,34 +121,34 @@ func (r *QueueRouter) GetTask(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	task, err := r.taskRepo.Get(ctx, id)
+	t, err := r.taskStore.Get(ctx, id)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
 
-	middleware.WriteJSON(w, http.StatusOK, dto.TaskResponse{Data: taskToDTO(task)})
+	middleware.WriteJSON(w, http.StatusOK, dto.TaskResponse{Data: taskToDTO(t)})
 }
 
-func tasksToDTO(tasks []queue.Task) []dto.TaskData {
+func tasksToDTO(tasks []task.Task) []dto.TaskData {
 	result := make([]dto.TaskData, len(tasks))
-	for i, task := range tasks {
-		result[i] = taskToDTO(task)
+	for i, t := range tasks {
+		result[i] = taskToDTO(t)
 	}
 	return result
 }
 
-func taskToDTO(task queue.Task) dto.TaskData {
-	createdAt := task.CreatedAt()
-	updatedAt := task.UpdatedAt()
+func taskToDTO(t task.Task) dto.TaskData {
+	createdAt := t.CreatedAt()
+	updatedAt := t.UpdatedAt()
 
 	return dto.TaskData{
 		Type: "task",
-		ID:   fmt.Sprintf("%d", task.ID()),
+		ID:   fmt.Sprintf("%d", t.ID()),
 		Attributes: dto.TaskAttributes{
-			Type:      string(task.Operation()),
-			Priority:  task.Priority(),
-			Payload:   task.Payload(),
+			Type:      string(t.Operation()),
+			Priority:  t.Priority(),
+			Payload:   t.Payload(),
 			CreatedAt: &createdAt,
 			UpdatedAt: &updatedAt,
 		},

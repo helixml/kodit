@@ -7,26 +7,26 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/infrastructure/api"
 	"github.com/helixml/kodit/infrastructure/api/middleware"
 	"github.com/helixml/kodit/infrastructure/api/v1/dto"
-	"github.com/helixml/kodit/internal/enrichment"
 )
 
 // EnrichmentsRouter handles enrichment API endpoints.
 type EnrichmentsRouter struct {
-	enrichmentRepo enrichment.EnrichmentRepository
-	logger         *slog.Logger
+	enrichmentStore enrichment.EnrichmentStore
+	logger          *slog.Logger
 }
 
 // NewEnrichmentsRouter creates a new EnrichmentsRouter.
-func NewEnrichmentsRouter(enrichmentRepo enrichment.EnrichmentRepository, logger *slog.Logger) *EnrichmentsRouter {
+func NewEnrichmentsRouter(enrichmentStore enrichment.EnrichmentStore, logger *slog.Logger) *EnrichmentsRouter {
 	if logger == nil {
 		logger = slog.Default()
 	}
 	return &EnrichmentsRouter{
-		enrichmentRepo: enrichmentRepo,
-		logger:         logger,
+		enrichmentStore: enrichmentStore,
+		logger:          logger,
 	}
 }
 
@@ -78,13 +78,13 @@ func (r *EnrichmentsRouter) List(w http.ResponseWriter, req *http.Request) {
 	var err error
 
 	if typeParam != "" && subtypeParam != "" {
-		enrichments, err = r.enrichmentRepo.FindByTypeAndSubtype(
+		enrichments, err = r.enrichmentStore.FindByTypeAndSubtype(
 			ctx,
 			enrichment.Type(typeParam),
 			enrichment.Subtype(subtypeParam),
 		)
 	} else if typeParam != "" {
-		enrichments, err = r.enrichmentRepo.FindByType(ctx, enrichment.Type(typeParam))
+		enrichments, err = r.enrichmentStore.FindByType(ctx, enrichment.Type(typeParam))
 	}
 
 	if err != nil {
@@ -136,7 +136,7 @@ func (r *EnrichmentsRouter) Get(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	e, err := r.enrichmentRepo.Get(ctx, id)
+	e, err := r.enrichmentStore.Get(ctx, id)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return

@@ -8,18 +8,18 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/infrastructure/api/v1/dto"
-	"github.com/helixml/kodit/internal/domain"
-	"github.com/helixml/kodit/internal/enrichment"
+	"github.com/helixml/kodit/infrastructure/persistence"
 )
 
-// FakeEnrichmentRepository implements enrichment.EnrichmentRepository for testing.
-type FakeEnrichmentRepository struct {
+// FakeEnrichmentStore implements enrichment.EnrichmentStore for testing.
+type FakeEnrichmentStore struct {
 	enrichments []enrichment.Enrichment
 	getErr      error
 }
 
-func (f *FakeEnrichmentRepository) Get(_ context.Context, id int64) (enrichment.Enrichment, error) {
+func (f *FakeEnrichmentStore) Get(_ context.Context, id int64) (enrichment.Enrichment, error) {
 	if f.getErr != nil {
 		return enrichment.Enrichment{}, f.getErr
 	}
@@ -28,22 +28,22 @@ func (f *FakeEnrichmentRepository) Get(_ context.Context, id int64) (enrichment.
 			return e, nil
 		}
 	}
-	return enrichment.Enrichment{}, domain.ErrNotFound
+	return enrichment.Enrichment{}, persistence.ErrNotFound
 }
 
-func (f *FakeEnrichmentRepository) Save(_ context.Context, e enrichment.Enrichment) (enrichment.Enrichment, error) {
+func (f *FakeEnrichmentStore) Save(_ context.Context, e enrichment.Enrichment) (enrichment.Enrichment, error) {
 	return e, nil
 }
 
-func (f *FakeEnrichmentRepository) Delete(_ context.Context, _ enrichment.Enrichment) error {
+func (f *FakeEnrichmentStore) Delete(_ context.Context, _ enrichment.Enrichment) error {
 	return nil
 }
 
-func (f *FakeEnrichmentRepository) FindByType(_ context.Context, _ enrichment.Type) ([]enrichment.Enrichment, error) {
+func (f *FakeEnrichmentStore) FindByType(_ context.Context, _ enrichment.Type) ([]enrichment.Enrichment, error) {
 	return f.enrichments, nil
 }
 
-func (f *FakeEnrichmentRepository) FindByTypeAndSubtype(_ context.Context, typ enrichment.Type, subtype enrichment.Subtype) ([]enrichment.Enrichment, error) {
+func (f *FakeEnrichmentStore) FindByTypeAndSubtype(_ context.Context, typ enrichment.Type, subtype enrichment.Subtype) ([]enrichment.Enrichment, error) {
 	var result []enrichment.Enrichment
 	for _, e := range f.enrichments {
 		if e.Type() == typ && e.Subtype() == subtype {
@@ -53,7 +53,7 @@ func (f *FakeEnrichmentRepository) FindByTypeAndSubtype(_ context.Context, typ e
 	return result, nil
 }
 
-func (f *FakeEnrichmentRepository) FindByEntityKey(_ context.Context, key enrichment.EntityTypeKey) ([]enrichment.Enrichment, error) {
+func (f *FakeEnrichmentStore) FindByEntityKey(_ context.Context, key enrichment.EntityTypeKey) ([]enrichment.Enrichment, error) {
 	var result []enrichment.Enrichment
 	for _, e := range f.enrichments {
 		if e.EntityTypeKey() == key {
@@ -64,7 +64,7 @@ func (f *FakeEnrichmentRepository) FindByEntityKey(_ context.Context, key enrich
 }
 
 func TestEnrichmentsRouter_List(t *testing.T) {
-	fake := &FakeEnrichmentRepository{
+	fake := &FakeEnrichmentStore{
 		enrichments: []enrichment.Enrichment{
 			enrichment.NewEnrichment(
 				enrichment.TypeDevelopment,
@@ -102,7 +102,7 @@ func TestEnrichmentsRouter_List(t *testing.T) {
 }
 
 func TestEnrichmentsRouter_List_NoFilter(t *testing.T) {
-	fake := &FakeEnrichmentRepository{
+	fake := &FakeEnrichmentStore{
 		enrichments: []enrichment.Enrichment{
 			enrichment.NewEnrichment(
 				enrichment.TypeDevelopment,
@@ -137,7 +137,7 @@ func TestEnrichmentsRouter_List_NoFilter(t *testing.T) {
 }
 
 func TestEnrichmentsRouter_Get(t *testing.T) {
-	fake := &FakeEnrichmentRepository{
+	fake := &FakeEnrichmentStore{
 		enrichments: []enrichment.Enrichment{
 			enrichment.NewEnrichment(
 				enrichment.TypeDevelopment,
@@ -174,7 +174,7 @@ func TestEnrichmentsRouter_Get(t *testing.T) {
 }
 
 func TestEnrichmentsRouter_Get_NotFound(t *testing.T) {
-	fake := &FakeEnrichmentRepository{
+	fake := &FakeEnrichmentStore{
 		enrichments: []enrichment.Enrichment{},
 	}
 

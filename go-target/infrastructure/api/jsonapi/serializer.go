@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/helixml/kodit/internal/enrichment"
-	"github.com/helixml/kodit/internal/git"
-	"github.com/helixml/kodit/internal/indexing"
-	"github.com/helixml/kodit/internal/queue"
-	"github.com/helixml/kodit/internal/repository"
-	"github.com/helixml/kodit/internal/tracking"
+	"github.com/helixml/kodit/application/service"
+	"github.com/helixml/kodit/domain/enrichment"
+	"github.com/helixml/kodit/domain/repository"
+	"github.com/helixml/kodit/domain/snippet"
+	"github.com/helixml/kodit/domain/task"
+	"github.com/helixml/kodit/domain/tracking"
 )
 
 // RepositoryAttributes represents repository attributes in JSON:API format.
@@ -195,7 +195,7 @@ func NewSerializer() *Serializer {
 }
 
 // RepositoryResource converts a repository source to a JSON:API resource.
-func (s *Serializer) RepositoryResource(source repository.Source) *Resource {
+func (s *Serializer) RepositoryResource(source service.Source) *Resource {
 	repo := source.Repo()
 	createdAt := repo.CreatedAt()
 	updatedAt := repo.UpdatedAt()
@@ -220,7 +220,7 @@ func (s *Serializer) RepositoryResource(source repository.Source) *Resource {
 }
 
 // RepositoryResources converts multiple sources to JSON:API resources.
-func (s *Serializer) RepositoryResources(sources []repository.Source) []*Resource {
+func (s *Serializer) RepositoryResources(sources []service.Source) []*Resource {
 	resources := make([]*Resource, len(sources))
 	for i, source := range sources {
 		resources[i] = s.RepositoryResource(source)
@@ -229,7 +229,7 @@ func (s *Serializer) RepositoryResources(sources []repository.Source) []*Resourc
 }
 
 // CommitResource converts a commit to a JSON:API resource.
-func (s *Serializer) CommitResource(commit git.Commit) *Resource {
+func (s *Serializer) CommitResource(commit repository.Commit) *Resource {
 	attrs := &CommitAttributes{
 		CommitSHA:       commit.SHA(),
 		Date:            commit.CommittedAt(),
@@ -241,7 +241,7 @@ func (s *Serializer) CommitResource(commit git.Commit) *Resource {
 }
 
 // CommitResources converts multiple commits to JSON:API resources.
-func (s *Serializer) CommitResources(commits []git.Commit) []*Resource {
+func (s *Serializer) CommitResources(commits []repository.Commit) []*Resource {
 	resources := make([]*Resource, len(commits))
 	for i, commit := range commits {
 		resources[i] = s.CommitResource(commit)
@@ -250,7 +250,7 @@ func (s *Serializer) CommitResources(commits []git.Commit) []*Resource {
 }
 
 // FileResource converts a file to a JSON:API resource.
-func (s *Serializer) FileResource(file git.File) *Resource {
+func (s *Serializer) FileResource(file repository.File) *Resource {
 	attrs := &FileAttributes{
 		BlobSHA:   file.BlobSHA(),
 		Path:      file.Path(),
@@ -262,7 +262,7 @@ func (s *Serializer) FileResource(file git.File) *Resource {
 }
 
 // FileResources converts multiple files to JSON:API resources.
-func (s *Serializer) FileResources(files []git.File) []*Resource {
+func (s *Serializer) FileResources(files []repository.File) []*Resource {
 	resources := make([]*Resource, len(files))
 	for i, file := range files {
 		resources[i] = s.FileResource(file)
@@ -271,7 +271,7 @@ func (s *Serializer) FileResources(files []git.File) []*Resource {
 }
 
 // TagResource converts a tag to a JSON:API resource.
-func (s *Serializer) TagResource(tag git.Tag) *Resource {
+func (s *Serializer) TagResource(tag repository.Tag) *Resource {
 	attrs := &TagAttributes{
 		Name:            tag.Name(),
 		TargetCommitSHA: tag.CommitSHA(),
@@ -281,7 +281,7 @@ func (s *Serializer) TagResource(tag git.Tag) *Resource {
 }
 
 // TagResources converts multiple tags to JSON:API resources.
-func (s *Serializer) TagResources(tags []git.Tag) []*Resource {
+func (s *Serializer) TagResources(tags []repository.Tag) []*Resource {
 	resources := make([]*Resource, len(tags))
 	for i, tag := range tags {
 		resources[i] = s.TagResource(tag)
@@ -315,31 +315,31 @@ func (s *Serializer) EnrichmentResources(enrichments []enrichment.Enrichment) []
 }
 
 // TaskResource converts a task to a JSON:API resource.
-func (s *Serializer) TaskResource(task queue.Task) *Resource {
-	createdAt := task.CreatedAt()
-	updatedAt := task.UpdatedAt()
+func (s *Serializer) TaskResource(t task.Task) *Resource {
+	createdAt := t.CreatedAt()
+	updatedAt := t.UpdatedAt()
 
 	attrs := &TaskAttributes{
-		Type:      string(task.Operation()),
-		Priority:  task.Priority(),
-		Payload:   task.Payload(),
+		Type:      string(t.Operation()),
+		Priority:  t.Priority(),
+		Payload:   t.Payload(),
 		CreatedAt: &createdAt,
 		UpdatedAt: &updatedAt,
 	}
-	return NewResource("task", fmt.Sprintf("%d", task.ID()), attrs)
+	return NewResource("task", fmt.Sprintf("%d", t.ID()), attrs)
 }
 
 // TaskResources converts multiple tasks to JSON:API resources.
-func (s *Serializer) TaskResources(tasks []queue.Task) []*Resource {
+func (s *Serializer) TaskResources(tasks []task.Task) []*Resource {
 	resources := make([]*Resource, len(tasks))
-	for i, task := range tasks {
-		resources[i] = s.TaskResource(task)
+	for i, t := range tasks {
+		resources[i] = s.TaskResource(t)
 	}
 	return resources
 }
 
 // TaskStatusResource converts a task status to a JSON:API resource.
-func (s *Serializer) TaskStatusResource(status queue.TaskStatus) *Resource {
+func (s *Serializer) TaskStatusResource(status task.Status) *Resource {
 	createdAt := status.CreatedAt()
 	updatedAt := status.UpdatedAt()
 
@@ -358,7 +358,7 @@ func (s *Serializer) TaskStatusResource(status queue.TaskStatus) *Resource {
 }
 
 // TaskStatusResources converts multiple statuses to JSON:API resources.
-func (s *Serializer) TaskStatusResources(statuses []queue.TaskStatus) []*Resource {
+func (s *Serializer) TaskStatusResources(statuses []task.Status) []*Resource {
 	resources := make([]*Resource, len(statuses))
 	for i, status := range statuses {
 		resources[i] = s.TaskStatusResource(status)
@@ -377,7 +377,7 @@ func (s *Serializer) StatusSummaryResource(repoID int64, summary tracking.Reposi
 }
 
 // TrackingConfigResource converts a tracking config to a JSON:API resource.
-func (s *Serializer) TrackingConfigResource(repoID int64, tc git.TrackingConfig) *Resource {
+func (s *Serializer) TrackingConfigResource(repoID int64, tc repository.TrackingConfig) *Resource {
 	mode := "branch"
 	var value *string
 
@@ -398,7 +398,7 @@ func (s *Serializer) TrackingConfigResource(repoID int64, tc git.TrackingConfig)
 }
 
 // EmbeddingResource converts an embedding to a JSON:API resource.
-func (s *Serializer) EmbeddingResource(idx int, emb indexing.EmbeddingInfo, full bool) *Resource {
+func (s *Serializer) EmbeddingResource(idx int, emb snippet.EmbeddingInfo, full bool) *Resource {
 	var embedding []float64
 	if full {
 		embedding = emb.Embedding()
@@ -415,7 +415,7 @@ func (s *Serializer) EmbeddingResource(idx int, emb indexing.EmbeddingInfo, full
 }
 
 // EmbeddingResources converts multiple embeddings to JSON:API resources.
-func (s *Serializer) EmbeddingResources(embeddings []indexing.EmbeddingInfo, full bool) []*Resource {
+func (s *Serializer) EmbeddingResources(embeddings []snippet.EmbeddingInfo, full bool) []*Resource {
 	resources := make([]*Resource, len(embeddings))
 	for i, emb := range embeddings {
 		resources[i] = s.EmbeddingResource(i, emb, full)
@@ -425,13 +425,13 @@ func (s *Serializer) EmbeddingResources(embeddings []indexing.EmbeddingInfo, ful
 
 // SnippetResource converts a snippet with enrichments to a JSON:API resource for search results.
 func (s *Serializer) SnippetResource(
-	snippet indexing.Snippet,
+	snip snippet.Snippet,
 	enrichments []enrichment.Enrichment,
-	files []git.File,
+	files []repository.File,
 	scores []float64,
 ) *Resource {
-	createdAt := snippet.CreatedAt()
-	updatedAt := snippet.UpdatedAt()
+	createdAt := snip.CreatedAt()
+	updatedAt := snip.UpdatedAt()
 
 	derivesFrom := make([]GitFileSchema, len(files))
 	for i, f := range files {
@@ -452,17 +452,17 @@ func (s *Serializer) SnippetResource(
 	}
 
 	attrs := &SnippetAttributes{
-		CreatedAt: &createdAt,
-		UpdatedAt: &updatedAt,
+		CreatedAt:   &createdAt,
+		UpdatedAt:   &updatedAt,
 		DerivesFrom: derivesFrom,
 		Content: SnippetContentSchema{
-			Value:    snippet.Content(),
-			Language: snippet.Extension(),
+			Value:    snip.Content(),
+			Language: snip.Extension(),
 		},
 		Enrichments:    enrichmentSchemas,
 		OriginalScores: scores,
 	}
-	return NewResource("snippet", snippet.SHA(), attrs)
+	return NewResource("snippet", snip.SHA(), attrs)
 }
 
 // isVersionTag checks if a tag name looks like a version tag.

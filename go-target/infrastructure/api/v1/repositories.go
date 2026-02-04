@@ -2,6 +2,7 @@
 package v1
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -10,31 +11,43 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/helixml/kodit/application/service"
+	"github.com/helixml/kodit/domain/enrichment"
+	"github.com/helixml/kodit/domain/repository"
+	"github.com/helixml/kodit/domain/snippet"
 	"github.com/helixml/kodit/infrastructure/api/middleware"
 	"github.com/helixml/kodit/infrastructure/api/v1/dto"
-	"github.com/helixml/kodit/internal/enrichment"
-	"github.com/helixml/kodit/internal/git"
-	"github.com/helixml/kodit/internal/indexing"
-	"github.com/helixml/kodit/internal/repository"
-	"github.com/helixml/kodit/internal/tracking"
 )
 
 // RepositoriesRouter handles repository API endpoints.
 type RepositoriesRouter struct {
-	queryService           *repository.QueryService
-	syncService            *repository.SyncService
-	trackingQueryService   *tracking.QueryService
-	enrichmentQueryService *enrichment.QueryService
-	enrichmentRepo         enrichment.EnrichmentRepository
-	snippetRepo            indexing.SnippetRepository
-	vectorRepo             indexing.VectorSearchRepository
+	queryService           *service.RepositoryQuery
+	syncService            *service.RepositorySync
+	trackingQueryService   *service.TrackingQuery
+	enrichmentQueryService *service.EnrichmentQuery
+	enrichmentStore        enrichment.EnrichmentStore
+	snippetStore           snippet.SnippetStore
+	vectorStore            VectorStoreForAPI
 	logger                 *slog.Logger
+}
+
+// VectorStoreForAPI provides embedding access for API endpoints.
+type VectorStoreForAPI interface {
+	EmbeddingsForSnippets(ctx context.Context, snippetIDs []string) ([]EmbeddingInfo, error)
+}
+
+// EmbeddingInfo represents embedding information for API responses.
+type EmbeddingInfo interface {
+	SnippetID() string
+	Type() string
+	Embedding() []float64
+	EmbeddingTruncated(n int) []float64
 }
 
 // NewRepositoriesRouter creates a new RepositoriesRouter.
 func NewRepositoriesRouter(
-	queryService *repository.QueryService,
-	syncService *repository.SyncService,
+	queryService *service.RepositoryQuery,
+	syncService *service.RepositorySync,
 	logger *slog.Logger,
 ) *RepositoriesRouter {
 	if logger == nil {
@@ -48,28 +61,28 @@ func NewRepositoriesRouter(
 }
 
 // WithTrackingQueryService sets the tracking query service for status endpoints.
-func (r *RepositoriesRouter) WithTrackingQueryService(svc *tracking.QueryService) *RepositoriesRouter {
+func (r *RepositoriesRouter) WithTrackingQueryService(svc *service.TrackingQuery) *RepositoriesRouter {
 	r.trackingQueryService = svc
 	return r
 }
 
 // WithEnrichmentServices sets the enrichment services for enrichment endpoints.
 func (r *RepositoriesRouter) WithEnrichmentServices(
-	querySvc *enrichment.QueryService,
-	repo enrichment.EnrichmentRepository,
+	querySvc *service.EnrichmentQuery,
+	store enrichment.EnrichmentStore,
 ) *RepositoriesRouter {
 	r.enrichmentQueryService = querySvc
-	r.enrichmentRepo = repo
+	r.enrichmentStore = store
 	return r
 }
 
 // WithIndexingServices sets the indexing services for embedding endpoints.
 func (r *RepositoriesRouter) WithIndexingServices(
-	snippetRepo indexing.SnippetRepository,
-	vectorRepo indexing.VectorSearchRepository,
+	snippetStore snippet.SnippetStore,
+	vectorStore VectorStoreForAPI,
 ) *RepositoriesRouter {
-	r.snippetRepo = snippetRepo
-	r.vectorRepo = vectorRepo
+	r.snippetStore = snippetStore
+	r.vectorStore = vectorStore
 	return r
 }
 
@@ -189,12 +202,12 @@ func (r *RepositoriesRouter) Add(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	var source repository.Source
+	var source service.Source
 	var err error
 
 	// If tracking config provided, use AddRepositoryWithTracking
 	if body.Branch != "" || body.Tag != "" || body.Commit != "" {
-		tc := git.NewTrackingConfig(body.Branch, body.Tag, body.Commit)
+		tc := repository.NewTrackingConfig(body.Branch, body.Tag, body.Commit)
 		source, err = r.syncService.AddRepositoryWithTracking(ctx, body.RemoteURL, tc)
 	} else {
 		source, err = r.syncService.AddRepository(ctx, body.RemoteURL)
@@ -737,13 +750,13 @@ func (r *RepositoriesRouter) GetCommitEnrichment(w http.ResponseWriter, req *htt
 		return
 	}
 
-	// If enrichment repo not configured, return error
-	if r.enrichmentRepo == nil {
+	// If enrichment store not configured, return error
+	if r.enrichmentStore == nil {
 		middleware.WriteJSON(w, http.StatusNotFound, map[string]string{"error": "enrichments not configured"})
 		return
 	}
 
-	e, err := r.enrichmentRepo.Get(ctx, enrichmentID)
+	e, err := r.enrichmentStore.Get(ctx, enrichmentID)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -877,8 +890,8 @@ func (r *RepositoriesRouter) ListCommitEmbeddings(w http.ResponseWriter, req *ht
 		return
 	}
 
-	// If snippet/vector repos not configured, return empty list
-	if r.snippetRepo == nil || r.vectorRepo == nil {
+	// If snippet/vector stores not configured, return empty list
+	if r.snippetStore == nil || r.vectorStore == nil {
 		middleware.WriteJSON(w, http.StatusOK, dto.EmbeddingJSONAPIListResponse{Data: []dto.EmbeddingData{}})
 		return
 	}
@@ -888,7 +901,7 @@ func (r *RepositoriesRouter) ListCommitEmbeddings(w http.ResponseWriter, req *ht
 	full := fullStr == "true"
 
 	// Get snippets for the commit
-	snippets, err := r.snippetRepo.SnippetsForCommit(ctx, commitSHA)
+	snippets, err := r.snippetStore.SnippetsForCommit(ctx, commitSHA)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -906,7 +919,7 @@ func (r *RepositoriesRouter) ListCommitEmbeddings(w http.ResponseWriter, req *ht
 	}
 
 	// Get embeddings for snippets
-	embeddings, err := r.vectorRepo.EmbeddingsForSnippets(ctx, snippetIDs)
+	embeddings, err := r.vectorStore.EmbeddingsForSnippets(ctx, snippetIDs)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -927,7 +940,7 @@ func (r *RepositoriesRouter) ListCommitEmbeddings(w http.ResponseWriter, req *ht
 			ID:   fmt.Sprintf("%d", i),
 			Attributes: dto.EmbeddingAttributes{
 				SnippetSHA:    emb.SnippetID(),
-				EmbeddingType: string(emb.Type()),
+				EmbeddingType: emb.Type(),
 				Embedding:     embVector,
 			},
 		})
@@ -1229,7 +1242,7 @@ func (r *RepositoriesRouter) UpdateTrackingConfig(w http.ResponseWriter, req *ht
 		}
 	}
 
-	tc := git.NewTrackingConfig(branch, tag, commit)
+	tc := repository.NewTrackingConfig(branch, tag, commit)
 
 	source, err := r.syncService.UpdateTrackingConfig(ctx, id, tc)
 	if err != nil {
@@ -1241,7 +1254,7 @@ func (r *RepositoriesRouter) UpdateTrackingConfig(w http.ResponseWriter, req *ht
 	middleware.WriteJSON(w, http.StatusOK, trackingConfigToResponse(updatedTC))
 }
 
-func trackingConfigToResponse(tc git.TrackingConfig) dto.TrackingConfigResponse {
+func trackingConfigToResponse(tc repository.TrackingConfig) dto.TrackingConfigResponse {
 	mode := dto.TrackingModeBranch
 	var value *string
 
@@ -1265,7 +1278,7 @@ func trackingConfigToResponse(tc git.TrackingConfig) dto.TrackingConfigResponse 
 	}
 }
 
-func sourcesToDTO(sources []repository.Source) []dto.RepositoryData {
+func sourcesToDTO(sources []service.Source) []dto.RepositoryData {
 	result := make([]dto.RepositoryData, len(sources))
 	for i, source := range sources {
 		result[i] = sourceToDTO(source)
@@ -1273,7 +1286,7 @@ func sourcesToDTO(sources []repository.Source) []dto.RepositoryData {
 	return result
 }
 
-func sourceToDTO(source repository.Source) dto.RepositoryData {
+func sourceToDTO(source service.Source) dto.RepositoryData {
 	repo := source.Repo()
 	createdAt := repo.CreatedAt()
 	updatedAt := repo.UpdatedAt()

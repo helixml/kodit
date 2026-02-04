@@ -6,20 +6,20 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/helixml/kodit/application/service"
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/infrastructure/api/middleware"
 	"github.com/helixml/kodit/infrastructure/api/v1/dto"
-	"github.com/helixml/kodit/internal/git"
-	"github.com/helixml/kodit/internal/repository"
 )
 
 // CommitsRouter handles commit API endpoints.
 type CommitsRouter struct {
-	queryService *repository.QueryService
+	queryService *service.RepositoryQuery
 	logger       *slog.Logger
 }
 
 // NewCommitsRouter creates a new CommitsRouter.
-func NewCommitsRouter(queryService *repository.QueryService, logger *slog.Logger) *CommitsRouter {
+func NewCommitsRouter(queryService *service.RepositoryQuery, logger *slog.Logger) *CommitsRouter {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -70,7 +70,7 @@ func (r *CommitsRouter) ListByRepository(w http.ResponseWriter, req *http.Reques
 	middleware.WriteJSON(w, http.StatusOK, response)
 }
 
-func commitsToDTO(commits []git.Commit) []dto.CommitResponse {
+func commitsToDTO(commits []repository.Commit) []dto.CommitResponse {
 	result := make([]dto.CommitResponse, len(commits))
 	for i, commit := range commits {
 		result[i] = commitToDTO(commit)
@@ -78,7 +78,7 @@ func commitsToDTO(commits []git.Commit) []dto.CommitResponse {
 	return result
 }
 
-func commitToDTO(commit git.Commit) dto.CommitResponse {
+func commitToDTO(commit repository.Commit) dto.CommitResponse {
 	return dto.CommitResponse{
 		SHA:          commit.SHA(),
 		RepositoryID: commit.RepoID(),
