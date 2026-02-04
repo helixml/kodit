@@ -13,20 +13,16 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/helixml/kodit/internal/api"
-	apimiddleware "github.com/helixml/kodit/internal/api/middleware"
-	v1 "github.com/helixml/kodit/internal/api/v1"
-	"github.com/helixml/kodit/internal/database"
-	"github.com/helixml/kodit/internal/domain"
-	"github.com/helixml/kodit/internal/enrichment"
-	enrichmentpostgres "github.com/helixml/kodit/internal/enrichment/postgres"
-	"github.com/helixml/kodit/internal/git"
-	gitpostgres "github.com/helixml/kodit/internal/git/postgres"
-	"github.com/helixml/kodit/internal/indexing"
-	"github.com/helixml/kodit/internal/queue"
-	queuepostgres "github.com/helixml/kodit/internal/queue/postgres"
-	"github.com/helixml/kodit/internal/repository"
-	"github.com/helixml/kodit/internal/search"
+	"github.com/helixml/kodit/application/service"
+	"github.com/helixml/kodit/domain/enrichment"
+	domainrepo "github.com/helixml/kodit/domain/repository"
+	"github.com/helixml/kodit/domain/search"
+	"github.com/helixml/kodit/domain/snippet"
+	"github.com/helixml/kodit/domain/task"
+	"github.com/helixml/kodit/infrastructure/api"
+	apimiddleware "github.com/helixml/kodit/infrastructure/api/middleware"
+	v1 "github.com/helixml/kodit/infrastructure/api/v1"
+	"github.com/helixml/kodit/infrastructure/persistence"
 )
 
 // testSchema contains the SQL to create all tables for e2e tests.
@@ -160,10 +156,12 @@ CREATE TABLE IF NOT EXISTS enrichments_v2 (
 );
 
 CREATE TABLE IF NOT EXISTS enrichment_associations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     enrichment_id INTEGER NOT NULL,
-    snippet_sha TEXT NOT NULL,
+    entity_type TEXT NOT NULL DEFAULT '',
+    entity_id TEXT NOT NULL DEFAULT '',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (enrichment_id, snippet_sha),
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (enrichment_id) REFERENCES enrichments_v2(id)
 );
 `
@@ -171,26 +169,26 @@ CREATE TABLE IF NOT EXISTS enrichment_associations (
 // TestServer wraps the API server for e2e testing.
 type TestServer struct {
 	t          *testing.T
-	db         database.Database
+	db         persistence.Database
 	httpServer *httptest.Server
 	server     api.Server
 	logger     *slog.Logger
 
-	// Repositories
-	repoRepo       git.RepoRepository
-	commitRepo     git.CommitRepository
-	branchRepo     git.BranchRepository
-	tagRepo        git.TagRepository
-	fileRepo       git.FileRepository
-	taskRepo       queue.TaskRepository
-	taskStatusRepo queue.TaskStatusRepository
-	enrichmentRepo enrichment.EnrichmentRepository
+	// Stores
+	repoStore       domainrepo.RepositoryStore
+	commitStore     domainrepo.CommitStore
+	branchStore     domainrepo.BranchStore
+	tagStore        domainrepo.TagStore
+	fileStore       domainrepo.FileStore
+	taskStore       task.TaskStore
+	taskStatusStore task.StatusStore
+	enrichmentStore enrichment.EnrichmentStore
 
 	// Services
-	queueService  *queue.Service
-	queryService  *repository.QueryService
-	syncService   *repository.SyncService
-	searchService search.Service
+	queueService  *service.Queue
+	queryService  *service.RepositoryQuery
+	syncService   *service.RepositorySync
+	searchService service.CodeSearch
 }
 
 // NewTestServer creates a new test server with all dependencies wired up.
@@ -202,7 +200,7 @@ func NewTestServer(t *testing.T) *TestServer {
 	dbPath := filepath.Join(tmpDir, "test.db")
 	url := "sqlite:///" + dbPath
 
-	db, err := database.NewDatabase(ctx, url)
+	db, err := persistence.NewDatabase(ctx, url)
 	if err != nil {
 		t.Fatalf("create database: %v", err)
 	}
@@ -214,27 +212,27 @@ func NewTestServer(t *testing.T) *TestServer {
 
 	logger := slog.Default()
 
-	// Create repositories
-	repoRepo := gitpostgres.NewRepoRepository(db)
-	commitRepo := gitpostgres.NewCommitRepository(db)
-	branchRepo := gitpostgres.NewBranchRepository(db)
-	tagRepo := gitpostgres.NewTagRepository(db)
-	fileRepo := gitpostgres.NewFileRepository(db)
-	taskRepo := queuepostgres.NewTaskRepository(db)
-	taskStatusRepo := queuepostgres.NewTaskStatusRepository(db)
-	enrichmentRepo := enrichmentpostgres.NewEnrichmentRepository(db)
+	// Create stores
+	repoStore := persistence.NewRepositoryStore(db)
+	commitStore := persistence.NewCommitStore(db)
+	branchStore := persistence.NewBranchStore(db)
+	tagStore := persistence.NewTagStore(db)
+	fileStore := persistence.NewFileStore(db)
+	taskStore := persistence.NewTaskStore(db)
+	taskStatusStore := persistence.NewStatusStore(db)
+	enrichmentStore := persistence.NewEnrichmentStore(db)
+	snippetStore := persistence.NewSnippetStore(db)
 
 	// Create services
-	queueService := queue.NewService(taskRepo, logger)
-	queryService := repository.NewQueryService(repoRepo, commitRepo, branchRepo, tagRepo).
-		WithFileRepository(fileRepo)
-	syncService := repository.NewSyncService(repoRepo, queueService, logger)
+	queueService := service.NewQueue(taskStore, logger)
+	queryService := service.NewRepositoryQuery(repoStore, commitStore, branchStore, tagStore).
+		WithFileStore(fileStore)
+	syncService := service.NewRepositorySync(repoStore, queueService, logger)
 
 	// Create search service with fakes for BM25 and Vector (no extensions in SQLite)
-	fakeBM25 := &fakeBM25Repository{}
-	fakeVector := &fakeVectorRepository{}
-	fakeSnippetRepo := &fakeSnippetRepository{}
-	searchService := search.NewService(fakeBM25, fakeVector, fakeSnippetRepo, enrichmentRepo, logger)
+	fakeBM25 := &fakeBM25Store{}
+	fakeVector := &fakeVectorStore{}
+	searchService := service.NewCodeSearch(fakeBM25, fakeVector, snippetStore, enrichmentStore, logger)
 
 	// Create API server
 	server := api.NewServer(":0", logger)
@@ -244,9 +242,19 @@ func NewTestServer(t *testing.T) *TestServer {
 	router.Use(apimiddleware.Logging(logger))
 	router.Use(apimiddleware.CorrelationID)
 
+	// Create association store for enrichment query
+	associationStore := persistence.NewAssociationStore(db)
+
+	// Create query services
+	trackingQuery := service.NewTrackingQuery(taskStatusStore, taskStore)
+	enrichmentQuery := service.NewEnrichmentQuery(enrichmentStore, associationStore)
+
 	// Register routes
 	router.Route("/api/v1", func(r chi.Router) {
-		reposRouter := v1.NewRepositoriesRouter(queryService, syncService, logger)
+		reposRouter := v1.NewRepositoriesRouter(queryService, syncService, logger).
+			WithTrackingQueryService(trackingQuery).
+			WithEnrichmentServices(enrichmentQuery, enrichmentStore).
+			WithIndexingServices(snippetStore, fakeVector)
 		r.Mount("/repositories", reposRouter.Routes())
 
 		commitsRouter := v1.NewCommitsRouter(queryService, logger)
@@ -255,10 +263,10 @@ func NewTestServer(t *testing.T) *TestServer {
 		searchRouter := v1.NewSearchRouter(searchService, logger)
 		r.Mount("/search", searchRouter.Routes())
 
-		enrichmentsRouter := v1.NewEnrichmentsRouter(enrichmentRepo, logger)
+		enrichmentsRouter := v1.NewEnrichmentsRouter(enrichmentStore, logger)
 		r.Mount("/enrichments", enrichmentsRouter.Routes())
 
-		queueRouter := v1.NewQueueRouter(taskRepo, taskStatusRepo, logger)
+		queueRouter := v1.NewQueueRouter(queueService, taskStore, taskStatusStore, logger)
 		r.Mount("/queue", queueRouter.Routes())
 	})
 
@@ -271,23 +279,23 @@ func NewTestServer(t *testing.T) *TestServer {
 	httpServer := httptest.NewServer(router)
 
 	ts := &TestServer{
-		t:              t,
-		db:             db,
-		httpServer:     httpServer,
-		server:         server,
-		logger:         logger,
-		repoRepo:       repoRepo,
-		commitRepo:     commitRepo,
-		branchRepo:     branchRepo,
-		tagRepo:        tagRepo,
-		fileRepo:       fileRepo,
-		taskRepo:       taskRepo,
-		taskStatusRepo: taskStatusRepo,
-		enrichmentRepo: enrichmentRepo,
-		queueService:   queueService,
-		queryService:   queryService,
-		syncService:    syncService,
-		searchService:  searchService,
+		t:               t,
+		db:              db,
+		httpServer:      httpServer,
+		server:          server,
+		logger:          logger,
+		repoStore:       repoStore,
+		commitStore:     commitStore,
+		branchStore:     branchStore,
+		tagStore:        tagStore,
+		fileStore:       fileStore,
+		taskStore:       taskStore,
+		taskStatusStore: taskStatusStore,
+		enrichmentStore: enrichmentStore,
+		queueService:    queueService,
+		queryService:    queryService,
+		syncService:     syncService,
+		searchService:   searchService,
 	}
 
 	t.Cleanup(func() {
@@ -371,15 +379,15 @@ func (ts *TestServer) ReadBody(resp *http.Response) string {
 }
 
 // CreateRepository creates a repository in the database directly.
-func (ts *TestServer) CreateRepository(remoteURL string) git.Repo {
+func (ts *TestServer) CreateRepository(remoteURL string) domainrepo.Repository {
 	ts.t.Helper()
 	ctx := context.Background()
 
-	repo, err := git.NewRepo(remoteURL)
+	repo, err := domainrepo.NewRepository(remoteURL)
 	if err != nil {
 		ts.t.Fatalf("create repo: %v", err)
 	}
-	saved, err := ts.repoRepo.Save(ctx, repo)
+	saved, err := ts.repoStore.Save(ctx, repo)
 	if err != nil {
 		ts.t.Fatalf("save repo: %v", err)
 	}
@@ -387,17 +395,17 @@ func (ts *TestServer) CreateRepository(remoteURL string) git.Repo {
 }
 
 // CreateTask creates a task in the database directly.
-func (ts *TestServer) CreateTask(operation queue.TaskOperation, payload map[string]any) queue.Task {
+func (ts *TestServer) CreateTask(operation task.Operation, payload map[string]any) task.Task {
 	ts.t.Helper()
 	ctx := context.Background()
 
-	task := queue.NewTask(operation, int(domain.QueuePriorityNormal), payload)
-	if err := ts.queueService.Enqueue(ctx, task); err != nil {
+	tsk := task.NewTask(operation, int(task.PriorityNormal), payload)
+	if err := ts.queueService.Enqueue(ctx, tsk); err != nil {
 		ts.t.Fatalf("enqueue task: %v", err)
 	}
 
 	// Get the task back to have the ID
-	tasks, err := ts.taskRepo.Find(ctx, database.NewQuery())
+	tasks, err := ts.taskStore.FindAll(ctx)
 	if err != nil {
 		ts.t.Fatalf("find tasks: %v", err)
 	}
@@ -413,7 +421,7 @@ func (ts *TestServer) CreateEnrichment(typ enrichment.Type, subtype enrichment.S
 	ctx := context.Background()
 
 	e := enrichment.NewEnrichment(typ, subtype, enrichment.EntityTypeSnippet, content)
-	saved, err := ts.enrichmentRepo.Save(ctx, e)
+	saved, err := ts.enrichmentStore.Save(ctx, e)
 	if err != nil {
 		ts.t.Fatalf("save enrichment: %v", err)
 	}
@@ -421,14 +429,14 @@ func (ts *TestServer) CreateEnrichment(typ enrichment.Type, subtype enrichment.S
 }
 
 // CreateCommit creates a commit in the database directly.
-func (ts *TestServer) CreateCommit(repo git.Repo, sha, message string) git.Commit {
+func (ts *TestServer) CreateCommit(repo domainrepo.Repository, sha, message string) domainrepo.Commit {
 	ts.t.Helper()
 	ctx := context.Background()
 
-	author := git.NewAuthor("Test User", "test@example.com")
+	author := domainrepo.NewAuthor("Test User", "test@example.com")
 	now := time.Now()
-	commit := git.NewCommit(sha, repo.ID(), message, author, author, now, now)
-	saved, err := ts.commitRepo.Save(ctx, commit)
+	commit := domainrepo.NewCommit(sha, repo.ID(), message, author, author, now, now)
+	saved, err := ts.commitStore.Save(ctx, commit)
 	if err != nil {
 		ts.t.Fatalf("save commit: %v", err)
 	}
@@ -436,79 +444,52 @@ func (ts *TestServer) CreateCommit(repo git.Repo, sha, message string) git.Commi
 }
 
 // CreateFile creates a file in the database directly.
-func (ts *TestServer) CreateFile(commitSHA, path, blobSHA, mimeType, extension string, size int64) git.File {
+func (ts *TestServer) CreateFile(commitSHA, path, blobSHA, mimeType, extension string, size int64) domainrepo.File {
 	ts.t.Helper()
 	ctx := context.Background()
 
-	file := git.NewFileWithDetails(commitSHA, path, blobSHA, mimeType, extension, size)
-	saved, err := ts.fileRepo.Save(ctx, file)
+	file := domainrepo.NewFileWithDetails(commitSHA, path, blobSHA, mimeType, extension, size)
+	saved, err := ts.fileStore.Save(ctx, file)
 	if err != nil {
 		ts.t.Fatalf("save file: %v", err)
 	}
 	return saved
 }
 
-// fakeBM25Repository is a fake BM25 repository for testing (SQLite doesn't have VectorChord).
-type fakeBM25Repository struct{}
+// fakeBM25Store is a fake BM25 store for testing (SQLite doesn't have VectorChord).
+type fakeBM25Store struct{}
 
-func (f *fakeBM25Repository) Index(_ context.Context, _ domain.IndexRequest) error {
+func (f *fakeBM25Store) Index(_ context.Context, _ search.IndexRequest) error {
 	return nil
 }
 
-func (f *fakeBM25Repository) Search(_ context.Context, _ domain.SearchRequest) ([]domain.SearchResult, error) {
-	return []domain.SearchResult{}, nil
+func (f *fakeBM25Store) Search(_ context.Context, _ search.Request) ([]search.Result, error) {
+	return []search.Result{}, nil
 }
 
-func (f *fakeBM25Repository) Delete(_ context.Context, _ domain.DeleteRequest) error {
+func (f *fakeBM25Store) Delete(_ context.Context, _ search.DeleteRequest) error {
 	return nil
 }
 
-// fakeVectorRepository is a fake vector repository for testing (SQLite doesn't have VectorChord).
-type fakeVectorRepository struct{}
+// fakeVectorStore is a fake vector store for testing (SQLite doesn't have VectorChord).
+type fakeVectorStore struct{}
 
-func (f *fakeVectorRepository) Index(_ context.Context, _ domain.IndexRequest) error {
+func (f *fakeVectorStore) Index(_ context.Context, _ search.IndexRequest) error {
 	return nil
 }
 
-func (f *fakeVectorRepository) Search(_ context.Context, _ domain.SearchRequest) ([]domain.SearchResult, error) {
-	return []domain.SearchResult{}, nil
+func (f *fakeVectorStore) Search(_ context.Context, _ search.Request) ([]search.Result, error) {
+	return []search.Result{}, nil
 }
 
-func (f *fakeVectorRepository) HasEmbedding(_ context.Context, _ string, _ indexing.EmbeddingType) (bool, error) {
+func (f *fakeVectorStore) HasEmbedding(_ context.Context, _ string, _ snippet.EmbeddingType) (bool, error) {
 	return false, nil
 }
 
-func (f *fakeVectorRepository) Delete(_ context.Context, _ domain.DeleteRequest) error {
+func (f *fakeVectorStore) Delete(_ context.Context, _ search.DeleteRequest) error {
 	return nil
 }
 
-func (f *fakeVectorRepository) EmbeddingsForSnippets(_ context.Context, _ []string) ([]indexing.EmbeddingInfo, error) {
-	return []indexing.EmbeddingInfo{}, nil
-}
-
-// fakeSnippetRepository is a fake snippet repository for testing.
-type fakeSnippetRepository struct{}
-
-func (f *fakeSnippetRepository) Save(_ context.Context, _ string, _ []indexing.Snippet) error {
-	return nil
-}
-
-func (f *fakeSnippetRepository) SnippetsForCommit(_ context.Context, _ string) ([]indexing.Snippet, error) {
-	return []indexing.Snippet{}, nil
-}
-
-func (f *fakeSnippetRepository) DeleteForCommit(_ context.Context, _ string) error {
-	return nil
-}
-
-func (f *fakeSnippetRepository) Search(_ context.Context, _ domain.MultiSearchRequest) ([]indexing.Snippet, error) {
-	return []indexing.Snippet{}, nil
-}
-
-func (f *fakeSnippetRepository) ByIDs(_ context.Context, _ []string) ([]indexing.Snippet, error) {
-	return []indexing.Snippet{}, nil
-}
-
-func (f *fakeSnippetRepository) BySHA(_ context.Context, _ string) (indexing.Snippet, error) {
-	return indexing.Snippet{}, nil
+func (f *fakeVectorStore) EmbeddingsForSnippets(_ context.Context, _ []string) ([]snippet.EmbeddingInfo, error) {
+	return []snippet.EmbeddingInfo{}, nil
 }

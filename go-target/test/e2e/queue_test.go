@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/helixml/kodit/internal/api/v1/dto"
-	"github.com/helixml/kodit/internal/queue"
+	"github.com/helixml/kodit/domain/task"
+	"github.com/helixml/kodit/infrastructure/api/v1/dto"
 )
 
 func TestQueue_ListTasks_Empty(t *testing.T) {
@@ -32,7 +32,7 @@ func TestQueue_ListTasks_WithData(t *testing.T) {
 	ts := NewTestServer(t)
 
 	// Create a task
-	ts.CreateTask(queue.OperationCloneRepository, map[string]any{
+	ts.CreateTask(task.OperationCloneRepository, map[string]any{
 		"repo_id":    1,
 		"remote_url": "https://github.com/test/repo.git",
 	})
@@ -55,8 +55,8 @@ func TestQueue_ListTasks_WithData(t *testing.T) {
 	if result.Data[0].Type != "task" {
 		t.Errorf("type = %q, want %q", result.Data[0].Type, "task")
 	}
-	if result.Data[0].Attributes.Type != string(queue.OperationCloneRepository) {
-		t.Errorf("attributes.type = %q, want %q", result.Data[0].Attributes.Type, queue.OperationCloneRepository)
+	if result.Data[0].Attributes.Type != string(task.OperationCloneRepository) {
+		t.Errorf("attributes.type = %q, want %q", result.Data[0].Attributes.Type, task.OperationCloneRepository)
 	}
 }
 
@@ -64,8 +64,8 @@ func TestQueue_ListTasks_WithFilter(t *testing.T) {
 	ts := NewTestServer(t)
 
 	// Create tasks with different operations
-	ts.CreateTask(queue.OperationCloneRepository, map[string]any{"repo_id": 1})
-	ts.CreateTask(queue.OperationSyncRepository, map[string]any{"repo_id": 2})
+	ts.CreateTask(task.OperationCloneRepository, map[string]any{"repo_id": 1})
+	ts.CreateTask(task.OperationSyncRepository, map[string]any{"repo_id": 2})
 
 	// Filter by task_type
 	resp := ts.GET("/api/v1/queue?task_type=kodit.repository.clone")
@@ -83,7 +83,7 @@ func TestQueue_ListTasks_WithFilter(t *testing.T) {
 	if len(result.Data) != 1 {
 		t.Errorf("len(data) = %d, want 1", len(result.Data))
 	}
-	if result.Data[0].Attributes.Type != string(queue.OperationCloneRepository) {
-		t.Errorf("attributes.type = %q, want %q", result.Data[0].Attributes.Type, queue.OperationCloneRepository)
+	if result.Data[0].Attributes.Type != string(task.OperationCloneRepository) {
+		t.Errorf("attributes.type = %q, want %q", result.Data[0].Attributes.Type, task.OperationCloneRepository)
 	}
 }

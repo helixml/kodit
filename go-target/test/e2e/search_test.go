@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/helixml/kodit/internal/api/v1/dto"
+	"github.com/helixml/kodit/infrastructure/api/v1/dto"
 )
 
 func TestSearch_POST_ReturnsEmpty(t *testing.T) {

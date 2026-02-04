@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/helixml/kodit/internal/api/v1/dto"
-	"github.com/helixml/kodit/internal/enrichment"
+	"github.com/helixml/kodit/domain/enrichment"
+	"github.com/helixml/kodit/infrastructure/api/v1/dto"
 )
 
 func TestEnrichments_List_WithTypeFilter(t *testing.T) {
