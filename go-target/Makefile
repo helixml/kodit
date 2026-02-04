@@ -86,6 +86,10 @@ test-cover-html: test-cover ## Run tests with coverage and open HTML report
 test-e2e: ## Run end-to-end tests only
 	$(GOTEST) -v ./test/e2e/...
 
+.PHONY: smoke
+smoke: ## Run smoke tests (starts server, tests API endpoints)
+	$(GOTEST) -v -timeout 15m ./tests/smoke/...
+
 ##@ Code Quality
 
 .PHONY: lint
