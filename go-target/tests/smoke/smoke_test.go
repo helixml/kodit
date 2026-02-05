@@ -320,7 +320,7 @@ func TestSmoke(t *testing.T) {
 			t.Fatal("expected task status to have state")
 		}
 		// Verify state is valid
-		validStates := map[string]bool{"pending": true, "running": true, "started": true, "completed": true, "failed": true, "skipped": true}
+		validStates := map[string]bool{"pending": true, "running": true, "started": true, "in_progress": true, "completed": true, "failed": true, "skipped": true}
 		if !validStates[taskStatus.Attributes.State] {
 			t.Fatalf("invalid task status state: %s", taskStatus.Attributes.State)
 		}

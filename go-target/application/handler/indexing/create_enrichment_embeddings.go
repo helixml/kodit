@@ -18,6 +18,7 @@ import (
 type CreateSummaryEmbeddings struct {
 	embeddingService domainservice.Embedding
 	queryService     *service.EnrichmentQuery
+	associationStore enrichment.AssociationStore
 	vectorStore      search.VectorStore
 	trackerFactory   handler.TrackerFactory
 	logger           *slog.Logger
@@ -27,6 +28,7 @@ type CreateSummaryEmbeddings struct {
 func NewCreateSummaryEmbeddings(
 	embeddingService domainservice.Embedding,
 	queryService *service.EnrichmentQuery,
+	associationStore enrichment.AssociationStore,
 	vectorStore search.VectorStore,
 	trackerFactory handler.TrackerFactory,
 	logger *slog.Logger,
@@ -34,6 +36,7 @@ func NewCreateSummaryEmbeddings(
 	return &CreateSummaryEmbeddings{
 		embeddingService: embeddingService,
 		queryService:     queryService,
+		associationStore: associationStore,
 		vectorStore:      vectorStore,
 		trackerFactory:   trackerFactory,
 		logger:           logger,
@@ -93,10 +96,23 @@ func (h *CreateSummaryEmbeddings) Execute(ctx context.Context, payload map[strin
 	documents := make([]search.Document, 0, len(newEnrichments))
 	for _, e := range newEnrichments {
 		content := e.Content()
-		if content != "" {
-			doc := search.NewDocument(enrichmentDocID(e.ID()), content)
-			documents = append(documents, doc)
+		if content == "" {
+			continue
 		}
+
+		// Find the snippet SHA associated with this enrichment
+		snippetSHA, err := h.findSnippetSHA(ctx, e.ID())
+		if err != nil {
+			h.logger.Warn("failed to find snippet SHA for enrichment", slog.Int64("enrichment_id", e.ID()), slog.String("error", err.Error()))
+			continue
+		}
+		if snippetSHA == "" {
+			h.logger.Warn("no snippet association found for enrichment", slog.Int64("enrichment_id", e.ID()))
+			continue
+		}
+
+		doc := search.NewDocument(snippetSHA, content)
+		documents = append(documents, doc)
 	}
 
 	if len(documents) == 0 {
@@ -135,7 +151,17 @@ func (h *CreateSummaryEmbeddings) filterNewEnrichments(ctx context.Context, enri
 	result := make([]enrichment.Enrichment, 0, len(enrichments))
 
 	for _, e := range enrichments {
-		hasEmbedding, err := h.vectorStore.HasEmbedding(ctx, enrichmentDocID(e.ID()), snippet.EmbeddingTypeSummary)
+		// Find the snippet SHA associated with this enrichment
+		snippetSHA, err := h.findSnippetSHA(ctx, e.ID())
+		if err != nil {
+			return nil, err
+		}
+		if snippetSHA == "" {
+			// No snippet association, skip
+			continue
+		}
+
+		hasEmbedding, err := h.vectorStore.HasEmbedding(ctx, snippetSHA, snippet.EmbeddingTypeSummary)
 		if err != nil {
 			return nil, err
 		}
@@ -146,6 +172,22 @@ func (h *CreateSummaryEmbeddings) filterNewEnrichments(ctx context.Context, enri
 	}
 
 	return result, nil
+}
+
+// findSnippetSHA finds the snippet SHA associated with an enrichment.
+func (h *CreateSummaryEmbeddings) findSnippetSHA(ctx context.Context, enrichmentID int64) (string, error) {
+	associations, err := h.associationStore.FindByEnrichmentID(ctx, enrichmentID)
+	if err != nil {
+		return "", err
+	}
+
+	for _, assoc := range associations {
+		if assoc.EntityType() == enrichment.EntityTypeSnippet {
+			return assoc.EntityID(), nil
+		}
+	}
+
+	return "", nil
 }
 
 // Ensure CreateSummaryEmbeddings implements handler.Handler.

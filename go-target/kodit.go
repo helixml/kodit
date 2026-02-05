@@ -399,7 +399,7 @@ func (c *Client) registerHandlers() {
 
 		// Summary embeddings (enrichment content from snippet summaries)
 		c.registry.Register(task.OperationCreateSummaryEmbeddingsForCommit, indexinghandler.NewCreateSummaryEmbeddings(
-			textEmbeddingService, c.enrichQ, c.textVectorStore, c.trackerFactory, c.logger,
+			textEmbeddingService, c.enrichQ, c.associationStore, c.textVectorStore, c.trackerFactory, c.logger,
 		))
 
 		// Example summary embeddings (enrichment content from example summaries)
