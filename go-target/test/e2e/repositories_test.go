@@ -457,13 +457,11 @@ func TestRepositories_ListCommitSnippets(t *testing.T) {
 	repo := ts.CreateRepository("https://github.com/test/snippets-repo.git")
 	commit := ts.CreateCommit(repo, "snippet123", "Test commit")
 
-	// Create a snippet with content
+	// Create a snippet with content for this commit
 	snippetContent := `func Hello() string {
 	return "Hello, World!"
 }`
-	snippetSHA := "abc123def456"
-	ts.CreateSnippet(snippetSHA, snippetContent, ".go")
-	ts.CreateSnippetAssociation(snippetSHA, commit.SHA())
+	snip := ts.CreateSnippetForCommit(commit.SHA(), snippetContent, ".go")
 
 	resp := ts.GET(fmt.Sprintf("/api/v1/repositories/%d/commits/%s/snippets", repo.ID(), commit.SHA()))
 	defer func() {
@@ -494,14 +492,14 @@ func TestRepositories_ListCommitSnippets(t *testing.T) {
 	}
 
 	// Verify snippet has content (the bug was snippets having empty content)
-	snippet := result.Data[0]
-	if snippet.Attributes.Content.Value == "" {
+	snippetData := result.Data[0]
+	if snippetData.Attributes.Content.Value == "" {
 		t.Error("snippet content.value should not be empty")
 	}
-	if snippet.Attributes.Content.Value != snippetContent {
-		t.Errorf("snippet content.value = %q, want %q", snippet.Attributes.Content.Value, snippetContent)
+	if snippetData.Attributes.Content.Value != snippetContent {
+		t.Errorf("snippet content.value = %q, want %q", snippetData.Attributes.Content.Value, snippetContent)
 	}
-	if snippet.ID != snippetSHA {
-		t.Errorf("snippet ID = %q, want %q", snippet.ID, snippetSHA)
+	if snippetData.ID != snip.SHA() {
+		t.Errorf("snippet ID = %q, want %q", snippetData.ID, snip.SHA())
 	}
 }

@@ -15,7 +15,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/enrichment"
-	domainrepo "github.com/helixml/kodit/domain/repository"
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/domain/snippet"
 	"github.com/helixml/kodit/domain/task"
@@ -25,167 +25,24 @@ import (
 	"github.com/helixml/kodit/infrastructure/persistence"
 )
 
-// testSchema contains the SQL to create all tables for e2e tests.
-const testSchema = `
-CREATE TABLE IF NOT EXISTS git_repos (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    sanitized_remote_uri TEXT NOT NULL UNIQUE,
-    remote_uri TEXT NOT NULL,
-    cloned_path TEXT,
-    last_scanned_at DATETIME,
-    num_commits INTEGER DEFAULT 0,
-    num_branches INTEGER DEFAULT 0,
-    num_tags INTEGER DEFAULT 0,
-    tracking_type TEXT DEFAULT '',
-    tracking_name TEXT DEFAULT '',
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS git_commits (
-    commit_sha TEXT PRIMARY KEY,
-    repo_id INTEGER NOT NULL,
-    date DATETIME NOT NULL,
-    message TEXT,
-    parent_commit_sha TEXT,
-    author TEXT,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (repo_id) REFERENCES git_repos(id)
-);
-
-CREATE TABLE IF NOT EXISTS git_branches (
-    repo_id INTEGER NOT NULL,
-    name TEXT NOT NULL,
-    head_commit_sha TEXT NOT NULL,
-    is_default INTEGER DEFAULT 0,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (repo_id, name),
-    FOREIGN KEY (repo_id) REFERENCES git_repos(id)
-);
-
-CREATE TABLE IF NOT EXISTS git_tags (
-    repo_id INTEGER NOT NULL,
-    name TEXT NOT NULL,
-    target_commit_sha TEXT NOT NULL,
-    message TEXT,
-    tagger_name TEXT,
-    tagger_email TEXT,
-    tagged_at DATETIME,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (repo_id, name),
-    FOREIGN KEY (repo_id) REFERENCES git_repos(id)
-);
-
-CREATE TABLE IF NOT EXISTS git_commit_files (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    commit_sha TEXT NOT NULL,
-    path TEXT NOT NULL,
-    blob_sha TEXT NOT NULL,
-    mime_type TEXT DEFAULT '',
-    extension TEXT DEFAULT '',
-    size INTEGER DEFAULT 0,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (commit_sha, path)
-);
-
-CREATE TABLE IF NOT EXISTS tasks (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    dedup_key TEXT NOT NULL UNIQUE,
-    type TEXT NOT NULL,
-    payload TEXT,
-    priority INTEGER NOT NULL DEFAULT 100,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS task_status (
-    id TEXT PRIMARY KEY,
-    created_at DATETIME NOT NULL,
-    updated_at DATETIME NOT NULL,
-    operation TEXT NOT NULL,
-    trackable_id INTEGER,
-    trackable_type TEXT,
-    parent TEXT,
-    message TEXT DEFAULT '',
-    state TEXT DEFAULT '',
-    error TEXT DEFAULT '',
-    total INTEGER DEFAULT 0,
-    current INTEGER DEFAULT 0
-);
-
-CREATE TABLE IF NOT EXISTS snippets (
-    sha TEXT PRIMARY KEY,
-    content TEXT NOT NULL,
-    extension TEXT NOT NULL,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS snippet_commit_associations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    snippet_sha TEXT NOT NULL,
-    commit_sha TEXT NOT NULL,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS snippet_file_derivations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    snippet_sha TEXT NOT NULL,
-    file_id INTEGER NOT NULL,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS commit_index (
-    commit_sha TEXT PRIMARY KEY,
-    status TEXT NOT NULL DEFAULT 'pending',
-    indexed_at DATETIME,
-    error_message TEXT,
-    files_processed INTEGER DEFAULT 0,
-    processing_time_seconds REAL DEFAULT 0.0,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS enrichments_v2 (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    type TEXT NOT NULL,
-    subtype TEXT NOT NULL,
-    content TEXT NOT NULL,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS enrichment_associations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    enrichment_id INTEGER NOT NULL,
-    entity_type TEXT NOT NULL DEFAULT '',
-    entity_id TEXT NOT NULL DEFAULT '',
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (enrichment_id) REFERENCES enrichments_v2(id)
-);
-`
-
 // TestServer wraps the API server for e2e testing.
 type TestServer struct {
 	t          *testing.T
 	db         persistence.Database
 	httpServer *httptest.Server
-	server     api.Server
 	logger     *slog.Logger
 
-	// Stores
-	repoStore       domainrepo.RepositoryStore
-	commitStore     domainrepo.CommitStore
-	branchStore     domainrepo.BranchStore
-	tagStore        domainrepo.TagStore
-	fileStore       domainrepo.FileStore
-	taskStore       task.TaskStore
-	taskStatusStore task.StatusStore
-	enrichmentStore enrichment.EnrichmentStore
+	// Stores - created via persistence package, schema via auto-migrate
+	repoStore        persistence.RepositoryStore
+	commitStore      persistence.CommitStore
+	branchStore      persistence.BranchStore
+	tagStore         persistence.TagStore
+	fileStore        persistence.FileStore
+	snippetStore     persistence.SnippetStore
+	taskStore        persistence.TaskStore
+	taskStatusStore  persistence.StatusStore
+	enrichmentStore  persistence.EnrichmentStore
+	associationStore persistence.AssociationStore
 
 	// Services
 	queueService  *service.Queue
@@ -195,6 +52,7 @@ type TestServer struct {
 }
 
 // NewTestServer creates a new test server with all dependencies wired up.
+// Uses GORM auto-migrate for schema creation instead of manual SQL.
 func NewTestServer(t *testing.T) *TestServer {
 	t.Helper()
 
@@ -208,9 +66,9 @@ func NewTestServer(t *testing.T) *TestServer {
 		t.Fatalf("create database: %v", err)
 	}
 
-	// Create schema
-	if err := db.Session(ctx).Exec(testSchema).Error; err != nil {
-		t.Fatalf("create schema: %v", err)
+	// Use auto-migrate instead of manual SQL
+	if err := db.AutoMigrate(); err != nil {
+		t.Fatalf("auto migrate: %v", err)
 	}
 
 	logger := slog.Default()
@@ -224,6 +82,7 @@ func NewTestServer(t *testing.T) *TestServer {
 	taskStore := persistence.NewTaskStore(db)
 	taskStatusStore := persistence.NewStatusStore(db)
 	enrichmentStore := persistence.NewEnrichmentStore(db)
+	associationStore := persistence.NewAssociationStore(db)
 	snippetStore := persistence.NewSnippetStore(db)
 
 	// Create services
@@ -232,7 +91,7 @@ func NewTestServer(t *testing.T) *TestServer {
 		WithFileStore(fileStore)
 	syncService := service.NewRepositorySync(repoStore, queueService, logger)
 
-	// Create search service with fakes for BM25 and Vector (no extensions in SQLite)
+	// Create search service with fakes (SQLite doesn't have vector extensions)
 	fakeBM25 := &fakeBM25Store{}
 	fakeVector := &fakeVectorStore{}
 	searchService := service.NewCodeSearch(fakeBM25, fakeVector, snippetStore, enrichmentStore, logger)
@@ -244,9 +103,6 @@ func NewTestServer(t *testing.T) *TestServer {
 	// Apply middleware
 	router.Use(apimiddleware.Logging(logger))
 	router.Use(apimiddleware.CorrelationID)
-
-	// Create association store for enrichment query
-	associationStore := persistence.NewAssociationStore(db)
 
 	// Create query services
 	trackingQuery := service.NewTrackingQuery(taskStatusStore, taskStore)
@@ -273,7 +129,7 @@ func NewTestServer(t *testing.T) *TestServer {
 		r.Mount("/queue", queueRouter.Routes())
 	})
 
-	// Health check (matches Python API /healthz endpoint)
+	// Health check
 	router.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -282,23 +138,24 @@ func NewTestServer(t *testing.T) *TestServer {
 	httpServer := httptest.NewServer(router)
 
 	ts := &TestServer{
-		t:               t,
-		db:              db,
-		httpServer:      httpServer,
-		server:          server,
-		logger:          logger,
-		repoStore:       repoStore,
-		commitStore:     commitStore,
-		branchStore:     branchStore,
-		tagStore:        tagStore,
-		fileStore:       fileStore,
-		taskStore:       taskStore,
-		taskStatusStore: taskStatusStore,
-		enrichmentStore: enrichmentStore,
-		queueService:    queueService,
-		queryService:    queryService,
-		syncService:     syncService,
-		searchService:   searchService,
+		t:                t,
+		db:               db,
+		httpServer:       httpServer,
+		logger:           logger,
+		repoStore:        repoStore,
+		commitStore:      commitStore,
+		branchStore:      branchStore,
+		tagStore:         tagStore,
+		fileStore:        fileStore,
+		snippetStore:     snippetStore,
+		taskStore:        taskStore,
+		taskStatusStore:  taskStatusStore,
+		enrichmentStore:  enrichmentStore,
+		associationStore: associationStore,
+		queueService:     queueService,
+		queryService:     queryService,
+		syncService:      syncService,
+		searchService:    searchService,
 	}
 
 	t.Cleanup(func() {
@@ -330,7 +187,7 @@ func (ts *TestServer) GET(path string) *http.Response {
 }
 
 // POST performs a POST request with JSON body and returns the response.
-func (ts *TestServer) POST(path string, body interface{}) *http.Response {
+func (ts *TestServer) POST(path string, body any) *http.Response {
 	ts.t.Helper()
 	jsonBody, err := json.Marshal(body)
 	if err != nil {
@@ -358,7 +215,7 @@ func (ts *TestServer) DELETE(path string) *http.Response {
 }
 
 // DecodeJSON decodes the response body as JSON into v.
-func (ts *TestServer) DecodeJSON(resp *http.Response, v interface{}) {
+func (ts *TestServer) DecodeJSON(resp *http.Response, v any) {
 	ts.t.Helper()
 	defer func() {
 		_ = resp.Body.Close()
@@ -382,11 +239,11 @@ func (ts *TestServer) ReadBody(resp *http.Response) string {
 }
 
 // CreateRepository creates a repository in the database directly.
-func (ts *TestServer) CreateRepository(remoteURL string) domainrepo.Repository {
+func (ts *TestServer) CreateRepository(remoteURL string) repository.Repository {
 	ts.t.Helper()
 	ctx := context.Background()
 
-	repo, err := domainrepo.NewRepository(remoteURL)
+	repo, err := repository.NewRepository(remoteURL)
 	if err != nil {
 		ts.t.Fatalf("create repo: %v", err)
 	}
@@ -432,13 +289,13 @@ func (ts *TestServer) CreateEnrichment(typ enrichment.Type, subtype enrichment.S
 }
 
 // CreateCommit creates a commit in the database directly.
-func (ts *TestServer) CreateCommit(repo domainrepo.Repository, sha, message string) domainrepo.Commit {
+func (ts *TestServer) CreateCommit(repo repository.Repository, sha, message string) repository.Commit {
 	ts.t.Helper()
 	ctx := context.Background()
 
-	author := domainrepo.NewAuthor("Test User", "test@example.com")
+	author := repository.NewAuthor("Test User", "test@example.com")
 	now := time.Now()
-	commit := domainrepo.NewCommit(sha, repo.ID(), message, author, author, now, now)
+	commit := repository.NewCommit(sha, repo.ID(), message, author, author, now, now)
 	saved, err := ts.commitStore.Save(ctx, commit)
 	if err != nil {
 		ts.t.Fatalf("save commit: %v", err)
@@ -447,11 +304,11 @@ func (ts *TestServer) CreateCommit(repo domainrepo.Repository, sha, message stri
 }
 
 // CreateFile creates a file in the database directly.
-func (ts *TestServer) CreateFile(commitSHA, path, blobSHA, mimeType, extension string, size int64) domainrepo.File {
+func (ts *TestServer) CreateFile(commitSHA, path, blobSHA, mimeType, extension string, size int64) repository.File {
 	ts.t.Helper()
 	ctx := context.Background()
 
-	file := domainrepo.NewFileWithDetails(commitSHA, path, blobSHA, mimeType, extension, size)
+	file := repository.NewFileWithDetails(commitSHA, path, blobSHA, mimeType, extension, size)
 	saved, err := ts.fileStore.Save(ctx, file)
 	if err != nil {
 		ts.t.Fatalf("save file: %v", err)
@@ -459,33 +316,16 @@ func (ts *TestServer) CreateFile(commitSHA, path, blobSHA, mimeType, extension s
 	return saved
 }
 
-// CreateSnippet creates a snippet in the database directly.
-func (ts *TestServer) CreateSnippet(sha, content, extension string) snippet.Snippet {
+// CreateSnippetForCommit creates a snippet and associates it with a commit.
+func (ts *TestServer) CreateSnippetForCommit(commitSHA, content, extension string) snippet.Snippet {
 	ts.t.Helper()
 	ctx := context.Background()
 
 	snip := snippet.NewSnippet(content, extension, nil)
-	// Create with specific SHA by saving directly
-	if err := ts.db.Session(ctx).Exec(
-		"INSERT INTO snippets (sha, content, extension, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-		sha, content, extension, time.Now(), time.Now(),
-	).Error; err != nil {
+	if err := ts.snippetStore.Save(ctx, commitSHA, []snippet.Snippet{snip}); err != nil {
 		ts.t.Fatalf("save snippet: %v", err)
 	}
 	return snip
-}
-
-// CreateSnippetAssociation links a snippet to a commit.
-func (ts *TestServer) CreateSnippetAssociation(snippetSHA, commitSHA string) {
-	ts.t.Helper()
-	ctx := context.Background()
-
-	if err := ts.db.Session(ctx).Exec(
-		"INSERT INTO snippet_commit_associations (snippet_sha, commit_sha, created_at) VALUES (?, ?, ?)",
-		snippetSHA, commitSHA, time.Now(),
-	).Error; err != nil {
-		ts.t.Fatalf("save snippet association: %v", err)
-	}
 }
 
 // fakeBM25Store is a fake BM25 store for testing (SQLite doesn't have VectorChord).
