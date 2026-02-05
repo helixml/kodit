@@ -102,6 +102,23 @@ definitions:
       type:
         type: string
     type: object
+  dto.EnrichmentUpdateAttributes:
+    properties:
+      content:
+        type: string
+    type: object
+  dto.EnrichmentUpdateData:
+    properties:
+      attributes:
+        $ref: '#/definitions/dto.EnrichmentUpdateAttributes'
+      type:
+        type: string
+    type: object
+  dto.EnrichmentUpdateRequest:
+    properties:
+      data:
+        $ref: '#/definitions/dto.EnrichmentUpdateData'
+    type: object
   dto.FileAttributes:
     properties:
       blob_sha:
@@ -329,11 +346,20 @@ definitions:
       type:
         type: string
     type: object
+  dto.SnippetListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/dto.SnippetData'
+        type: array
+    type: object
   dto.TagAttributes:
     properties:
-      commit_sha:
-        type: string
+      is_version_tag:
+        type: boolean
       name:
+        type: string
+      target_commit_sha:
         type: string
     type: object
   dto.TagData:
@@ -521,6 +547,38 @@ paths:
       tags:
       - enrichments
   /enrichments/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete an enrichment by ID
+      parameters:
+      - description: Enrichment ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - APIKeyAuth: []
+      summary: Delete enrichment
+      tags:
+      - enrichments
     get:
       consumes:
       - application/json
@@ -553,6 +611,46 @@ paths:
       security:
       - APIKeyAuth: []
       summary: Get enrichment
+      tags:
+      - enrichments
+    patch:
+      consumes:
+      - application/json
+      description: Update an enrichment's content
+      parameters:
+      - description: Enrichment ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Update request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.EnrichmentUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.EnrichmentJSONAPIResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - APIKeyAuth: []
+      summary: Update enrichment
       tags:
       - enrichments
   /queue:
@@ -867,6 +965,43 @@ paths:
       tags:
       - repositories
   /repositories/{id}/commits/{commit_sha}/enrichments:
+    delete:
+      consumes:
+      - application/json
+      description: Delete all enrichments for a commit
+      parameters:
+      - description: Repository ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Commit SHA
+        in: path
+        name: commit_sha
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - APIKeyAuth: []
+      summary: Delete commit enrichments
+      tags:
+      - repositories
     get:
       consumes:
       - application/json
@@ -915,6 +1050,48 @@ paths:
       tags:
       - repositories
   /repositories/{id}/commits/{commit_sha}/enrichments/{enrichment_id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a specific enrichment from a commit
+      parameters:
+      - description: Repository ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Commit SHA
+        in: path
+        name: commit_sha
+        required: true
+        type: string
+      - description: Enrichment ID
+        in: path
+        name: enrichment_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - APIKeyAuth: []
+      summary: Delete commit enrichment
+      tags:
+      - repositories
     get:
       consumes:
       - application/json
@@ -1086,7 +1263,7 @@ paths:
     get:
       consumes:
       - application/json
-      description: Redirects to enrichments endpoint with snippet filters
+      description: List code snippets for a commit
       parameters:
       - description: Repository ID
         in: path
@@ -1101,8 +1278,28 @@ paths:
       produces:
       - application/json
       responses:
-        "308":
-          description: Permanent Redirect
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.SnippetListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
       security:
       - APIKeyAuth: []
       summary: List commit snippets

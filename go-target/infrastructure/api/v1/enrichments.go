@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -36,6 +37,8 @@ func (r *EnrichmentsRouter) Routes() chi.Router {
 
 	router.Get("/", r.List)
 	router.Get("/{id}", r.Get)
+	router.Patch("/{id}", r.Update)
+	router.Delete("/{id}", r.Delete)
 
 	return router
 }
@@ -167,4 +170,95 @@ func enrichmentToJSONAPIDTO(e enrichment.Enrichment) dto.EnrichmentData {
 			UpdatedAt: e.UpdatedAt(),
 		},
 	}
+}
+
+// Update handles PATCH /api/v1/enrichments/{id}.
+//
+//	@Summary		Update enrichment
+//	@Description	Update an enrichment's content
+//	@Tags			enrichments
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		int							true	"Enrichment ID"
+//	@Param			body	body		dto.EnrichmentUpdateRequest	true	"Update request"
+//	@Success		200		{object}	dto.EnrichmentJSONAPIResponse
+//	@Failure		404		{object}	map[string]string
+//	@Failure		500		{object}	map[string]string
+//	@Security		APIKeyAuth
+//	@Router			/enrichments/{id} [patch]
+func (r *EnrichmentsRouter) Update(w http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+
+	idStr := chi.URLParam(req, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	var body dto.EnrichmentUpdateRequest
+	if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	// Get existing enrichment
+	e, err := r.enrichmentStore.Get(ctx, id)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	// Update content
+	updated := e.WithContent(body.Data.Attributes.Content)
+
+	// Save updated enrichment
+	saved, err := r.enrichmentStore.Save(ctx, updated)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	middleware.WriteJSON(w, http.StatusOK, dto.EnrichmentJSONAPIResponse{
+		Data: enrichmentToJSONAPIDTO(saved),
+	})
+}
+
+// Delete handles DELETE /api/v1/enrichments/{id}.
+//
+//	@Summary		Delete enrichment
+//	@Description	Delete an enrichment by ID
+//	@Tags			enrichments
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path	int	true	"Enrichment ID"
+//	@Success		204
+//	@Failure		404	{object}	map[string]string
+//	@Failure		500	{object}	map[string]string
+//	@Security		APIKeyAuth
+//	@Router			/enrichments/{id} [delete]
+func (r *EnrichmentsRouter) Delete(w http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+
+	idStr := chi.URLParam(req, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	// Get existing enrichment
+	e, err := r.enrichmentStore.Get(ctx, id)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	// Delete enrichment
+	if err := r.enrichmentStore.Delete(ctx, e); err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }

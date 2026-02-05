@@ -26,6 +26,7 @@ type RepositoriesRouter struct {
 	trackingQueryService   *service.TrackingQuery
 	enrichmentQueryService *service.EnrichmentQuery
 	enrichmentStore        enrichment.EnrichmentStore
+	associationStore       enrichment.AssociationStore
 	snippetStore           snippet.SnippetStore
 	vectorStore            VectorStoreForAPI
 	logger                 *slog.Logger
@@ -62,9 +63,11 @@ func (r *RepositoriesRouter) WithTrackingQueryService(svc *service.TrackingQuery
 func (r *RepositoriesRouter) WithEnrichmentServices(
 	querySvc *service.EnrichmentQuery,
 	store enrichment.EnrichmentStore,
+	assocStore enrichment.AssociationStore,
 ) *RepositoriesRouter {
 	r.enrichmentQueryService = querySvc
 	r.enrichmentStore = store
+	r.associationStore = assocStore
 	return r
 }
 
@@ -93,7 +96,9 @@ func (r *RepositoriesRouter) Routes() chi.Router {
 	router.Get("/{id}/commits/{commit_sha}/files", r.ListCommitFiles)
 	router.Get("/{id}/commits/{commit_sha}/files/{blob_sha}", r.GetCommitFile)
 	router.Get("/{id}/commits/{commit_sha}/enrichments", r.ListCommitEnrichments)
+	router.Delete("/{id}/commits/{commit_sha}/enrichments", r.DeleteCommitEnrichments)
 	router.Get("/{id}/commits/{commit_sha}/enrichments/{enrichment_id}", r.GetCommitEnrichment)
+	router.Delete("/{id}/commits/{commit_sha}/enrichments/{enrichment_id}", r.DeleteCommitEnrichment)
 	router.Get("/{id}/commits/{commit_sha}/snippets", r.ListCommitSnippets)
 	router.Get("/{id}/commits/{commit_sha}/embeddings", r.ListCommitEmbeddings)
 	router.Post("/{id}/commits/{commit_sha}/rescan", r.RescanCommit)
@@ -769,28 +774,242 @@ func (r *RepositoriesRouter) GetCommitEnrichment(w http.ResponseWriter, req *htt
 	})
 }
 
-// ListCommitSnippets handles GET /api/v1/repositories/{id}/commits/{commit_sha}/snippets.
-// This redirects to the enrichments endpoint with type=development and subtype=snippet filters.
+// DeleteCommitEnrichments handles DELETE /api/v1/repositories/{id}/commits/{commit_sha}/enrichments.
 //
-//	@Summary		List commit snippets
-//	@Description	Redirects to enrichments endpoint with snippet filters
+//	@Summary		Delete commit enrichments
+//	@Description	Delete all enrichments for a commit
 //	@Tags			repositories
 //	@Accept			json
 //	@Produce		json
 //	@Param			id			path	int		true	"Repository ID"
 //	@Param			commit_sha	path	string	true	"Commit SHA"
-//	@Success		308
+//	@Success		204
+//	@Failure		404	{object}	map[string]string
+//	@Failure		500	{object}	map[string]string
+//	@Security		APIKeyAuth
+//	@Router			/repositories/{id}/commits/{commit_sha}/enrichments [delete]
+func (r *RepositoriesRouter) DeleteCommitEnrichments(w http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+
+	idStr := chi.URLParam(req, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	commitSHA := chi.URLParam(req, "commit_sha")
+
+	// Check repository exists
+	_, err = r.queryService.ByID(ctx, id)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	// Check commit exists and belongs to this repo
+	_, err = r.queryService.CommitBySHA(ctx, id, commitSHA)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	// If association store not configured, return error
+	if r.associationStore == nil {
+		middleware.WriteJSON(w, http.StatusNotFound, map[string]string{"error": "enrichments not configured"})
+		return
+	}
+
+	// Get all enrichments for the commit first
+	if r.enrichmentQueryService != nil {
+		enrichments, err := r.enrichmentQueryService.EnrichmentsForCommit(ctx, commitSHA, nil, nil)
+		if err == nil {
+			// Delete each enrichment
+			for _, e := range enrichments {
+				_ = r.enrichmentStore.Delete(ctx, e)
+			}
+		}
+	}
+
+	// Delete all associations for the commit entity
+	if err := r.associationStore.DeleteByEntityID(ctx, commitSHA); err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// DeleteCommitEnrichment handles DELETE /api/v1/repositories/{id}/commits/{commit_sha}/enrichments/{enrichment_id}.
+//
+//	@Summary		Delete commit enrichment
+//	@Description	Delete a specific enrichment from a commit
+//	@Tags			repositories
+//	@Accept			json
+//	@Produce		json
+//	@Param			id				path	int		true	"Repository ID"
+//	@Param			commit_sha		path	string	true	"Commit SHA"
+//	@Param			enrichment_id	path	int		true	"Enrichment ID"
+//	@Success		204
+//	@Failure		404	{object}	map[string]string
+//	@Failure		500	{object}	map[string]string
+//	@Security		APIKeyAuth
+//	@Router			/repositories/{id}/commits/{commit_sha}/enrichments/{enrichment_id} [delete]
+func (r *RepositoriesRouter) DeleteCommitEnrichment(w http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+
+	idStr := chi.URLParam(req, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	commitSHA := chi.URLParam(req, "commit_sha")
+	enrichmentIDStr := chi.URLParam(req, "enrichment_id")
+	enrichmentID, err := strconv.ParseInt(enrichmentIDStr, 10, 64)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	// Check repository exists
+	_, err = r.queryService.ByID(ctx, id)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	// Check commit exists and belongs to this repo
+	_, err = r.queryService.CommitBySHA(ctx, id, commitSHA)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	// If enrichment store not configured, return error
+	if r.enrichmentStore == nil {
+		middleware.WriteJSON(w, http.StatusNotFound, map[string]string{"error": "enrichments not configured"})
+		return
+	}
+
+	// Get the enrichment
+	e, err := r.enrichmentStore.Get(ctx, enrichmentID)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	// Delete associations for this enrichment
+	if r.associationStore != nil {
+		_ = r.associationStore.DeleteByEnrichmentID(ctx, enrichmentID)
+	}
+
+	// Delete the enrichment
+	if err := r.enrichmentStore.Delete(ctx, e); err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ListCommitSnippets handles GET /api/v1/repositories/{id}/commits/{commit_sha}/snippets.
+//
+//	@Summary		List commit snippets
+//	@Description	List code snippets for a commit
+//	@Tags			repositories
+//	@Accept			json
+//	@Produce		json
+//	@Param			id			path		int		true	"Repository ID"
+//	@Param			commit_sha	path		string	true	"Commit SHA"
+//	@Success		200			{object}	dto.SnippetListResponse
+//	@Failure		401			{object}	map[string]string
+//	@Failure		404			{object}	map[string]string
+//	@Failure		500			{object}	map[string]string
 //	@Security		APIKeyAuth
 //	@Router			/repositories/{id}/commits/{commit_sha}/snippets [get]
 func (r *RepositoriesRouter) ListCommitSnippets(w http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+
 	idStr := chi.URLParam(req, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
 	commitSHA := chi.URLParam(req, "commit_sha")
 
-	// Redirect to enrichments endpoint with snippet filters
-	redirectURL := fmt.Sprintf("/api/v1/repositories/%s/commits/%s/enrichments?enrichment_type=development&enrichment_subtype=snippet",
-		idStr, commitSHA)
+	// Check repository exists
+	_, err = r.queryService.ByID(ctx, id)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
 
-	http.Redirect(w, req, redirectURL, http.StatusPermanentRedirect)
+	// Check commit exists and belongs to this repo
+	_, err = r.queryService.CommitBySHA(ctx, id, commitSHA)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	// If snippet store not configured, return empty list
+	if r.snippetStore == nil {
+		middleware.WriteJSON(w, http.StatusOK, dto.SnippetListResponse{Data: []dto.SnippetData{}})
+		return
+	}
+
+	snippets, err := r.snippetStore.SnippetsForCommit(ctx, commitSHA)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	data := make([]dto.SnippetData, 0, len(snippets))
+	for _, s := range snippets {
+		createdAt := s.CreatedAt()
+		updatedAt := s.UpdatedAt()
+
+		// Convert files to GitFileSchema
+		derivesFrom := make([]dto.GitFileSchema, 0, len(s.DerivesFrom()))
+		for _, f := range s.DerivesFrom() {
+			derivesFrom = append(derivesFrom, dto.GitFileSchema{
+				BlobSHA:  f.BlobSHA(),
+				Path:     f.Path(),
+				MimeType: f.MimeType(),
+				Size:     f.Size(),
+			})
+		}
+
+		// Convert enrichments
+		enrichments := make([]dto.EnrichmentSchema, 0, len(s.Enrichments()))
+		for _, e := range s.Enrichments() {
+			enrichments = append(enrichments, dto.EnrichmentSchema{
+				Type:    e.Type(),
+				Content: e.Content(),
+			})
+		}
+
+		data = append(data, dto.SnippetData{
+			Type: "snippet",
+			ID:   s.SHA(),
+			Attributes: dto.SnippetAttributes{
+				CreatedAt:   &createdAt,
+				UpdatedAt:   &updatedAt,
+				DerivesFrom: derivesFrom,
+				Content: dto.SnippetContentSchema{
+					Value:    s.Content(),
+					Language: s.Extension(),
+				},
+				Enrichments:    enrichments,
+				OriginalScores: []float64{},
+			},
+		})
+	}
+
+	middleware.WriteJSON(w, http.StatusOK, dto.SnippetListResponse{Data: data})
 }
 
 // RescanCommit handles POST /api/v1/repositories/{id}/commits/{commit_sha}/rescan.
@@ -1093,8 +1312,9 @@ func (r *RepositoriesRouter) ListTags(w http.ResponseWriter, req *http.Request) 
 			Type: "tag",
 			ID:   fmt.Sprintf("%d", tag.ID()),
 			Attributes: dto.TagAttributes{
-				Name:      tag.Name(),
-				CommitSHA: tag.CommitSHA(),
+				Name:            tag.Name(),
+				TargetCommitSHA: tag.CommitSHA(),
+				IsVersionTag:    isVersionTag(tag.Name()),
 			},
 		})
 	}
@@ -1151,11 +1371,29 @@ func (r *RepositoriesRouter) GetTag(w http.ResponseWriter, req *http.Request) {
 			Type: "tag",
 			ID:   fmt.Sprintf("%d", tag.ID()),
 			Attributes: dto.TagAttributes{
-				Name:      tag.Name(),
-				CommitSHA: tag.CommitSHA(),
+				Name:            tag.Name(),
+				TargetCommitSHA: tag.CommitSHA(),
+				IsVersionTag:    isVersionTag(tag.Name()),
 			},
 		},
 	})
+}
+
+// isVersionTag returns true if the tag name looks like a version tag.
+// Version tags typically start with 'v' followed by a digit, or match semver patterns.
+func isVersionTag(name string) bool {
+	if len(name) == 0 {
+		return false
+	}
+	// Check for v-prefix version tags (v1.0.0, v2, etc.)
+	if name[0] == 'v' && len(name) > 1 && name[1] >= '0' && name[1] <= '9' {
+		return true
+	}
+	// Check for plain numeric version tags (1.0.0, 2.0, etc.)
+	if name[0] >= '0' && name[0] <= '9' {
+		return true
+	}
+	return false
 }
 
 // GetTrackingConfig handles GET /api/v1/repositories/{id}/tracking-config.

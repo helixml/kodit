@@ -77,6 +77,11 @@ type SearchResponse struct {
 	Data []SnippetData `json:"data"`
 }
 
+// SnippetListResponse represents a list of snippets in JSON:API format.
+type SnippetListResponse struct {
+	Data []SnippetData `json:"data"`
+}
+
 // Legacy types for backwards compatibility during migration
 
 // LegacySearchRequest represents a legacy search API request (flat format).

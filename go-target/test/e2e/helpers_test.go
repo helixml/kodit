@@ -253,7 +253,7 @@ func NewTestServer(t *testing.T) *TestServer {
 	router.Route("/api/v1", func(r chi.Router) {
 		reposRouter := v1.NewRepositoriesRouter(queryService, syncService, logger).
 			WithTrackingQueryService(trackingQuery).
-			WithEnrichmentServices(enrichmentQuery, enrichmentStore).
+			WithEnrichmentServices(enrichmentQuery, enrichmentStore, associationStore).
 			WithIndexingServices(snippetStore, fakeVector)
 		r.Mount("/repositories", reposRouter.Routes())
 

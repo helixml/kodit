@@ -7,6 +7,36 @@
         "version": "1.0"
     },
     "paths": {
+        "/healthz": {
+            "get": {
+                "description": "Return a health check for the kodit API.",
+                "tags": [
+                    "health"
+                ],
+                "summary": "Health check",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "example": "healthy"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error"
+                    }
+                }
+            }
+        },
         "/enrichments": {
             "get": {
                 "security": [
@@ -103,6 +133,132 @@
                         }
                     }
                 ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.EnrichmentJSONAPIResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Delete an enrichment by ID",
+                "tags": [
+                    "enrichments"
+                ],
+                "summary": "Delete enrichment",
+                "parameters": [
+                    {
+                        "description": "Enrichment ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Update an enrichment's content",
+                "tags": [
+                    "enrichments"
+                ],
+                "summary": "Update enrichment",
+                "parameters": [
+                    {
+                        "description": "Enrichment ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/dto.EnrichmentUpdateRequest"
+                            }
+                        }
+                    },
+                    "description": "Update request",
+                    "required": true
+                },
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -781,6 +937,69 @@
                         }
                     }
                 }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Delete all enrichments for a commit",
+                "tags": [
+                    "repositories"
+                ],
+                "summary": "Delete commit enrichments",
+                "parameters": [
+                    {
+                        "description": "Repository ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Commit SHA",
+                        "name": "commit_sha",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         },
         "/repositories/{id}/commits/{commit_sha}/enrichments/{enrichment_id}": {
@@ -834,6 +1053,78 @@
                                 }
                             }
                         }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Delete a specific enrichment from a commit",
+                "tags": [
+                    "repositories"
+                ],
+                "summary": "Delete commit enrichment",
+                "parameters": [
+                    {
+                        "description": "Repository ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Commit SHA",
+                        "name": "commit_sha",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Enrichment ID",
+                        "name": "enrichment_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     },
                     "404": {
                         "description": "Not Found",
@@ -1089,7 +1380,7 @@
                         "APIKeyAuth": []
                     }
                 ],
-                "description": "Redirects to enrichments endpoint with snippet filters",
+                "description": "List code snippets for a commit",
                 "tags": [
                     "repositories"
                 ],
@@ -1115,8 +1406,54 @@
                     }
                 ],
                 "responses": {
-                    "308": {
-                        "description": "Permanent Redirect"
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.SnippetListResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1841,6 +2178,33 @@
                     }
                 }
             },
+            "dto.EnrichmentUpdateAttributes": {
+                "type": "object",
+                "properties": {
+                    "content": {
+                        "type": "string"
+                    }
+                }
+            },
+            "dto.EnrichmentUpdateData": {
+                "type": "object",
+                "properties": {
+                    "attributes": {
+                        "$ref": "#/components/schemas/dto.EnrichmentUpdateAttributes"
+                    },
+                    "type": {
+                        "type": "string"
+                    }
+                }
+            },
+            "dto.EnrichmentUpdateRequest": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "$ref": "#/components/schemas/dto.EnrichmentUpdateData"
+                    }
+                }
+            },
             "dto.FileAttributes": {
                 "type": "object",
                 "properties": {
@@ -2192,13 +2556,27 @@
                     }
                 }
             },
+            "dto.SnippetListResponse": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/dto.SnippetData"
+                        }
+                    }
+                }
+            },
             "dto.TagAttributes": {
                 "type": "object",
                 "properties": {
-                    "commit_sha": {
-                        "type": "string"
+                    "is_version_tag": {
+                        "type": "boolean"
                     },
                     "name": {
+                        "type": "string"
+                    },
+                    "target_commit_sha": {
                         "type": "string"
                     }
                 }
@@ -2235,6 +2613,46 @@
                         "$ref": "#/components/schemas/dto.TagData"
                     }
                 }
+            },
+            "TaskOperation": {
+                "type": "string",
+                "description": "Task operation type",
+                "enum": [
+                    "kodit.root",
+                    "kodit.index.create",
+                    "kodit.index.run",
+                    "kodit.index.run.refresh_working_copy",
+                    "kodit.index.run.delete_old_snippets",
+                    "kodit.index.run.extract_snippets",
+                    "kodit.index.run.create_bm25_index",
+                    "kodit.index.run.create_code_embeddings",
+                    "kodit.index.run.enrich_snippets",
+                    "kodit.index.run.create_text_embeddings",
+                    "kodit.index.run.update_index_timestamp",
+                    "kodit.index.run.clear_file_processing_statuses",
+                    "kodit.repository",
+                    "kodit.repository.create",
+                    "kodit.repository.delete",
+                    "kodit.repository.clone",
+                    "kodit.repository.sync",
+                    "kodit.commit",
+                    "kodit.commit.extract_snippets",
+                    "kodit.commit.create_bm25_index",
+                    "kodit.commit.create_code_embeddings",
+                    "kodit.commit.create_summary_enrichment",
+                    "kodit.commit.create_summary_embeddings",
+                    "kodit.commit.create_architecture_enrichment",
+                    "kodit.commit.create_public_api_docs",
+                    "kodit.commit.create_commit_description",
+                    "kodit.commit.create_database_schema",
+                    "kodit.commit.create_cookbook",
+                    "kodit.commit.extract_examples",
+                    "kodit.commit.create_example_summary",
+                    "kodit.commit.create_example_code_embeddings",
+                    "kodit.commit.create_example_summary_embeddings",
+                    "kodit.commit.scan",
+                    "kodit.commit.rescan"
+                ]
             },
             "dto.TaskAttributes": {
                 "type": "object",

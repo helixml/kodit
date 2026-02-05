@@ -52,3 +52,19 @@ type EnrichmentJSONAPIResponse struct {
 type EnrichmentJSONAPIListResponse struct {
 	Data []EnrichmentData `json:"data"`
 }
+
+// EnrichmentUpdateAttributes represents the attributes that can be updated.
+type EnrichmentUpdateAttributes struct {
+	Content string `json:"content"`
+}
+
+// EnrichmentUpdateData represents the data for updating an enrichment.
+type EnrichmentUpdateData struct {
+	Type       string                     `json:"type"`
+	Attributes EnrichmentUpdateAttributes `json:"attributes"`
+}
+
+// EnrichmentUpdateRequest represents a JSON:API request to update an enrichment.
+type EnrichmentUpdateRequest struct {
+	Data EnrichmentUpdateData `json:"data"`
+}

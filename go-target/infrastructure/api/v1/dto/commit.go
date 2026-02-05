@@ -82,8 +82,9 @@ type FileJSONAPIListResponse struct {
 
 // TagAttributes represents tag attributes in JSON:API format.
 type TagAttributes struct {
-	Name      string `json:"name"`
-	CommitSHA string `json:"commit_sha"`
+	Name            string `json:"name"`
+	TargetCommitSHA string `json:"target_commit_sha"`
+	IsVersionTag    bool   `json:"is_version_tag"`
 }
 
 // TagData represents tag data in JSON:API format.

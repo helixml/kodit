@@ -765,7 +765,7 @@ func (a *apiServerImpl) mountAPIRoutes(router chi.Router) {
 		a.logger,
 	)
 	reposRouter.WithTrackingQueryService(a.client.trackingQuery)
-	reposRouter.WithEnrichmentServices(a.client.enrichQ, a.client.enrichmentStore)
+	reposRouter.WithEnrichmentServices(a.client.enrichQ, a.client.enrichmentStore, a.client.associationStore)
 	reposRouter.WithIndexingServices(a.client.snippetStore, a.client.vectorStore)
 
 	// Queue router
