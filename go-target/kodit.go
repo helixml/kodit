@@ -63,7 +63,6 @@ import (
 	"github.com/helixml/kodit/infrastructure/slicing"
 	"github.com/helixml/kodit/infrastructure/slicing/language"
 	"github.com/helixml/kodit/infrastructure/tracking"
-	"github.com/helixml/kodit/internal/config"
 )
 
 // Client is the main entry point for the kodit library.
@@ -127,9 +126,7 @@ type Client struct {
 // New creates a new Client with the given options.
 // The background worker is started automatically.
 func New(opts ...Option) (*Client, error) {
-	cfg := &clientConfig{
-		workerCount: config.DefaultWorkerCount,
-	}
+	cfg := newClientConfig()
 
 	for _, opt := range opts {
 		opt(cfg)
@@ -164,7 +161,7 @@ func New(opts ...Option) (*Client, error) {
 	// Set up clone directory
 	cloneDir := cfg.cloneDir
 	if cloneDir == "" {
-		cloneDir = filepath.Join(dataDir, config.DefaultCloneSubdir)
+		cloneDir = defaultCloneDir(dataDir)
 	}
 
 	// Ensure clone directory exists
@@ -472,9 +469,7 @@ func (c *Client) Search(ctx context.Context, query string, opts ...SearchOption)
 	}
 
 	// Apply search options
-	searchCfg := &searchConfig{
-		limit: config.DefaultSearchLimit,
-	}
+	searchCfg := newSearchConfig()
 	for _, opt := range opts {
 		opt(searchCfg)
 	}

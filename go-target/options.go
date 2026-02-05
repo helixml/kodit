@@ -2,9 +2,11 @@ package kodit
 
 import (
 	"log/slog"
+	"path/filepath"
 	"time"
 
 	"github.com/helixml/kodit/infrastructure/provider"
+	"github.com/helixml/kodit/internal/config"
 )
 
 // storageType identifies the storage backend.
@@ -19,6 +21,7 @@ const (
 )
 
 // clientConfig holds configuration for Client construction.
+// Use newClientConfig() to create with defaults from internal/config.
 type clientConfig struct {
 	storage                storageType
 	dbPath                 string
@@ -31,6 +34,19 @@ type clientConfig struct {
 	apiKeys                []string
 	workerCount            int
 	skipProviderValidation bool
+}
+
+// newClientConfig creates a clientConfig with defaults from internal/config.
+// This ensures all defaults come from the single source of truth.
+func newClientConfig() *clientConfig {
+	return &clientConfig{
+		workerCount: config.DefaultWorkerCount,
+	}
+}
+
+// defaultCloneDir returns the default clone directory for a given data directory.
+func defaultCloneDir(dataDir string) string {
+	return filepath.Join(dataDir, config.DefaultCloneSubdir)
 }
 
 // Option configures the Client.
@@ -172,6 +188,7 @@ func WithSkipProviderValidation() Option {
 type SearchOption func(*searchConfig)
 
 // searchConfig holds search parameters.
+// Use newSearchConfig() to create with defaults from internal/config.
 type searchConfig struct {
 	semanticWeight   float64
 	limit            int
@@ -182,6 +199,13 @@ type searchConfig struct {
 	minScore         float64
 	includeSnippets  bool
 	includeDocuments bool
+}
+
+// newSearchConfig creates a searchConfig with defaults from internal/config.
+func newSearchConfig() *searchConfig {
+	return &searchConfig{
+		limit: config.DefaultSearchLimit,
+	}
 }
 
 // WithSemanticWeight sets the weight for semantic (vector) search (0-1).
