@@ -3,6 +3,7 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -644,6 +645,76 @@ func NewAppConfigWithOptions(opts ...AppConfigOption) AppConfig {
 		opt(&c)
 	}
 	return c
+}
+
+// Apply returns a new AppConfig with the given options applied.
+// This copies all fields from the receiver and then applies the options,
+// making it safe to use when adding new fields to AppConfig.
+func (c AppConfig) Apply(opts ...AppConfigOption) AppConfig {
+	for _, opt := range opts {
+		opt(&c)
+	}
+	return c
+}
+
+// LogAttrs returns slog attributes for logging the configuration.
+// Attribute names match environment variable names for easy correlation.
+// Sensitive values like API keys are masked or shown as counts.
+func (c AppConfig) LogAttrs() []slog.Attr {
+	return []slog.Attr{
+		slog.String("DATA_DIR", c.dataDir),
+		slog.String("CLONE_DIR", c.CloneDir()),
+		slog.String("LOG_LEVEL", c.logLevel),
+		slog.String("DB_URL", c.maskedDBURL()),
+		slog.String("EMBEDDING_ENDPOINT_BASE_URL", c.endpointBaseURL(c.embeddingEndpoint)),
+		slog.String("EMBEDDING_ENDPOINT_MODEL", c.endpointModel(c.embeddingEndpoint)),
+		slog.String("EMBEDDING_ENDPOINT_API_KEY", c.endpointMaskedAPIKey(c.embeddingEndpoint)),
+		slog.String("ENRICHMENT_ENDPOINT_BASE_URL", c.endpointBaseURL(c.enrichmentEndpoint)),
+		slog.String("ENRICHMENT_ENDPOINT_MODEL", c.endpointModel(c.enrichmentEndpoint)),
+		slog.String("ENRICHMENT_ENDPOINT_API_KEY", c.endpointMaskedAPIKey(c.enrichmentEndpoint)),
+		slog.Int("API_KEYS", len(c.apiKeys)),
+		slog.Bool("SKIP_PROVIDER_VALIDATION", c.skipProviderValidation),
+		slog.Bool("PERIODIC_SYNC_ENABLED", c.periodicSync.Enabled()),
+		slog.Duration("PERIODIC_SYNC_INTERVAL_SECONDS", c.periodicSync.Interval()),
+	}
+}
+
+func (c AppConfig) maskedDBURL() string {
+	if c.dbURL == "" {
+		return "(default)"
+	}
+	if len(c.dbURL) >= 7 && c.dbURL[:7] == "sqlite:" {
+		return c.dbURL
+	}
+	return "postgres://***@***"
+}
+
+func (c AppConfig) endpointBaseURL(e *Endpoint) string {
+	if e == nil {
+		return "(not configured)"
+	}
+	return e.BaseURL()
+}
+
+func (c AppConfig) endpointModel(e *Endpoint) string {
+	if e == nil {
+		return "(not configured)"
+	}
+	return e.Model()
+}
+
+func (c AppConfig) endpointMaskedAPIKey(e *Endpoint) string {
+	if e == nil {
+		return "(not configured)"
+	}
+	key := e.APIKey()
+	if key == "" {
+		return "(not set)"
+	}
+	if len(key) <= 8 {
+		return "****"
+	}
+	return key[:4] + "****" + key[len(key)-4:]
 }
 
 // ParseAPIKeys parses a comma-separated string of API keys.

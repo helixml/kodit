@@ -157,13 +157,9 @@ func runServe(envFile, host string, port int) error {
 		opts = append(opts, kodit.WithSkipProviderValidation())
 	}
 
-	// Create kodit client
-	slogger.Info("starting kodit",
-		slog.String("version", version),
-		slog.String("data_dir", cfg.DataDir()),
-		slog.String("log_level", cfg.LogLevel()),
-		slog.String("db_url", maskDBURL(dbURLStr)),
-	)
+	// Create kodit client and log settings
+	attrs := append([]slog.Attr{slog.String("version", version)}, cfg.LogAttrs()...)
+	slogger.LogAttrs(context.Background(), slog.LevelInfo, "starting kodit", attrs...)
 
 	client, err := kodit.New(opts...)
 	if err != nil {
@@ -234,18 +230,6 @@ func isSQLite(url string) bool {
 	return len(url) >= 7 && url[:7] == "sqlite:"
 }
 
-// maskDBURL masks sensitive information in database URLs for logging.
-func maskDBURL(url string) string {
-	if url == "" {
-		return "(default)"
-	}
-	if isSQLite(url) {
-		return url // SQLite paths are not sensitive
-	}
-	// For PostgreSQL, show driver and masked credentials
-	return "postgres://***@***"
-}
-
 func healthHandler(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -254,7 +238,7 @@ func healthHandler(w http.ResponseWriter, _ *http.Request) {
 
 // applyServeOverrides applies command line flag overrides to the config.
 func applyServeOverrides(cfg config.AppConfig, host string, port int) config.AppConfig {
-	opts := []config.AppConfigOption{}
+	var opts []config.AppConfigOption
 
 	if host != "" {
 		opts = append(opts, config.WithHost(host))
@@ -263,32 +247,5 @@ func applyServeOverrides(cfg config.AppConfig, host string, port int) config.App
 		opts = append(opts, config.WithPort(port))
 	}
 
-	if len(opts) == 0 {
-		return cfg
-	}
-
-	// Create new config with all existing values plus overrides
-	return config.NewAppConfigWithOptions(
-		config.WithHost(cfg.Host()),
-		config.WithPort(cfg.Port()),
-		config.WithDataDir(cfg.DataDir()),
-		config.WithDBURL(cfg.DBURL()),
-		config.WithLogLevel(cfg.LogLevel()),
-		config.WithLogFormat(cfg.LogFormat()),
-		config.WithDisableTelemetry(cfg.DisableTelemetry()),
-		config.WithSkipProviderValidation(cfg.SkipProviderValidation()),
-		config.WithAPIKeys(cfg.APIKeys()),
-		config.WithSearchConfig(cfg.Search()),
-		config.WithGitConfig(cfg.Git()),
-		config.WithPeriodicSyncConfig(cfg.PeriodicSync()),
-		config.WithRemoteConfig(cfg.Remote()),
-		config.WithReportingConfig(cfg.Reporting()),
-		config.WithLiteLLMCacheConfig(cfg.LiteLLMCache()),
-		// Now apply the overrides (these will take precedence)
-		func(c *config.AppConfig) {
-			for _, opt := range opts {
-				opt(c)
-			}
-		},
-	)
+	return cfg.Apply(opts...)
 }
