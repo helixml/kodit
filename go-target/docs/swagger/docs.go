@@ -63,7 +63,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.EnrichmentJSONAPIListResponse"
+                            "$ref": "#/definitions/dto.EnrichmentJSONAPIListResponse"
                         }
                     },
                     "500": {
@@ -109,7 +109,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.EnrichmentJSONAPIResponse"
+                            "$ref": "#/definitions/dto.EnrichmentJSONAPIResponse"
                         }
                     },
                     "404": {
@@ -169,7 +169,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TaskListResponse"
+                            "$ref": "#/definitions/dto.TaskListResponse"
                         }
                     },
                     "500": {
@@ -215,7 +215,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TaskResponse"
+                            "$ref": "#/definitions/dto.TaskResponse"
                         }
                     },
                     "404": {
@@ -261,7 +261,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.RepositoryListResponse"
+                            "$ref": "#/definitions/dto.RepositoryListResponse"
                         }
                     },
                     "500": {
@@ -299,7 +299,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.RepositoryRequest"
+                            "$ref": "#/definitions/dto.RepositoryRequest"
                         }
                     }
                 ],
@@ -307,7 +307,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.RepositoryResponse"
+                            "$ref": "#/definitions/dto.RepositoryResponse"
                         }
                     },
                     "400": {
@@ -362,7 +362,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.RepositoryResponse"
+                            "$ref": "#/definitions/dto.RepositoryResponse"
                         }
                     },
                     "404": {
@@ -467,7 +467,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.CommitJSONAPIListResponse"
+                            "$ref": "#/definitions/dto.CommitJSONAPIListResponse"
                         }
                     },
                     "404": {
@@ -529,7 +529,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.CommitJSONAPIResponse"
+                            "$ref": "#/definitions/dto.CommitJSONAPIResponse"
                         }
                     },
                     "404": {
@@ -597,7 +597,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.EmbeddingJSONAPIListResponse"
+                            "$ref": "#/definitions/dto.EmbeddingJSONAPIListResponse"
                         }
                     },
                     "404": {
@@ -671,7 +671,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.EnrichmentJSONAPIListResponse"
+                            "$ref": "#/definitions/dto.EnrichmentJSONAPIListResponse"
                         }
                     },
                     "404": {
@@ -740,7 +740,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.EnrichmentJSONAPIResponse"
+                            "$ref": "#/definitions/dto.EnrichmentJSONAPIResponse"
                         }
                     },
                     "404": {
@@ -802,7 +802,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.FileJSONAPIListResponse"
+                            "$ref": "#/definitions/dto.FileJSONAPIListResponse"
                         }
                     },
                     "404": {
@@ -871,7 +871,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.FileJSONAPIResponse"
+                            "$ref": "#/definitions/dto.FileJSONAPIResponse"
                         }
                     },
                     "404": {
@@ -1044,7 +1044,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.EnrichmentJSONAPIListResponse"
+                            "$ref": "#/definitions/dto.EnrichmentJSONAPIListResponse"
                         }
                     },
                     "404": {
@@ -1099,7 +1099,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TaskStatusListResponse"
+                            "$ref": "#/definitions/dto.TaskStatusListResponse"
                         }
                     },
                     "404": {
@@ -1154,7 +1154,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.RepositoryStatusSummaryResponse"
+                            "$ref": "#/definitions/dto.RepositoryStatusSummaryResponse"
                         }
                     },
                     "404": {
@@ -1209,7 +1209,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TagJSONAPIListResponse"
+                            "$ref": "#/definitions/dto.TagJSONAPIListResponse"
                         }
                     },
                     "404": {
@@ -1271,7 +1271,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TagJSONAPIResponse"
+                            "$ref": "#/definitions/dto.TagJSONAPIResponse"
                         }
                     },
                     "404": {
@@ -1326,7 +1326,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigResponse"
+                            "$ref": "#/definitions/dto.TrackingConfigResponse"
                         }
                     },
                     "404": {
@@ -1380,7 +1380,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigUpdateRequest"
+                            "$ref": "#/definitions/dto.TrackingConfigUpdateRequest"
                         }
                     }
                 ],
@@ -1388,7 +1388,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigResponse"
+                            "$ref": "#/definitions/dto.TrackingConfigResponse"
                         }
                     },
                     "404": {
@@ -1437,7 +1437,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.SearchRequest"
+                            "$ref": "#/definitions/dto.SearchRequest"
                         }
                     }
                 ],
@@ -1445,7 +1445,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.SearchResponse"
+                            "$ref": "#/definitions/dto.SearchResponse"
                         }
                     },
                     "400": {
@@ -1471,7 +1471,7 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "github_com_helixml_kodit_internal_api_v1_dto.CommitAttributes": {
+        "dto.CommitAttributes": {
             "type": "object",
             "properties": {
                 "author": {
@@ -1491,11 +1491,11 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.CommitData": {
+        "dto.CommitData": {
             "type": "object",
             "properties": {
                 "attributes": {
-                    "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.CommitAttributes"
+                    "$ref": "#/definitions/dto.CommitAttributes"
                 },
                 "id": {
                     "type": "string"
@@ -1505,26 +1505,26 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.CommitJSONAPIListResponse": {
+        "dto.CommitJSONAPIListResponse": {
             "type": "object",
             "properties": {
                 "data": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.CommitData"
+                        "$ref": "#/definitions/dto.CommitData"
                     }
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.CommitJSONAPIResponse": {
+        "dto.CommitJSONAPIResponse": {
             "type": "object",
             "properties": {
                 "data": {
-                    "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.CommitData"
+                    "$ref": "#/definitions/dto.CommitData"
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.EmbeddingAttributes": {
+        "dto.EmbeddingAttributes": {
             "type": "object",
             "properties": {
                 "embedding": {
@@ -1541,11 +1541,11 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.EmbeddingData": {
+        "dto.EmbeddingData": {
             "type": "object",
             "properties": {
                 "attributes": {
-                    "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.EmbeddingAttributes"
+                    "$ref": "#/definitions/dto.EmbeddingAttributes"
                 },
                 "id": {
                     "type": "string"
@@ -1555,18 +1555,18 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.EmbeddingJSONAPIListResponse": {
+        "dto.EmbeddingJSONAPIListResponse": {
             "type": "object",
             "properties": {
                 "data": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.EmbeddingData"
+                        "$ref": "#/definitions/dto.EmbeddingData"
                     }
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.EnrichmentAttributes": {
+        "dto.EnrichmentAttributes": {
             "type": "object",
             "properties": {
                 "content": {
@@ -1586,11 +1586,11 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.EnrichmentData": {
+        "dto.EnrichmentData": {
             "type": "object",
             "properties": {
                 "attributes": {
-                    "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.EnrichmentAttributes"
+                    "$ref": "#/definitions/dto.EnrichmentAttributes"
                 },
                 "id": {
                     "type": "string"
@@ -1600,26 +1600,26 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.EnrichmentJSONAPIListResponse": {
+        "dto.EnrichmentJSONAPIListResponse": {
             "type": "object",
             "properties": {
                 "data": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.EnrichmentData"
+                        "$ref": "#/definitions/dto.EnrichmentData"
                     }
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.EnrichmentJSONAPIResponse": {
+        "dto.EnrichmentJSONAPIResponse": {
             "type": "object",
             "properties": {
                 "data": {
-                    "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.EnrichmentData"
+                    "$ref": "#/definitions/dto.EnrichmentData"
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.EnrichmentSchema": {
+        "dto.EnrichmentSchema": {
             "type": "object",
             "properties": {
                 "content": {
@@ -1630,7 +1630,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.FileAttributes": {
+        "dto.FileAttributes": {
             "type": "object",
             "properties": {
                 "blob_sha": {
@@ -1650,11 +1650,11 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.FileData": {
+        "dto.FileData": {
             "type": "object",
             "properties": {
                 "attributes": {
-                    "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.FileAttributes"
+                    "$ref": "#/definitions/dto.FileAttributes"
                 },
                 "id": {
                     "type": "string"
@@ -1664,26 +1664,26 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.FileJSONAPIListResponse": {
+        "dto.FileJSONAPIListResponse": {
             "type": "object",
             "properties": {
                 "data": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.FileData"
+                        "$ref": "#/definitions/dto.FileData"
                     }
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.FileJSONAPIResponse": {
+        "dto.FileJSONAPIResponse": {
             "type": "object",
             "properties": {
                 "data": {
-                    "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.FileData"
+                    "$ref": "#/definitions/dto.FileData"
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.GitFileSchema": {
+        "dto.GitFileSchema": {
             "type": "object",
             "properties": {
                 "blob_sha": {
@@ -1700,7 +1700,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.RepositoryAttributes": {
+        "dto.RepositoryAttributes": {
             "type": "object",
             "properties": {
                 "cloned_path": {
@@ -1732,11 +1732,11 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.RepositoryData": {
+        "dto.RepositoryData": {
             "type": "object",
             "properties": {
                 "attributes": {
-                    "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.RepositoryAttributes"
+                    "$ref": "#/definitions/dto.RepositoryAttributes"
                 },
                 "id": {
                     "type": "string"
@@ -1746,18 +1746,18 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.RepositoryListResponse": {
+        "dto.RepositoryListResponse": {
             "type": "object",
             "properties": {
                 "data": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.RepositoryData"
+                        "$ref": "#/definitions/dto.RepositoryData"
                     }
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.RepositoryRequest": {
+        "dto.RepositoryRequest": {
             "type": "object",
             "properties": {
                 "branch": {
@@ -1774,15 +1774,15 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.RepositoryResponse": {
+        "dto.RepositoryResponse": {
             "type": "object",
             "properties": {
                 "data": {
-                    "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.RepositoryData"
+                    "$ref": "#/definitions/dto.RepositoryData"
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.RepositoryStatusSummaryAttributes": {
+        "dto.RepositoryStatusSummaryAttributes": {
             "type": "object",
             "properties": {
                 "message": {
@@ -1796,11 +1796,11 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.RepositoryStatusSummaryData": {
+        "dto.RepositoryStatusSummaryData": {
             "type": "object",
             "properties": {
                 "attributes": {
-                    "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.RepositoryStatusSummaryAttributes"
+                    "$ref": "#/definitions/dto.RepositoryStatusSummaryAttributes"
                 },
                 "id": {
                     "type": "string"
@@ -1810,22 +1810,22 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.RepositoryStatusSummaryResponse": {
+        "dto.RepositoryStatusSummaryResponse": {
             "type": "object",
             "properties": {
                 "data": {
-                    "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.RepositoryStatusSummaryData"
+                    "$ref": "#/definitions/dto.RepositoryStatusSummaryData"
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.SearchAttributes": {
+        "dto.SearchAttributes": {
             "type": "object",
             "properties": {
                 "code": {
                     "type": "string"
                 },
                 "filters": {
-                    "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.SearchFilters"
+                    "$ref": "#/definitions/dto.SearchFilters"
                 },
                 "keywords": {
                     "type": "array",
@@ -1841,18 +1841,18 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.SearchData": {
+        "dto.SearchData": {
             "type": "object",
             "properties": {
                 "attributes": {
-                    "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.SearchAttributes"
+                    "$ref": "#/definitions/dto.SearchAttributes"
                 },
                 "type": {
                     "type": "string"
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.SearchFilters": {
+        "dto.SearchFilters": {
             "type": "object",
             "properties": {
                 "authors": {
@@ -1905,30 +1905,30 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.SearchRequest": {
+        "dto.SearchRequest": {
             "type": "object",
             "properties": {
                 "data": {
-                    "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.SearchData"
+                    "$ref": "#/definitions/dto.SearchData"
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.SearchResponse": {
+        "dto.SearchResponse": {
             "type": "object",
             "properties": {
                 "data": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.SnippetData"
+                        "$ref": "#/definitions/dto.SnippetData"
                     }
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.SnippetAttributes": {
+        "dto.SnippetAttributes": {
             "type": "object",
             "properties": {
                 "content": {
-                    "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.SnippetContentSchema"
+                    "$ref": "#/definitions/dto.SnippetContentSchema"
                 },
                 "created_at": {
                     "type": "string"
@@ -1936,13 +1936,13 @@ const docTemplate = `{
                 "derives_from": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.GitFileSchema"
+                        "$ref": "#/definitions/dto.GitFileSchema"
                     }
                 },
                 "enrichments": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.EnrichmentSchema"
+                        "$ref": "#/definitions/dto.EnrichmentSchema"
                     }
                 },
                 "original_scores": {
@@ -1956,7 +1956,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.SnippetContentSchema": {
+        "dto.SnippetContentSchema": {
             "type": "object",
             "properties": {
                 "language": {
@@ -1967,11 +1967,11 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.SnippetData": {
+        "dto.SnippetData": {
             "type": "object",
             "properties": {
                 "attributes": {
-                    "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.SnippetAttributes"
+                    "$ref": "#/definitions/dto.SnippetAttributes"
                 },
                 "id": {
                     "type": "string"
@@ -1981,7 +1981,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.TagAttributes": {
+        "dto.TagAttributes": {
             "type": "object",
             "properties": {
                 "commit_sha": {
@@ -1992,11 +1992,11 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.TagData": {
+        "dto.TagData": {
             "type": "object",
             "properties": {
                 "attributes": {
-                    "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TagAttributes"
+                    "$ref": "#/definitions/dto.TagAttributes"
                 },
                 "id": {
                     "type": "string"
@@ -2006,26 +2006,26 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.TagJSONAPIListResponse": {
+        "dto.TagJSONAPIListResponse": {
             "type": "object",
             "properties": {
                 "data": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TagData"
+                        "$ref": "#/definitions/dto.TagData"
                     }
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.TagJSONAPIResponse": {
+        "dto.TagJSONAPIResponse": {
             "type": "object",
             "properties": {
                 "data": {
-                    "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TagData"
+                    "$ref": "#/definitions/dto.TagData"
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.TaskAttributes": {
+        "dto.TaskAttributes": {
             "type": "object",
             "properties": {
                 "created_at": {
@@ -2043,11 +2043,11 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.TaskData": {
+        "dto.TaskData": {
             "type": "object",
             "properties": {
                 "attributes": {
-                    "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TaskAttributes"
+                    "$ref": "#/definitions/dto.TaskAttributes"
                 },
                 "id": {
                     "type": "string"
@@ -2057,26 +2057,26 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.TaskListResponse": {
+        "dto.TaskListResponse": {
             "type": "object",
             "properties": {
                 "data": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TaskData"
+                        "$ref": "#/definitions/dto.TaskData"
                     }
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.TaskResponse": {
+        "dto.TaskResponse": {
             "type": "object",
             "properties": {
                 "data": {
-                    "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TaskData"
+                    "$ref": "#/definitions/dto.TaskData"
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.TaskStatusAttributes": {
+        "dto.TaskStatusAttributes": {
             "type": "object",
             "properties": {
                 "created_at": {
@@ -2108,11 +2108,11 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.TaskStatusData": {
+        "dto.TaskStatusData": {
             "type": "object",
             "properties": {
                 "attributes": {
-                    "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TaskStatusAttributes"
+                    "$ref": "#/definitions/dto.TaskStatusAttributes"
                 },
                 "id": {
                     "type": "string"
@@ -2122,78 +2122,78 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.TaskStatusListResponse": {
+        "dto.TaskStatusListResponse": {
             "type": "object",
             "properties": {
                 "data": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TaskStatusData"
+                        "$ref": "#/definitions/dto.TaskStatusData"
                     }
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigAttributes": {
+        "dto.TrackingConfigAttributes": {
             "type": "object",
             "properties": {
                 "mode": {
-                    "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TrackingMode"
+                    "$ref": "#/definitions/dto.TrackingMode"
                 },
                 "value": {
                     "type": "string"
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigData": {
+        "dto.TrackingConfigData": {
             "type": "object",
             "properties": {
                 "attributes": {
-                    "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigAttributes"
+                    "$ref": "#/definitions/dto.TrackingConfigAttributes"
                 },
                 "type": {
                     "type": "string"
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigResponse": {
+        "dto.TrackingConfigResponse": {
             "type": "object",
             "properties": {
                 "data": {
-                    "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigData"
+                    "$ref": "#/definitions/dto.TrackingConfigData"
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigUpdateAttributes": {
+        "dto.TrackingConfigUpdateAttributes": {
             "type": "object",
             "properties": {
                 "mode": {
-                    "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TrackingMode"
+                    "$ref": "#/definitions/dto.TrackingMode"
                 },
                 "value": {
                     "type": "string"
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigUpdateData": {
+        "dto.TrackingConfigUpdateData": {
             "type": "object",
             "properties": {
                 "attributes": {
-                    "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigUpdateAttributes"
+                    "$ref": "#/definitions/dto.TrackingConfigUpdateAttributes"
                 },
                 "type": {
                     "type": "string"
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigUpdateRequest": {
+        "dto.TrackingConfigUpdateRequest": {
             "type": "object",
             "properties": {
                 "data": {
-                    "$ref": "#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigUpdateData"
+                    "$ref": "#/definitions/dto.TrackingConfigUpdateData"
                 }
             }
         },
-        "github_com_helixml_kodit_internal_api_v1_dto.TrackingMode": {
+        "dto.TrackingMode": {
             "type": "string",
             "enum": [
                 "branch",

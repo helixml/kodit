@@ -59,7 +59,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.EnrichmentJSONAPIListResponse"
+                                    "$ref": "#/components/schemas/dto.EnrichmentJSONAPIListResponse"
                                 }
                             }
                         }
@@ -109,7 +109,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.EnrichmentJSONAPIResponse"
+                                    "$ref": "#/components/schemas/dto.EnrichmentJSONAPIResponse"
                                 }
                             }
                         }
@@ -179,7 +179,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.TaskListResponse"
+                                    "$ref": "#/components/schemas/dto.TaskListResponse"
                                 }
                             }
                         }
@@ -229,7 +229,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.TaskResponse"
+                                    "$ref": "#/components/schemas/dto.TaskResponse"
                                 }
                             }
                         }
@@ -281,7 +281,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.RepositoryListResponse"
+                                    "$ref": "#/components/schemas/dto.RepositoryListResponse"
                                 }
                             }
                         }
@@ -316,7 +316,7 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.RepositoryRequest"
+                                "$ref": "#/components/schemas/dto.RepositoryRequest"
                             }
                         }
                     },
@@ -329,7 +329,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.RepositoryResponse"
+                                    "$ref": "#/components/schemas/dto.RepositoryResponse"
                                 }
                             }
                         }
@@ -392,7 +392,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.RepositoryResponse"
+                                    "$ref": "#/components/schemas/dto.RepositoryResponse"
                                 }
                             }
                         }
@@ -509,7 +509,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.CommitJSONAPIListResponse"
+                                    "$ref": "#/components/schemas/dto.CommitJSONAPIListResponse"
                                 }
                             }
                         }
@@ -581,7 +581,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.CommitJSONAPIResponse"
+                                    "$ref": "#/components/schemas/dto.CommitJSONAPIResponse"
                                 }
                             }
                         }
@@ -661,7 +661,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.EmbeddingJSONAPIListResponse"
+                                    "$ref": "#/components/schemas/dto.EmbeddingJSONAPIListResponse"
                                 }
                             }
                         }
@@ -749,7 +749,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.EnrichmentJSONAPIListResponse"
+                                    "$ref": "#/components/schemas/dto.EnrichmentJSONAPIListResponse"
                                 }
                             }
                         }
@@ -830,7 +830,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.EnrichmentJSONAPIResponse"
+                                    "$ref": "#/components/schemas/dto.EnrichmentJSONAPIResponse"
                                 }
                             }
                         }
@@ -902,7 +902,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.FileJSONAPIListResponse"
+                                    "$ref": "#/components/schemas/dto.FileJSONAPIListResponse"
                                 }
                             }
                         }
@@ -983,7 +983,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.FileJSONAPIResponse"
+                                    "$ref": "#/components/schemas/dto.FileJSONAPIResponse"
                                 }
                             }
                         }
@@ -1174,7 +1174,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.EnrichmentJSONAPIListResponse"
+                                    "$ref": "#/components/schemas/dto.EnrichmentJSONAPIListResponse"
                                 }
                             }
                         }
@@ -1237,7 +1237,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.TaskStatusListResponse"
+                                    "$ref": "#/components/schemas/dto.TaskStatusListResponse"
                                 }
                             }
                         }
@@ -1300,7 +1300,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.RepositoryStatusSummaryResponse"
+                                    "$ref": "#/components/schemas/dto.RepositoryStatusSummaryResponse"
                                 }
                             }
                         }
@@ -1363,7 +1363,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.TagJSONAPIListResponse"
+                                    "$ref": "#/components/schemas/dto.TagJSONAPIListResponse"
                                 }
                             }
                         }
@@ -1435,7 +1435,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.TagJSONAPIResponse"
+                                    "$ref": "#/components/schemas/dto.TagJSONAPIResponse"
                                 }
                             }
                         }
@@ -1498,7 +1498,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigResponse"
+                                    "$ref": "#/components/schemas/dto.TrackingConfigResponse"
                                 }
                             }
                         }
@@ -1557,7 +1557,7 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigUpdateRequest"
+                                "$ref": "#/components/schemas/dto.TrackingConfigUpdateRequest"
                             }
                         }
                     },
@@ -1570,7 +1570,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigResponse"
+                                    "$ref": "#/components/schemas/dto.TrackingConfigResponse"
                                 }
                             }
                         }
@@ -1620,7 +1620,7 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.SearchRequest"
+                                "$ref": "#/components/schemas/dto.SearchRequest"
                             }
                         }
                     },
@@ -1633,7 +1633,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.SearchResponse"
+                                    "$ref": "#/components/schemas/dto.SearchResponse"
                                 }
                             }
                         }
@@ -1682,7 +1682,7 @@
             }
         },
         "schemas": {
-            "github_com_helixml_kodit_internal_api_v1_dto.CommitAttributes": {
+            "dto.CommitAttributes": {
                 "type": "object",
                 "properties": {
                     "author": {
@@ -1702,11 +1702,11 @@
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.CommitData": {
+            "dto.CommitData": {
                 "type": "object",
                 "properties": {
                     "attributes": {
-                        "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.CommitAttributes"
+                        "$ref": "#/components/schemas/dto.CommitAttributes"
                     },
                     "id": {
                         "type": "string"
@@ -1716,26 +1716,26 @@
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.CommitJSONAPIListResponse": {
+            "dto.CommitJSONAPIListResponse": {
                 "type": "object",
                 "properties": {
                     "data": {
                         "type": "array",
                         "items": {
-                            "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.CommitData"
+                            "$ref": "#/components/schemas/dto.CommitData"
                         }
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.CommitJSONAPIResponse": {
+            "dto.CommitJSONAPIResponse": {
                 "type": "object",
                 "properties": {
                     "data": {
-                        "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.CommitData"
+                        "$ref": "#/components/schemas/dto.CommitData"
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.EmbeddingAttributes": {
+            "dto.EmbeddingAttributes": {
                 "type": "object",
                 "properties": {
                     "embedding": {
@@ -1752,11 +1752,11 @@
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.EmbeddingData": {
+            "dto.EmbeddingData": {
                 "type": "object",
                 "properties": {
                     "attributes": {
-                        "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.EmbeddingAttributes"
+                        "$ref": "#/components/schemas/dto.EmbeddingAttributes"
                     },
                     "id": {
                         "type": "string"
@@ -1766,18 +1766,18 @@
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.EmbeddingJSONAPIListResponse": {
+            "dto.EmbeddingJSONAPIListResponse": {
                 "type": "object",
                 "properties": {
                     "data": {
                         "type": "array",
                         "items": {
-                            "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.EmbeddingData"
+                            "$ref": "#/components/schemas/dto.EmbeddingData"
                         }
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.EnrichmentAttributes": {
+            "dto.EnrichmentAttributes": {
                 "type": "object",
                 "properties": {
                     "content": {
@@ -1797,11 +1797,11 @@
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.EnrichmentData": {
+            "dto.EnrichmentData": {
                 "type": "object",
                 "properties": {
                     "attributes": {
-                        "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.EnrichmentAttributes"
+                        "$ref": "#/components/schemas/dto.EnrichmentAttributes"
                     },
                     "id": {
                         "type": "string"
@@ -1811,26 +1811,26 @@
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.EnrichmentJSONAPIListResponse": {
+            "dto.EnrichmentJSONAPIListResponse": {
                 "type": "object",
                 "properties": {
                     "data": {
                         "type": "array",
                         "items": {
-                            "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.EnrichmentData"
+                            "$ref": "#/components/schemas/dto.EnrichmentData"
                         }
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.EnrichmentJSONAPIResponse": {
+            "dto.EnrichmentJSONAPIResponse": {
                 "type": "object",
                 "properties": {
                     "data": {
-                        "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.EnrichmentData"
+                        "$ref": "#/components/schemas/dto.EnrichmentData"
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.EnrichmentSchema": {
+            "dto.EnrichmentSchema": {
                 "type": "object",
                 "properties": {
                     "content": {
@@ -1841,7 +1841,7 @@
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.FileAttributes": {
+            "dto.FileAttributes": {
                 "type": "object",
                 "properties": {
                     "blob_sha": {
@@ -1861,11 +1861,11 @@
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.FileData": {
+            "dto.FileData": {
                 "type": "object",
                 "properties": {
                     "attributes": {
-                        "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.FileAttributes"
+                        "$ref": "#/components/schemas/dto.FileAttributes"
                     },
                     "id": {
                         "type": "string"
@@ -1875,26 +1875,26 @@
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.FileJSONAPIListResponse": {
+            "dto.FileJSONAPIListResponse": {
                 "type": "object",
                 "properties": {
                     "data": {
                         "type": "array",
                         "items": {
-                            "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.FileData"
+                            "$ref": "#/components/schemas/dto.FileData"
                         }
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.FileJSONAPIResponse": {
+            "dto.FileJSONAPIResponse": {
                 "type": "object",
                 "properties": {
                     "data": {
-                        "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.FileData"
+                        "$ref": "#/components/schemas/dto.FileData"
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.GitFileSchema": {
+            "dto.GitFileSchema": {
                 "type": "object",
                 "properties": {
                     "blob_sha": {
@@ -1911,7 +1911,7 @@
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.RepositoryAttributes": {
+            "dto.RepositoryAttributes": {
                 "type": "object",
                 "properties": {
                     "cloned_path": {
@@ -1943,11 +1943,11 @@
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.RepositoryData": {
+            "dto.RepositoryData": {
                 "type": "object",
                 "properties": {
                     "attributes": {
-                        "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.RepositoryAttributes"
+                        "$ref": "#/components/schemas/dto.RepositoryAttributes"
                     },
                     "id": {
                         "type": "string"
@@ -1957,18 +1957,18 @@
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.RepositoryListResponse": {
+            "dto.RepositoryListResponse": {
                 "type": "object",
                 "properties": {
                     "data": {
                         "type": "array",
                         "items": {
-                            "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.RepositoryData"
+                            "$ref": "#/components/schemas/dto.RepositoryData"
                         }
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.RepositoryRequest": {
+            "dto.RepositoryRequest": {
                 "type": "object",
                 "properties": {
                     "branch": {
@@ -1985,15 +1985,15 @@
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.RepositoryResponse": {
+            "dto.RepositoryResponse": {
                 "type": "object",
                 "properties": {
                     "data": {
-                        "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.RepositoryData"
+                        "$ref": "#/components/schemas/dto.RepositoryData"
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.RepositoryStatusSummaryAttributes": {
+            "dto.RepositoryStatusSummaryAttributes": {
                 "type": "object",
                 "properties": {
                     "message": {
@@ -2007,11 +2007,11 @@
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.RepositoryStatusSummaryData": {
+            "dto.RepositoryStatusSummaryData": {
                 "type": "object",
                 "properties": {
                     "attributes": {
-                        "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.RepositoryStatusSummaryAttributes"
+                        "$ref": "#/components/schemas/dto.RepositoryStatusSummaryAttributes"
                     },
                     "id": {
                         "type": "string"
@@ -2021,22 +2021,22 @@
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.RepositoryStatusSummaryResponse": {
+            "dto.RepositoryStatusSummaryResponse": {
                 "type": "object",
                 "properties": {
                     "data": {
-                        "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.RepositoryStatusSummaryData"
+                        "$ref": "#/components/schemas/dto.RepositoryStatusSummaryData"
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.SearchAttributes": {
+            "dto.SearchAttributes": {
                 "type": "object",
                 "properties": {
                     "code": {
                         "type": "string"
                     },
                     "filters": {
-                        "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.SearchFilters"
+                        "$ref": "#/components/schemas/dto.SearchFilters"
                     },
                     "keywords": {
                         "type": "array",
@@ -2052,18 +2052,18 @@
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.SearchData": {
+            "dto.SearchData": {
                 "type": "object",
                 "properties": {
                     "attributes": {
-                        "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.SearchAttributes"
+                        "$ref": "#/components/schemas/dto.SearchAttributes"
                     },
                     "type": {
                         "type": "string"
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.SearchFilters": {
+            "dto.SearchFilters": {
                 "type": "object",
                 "properties": {
                     "authors": {
@@ -2116,30 +2116,30 @@
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.SearchRequest": {
+            "dto.SearchRequest": {
                 "type": "object",
                 "properties": {
                     "data": {
-                        "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.SearchData"
+                        "$ref": "#/components/schemas/dto.SearchData"
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.SearchResponse": {
+            "dto.SearchResponse": {
                 "type": "object",
                 "properties": {
                     "data": {
                         "type": "array",
                         "items": {
-                            "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.SnippetData"
+                            "$ref": "#/components/schemas/dto.SnippetData"
                         }
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.SnippetAttributes": {
+            "dto.SnippetAttributes": {
                 "type": "object",
                 "properties": {
                     "content": {
-                        "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.SnippetContentSchema"
+                        "$ref": "#/components/schemas/dto.SnippetContentSchema"
                     },
                     "created_at": {
                         "type": "string"
@@ -2147,13 +2147,13 @@
                     "derives_from": {
                         "type": "array",
                         "items": {
-                            "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.GitFileSchema"
+                            "$ref": "#/components/schemas/dto.GitFileSchema"
                         }
                     },
                     "enrichments": {
                         "type": "array",
                         "items": {
-                            "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.EnrichmentSchema"
+                            "$ref": "#/components/schemas/dto.EnrichmentSchema"
                         }
                     },
                     "original_scores": {
@@ -2167,7 +2167,7 @@
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.SnippetContentSchema": {
+            "dto.SnippetContentSchema": {
                 "type": "object",
                 "properties": {
                     "language": {
@@ -2178,11 +2178,11 @@
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.SnippetData": {
+            "dto.SnippetData": {
                 "type": "object",
                 "properties": {
                     "attributes": {
-                        "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.SnippetAttributes"
+                        "$ref": "#/components/schemas/dto.SnippetAttributes"
                     },
                     "id": {
                         "type": "string"
@@ -2192,7 +2192,7 @@
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.TagAttributes": {
+            "dto.TagAttributes": {
                 "type": "object",
                 "properties": {
                     "commit_sha": {
@@ -2203,11 +2203,11 @@
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.TagData": {
+            "dto.TagData": {
                 "type": "object",
                 "properties": {
                     "attributes": {
-                        "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.TagAttributes"
+                        "$ref": "#/components/schemas/dto.TagAttributes"
                     },
                     "id": {
                         "type": "string"
@@ -2217,26 +2217,26 @@
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.TagJSONAPIListResponse": {
+            "dto.TagJSONAPIListResponse": {
                 "type": "object",
                 "properties": {
                     "data": {
                         "type": "array",
                         "items": {
-                            "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.TagData"
+                            "$ref": "#/components/schemas/dto.TagData"
                         }
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.TagJSONAPIResponse": {
+            "dto.TagJSONAPIResponse": {
                 "type": "object",
                 "properties": {
                     "data": {
-                        "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.TagData"
+                        "$ref": "#/components/schemas/dto.TagData"
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.TaskAttributes": {
+            "dto.TaskAttributes": {
                 "type": "object",
                 "properties": {
                     "created_at": {
@@ -2254,11 +2254,11 @@
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.TaskData": {
+            "dto.TaskData": {
                 "type": "object",
                 "properties": {
                     "attributes": {
-                        "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.TaskAttributes"
+                        "$ref": "#/components/schemas/dto.TaskAttributes"
                     },
                     "id": {
                         "type": "string"
@@ -2268,26 +2268,26 @@
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.TaskListResponse": {
+            "dto.TaskListResponse": {
                 "type": "object",
                 "properties": {
                     "data": {
                         "type": "array",
                         "items": {
-                            "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.TaskData"
+                            "$ref": "#/components/schemas/dto.TaskData"
                         }
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.TaskResponse": {
+            "dto.TaskResponse": {
                 "type": "object",
                 "properties": {
                     "data": {
-                        "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.TaskData"
+                        "$ref": "#/components/schemas/dto.TaskData"
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.TaskStatusAttributes": {
+            "dto.TaskStatusAttributes": {
                 "type": "object",
                 "properties": {
                     "created_at": {
@@ -2319,11 +2319,11 @@
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.TaskStatusData": {
+            "dto.TaskStatusData": {
                 "type": "object",
                 "properties": {
                     "attributes": {
-                        "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.TaskStatusAttributes"
+                        "$ref": "#/components/schemas/dto.TaskStatusAttributes"
                     },
                     "id": {
                         "type": "string"
@@ -2333,78 +2333,78 @@
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.TaskStatusListResponse": {
+            "dto.TaskStatusListResponse": {
                 "type": "object",
                 "properties": {
                     "data": {
                         "type": "array",
                         "items": {
-                            "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.TaskStatusData"
+                            "$ref": "#/components/schemas/dto.TaskStatusData"
                         }
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigAttributes": {
+            "dto.TrackingConfigAttributes": {
                 "type": "object",
                 "properties": {
                     "mode": {
-                        "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.TrackingMode"
+                        "$ref": "#/components/schemas/dto.TrackingMode"
                     },
                     "value": {
                         "type": "string"
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigData": {
+            "dto.TrackingConfigData": {
                 "type": "object",
                 "properties": {
                     "attributes": {
-                        "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigAttributes"
+                        "$ref": "#/components/schemas/dto.TrackingConfigAttributes"
                     },
                     "type": {
                         "type": "string"
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigResponse": {
+            "dto.TrackingConfigResponse": {
                 "type": "object",
                 "properties": {
                     "data": {
-                        "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigData"
+                        "$ref": "#/components/schemas/dto.TrackingConfigData"
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigUpdateAttributes": {
+            "dto.TrackingConfigUpdateAttributes": {
                 "type": "object",
                 "properties": {
                     "mode": {
-                        "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.TrackingMode"
+                        "$ref": "#/components/schemas/dto.TrackingMode"
                     },
                     "value": {
                         "type": "string"
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigUpdateData": {
+            "dto.TrackingConfigUpdateData": {
                 "type": "object",
                 "properties": {
                     "attributes": {
-                        "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigUpdateAttributes"
+                        "$ref": "#/components/schemas/dto.TrackingConfigUpdateAttributes"
                     },
                     "type": {
                         "type": "string"
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigUpdateRequest": {
+            "dto.TrackingConfigUpdateRequest": {
                 "type": "object",
                 "properties": {
                     "data": {
-                        "$ref": "#/components/schemas/github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigUpdateData"
+                        "$ref": "#/components/schemas/dto.TrackingConfigUpdateData"
                     }
                 }
             },
-            "github_com_helixml_kodit_internal_api_v1_dto.TrackingMode": {
+            "dto.TrackingMode": {
                 "type": "string",
                 "enum": [
                     "branch",

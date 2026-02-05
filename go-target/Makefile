@@ -147,11 +147,11 @@ tools: ## Install development tools
 # Swagger/OpenAPI paths
 DOCS_DIR=./docs
 SWAGGER_DIR=$(DOCS_DIR)/swagger
-OPENAPI_EMBED=./internal/api/openapi.json
+OPENAPI_EMBED=./infrastructure/api/openapi.json
 
 .PHONY: swag
 swag: ## Generate Swagger 2.0 spec from annotations
-	swag init -g ./cmd/kodit/main.go -o $(SWAGGER_DIR) --parseInternal -d ./,./internal/api/v1/dto
+	swag init -g ./cmd/kodit/main.go -o $(SWAGGER_DIR) --parseInternal -d ./,./infrastructure/api/v1/dto
 
 .PHONY: swag-fmt
 swag-fmt: ## Format swag comments

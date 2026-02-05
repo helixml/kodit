@@ -1,6 +1,6 @@
 basePath: /api/v1
 definitions:
-  github_com_helixml_kodit_internal_api_v1_dto.CommitAttributes:
+  dto.CommitAttributes:
     properties:
       author:
         type: string
@@ -13,28 +13,28 @@ definitions:
       parent_commit_sha:
         type: string
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.CommitData:
+  dto.CommitData:
     properties:
       attributes:
-        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.CommitAttributes'
+        $ref: '#/definitions/dto.CommitAttributes'
       id:
         type: string
       type:
         type: string
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.CommitJSONAPIListResponse:
+  dto.CommitJSONAPIListResponse:
     properties:
       data:
         items:
-          $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.CommitData'
+          $ref: '#/definitions/dto.CommitData'
         type: array
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.CommitJSONAPIResponse:
+  dto.CommitJSONAPIResponse:
     properties:
       data:
-        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.CommitData'
+        $ref: '#/definitions/dto.CommitData'
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.EmbeddingAttributes:
+  dto.EmbeddingAttributes:
     properties:
       embedding:
         items:
@@ -45,23 +45,23 @@ definitions:
       snippet_sha:
         type: string
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.EmbeddingData:
+  dto.EmbeddingData:
     properties:
       attributes:
-        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.EmbeddingAttributes'
+        $ref: '#/definitions/dto.EmbeddingAttributes'
       id:
         type: string
       type:
         type: string
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.EmbeddingJSONAPIListResponse:
+  dto.EmbeddingJSONAPIListResponse:
     properties:
       data:
         items:
-          $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.EmbeddingData'
+          $ref: '#/definitions/dto.EmbeddingData'
         type: array
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.EnrichmentAttributes:
+  dto.EnrichmentAttributes:
     properties:
       content:
         type: string
@@ -74,35 +74,35 @@ definitions:
       updated_at:
         type: string
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.EnrichmentData:
+  dto.EnrichmentData:
     properties:
       attributes:
-        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.EnrichmentAttributes'
+        $ref: '#/definitions/dto.EnrichmentAttributes'
       id:
         type: string
       type:
         type: string
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.EnrichmentJSONAPIListResponse:
+  dto.EnrichmentJSONAPIListResponse:
     properties:
       data:
         items:
-          $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.EnrichmentData'
+          $ref: '#/definitions/dto.EnrichmentData'
         type: array
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.EnrichmentJSONAPIResponse:
+  dto.EnrichmentJSONAPIResponse:
     properties:
       data:
-        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.EnrichmentData'
+        $ref: '#/definitions/dto.EnrichmentData'
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.EnrichmentSchema:
+  dto.EnrichmentSchema:
     properties:
       content:
         type: string
       type:
         type: string
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.FileAttributes:
+  dto.FileAttributes:
     properties:
       blob_sha:
         type: string
@@ -115,28 +115,28 @@ definitions:
       size:
         type: integer
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.FileData:
+  dto.FileData:
     properties:
       attributes:
-        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.FileAttributes'
+        $ref: '#/definitions/dto.FileAttributes'
       id:
         type: string
       type:
         type: string
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.FileJSONAPIListResponse:
+  dto.FileJSONAPIListResponse:
     properties:
       data:
         items:
-          $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.FileData'
+          $ref: '#/definitions/dto.FileData'
         type: array
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.FileJSONAPIResponse:
+  dto.FileJSONAPIResponse:
     properties:
       data:
-        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.FileData'
+        $ref: '#/definitions/dto.FileData'
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.GitFileSchema:
+  dto.GitFileSchema:
     properties:
       blob_sha:
         type: string
@@ -147,7 +147,7 @@ definitions:
       size:
         type: integer
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.RepositoryAttributes:
+  dto.RepositoryAttributes:
     properties:
       cloned_path:
         type: string
@@ -168,23 +168,23 @@ definitions:
       updated_at:
         type: string
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.RepositoryData:
+  dto.RepositoryData:
     properties:
       attributes:
-        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.RepositoryAttributes'
+        $ref: '#/definitions/dto.RepositoryAttributes'
       id:
         type: string
       type:
         type: string
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.RepositoryListResponse:
+  dto.RepositoryListResponse:
     properties:
       data:
         items:
-          $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.RepositoryData'
+          $ref: '#/definitions/dto.RepositoryData'
         type: array
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.RepositoryRequest:
+  dto.RepositoryRequest:
     properties:
       branch:
         type: string
@@ -195,12 +195,12 @@ definitions:
       tag:
         type: string
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.RepositoryResponse:
+  dto.RepositoryResponse:
     properties:
       data:
-        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.RepositoryData'
+        $ref: '#/definitions/dto.RepositoryData'
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.RepositoryStatusSummaryAttributes:
+  dto.RepositoryStatusSummaryAttributes:
     properties:
       message:
         type: string
@@ -209,26 +209,26 @@ definitions:
       updated_at:
         type: string
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.RepositoryStatusSummaryData:
+  dto.RepositoryStatusSummaryData:
     properties:
       attributes:
-        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.RepositoryStatusSummaryAttributes'
+        $ref: '#/definitions/dto.RepositoryStatusSummaryAttributes'
       id:
         type: string
       type:
         type: string
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.RepositoryStatusSummaryResponse:
+  dto.RepositoryStatusSummaryResponse:
     properties:
       data:
-        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.RepositoryStatusSummaryData'
+        $ref: '#/definitions/dto.RepositoryStatusSummaryData'
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.SearchAttributes:
+  dto.SearchAttributes:
     properties:
       code:
         type: string
       filters:
-        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.SearchFilters'
+        $ref: '#/definitions/dto.SearchFilters'
       keywords:
         items:
           type: string
@@ -238,14 +238,14 @@ definitions:
       text:
         type: string
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.SearchData:
+  dto.SearchData:
     properties:
       attributes:
-        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.SearchAttributes'
+        $ref: '#/definitions/dto.SearchAttributes'
       type:
         type: string
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.SearchFilters:
+  dto.SearchFilters:
     properties:
       authors:
         items:
@@ -280,31 +280,31 @@ definitions:
       start_date:
         type: string
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.SearchRequest:
+  dto.SearchRequest:
     properties:
       data:
-        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.SearchData'
+        $ref: '#/definitions/dto.SearchData'
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.SearchResponse:
+  dto.SearchResponse:
     properties:
       data:
         items:
-          $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.SnippetData'
+          $ref: '#/definitions/dto.SnippetData'
         type: array
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.SnippetAttributes:
+  dto.SnippetAttributes:
     properties:
       content:
-        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.SnippetContentSchema'
+        $ref: '#/definitions/dto.SnippetContentSchema'
       created_at:
         type: string
       derives_from:
         items:
-          $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.GitFileSchema'
+          $ref: '#/definitions/dto.GitFileSchema'
         type: array
       enrichments:
         items:
-          $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.EnrichmentSchema'
+          $ref: '#/definitions/dto.EnrichmentSchema'
         type: array
       original_scores:
         items:
@@ -313,51 +313,51 @@ definitions:
       updated_at:
         type: string
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.SnippetContentSchema:
+  dto.SnippetContentSchema:
     properties:
       language:
         type: string
       value:
         type: string
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.SnippetData:
+  dto.SnippetData:
     properties:
       attributes:
-        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.SnippetAttributes'
+        $ref: '#/definitions/dto.SnippetAttributes'
       id:
         type: string
       type:
         type: string
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.TagAttributes:
+  dto.TagAttributes:
     properties:
       commit_sha:
         type: string
       name:
         type: string
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.TagData:
+  dto.TagData:
     properties:
       attributes:
-        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TagAttributes'
+        $ref: '#/definitions/dto.TagAttributes'
       id:
         type: string
       type:
         type: string
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.TagJSONAPIListResponse:
+  dto.TagJSONAPIListResponse:
     properties:
       data:
         items:
-          $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TagData'
+          $ref: '#/definitions/dto.TagData'
         type: array
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.TagJSONAPIResponse:
+  dto.TagJSONAPIResponse:
     properties:
       data:
-        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TagData'
+        $ref: '#/definitions/dto.TagData'
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.TaskAttributes:
+  dto.TaskAttributes:
     properties:
       created_at:
         type: string
@@ -369,28 +369,28 @@ definitions:
       updated_at:
         type: string
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.TaskData:
+  dto.TaskData:
     properties:
       attributes:
-        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TaskAttributes'
+        $ref: '#/definitions/dto.TaskAttributes'
       id:
         type: string
       type:
         type: string
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.TaskListResponse:
+  dto.TaskListResponse:
     properties:
       data:
         items:
-          $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TaskData'
+          $ref: '#/definitions/dto.TaskData'
         type: array
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.TaskResponse:
+  dto.TaskResponse:
     properties:
       data:
-        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TaskData'
+        $ref: '#/definitions/dto.TaskData'
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.TaskStatusAttributes:
+  dto.TaskStatusAttributes:
     properties:
       created_at:
         type: string
@@ -411,61 +411,61 @@ definitions:
       updated_at:
         type: string
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.TaskStatusData:
+  dto.TaskStatusData:
     properties:
       attributes:
-        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TaskStatusAttributes'
+        $ref: '#/definitions/dto.TaskStatusAttributes'
       id:
         type: string
       type:
         type: string
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.TaskStatusListResponse:
+  dto.TaskStatusListResponse:
     properties:
       data:
         items:
-          $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TaskStatusData'
+          $ref: '#/definitions/dto.TaskStatusData'
         type: array
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigAttributes:
+  dto.TrackingConfigAttributes:
     properties:
       mode:
-        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TrackingMode'
+        $ref: '#/definitions/dto.TrackingMode'
       value:
         type: string
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigData:
+  dto.TrackingConfigData:
     properties:
       attributes:
-        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigAttributes'
+        $ref: '#/definitions/dto.TrackingConfigAttributes'
       type:
         type: string
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigResponse:
+  dto.TrackingConfigResponse:
     properties:
       data:
-        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigData'
+        $ref: '#/definitions/dto.TrackingConfigData'
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigUpdateAttributes:
+  dto.TrackingConfigUpdateAttributes:
     properties:
       mode:
-        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TrackingMode'
+        $ref: '#/definitions/dto.TrackingMode'
       value:
         type: string
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigUpdateData:
+  dto.TrackingConfigUpdateData:
     properties:
       attributes:
-        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigUpdateAttributes'
+        $ref: '#/definitions/dto.TrackingConfigUpdateAttributes'
       type:
         type: string
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigUpdateRequest:
+  dto.TrackingConfigUpdateRequest:
     properties:
       data:
-        $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigUpdateData'
+        $ref: '#/definitions/dto.TrackingConfigUpdateData'
     type: object
-  github_com_helixml_kodit_internal_api_v1_dto.TrackingMode:
+  dto.TrackingMode:
     enum:
     - branch
     - tag
@@ -508,7 +508,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.EnrichmentJSONAPIListResponse'
+            $ref: '#/definitions/dto.EnrichmentJSONAPIListResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -537,7 +537,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.EnrichmentJSONAPIResponse'
+            $ref: '#/definitions/dto.EnrichmentJSONAPIResponse'
         "404":
           description: Not Found
           schema:
@@ -575,7 +575,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TaskListResponse'
+            $ref: '#/definitions/dto.TaskListResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -604,7 +604,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TaskResponse'
+            $ref: '#/definitions/dto.TaskResponse'
         "404":
           description: Not Found
           schema:
@@ -633,7 +633,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.RepositoryListResponse'
+            $ref: '#/definitions/dto.RepositoryListResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -655,14 +655,14 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.RepositoryRequest'
+          $ref: '#/definitions/dto.RepositoryRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.RepositoryResponse'
+            $ref: '#/definitions/dto.RepositoryResponse'
         "400":
           description: Bad Request
           schema:
@@ -729,7 +729,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.RepositoryResponse'
+            $ref: '#/definitions/dto.RepositoryResponse'
         "404":
           description: Not Found
           schema:
@@ -764,7 +764,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.CommitJSONAPIListResponse'
+            $ref: '#/definitions/dto.CommitJSONAPIListResponse'
         "404":
           description: Not Found
           schema:
@@ -804,7 +804,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.CommitJSONAPIResponse'
+            $ref: '#/definitions/dto.CommitJSONAPIResponse'
         "404":
           description: Not Found
           schema:
@@ -848,7 +848,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.EmbeddingJSONAPIListResponse'
+            $ref: '#/definitions/dto.EmbeddingJSONAPIListResponse'
         "404":
           description: Not Found
           schema:
@@ -896,7 +896,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.EnrichmentJSONAPIListResponse'
+            $ref: '#/definitions/dto.EnrichmentJSONAPIListResponse'
         "404":
           description: Not Found
           schema:
@@ -941,7 +941,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.EnrichmentJSONAPIResponse'
+            $ref: '#/definitions/dto.EnrichmentJSONAPIResponse'
         "404":
           description: Not Found
           schema:
@@ -981,7 +981,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.FileJSONAPIListResponse'
+            $ref: '#/definitions/dto.FileJSONAPIListResponse'
         "404":
           description: Not Found
           schema:
@@ -1026,7 +1026,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.FileJSONAPIResponse'
+            $ref: '#/definitions/dto.FileJSONAPIResponse'
         "404":
           description: Not Found
           schema:
@@ -1137,7 +1137,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.EnrichmentJSONAPIListResponse'
+            $ref: '#/definitions/dto.EnrichmentJSONAPIListResponse'
         "404":
           description: Not Found
           schema:
@@ -1172,7 +1172,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TaskStatusListResponse'
+            $ref: '#/definitions/dto.TaskStatusListResponse'
         "404":
           description: Not Found
           schema:
@@ -1207,7 +1207,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.RepositoryStatusSummaryResponse'
+            $ref: '#/definitions/dto.RepositoryStatusSummaryResponse'
         "404":
           description: Not Found
           schema:
@@ -1242,7 +1242,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TagJSONAPIListResponse'
+            $ref: '#/definitions/dto.TagJSONAPIListResponse'
         "404":
           description: Not Found
           schema:
@@ -1282,7 +1282,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TagJSONAPIResponse'
+            $ref: '#/definitions/dto.TagJSONAPIResponse'
         "404":
           description: Not Found
           schema:
@@ -1317,7 +1317,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigResponse'
+            $ref: '#/definitions/dto.TrackingConfigResponse'
         "404":
           description: Not Found
           schema:
@@ -1350,14 +1350,14 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigUpdateRequest'
+          $ref: '#/definitions/dto.TrackingConfigUpdateRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.TrackingConfigResponse'
+            $ref: '#/definitions/dto.TrackingConfigResponse'
         "404":
           description: Not Found
           schema:
@@ -1386,14 +1386,14 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.SearchRequest'
+          $ref: '#/definitions/dto.SearchRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_helixml_kodit_internal_api_v1_dto.SearchResponse'
+            $ref: '#/definitions/dto.SearchResponse'
         "400":
           description: Bad Request
           schema:

@@ -77,7 +77,8 @@ func TestSmoke(t *testing.T) {
 
 	cmd := exec.CommandContext(ctx, "go", "run", cmdDir,
 		"serve",
-		"--addr", fmt.Sprintf("%s:%d", baseHost, basePort),
+		"--host", baseHost,
+		"--port", strconv.Itoa(basePort),
 		"--env-file", tmpEnvPath,
 	)
 
