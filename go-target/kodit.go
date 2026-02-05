@@ -63,6 +63,7 @@ import (
 	"github.com/helixml/kodit/infrastructure/slicing"
 	"github.com/helixml/kodit/infrastructure/slicing/language"
 	"github.com/helixml/kodit/infrastructure/tracking"
+	"github.com/helixml/kodit/internal/config"
 )
 
 // Client is the main entry point for the kodit library.
@@ -127,7 +128,7 @@ type Client struct {
 // The background worker is started automatically.
 func New(opts ...Option) (*Client, error) {
 	cfg := &clientConfig{
-		workerCount: 1,
+		workerCount: config.DefaultWorkerCount,
 	}
 
 	for _, opt := range opts {
@@ -163,7 +164,7 @@ func New(opts ...Option) (*Client, error) {
 	// Set up clone directory
 	cloneDir := cfg.cloneDir
 	if cloneDir == "" {
-		cloneDir = filepath.Join(dataDir, "repos")
+		cloneDir = filepath.Join(dataDir, config.DefaultCloneSubdir)
 	}
 
 	// Ensure clone directory exists
@@ -471,11 +472,11 @@ func (c *Client) Search(ctx context.Context, query string, opts ...SearchOption)
 	}
 
 	// Apply search options
-	cfg := &searchConfig{
-		limit: 10,
+	searchCfg := &searchConfig{
+		limit: config.DefaultSearchLimit,
 	}
 	for _, opt := range opts {
-		opt(cfg)
+		opt(searchCfg)
 	}
 
 	// If no search service configured, return empty result
@@ -485,14 +486,14 @@ func (c *Client) Search(ctx context.Context, query string, opts ...SearchOption)
 
 	// Build filters from options
 	var filterOpts []search.FiltersOption
-	if len(cfg.languages) > 0 && len(cfg.languages) == 1 {
-		filterOpts = append(filterOpts, search.WithLanguage(cfg.languages[0]))
+	if len(searchCfg.languages) > 0 && len(searchCfg.languages) == 1 {
+		filterOpts = append(filterOpts, search.WithLanguage(searchCfg.languages[0]))
 	}
 	filters := search.NewFilters(filterOpts...)
 
 	// Build multi-search request
 	// Use query for both text (BM25) and code (vector) queries
-	request := search.NewMultiRequest(cfg.limit, query, query, nil, filters)
+	request := search.NewMultiRequest(searchCfg.limit, query, query, nil, filters)
 
 	result, err := c.codeSearch.Search(ctx, request)
 	if err != nil {

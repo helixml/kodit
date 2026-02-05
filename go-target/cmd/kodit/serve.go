@@ -152,6 +152,11 @@ func runServe(envFile, host string, port int) error {
 		opts = append(opts, kodit.WithAPIKeys(keys...))
 	}
 
+	// Configure worker count
+	if cfg.WorkerCount() > 0 {
+		opts = append(opts, kodit.WithWorkerCount(cfg.WorkerCount()))
+	}
+
 	// Skip provider validation if explicitly disabled (for testing)
 	if cfg.SkipProviderValidation() {
 		opts = append(opts, kodit.WithSkipProviderValidation())

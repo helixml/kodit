@@ -5,11 +5,65 @@ import (
 	"time"
 )
 
+func TestDefaultConstants(t *testing.T) {
+	if DefaultWorkerCount != 1 {
+		t.Errorf("DefaultWorkerCount = %v, want 1", DefaultWorkerCount)
+	}
+	if DefaultSearchLimit != 10 {
+		t.Errorf("DefaultSearchLimit = %v, want 10", DefaultSearchLimit)
+	}
+	if DefaultHost != "0.0.0.0" {
+		t.Errorf("DefaultHost = %v, want '0.0.0.0'", DefaultHost)
+	}
+	if DefaultPort != 8080 {
+		t.Errorf("DefaultPort = %v, want 8080", DefaultPort)
+	}
+	if DefaultLogLevel != "INFO" {
+		t.Errorf("DefaultLogLevel = %v, want 'INFO'", DefaultLogLevel)
+	}
+	if DefaultCloneSubdir != "repos" {
+		t.Errorf("DefaultCloneSubdir = %v, want 'repos'", DefaultCloneSubdir)
+	}
+	if DefaultEndpointParallelTasks != 10 {
+		t.Errorf("DefaultEndpointParallelTasks = %v, want 10", DefaultEndpointParallelTasks)
+	}
+	if DefaultEndpointTimeout != 60*time.Second {
+		t.Errorf("DefaultEndpointTimeout = %v, want 60s", DefaultEndpointTimeout)
+	}
+	if DefaultEndpointMaxRetries != 5 {
+		t.Errorf("DefaultEndpointMaxRetries = %v, want 5", DefaultEndpointMaxRetries)
+	}
+	if DefaultEndpointInitialDelay != 2*time.Second {
+		t.Errorf("DefaultEndpointInitialDelay = %v, want 2s", DefaultEndpointInitialDelay)
+	}
+	if DefaultEndpointBackoffFactor != 2.0 {
+		t.Errorf("DefaultEndpointBackoffFactor = %v, want 2.0", DefaultEndpointBackoffFactor)
+	}
+	if DefaultEndpointMaxTokens != 4000 {
+		t.Errorf("DefaultEndpointMaxTokens = %v, want 4000", DefaultEndpointMaxTokens)
+	}
+	if DefaultPeriodicSyncInterval != 1800.0 {
+		t.Errorf("DefaultPeriodicSyncInterval = %v, want 1800.0", DefaultPeriodicSyncInterval)
+	}
+	if DefaultPeriodicSyncRetries != 3 {
+		t.Errorf("DefaultPeriodicSyncRetries = %v, want 3", DefaultPeriodicSyncRetries)
+	}
+	if DefaultRemoteTimeout != 30*time.Second {
+		t.Errorf("DefaultRemoteTimeout = %v, want 30s", DefaultRemoteTimeout)
+	}
+	if DefaultRemoteMaxRetries != 3 {
+		t.Errorf("DefaultRemoteMaxRetries = %v, want 3", DefaultRemoteMaxRetries)
+	}
+	if DefaultReportingInterval != 5*time.Second {
+		t.Errorf("DefaultReportingInterval = %v, want 5s", DefaultReportingInterval)
+	}
+}
+
 func TestReportingConfig(t *testing.T) {
 	cfg := NewReportingConfig()
 
-	if cfg.LogTimeInterval() != 5*time.Second {
-		t.Errorf("LogTimeInterval() = %v, want 5s", cfg.LogTimeInterval())
+	if cfg.LogTimeInterval() != DefaultReportingInterval {
+		t.Errorf("LogTimeInterval() = %v, want %v", cfg.LogTimeInterval(), DefaultReportingInterval)
 	}
 
 	cfg = cfg.WithLogTimeInterval(10 * time.Second)
@@ -34,23 +88,23 @@ func TestLiteLLMCacheConfig(t *testing.T) {
 func TestEndpoint_Defaults(t *testing.T) {
 	e := NewEndpoint()
 
-	if e.NumParallelTasks() != 10 {
-		t.Errorf("NumParallelTasks() = %v, want 10", e.NumParallelTasks())
+	if e.NumParallelTasks() != DefaultEndpointParallelTasks {
+		t.Errorf("NumParallelTasks() = %v, want %v", e.NumParallelTasks(), DefaultEndpointParallelTasks)
 	}
-	if e.Timeout() != 60*time.Second {
-		t.Errorf("Timeout() = %v, want 60s", e.Timeout())
+	if e.Timeout() != DefaultEndpointTimeout {
+		t.Errorf("Timeout() = %v, want %v", e.Timeout(), DefaultEndpointTimeout)
 	}
-	if e.MaxRetries() != 5 {
-		t.Errorf("MaxRetries() = %v, want 5", e.MaxRetries())
+	if e.MaxRetries() != DefaultEndpointMaxRetries {
+		t.Errorf("MaxRetries() = %v, want %v", e.MaxRetries(), DefaultEndpointMaxRetries)
 	}
-	if e.InitialDelay() != 2*time.Second {
-		t.Errorf("InitialDelay() = %v, want 2s", e.InitialDelay())
+	if e.InitialDelay() != DefaultEndpointInitialDelay {
+		t.Errorf("InitialDelay() = %v, want %v", e.InitialDelay(), DefaultEndpointInitialDelay)
 	}
-	if e.BackoffFactor() != 2.0 {
-		t.Errorf("BackoffFactor() = %v, want 2.0", e.BackoffFactor())
+	if e.BackoffFactor() != DefaultEndpointBackoffFactor {
+		t.Errorf("BackoffFactor() = %v, want %v", e.BackoffFactor(), DefaultEndpointBackoffFactor)
 	}
-	if e.MaxTokens() != 4000 {
-		t.Errorf("MaxTokens() = %v, want 4000", e.MaxTokens())
+	if e.MaxTokens() != DefaultEndpointMaxTokens {
+		t.Errorf("MaxTokens() = %v, want %v", e.MaxTokens(), DefaultEndpointMaxTokens)
 	}
 	if e.IsConfigured() {
 		t.Error("IsConfigured() should be false for default endpoint")
@@ -145,11 +199,12 @@ func TestPeriodicSyncConfig(t *testing.T) {
 	if !cfg.Enabled() {
 		t.Error("Enabled() should be true by default")
 	}
-	if cfg.Interval() != 30*time.Minute {
-		t.Errorf("Interval() = %v, want 30m", cfg.Interval())
+	expectedInterval := time.Duration(DefaultPeriodicSyncInterval * float64(time.Second))
+	if cfg.Interval() != expectedInterval {
+		t.Errorf("Interval() = %v, want %v", cfg.Interval(), expectedInterval)
 	}
-	if cfg.RetryAttempts() != 3 {
-		t.Errorf("RetryAttempts() = %v, want 3", cfg.RetryAttempts())
+	if cfg.RetryAttempts() != DefaultPeriodicSyncRetries {
+		t.Errorf("RetryAttempts() = %v, want %v", cfg.RetryAttempts(), DefaultPeriodicSyncRetries)
 	}
 
 	cfg = cfg.WithEnabled(false).WithIntervalSeconds(3600).WithRetryAttempts(5)
@@ -170,11 +225,11 @@ func TestRemoteConfig(t *testing.T) {
 	if cfg.IsConfigured() {
 		t.Error("IsConfigured() should be false by default")
 	}
-	if cfg.Timeout() != 30*time.Second {
-		t.Errorf("Timeout() = %v, want 30s", cfg.Timeout())
+	if cfg.Timeout() != DefaultRemoteTimeout {
+		t.Errorf("Timeout() = %v, want %v", cfg.Timeout(), DefaultRemoteTimeout)
 	}
-	if cfg.MaxRetries() != 3 {
-		t.Errorf("MaxRetries() = %v, want 3", cfg.MaxRetries())
+	if cfg.MaxRetries() != DefaultRemoteMaxRetries {
+		t.Errorf("MaxRetries() = %v, want %v", cfg.MaxRetries(), DefaultRemoteMaxRetries)
 	}
 	if !cfg.VerifySSL() {
 		t.Error("VerifySSL() should be true by default")
@@ -213,8 +268,14 @@ func TestRemoteConfig_WithOptions(t *testing.T) {
 func TestAppConfig_Defaults(t *testing.T) {
 	cfg := NewAppConfig()
 
-	if cfg.LogLevel() != "INFO" {
-		t.Errorf("LogLevel() = %v, want 'INFO'", cfg.LogLevel())
+	if cfg.Host() != DefaultHost {
+		t.Errorf("Host() = %v, want '%v'", cfg.Host(), DefaultHost)
+	}
+	if cfg.Port() != DefaultPort {
+		t.Errorf("Port() = %v, want %v", cfg.Port(), DefaultPort)
+	}
+	if cfg.LogLevel() != DefaultLogLevel {
+		t.Errorf("LogLevel() = %v, want '%v'", cfg.LogLevel(), DefaultLogLevel)
 	}
 	if cfg.LogFormat() != LogFormatPretty {
 		t.Errorf("LogFormat() = %v, want 'pretty'", cfg.LogFormat())
@@ -230,6 +291,12 @@ func TestAppConfig_Defaults(t *testing.T) {
 	}
 	if cfg.IsRemote() {
 		t.Error("IsRemote() should be false by default")
+	}
+	if cfg.WorkerCount() != DefaultWorkerCount {
+		t.Errorf("WorkerCount() = %v, want %v", cfg.WorkerCount(), DefaultWorkerCount)
+	}
+	if cfg.SearchLimit() != DefaultSearchLimit {
+		t.Errorf("SearchLimit() = %v, want %v", cfg.SearchLimit(), DefaultSearchLimit)
 	}
 }
 
@@ -293,8 +360,8 @@ func TestAppConfig_APIKeys_Copy(t *testing.T) {
 func TestAppConfig_Directories(t *testing.T) {
 	cfg := NewAppConfigWithOptions(WithDataDir("/data"))
 
-	if cfg.CloneDir() != "/data/clones" {
-		t.Errorf("CloneDir() = %v, want '/data/clones'", cfg.CloneDir())
+	if cfg.CloneDir() != "/data/repos" {
+		t.Errorf("CloneDir() = %v, want '/data/repos'", cfg.CloneDir())
 	}
 	if cfg.LiteLLMCacheDir() != "/data/litellm_cache" {
 		t.Errorf("LiteLLMCacheDir() = %v, want '/data/litellm_cache'", cfg.LiteLLMCacheDir())

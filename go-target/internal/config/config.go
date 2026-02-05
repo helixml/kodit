@@ -10,6 +10,27 @@ import (
 	"time"
 )
 
+// Default configuration values.
+const (
+	DefaultHost                  = "0.0.0.0"
+	DefaultPort                  = 8080
+	DefaultLogLevel              = "INFO"
+	DefaultWorkerCount           = 1
+	DefaultSearchLimit           = 10
+	DefaultCloneSubdir           = "repos"
+	DefaultEndpointParallelTasks = 10
+	DefaultEndpointTimeout       = 60 * time.Second
+	DefaultEndpointMaxRetries    = 5
+	DefaultEndpointInitialDelay  = 2 * time.Second
+	DefaultEndpointBackoffFactor = 2.0
+	DefaultEndpointMaxTokens     = 4000
+	DefaultPeriodicSyncInterval  = 1800.0 // seconds
+	DefaultPeriodicSyncRetries   = 3
+	DefaultRemoteTimeout         = 30 * time.Second
+	DefaultRemoteMaxRetries      = 3
+	DefaultReportingInterval     = 5 * time.Second
+)
+
 // LogFormat represents the log output format.
 type LogFormat string
 
@@ -46,7 +67,7 @@ type ReportingConfig struct {
 // NewReportingConfig creates a new ReportingConfig with defaults.
 func NewReportingConfig() ReportingConfig {
 	return ReportingConfig{
-		logTimeInterval: 5 * time.Second,
+		logTimeInterval: DefaultReportingInterval,
 	}
 }
 
@@ -102,12 +123,12 @@ type Endpoint struct {
 // NewEndpoint creates a new Endpoint with defaults.
 func NewEndpoint() Endpoint {
 	return Endpoint{
-		numParallelTasks: 10,
-		timeout:          60 * time.Second,
-		maxRetries:       5,
-		initialDelay:     2 * time.Second,
-		backoffFactor:    2.0,
-		maxTokens:        4000,
+		numParallelTasks: DefaultEndpointParallelTasks,
+		timeout:          DefaultEndpointTimeout,
+		maxRetries:       DefaultEndpointMaxRetries,
+		initialDelay:     DefaultEndpointInitialDelay,
+		backoffFactor:    DefaultEndpointBackoffFactor,
+		maxTokens:        DefaultEndpointMaxTokens,
 	}
 }
 
@@ -289,8 +310,8 @@ type PeriodicSyncConfig struct {
 func NewPeriodicSyncConfig() PeriodicSyncConfig {
 	return PeriodicSyncConfig{
 		enabled:         true,
-		intervalSeconds: 1800,
-		retryAttempts:   3,
+		intervalSeconds: DefaultPeriodicSyncInterval,
+		retryAttempts:   DefaultPeriodicSyncRetries,
 	}
 }
 
@@ -335,8 +356,8 @@ type RemoteConfig struct {
 // NewRemoteConfig creates a new RemoteConfig with defaults.
 func NewRemoteConfig() RemoteConfig {
 	return RemoteConfig{
-		timeout:    30 * time.Second,
-		maxRetries: 3,
+		timeout:    DefaultRemoteTimeout,
+		maxRetries: DefaultRemoteMaxRetries,
 		verifySSL:  true,
 	}
 }
@@ -417,6 +438,8 @@ type AppConfig struct {
 	remote                 RemoteConfig
 	reporting              ReportingConfig
 	litellmCache           LiteLLMCacheConfig
+	workerCount            int
+	searchLimit            int
 }
 
 // defaultDataDir returns the default data directory.
@@ -432,11 +455,11 @@ func defaultDataDir() string {
 func NewAppConfig() AppConfig {
 	dataDir := defaultDataDir()
 	return AppConfig{
-		host:             "0.0.0.0",
-		port:             8080,
+		host:             DefaultHost,
+		port:             DefaultPort,
 		dataDir:          dataDir,
 		dbURL:            "sqlite:///" + filepath.Join(dataDir, "kodit.db"),
-		logLevel:         "INFO",
+		logLevel:         DefaultLogLevel,
 		logFormat:        LogFormatPretty,
 		disableTelemetry: false,
 		search:           NewSearchConfig(),
@@ -446,6 +469,8 @@ func NewAppConfig() AppConfig {
 		remote:           NewRemoteConfig(),
 		reporting:        NewReportingConfig(),
 		litellmCache:     NewLiteLLMCacheConfig(),
+		workerCount:      DefaultWorkerCount,
+		searchLimit:      DefaultSearchLimit,
 	}
 }
 
@@ -510,6 +535,12 @@ func (c AppConfig) Reporting() ReportingConfig { return c.reporting }
 // LiteLLMCache returns the LiteLLM cache config.
 func (c AppConfig) LiteLLMCache() LiteLLMCacheConfig { return c.litellmCache }
 
+// WorkerCount returns the number of background workers.
+func (c AppConfig) WorkerCount() int { return c.workerCount }
+
+// SearchLimit returns the default search result limit.
+func (c AppConfig) SearchLimit() int { return c.searchLimit }
+
 // IsRemote returns true if running in remote mode.
 func (c AppConfig) IsRemote() bool {
 	return c.remote.IsConfigured()
@@ -517,7 +548,7 @@ func (c AppConfig) IsRemote() bool {
 
 // CloneDir returns the clone directory path.
 func (c AppConfig) CloneDir() string {
-	return filepath.Join(c.dataDir, "clones")
+	return filepath.Join(c.dataDir, DefaultCloneSubdir)
 }
 
 // LiteLLMCacheDir returns the LiteLLM cache directory path.
@@ -636,6 +667,24 @@ func WithReportingConfig(r ReportingConfig) AppConfigOption {
 // WithLiteLLMCacheConfig sets the LiteLLM cache config.
 func WithLiteLLMCacheConfig(l LiteLLMCacheConfig) AppConfigOption {
 	return func(c *AppConfig) { c.litellmCache = l }
+}
+
+// WithWorkerCount sets the number of background workers.
+func WithWorkerCount(n int) AppConfigOption {
+	return func(c *AppConfig) {
+		if n > 0 {
+			c.workerCount = n
+		}
+	}
+}
+
+// WithSearchLimit sets the default search result limit.
+func WithSearchLimit(n int) AppConfigOption {
+	return func(c *AppConfig) {
+		if n > 0 {
+			c.searchLimit = n
+		}
+	}
 }
 
 // NewAppConfigWithOptions creates an AppConfig with functional options.

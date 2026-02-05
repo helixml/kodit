@@ -73,6 +73,14 @@ type EnvConfig struct {
 
 	// LiteLLMCache configures LLM response caching.
 	LiteLLMCache LiteLLMCacheEnv `envconfig:"LITELLM_CACHE"`
+
+	// WorkerCount is the number of background workers.
+	// Env: WORKER_COUNT (default: 1)
+	WorkerCount int `envconfig:"WORKER_COUNT" default:"1"`
+
+	// SearchLimit is the default search result limit.
+	// Env: SEARCH_LIMIT (default: 10)
+	SearchLimit int `envconfig:"SEARCH_LIMIT" default:"10"`
 }
 
 // EndpointEnv holds environment configuration for an AI endpoint.
@@ -267,6 +275,16 @@ func (e EnvConfig) ToAppConfig() AppConfig {
 
 	// LiteLLM cache config
 	cfg = applyOption(cfg, WithLiteLLMCacheConfig(e.LiteLLMCache.ToLiteLLMCacheConfig()))
+
+	// Worker count
+	if e.WorkerCount > 0 {
+		cfg = applyOption(cfg, WithWorkerCount(e.WorkerCount))
+	}
+
+	// Search limit
+	if e.SearchLimit > 0 {
+		cfg = applyOption(cfg, WithSearchLimit(e.SearchLimit))
+	}
 
 	return cfg
 }

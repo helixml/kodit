@@ -26,6 +26,8 @@ func TestLoadFromEnv_Defaults(t *testing.T) {
 	assert.Equal(t, "pretty", cfg.LogFormat)
 	assert.False(t, cfg.DisableTelemetry)
 	assert.Equal(t, "", cfg.APIKeys)
+	assert.Equal(t, 1, cfg.WorkerCount)
+	assert.Equal(t, 10, cfg.SearchLimit)
 
 	// Nested struct defaults
 	assert.Equal(t, "sqlite", cfg.Search.Provider)
@@ -38,6 +40,41 @@ func TestLoadFromEnv_Defaults(t *testing.T) {
 	assert.True(t, cfg.Remote.VerifySSL)
 	assert.Equal(t, 5.0, cfg.Reporting.LogTimeInterval)
 	assert.True(t, cfg.LiteLLMCache.Enabled)
+}
+
+func TestEnvDefaults_MatchConfigDefaults(t *testing.T) {
+	// This test verifies that struct tag defaults in env.go match the constants in config.go.
+	// Go's struct tag defaults must be literals, so this test ensures they stay in sync.
+	clearEnvVars(t)
+
+	cfg, err := LoadFromEnv()
+	require.NoError(t, err)
+
+	// Core config defaults
+	assert.Equal(t, DefaultHost, cfg.Host, "Host struct tag default should match DefaultHost")
+	assert.Equal(t, DefaultPort, cfg.Port, "Port struct tag default should match DefaultPort")
+	assert.Equal(t, DefaultLogLevel, cfg.LogLevel, "LogLevel struct tag default should match DefaultLogLevel")
+	assert.Equal(t, DefaultWorkerCount, cfg.WorkerCount, "WorkerCount struct tag default should match DefaultWorkerCount")
+	assert.Equal(t, DefaultSearchLimit, cfg.SearchLimit, "SearchLimit struct tag default should match DefaultSearchLimit")
+
+	// Endpoint defaults
+	assert.Equal(t, DefaultEndpointParallelTasks, cfg.EmbeddingEndpoint.NumParallelTasks, "NumParallelTasks struct tag default should match DefaultEndpointParallelTasks")
+	assert.Equal(t, DefaultEndpointTimeout.Seconds(), cfg.EmbeddingEndpoint.Timeout, "Timeout struct tag default should match DefaultEndpointTimeout")
+	assert.Equal(t, DefaultEndpointMaxRetries, cfg.EmbeddingEndpoint.MaxRetries, "MaxRetries struct tag default should match DefaultEndpointMaxRetries")
+	assert.Equal(t, DefaultEndpointInitialDelay.Seconds(), cfg.EmbeddingEndpoint.InitialDelay, "InitialDelay struct tag default should match DefaultEndpointInitialDelay")
+	assert.Equal(t, DefaultEndpointBackoffFactor, cfg.EmbeddingEndpoint.BackoffFactor, "BackoffFactor struct tag default should match DefaultEndpointBackoffFactor")
+	assert.Equal(t, DefaultEndpointMaxTokens, cfg.EmbeddingEndpoint.MaxTokens, "MaxTokens struct tag default should match DefaultEndpointMaxTokens")
+
+	// Periodic sync defaults
+	assert.Equal(t, DefaultPeriodicSyncInterval, cfg.PeriodicSync.IntervalSeconds, "IntervalSeconds struct tag default should match DefaultPeriodicSyncInterval")
+	assert.Equal(t, DefaultPeriodicSyncRetries, cfg.PeriodicSync.RetryAttempts, "RetryAttempts struct tag default should match DefaultPeriodicSyncRetries")
+
+	// Remote defaults
+	assert.Equal(t, DefaultRemoteTimeout.Seconds(), cfg.Remote.Timeout, "Remote.Timeout struct tag default should match DefaultRemoteTimeout")
+	assert.Equal(t, DefaultRemoteMaxRetries, cfg.Remote.MaxRetries, "Remote.MaxRetries struct tag default should match DefaultRemoteMaxRetries")
+
+	// Reporting defaults
+	assert.Equal(t, DefaultReportingInterval.Seconds(), cfg.Reporting.LogTimeInterval, "LogTimeInterval struct tag default should match DefaultReportingInterval")
 }
 
 func TestLoadFromEnv_OverrideValues(t *testing.T) {
@@ -191,6 +228,19 @@ func TestLoadFromEnv_LiteLLMCache(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.False(t, cfg.LiteLLMCache.Enabled)
+}
+
+func TestLoadFromEnv_WorkerCountAndSearchLimit(t *testing.T) {
+	clearEnvVars(t)
+
+	t.Setenv("WORKER_COUNT", "4")
+	t.Setenv("SEARCH_LIMIT", "25")
+
+	cfg, err := LoadFromEnv()
+	require.NoError(t, err)
+
+	assert.Equal(t, 4, cfg.WorkerCount)
+	assert.Equal(t, 25, cfg.SearchLimit)
 }
 
 func TestEnvConfig_ToAppConfig(t *testing.T) {
@@ -468,6 +518,8 @@ func clearEnvVars(t *testing.T) {
 		"REMOTE_VERIFY_SSL",
 		"REPORTING_LOG_TIME_INTERVAL",
 		"LITELLM_CACHE_ENABLED",
+		"WORKER_COUNT",
+		"SEARCH_LIMIT",
 		"KEY1",
 		"KEY2",
 		"KEY3",
