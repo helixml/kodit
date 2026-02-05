@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/helixml/kodit/domain/enrichment"
+	"github.com/helixml/kodit/domain/task"
 	"github.com/helixml/kodit/infrastructure/api/v1/dto"
 )
 
@@ -441,6 +443,98 @@ func TestRepositories_ListCommitEnrichments_NotFound(t *testing.T) {
 	repo := ts.CreateRepository("https://github.com/test/enrichments-not-found-repo.git")
 
 	resp := ts.GET(fmt.Sprintf("/api/v1/repositories/%d/commits/nonexistent/enrichments", repo.ID()))
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusNotFound)
+	}
+}
+
+func TestRepositories_RescanCommit(t *testing.T) {
+	ts := NewTestServer(t)
+
+	// Create a repository with working copy (required for rescan)
+	repo := ts.CreateRepositoryWithWorkingCopy("https://github.com/test/rescan-repo.git")
+	commit := ts.CreateCommit(repo, "rescan123abc", "Test commit for rescan")
+
+	// Create some snippets for this commit
+	ts.CreateSnippetForCommit(commit.SHA(), `func TestFunction() {}`, ".go")
+
+	// Create an enrichment and associate it with the commit
+	e := ts.CreateEnrichment(enrichment.TypeDevelopment, enrichment.SubtypeSnippetSummary, "Test summary")
+	ts.CreateEnrichmentAssociation(e, enrichment.EntityTypeCommit, commit.SHA())
+
+	// Call the rescan endpoint
+	resp := ts.POST(fmt.Sprintf("/api/v1/repositories/%d/commits/%s/rescan", repo.ID(), commit.SHA()), nil)
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	// Should return 202 Accepted
+	if resp.StatusCode != http.StatusAccepted {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusAccepted)
+	}
+
+	// Verify tasks were queued (starting with OperationRescanCommit)
+	queueResp := ts.GET("/api/v1/queue")
+	defer func() {
+		_ = queueResp.Body.Close()
+	}()
+
+	var result dto.TaskListResponse
+	ts.DecodeJSON(queueResp, &result)
+
+	if len(result.Data) == 0 {
+		t.Error("expected tasks to be queued")
+		return
+	}
+
+	// First task should be the rescan operation
+	if result.Data[0].Attributes.Type != string(task.OperationRescanCommit) {
+		t.Errorf("first task type = %q, want %q", result.Data[0].Attributes.Type, task.OperationRescanCommit)
+	}
+}
+
+func TestRepositories_RescanCommit_NotCloned(t *testing.T) {
+	ts := NewTestServer(t)
+
+	// Create a repository WITHOUT working copy
+	repo := ts.CreateRepository("https://github.com/test/not-cloned-repo.git")
+	commit := ts.CreateCommit(repo, "notcloned123", "Test commit")
+
+	resp := ts.POST(fmt.Sprintf("/api/v1/repositories/%d/commits/%s/rescan", repo.ID(), commit.SHA()), nil)
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	// Should return 500 because repository is not cloned
+	if resp.StatusCode != http.StatusInternalServerError {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusInternalServerError)
+	}
+}
+
+func TestRepositories_RescanCommit_RepoNotFound(t *testing.T) {
+	ts := NewTestServer(t)
+
+	resp := ts.POST("/api/v1/repositories/99999/commits/abc123/rescan", nil)
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusNotFound)
+	}
+}
+
+func TestRepositories_RescanCommit_CommitNotFound(t *testing.T) {
+	ts := NewTestServer(t)
+
+	// Create a repository with working copy but no commit
+	repo := ts.CreateRepositoryWithWorkingCopy("https://github.com/test/commit-not-found-rescan.git")
+
+	resp := ts.POST(fmt.Sprintf("/api/v1/repositories/%d/commits/nonexistent/rescan", repo.ID()), nil)
 	defer func() {
 		_ = resp.Body.Close()
 	}()

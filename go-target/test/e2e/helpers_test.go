@@ -328,6 +328,40 @@ func (ts *TestServer) CreateSnippetForCommit(commitSHA, content, extension strin
 	return snip
 }
 
+// CreateRepositoryWithWorkingCopy creates a repository with a working copy in the database directly.
+func (ts *TestServer) CreateRepositoryWithWorkingCopy(remoteURL string) repository.Repository {
+	ts.t.Helper()
+	ctx := context.Background()
+
+	repo, err := repository.NewRepository(remoteURL)
+	if err != nil {
+		ts.t.Fatalf("create repo: %v", err)
+	}
+
+	// Add a working copy (fake path, just needs to be non-empty)
+	workingCopy := repository.NewWorkingCopy("/tmp/fake-repo", remoteURL)
+	repo = repo.WithWorkingCopy(workingCopy)
+
+	saved, err := ts.repoStore.Save(ctx, repo)
+	if err != nil {
+		ts.t.Fatalf("save repo: %v", err)
+	}
+	return saved
+}
+
+// CreateEnrichmentAssociation creates an enrichment association in the database directly.
+func (ts *TestServer) CreateEnrichmentAssociation(e enrichment.Enrichment, entityType enrichment.EntityTypeKey, entityID string) enrichment.Association {
+	ts.t.Helper()
+	ctx := context.Background()
+
+	assoc := enrichment.NewAssociation(e.ID(), entityID, entityType)
+	saved, err := ts.associationStore.Save(ctx, assoc)
+	if err != nil {
+		ts.t.Fatalf("save association: %v", err)
+	}
+	return saved
+}
+
 // fakeBM25Store is a fake BM25 store for testing (SQLite doesn't have VectorChord).
 type fakeBM25Store struct{}
 

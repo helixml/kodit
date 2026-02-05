@@ -370,6 +370,9 @@ func (c *Client) registerHandlers() {
 	c.registry.Register(task.OperationScanCommit, commithandler.NewScan(
 		c.repositoryStore, c.commitStore, c.fileStore, c.scanner, c.trackerFactory, c.logger,
 	))
+	c.registry.Register(task.OperationRescanCommit, commithandler.NewRescan(
+		c.snippetStore, c.associationStore, c.trackerFactory, c.logger,
+	))
 
 	// Indexing handlers (always registered for snippet extraction)
 	c.registry.Register(task.OperationExtractSnippetsForCommit, indexinghandler.NewExtractSnippets(
