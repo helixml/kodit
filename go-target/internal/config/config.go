@@ -658,24 +658,21 @@ func (c AppConfig) Apply(opts ...AppConfigOption) AppConfig {
 }
 
 // LogAttrs returns slog attributes for logging the configuration.
-// Attribute names match environment variable names for easy correlation.
 // Sensitive values like API keys are masked or shown as counts.
 func (c AppConfig) LogAttrs() []slog.Attr {
 	return []slog.Attr{
-		slog.String("DATA_DIR", c.dataDir),
-		slog.String("CLONE_DIR", c.CloneDir()),
-		slog.String("LOG_LEVEL", c.logLevel),
-		slog.String("DB_URL", c.maskedDBURL()),
-		slog.String("EMBEDDING_ENDPOINT_BASE_URL", c.endpointBaseURL(c.embeddingEndpoint)),
-		slog.String("EMBEDDING_ENDPOINT_MODEL", c.endpointModel(c.embeddingEndpoint)),
-		slog.String("EMBEDDING_ENDPOINT_API_KEY", c.endpointMaskedAPIKey(c.embeddingEndpoint)),
-		slog.String("ENRICHMENT_ENDPOINT_BASE_URL", c.endpointBaseURL(c.enrichmentEndpoint)),
-		slog.String("ENRICHMENT_ENDPOINT_MODEL", c.endpointModel(c.enrichmentEndpoint)),
-		slog.String("ENRICHMENT_ENDPOINT_API_KEY", c.endpointMaskedAPIKey(c.enrichmentEndpoint)),
-		slog.Int("API_KEYS", len(c.apiKeys)),
-		slog.Bool("SKIP_PROVIDER_VALIDATION", c.skipProviderValidation),
-		slog.Bool("PERIODIC_SYNC_ENABLED", c.periodicSync.Enabled()),
-		slog.Duration("PERIODIC_SYNC_INTERVAL_SECONDS", c.periodicSync.Interval()),
+		slog.String("data_dir", c.dataDir),
+		slog.String("clone_dir", c.CloneDir()),
+		slog.String("log_level", c.logLevel),
+		slog.String("db_url", c.maskedDBURL()),
+		slog.String("embedding_base_url", c.endpointBaseURL(c.embeddingEndpoint)),
+		slog.String("embedding_model", c.endpointModel(c.embeddingEndpoint)),
+		slog.String("enrichment_base_url", c.endpointBaseURL(c.enrichmentEndpoint)),
+		slog.String("enrichment_model", c.endpointModel(c.enrichmentEndpoint)),
+		slog.Int("api_keys_count", len(c.apiKeys)),
+		slog.Bool("skip_provider_validation", c.skipProviderValidation),
+		slog.Bool("periodic_sync_enabled", c.periodicSync.Enabled()),
+		slog.Duration("periodic_sync_interval", c.periodicSync.Interval()),
 	}
 }
 
@@ -701,20 +698,6 @@ func (c AppConfig) endpointModel(e *Endpoint) string {
 		return "(not configured)"
 	}
 	return e.Model()
-}
-
-func (c AppConfig) endpointMaskedAPIKey(e *Endpoint) string {
-	if e == nil {
-		return "(not configured)"
-	}
-	key := e.APIKey()
-	if key == "" {
-		return "(not set)"
-	}
-	if len(key) <= 8 {
-		return "****"
-	}
-	return key[:4] + "****" + key[len(key)-4:]
 }
 
 // ParseAPIKeys parses a comma-separated string of API keys.
