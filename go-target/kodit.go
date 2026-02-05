@@ -208,7 +208,9 @@ func New(opts ...Option) (*Client, error) {
 	switch cfg.storage {
 	case storageSQLite:
 		bm25Store = infraSearch.NewSQLiteBM25Store(gormDB, logger)
-		// SQLite vector search not implemented - would require external library
+		if cfg.embeddingProvider != nil {
+			vectorStore = infraSearch.NewSQLiteVectorStore(gormDB, infraSearch.TaskNameCode, cfg.embeddingProvider, logger)
+		}
 	case storagePostgres:
 		bm25Store = infraSearch.NewPostgresBM25Store(gormDB, logger)
 		// pgvector not available in plain Postgres mode
