@@ -306,3 +306,54 @@ func TestSliceConfig_Defaults(t *testing.T) {
 	assert.Equal(t, 2, cfg.MaxExamples)
 	assert.False(t, cfg.IncludePrivate)
 }
+
+func TestSlicer_SnippetContentIsPopulated(t *testing.T) {
+	// This test verifies that snippets have non-empty content.
+	// This was a bug where buildSnippet used relative paths instead of
+	// joining with basePath, causing file reads to fail silently.
+	tmpDir := t.TempDir()
+
+	// Create a subdirectory to simulate a more realistic repo structure
+	srcDir := filepath.Join(tmpDir, "src")
+	require.NoError(t, os.MkdirAll(srcDir, 0755))
+
+	testFile := filepath.Join(srcDir, "main.go")
+	goCode := `package main
+
+func Hello() string {
+	return "Hello, World!"
+}
+
+func main() {
+	println(Hello())
+}
+`
+	err := os.WriteFile(testFile, []byte(goCode), 0644)
+	require.NoError(t, err)
+
+	config := slicing.NewLanguageConfig()
+	factory := language.NewFactory(config)
+	s := slicing.NewSlicer(config, factory)
+
+	// Use relative path "src/main.go" - the slicer should join with basePath
+	files := []repository.File{
+		repository.NewFile("abc123", "src/main.go", "go", int64(len(goCode))),
+	}
+
+	cfg := slicing.DefaultSliceConfig()
+	result, err := s.Slice(context.Background(), files, tmpDir, cfg)
+	require.NoError(t, err)
+
+	// Must have snippets
+	require.NotEmpty(t, result.Snippets(), "expected snippets to be extracted")
+
+	// Every snippet must have non-empty content
+	for i, snip := range result.Snippets() {
+		assert.NotEmpty(t, snip.SHA(), "snippet %d: SHA should not be empty", i)
+		assert.NotEmpty(t, snip.Content(), "snippet %d: Content should not be empty", i)
+
+		// Verify content contains actual code
+		content := snip.Content()
+		assert.Contains(t, content, "func", "snippet %d: Content should contain function code", i)
+	}
+}

@@ -80,6 +80,7 @@ CREATE TABLE IF NOT EXISTS git_tags (
 );
 
 CREATE TABLE IF NOT EXISTS git_commit_files (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     commit_sha TEXT NOT NULL,
     path TEXT NOT NULL,
     blob_sha TEXT NOT NULL,
@@ -87,7 +88,7 @@ CREATE TABLE IF NOT EXISTS git_commit_files (
     extension TEXT DEFAULT '',
     size INTEGER DEFAULT 0,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (commit_sha, path)
+    UNIQUE (commit_sha, path)
 );
 
 CREATE TABLE IF NOT EXISTS tasks (
@@ -115,35 +116,37 @@ CREATE TABLE IF NOT EXISTS task_status (
     current INTEGER DEFAULT 0
 );
 
-CREATE TABLE IF NOT EXISTS snippets_v2 (
+CREATE TABLE IF NOT EXISTS snippets (
     sha TEXT PRIMARY KEY,
     content TEXT NOT NULL,
     extension TEXT NOT NULL,
-    snippet_type TEXT NOT NULL,
-    name TEXT DEFAULT '',
-    language TEXT DEFAULT '',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS snippet_commit_associations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    snippet_sha TEXT NOT NULL,
+    commit_sha TEXT NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS snippet_file_derivations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    snippet_sha TEXT NOT NULL,
+    file_id INTEGER NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS commit_index (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    commit_sha TEXT NOT NULL UNIQUE,
-    repo_id INTEGER NOT NULL,
+    commit_sha TEXT PRIMARY KEY,
     status TEXT NOT NULL DEFAULT 'pending',
-    snippet_count INTEGER DEFAULT 0,
+    indexed_at DATETIME,
+    error_message TEXT,
+    files_processed INTEGER DEFAULT 0,
+    processing_time_seconds REAL DEFAULT 0.0,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS commit_snippet_associations (
-    commit_sha TEXT NOT NULL,
-    snippet_sha TEXT NOT NULL,
-    file_path TEXT NOT NULL,
-    start_line INTEGER DEFAULT 0,
-    end_line INTEGER DEFAULT 0,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (commit_sha, snippet_sha, file_path)
 );
 
 CREATE TABLE IF NOT EXISTS enrichments_v2 (
@@ -454,6 +457,35 @@ func (ts *TestServer) CreateFile(commitSHA, path, blobSHA, mimeType, extension s
 		ts.t.Fatalf("save file: %v", err)
 	}
 	return saved
+}
+
+// CreateSnippet creates a snippet in the database directly.
+func (ts *TestServer) CreateSnippet(sha, content, extension string) snippet.Snippet {
+	ts.t.Helper()
+	ctx := context.Background()
+
+	snip := snippet.NewSnippet(content, extension, nil)
+	// Create with specific SHA by saving directly
+	if err := ts.db.Session(ctx).Exec(
+		"INSERT INTO snippets (sha, content, extension, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+		sha, content, extension, time.Now(), time.Now(),
+	).Error; err != nil {
+		ts.t.Fatalf("save snippet: %v", err)
+	}
+	return snip
+}
+
+// CreateSnippetAssociation links a snippet to a commit.
+func (ts *TestServer) CreateSnippetAssociation(snippetSHA, commitSHA string) {
+	ts.t.Helper()
+	ctx := context.Background()
+
+	if err := ts.db.Session(ctx).Exec(
+		"INSERT INTO snippet_commit_associations (snippet_sha, commit_sha, created_at) VALUES (?, ?, ?)",
+		snippetSHA, commitSHA, time.Now(),
+	).Error; err != nil {
+		ts.t.Fatalf("save snippet association: %v", err)
+	}
 }
 
 // fakeBM25Store is a fake BM25 store for testing (SQLite doesn't have VectorChord).

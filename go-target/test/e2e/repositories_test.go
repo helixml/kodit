@@ -450,38 +450,58 @@ func TestRepositories_ListCommitEnrichments_NotFound(t *testing.T) {
 	}
 }
 
-func TestRepositories_ListCommitSnippets_Redirect(t *testing.T) {
+func TestRepositories_ListCommitSnippets(t *testing.T) {
 	ts := NewTestServer(t)
 
 	// Create a repository and commit
 	repo := ts.CreateRepository("https://github.com/test/snippets-repo.git")
 	commit := ts.CreateCommit(repo, "snippet123", "Test commit")
 
-	// Use a client that doesn't follow redirects
-	client := &http.Client{
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
+	// Create a snippet with content
+	snippetContent := `func Hello() string {
+	return "Hello, World!"
+}`
+	snippetSHA := "abc123def456"
+	ts.CreateSnippet(snippetSHA, snippetContent, ".go")
+	ts.CreateSnippetAssociation(snippetSHA, commit.SHA())
 
-	resp, err := client.Get(ts.URL() + fmt.Sprintf("/api/v1/repositories/%d/commits/%s/snippets", repo.ID(), commit.SHA()))
-	if err != nil {
-		t.Fatalf("GET: %v", err)
-	}
+	resp := ts.GET(fmt.Sprintf("/api/v1/repositories/%d/commits/%s/snippets", repo.ID(), commit.SHA()))
 	defer func() {
 		_ = resp.Body.Close()
 	}()
 
-	// Should be a permanent redirect (308)
-	if resp.StatusCode != http.StatusPermanentRedirect {
-		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusPermanentRedirect)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusOK)
 	}
 
-	// Check redirect location
-	location := resp.Header.Get("Location")
-	expectedPath := fmt.Sprintf("/api/v1/repositories/%d/commits/%s/enrichments?enrichment_type=development&enrichment_subtype=snippet",
-		repo.ID(), commit.SHA())
-	if location != expectedPath {
-		t.Errorf("Location = %q, want %q", location, expectedPath)
+	var result struct {
+		Data []struct {
+			Type       string `json:"type"`
+			ID         string `json:"id"`
+			Attributes struct {
+				Content struct {
+					Value    string `json:"value"`
+					Language string `json:"language"`
+				} `json:"content"`
+			} `json:"attributes"`
+		} `json:"data"`
+	}
+	ts.DecodeJSON(resp, &result)
+
+	if len(result.Data) != 1 {
+		t.Errorf("expected 1 snippet, got %d", len(result.Data))
+		return
+	}
+
+	// Verify snippet has content (the bug was snippets having empty content)
+	snippet := result.Data[0]
+	if snippet.Attributes.Content.Value == "" {
+		t.Error("snippet content.value should not be empty")
+	}
+	if snippet.Attributes.Content.Value != snippetContent {
+		t.Errorf("snippet content.value = %q, want %q", snippet.Attributes.Content.Value, snippetContent)
+	}
+	if snippet.ID != snippetSHA {
+		t.Errorf("snippet ID = %q, want %q", snippet.ID, snippetSHA)
 	}
 }

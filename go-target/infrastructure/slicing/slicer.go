@@ -141,7 +141,7 @@ func (s *Slicer) Slice(ctx context.Context, files []repository.File, basePath st
 			continue
 		}
 
-		snip := s.buildSnippet(name, funcDef, state, cfg)
+		snip := s.buildSnippet(name, funcDef, state, cfg, basePath)
 		result.snippets = append(result.snippets, snip)
 	}
 
@@ -341,10 +341,10 @@ func (s *Slicer) resolveCallee(name, modulePath string, state *State) string {
 	return name
 }
 
-func (s *Slicer) buildSnippet(name string, funcDef FunctionDefinition, state *State, cfg SliceConfig) snippet.Snippet {
+func (s *Slicer) buildSnippet(name string, funcDef FunctionDefinition, state *State, cfg SliceConfig, basePath string) snippet.Snippet {
 	var contentParts []string
 
-	source, err := os.ReadFile(funcDef.FilePath())
+	source, err := os.ReadFile(filepath.Join(basePath, funcDef.FilePath()))
 	if err == nil {
 		start, end := funcDef.Span()
 		if start < uint32(len(source)) && end <= uint32(len(source)) {
@@ -360,7 +360,7 @@ func (s *Slicer) buildSnippet(name string, funcDef FunctionDefinition, state *St
 			continue
 		}
 
-		depSource, err := os.ReadFile(depDef.FilePath())
+		depSource, err := os.ReadFile(filepath.Join(basePath, depDef.FilePath()))
 		if err != nil {
 			continue
 		}
@@ -386,7 +386,7 @@ func (s *Slicer) buildSnippet(name string, funcDef FunctionDefinition, state *St
 			continue
 		}
 
-		callerSource, err := os.ReadFile(callerDef.FilePath())
+		callerSource, err := os.ReadFile(filepath.Join(basePath, callerDef.FilePath()))
 		if err != nil {
 			continue
 		}
