@@ -92,9 +92,9 @@ func NewTestServer(t *testing.T) *TestServer {
 	syncService := service.NewRepositorySync(repoStore, queueService, logger)
 
 	// Create search service with fakes (SQLite doesn't have vector extensions)
-	fakeBM25 := &fakeBM25Store{}
-	fakeVector := &fakeVectorStore{}
-	searchService := service.NewCodeSearch(fakeBM25, fakeVector, snippetStore, enrichmentStore, logger)
+	fakeTextVector := &fakeVectorStore{}
+	fakeCodeVector := &fakeVectorStore{}
+	searchService := service.NewCodeSearch(fakeTextVector, fakeCodeVector, snippetStore, enrichmentStore, logger)
 
 	// Create API server
 	server := api.NewServer(":0", logger)
@@ -113,7 +113,7 @@ func NewTestServer(t *testing.T) *TestServer {
 		reposRouter := v1.NewRepositoriesRouter(queryService, syncService, logger).
 			WithTrackingQueryService(trackingQuery).
 			WithEnrichmentServices(enrichmentQuery, enrichmentStore, associationStore).
-			WithIndexingServices(snippetStore, fakeVector)
+			WithIndexingServices(snippetStore, fakeCodeVector)
 		r.Mount("/repositories", reposRouter.Routes())
 
 		commitsRouter := v1.NewCommitsRouter(queryService, logger)

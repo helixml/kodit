@@ -83,8 +83,8 @@ type Client struct {
 	statusStore      persistence.StatusStore
 
 	// Search stores (may be nil if not configured)
-	bm25Store   search.BM25Store
-	vectorStore search.VectorStore
+	textVectorStore search.VectorStore
+	codeVectorStore search.VectorStore
 
 	// Application services
 	repoSync      *service.RepositorySync
@@ -201,28 +201,27 @@ func New(opts ...Option) (*Client, error) {
 	statusStore := persistence.NewStatusStore(db)
 
 	// Create search stores based on storage type
-	var bm25Store search.BM25Store
-	var vectorStore search.VectorStore
+	var textVectorStore search.VectorStore
+	var codeVectorStore search.VectorStore
 
 	gormDB := db.GORM()
 	switch cfg.storage {
 	case storageSQLite:
-		bm25Store = infraSearch.NewSQLiteBM25Store(gormDB, logger)
 		if cfg.embeddingProvider != nil {
-			vectorStore = infraSearch.NewSQLiteVectorStore(gormDB, infraSearch.TaskNameCode, cfg.embeddingProvider, logger)
+			textVectorStore = infraSearch.NewSQLiteVectorStore(gormDB, infraSearch.TaskNameText, cfg.embeddingProvider, logger)
+			codeVectorStore = infraSearch.NewSQLiteVectorStore(gormDB, infraSearch.TaskNameCode, cfg.embeddingProvider, logger)
 		}
 	case storagePostgres:
-		bm25Store = infraSearch.NewPostgresBM25Store(gormDB, logger)
 		// pgvector not available in plain Postgres mode
 	case storagePostgresPgvector:
-		bm25Store = infraSearch.NewPostgresBM25Store(gormDB, logger)
 		if cfg.embeddingProvider != nil {
-			vectorStore = infraSearch.NewPgvectorStore(gormDB, infraSearch.TaskNameCode, cfg.embeddingProvider, logger)
+			textVectorStore = infraSearch.NewPgvectorStore(gormDB, infraSearch.TaskNameText, cfg.embeddingProvider, logger)
+			codeVectorStore = infraSearch.NewPgvectorStore(gormDB, infraSearch.TaskNameCode, cfg.embeddingProvider, logger)
 		}
 	case storagePostgresVectorchord:
-		bm25Store = infraSearch.NewVectorChordBM25Store(gormDB, logger)
 		if cfg.embeddingProvider != nil {
-			vectorStore = infraSearch.NewVectorChordVectorStore(gormDB, infraSearch.TaskNameCode, cfg.embeddingProvider, logger)
+			textVectorStore = infraSearch.NewVectorChordVectorStore(gormDB, infraSearch.TaskNameText, cfg.embeddingProvider, logger)
+			codeVectorStore = infraSearch.NewVectorChordVectorStore(gormDB, infraSearch.TaskNameCode, cfg.embeddingProvider, logger)
 		}
 	}
 
@@ -236,10 +235,10 @@ func New(opts ...Option) (*Client, error) {
 	enrichQSvc := service.NewEnrichmentQuery(enrichmentStore, associationStore)
 	trackingQSvc := service.NewTrackingQuery(statusStore, taskStore)
 
-	// Create code search service if search stores are available
+	// Create code search service if vector stores are available
 	var codeSearchSvc *service.CodeSearch
-	if bm25Store != nil || vectorStore != nil {
-		cs := service.NewCodeSearch(bm25Store, vectorStore, snippetStore, enrichmentStore, logger)
+	if textVectorStore != nil || codeVectorStore != nil {
+		cs := service.NewCodeSearch(textVectorStore, codeVectorStore, snippetStore, enrichmentStore, logger)
 		codeSearchSvc = &cs
 	}
 
@@ -268,7 +267,7 @@ func New(opts ...Option) (*Client, error) {
 		if cfg.textProvider == nil {
 			return nil, fmt.Errorf("text provider is required: set ENRICHMENT_ENDPOINT_BASE_URL and ENRICHMENT_ENDPOINT_API_KEY environment variables")
 		}
-		if vectorStore == nil {
+		if codeVectorStore == nil {
 			return nil, fmt.Errorf("vector store is required: use PostgreSQL with pgvector or VectorChord extension (DB_URL=postgres://... with pgvector or vectorchord storage type)")
 		}
 	}
@@ -298,8 +297,8 @@ func New(opts ...Option) (*Client, error) {
 		associationStore:  associationStore,
 		taskStore:         taskStore,
 		statusStore:       statusStore,
-		bm25Store:         bm25Store,
-		vectorStore:       vectorStore,
+		textVectorStore:   textVectorStore,
+		codeVectorStore:   codeVectorStore,
 		repoSync:          repoSyncSvc,
 		repoQuery:         repoQuerySvc,
 		enrichQ:           enrichQSvc,
@@ -379,36 +378,33 @@ func (c *Client) registerHandlers() {
 		c.repositoryStore, c.snippetStore, c.gitAdapter, c.slicer, c.trackerFactory, c.logger,
 	))
 
-	// BM25 handler (requires BM25 store)
-	if c.bm25Store != nil {
-		bm25Service := domainservice.NewBM25(c.bm25Store)
-		c.registry.Register(task.OperationCreateBM25IndexForCommit, indexinghandler.NewCreateBM25Index(
-			bm25Service, c.snippetStore, c.trackerFactory, c.logger,
-		))
-	}
-
-	// Embeddings handlers (require vector store)
-	if c.vectorStore != nil {
-		embeddingService := domainservice.NewEmbedding(c.vectorStore)
+	// Code embeddings handlers (require code vector store)
+	if c.codeVectorStore != nil {
+		codeEmbeddingService := domainservice.NewEmbedding(c.codeVectorStore)
 
 		// Code embeddings for snippets
 		c.registry.Register(task.OperationCreateCodeEmbeddingsForCommit, indexinghandler.NewCreateCodeEmbeddings(
-			embeddingService, c.snippetStore, c.vectorStore, c.trackerFactory, c.logger,
+			codeEmbeddingService, c.snippetStore, c.codeVectorStore, c.trackerFactory, c.logger,
 		))
 
 		// Example code embeddings (enrichment content from extracted examples)
 		c.registry.Register(task.OperationCreateExampleCodeEmbeddingsForCommit, indexinghandler.NewCreateExampleCodeEmbeddings(
-			embeddingService, c.enrichQ, c.vectorStore, c.trackerFactory, c.logger,
+			codeEmbeddingService, c.enrichQ, c.codeVectorStore, c.trackerFactory, c.logger,
 		))
+	}
+
+	// Text embeddings handlers (require text vector store)
+	if c.textVectorStore != nil {
+		textEmbeddingService := domainservice.NewEmbedding(c.textVectorStore)
 
 		// Summary embeddings (enrichment content from snippet summaries)
 		c.registry.Register(task.OperationCreateSummaryEmbeddingsForCommit, indexinghandler.NewCreateSummaryEmbeddings(
-			embeddingService, c.enrichQ, c.vectorStore, c.trackerFactory, c.logger,
+			textEmbeddingService, c.enrichQ, c.textVectorStore, c.trackerFactory, c.logger,
 		))
 
 		// Example summary embeddings (enrichment content from example summaries)
 		c.registry.Register(task.OperationCreateExampleSummaryEmbeddingsForCommit, indexinghandler.NewCreateExampleSummaryEmbeddings(
-			embeddingService, c.enrichQ, c.vectorStore, c.trackerFactory, c.logger,
+			textEmbeddingService, c.enrichQ, c.textVectorStore, c.trackerFactory, c.logger,
 		))
 	}
 
@@ -769,7 +765,7 @@ func (a *apiServerImpl) mountAPIRoutes(router chi.Router) {
 	)
 	reposRouter.WithTrackingQueryService(a.client.trackingQuery)
 	reposRouter.WithEnrichmentServices(a.client.enrichQ, a.client.enrichmentStore, a.client.associationStore)
-	reposRouter.WithIndexingServices(a.client.snippetStore, a.client.vectorStore)
+	reposRouter.WithIndexingServices(a.client.snippetStore, a.client.codeVectorStore)
 
 	// Queue router
 	queueRouter := v1.NewQueueRouter(

@@ -242,7 +242,7 @@ func TestIntegration_SearchAfterIndexing(t *testing.T) {
 	waitForTasks(ctx, t, client, 60*time.Second)
 
 	// Search for content
-	// Note: SQLite FTS5 may not be available in all builds, so search may return empty
+	// Note: Text search uses vector embeddings on enrichment summaries
 	result, err := client.Search(ctx, "add numbers",
 		kodit.WithLimit(10),
 	)

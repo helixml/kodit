@@ -66,10 +66,10 @@ func (r MultiSearchResult) Count() int {
 	return len(r.snippets)
 }
 
-// CodeSearch orchestrates hybrid code search across BM25 and vector indexes.
+// CodeSearch orchestrates hybrid code search across text and code vector indexes.
 type CodeSearch struct {
-	bm25Store       search.BM25Store
-	vectorStore     search.VectorStore
+	textVectorStore search.VectorStore
+	codeVectorStore search.VectorStore
 	snippetStore    snippet.SnippetStore
 	enrichmentStore enrichment.EnrichmentStore
 	fusion          search.Fusion
@@ -78,8 +78,8 @@ type CodeSearch struct {
 
 // NewCodeSearch creates a new code search service.
 func NewCodeSearch(
-	bm25Store search.BM25Store,
-	vectorStore search.VectorStore,
+	textVectorStore search.VectorStore,
+	codeVectorStore search.VectorStore,
 	snippetStore snippet.SnippetStore,
 	enrichmentStore enrichment.EnrichmentStore,
 	logger *slog.Logger,
@@ -88,8 +88,8 @@ func NewCodeSearch(
 		logger = slog.Default()
 	}
 	return CodeSearch{
-		bm25Store:       bm25Store,
-		vectorStore:     vectorStore,
+		textVectorStore: textVectorStore,
+		codeVectorStore: codeVectorStore,
 		snippetStore:    snippetStore,
 		enrichmentStore: enrichmentStore,
 		fusion:          search.NewFusion(),
@@ -97,7 +97,7 @@ func NewCodeSearch(
 	}
 }
 
-// Search performs a hybrid search combining BM25 and vector search results.
+// Search performs a hybrid search combining text and code vector search results.
 func (s CodeSearch) Search(ctx context.Context, request search.MultiRequest) (MultiSearchResult, error) {
 	textQuery := request.TextQuery()
 	codeQuery := request.CodeQuery()
@@ -107,27 +107,29 @@ func (s CodeSearch) Search(ctx context.Context, request search.MultiRequest) (Mu
 		topK = 10
 	}
 
-	var bm25Results, vectorResults []search.Result
+	var textResults, codeResults []search.Result
 
-	// Run BM25 search if text query provided and store is available
-	if textQuery != "" && s.bm25Store != nil {
+	// Run text vector search if text query provided and store is available
+	// This searches against enrichment summary embeddings
+	if textQuery != "" && s.textVectorStore != nil {
 		searchReq := search.NewRequest(textQuery, topK*2, nil) // Get more for fusion
-		results, err := s.bm25Store.Search(ctx, searchReq)
+		results, err := s.textVectorStore.Search(ctx, searchReq)
 		if err != nil {
-			s.logger.Warn("BM25 search failed", "error", err)
+			s.logger.Warn("text vector search failed", "error", err)
 		} else {
-			bm25Results = results
+			textResults = results
 		}
 	}
 
-	// Run vector search if code query provided and store is available
-	if codeQuery != "" && s.vectorStore != nil {
+	// Run code vector search if code query provided and store is available
+	// This searches against code snippet embeddings
+	if codeQuery != "" && s.codeVectorStore != nil {
 		searchReq := search.NewRequest(codeQuery, topK*2, nil)
-		results, err := s.vectorStore.Search(ctx, searchReq)
+		results, err := s.codeVectorStore.Search(ctx, searchReq)
 		if err != nil {
-			s.logger.Warn("vector search failed", "error", err)
+			s.logger.Warn("code vector search failed", "error", err)
 		} else {
-			vectorResults = results
+			codeResults = results
 		}
 	}
 
@@ -137,17 +139,17 @@ func (s CodeSearch) Search(ctx context.Context, request search.MultiRequest) (Mu
 	}
 
 	// Convert to fusion requests
-	bm25Fusion := toFusionRequests(bm25Results)
-	vectorFusion := toFusionRequests(vectorResults)
+	textFusion := toFusionRequests(textResults)
+	codeFusion := toFusionRequests(codeResults)
 
 	// Fuse results
 	var fusedResults []search.FusionResult
-	if len(bm25Fusion) > 0 && len(vectorFusion) > 0 {
-		fusedResults = s.fusion.FuseTopK(topK, bm25Fusion, vectorFusion)
-	} else if len(bm25Fusion) > 0 {
-		fusedResults = s.fusion.FuseTopK(topK, bm25Fusion)
-	} else if len(vectorFusion) > 0 {
-		fusedResults = s.fusion.FuseTopK(topK, vectorFusion)
+	if len(textFusion) > 0 && len(codeFusion) > 0 {
+		fusedResults = s.fusion.FuseTopK(topK, textFusion, codeFusion)
+	} else if len(textFusion) > 0 {
+		fusedResults = s.fusion.FuseTopK(topK, textFusion)
+	} else if len(codeFusion) > 0 {
+		fusedResults = s.fusion.FuseTopK(topK, codeFusion)
 	}
 
 	// Extract snippet IDs from fused results
@@ -181,14 +183,14 @@ func (s CodeSearch) Search(ctx context.Context, request search.MultiRequest) (Mu
 	return NewMultiSearchResult(orderedSnippets, enrichments, fusedScores), nil
 }
 
-// SearchBM25 performs BM25-only search.
-func (s CodeSearch) SearchBM25(ctx context.Context, query string, topK int) ([]snippet.Snippet, error) {
+// SearchText performs text vector search against enrichment summaries.
+func (s CodeSearch) SearchText(ctx context.Context, query string, topK int) ([]snippet.Snippet, error) {
 	if topK <= 0 {
 		topK = 10
 	}
 
 	searchReq := search.NewRequest(query, topK, nil)
-	results, err := s.bm25Store.Search(ctx, searchReq)
+	results, err := s.textVectorStore.Search(ctx, searchReq)
 	if err != nil {
 		return nil, err
 	}
@@ -201,14 +203,14 @@ func (s CodeSearch) SearchBM25(ctx context.Context, query string, topK int) ([]s
 	return s.snippetStore.ByIDs(ctx, snippetIDs)
 }
 
-// SearchVector performs vector-only search.
-func (s CodeSearch) SearchVector(ctx context.Context, query string, topK int) ([]snippet.Snippet, error) {
+// SearchCode performs code vector search against code snippet embeddings.
+func (s CodeSearch) SearchCode(ctx context.Context, query string, topK int) ([]snippet.Snippet, error) {
 	if topK <= 0 {
 		topK = 10
 	}
 
 	searchReq := search.NewRequest(query, topK, nil)
-	results, err := s.vectorStore.Search(ctx, searchReq)
+	results, err := s.codeVectorStore.Search(ctx, searchReq)
 	if err != nil {
 		return nil, err
 	}
