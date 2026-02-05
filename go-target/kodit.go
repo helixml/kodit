@@ -522,11 +522,12 @@ func (c *Client) Tasks() Tasks {
 	}
 }
 
-// API returns an HTTP server that can be started.
-func (c *Client) API() APIServer {
+// NewAPIServer creates an HTTP API server that uses the given Client.
+// The API server provides REST endpoints for repository management, search, and more.
+func NewAPIServer(client *Client) APIServer {
 	return &apiServerImpl{
-		client: c,
-		logger: c.logger,
+		client: client,
+		logger: client.logger,
 	}
 }
 
