@@ -183,6 +183,11 @@ def main():
 
 	assert.Contains(t, functionNames, "greet")
 	assert.Contains(t, functionNames, "main")
+
+	// Verify snippet extensions match Python source (should be "python", not ".py")
+	for _, snip := range result.Snippets() {
+		assert.Equal(t, "python", snip.Extension(), "snippet extension should be language name, not file extension")
+	}
 }
 
 func TestSlicer_SliceGoFile(t *testing.T) {

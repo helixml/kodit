@@ -405,7 +405,7 @@ func (s *Slicer) buildSnippet(name string, funcDef FunctionDefinition, state *St
 		git.NewFile("", funcDef.FilePath(), extToLanguage(ext), 0),
 	}
 
-	return indexing.NewSnippet(content, ext, derivesFrom)
+	return indexing.NewSnippet(content, extToLanguage(ext), derivesFrom)
 }
 
 func buildQualified(modulePath, name string) string {

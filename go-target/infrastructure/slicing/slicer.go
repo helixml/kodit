@@ -406,7 +406,7 @@ func (s *Slicer) buildSnippet(name string, funcDef FunctionDefinition, state *St
 		repository.NewFile("", funcDef.FilePath(), extToLanguage(ext), 0),
 	}
 
-	return snippet.NewSnippet(content, ext, derivesFrom)
+	return snippet.NewSnippet(content, extToLanguage(ext), derivesFrom)
 }
 
 func buildQualified(modulePath, name string) string {
