@@ -85,6 +85,7 @@ type Client struct {
 	// Search stores (may be nil if not configured)
 	textVectorStore search.VectorStore
 	codeVectorStore search.VectorStore
+	bm25Store       search.BM25Store
 
 	// Application services
 	repoSync      *service.RepositorySync
@@ -92,6 +93,7 @@ type Client struct {
 	enrichQ       *service.EnrichmentQuery
 	trackingQuery *service.TrackingQuery
 	codeSearch    *service.CodeSearch
+	bm25Service   *domainservice.BM25
 	queue         *service.Queue
 	worker        *service.Worker
 	registry      *service.Registry
@@ -203,22 +205,26 @@ func New(opts ...Option) (*Client, error) {
 	// Create search stores based on storage type
 	var textVectorStore search.VectorStore
 	var codeVectorStore search.VectorStore
+	var bm25Store search.BM25Store
 
 	gormDB := db.GORM()
 	switch cfg.storage {
 	case storageSQLite:
+		bm25Store = infraSearch.NewSQLiteBM25Store(gormDB, logger)
 		if cfg.embeddingProvider != nil {
 			textVectorStore = infraSearch.NewSQLiteVectorStore(gormDB, infraSearch.TaskNameText, cfg.embeddingProvider, logger)
 			codeVectorStore = infraSearch.NewSQLiteVectorStore(gormDB, infraSearch.TaskNameCode, cfg.embeddingProvider, logger)
 		}
 	case storagePostgres:
-		// pgvector not available in plain Postgres mode
+		bm25Store = infraSearch.NewPostgresBM25Store(gormDB, logger)
 	case storagePostgresPgvector:
+		bm25Store = infraSearch.NewPostgresBM25Store(gormDB, logger)
 		if cfg.embeddingProvider != nil {
 			textVectorStore = infraSearch.NewPgvectorStore(gormDB, infraSearch.TaskNameText, cfg.embeddingProvider, logger)
 			codeVectorStore = infraSearch.NewPgvectorStore(gormDB, infraSearch.TaskNameCode, cfg.embeddingProvider, logger)
 		}
 	case storagePostgresVectorchord:
+		bm25Store = infraSearch.NewVectorChordBM25Store(gormDB, logger)
 		if cfg.embeddingProvider != nil {
 			textVectorStore = infraSearch.NewVectorChordVectorStore(gormDB, infraSearch.TaskNameText, cfg.embeddingProvider, logger)
 			codeVectorStore = infraSearch.NewVectorChordVectorStore(gormDB, infraSearch.TaskNameCode, cfg.embeddingProvider, logger)
@@ -234,6 +240,12 @@ func New(opts ...Option) (*Client, error) {
 	repoQuerySvc := service.NewRepositoryQuery(repoStore, commitStore, branchStore, tagStore).WithFileStore(fileStore)
 	enrichQSvc := service.NewEnrichmentQuery(enrichmentStore, associationStore)
 	trackingQSvc := service.NewTrackingQuery(statusStore, taskStore)
+
+	// Create BM25 service for keyword search (always available)
+	var bm25Svc *domainservice.BM25
+	if bm25Store != nil {
+		bm25Svc = domainservice.NewBM25(bm25Store)
+	}
 
 	// Create code search service if vector stores are available
 	var codeSearchSvc *service.CodeSearch
@@ -299,11 +311,13 @@ func New(opts ...Option) (*Client, error) {
 		statusStore:       statusStore,
 		textVectorStore:   textVectorStore,
 		codeVectorStore:   codeVectorStore,
+		bm25Store:         bm25Store,
 		repoSync:          repoSyncSvc,
 		repoQuery:         repoQuerySvc,
 		enrichQ:           enrichQSvc,
 		trackingQuery:     trackingQSvc,
 		codeSearch:        codeSearchSvc,
+		bm25Service:       bm25Svc,
 		queue:             queue,
 		worker:            worker,
 		registry:          registry,
@@ -377,6 +391,13 @@ func (c *Client) registerHandlers() {
 	c.registry.Register(task.OperationExtractSnippetsForCommit, indexinghandler.NewExtractSnippets(
 		c.repositoryStore, c.snippetStore, c.fileStore, c.slicer, c.trackerFactory, c.logger,
 	))
+
+	// BM25 index handler (always registered if BM25 store available)
+	if c.bm25Service != nil {
+		c.registry.Register(task.OperationCreateBM25IndexForCommit, indexinghandler.NewCreateBM25Index(
+			c.bm25Service, c.snippetStore, c.trackerFactory, c.logger,
+		))
+	}
 
 	// Code embeddings handlers (require code vector store)
 	if c.codeVectorStore != nil {
