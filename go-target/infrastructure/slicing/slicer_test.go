@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	sitter "github.com/smacker/go-tree-sitter"
@@ -366,4 +367,90 @@ func main() {
 		content := snip.Content()
 		assert.Contains(t, content, "func", "snippet %d: Content should contain function code", i)
 	}
+}
+
+func TestSlicer_SliceGoFileWithTypes(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "types.go")
+
+	goCode := `package service
+
+// OrderService handles order operations.
+type OrderService struct {
+	repo   Repository
+	logger Logger
+}
+
+// Repository defines storage operations.
+type Repository interface {
+	Find(id string) (Order, error)
+	Save(order Order) error
+}
+
+type privateConfig struct {
+	timeout int
+}
+
+func NewOrderService(repo Repository, logger Logger) *OrderService {
+	return &OrderService{repo: repo, logger: logger}
+}
+
+func (s *OrderService) Process(id string) error {
+	return nil
+}
+`
+	err := os.WriteFile(testFile, []byte(goCode), 0644)
+	require.NoError(t, err)
+
+	config := slicing.NewLanguageConfig()
+	factory := language.NewFactory(config)
+	s := slicing.NewSlicer(config, factory)
+
+	files := []repository.File{
+		repository.NewFile("abc123", "types.go", "go", int64(len(goCode))),
+	}
+
+	cfg := slicing.DefaultSliceConfig()
+	result, err := s.Slice(context.Background(), files, tmpDir, cfg)
+	require.NoError(t, err)
+
+	// Type definitions should be extracted
+	assert.NotEmpty(t, result.Types(), "expected type definitions")
+
+	var typeNames []string
+	for _, td := range result.Types() {
+		typeNames = append(typeNames, td.SimpleName())
+	}
+	assert.Contains(t, typeNames, "OrderService")
+	assert.Contains(t, typeNames, "Repository")
+	assert.Contains(t, typeNames, "privateConfig")
+
+	// Snippets should include both function and type snippets
+	// Public types: OrderService, Repository (2)
+	// Public functions: NewOrderService, Process (2)
+	// Private types (privateConfig) and private functions excluded by default
+	snippets := result.Snippets()
+	assert.GreaterOrEqual(t, len(snippets), 4, "expected at least 4 snippets (2 public types + 2 public functions)")
+
+	// Verify at least one snippet contains a type definition
+	var hasTypeSnippet bool
+	for _, snip := range snippets {
+		if strings.Contains(snip.Content(), "type OrderService struct") {
+			hasTypeSnippet = true
+			// Full declaration should include the `type` keyword
+			assert.Contains(t, snip.Content(), "type OrderService struct {")
+			break
+		}
+	}
+	assert.True(t, hasTypeSnippet, "expected a snippet containing type OrderService struct")
+
+	// Verify interface type snippet exists
+	var hasInterfaceSnippet bool
+	for _, snip := range snippets {
+		if strings.Contains(snip.Content(), "type Repository interface") {
+			hasInterfaceSnippet = true
+			break
+		}
+	}
+	assert.True(t, hasInterfaceSnippet, "expected a snippet containing type Repository interface")
 }

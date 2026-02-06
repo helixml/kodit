@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"unicode"
 
 	sitter "github.com/smacker/go-tree-sitter"
 
@@ -91,6 +92,7 @@ func (r SliceResult) CallGraph() *CallGraph { return r.callGraph }
 type State struct {
 	files       []ParsedFile
 	defIndex    map[string]FunctionDefinition
+	typeIndex   map[string]TypeDefinition
 	callGraph   *CallGraph
 	importIndex map[string]map[string]string
 	fileIndex   map[string]repository.File // Maps file path to the original File with ID
@@ -102,6 +104,7 @@ func (s *Slicer) Slice(ctx context.Context, files []repository.File, basePath st
 	state := &State{
 		files:       make([]ParsedFile, 0, len(files)),
 		defIndex:    make(map[string]FunctionDefinition),
+		typeIndex:   make(map[string]TypeDefinition),
 		callGraph:   NewCallGraph(),
 		importIndex: make(map[string]map[string]string),
 		fileIndex:   make(map[string]repository.File, len(files)),
@@ -149,6 +152,17 @@ func (s *Slicer) Slice(ctx context.Context, files []repository.File, basePath st
 		}
 
 		snip := s.buildSnippet(name, funcDef, state, cfg, basePath)
+		result.snippets = append(result.snippets, snip)
+	}
+
+	for _, typeDef := range state.typeIndex {
+		result.types = append(result.types, typeDef)
+
+		if !isPublicName(typeDef.SimpleName()) && !cfg.IncludePrivate {
+			continue
+		}
+
+		snip := s.buildTypeSnippet(typeDef, state, basePath)
 		result.snippets = append(result.snippets, snip)
 	}
 
@@ -245,7 +259,24 @@ func (s *Slicer) extractDefinitions(parsed ParsedFile, state *State, cfg SliceCo
 	}
 
 	types := analyzer.Types(tree, source)
-	for range types {
+	for _, typeDef := range types {
+		name := typeDef.SimpleName()
+		if name == "" {
+			continue
+		}
+		qualified := buildQualified(modulePath, name)
+		filled := NewTypeDefinition(
+			parsed.Path(),
+			typeDef.Node(),
+			typeDef.StartByte(),
+			typeDef.EndByte(),
+			qualified,
+			name,
+			typeDef.Kind(),
+			typeDef.Docstring(),
+			typeDef.ConstructorParams(),
+		)
+		state.typeIndex[qualified] = filled
 	}
 }
 
@@ -442,6 +473,43 @@ func (s *Slicer) buildSnippet(name string, funcDef FunctionDefinition, state *St
 		// Fallback: create a file without ID (this shouldn't happen if files were loaded from DB)
 		derivesFrom = []repository.File{
 			repository.NewFile("", funcDef.FilePath(), extToLanguage(ext), 0),
+		}
+	}
+
+	return snippet.NewSnippet(content, extToLanguage(ext), derivesFrom)
+}
+
+func isPublicName(name string) bool {
+	if name == "" {
+		return false
+	}
+	return unicode.IsUpper([]rune(name)[0])
+}
+
+func (s *Slicer) buildTypeSnippet(typeDef TypeDefinition, state *State, basePath string) snippet.Snippet {
+	filePath := typeDef.FilePath()
+	if !strings.HasPrefix(filePath, basePath) {
+		filePath = filepath.Join(basePath, filePath)
+	}
+
+	var content string
+	source, err := os.ReadFile(filePath)
+	if err == nil {
+		start := typeDef.StartByte()
+		end := typeDef.EndByte()
+		if start < uint32(len(source)) && end <= uint32(len(source)) {
+			content = string(source[start:end])
+		}
+	}
+
+	ext := filepath.Ext(typeDef.FilePath())
+
+	var derivesFrom []repository.File
+	if file, found := state.fileIndex[typeDef.FilePath()]; found {
+		derivesFrom = []repository.File{file}
+	} else {
+		derivesFrom = []repository.File{
+			repository.NewFile("", typeDef.FilePath(), extToLanguage(ext), 0),
 		}
 	}
 

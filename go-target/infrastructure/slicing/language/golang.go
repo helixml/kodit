@@ -91,28 +91,23 @@ func (g *Go) Types(tree *sitter.Tree, source []byte) []slicing.TypeDefinition {
 		return nil
 	}
 
-	typeNodes := g.Walker().CollectNodes(tree.RootNode(), []string{"type_declaration", "type_spec"})
+	typeNodes := g.Walker().CollectNodes(tree.RootNode(), []string{"type_declaration"})
 	types := make([]slicing.TypeDefinition, 0, len(typeNodes))
 
 	for _, node := range typeNodes {
-		if node.Type() == "type_declaration" {
-			for i := uint32(0); i < node.ChildCount(); i++ {
-				child := node.Child(int(i))
-				if child != nil && child.Type() == "type_spec" {
-					typeDef := g.extractTypeSpec(child, source)
-					types = append(types, typeDef)
-				}
+		for i := uint32(0); i < node.ChildCount(); i++ {
+			child := node.Child(int(i))
+			if child != nil && child.Type() == "type_spec" {
+				typeDef := g.extractTypeSpec(child, node, source)
+				types = append(types, typeDef)
 			}
-		} else {
-			typeDef := g.extractTypeSpec(node, source)
-			types = append(types, typeDef)
 		}
 	}
 
 	return types
 }
 
-func (g *Go) extractTypeSpec(node *sitter.Node, source []byte) slicing.TypeDefinition {
+func (g *Go) extractTypeSpec(node *sitter.Node, spanNode *sitter.Node, source []byte) slicing.TypeDefinition {
 	nameNode := node.ChildByFieldName("name")
 	name := ""
 	if nameNode != nil {
@@ -125,9 +120,9 @@ func (g *Go) extractTypeSpec(node *sitter.Node, source []byte) slicing.TypeDefin
 
 	return slicing.NewTypeDefinition(
 		"",
-		node,
-		node.StartByte(),
-		node.EndByte(),
+		spanNode,
+		spanNode.StartByte(),
+		spanNode.EndByte(),
 		name,
 		name,
 		kind,
