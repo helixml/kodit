@@ -16,7 +16,8 @@ const (
 CREATE VIRTUAL TABLE IF NOT EXISTS kodit_bm25_documents USING fts5(
     snippet_id UNINDEXED,
     passage,
-    content=''
+    content='',
+    tokenize='porter ascii'
 )`
 
 	sqliteInsertQuery = `
