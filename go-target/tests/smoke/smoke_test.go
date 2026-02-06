@@ -898,11 +898,14 @@ func validateSearchResults(t *testing.T, results []searchResultData, mode string
 		if result.Type != "snippet" {
 			t.Fatalf("%s search result %d: expected type 'snippet', got %s", mode, i, result.Type)
 		}
-		// Validate derives_from field is present (may be empty for some snippets)
+		// Validate derives_from field is present and has entries
 		if result.Attributes.DerivesFrom == nil {
 			t.Fatalf("%s search result %d: expected derives_from field to be present", mode, i)
 		}
-		// Validate derives_from entries have required fields if present
+		if len(result.Attributes.DerivesFrom) == 0 {
+			t.Fatalf("%s search result %d: expected derives_from to have at least one entry", mode, i)
+		}
+		// Validate derives_from entries have required fields
 		for j, derivesFrom := range result.Attributes.DerivesFrom {
 			if derivesFrom.BlobSHA == "" {
 				t.Fatalf("%s search result %d derives_from %d: expected blob_sha to be set", mode, i, j)
@@ -911,11 +914,14 @@ func validateSearchResults(t *testing.T, results []searchResultData, mode string
 				t.Fatalf("%s search result %d derives_from %d: expected path to be set", mode, i, j)
 			}
 		}
-		// Validate enrichments field is present (may be empty for some snippets)
+		// Validate enrichments field is present and has entries
 		if result.Attributes.Enrichments == nil {
 			t.Fatalf("%s search result %d: expected enrichments field to be present", mode, i)
 		}
-		// Validate enrichment entries have required fields if present
+		if len(result.Attributes.Enrichments) == 0 {
+			t.Fatalf("%s search result %d: expected enrichments to have at least one entry", mode, i)
+		}
+		// Validate enrichment entries have required fields
 		for j, enrichment := range result.Attributes.Enrichments {
 			if enrichment.Type == "" {
 				t.Fatalf("%s search result %d enrichment %d: expected type to be set", mode, i, j)

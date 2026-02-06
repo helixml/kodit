@@ -162,6 +162,16 @@ func snippetToSearchResult(s snippet.Snippet, score float64) dto.SnippetData {
 		}
 	}
 
+	// Convert enrichments from snippet
+	enrichments := s.Enrichments()
+	enrichmentSchemas := make([]dto.EnrichmentSchema, len(enrichments))
+	for i, e := range enrichments {
+		enrichmentSchemas[i] = dto.EnrichmentSchema{
+			Type:    e.Type(),
+			Content: e.Content(),
+		}
+	}
+
 	createdAt := s.CreatedAt()
 	updatedAt := s.UpdatedAt()
 
@@ -176,7 +186,7 @@ func snippetToSearchResult(s snippet.Snippet, score float64) dto.SnippetData {
 				Value:    s.Content(),
 				Language: s.Extension(),
 			},
-			Enrichments:    []dto.EnrichmentSchema{},
+			Enrichments:    enrichmentSchemas,
 			OriginalScores: []float64{score},
 		},
 	}

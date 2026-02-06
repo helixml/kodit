@@ -159,7 +159,7 @@ func (r *SnippetRepository) Search(ctx context.Context, request domain.MultiSear
 
 	// Apply enrichment type filter via enrichment associations
 	if len(filters.EnrichmentTypes()) > 0 || len(filters.EnrichmentSubtypes()) > 0 {
-		query = query.Joins("INNER JOIN enrichment_associations ON enrichment_associations.entity_id = snippets.sha AND enrichment_associations.entity_type = 'snippet'").
+		query = query.Joins("INNER JOIN enrichment_associations ON enrichment_associations.entity_id = snippets.sha AND enrichment_associations.entity_type = 'snippets'").
 			Joins("INNER JOIN enrichments_v2 ON enrichments_v2.id = enrichment_associations.enrichment_id")
 
 		if len(filters.EnrichmentTypes()) > 0 {
@@ -191,7 +191,7 @@ func (r *SnippetRepository) Search(ctx context.Context, request domain.MultiSear
 	return snippets, nil
 }
 
-// ByIDs returns snippets by their SHA identifiers.
+// ByIDs returns snippets by their SHA identifiers with their file derivations and enrichments.
 func (r *SnippetRepository) ByIDs(ctx context.Context, ids []string) ([]indexing.Snippet, error) {
 	if len(ids) == 0 {
 		return []indexing.Snippet{}, nil
@@ -203,9 +203,23 @@ func (r *SnippetRepository) ByIDs(ctx context.Context, ids []string) ([]indexing
 		return nil, err
 	}
 
+	// Load file derivations for all snippets
+	derivations, err := r.loadFileDerivations(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+
+	// Load enrichments for all snippets
+	enrichments, err := r.loadEnrichments(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+
 	snippets := make([]indexing.Snippet, len(entities))
 	for i, entity := range entities {
-		snippets[i] = r.mapper.ToDomain(entity)
+		files := derivations[entity.SHA]
+		enrich := enrichments[entity.SHA]
+		snippets[i] = r.mapper.ToDomainWithRelations(entity, files, enrich)
 	}
 
 	return snippets, nil
@@ -223,4 +237,95 @@ func (r *SnippetRepository) BySHA(ctx context.Context, sha string) (indexing.Sni
 	}
 
 	return r.mapper.ToDomain(entity), nil
+}
+
+// FileDerivationWithFile represents a file derivation joined with its file data.
+type FileDerivationWithFile struct {
+	SnippetSHA string
+	FileID     int64
+	CommitSHA  string
+	Path       string
+	BlobSHA    string
+	MimeType   string
+	Extension  string
+	Size       int64
+	CreatedAt  time.Time
+}
+
+// loadFileDerivations loads file derivations for snippets, returning a map of snippet SHA to files.
+func (r *SnippetRepository) loadFileDerivations(ctx context.Context, snippetSHAs []string) (map[string][]FileDerivationWithFile, error) {
+	if len(snippetSHAs) == 0 {
+		return map[string][]FileDerivationWithFile{}, nil
+	}
+
+	// Query file derivations with joined file data
+	var results []FileDerivationWithFile
+	err := r.db.WithContext(ctx).
+		Table("snippet_file_derivations").
+		Select(`
+			snippet_file_derivations.snippet_sha,
+			snippet_file_derivations.file_id,
+			git_commit_files.commit_sha,
+			git_commit_files.path,
+			git_commit_files.blob_sha,
+			git_commit_files.mime_type,
+			git_commit_files.extension,
+			git_commit_files.size,
+			git_commit_files.created_at
+		`).
+		Joins("INNER JOIN git_commit_files ON git_commit_files.id = snippet_file_derivations.file_id").
+		Where("snippet_file_derivations.snippet_sha IN ?", snippetSHAs).
+		Scan(&results).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// Group by snippet SHA
+	derivationMap := make(map[string][]FileDerivationWithFile)
+	for _, result := range results {
+		derivationMap[result.SnippetSHA] = append(derivationMap[result.SnippetSHA], result)
+	}
+
+	return derivationMap, nil
+}
+
+// EnrichmentWithData represents an enrichment joined with its data.
+type EnrichmentWithData struct {
+	SnippetSHA string
+	Type       string
+	Subtype    string
+	Content    string
+}
+
+// loadEnrichments loads enrichments for snippets, returning a map of snippet SHA to enrichments.
+func (r *SnippetRepository) loadEnrichments(ctx context.Context, snippetSHAs []string) (map[string][]EnrichmentWithData, error) {
+	if len(snippetSHAs) == 0 {
+		return map[string][]EnrichmentWithData{}, nil
+	}
+
+	// Query enrichments via association table
+	var results []EnrichmentWithData
+	err := r.db.WithContext(ctx).
+		Table("enrichment_associations").
+		Select(`
+			enrichment_associations.entity_id as snippet_sha,
+			enrichments_v2.type,
+			enrichments_v2.subtype,
+			enrichments_v2.content
+		`).
+		Joins("INNER JOIN enrichments_v2 ON enrichments_v2.id = enrichment_associations.enrichment_id").
+		Where("enrichment_associations.entity_type = ?", "snippets").
+		Where("enrichment_associations.entity_id IN ?", snippetSHAs).
+		Scan(&results).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// Group by snippet SHA
+	enrichmentMap := make(map[string][]EnrichmentWithData)
+	for _, result := range results {
+		enrichmentMap[result.SnippetSHA] = append(enrichmentMap[result.SnippetSHA], result)
+	}
+
+	return enrichmentMap, nil
 }

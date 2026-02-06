@@ -375,7 +375,7 @@ func (c *Client) registerHandlers() {
 
 	// Indexing handlers (always registered for snippet extraction)
 	c.registry.Register(task.OperationExtractSnippetsForCommit, indexinghandler.NewExtractSnippets(
-		c.repositoryStore, c.snippetStore, c.gitAdapter, c.slicer, c.trackerFactory, c.logger,
+		c.repositoryStore, c.snippetStore, c.fileStore, c.slicer, c.trackerFactory, c.logger,
 	))
 
 	// Code embeddings handlers (require code vector store)

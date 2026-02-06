@@ -74,6 +74,7 @@ CREATE TABLE IF NOT EXISTS git_tags (
 );
 
 CREATE TABLE IF NOT EXISTS git_commit_files (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     commit_sha TEXT NOT NULL,
     path TEXT NOT NULL,
     blob_sha TEXT NOT NULL,
@@ -81,7 +82,7 @@ CREATE TABLE IF NOT EXISTS git_commit_files (
     extension TEXT DEFAULT '',
     size INTEGER DEFAULT 0,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (commit_sha, path)
+    UNIQUE (commit_sha, path)
 );
 
 CREATE TABLE IF NOT EXISTS tasks (

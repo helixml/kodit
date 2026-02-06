@@ -19,6 +19,8 @@ CREATE TABLE IF NOT EXISTS git_commit_files (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	commit_sha TEXT NOT NULL,
 	path TEXT NOT NULL,
+	blob_sha TEXT,
+	mime_type TEXT,
 	extension TEXT,
 	size INTEGER,
 	created_at DATETIME NOT NULL

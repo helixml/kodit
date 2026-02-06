@@ -92,6 +92,7 @@ type State struct {
 	defIndex     map[string]FunctionDefinition
 	callGraph    *CallGraph
 	importIndex  map[string]map[string]string
+	fileIndex    map[string]git.File // Maps file path to the original git.File with ID
 }
 
 // Slice extracts snippets from the given files.
@@ -102,6 +103,12 @@ func (s *Slicer) Slice(ctx context.Context, files []git.File, basePath string, c
 		defIndex:    make(map[string]FunctionDefinition),
 		callGraph:   NewCallGraph(),
 		importIndex: make(map[string]map[string]string),
+		fileIndex:   make(map[string]git.File, len(files)),
+	}
+
+	// Build file index mapping path to original file object (with ID)
+	for _, file := range files {
+		state.fileIndex[file.Path()] = file
 	}
 
 	for _, file := range files {
@@ -148,7 +155,13 @@ func (s *Slicer) Slice(ctx context.Context, files []git.File, basePath string, c
 }
 
 func (s *Slicer) parseFile(file git.File, basePath string) (ParsedFile, error) {
-	fullPath := filepath.Join(basePath, file.Path())
+	// If file.Path() already includes basePath (stored as full path), use directly
+	var fullPath string
+	if strings.HasPrefix(file.Path(), basePath) {
+		fullPath = file.Path()
+	} else {
+		fullPath = filepath.Join(basePath, file.Path())
+	}
 	ext := filepath.Ext(file.Path())
 
 	lang, ok := s.config.ByExtension(ext)
@@ -401,8 +414,16 @@ func (s *Slicer) buildSnippet(name string, funcDef FunctionDefinition, state *St
 	content := strings.Join(contentParts, "\n\n")
 
 	ext := filepath.Ext(funcDef.FilePath())
-	derivesFrom := []git.File{
-		git.NewFile("", funcDef.FilePath(), extToLanguage(ext), 0),
+
+	// Look up the original file with database ID from the file index
+	var derivesFrom []git.File
+	if file, found := state.fileIndex[funcDef.FilePath()]; found {
+		derivesFrom = []git.File{file}
+	} else {
+		// Fallback: create a file without ID (this shouldn't happen if files were loaded from DB)
+		derivesFrom = []git.File{
+			git.NewFile("", funcDef.FilePath(), extToLanguage(ext), 0),
+		}
 	}
 
 	return indexing.NewSnippet(content, extToLanguage(ext), derivesFrom)

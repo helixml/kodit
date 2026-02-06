@@ -93,6 +93,7 @@ type State struct {
 	defIndex    map[string]FunctionDefinition
 	callGraph   *CallGraph
 	importIndex map[string]map[string]string
+	fileIndex   map[string]repository.File // Maps file path to the original File with ID
 }
 
 // Slice extracts snippets from the given files.
@@ -103,6 +104,12 @@ func (s *Slicer) Slice(ctx context.Context, files []repository.File, basePath st
 		defIndex:    make(map[string]FunctionDefinition),
 		callGraph:   NewCallGraph(),
 		importIndex: make(map[string]map[string]string),
+		fileIndex:   make(map[string]repository.File, len(files)),
+	}
+
+	// Build file index mapping path to original file object (with ID)
+	for _, file := range files {
+		state.fileIndex[file.Path()] = file
 	}
 
 	for _, file := range files {
@@ -149,7 +156,13 @@ func (s *Slicer) Slice(ctx context.Context, files []repository.File, basePath st
 }
 
 func (s *Slicer) parseFile(file repository.File, basePath string) (ParsedFile, error) {
-	fullPath := filepath.Join(basePath, file.Path())
+	// If file.Path() already includes basePath (stored as full path), use directly
+	var fullPath string
+	if strings.HasPrefix(file.Path(), basePath) {
+		fullPath = file.Path()
+	} else {
+		fullPath = filepath.Join(basePath, file.Path())
+	}
 	ext := filepath.Ext(file.Path())
 
 	lang, ok := s.config.ByExtension(ext)
@@ -344,7 +357,13 @@ func (s *Slicer) resolveCallee(name, modulePath string, state *State) string {
 func (s *Slicer) buildSnippet(name string, funcDef FunctionDefinition, state *State, cfg SliceConfig, basePath string) snippet.Snippet {
 	var contentParts []string
 
-	source, err := os.ReadFile(filepath.Join(basePath, funcDef.FilePath()))
+	// Resolve file path - if already includes basePath, use directly
+	filePath := funcDef.FilePath()
+	if !strings.HasPrefix(filePath, basePath) {
+		filePath = filepath.Join(basePath, filePath)
+	}
+
+	source, err := os.ReadFile(filePath)
 	if err == nil {
 		start, end := funcDef.Span()
 		if start < uint32(len(source)) && end <= uint32(len(source)) {
@@ -360,7 +379,13 @@ func (s *Slicer) buildSnippet(name string, funcDef FunctionDefinition, state *St
 			continue
 		}
 
-		depSource, err := os.ReadFile(filepath.Join(basePath, depDef.FilePath()))
+		// Resolve dependency file path
+		depFilePath := depDef.FilePath()
+		if !strings.HasPrefix(depFilePath, basePath) {
+			depFilePath = filepath.Join(basePath, depFilePath)
+		}
+
+		depSource, err := os.ReadFile(depFilePath)
 		if err != nil {
 			continue
 		}
@@ -386,7 +411,13 @@ func (s *Slicer) buildSnippet(name string, funcDef FunctionDefinition, state *St
 			continue
 		}
 
-		callerSource, err := os.ReadFile(filepath.Join(basePath, callerDef.FilePath()))
+		// Resolve caller file path
+		callerFilePath := callerDef.FilePath()
+		if !strings.HasPrefix(callerFilePath, basePath) {
+			callerFilePath = filepath.Join(basePath, callerFilePath)
+		}
+
+		callerSource, err := os.ReadFile(callerFilePath)
 		if err != nil {
 			continue
 		}
@@ -402,8 +433,16 @@ func (s *Slicer) buildSnippet(name string, funcDef FunctionDefinition, state *St
 	content := strings.Join(contentParts, "\n\n")
 
 	ext := filepath.Ext(funcDef.FilePath())
-	derivesFrom := []repository.File{
-		repository.NewFile("", funcDef.FilePath(), extToLanguage(ext), 0),
+
+	// Look up the original file with database ID from the file index
+	var derivesFrom []repository.File
+	if file, found := state.fileIndex[funcDef.FilePath()]; found {
+		derivesFrom = []repository.File{file}
+	} else {
+		// Fallback: create a file without ID (this shouldn't happen if files were loaded from DB)
+		derivesFrom = []repository.File{
+			repository.NewFile("", funcDef.FilePath(), extToLanguage(ext), 0),
+		}
 	}
 
 	return snippet.NewSnippet(content, extToLanguage(ext), derivesFrom)

@@ -19,7 +19,7 @@ type ExtractSnippets struct {
 	repoRepo       git.RepoRepository
 	commitRepo     git.CommitRepository
 	snippetRepo    indexing.SnippetRepository
-	adapter        git.Adapter
+	fileRepo       git.FileRepository
 	slicer         *slicer.Slicer
 	trackerFactory TrackerFactory
 	logger         *slog.Logger
@@ -35,7 +35,7 @@ func NewExtractSnippets(
 	repoRepo git.RepoRepository,
 	commitRepo git.CommitRepository,
 	snippetRepo indexing.SnippetRepository,
-	adapter git.Adapter,
+	fileRepo git.FileRepository,
 	slicerInstance *slicer.Slicer,
 	trackerFactory TrackerFactory,
 	logger *slog.Logger,
@@ -44,7 +44,7 @@ func NewExtractSnippets(
 		repoRepo:       repoRepo,
 		commitRepo:     commitRepo,
 		snippetRepo:    snippetRepo,
-		adapter:        adapter,
+		fileRepo:       fileRepo,
 		slicer:         slicerInstance,
 		trackerFactory: trackerFactory,
 		logger:         logger,
@@ -92,13 +92,23 @@ func (h *ExtractSnippets) Execute(ctx context.Context, payload map[string]any) e
 		return fmt.Errorf("repository %d has never been cloned", repoID)
 	}
 
-	files, err := h.adapter.CommitFiles(ctx, clonedPath, commitSHA)
+	// Load files from database (which have IDs from SCAN_COMMIT step)
+	files, err := h.fileRepo.FindByCommitSHA(ctx, commitSHA)
 	if err != nil {
-		return fmt.Errorf("get commit files: %w", err)
+		return fmt.Errorf("get commit files from database: %w", err)
 	}
 
-	gitFiles := h.convertToGitFiles(files, commitSHA)
-	langFiles := h.groupFilesByExtension(gitFiles)
+	if len(files) == 0 {
+		h.logger.Info("no files found for commit, skipping",
+			slog.String("commit", commitSHA[:8]),
+		)
+		if skipErr := tracker.Skip(ctx, "No files found for commit"); skipErr != nil {
+			h.logger.Warn("failed to mark tracker as skipped", slog.String("error", skipErr.Error()))
+		}
+		return nil
+	}
+
+	langFiles := h.groupFilesByExtension(files)
 
 	if setTotalErr := tracker.SetTotal(ctx, len(langFiles)); setTotalErr != nil {
 		h.logger.Warn("failed to set tracker total", slog.String("error", setTotalErr.Error()))
@@ -145,24 +155,6 @@ func (h *ExtractSnippets) Execute(ctx context.Context, payload map[string]any) e
 	}
 
 	return nil
-}
-
-func (h *ExtractSnippets) convertToGitFiles(files []git.FileInfo, commitSHA string) []git.File {
-	result := make([]git.File, 0, len(files))
-	mapping := domain.LanguageMapping{}
-
-	for _, f := range files {
-		ext := filepath.Ext(f.Path)
-		lang, err := mapping.LanguageForExtension(ext)
-		if err != nil {
-			continue
-		}
-
-		gitFile := git.NewFile(commitSHA, f.Path, lang, f.Size)
-		result = append(result, gitFile)
-	}
-
-	return result
 }
 
 func (h *ExtractSnippets) groupFilesByExtension(files []git.File) map[string][]git.File {

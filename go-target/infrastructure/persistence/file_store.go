@@ -25,9 +25,16 @@ func NewFileStore(db Database) FileStore {
 }
 
 // Get retrieves a file by ID.
-// Note: Files use composite key (commit_sha, path), not integer ID.
 func (s FileStore) Get(ctx context.Context, id int64) (repository.File, error) {
-	return repository.File{}, fmt.Errorf("%w: files use composite key", ErrNotFound)
+	var model FileModel
+	result := s.db.Session(ctx).Where("id = ?", id).First(&model)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return repository.File{}, fmt.Errorf("%w: file with id %d", ErrNotFound, id)
+		}
+		return repository.File{}, fmt.Errorf("get file: %w", result.Error)
+	}
+	return s.mapper.ToDomain(model), nil
 }
 
 // Save creates or updates a file.

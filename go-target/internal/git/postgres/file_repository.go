@@ -25,10 +25,17 @@ func NewFileRepository(db database.Database) *FileRepository {
 	}
 }
 
-// Get retrieves a file by ID (not typically used since composite key).
+// Get retrieves a file by ID.
 func (r *FileRepository) Get(ctx context.Context, id int64) (git.File, error) {
-	// Files use composite key (commit_sha, path), not integer ID
-	return git.File{}, fmt.Errorf("%w: files use composite key", database.ErrNotFound)
+	var entity FileEntity
+	result := r.db.Session(ctx).Where("id = ?", id).First(&entity)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return git.File{}, fmt.Errorf("%w: file with id %d", database.ErrNotFound, id)
+		}
+		return git.File{}, fmt.Errorf("get file: %w", result.Error)
+	}
+	return r.mapper.ToDomain(entity), nil
 }
 
 // Find retrieves files matching a query.

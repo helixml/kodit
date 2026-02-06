@@ -268,7 +268,7 @@ type FileMapper struct{}
 // ToDomain converts a FileModel to a domain File.
 func (m FileMapper) ToDomain(e FileModel) repository.File {
 	return repository.ReconstructFile(
-		0,
+		e.ID,
 		e.CommitSHA,
 		e.Path,
 		e.BlobSHA,
@@ -287,6 +287,7 @@ func (m FileMapper) ToModel(f repository.File) FileModel {
 		ext = f.Language()
 	}
 	return FileModel{
+		ID:        f.ID(),
 		CommitSHA: f.CommitSHA(),
 		Path:      f.Path(),
 		BlobSHA:   f.BlobSHA(),

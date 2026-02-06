@@ -133,6 +133,9 @@ func (s SnippetStore) ByIDs(ctx context.Context, ids []string) ([]snippet.Snippe
 		return nil, err
 	}
 
+	// Load enrichments for all snippets in bulk
+	enrichmentMap := s.loadEnrichmentsForSnippets(ctx, ids)
+
 	snippets := make([]snippet.Snippet, len(models))
 	for i, model := range models {
 		// Load file derivations for this snippet
@@ -150,7 +153,7 @@ func (s SnippetStore) ByIDs(ctx context.Context, ids []string) ([]snippet.Snippe
 				model.Content,
 				model.Extension,
 				derivesFrom,
-				nil, // enrichments loaded separately
+				enrichmentMap[model.SHA],
 				model.CreatedAt,
 				model.UpdatedAt,
 			)
@@ -160,6 +163,46 @@ func (s SnippetStore) ByIDs(ctx context.Context, ids []string) ([]snippet.Snippe
 	}
 
 	return snippets, nil
+}
+
+// loadEnrichmentsForSnippets loads enrichments for multiple snippets in bulk.
+func (s SnippetStore) loadEnrichmentsForSnippets(ctx context.Context, snippetSHAs []string) map[string][]snippet.Enrichment {
+	result := make(map[string][]snippet.Enrichment)
+	if len(snippetSHAs) == 0 {
+		return result
+	}
+
+	// Query enrichments via association table
+	type enrichmentResult struct {
+		SnippetSHA string
+		Type       string
+		Subtype    string
+		Content    string
+	}
+
+	var enrichments []enrichmentResult
+	err := s.db.Session(ctx).
+		Table("enrichment_associations").
+		Select(`
+			enrichment_associations.entity_id as snippet_sha,
+			enrichments_v2.type,
+			enrichments_v2.subtype,
+			enrichments_v2.content
+		`).
+		Joins("INNER JOIN enrichments_v2 ON enrichments_v2.id = enrichment_associations.enrichment_id").
+		Where("enrichment_associations.entity_type = ?", "snippets").
+		Where("enrichment_associations.entity_id IN ?", snippetSHAs).
+		Scan(&enrichments).Error
+	if err != nil {
+		return result
+	}
+
+	// Group by snippet SHA - use subtype as the enrichment type for display
+	for _, e := range enrichments {
+		result[e.SnippetSHA] = append(result[e.SnippetSHA], snippet.NewEnrichment(e.Subtype, e.Content))
+	}
+
+	return result
 }
 
 // BySHA returns a single snippet by its SHA identifier.

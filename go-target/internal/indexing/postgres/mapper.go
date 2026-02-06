@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/helixml/kodit/internal/domain"
+	"github.com/helixml/kodit/internal/git"
 	"github.com/helixml/kodit/internal/indexing"
 )
 
@@ -83,6 +84,45 @@ func (SnippetMapper) ToDomain(entity SnippetEntity) indexing.Snippet {
 		entity.Extension,
 		nil, // DerivesFrom loaded separately
 		nil, // Enrichments loaded separately
+		entity.CreatedAt,
+		entity.UpdatedAt,
+	)
+}
+
+// ToDomainWithRelations converts a database entity to a domain Snippet with loaded relations.
+func (SnippetMapper) ToDomainWithRelations(
+	entity SnippetEntity,
+	derivations []FileDerivationWithFile,
+	enrichments []EnrichmentWithData,
+) indexing.Snippet {
+	// Convert file derivations to git.File
+	files := make([]git.File, len(derivations))
+	for i, d := range derivations {
+		files[i] = git.ReconstructFile(
+			d.FileID,
+			d.CommitSHA,
+			d.Path,
+			d.BlobSHA,
+			d.MimeType,
+			d.Extension,
+			d.Extension, // Using extension as language fallback
+			d.Size,
+			d.CreatedAt,
+		)
+	}
+
+	// Convert enrichments to domain.Enrichment - use subtype as the display type
+	enrich := make([]domain.Enrichment, len(enrichments))
+	for i, e := range enrichments {
+		enrich[i] = domain.NewEnrichment(e.Subtype, e.Content)
+	}
+
+	return indexing.ReconstructSnippet(
+		entity.SHA,
+		entity.Content,
+		entity.Extension,
+		files,
+		enrich,
 		entity.CreatedAt,
 		entity.UpdatedAt,
 	)

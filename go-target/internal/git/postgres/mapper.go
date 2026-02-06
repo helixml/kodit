@@ -269,7 +269,7 @@ type FileMapper struct{}
 // ToDomain converts a FileEntity to a git.File.
 func (m FileMapper) ToDomain(e FileEntity) git.File {
 	return git.ReconstructFile(
-		0, // File uses composite key, not ID
+		e.ID,
 		e.CommitSHA,
 		e.Path,
 		e.BlobSHA,
@@ -289,6 +289,7 @@ func (m FileMapper) ToDatabase(f git.File) FileEntity {
 		ext = f.Language()
 	}
 	return FileEntity{
+		ID:        f.ID(),
 		CommitSHA: f.CommitSHA(),
 		Path:      f.Path(),
 		BlobSHA:   f.BlobSHA(),

@@ -78,10 +78,10 @@ func (TagEntity) TableName() string {
 }
 
 // FileEntity represents a Git file in the database.
-// Note: This has a composite primary key (commit_sha, path).
 type FileEntity struct {
-	CommitSHA string    `gorm:"column:commit_sha;primaryKey;size:64"`
-	Path      string    `gorm:"column:path;primaryKey;size:1024"`
+	ID        int64     `gorm:"column:id;autoIncrement"`
+	CommitSHA string    `gorm:"column:commit_sha;primaryKey;uniqueIndex:idx_commit_path;size:64"`
+	Path      string    `gorm:"column:path;primaryKey;uniqueIndex:idx_commit_path;size:1024"`
 	BlobSHA   string    `gorm:"column:blob_sha;index;size:64"`
 	MimeType  string    `gorm:"column:mime_type;index;size:255"`
 	Extension string    `gorm:"column:extension;index;size:255"`

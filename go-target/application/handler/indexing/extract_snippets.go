@@ -10,7 +10,6 @@ import (
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/snippet"
 	"github.com/helixml/kodit/domain/task"
-	infraGit "github.com/helixml/kodit/infrastructure/git"
 	"github.com/helixml/kodit/infrastructure/slicing"
 )
 
@@ -18,7 +17,7 @@ import (
 type ExtractSnippets struct {
 	repoStore      repository.RepositoryStore
 	snippetStore   snippet.SnippetStore
-	adapter        infraGit.Adapter
+	fileStore      repository.FileStore
 	slicer         *slicing.Slicer
 	trackerFactory handler.TrackerFactory
 	logger         *slog.Logger
@@ -28,7 +27,7 @@ type ExtractSnippets struct {
 func NewExtractSnippets(
 	repoStore repository.RepositoryStore,
 	snippetStore snippet.SnippetStore,
-	adapter infraGit.Adapter,
+	fileStore repository.FileStore,
 	slicerInstance *slicing.Slicer,
 	trackerFactory handler.TrackerFactory,
 	logger *slog.Logger,
@@ -36,7 +35,7 @@ func NewExtractSnippets(
 	return &ExtractSnippets{
 		repoStore:      repoStore,
 		snippetStore:   snippetStore,
-		adapter:        adapter,
+		fileStore:      fileStore,
 		slicer:         slicerInstance,
 		trackerFactory: trackerFactory,
 		logger:         logger,
@@ -84,13 +83,23 @@ func (h *ExtractSnippets) Execute(ctx context.Context, payload map[string]any) e
 		return fmt.Errorf("repository %d has never been cloned", repoID)
 	}
 
-	files, err := h.adapter.CommitFiles(ctx, clonedPath, commitSHA)
+	// Load files from database (which have IDs from SCAN_COMMIT step)
+	files, err := h.fileStore.FindByCommitSHA(ctx, commitSHA)
 	if err != nil {
-		return fmt.Errorf("get commit files: %w", err)
+		return fmt.Errorf("get commit files from database: %w", err)
 	}
 
-	domainFiles := h.convertToDomainFiles(files, commitSHA)
-	langFiles := h.groupFilesByExtension(domainFiles)
+	if len(files) == 0 {
+		h.logger.Info("no files found for commit, skipping",
+			slog.String("commit", handler.ShortSHA(commitSHA)),
+		)
+		if skipErr := tracker.Skip(ctx, "No files found for commit"); skipErr != nil {
+			h.logger.Warn("failed to mark tracker as skipped", slog.String("error", skipErr.Error()))
+		}
+		return nil
+	}
+
+	langFiles := h.groupFilesByExtension(files)
 
 	if setTotalErr := tracker.SetTotal(ctx, len(langFiles)); setTotalErr != nil {
 		h.logger.Warn("failed to set tracker total", slog.String("error", setTotalErr.Error()))
@@ -137,24 +146,6 @@ func (h *ExtractSnippets) Execute(ctx context.Context, payload map[string]any) e
 	}
 
 	return nil
-}
-
-func (h *ExtractSnippets) convertToDomainFiles(files []infraGit.FileInfo, commitSHA string) []repository.File {
-	result := make([]repository.File, 0, len(files))
-	language := snippet.Language{}
-
-	for _, f := range files {
-		ext := filepath.Ext(f.Path)
-		lang, err := language.LanguageForExtension(ext)
-		if err != nil {
-			continue
-		}
-
-		domainFile := repository.NewFile(commitSHA, f.Path, lang, f.Size)
-		result = append(result, domainFile)
-	}
-
-	return result
 }
 
 func (h *ExtractSnippets) groupFilesByExtension(files []repository.File) map[string][]repository.File {
