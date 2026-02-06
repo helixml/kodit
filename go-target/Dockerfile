@@ -30,6 +30,7 @@ ARG VERSION=dev
 ARG COMMIT=unknown
 ARG BUILD_TIME=unknown
 RUN CGO_ENABLED=1 GOOS=linux go build \
+    -tags "fts5" \
     -ldflags "-X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.BuildTime=${BUILD_TIME} -linkmode external -extldflags '-static'" \
     -o /app/kodit \
     ./cmd/kodit

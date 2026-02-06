@@ -49,9 +49,6 @@ def main():
         print(f"ERROR: Port {BASE_PORT} already in use")
         sys.exit(1)
 
-    with tempfile.NamedTemporaryFile(delete=False) as f:
-        tmpfile = Path(f.name)
-
     # Check required API keys
     embedding_api_key = os.environ.get("EMBEDDING_ENDPOINT_API_KEY", "")
     enrichment_api_key = os.environ.get("ENRICHMENT_ENDPOINT_API_KEY", "")
@@ -62,12 +59,16 @@ def main():
         print("ERROR: ENRICHMENT_ENDPOINT_API_KEY environment variable is required")
         sys.exit(1)
 
+    with tempfile.NamedTemporaryFile(delete=False) as f:
+        tmpfile = Path(f.name)
+
     env = os.environ.copy()
     env.update({
         "DISABLE_TELEMETRY": "true",
         "DB_URL": "sqlite:///:memory:",
-        "LOG_LEVEL": "debug",  # Enable debug logging
+        "LOG_LEVEL": "debug",
         # Embedding provider (OpenRouter with Codestral Embed)
+        # Go uses model name directly (no LiteLLM prefix)
         "EMBEDDING_ENDPOINT_BASE_URL": "https://openrouter.ai/api/v1",
         "EMBEDDING_ENDPOINT_MODEL": "mistralai/codestral-embed-2505",
         "EMBEDDING_ENDPOINT_API_KEY": embedding_api_key,
@@ -81,10 +82,10 @@ def main():
 
     go_target_dir = Path(__file__).parent / "go-target"
 
-    # Build the binary first
+    # Build the binary first (fts5 tag needed for SQLite FTS5 BM25 search)
     print("Building Go binary...")
     build_result = subprocess.run(
-        ["go", "build", "-o", "/tmp/kodit-smoke", "./cmd/kodit"],
+        ["go", "build", "-tags", "fts5", "-o", "/tmp/kodit-smoke", "./cmd/kodit"],
         cwd=str(go_target_dir),
         capture_output=True,
         text=True,
@@ -113,8 +114,12 @@ def main():
     results = {
         "implementation": "go",
         "repository": TARGET_URI,
+        "task_status": [],
+        "files": [],
         "snippets": [],
-        "search_results": [],
+        "enrichments": [],
+        "keyword_search": [],
+        "code_search": [],
         "errors": [],
     }
 
@@ -146,7 +151,7 @@ def main():
             client.get(f"{BASE_URL}/healthz").raise_for_status()
             print("Go server health check passed")
 
-            # Create repository - Go accepts simpler format
+            # Create repository (Go accepts simpler format)
             payload = {"remote_url": TARGET_URI}
             client.post(f"{BASE_URL}/api/v1/repositories", json=payload).raise_for_status()
             print(f"Created repository: {TARGET_URI}")
@@ -160,38 +165,35 @@ def main():
             # Wait for indexing
             print("Waiting for indexing to complete...")
 
-            # Track stable task count to detect when all tasks have been registered
             stable_count = 0
             last_task_count = 0
 
             def indexing_finished():
                 nonlocal stable_count, last_task_count
+                read_output()
                 response = client.get(f"{BASE_URL}/api/v1/repositories/{repo_id}/status")
                 status = response.json()
                 terminal = {"completed", "skipped", "failed"}
                 tasks = status.get("data", [])
                 current_count = len(tasks)
 
-                # Check if task count is stable (no new tasks appearing)
                 if current_count == last_task_count:
                     stable_count += 1
                 else:
                     stable_count = 0
                     last_task_count = current_count
 
-                # Need at least 6 tasks and count must be stable for 3 iterations
                 if current_count < 6 or stable_count < 3:
                     pending = sum(1 for t in tasks if t["attributes"]["state"] == "pending")
                     running = sum(1 for t in tasks if t["attributes"]["state"] in ("running", "started", "in_progress"))
-                    print(f"  ... tasks={current_count}, pending={pending}, running={running}, stable_count={stable_count}")
+                    print(f"  ... tasks={current_count}, pending={pending}, running={running}, stable={stable_count}")
                     return False
 
                 pending = sum(1 for t in tasks if t["attributes"]["state"] == "pending")
                 running = sum(1 for t in tasks if t["attributes"]["state"] in ("running", "started", "in_progress"))
                 if pending > 0 or running > 0:
-                    print(f"  ... waiting for tasks to complete (total={current_count}, pending={pending}, running={running})")
+                    print(f"  ... tasks={current_count}, pending={pending}, running={running}")
                     return False
-                # All tasks in terminal state and count is stable
                 print(f"  ... all {current_count} tasks in terminal state (stable for {stable_count} checks)")
                 return True
 
@@ -204,12 +206,14 @@ def main():
             # Show final task status
             resp = client.get(f"{BASE_URL}/api/v1/repositories/{repo_id}/status")
             task_status = resp.json()
-            print("\nTask Status:")
+            print("\n=== TASK STATUS ===")
             for task in task_status.get("data", []):
                 step = task["attributes"].get("step", "unknown")
                 state = task["attributes"].get("state", "unknown")
                 error = task["attributes"].get("error", "")
-                print(f"  {step}: {state}" + (f" (error: {error})" if error else ""))
+                line = f"  {step}: {state}" + (f" (error: {error})" if error else "")
+                print(line)
+                results["task_status"].append({"step": step, "state": state, "error": error})
 
             # Get commits
             resp = client.get(f"{BASE_URL}/api/v1/repositories/{repo_id}/commits")
@@ -220,40 +224,53 @@ def main():
 
             commit_sha = commits["data"][0]["attributes"]["commit_sha"]
             commit_url = f"{BASE_URL}/api/v1/repositories/{repo_id}/commits/{commit_sha}"
-            print(f"Commit SHA: {commit_sha}")
+            print(f"\nCommit SHA: {commit_sha}")
 
             # Get files
             resp = client.get(f"{commit_url}/files")
             files = resp.json()
-            print(f"Files count: {len(files['data'])}")
-            for f in files["data"]:
-                print(f"  - {f['attributes']['path']} ({f['attributes']['size']} bytes)")
+            print(f"\n=== FILES ({len(files['data'])}) ===")
+            for f in sorted(files["data"], key=lambda x: x["attributes"]["path"]):
+                path = f["attributes"]["path"]
+                size = f["attributes"]["size"]
+                print(f"  {path} ({size} bytes)")
+                results["files"].append({"path": path, "size": size})
 
-            # Get snippets - Go returns JSON directly
+            # Get snippets (Go returns JSON directly)
             resp = client.get(f"{commit_url}/snippets")
             if resp.status_code == 200:
                 snippets = resp.json()
-                results["snippets"] = snippets.get("data", [])
-                print(f"Snippets count: {len(results['snippets'])}")
-                for i, s in enumerate(results["snippets"][:5]):  # Show first 5
+                snippet_list = snippets.get("data", [])
+                print(f"\n=== SNIPPETS ({len(snippet_list)}) ===")
+                for i, s in enumerate(snippet_list):
                     content = s.get("attributes", {}).get("content", {})
                     lang = content.get("language", "unknown")
-                    value = content.get("value", "")[:100]
-                    print(f"  Snippet {i}: lang={lang}, preview={value!r}...")
+                    value = content.get("value", "")
+                    lines = value.count("\n") + 1
+                    preview = value[:120].replace("\n", "\\n")
+                    print(f"  [{i}] lang={lang}, lines={lines}")
+                    print(f"      {preview!r}")
+                    results["snippets"].append({
+                        "language": lang,
+                        "lines": lines,
+                        "content": value,
+                    })
             else:
                 results["errors"].append(f"Snippets returned status {resp.status_code}")
 
             # Get enrichments
             resp = client.get(f"{commit_url}/enrichments")
             enrichments = resp.json()
-            print(f"Enrichments count: {len(enrichments.get('data', []))}")
-            for e in enrichments.get("data", [])[:3]:
+            enrichment_list = enrichments.get("data", [])
+            print(f"\n=== ENRICHMENTS ({len(enrichment_list)}) ===")
+            for e in enrichment_list:
                 etype = e.get("attributes", {}).get("type", "unknown")
                 subtype = e.get("attributes", {}).get("subtype", "")
-                print(f"  - {etype}/{subtype}")
+                print(f"  {etype}/{subtype}")
+                results["enrichments"].append({"type": etype, "subtype": subtype})
 
-            # Search - keywords (using JSON:API format)
-            print("\nSearch: keywords=['main', 'func', 'package']")
+            # Keyword search
+            print("\n=== KEYWORD SEARCH: ['main', 'func', 'package'] ===")
             payload = {
                 "data": {
                     "type": "search",
@@ -261,20 +278,25 @@ def main():
                 }
             }
             resp = client.post(f"{BASE_URL}/api/v1/search", json=payload)
-            search_results = resp.json()
-            results["search_results"] = search_results.get("data", [])
-            print(f"Search results count: {len(results['search_results'])}")
-            for i, r in enumerate(results["search_results"]):
+            kw_results = resp.json().get("data", [])
+            print(f"Results: {len(kw_results)}")
+            for i, r in enumerate(kw_results):
                 content = r.get("attributes", {}).get("content", {})
                 lang = content.get("language", "unknown")
-                value = content.get("value", "")[:80]
+                value = content.get("value", "")
                 derives = r.get("attributes", {}).get("derives_from", [])
                 paths = [d.get("path", "") for d in derives]
-                print(f"  Result {i}: lang={lang}, paths={paths}")
-                print(f"    preview: {value!r}...")
+                preview = value[:120].replace("\n", "\\n")
+                print(f"  [{i}] lang={lang}, paths={paths}")
+                print(f"      {preview!r}")
+                results["keyword_search"].append({
+                    "language": lang,
+                    "paths": paths,
+                    "content": value,
+                })
 
             # Code search
-            print("\nSearch: code='func main() { fmt.Println }'")
+            print("\n=== CODE SEARCH: 'func main() { fmt.Println }' ===")
             payload = {
                 "data": {
                     "type": "search",
@@ -283,11 +305,21 @@ def main():
             }
             resp = client.post(f"{BASE_URL}/api/v1/search", json=payload)
             code_results = resp.json().get("data", [])
-            print(f"Code search results: {len(code_results)}")
+            print(f"Results: {len(code_results)}")
             for i, r in enumerate(code_results):
                 content = r.get("attributes", {}).get("content", {})
-                value = content.get("value", "")[:80]
-                print(f"  Result {i}: {value!r}...")
+                lang = content.get("language", "unknown")
+                value = content.get("value", "")
+                derives = r.get("attributes", {}).get("derives_from", [])
+                paths = [d.get("path", "") for d in derives]
+                preview = value[:120].replace("\n", "\\n")
+                print(f"  [{i}] lang={lang}, paths={paths}")
+                print(f"      {preview!r}")
+                results["code_search"].append({
+                    "language": lang,
+                    "paths": paths,
+                    "content": value,
+                })
 
             # Cleanup
             client.delete(f"{BASE_URL}/api/v1/repositories/{repo_id}").raise_for_status()

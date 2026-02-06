@@ -18,7 +18,6 @@ from pathlib import Path
 BASE_HOST = "127.0.0.1"
 BASE_PORT = 8081
 BASE_URL = f"http://{BASE_HOST}:{BASE_PORT}"
-# Use the same test repo as Go
 TARGET_URI = "https://gist.github.com/philwinder/7aa38185e20433c04c533f2b28f4e217.git"
 
 
@@ -50,11 +49,31 @@ def main():
         print(f"ERROR: Port {BASE_PORT} already in use")
         sys.exit(1)
 
+    # Check required API keys
+    embedding_api_key = os.environ.get("EMBEDDING_ENDPOINT_API_KEY", "")
+    enrichment_api_key = os.environ.get("ENRICHMENT_ENDPOINT_API_KEY", "")
+    if not embedding_api_key:
+        print("ERROR: EMBEDDING_ENDPOINT_API_KEY environment variable is required")
+        sys.exit(1)
+    if not enrichment_api_key:
+        print("ERROR: ENRICHMENT_ENDPOINT_API_KEY environment variable is required")
+        sys.exit(1)
+
     with tempfile.NamedTemporaryFile(delete=False) as f:
         tmpfile = Path(f.name)
 
     env = os.environ.copy()
-    env.update({"DISABLE_TELEMETRY": "true", "DB_URL": "sqlite+aiosqlite:///:memory:"})
+    env.update({
+        "DISABLE_TELEMETRY": "true",
+        "DB_URL": "sqlite+aiosqlite:///:memory:",
+        # Embedding provider (OpenRouter with Codestral Embed via LiteLLM)
+        # Use LiteLLM's native openrouter/ prefix (avoids encoding_format issue)
+        "EMBEDDING_ENDPOINT_MODEL": "openrouter/mistralai/codestral-embed-2505",
+        "EMBEDDING_ENDPOINT_API_KEY": embedding_api_key,
+        # Enrichment provider (OpenRouter with Ministral 8B via LiteLLM)
+        "ENRICHMENT_ENDPOINT_MODEL": "openrouter/mistralai/ministral-8b-2512",
+        "ENRICHMENT_ENDPOINT_API_KEY": enrichment_api_key,
+    })
     if "SMOKE_DB_URL" in env:
         env["DB_URL"] = env["SMOKE_DB_URL"]
 
@@ -73,28 +92,50 @@ def main():
         env=env,
         cwd=str(Path(__file__).parent / "python-source"),
         stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stderr=subprocess.STDOUT,  # Merge stderr into stdout
     )
 
     results = {
         "implementation": "python",
         "repository": TARGET_URI,
+        "task_status": [],
+        "files": [],
         "snippets": [],
-        "search_results": [],
+        "enrichments": [],
+        "keyword_search": [],
+        "code_search": [],
         "errors": [],
     }
+
+    def read_output():
+        """Read any available output from the process."""
+        if process.stdout:
+            import select
+            while select.select([process.stdout], [], [], 0)[0]:
+                line = process.stdout.readline()
+                if line:
+                    print(f"[PY SERVER] {line.decode().rstrip()}")
+                else:
+                    break
 
     try:
         with httpx.Client(timeout=30.0) as client:
             print("Waiting for Python server to start...")
-            if not wait_for_condition(lambda: not port_available(BASE_HOST, BASE_PORT), timeout=60):
+            start = time.time()
+            while time.time() - start < 60:
+                read_output()
+                if not port_available(BASE_HOST, BASE_PORT):
+                    break
+                time.sleep(1)
+            else:
                 results["errors"].append("Server failed to start")
+                read_output()
                 return results
 
             client.get(f"{BASE_URL}/healthz").raise_for_status()
             print("Python server health check passed")
 
-            # Create repository
+            # Create repository (Python uses JSON:API format)
             payload = {
                 "data": {"type": "repository", "attributes": {"remote_uri": TARGET_URI}}
             }
@@ -111,13 +152,22 @@ def main():
             print("Waiting for indexing to complete...")
 
             def indexing_finished():
+                read_output()
                 response = client.get(f"{BASE_URL}/api/v1/repositories/{repo_id}/status")
                 status = response.json()
                 terminal = {"completed", "skipped", "failed"}
                 tasks = status.get("data", [])
                 if len(tasks) < 5:
+                    pending = sum(1 for t in tasks if t["attributes"]["state"] == "pending")
+                    running = sum(1 for t in tasks if t["attributes"]["state"] in ("running", "started", "in_progress"))
+                    print(f"  ... tasks={len(tasks)}, pending={pending}, running={running}")
                     return False
-                return all(t["attributes"]["state"] in terminal for t in tasks)
+                all_done = all(t["attributes"]["state"] in terminal for t in tasks)
+                if not all_done:
+                    pending = sum(1 for t in tasks if t["attributes"]["state"] == "pending")
+                    running = sum(1 for t in tasks if t["attributes"]["state"] in ("running", "started", "in_progress"))
+                    print(f"  ... tasks={len(tasks)}, pending={pending}, running={running}")
+                return all_done
 
             if not wait_for_condition(indexing_finished, timeout=600):
                 results["errors"].append("Indexing timed out")
@@ -128,12 +178,14 @@ def main():
             # Show final task status
             resp = client.get(f"{BASE_URL}/api/v1/repositories/{repo_id}/status")
             task_status = resp.json()
-            print("\nTask Status:")
+            print("\n=== TASK STATUS ===")
             for task in task_status.get("data", []):
                 step = task["attributes"].get("step", "unknown")
                 state = task["attributes"].get("state", "unknown")
                 error = task["attributes"].get("error", "")
-                print(f"  {step}: {state}" + (f" (error: {error})" if error else ""))
+                line = f"  {step}: {state}" + (f" (error: {error})" if error else "")
+                print(line)
+                results["task_status"].append({"step": step, "state": state, "error": error})
 
             # Get commits
             resp = client.get(f"{BASE_URL}/api/v1/repositories/{repo_id}/commits")
@@ -144,40 +196,61 @@ def main():
 
             commit_sha = commits["data"][0]["attributes"]["commit_sha"]
             commit_url = f"{BASE_URL}/api/v1/repositories/{repo_id}/commits/{commit_sha}"
-            print(f"Commit SHA: {commit_sha}")
+            print(f"\nCommit SHA: {commit_sha}")
 
             # Get files
             resp = client.get(f"{commit_url}/files")
             files = resp.json()
-            print(f"Files count: {len(files['data'])}")
-            for f in files["data"]:
-                print(f"  - {f['attributes']['path']} ({f['attributes']['size']} bytes)")
+            print(f"\n=== FILES ({len(files['data'])}) ===")
+            for f in sorted(files["data"], key=lambda x: x["attributes"]["path"]):
+                path = f["attributes"]["path"]
+                size = f["attributes"]["size"]
+                print(f"  {path} ({size} bytes)")
+                results["files"].append({"path": path, "size": size})
 
-            # Get snippets - Python returns a redirect
+            # Get snippets (Python redirects to enrichments endpoint)
             resp = client.get(f"{commit_url}/snippets", follow_redirects=True)
             if resp.status_code == 200:
                 snippets = resp.json()
-                results["snippets"] = snippets.get("data", [])
-                print(f"Snippets count: {len(results['snippets'])}")
-                for i, s in enumerate(results["snippets"][:5]):  # Show first 5
-                    content = s.get("attributes", {}).get("content", {})
-                    lang = content.get("language", "unknown")
-                    value = content.get("value", "")[:100]
-                    print(f"  Snippet {i}: lang={lang}, preview={value!r}...")
+                snippet_list = snippets.get("data", [])
+                # Python returns enrichments (type=development, subtype=snippet)
+                # Content is a plain string, not {value, language}
+                print(f"\n=== SNIPPETS ({len(snippet_list)}) ===")
+                for i, s in enumerate(snippet_list):
+                    attrs = s.get("attributes", {})
+                    content = attrs.get("content", "")
+                    # Python enrichment content is a string
+                    if isinstance(content, dict):
+                        value = content.get("value", "")
+                        lang = content.get("language", "unknown")
+                    else:
+                        value = str(content)
+                        lang = "unknown"
+                    lines = value.count("\n") + 1
+                    preview = value[:120].replace("\n", "\\n")
+                    print(f"  [{i}] lang={lang}, lines={lines}")
+                    print(f"      {preview!r}")
+                    results["snippets"].append({
+                        "language": lang,
+                        "lines": lines,
+                        "content": value,
+                    })
             else:
                 results["errors"].append(f"Snippets returned status {resp.status_code}")
 
             # Get enrichments
             resp = client.get(f"{commit_url}/enrichments")
             enrichments = resp.json()
-            print(f"Enrichments count: {len(enrichments.get('data', []))}")
-            for e in enrichments.get("data", [])[:3]:
+            enrichment_list = enrichments.get("data", [])
+            print(f"\n=== ENRICHMENTS ({len(enrichment_list)}) ===")
+            for e in enrichment_list:
                 etype = e.get("attributes", {}).get("type", "unknown")
                 subtype = e.get("attributes", {}).get("subtype", "")
-                print(f"  - {etype}/{subtype}")
+                print(f"  {etype}/{subtype}")
+                results["enrichments"].append({"type": etype, "subtype": subtype})
 
-            # Search - keywords
-            print("\nSearch: keywords=['main', 'func', 'package']")
+            # Keyword search
+            print("\n=== KEYWORD SEARCH: ['main', 'func', 'package'] ===")
             payload = {
                 "data": {
                     "type": "search",
@@ -185,20 +258,25 @@ def main():
                 }
             }
             resp = client.post(f"{BASE_URL}/api/v1/search", json=payload)
-            search_results = resp.json()
-            results["search_results"] = search_results.get("data", [])
-            print(f"Search results count: {len(results['search_results'])}")
-            for i, r in enumerate(results["search_results"]):
+            kw_results = resp.json().get("data", [])
+            print(f"Results: {len(kw_results)}")
+            for i, r in enumerate(kw_results):
                 content = r.get("attributes", {}).get("content", {})
                 lang = content.get("language", "unknown")
-                value = content.get("value", "")[:80]
+                value = content.get("value", "")
                 derives = r.get("attributes", {}).get("derives_from", [])
                 paths = [d.get("path", "") for d in derives]
-                print(f"  Result {i}: lang={lang}, paths={paths}")
-                print(f"    preview: {value!r}...")
+                preview = value[:120].replace("\n", "\\n")
+                print(f"  [{i}] lang={lang}, paths={paths}")
+                print(f"      {preview!r}")
+                results["keyword_search"].append({
+                    "language": lang,
+                    "paths": paths,
+                    "content": value,
+                })
 
             # Code search
-            print("\nSearch: code='func main() { fmt.Println }'")
+            print("\n=== CODE SEARCH: 'func main() { fmt.Println }' ===")
             payload = {
                 "data": {
                     "type": "search",
@@ -207,11 +285,21 @@ def main():
             }
             resp = client.post(f"{BASE_URL}/api/v1/search", json=payload)
             code_results = resp.json().get("data", [])
-            print(f"Code search results: {len(code_results)}")
+            print(f"Results: {len(code_results)}")
             for i, r in enumerate(code_results):
                 content = r.get("attributes", {}).get("content", {})
-                value = content.get("value", "")[:80]
-                print(f"  Result {i}: {value!r}...")
+                lang = content.get("language", "unknown")
+                value = content.get("value", "")
+                derives = r.get("attributes", {}).get("derives_from", [])
+                paths = [d.get("path", "") for d in derives]
+                preview = value[:120].replace("\n", "\\n")
+                print(f"  [{i}] lang={lang}, paths={paths}")
+                print(f"      {preview!r}")
+                results["code_search"].append({
+                    "language": lang,
+                    "paths": paths,
+                    "content": value,
+                })
 
             # Cleanup
             client.delete(f"{BASE_URL}/api/v1/repositories/{repo_id}").raise_for_status()
