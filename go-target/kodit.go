@@ -34,8 +34,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
-	"path/filepath"
 	"sync"
 	"sync/atomic"
 
@@ -63,6 +61,7 @@ import (
 	"github.com/helixml/kodit/infrastructure/slicing"
 	"github.com/helixml/kodit/infrastructure/slicing/language"
 	"github.com/helixml/kodit/infrastructure/tracking"
+	"github.com/helixml/kodit/internal/config"
 )
 
 // Client is the main entry point for the kodit library.
@@ -134,41 +133,26 @@ func New(opts ...Option) (*Client, error) {
 		opt(cfg)
 	}
 
-	if cfg.storage == storageUnset {
-		return nil, ErrNoStorage
+	if cfg.database == databaseUnset {
+		return nil, ErrNoDatabase
 	}
 
 	// Set up logger
 	logger := cfg.logger
 	if logger == nil {
-		logger = slog.Default()
+		logger = config.DefaultLogger()
 	}
 
 	// Set up data directory
-	dataDir := cfg.dataDir
-	if dataDir == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			dataDir = ".kodit"
-		} else {
-			dataDir = filepath.Join(home, ".kodit")
-		}
-	}
-
-	// Ensure data directory exists
-	if err := os.MkdirAll(dataDir, 0o755); err != nil {
-		return nil, fmt.Errorf("create data directory: %w", err)
+	dataDir, err := config.PrepareDataDir(cfg.dataDir)
+	if err != nil {
+		return nil, err
 	}
 
 	// Set up clone directory
-	cloneDir := cfg.cloneDir
-	if cloneDir == "" {
-		cloneDir = defaultCloneDir(dataDir)
-	}
-
-	// Ensure clone directory exists
-	if err := os.MkdirAll(cloneDir, 0o755); err != nil {
-		return nil, fmt.Errorf("create clone directory: %w", err)
+	cloneDir, err := config.PrepareCloneDir(cfg.cloneDir, dataDir)
+	if err != nil {
+		return nil, err
 	}
 
 	// Build database URL
@@ -207,28 +191,29 @@ func New(opts ...Option) (*Client, error) {
 	var codeVectorStore search.VectorStore
 	var bm25Store search.BM25Store
 
-	gormDB := db.GORM()
-	switch cfg.storage {
-	case storageSQLite:
-		bm25Store = infraSearch.NewSQLiteBM25Store(gormDB, logger)
+	switch cfg.database {
+	case databaseSQLite:
+		bm25Store = infraSearch.NewSQLiteBM25Store(db.GORM(), logger)
 		if cfg.embeddingProvider != nil {
-			textVectorStore = infraSearch.NewSQLiteVectorStore(gormDB, infraSearch.TaskNameText, cfg.embeddingProvider, logger)
-			codeVectorStore = infraSearch.NewSQLiteVectorStore(gormDB, infraSearch.TaskNameCode, cfg.embeddingProvider, logger)
+			textVectorStore = infraSearch.NewSQLiteVectorStore(db.GORM(), infraSearch.TaskNameText, cfg.embeddingProvider, logger)
+			codeVectorStore = infraSearch.NewSQLiteVectorStore(db.GORM(), infraSearch.TaskNameCode, cfg.embeddingProvider, logger)
 		}
-	case storagePostgres:
-		bm25Store = infraSearch.NewPostgresBM25Store(gormDB, logger)
-	case storagePostgresPgvector:
-		bm25Store = infraSearch.NewPostgresBM25Store(gormDB, logger)
+	case databasePostgres:
+		bm25Store = infraSearch.NewPostgresBM25Store(db.GORM(), logger)
+	case databasePostgresPgvector:
+		bm25Store = infraSearch.NewPostgresBM25Store(db.GORM(), logger)
 		if cfg.embeddingProvider != nil {
-			textVectorStore = infraSearch.NewPgvectorStore(gormDB, infraSearch.TaskNameText, cfg.embeddingProvider, logger)
-			codeVectorStore = infraSearch.NewPgvectorStore(gormDB, infraSearch.TaskNameCode, cfg.embeddingProvider, logger)
+			textVectorStore = infraSearch.NewPgvectorStore(db.GORM(), infraSearch.TaskNameText, cfg.embeddingProvider, logger)
+			codeVectorStore = infraSearch.NewPgvectorStore(db.GORM(), infraSearch.TaskNameCode, cfg.embeddingProvider, logger)
 		}
-	case storagePostgresVectorchord:
-		bm25Store = infraSearch.NewVectorChordBM25Store(gormDB, logger)
+	case databasePostgresVectorchord:
+		bm25Store = infraSearch.NewVectorChordBM25Store(db.GORM(), logger)
 		if cfg.embeddingProvider != nil {
-			textVectorStore = infraSearch.NewVectorChordVectorStore(gormDB, infraSearch.TaskNameText, cfg.embeddingProvider, logger)
-			codeVectorStore = infraSearch.NewVectorChordVectorStore(gormDB, infraSearch.TaskNameCode, cfg.embeddingProvider, logger)
+			textVectorStore = infraSearch.NewVectorChordVectorStore(db.GORM(), infraSearch.TaskNameText, cfg.embeddingProvider, logger)
+			codeVectorStore = infraSearch.NewVectorChordVectorStore(db.GORM(), infraSearch.TaskNameCode, cfg.embeddingProvider, logger)
 		}
+	default:
+		return nil, errors.New("unsupported database type")
 	}
 
 	// Create application services
@@ -242,17 +227,10 @@ func New(opts ...Option) (*Client, error) {
 	trackingQSvc := service.NewTrackingQuery(statusStore, taskStore)
 
 	// Create BM25 service for keyword search (always available)
-	var bm25Svc *domainservice.BM25
-	if bm25Store != nil {
-		bm25Svc = domainservice.NewBM25(bm25Store)
-	}
+	bm25Svc := domainservice.NewBM25(bm25Store)
 
 	// Create code search service if vector stores are available
-	var codeSearchSvc *service.CodeSearch
-	if textVectorStore != nil || codeVectorStore != nil {
-		cs := service.NewCodeSearch(textVectorStore, codeVectorStore, snippetStore, enrichmentStore, logger)
-		codeSearchSvc = &cs
-	}
+	codeSearchSvc := service.NewCodeSearch(textVectorStore, codeVectorStore, snippetStore, enrichmentStore, logger)
 
 	// Create git infrastructure
 	gitAdapter := git.NewGoGitAdapter(logger)
@@ -265,23 +243,13 @@ func New(opts ...Option) (*Client, error) {
 	slicer := slicing.NewSlicer(langConfig, analyzerFactory)
 
 	// Create tracker factory for progress reporting
-	dbReporter := tracking.NewDBReporter(statusStore, logger)
-	trackerFactory := &trackerFactoryImpl{
-		dbReporter: dbReporter,
-		logger:     logger,
+	reporters := []tracking.Reporter{
+		tracking.NewDBReporter(statusStore, logger),
+		tracking.NewLoggingReporter(logger),
 	}
-
-	// Validate required providers (unless skipped for testing)
-	if !cfg.skipProviderValidation {
-		if cfg.embeddingProvider == nil {
-			return nil, fmt.Errorf("embedding provider is required: set EMBEDDING_ENDPOINT_BASE_URL and EMBEDDING_ENDPOINT_API_KEY environment variables")
-		}
-		if cfg.textProvider == nil {
-			return nil, fmt.Errorf("text provider is required: set ENRICHMENT_ENDPOINT_BASE_URL and ENRICHMENT_ENDPOINT_API_KEY environment variables")
-		}
-		if codeVectorStore == nil {
-			return nil, fmt.Errorf("vector store is required: use PostgreSQL with pgvector or VectorChord extension (DB_URL=postgres://... with pgvector or vectorchord storage type)")
-		}
+	trackerFactory := &trackerFactoryImpl{
+		reporters: reporters,
+		logger:    logger,
 	}
 
 	// Create enricher infrastructure (only if text provider is configured)
@@ -392,82 +360,72 @@ func (c *Client) registerHandlers() {
 		c.repositoryStore, c.snippetStore, c.fileStore, c.slicer, c.trackerFactory, c.logger,
 	))
 
-	// BM25 index handler (always registered if BM25 store available)
-	if c.bm25Service != nil {
-		c.registry.Register(task.OperationCreateBM25IndexForCommit, indexinghandler.NewCreateBM25Index(
-			c.bm25Service, c.snippetStore, c.trackerFactory, c.logger,
-		))
-	}
+	// BM25 index handler
+	c.registry.Register(task.OperationCreateBM25IndexForCommit, indexinghandler.NewCreateBM25Index(
+		c.bm25Service, c.snippetStore, c.trackerFactory, c.logger,
+	))
 
-	// Code embeddings handlers (require code vector store)
-	if c.codeVectorStore != nil {
-		codeEmbeddingService := domainservice.NewEmbedding(c.codeVectorStore)
+	// Code embeddings for snippets
+	codeEmbeddingService := domainservice.NewEmbedding(c.codeVectorStore)
+	c.registry.Register(task.OperationCreateCodeEmbeddingsForCommit, indexinghandler.NewCreateCodeEmbeddings(
+		codeEmbeddingService, c.snippetStore, c.codeVectorStore, c.trackerFactory, c.logger,
+	))
 
-		// Code embeddings for snippets
-		c.registry.Register(task.OperationCreateCodeEmbeddingsForCommit, indexinghandler.NewCreateCodeEmbeddings(
-			codeEmbeddingService, c.snippetStore, c.codeVectorStore, c.trackerFactory, c.logger,
-		))
-
-		// Example code embeddings (enrichment content from extracted examples)
-		c.registry.Register(task.OperationCreateExampleCodeEmbeddingsForCommit, indexinghandler.NewCreateExampleCodeEmbeddings(
-			codeEmbeddingService, c.enrichQ, c.codeVectorStore, c.trackerFactory, c.logger,
-		))
-	}
+	// Example code embeddings (enrichment content from extracted examples)
+	c.registry.Register(task.OperationCreateExampleCodeEmbeddingsForCommit, indexinghandler.NewCreateExampleCodeEmbeddings(
+		codeEmbeddingService, c.enrichQ, c.codeVectorStore, c.trackerFactory, c.logger,
+	))
 
 	// Text embeddings handlers (require text vector store)
-	if c.textVectorStore != nil {
-		textEmbeddingService := domainservice.NewEmbedding(c.textVectorStore)
+	textEmbeddingService := domainservice.NewEmbedding(c.textVectorStore)
 
-		// Summary embeddings (enrichment content from snippet summaries)
-		c.registry.Register(task.OperationCreateSummaryEmbeddingsForCommit, indexinghandler.NewCreateSummaryEmbeddings(
-			textEmbeddingService, c.enrichQ, c.associationStore, c.textVectorStore, c.trackerFactory, c.logger,
-		))
+	// Summary embeddings (enrichment content from snippet summaries)
+	c.registry.Register(task.OperationCreateSummaryEmbeddingsForCommit, indexinghandler.NewCreateSummaryEmbeddings(
+		textEmbeddingService, c.enrichQ, c.associationStore, c.textVectorStore, c.trackerFactory, c.logger,
+	))
 
-		// Example summary embeddings (enrichment content from example summaries)
-		c.registry.Register(task.OperationCreateExampleSummaryEmbeddingsForCommit, indexinghandler.NewCreateExampleSummaryEmbeddings(
-			textEmbeddingService, c.enrichQ, c.textVectorStore, c.trackerFactory, c.logger,
-		))
-	}
+	// Example summary embeddings (enrichment content from example summaries)
+	c.registry.Register(task.OperationCreateExampleSummaryEmbeddingsForCommit, indexinghandler.NewCreateExampleSummaryEmbeddings(
+		textEmbeddingService, c.enrichQ, c.textVectorStore, c.trackerFactory, c.logger,
+	))
 
-	// Enrichment handlers (require text provider)
-	if c.enricherImpl != nil {
-		// Summary enrichment
-		c.registry.Register(task.OperationCreateSummaryEnrichmentForCommit, enrichmenthandler.NewCreateSummary(
-			c.snippetStore, c.enrichmentStore, c.associationStore, c.enrichQ, c.enricherImpl, c.trackerFactory, c.logger,
-		))
+	// Enrichment handlers
+	// Summary enrichment
+	c.registry.Register(task.OperationCreateSummaryEnrichmentForCommit, enrichmenthandler.NewCreateSummary(
+		c.snippetStore, c.enrichmentStore, c.associationStore, c.enrichQ, c.enricherImpl, c.trackerFactory, c.logger,
+	))
 
-		// Commit description
-		c.registry.Register(task.OperationCreateCommitDescriptionForCommit, enrichmenthandler.NewCommitDescription(
-			c.repositoryStore, c.enrichmentStore, c.associationStore, c.enrichQ, c.gitAdapter, c.enricherImpl, c.trackerFactory, c.logger,
-		))
+	// Commit description
+	c.registry.Register(task.OperationCreateCommitDescriptionForCommit, enrichmenthandler.NewCommitDescription(
+		c.repositoryStore, c.enrichmentStore, c.associationStore, c.enrichQ, c.gitAdapter, c.enricherImpl, c.trackerFactory, c.logger,
+	))
 
-		// Architecture discovery
-		c.registry.Register(task.OperationCreateArchitectureEnrichmentForCommit, enrichmenthandler.NewArchitectureDiscovery(
-			c.repositoryStore, c.enrichmentStore, c.associationStore, c.enrichQ, c.archDiscoverer, c.enricherImpl, c.trackerFactory, c.logger,
-		))
+	// Architecture discovery
+	c.registry.Register(task.OperationCreateArchitectureEnrichmentForCommit, enrichmenthandler.NewArchitectureDiscovery(
+		c.repositoryStore, c.enrichmentStore, c.associationStore, c.enrichQ, c.archDiscoverer, c.enricherImpl, c.trackerFactory, c.logger,
+	))
 
-		// Example summary
-		c.registry.Register(task.OperationCreateExampleSummaryForCommit, enrichmenthandler.NewExampleSummary(
-			c.enrichmentStore, c.associationStore, c.enrichQ, c.enricherImpl, c.trackerFactory, c.logger,
-		))
+	// Example summary
+	c.registry.Register(task.OperationCreateExampleSummaryForCommit, enrichmenthandler.NewExampleSummary(
+		c.enrichmentStore, c.associationStore, c.enrichQ, c.enricherImpl, c.trackerFactory, c.logger,
+	))
 
-		// Database schema enrichment
-		c.registry.Register(task.OperationCreateDatabaseSchemaForCommit, enrichmenthandler.NewDatabaseSchema(
-			c.repositoryStore, c.enrichmentStore, c.associationStore, c.enrichQ, c.schemaDiscoverer, c.enricherImpl, c.trackerFactory, c.logger,
-		))
+	// Database schema enrichment
+	c.registry.Register(task.OperationCreateDatabaseSchemaForCommit, enrichmenthandler.NewDatabaseSchema(
+		c.repositoryStore, c.enrichmentStore, c.associationStore, c.enrichQ, c.schemaDiscoverer, c.enricherImpl, c.trackerFactory, c.logger,
+	))
 
-		// Cookbook enrichment
-		c.registry.Register(task.OperationCreateCookbookForCommit, enrichmenthandler.NewCookbook(
-			c.repositoryStore, c.fileStore, c.enrichmentStore, c.associationStore, c.enrichQ, c.cookbookContext, c.enricherImpl, c.trackerFactory, c.logger,
-		))
+	// Cookbook enrichment
+	c.registry.Register(task.OperationCreateCookbookForCommit, enrichmenthandler.NewCookbook(
+		c.repositoryStore, c.fileStore, c.enrichmentStore, c.associationStore, c.enrichQ, c.cookbookContext, c.enricherImpl, c.trackerFactory, c.logger,
+	))
 
-		// API docs enrichment
-		c.registry.Register(task.OperationCreatePublicAPIDocsForCommit, enrichmenthandler.NewAPIDocs(
-			c.repositoryStore, c.fileStore, c.enrichmentStore, c.associationStore, c.enrichQ, c.apiDocService, c.trackerFactory, c.logger,
-		))
-	}
+	// API docs enrichment
+	c.registry.Register(task.OperationCreatePublicAPIDocsForCommit, enrichmenthandler.NewAPIDocs(
+		c.repositoryStore, c.fileStore, c.enrichmentStore, c.associationStore, c.enrichQ, c.apiDocService, c.trackerFactory, c.logger,
+	))
 
-	// Example extraction handler (doesn't require LLM, always registered)
+	// Example extraction handler
 	c.registry.Register(task.OperationExtractExamplesForCommit, enrichmenthandler.NewExtractExamples(
 		c.repositoryStore, c.commitStore, c.gitAdapter, c.enrichmentStore, c.associationStore, c.enrichQ, c.exampleDiscoverer, c.trackerFactory, c.logger,
 	))
@@ -856,27 +814,27 @@ func (a *apiServerImpl) Shutdown(ctx context.Context) error {
 
 // buildDatabaseURL constructs the database URL from configuration.
 func buildDatabaseURL(cfg *clientConfig) (string, error) {
-	switch cfg.storage {
-	case storageSQLite:
+	switch cfg.database {
+	case databaseSQLite:
 		return "sqlite:///" + cfg.dbPath, nil
-	case storagePostgres, storagePostgresPgvector, storagePostgresVectorchord:
+	case databasePostgres, databasePostgresPgvector, databasePostgresVectorchord:
 		return cfg.dbDSN, nil
 	default:
-		return "", ErrNoStorage
+		return "", ErrNoDatabase
 	}
 }
 
 // trackerFactoryImpl implements handler.TrackerFactory for progress reporting.
 type trackerFactoryImpl struct {
-	dbReporter *tracking.DBReporter
-	logger     *slog.Logger
+	reporters []tracking.Reporter
+	logger    *slog.Logger
 }
 
 // ForOperation creates a Tracker for the given operation.
 func (f *trackerFactoryImpl) ForOperation(operation task.Operation, trackableType task.TrackableType, trackableID int64) handler.Tracker {
 	tracker := tracking.TrackerForOperation(operation, f.logger, trackableType, trackableID)
-	if f.dbReporter != nil {
-		tracker.Subscribe(f.dbReporter)
+	for _, reporter := range f.reporters {
+		tracker.Subscribe(reporter)
 	}
 	return tracker
 }

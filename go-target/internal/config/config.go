@@ -442,8 +442,8 @@ type AppConfig struct {
 	searchLimit            int
 }
 
-// defaultDataDir returns the default data directory.
-func defaultDataDir() string {
+// DefaultDataDir returns the default data directory.
+func DefaultDataDir() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return ".kodit"
@@ -451,9 +451,38 @@ func defaultDataDir() string {
 	return filepath.Join(home, ".kodit")
 }
 
+// DefaultCloneDir returns the default clone directory for a given data directory.
+func DefaultCloneDir(dataDir string) string {
+	return filepath.Join(dataDir, DefaultCloneSubdir)
+}
+
+// DefaultLogger returns the default slog logger for library consumers.
+func DefaultLogger() *slog.Logger {
+	return slog.Default()
+}
+
+// PrepareDataDir creates the data directory if it does not exist and returns it.
+func PrepareDataDir(dataDir string) (string, error) {
+	if err := os.MkdirAll(dataDir, 0o755); err != nil {
+		return "", fmt.Errorf("create data directory: %w", err)
+	}
+	return dataDir, nil
+}
+
+// PrepareCloneDir resolves the clone directory (defaulting if empty) and creates it.
+func PrepareCloneDir(cloneDir, dataDir string) (string, error) {
+	if cloneDir == "" {
+		cloneDir = DefaultCloneDir(dataDir)
+	}
+	if err := os.MkdirAll(cloneDir, 0o755); err != nil {
+		return "", fmt.Errorf("create clone directory: %w", err)
+	}
+	return cloneDir, nil
+}
+
 // NewAppConfig creates a new AppConfig with defaults.
 func NewAppConfig() AppConfig {
-	dataDir := defaultDataDir()
+	dataDir := DefaultDataDir()
 	return AppConfig{
 		host:             DefaultHost,
 		port:             DefaultPort,

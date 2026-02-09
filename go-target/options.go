@@ -2,28 +2,27 @@ package kodit
 
 import (
 	"log/slog"
-	"path/filepath"
 	"time"
 
 	"github.com/helixml/kodit/infrastructure/provider"
 	"github.com/helixml/kodit/internal/config"
 )
 
-// storageType identifies the storage backend.
-type storageType int
+// databaseType identifies the database.
+type databaseType int
 
 const (
-	storageUnset storageType = iota
-	storageSQLite
-	storagePostgres
-	storagePostgresPgvector
-	storagePostgresVectorchord
+	databaseUnset databaseType = iota
+	databaseSQLite
+	databasePostgres
+	databasePostgresPgvector
+	databasePostgresVectorchord
 )
 
 // clientConfig holds configuration for Client construction.
 // Use newClientConfig() to create with defaults from internal/config.
 type clientConfig struct {
-	storage                storageType
+	database               databaseType
 	dbPath                 string
 	dbDSN                  string
 	dataDir                string
@@ -40,32 +39,28 @@ type clientConfig struct {
 // This ensures all defaults come from the single source of truth.
 func newClientConfig() *clientConfig {
 	return &clientConfig{
+		dataDir:     config.DefaultDataDir(),
 		workerCount: config.DefaultWorkerCount,
 	}
-}
-
-// defaultCloneDir returns the default clone directory for a given data directory.
-func defaultCloneDir(dataDir string) string {
-	return filepath.Join(dataDir, config.DefaultCloneSubdir)
 }
 
 // Option configures the Client.
 type Option func(*clientConfig)
 
-// WithSQLite configures SQLite as the storage backend.
+// WithSQLite configures SQLite as the database.
 // BM25 uses FTS5, vector search uses the configured embedding provider.
 func WithSQLite(path string) Option {
 	return func(c *clientConfig) {
-		c.storage = storageSQLite
+		c.database = databaseSQLite
 		c.dbPath = path
 	}
 }
 
-// WithPostgres configures PostgreSQL as the storage backend.
+// WithPostgres configures PostgreSQL as the database.
 // Uses native PostgreSQL full-text search for BM25.
 func WithPostgres(dsn string) Option {
 	return func(c *clientConfig) {
-		c.storage = storagePostgres
+		c.database = databasePostgres
 		c.dbDSN = dsn
 	}
 }
@@ -73,7 +68,7 @@ func WithPostgres(dsn string) Option {
 // WithPostgresPgvector configures PostgreSQL with pgvector extension.
 func WithPostgresPgvector(dsn string) Option {
 	return func(c *clientConfig) {
-		c.storage = storagePostgresPgvector
+		c.database = databasePostgresPgvector
 		c.dbDSN = dsn
 	}
 }
@@ -82,7 +77,7 @@ func WithPostgresPgvector(dsn string) Option {
 // VectorChord provides both BM25 and vector search.
 func WithPostgresVectorchord(dsn string) Option {
 	return func(c *clientConfig) {
-		c.storage = storagePostgresVectorchord
+		c.database = databasePostgresVectorchord
 		c.dbDSN = dsn
 	}
 }

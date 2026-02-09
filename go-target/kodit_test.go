@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNew_RequiresStorage(t *testing.T) {
+func TestNew_RequiresDatabase(t *testing.T) {
 	_, err := kodit.New()
-	assert.ErrorIs(t, err, kodit.ErrNoStorage)
+	assert.ErrorIs(t, err, kodit.ErrNoDatabase)
 }
 
 func TestNew_WithSQLite(t *testing.T) {

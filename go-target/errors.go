@@ -16,8 +16,8 @@ var (
 	// ErrConflict indicates a conflict with existing data.
 	ErrConflict = errors.New("kodit: conflict")
 
-	// ErrNoStorage indicates no storage backend was configured.
-	ErrNoStorage = errors.New("kodit: no storage backend configured")
+	// ErrNoDatabase indicates no database was configured.
+	ErrNoDatabase = errors.New("kodit: no database configured")
 
 	// ErrNoProvider indicates no AI provider was configured.
 	ErrNoProvider = errors.New("kodit: no AI provider configured")

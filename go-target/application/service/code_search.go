@@ -83,11 +83,11 @@ func NewCodeSearch(
 	snippetStore snippet.SnippetStore,
 	enrichmentStore enrichment.EnrichmentStore,
 	logger *slog.Logger,
-) CodeSearch {
+) *CodeSearch {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return CodeSearch{
+	return &CodeSearch{
 		textVectorStore: textVectorStore,
 		codeVectorStore: codeVectorStore,
 		snippetStore:    snippetStore,
