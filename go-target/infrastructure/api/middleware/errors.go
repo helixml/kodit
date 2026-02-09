@@ -1,5 +1,4 @@
-// Package api provides the REST API layer for the Kodit service.
-package api
+package middleware
 
 import (
 	"errors"

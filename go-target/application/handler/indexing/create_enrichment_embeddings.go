@@ -9,35 +9,31 @@ import (
 	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/search"
-	domainservice "github.com/helixml/kodit/domain/service"
 	"github.com/helixml/kodit/domain/snippet"
 	"github.com/helixml/kodit/domain/task"
 )
 
 // CreateSummaryEmbeddings creates vector embeddings for snippet summary enrichments.
 type CreateSummaryEmbeddings struct {
-	embeddingService domainservice.Embedding
+	textIndex        handler.VectorIndex
 	queryService     *service.EnrichmentQuery
 	associationStore enrichment.AssociationStore
-	vectorStore      search.VectorStore
 	trackerFactory   handler.TrackerFactory
 	logger           *slog.Logger
 }
 
 // NewCreateSummaryEmbeddings creates a new CreateSummaryEmbeddings handler.
 func NewCreateSummaryEmbeddings(
-	embeddingService domainservice.Embedding,
+	textIndex handler.VectorIndex,
 	queryService *service.EnrichmentQuery,
 	associationStore enrichment.AssociationStore,
-	vectorStore search.VectorStore,
 	trackerFactory handler.TrackerFactory,
 	logger *slog.Logger,
 ) *CreateSummaryEmbeddings {
 	return &CreateSummaryEmbeddings{
-		embeddingService: embeddingService,
+		textIndex:        textIndex,
 		queryService:     queryService,
 		associationStore: associationStore,
-		vectorStore:      vectorStore,
 		trackerFactory:   trackerFactory,
 		logger:           logger,
 	}
@@ -123,7 +119,7 @@ func (h *CreateSummaryEmbeddings) Execute(ctx context.Context, payload map[strin
 	}
 
 	request := search.NewIndexRequest(documents)
-	if err := h.embeddingService.Index(ctx, request); err != nil {
+	if err := h.textIndex.Embedding.Index(ctx, request); err != nil {
 		h.logger.Error("failed to create summary embeddings", slog.String("error", err.Error()))
 		if failErr := tracker.Fail(ctx, err.Error()); failErr != nil {
 			h.logger.Warn("failed to mark tracker as failed", slog.String("error", failErr.Error()))
@@ -161,7 +157,7 @@ func (h *CreateSummaryEmbeddings) filterNewEnrichments(ctx context.Context, enri
 			continue
 		}
 
-		hasEmbedding, err := h.vectorStore.HasEmbedding(ctx, snippetSHA, snippet.EmbeddingTypeSummary)
+		hasEmbedding, err := h.textIndex.Store.HasEmbedding(ctx, snippetSHA, snippet.EmbeddingTypeSummary)
 		if err != nil {
 			return nil, err
 		}
@@ -195,27 +191,24 @@ var _ handler.Handler = (*CreateSummaryEmbeddings)(nil)
 
 // CreateExampleCodeEmbeddings creates vector embeddings for extracted example code.
 type CreateExampleCodeEmbeddings struct {
-	embeddingService domainservice.Embedding
-	queryService     *service.EnrichmentQuery
-	vectorStore      search.VectorStore
-	trackerFactory   handler.TrackerFactory
-	logger           *slog.Logger
+	codeIndex      handler.VectorIndex
+	queryService   *service.EnrichmentQuery
+	trackerFactory handler.TrackerFactory
+	logger         *slog.Logger
 }
 
 // NewCreateExampleCodeEmbeddings creates a new CreateExampleCodeEmbeddings handler.
 func NewCreateExampleCodeEmbeddings(
-	embeddingService domainservice.Embedding,
+	codeIndex handler.VectorIndex,
 	queryService *service.EnrichmentQuery,
-	vectorStore search.VectorStore,
 	trackerFactory handler.TrackerFactory,
 	logger *slog.Logger,
 ) *CreateExampleCodeEmbeddings {
 	return &CreateExampleCodeEmbeddings{
-		embeddingService: embeddingService,
-		queryService:     queryService,
-		vectorStore:      vectorStore,
-		trackerFactory:   trackerFactory,
-		logger:           logger,
+		codeIndex:      codeIndex,
+		queryService:   queryService,
+		trackerFactory: trackerFactory,
+		logger:         logger,
 	}
 }
 
@@ -284,7 +277,7 @@ func (h *CreateExampleCodeEmbeddings) Execute(ctx context.Context, payload map[s
 	}
 
 	request := search.NewIndexRequest(documents)
-	if err := h.embeddingService.Index(ctx, request); err != nil {
+	if err := h.codeIndex.Embedding.Index(ctx, request); err != nil {
 		h.logger.Error("failed to create example code embeddings", slog.String("error", err.Error()))
 		if failErr := tracker.Fail(ctx, err.Error()); failErr != nil {
 			h.logger.Warn("failed to mark tracker as failed", slog.String("error", failErr.Error()))
@@ -312,7 +305,7 @@ func (h *CreateExampleCodeEmbeddings) filterNewExamples(ctx context.Context, exa
 	result := make([]enrichment.Enrichment, 0, len(examples))
 
 	for _, e := range examples {
-		hasEmbedding, err := h.vectorStore.HasEmbedding(ctx, enrichmentDocID(e.ID()), snippet.EmbeddingTypeCode)
+		hasEmbedding, err := h.codeIndex.Store.HasEmbedding(ctx, enrichmentDocID(e.ID()), snippet.EmbeddingTypeCode)
 		if err != nil {
 			return nil, err
 		}
@@ -330,27 +323,24 @@ var _ handler.Handler = (*CreateExampleCodeEmbeddings)(nil)
 
 // CreateExampleSummaryEmbeddings creates vector embeddings for example summary enrichments.
 type CreateExampleSummaryEmbeddings struct {
-	embeddingService domainservice.Embedding
-	queryService     *service.EnrichmentQuery
-	vectorStore      search.VectorStore
-	trackerFactory   handler.TrackerFactory
-	logger           *slog.Logger
+	textIndex      handler.VectorIndex
+	queryService   *service.EnrichmentQuery
+	trackerFactory handler.TrackerFactory
+	logger         *slog.Logger
 }
 
 // NewCreateExampleSummaryEmbeddings creates a new CreateExampleSummaryEmbeddings handler.
 func NewCreateExampleSummaryEmbeddings(
-	embeddingService domainservice.Embedding,
+	textIndex handler.VectorIndex,
 	queryService *service.EnrichmentQuery,
-	vectorStore search.VectorStore,
 	trackerFactory handler.TrackerFactory,
 	logger *slog.Logger,
 ) *CreateExampleSummaryEmbeddings {
 	return &CreateExampleSummaryEmbeddings{
-		embeddingService: embeddingService,
-		queryService:     queryService,
-		vectorStore:      vectorStore,
-		trackerFactory:   trackerFactory,
-		logger:           logger,
+		textIndex:      textIndex,
+		queryService:   queryService,
+		trackerFactory: trackerFactory,
+		logger:         logger,
 	}
 }
 
@@ -421,7 +411,7 @@ func (h *CreateExampleSummaryEmbeddings) Execute(ctx context.Context, payload ma
 	}
 
 	request := search.NewIndexRequest(documents)
-	if err := h.embeddingService.Index(ctx, request); err != nil {
+	if err := h.textIndex.Embedding.Index(ctx, request); err != nil {
 		h.logger.Error("failed to create example summary embeddings", slog.String("error", err.Error()))
 		if failErr := tracker.Fail(ctx, err.Error()); failErr != nil {
 			h.logger.Warn("failed to mark tracker as failed", slog.String("error", failErr.Error()))
@@ -449,7 +439,7 @@ func (h *CreateExampleSummaryEmbeddings) filterNewEnrichments(ctx context.Contex
 	result := make([]enrichment.Enrichment, 0, len(enrichments))
 
 	for _, e := range enrichments {
-		hasEmbedding, err := h.vectorStore.HasEmbedding(ctx, enrichmentDocID(e.ID()), snippet.EmbeddingTypeSummary)
+		hasEmbedding, err := h.textIndex.Store.HasEmbedding(ctx, enrichmentDocID(e.ID()), snippet.EmbeddingTypeSummary)
 		if err != nil {
 			return nil, err
 		}
@@ -489,4 +479,3 @@ func IsEnrichmentDocID(docID string) bool {
 	}
 	return docID[:11] == "enrichment:"
 }
-

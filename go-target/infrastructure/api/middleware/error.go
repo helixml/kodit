@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/helixml/kodit/infrastructure/api"
 	"github.com/helixml/kodit/infrastructure/persistence"
 )
 
@@ -46,9 +45,9 @@ func WriteError(w http.ResponseWriter, r *http.Request, err error, logger *slog.
 	detail := err.Error()
 
 	// Determine status code based on error type
-	var apiErr *api.APIError
-	var serverErr *api.ServerError
-	var authErr *api.AuthenticationError
+	var apiErr *APIError
+	var serverErr *ServerError
+	var authErr *AuthenticationError
 
 	switch {
 	case errors.As(err, &apiErr):
@@ -66,10 +65,10 @@ func WriteError(w http.ResponseWriter, r *http.Request, err error, logger *slog.
 	case errors.Is(err, persistence.ErrNotFound):
 		status = http.StatusNotFound
 		title = "Not Found"
-	case errors.Is(err, api.ErrValidation):
+	case errors.Is(err, ErrValidation):
 		status = http.StatusBadRequest
 		title = "Validation Error"
-	case errors.Is(err, api.ErrConflict):
+	case errors.Is(err, ErrConflict):
 		status = http.StatusConflict
 		title = "Conflict"
 	}

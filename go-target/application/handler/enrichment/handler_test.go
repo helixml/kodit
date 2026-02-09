@@ -22,11 +22,11 @@ import (
 
 type fakeTracker struct{}
 
-func (f *fakeTracker) SetTotal(_ context.Context, _ int) error          { return nil }
-func (f *fakeTracker) SetCurrent(_ context.Context, _ int, _ string) error { return nil }
-func (f *fakeTracker) Skip(_ context.Context, _ string) error           { return nil }
-func (f *fakeTracker) Fail(_ context.Context, _ string) error           { return nil }
-func (f *fakeTracker) Complete(_ context.Context) error                 { return nil }
+func (f *fakeTracker) SetTotal(_ context.Context, _ int) error              { return nil }
+func (f *fakeTracker) SetCurrent(_ context.Context, _ int, _ string) error  { return nil }
+func (f *fakeTracker) Skip(_ context.Context, _ string) error               { return nil }
+func (f *fakeTracker) Fail(_ context.Context, _ string) error               { return nil }
+func (f *fakeTracker) Complete(_ context.Context) error                     { return nil }
 
 type fakeTrackerFactory struct{}
 
@@ -362,6 +362,22 @@ func (f *fakeRepoStore) ExistsByRemoteURL(_ context.Context, _ string) (bool, er
 	return false, nil
 }
 
+func newFakeEnrichmentContext(
+	enrichmentStore *fakeEnrichmentStore,
+	associationStore *fakeAssociationStore,
+	enricher domainservice.Enricher,
+	logger *slog.Logger,
+) handler.EnrichmentContext {
+	return handler.EnrichmentContext{
+		Enrichments:  enrichmentStore,
+		Associations: associationStore,
+		Query:        service.NewEnrichmentQuery(enrichmentStore, associationStore),
+		Enricher:     enricher,
+		Tracker:      &fakeTrackerFactory{},
+		Logger:       logger,
+	}
+}
+
 func TestCommitDescriptionHandler(t *testing.T) {
 	ctx := context.Background()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -369,9 +385,10 @@ func TestCommitDescriptionHandler(t *testing.T) {
 	repoStore := newFakeRepoStore()
 	enrichmentStore := newFakeEnrichmentStore()
 	associationStore := newFakeAssociationStore()
-	queryService := service.NewEnrichmentQuery(enrichmentStore, associationStore)
 	adapter := &fakeGitAdapter{diff: "diff --git a/file.go"}
 	enricher := &fakeEnricher{}
+
+	enrichCtx := newFakeEnrichmentContext(enrichmentStore, associationStore, enricher, logger)
 
 	testRepo := repository.ReconstructRepository(
 		1, "https://github.com/test/repo",
@@ -383,13 +400,8 @@ func TestCommitDescriptionHandler(t *testing.T) {
 
 	h := NewCommitDescription(
 		repoStore,
-		enrichmentStore,
-		associationStore,
-		queryService,
+		enrichCtx,
 		adapter,
-		enricher,
-		&fakeTrackerFactory{},
-		logger,
 	)
 
 	t.Run("creates commit description", func(t *testing.T) {
@@ -432,8 +444,9 @@ func TestCreateSummaryHandler(t *testing.T) {
 	snippetStore := newFakeSnippetStore()
 	enrichmentStore := newFakeEnrichmentStore()
 	associationStore := newFakeAssociationStore()
-	queryService := service.NewEnrichmentQuery(enrichmentStore, associationStore)
 	enricher := &fakeEnricher{}
+
+	enrichCtx := newFakeEnrichmentContext(enrichmentStore, associationStore, enricher, logger)
 
 	snippets := []snippet.Snippet{
 		snippet.NewSnippet("func main() {}", ".go", nil),
@@ -443,12 +456,7 @@ func TestCreateSummaryHandler(t *testing.T) {
 
 	h := NewCreateSummary(
 		snippetStore,
-		enrichmentStore,
-		associationStore,
-		queryService,
-		enricher,
-		&fakeTrackerFactory{},
-		logger,
+		enrichCtx,
 	)
 
 	t.Run("creates summaries for snippets", func(t *testing.T) {
@@ -471,17 +479,13 @@ func TestCreateSummaryHandler(t *testing.T) {
 	t.Run("skips when no snippets", func(t *testing.T) {
 		enrichmentStore2 := newFakeEnrichmentStore()
 		associationStore2 := newFakeAssociationStore()
-		queryService2 := service.NewEnrichmentQuery(enrichmentStore2, associationStore2)
 		snippetStore2 := newFakeSnippetStore()
+
+		enrichCtx2 := newFakeEnrichmentContext(enrichmentStore2, associationStore2, enricher, logger)
 
 		handler2 := NewCreateSummary(
 			snippetStore2,
-			enrichmentStore2,
-			associationStore2,
-			queryService2,
-			enricher,
-			&fakeTrackerFactory{},
-			logger,
+			enrichCtx2,
 		)
 
 		payload := map[string]any{

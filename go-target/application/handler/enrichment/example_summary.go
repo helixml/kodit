@@ -6,7 +6,6 @@ import (
 	"log/slog"
 
 	"github.com/helixml/kodit/application/handler"
-	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/enrichment"
 	domainservice "github.com/helixml/kodit/domain/service"
 	"github.com/helixml/kodit/domain/task"
@@ -19,30 +18,15 @@ Please provide a concise explanation of what this example demonstrates and how i
 
 // ExampleSummary handles the CREATE_EXAMPLE_SUMMARY_FOR_COMMIT operation.
 type ExampleSummary struct {
-	enrichmentStore  enrichment.EnrichmentStore
-	associationStore enrichment.AssociationStore
-	queryService     *service.EnrichmentQuery
-	enricher         domainservice.Enricher
-	trackerFactory   handler.TrackerFactory
-	logger           *slog.Logger
+	enrichCtx handler.EnrichmentContext
 }
 
 // NewExampleSummary creates a new ExampleSummary handler.
 func NewExampleSummary(
-	enrichmentStore enrichment.EnrichmentStore,
-	associationStore enrichment.AssociationStore,
-	queryService *service.EnrichmentQuery,
-	enricher domainservice.Enricher,
-	trackerFactory handler.TrackerFactory,
-	logger *slog.Logger,
+	enrichCtx handler.EnrichmentContext,
 ) *ExampleSummary {
 	return &ExampleSummary{
-		enrichmentStore:  enrichmentStore,
-		associationStore: associationStore,
-		queryService:     queryService,
-		enricher:         enricher,
-		trackerFactory:   trackerFactory,
-		logger:           logger,
+		enrichCtx: enrichCtx,
 	}
 }
 
@@ -58,39 +42,39 @@ func (h *ExampleSummary) Execute(ctx context.Context, payload map[string]any) er
 		return err
 	}
 
-	tracker := h.trackerFactory.ForOperation(
+	tracker := h.enrichCtx.Tracker.ForOperation(
 		task.OperationCreateExampleSummaryForCommit,
 		task.TrackableTypeRepository,
 		repoID,
 	)
 
-	hasSummaries, err := h.queryService.HasExampleSummariesForCommit(ctx, commitSHA)
+	hasSummaries, err := h.enrichCtx.Query.HasExampleSummariesForCommit(ctx, commitSHA)
 	if err != nil {
-		h.logger.Error("failed to check existing example summaries", slog.String("error", err.Error()))
+		h.enrichCtx.Logger.Error("failed to check existing example summaries", slog.String("error", err.Error()))
 		return err
 	}
 
 	if hasSummaries {
 		if skipErr := tracker.Skip(ctx, "Example summaries already exist for commit"); skipErr != nil {
-			h.logger.Warn("failed to mark tracker as skipped", slog.String("error", skipErr.Error()))
+			h.enrichCtx.Logger.Warn("failed to mark tracker as skipped", slog.String("error", skipErr.Error()))
 		}
 		return nil
 	}
 
-	examples, err := h.queryService.ExamplesForCommit(ctx, commitSHA)
+	examples, err := h.enrichCtx.Query.ExamplesForCommit(ctx, commitSHA)
 	if err != nil {
 		return fmt.Errorf("get examples: %w", err)
 	}
 
 	if len(examples) == 0 {
 		if skipErr := tracker.Skip(ctx, "No examples to enrich"); skipErr != nil {
-			h.logger.Warn("failed to mark tracker as skipped", slog.String("error", skipErr.Error()))
+			h.enrichCtx.Logger.Warn("failed to mark tracker as skipped", slog.String("error", skipErr.Error()))
 		}
 		return nil
 	}
 
 	if setTotalErr := tracker.SetTotal(ctx, len(examples)); setTotalErr != nil {
-		h.logger.Warn("failed to set tracker total", slog.String("error", setTotalErr.Error()))
+		h.enrichCtx.Logger.Warn("failed to set tracker total", slog.String("error", setTotalErr.Error()))
 	}
 
 	exampleMap := make(map[string]enrichment.Enrichment, len(examples))
@@ -102,14 +86,14 @@ func (h *ExampleSummary) Execute(ctx context.Context, payload map[string]any) er
 		requests = append(requests, domainservice.NewEnrichmentRequest(id, example.Content(), exampleSummarySystemPrompt))
 	}
 
-	responses, err := h.enricher.Enrich(ctx, requests)
+	responses, err := h.enrichCtx.Enricher.Enrich(ctx, requests)
 	if err != nil {
 		return fmt.Errorf("enrich examples: %w", err)
 	}
 
 	for i, resp := range responses {
 		if currentErr := tracker.SetCurrent(ctx, i, "Enriching examples for commit"); currentErr != nil {
-			h.logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
+			h.enrichCtx.Logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
 		}
 
 		example, ok := exampleMap[resp.ID()]
@@ -123,24 +107,24 @@ func (h *ExampleSummary) Execute(ctx context.Context, payload map[string]any) er
 			enrichment.EntityTypeSnippet,
 			resp.Text(),
 		)
-		saved, err := h.enrichmentStore.Save(ctx, summaryEnrichment)
+		saved, err := h.enrichCtx.Enrichments.Save(ctx, summaryEnrichment)
 		if err != nil {
 			return fmt.Errorf("save example summary enrichment: %w", err)
 		}
 
 		exampleAssoc := enrichment.NewAssociation(saved.ID(), fmt.Sprintf("%d", example.ID()), enrichment.EntityTypeSnippet)
-		if _, err := h.associationStore.Save(ctx, exampleAssoc); err != nil {
+		if _, err := h.enrichCtx.Associations.Save(ctx, exampleAssoc); err != nil {
 			return fmt.Errorf("save example association: %w", err)
 		}
 
 		commitAssoc := enrichment.CommitAssociation(saved.ID(), commitSHA)
-		if _, err := h.associationStore.Save(ctx, commitAssoc); err != nil {
+		if _, err := h.enrichCtx.Associations.Save(ctx, commitAssoc); err != nil {
 			return fmt.Errorf("save commit association: %w", err)
 		}
 	}
 
 	if completeErr := tracker.Complete(ctx); completeErr != nil {
-		h.logger.Warn("failed to mark tracker as complete", slog.String("error", completeErr.Error()))
+		h.enrichCtx.Logger.Warn("failed to mark tracker as complete", slog.String("error", completeErr.Error()))
 	}
 
 	return nil

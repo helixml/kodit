@@ -6,7 +6,6 @@ import (
 	"log/slog"
 
 	"github.com/helixml/kodit/application/handler"
-	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	domainservice "github.com/helixml/kodit/domain/service"
@@ -36,36 +35,21 @@ type ArchitectureDiscoverer interface {
 
 // ArchitectureDiscovery handles the CREATE_ARCHITECTURE_ENRICHMENT_FOR_COMMIT operation.
 type ArchitectureDiscovery struct {
-	repoStore        repository.RepositoryStore
-	enrichmentStore  enrichment.EnrichmentStore
-	associationStore enrichment.AssociationStore
-	queryService     *service.EnrichmentQuery
-	discoverer       ArchitectureDiscoverer
-	enricher         domainservice.Enricher
-	trackerFactory   handler.TrackerFactory
-	logger           *slog.Logger
+	repoStore  repository.RepositoryStore
+	enrichCtx  handler.EnrichmentContext
+	discoverer ArchitectureDiscoverer
 }
 
 // NewArchitectureDiscovery creates a new ArchitectureDiscovery handler.
 func NewArchitectureDiscovery(
 	repoStore repository.RepositoryStore,
-	enrichmentStore enrichment.EnrichmentStore,
-	associationStore enrichment.AssociationStore,
-	queryService *service.EnrichmentQuery,
+	enrichCtx handler.EnrichmentContext,
 	discoverer ArchitectureDiscoverer,
-	enricher domainservice.Enricher,
-	trackerFactory handler.TrackerFactory,
-	logger *slog.Logger,
 ) *ArchitectureDiscovery {
 	return &ArchitectureDiscovery{
-		repoStore:        repoStore,
-		enrichmentStore:  enrichmentStore,
-		associationStore: associationStore,
-		queryService:     queryService,
-		discoverer:       discoverer,
-		enricher:         enricher,
-		trackerFactory:   trackerFactory,
-		logger:           logger,
+		repoStore:  repoStore,
+		enrichCtx:  enrichCtx,
+		discoverer: discoverer,
 	}
 }
 
@@ -81,25 +65,25 @@ func (h *ArchitectureDiscovery) Execute(ctx context.Context, payload map[string]
 		return err
 	}
 
-	tracker := h.trackerFactory.ForOperation(
+	tracker := h.enrichCtx.Tracker.ForOperation(
 		task.OperationCreateArchitectureEnrichmentForCommit,
 		task.TrackableTypeRepository,
 		repoID,
 	)
 
 	if setTotalErr := tracker.SetTotal(ctx, 3); setTotalErr != nil {
-		h.logger.Warn("failed to set tracker total", slog.String("error", setTotalErr.Error()))
+		h.enrichCtx.Logger.Warn("failed to set tracker total", slog.String("error", setTotalErr.Error()))
 	}
 
-	hasArchitecture, err := h.queryService.HasArchitectureForCommit(ctx, commitSHA)
+	hasArchitecture, err := h.enrichCtx.Query.HasArchitectureForCommit(ctx, commitSHA)
 	if err != nil {
-		h.logger.Error("failed to check existing architecture", slog.String("error", err.Error()))
+		h.enrichCtx.Logger.Error("failed to check existing architecture", slog.String("error", err.Error()))
 		return err
 	}
 
 	if hasArchitecture {
 		if skipErr := tracker.Skip(ctx, "Architecture enrichment already exists for commit"); skipErr != nil {
-			h.logger.Warn("failed to mark tracker as skipped", slog.String("error", skipErr.Error()))
+			h.enrichCtx.Logger.Warn("failed to mark tracker as skipped", slog.String("error", skipErr.Error()))
 		}
 		return nil
 	}
@@ -115,7 +99,7 @@ func (h *ArchitectureDiscovery) Execute(ctx context.Context, payload map[string]
 	}
 
 	if currentErr := tracker.SetCurrent(ctx, 1, "Discovering physical architecture"); currentErr != nil {
-		h.logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
+		h.enrichCtx.Logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
 	}
 
 	architectureNarrative, err := h.discoverer.Discover(ctx, clonedPath)
@@ -124,7 +108,7 @@ func (h *ArchitectureDiscovery) Execute(ctx context.Context, payload map[string]
 	}
 
 	if currentErr := tracker.SetCurrent(ctx, 2, "Enriching architecture notes with LLM"); currentErr != nil {
-		h.logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
+		h.enrichCtx.Logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
 	}
 
 	taskPrompt := fmt.Sprintf(architectureTaskPrompt, architectureNarrative)
@@ -132,7 +116,7 @@ func (h *ArchitectureDiscovery) Execute(ctx context.Context, payload map[string]
 		domainservice.NewEnrichmentRequest(commitSHA, taskPrompt, architectureSystemPrompt),
 	}
 
-	responses, err := h.enricher.Enrich(ctx, requests)
+	responses, err := h.enrichCtx.Enricher.Enrich(ctx, requests)
 	if err != nil {
 		return fmt.Errorf("enrich architecture: %w", err)
 	}
@@ -147,22 +131,22 @@ func (h *ArchitectureDiscovery) Execute(ctx context.Context, payload map[string]
 		enrichment.EntityTypeCommit,
 		responses[0].Text(),
 	)
-	saved, err := h.enrichmentStore.Save(ctx, archEnrichment)
+	saved, err := h.enrichCtx.Enrichments.Save(ctx, archEnrichment)
 	if err != nil {
 		return fmt.Errorf("save architecture enrichment: %w", err)
 	}
 
 	commitAssoc := enrichment.CommitAssociation(saved.ID(), commitSHA)
-	if _, err := h.associationStore.Save(ctx, commitAssoc); err != nil {
+	if _, err := h.enrichCtx.Associations.Save(ctx, commitAssoc); err != nil {
 		return fmt.Errorf("save commit association: %w", err)
 	}
 
 	if currentErr := tracker.SetCurrent(ctx, 3, "Architecture enrichment completed"); currentErr != nil {
-		h.logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
+		h.enrichCtx.Logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
 	}
 
 	if completeErr := tracker.Complete(ctx); completeErr != nil {
-		h.logger.Warn("failed to mark tracker as complete", slog.String("error", completeErr.Error()))
+		h.enrichCtx.Logger.Warn("failed to mark tracker as complete", slog.String("error", completeErr.Error()))
 	}
 
 	return nil

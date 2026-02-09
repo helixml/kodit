@@ -176,8 +176,8 @@ func runServe(envFile, host string, port int) error {
 		}
 	}()
 
-	// Create API server with the client
-	apiServer := kodit.NewAPIServer(client)
+	// Create API server with the client's services
+	apiServer := api.NewAPIServer(client)
 	router := apiServer.Router()
 
 	// Apply custom middleware (MUST be done before MountRoutes)

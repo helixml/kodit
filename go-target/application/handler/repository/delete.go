@@ -7,7 +7,6 @@ import (
 	"os"
 
 	"github.com/helixml/kodit/application/handler"
-	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/snippet"
 	"github.com/helixml/kodit/domain/task"
 )
@@ -15,11 +14,7 @@ import (
 // Delete handles the DELETE_REPOSITORY task operation.
 // It removes a repository and all its associated data from the system.
 type Delete struct {
-	repoStore      repository.RepositoryStore
-	commitStore    repository.CommitStore
-	branchStore    repository.BranchStore
-	tagStore       repository.TagStore
-	fileStore      repository.FileStore
+	repoStores     handler.RepositoryStores
 	snippetStore   snippet.SnippetStore
 	trackerFactory handler.TrackerFactory
 	logger         *slog.Logger
@@ -27,21 +22,13 @@ type Delete struct {
 
 // NewDelete creates a new Delete handler.
 func NewDelete(
-	repoStore repository.RepositoryStore,
-	commitStore repository.CommitStore,
-	branchStore repository.BranchStore,
-	tagStore repository.TagStore,
-	fileStore repository.FileStore,
+	repoStores handler.RepositoryStores,
 	snippetStore snippet.SnippetStore,
 	trackerFactory handler.TrackerFactory,
 	logger *slog.Logger,
 ) *Delete {
 	return &Delete{
-		repoStore:      repoStore,
-		commitStore:    commitStore,
-		branchStore:    branchStore,
-		tagStore:       tagStore,
-		fileStore:      fileStore,
+		repoStores:     repoStores,
 		snippetStore:   snippetStore,
 		trackerFactory: trackerFactory,
 		logger:         logger,
@@ -61,7 +48,7 @@ func (h *Delete) Execute(ctx context.Context, payload map[string]any) error {
 		repoID,
 	)
 
-	repo, err := h.repoStore.Get(ctx, repoID)
+	repo, err := h.repoStores.Repositories.Get(ctx, repoID)
 	if err != nil {
 		if failErr := tracker.Fail(ctx, err.Error()); failErr != nil {
 			h.logger.Warn("failed to mark tracker as failed", slog.String("error", failErr.Error()))
@@ -77,7 +64,7 @@ func (h *Delete) Execute(ctx context.Context, payload map[string]any) error {
 		h.logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
 	}
 
-	commits, err := h.commitStore.FindByRepoID(ctx, repoID)
+	commits, err := h.repoStores.Commits.FindByRepoID(ctx, repoID)
 	if err != nil {
 		h.logger.Warn("failed to find commits", slog.String("error", err.Error()))
 	}
@@ -89,7 +76,7 @@ func (h *Delete) Execute(ctx context.Context, payload map[string]any) error {
 				slog.String("error", err.Error()),
 			)
 		}
-		if err := h.commitStore.Delete(ctx, commit); err != nil {
+		if err := h.repoStores.Commits.Delete(ctx, commit); err != nil {
 			h.logger.Warn("failed to delete commit",
 				slog.String("sha", commit.SHA()),
 				slog.String("error", err.Error()),
@@ -131,7 +118,7 @@ func (h *Delete) Execute(ctx context.Context, payload map[string]any) error {
 		h.logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
 	}
 
-	if err := h.repoStore.Delete(ctx, repo); err != nil {
+	if err := h.repoStores.Repositories.Delete(ctx, repo); err != nil {
 		if failErr := tracker.Fail(ctx, err.Error()); failErr != nil {
 			h.logger.Warn("failed to mark tracker as failed", slog.String("error", failErr.Error()))
 		}
@@ -151,7 +138,7 @@ func (h *Delete) Execute(ctx context.Context, payload map[string]any) error {
 }
 
 func (h *Delete) deleteCommitData(ctx context.Context, commitSHA string) error {
-	if err := h.fileStore.DeleteByCommitSHA(ctx, commitSHA); err != nil {
+	if err := h.repoStores.Files.DeleteByCommitSHA(ctx, commitSHA); err != nil {
 		return fmt.Errorf("delete files: %w", err)
 	}
 
@@ -163,13 +150,13 @@ func (h *Delete) deleteCommitData(ctx context.Context, commitSHA string) error {
 }
 
 func (h *Delete) deleteBranches(ctx context.Context, repoID int64) error {
-	branches, err := h.branchStore.FindByRepoID(ctx, repoID)
+	branches, err := h.repoStores.Branches.FindByRepoID(ctx, repoID)
 	if err != nil {
 		return fmt.Errorf("find branches: %w", err)
 	}
 
 	for _, branch := range branches {
-		if err := h.branchStore.Delete(ctx, branch); err != nil {
+		if err := h.repoStores.Branches.Delete(ctx, branch); err != nil {
 			h.logger.Warn("failed to delete branch",
 				slog.String("name", branch.Name()),
 				slog.String("error", err.Error()),
@@ -181,13 +168,13 @@ func (h *Delete) deleteBranches(ctx context.Context, repoID int64) error {
 }
 
 func (h *Delete) deleteTags(ctx context.Context, repoID int64) error {
-	tags, err := h.tagStore.FindByRepoID(ctx, repoID)
+	tags, err := h.repoStores.Tags.FindByRepoID(ctx, repoID)
 	if err != nil {
 		return fmt.Errorf("find tags: %w", err)
 	}
 
 	for _, tag := range tags {
-		if err := h.tagStore.Delete(ctx, tag); err != nil {
+		if err := h.repoStores.Tags.Delete(ctx, tag); err != nil {
 			h.logger.Warn("failed to delete tag",
 				slog.String("name", tag.Name()),
 				slog.String("error", err.Error()),

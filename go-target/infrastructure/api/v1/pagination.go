@@ -1,4 +1,4 @@
-package api
+package v1
 
 import (
 	"net/http"
@@ -90,9 +90,9 @@ func (p PaginationParams) WithPageSize(size int) PaginationParams {
 
 // PaginatedResponse wraps a list response with pagination metadata.
 type PaginatedResponse struct {
-	Data       any                `json:"data"`
-	Meta       PaginationMeta     `json:"meta,omitempty"`
-	Links      *PaginationLinks   `json:"links,omitempty"`
+	Data  any            `json:"data"`
+	Meta  PaginationMeta `json:"meta,omitempty"`
+	Links *PaginationLinks `json:"links,omitempty"`
 }
 
 // PaginationMeta contains pagination metadata.

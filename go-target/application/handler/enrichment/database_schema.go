@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/helixml/kodit/application/handler"
-	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	domainservice "github.com/helixml/kodit/domain/service"
@@ -83,36 +82,21 @@ type SchemaDiscoverer interface {
 
 // DatabaseSchema handles the CREATE_DATABASE_SCHEMA_FOR_COMMIT operation.
 type DatabaseSchema struct {
-	repoStore        repository.RepositoryStore
-	enrichmentStore  enrichment.EnrichmentStore
-	associationStore enrichment.AssociationStore
-	queryService     *service.EnrichmentQuery
-	discoverer       SchemaDiscoverer
-	enricher         domainservice.Enricher
-	trackerFactory   handler.TrackerFactory
-	logger           *slog.Logger
+	repoStore  repository.RepositoryStore
+	enrichCtx  handler.EnrichmentContext
+	discoverer SchemaDiscoverer
 }
 
 // NewDatabaseSchema creates a new DatabaseSchema handler.
 func NewDatabaseSchema(
 	repoStore repository.RepositoryStore,
-	enrichmentStore enrichment.EnrichmentStore,
-	associationStore enrichment.AssociationStore,
-	queryService *service.EnrichmentQuery,
+	enrichCtx handler.EnrichmentContext,
 	discoverer SchemaDiscoverer,
-	enricher domainservice.Enricher,
-	trackerFactory handler.TrackerFactory,
-	logger *slog.Logger,
 ) *DatabaseSchema {
 	return &DatabaseSchema{
-		repoStore:        repoStore,
-		enrichmentStore:  enrichmentStore,
-		associationStore: associationStore,
-		queryService:     queryService,
-		discoverer:       discoverer,
-		enricher:         enricher,
-		trackerFactory:   trackerFactory,
-		logger:           logger,
+		repoStore:  repoStore,
+		enrichCtx:  enrichCtx,
+		discoverer: discoverer,
 	}
 }
 
@@ -128,21 +112,21 @@ func (h *DatabaseSchema) Execute(ctx context.Context, payload map[string]any) er
 		return err
 	}
 
-	tracker := h.trackerFactory.ForOperation(
+	tracker := h.enrichCtx.Tracker.ForOperation(
 		task.OperationCreateDatabaseSchemaForCommit,
 		task.TrackableTypeRepository,
 		repoID,
 	)
 
-	hasSchema, err := h.queryService.HasDatabaseSchemaForCommit(ctx, commitSHA)
+	hasSchema, err := h.enrichCtx.Query.HasDatabaseSchemaForCommit(ctx, commitSHA)
 	if err != nil {
-		h.logger.Error("failed to check existing database schema", slog.String("error", err.Error()))
+		h.enrichCtx.Logger.Error("failed to check existing database schema", slog.String("error", err.Error()))
 		return err
 	}
 
 	if hasSchema {
 		if skipErr := tracker.Skip(ctx, "Database schema already exists for commit"); skipErr != nil {
-			h.logger.Warn("failed to mark tracker as skipped", slog.String("error", skipErr.Error()))
+			h.enrichCtx.Logger.Warn("failed to mark tracker as skipped", slog.String("error", skipErr.Error()))
 		}
 		return nil
 	}
@@ -158,11 +142,11 @@ func (h *DatabaseSchema) Execute(ctx context.Context, payload map[string]any) er
 	}
 
 	if setTotalErr := tracker.SetTotal(ctx, 3); setTotalErr != nil {
-		h.logger.Warn("failed to set tracker total", slog.String("error", setTotalErr.Error()))
+		h.enrichCtx.Logger.Warn("failed to set tracker total", slog.String("error", setTotalErr.Error()))
 	}
 
 	if currentErr := tracker.SetCurrent(ctx, 1, "Discovering database schemas"); currentErr != nil {
-		h.logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
+		h.enrichCtx.Logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
 	}
 
 	schemaReport, err := h.discoverer.Discover(ctx, clonedPath)
@@ -172,13 +156,13 @@ func (h *DatabaseSchema) Execute(ctx context.Context, payload map[string]any) er
 
 	if strings.Contains(schemaReport, "No database schemas detected") {
 		if skipErr := tracker.Skip(ctx, "No database schemas found in repository"); skipErr != nil {
-			h.logger.Warn("failed to mark tracker as skipped", slog.String("error", skipErr.Error()))
+			h.enrichCtx.Logger.Warn("failed to mark tracker as skipped", slog.String("error", skipErr.Error()))
 		}
 		return nil
 	}
 
 	if currentErr := tracker.SetCurrent(ctx, 2, "Enriching schema documentation with LLM"); currentErr != nil {
-		h.logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
+		h.enrichCtx.Logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
 	}
 
 	taskPrompt := fmt.Sprintf(databaseSchemaTaskPrompt, schemaReport)
@@ -186,7 +170,7 @@ func (h *DatabaseSchema) Execute(ctx context.Context, payload map[string]any) er
 		domainservice.NewEnrichmentRequest(commitSHA, taskPrompt, databaseSchemaSystemPrompt),
 	}
 
-	responses, err := h.enricher.Enrich(ctx, requests)
+	responses, err := h.enrichCtx.Enricher.Enrich(ctx, requests)
 	if err != nil {
 		return fmt.Errorf("enrich database schema: %w", err)
 	}
@@ -201,22 +185,22 @@ func (h *DatabaseSchema) Execute(ctx context.Context, payload map[string]any) er
 		enrichment.EntityTypeCommit,
 		responses[0].Text(),
 	)
-	saved, err := h.enrichmentStore.Save(ctx, schemaEnrichment)
+	saved, err := h.enrichCtx.Enrichments.Save(ctx, schemaEnrichment)
 	if err != nil {
 		return fmt.Errorf("save database schema enrichment: %w", err)
 	}
 
 	commitAssoc := enrichment.CommitAssociation(saved.ID(), commitSHA)
-	if _, err := h.associationStore.Save(ctx, commitAssoc); err != nil {
+	if _, err := h.enrichCtx.Associations.Save(ctx, commitAssoc); err != nil {
 		return fmt.Errorf("save commit association: %w", err)
 	}
 
 	if currentErr := tracker.SetCurrent(ctx, 3, "Database schema enrichment completed"); currentErr != nil {
-		h.logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
+		h.enrichCtx.Logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
 	}
 
 	if completeErr := tracker.Complete(ctx); completeErr != nil {
-		h.logger.Warn("failed to mark tracker as complete", slog.String("error", completeErr.Error()))
+		h.enrichCtx.Logger.Warn("failed to mark tracker as complete", slog.String("error", completeErr.Error()))
 	}
 
 	return nil

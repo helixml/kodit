@@ -9,7 +9,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/helixml/kodit/domain/enrichment"
-	"github.com/helixml/kodit/infrastructure/api"
 	"github.com/helixml/kodit/infrastructure/api/middleware"
 	"github.com/helixml/kodit/infrastructure/api/v1/dto"
 )
@@ -67,7 +66,7 @@ func (r *EnrichmentsRouter) List(w http.ResponseWriter, req *http.Request) {
 	subtypeParam := req.URL.Query().Get("enrichment_subtype")
 
 	// Parse pagination parameters
-	pagination := api.ParsePagination(req)
+	pagination := ParsePagination(req)
 
 	// If no filters provided, require at least one filter
 	if typeParam == "" && subtypeParam == "" {

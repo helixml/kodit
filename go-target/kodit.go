@@ -37,7 +37,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/helixml/kodit/application/handler"
 	commithandler "github.com/helixml/kodit/application/handler/commit"
 	enrichmenthandler "github.com/helixml/kodit/application/handler/enrichment"
@@ -50,9 +49,6 @@ import (
 	domainservice "github.com/helixml/kodit/domain/service"
 	"github.com/helixml/kodit/domain/snippet"
 	"github.com/helixml/kodit/domain/task"
-	"github.com/helixml/kodit/infrastructure/api"
-	"github.com/helixml/kodit/infrastructure/api/middleware"
-	v1 "github.com/helixml/kodit/infrastructure/api/v1"
 	"github.com/helixml/kodit/infrastructure/enricher"
 	"github.com/helixml/kodit/infrastructure/enricher/example"
 	"github.com/helixml/kodit/infrastructure/git"
@@ -67,29 +63,24 @@ import (
 // Client is the main entry point for the kodit library.
 // The background worker starts automatically on creation.
 type Client struct {
-	db persistence.Database
+	db         persistence.Database
+	repoStores RepositoryStores
 
-	// Domain stores
-	repositoryStore  persistence.RepositoryStore
-	commitStore      persistence.CommitStore
-	branchStore      persistence.BranchStore
-	tagStore         persistence.TagStore
-	fileStore        persistence.FileStore
-	snippetStore     persistence.SnippetStore
-	enrichmentStore  persistence.EnrichmentStore
-	associationStore persistence.AssociationStore
-	taskStore        persistence.TaskStore
-	statusStore      persistence.StatusStore
+	// Stores not grouped into aggregates
+	snippetStore snippet.SnippetStore
+	taskStore    persistence.TaskStore
+	statusStore  persistence.StatusStore
+	bm25Store    search.BM25Store
 
-	// Search stores (may be nil if not configured)
-	textVectorStore search.VectorStore
-	codeVectorStore search.VectorStore
-	bm25Store       search.BM25Store
+	// Aggregate dependencies
+	enrichCtx EnrichmentContext
+	codeIndex VectorIndex
+	textIndex VectorIndex
+	gitInfra  GitInfrastructure
 
 	// Application services
 	repoSync      *service.RepositorySync
 	repoQuery     *service.RepositoryQuery
-	enrichQ       *service.EnrichmentQuery
 	trackingQuery *service.TrackingQuery
 	codeSearch    *service.CodeSearch
 	bm25Service   *domainservice.BM25
@@ -97,19 +88,10 @@ type Client struct {
 	worker        *service.Worker
 	registry      *service.Registry
 
-	// Git infrastructure (internal)
-	gitAdapter git.Adapter
-	cloner     domainservice.Cloner
-	scanner    domainservice.Scanner
-
 	// Code slicing (internal)
 	slicer *slicing.Slicer
 
-	// Progress tracking (internal)
-	trackerFactory handler.TrackerFactory
-
-	// Enrichment (internal, may be nil)
-	enricherImpl      *enricher.ProviderEnricher
+	// Discovery services (each used by exactly one handler)
 	archDiscoverer    *enricher.PhysicalArchitectureService
 	exampleDiscoverer *example.Discovery
 	schemaDiscoverer  *enricher.DatabaseSchemaService
@@ -186,6 +168,15 @@ func New(opts ...Option) (*Client, error) {
 	taskStore := persistence.NewTaskStore(db)
 	statusStore := persistence.NewStatusStore(db)
 
+	// Group repository stores
+	repoStores := RepositoryStores{
+		Repositories: repoStore,
+		Commits:      commitStore,
+		Branches:     branchStore,
+		Tags:         tagStore,
+		Files:        fileStore,
+	}
+
 	// Create search stores based on storage type
 	var textVectorStore search.VectorStore
 	var codeVectorStore search.VectorStore
@@ -216,6 +207,16 @@ func New(opts ...Option) (*Client, error) {
 		return nil, errors.New("unsupported database type")
 	}
 
+	// Create vector indices (pairing embedding services with their stores)
+	codeIndex := VectorIndex{
+		Embedding: domainservice.NewEmbedding(codeVectorStore),
+		Store:     codeVectorStore,
+	}
+	textIndex := VectorIndex{
+		Embedding: domainservice.NewEmbedding(textVectorStore),
+		Store:     textVectorStore,
+	}
+
 	// Create application services
 	registry := service.NewRegistry()
 	queue := service.NewQueue(taskStore, logger)
@@ -234,8 +235,14 @@ func New(opts ...Option) (*Client, error) {
 
 	// Create git infrastructure
 	gitAdapter := git.NewGoGitAdapter(logger)
-	cloner := git.NewRepositoryCloner(gitAdapter, cloneDir, logger)
-	scanner := git.NewRepositoryScanner(gitAdapter, logger)
+	clonerSvc := git.NewRepositoryCloner(gitAdapter, cloneDir, logger)
+	scannerSvc := git.NewRepositoryScanner(gitAdapter, logger)
+
+	gitInfra := GitInfrastructure{
+		Adapter: gitAdapter,
+		Cloner:  clonerSvc,
+		Scanner: scannerSvc,
+	}
 
 	// Create slicer for code extraction
 	langConfig := slicing.NewLanguageConfig()
@@ -253,9 +260,19 @@ func New(opts ...Option) (*Client, error) {
 	}
 
 	// Create enricher infrastructure (only if text provider is configured)
-	var enricherImpl *enricher.ProviderEnricher
+	var enricherImpl domainservice.Enricher
 	if cfg.textProvider != nil {
 		enricherImpl = enricher.NewProviderEnricher(cfg.textProvider, logger)
+	}
+
+	// Build enrichment context
+	enrichCtx := EnrichmentContext{
+		Enrichments:  enrichmentStore,
+		Associations: associationStore,
+		Query:        enrichQSvc,
+		Enricher:     enricherImpl,
+		Tracker:      trackerFactory,
+		Logger:       logger,
 	}
 
 	// Create enrichment infrastructure (always available)
@@ -267,34 +284,24 @@ func New(opts ...Option) (*Client, error) {
 
 	client := &Client{
 		db:                db,
-		repositoryStore:   repoStore,
-		commitStore:       commitStore,
-		branchStore:       branchStore,
-		tagStore:          tagStore,
-		fileStore:         fileStore,
+		repoStores:        repoStores,
 		snippetStore:      snippetStore,
-		enrichmentStore:   enrichmentStore,
-		associationStore:  associationStore,
 		taskStore:         taskStore,
 		statusStore:       statusStore,
-		textVectorStore:   textVectorStore,
-		codeVectorStore:   codeVectorStore,
 		bm25Store:         bm25Store,
+		enrichCtx:         enrichCtx,
+		codeIndex:         codeIndex,
+		textIndex:         textIndex,
+		gitInfra:          gitInfra,
 		repoSync:          repoSyncSvc,
 		repoQuery:         repoQuerySvc,
-		enrichQ:           enrichQSvc,
 		trackingQuery:     trackingQSvc,
 		codeSearch:        codeSearchSvc,
 		bm25Service:       bm25Svc,
 		queue:             queue,
 		worker:            worker,
 		registry:          registry,
-		gitAdapter:        gitAdapter,
-		cloner:            cloner,
-		scanner:           scanner,
 		slicer:            slicer,
-		trackerFactory:    trackerFactory,
-		enricherImpl:      enricherImpl,
 		archDiscoverer:    archDiscoverer,
 		exampleDiscoverer: exampleDiscoverer,
 		schemaDiscoverer:  schemaDiscoverer,
@@ -340,94 +347,90 @@ func (c *Client) Close() error {
 func (c *Client) registerHandlers() {
 	// Repository handlers (always registered)
 	c.registry.Register(task.OperationCloneRepository, repohandler.NewClone(
-		c.repositoryStore, c.cloner, c.queue, c.trackerFactory, c.logger,
+		c.repoStores.Repositories, c.gitInfra.Cloner, c.queue, c.enrichCtx.Tracker, c.logger,
 	))
 	c.registry.Register(task.OperationSyncRepository, repohandler.NewSync(
-		c.repositoryStore, c.branchStore, c.cloner, c.scanner, c.queue, c.trackerFactory, c.logger,
+		c.repoStores.Repositories, c.repoStores.Branches, c.gitInfra.Cloner, c.gitInfra.Scanner, c.queue, c.enrichCtx.Tracker, c.logger,
 	))
 	c.registry.Register(task.OperationDeleteRepository, repohandler.NewDelete(
-		c.repositoryStore, c.commitStore, c.branchStore, c.tagStore, c.fileStore, c.snippetStore, c.trackerFactory, c.logger,
+		c.repoStores, c.snippetStore, c.enrichCtx.Tracker, c.logger,
 	))
 	c.registry.Register(task.OperationScanCommit, commithandler.NewScan(
-		c.repositoryStore, c.commitStore, c.fileStore, c.scanner, c.trackerFactory, c.logger,
+		c.repoStores.Repositories, c.repoStores.Commits, c.repoStores.Files, c.gitInfra.Scanner, c.enrichCtx.Tracker, c.logger,
 	))
 	c.registry.Register(task.OperationRescanCommit, commithandler.NewRescan(
-		c.snippetStore, c.associationStore, c.trackerFactory, c.logger,
+		c.snippetStore, c.enrichCtx.Associations, c.enrichCtx.Tracker, c.logger,
 	))
 
 	// Indexing handlers (always registered for snippet extraction)
 	c.registry.Register(task.OperationExtractSnippetsForCommit, indexinghandler.NewExtractSnippets(
-		c.repositoryStore, c.snippetStore, c.fileStore, c.slicer, c.trackerFactory, c.logger,
+		c.repoStores.Repositories, c.snippetStore, c.repoStores.Files, c.slicer, c.enrichCtx.Tracker, c.logger,
 	))
 
 	// BM25 index handler
 	c.registry.Register(task.OperationCreateBM25IndexForCommit, indexinghandler.NewCreateBM25Index(
-		c.bm25Service, c.snippetStore, c.trackerFactory, c.logger,
+		c.bm25Service, c.snippetStore, c.enrichCtx.Tracker, c.logger,
 	))
 
 	// Code embeddings for snippets
-	codeEmbeddingService := domainservice.NewEmbedding(c.codeVectorStore)
 	c.registry.Register(task.OperationCreateCodeEmbeddingsForCommit, indexinghandler.NewCreateCodeEmbeddings(
-		codeEmbeddingService, c.snippetStore, c.codeVectorStore, c.trackerFactory, c.logger,
+		c.codeIndex, c.snippetStore, c.enrichCtx.Tracker, c.logger,
 	))
 
 	// Example code embeddings (enrichment content from extracted examples)
 	c.registry.Register(task.OperationCreateExampleCodeEmbeddingsForCommit, indexinghandler.NewCreateExampleCodeEmbeddings(
-		codeEmbeddingService, c.enrichQ, c.codeVectorStore, c.trackerFactory, c.logger,
+		c.codeIndex, c.enrichCtx.Query, c.enrichCtx.Tracker, c.logger,
 	))
-
-	// Text embeddings handlers (require text vector store)
-	textEmbeddingService := domainservice.NewEmbedding(c.textVectorStore)
 
 	// Summary embeddings (enrichment content from snippet summaries)
 	c.registry.Register(task.OperationCreateSummaryEmbeddingsForCommit, indexinghandler.NewCreateSummaryEmbeddings(
-		textEmbeddingService, c.enrichQ, c.associationStore, c.textVectorStore, c.trackerFactory, c.logger,
+		c.textIndex, c.enrichCtx.Query, c.enrichCtx.Associations, c.enrichCtx.Tracker, c.logger,
 	))
 
 	// Example summary embeddings (enrichment content from example summaries)
 	c.registry.Register(task.OperationCreateExampleSummaryEmbeddingsForCommit, indexinghandler.NewCreateExampleSummaryEmbeddings(
-		textEmbeddingService, c.enrichQ, c.textVectorStore, c.trackerFactory, c.logger,
+		c.textIndex, c.enrichCtx.Query, c.enrichCtx.Tracker, c.logger,
 	))
 
 	// Enrichment handlers
 	// Summary enrichment
 	c.registry.Register(task.OperationCreateSummaryEnrichmentForCommit, enrichmenthandler.NewCreateSummary(
-		c.snippetStore, c.enrichmentStore, c.associationStore, c.enrichQ, c.enricherImpl, c.trackerFactory, c.logger,
+		c.snippetStore, c.enrichCtx,
 	))
 
 	// Commit description
 	c.registry.Register(task.OperationCreateCommitDescriptionForCommit, enrichmenthandler.NewCommitDescription(
-		c.repositoryStore, c.enrichmentStore, c.associationStore, c.enrichQ, c.gitAdapter, c.enricherImpl, c.trackerFactory, c.logger,
+		c.repoStores.Repositories, c.enrichCtx, c.gitInfra.Adapter,
 	))
 
 	// Architecture discovery
 	c.registry.Register(task.OperationCreateArchitectureEnrichmentForCommit, enrichmenthandler.NewArchitectureDiscovery(
-		c.repositoryStore, c.enrichmentStore, c.associationStore, c.enrichQ, c.archDiscoverer, c.enricherImpl, c.trackerFactory, c.logger,
+		c.repoStores.Repositories, c.enrichCtx, c.archDiscoverer,
 	))
 
 	// Example summary
 	c.registry.Register(task.OperationCreateExampleSummaryForCommit, enrichmenthandler.NewExampleSummary(
-		c.enrichmentStore, c.associationStore, c.enrichQ, c.enricherImpl, c.trackerFactory, c.logger,
+		c.enrichCtx,
 	))
 
 	// Database schema enrichment
 	c.registry.Register(task.OperationCreateDatabaseSchemaForCommit, enrichmenthandler.NewDatabaseSchema(
-		c.repositoryStore, c.enrichmentStore, c.associationStore, c.enrichQ, c.schemaDiscoverer, c.enricherImpl, c.trackerFactory, c.logger,
+		c.repoStores.Repositories, c.enrichCtx, c.schemaDiscoverer,
 	))
 
 	// Cookbook enrichment
 	c.registry.Register(task.OperationCreateCookbookForCommit, enrichmenthandler.NewCookbook(
-		c.repositoryStore, c.fileStore, c.enrichmentStore, c.associationStore, c.enrichQ, c.cookbookContext, c.enricherImpl, c.trackerFactory, c.logger,
+		c.repoStores.Repositories, c.repoStores.Files, c.enrichCtx, c.cookbookContext,
 	))
 
 	// API docs enrichment
 	c.registry.Register(task.OperationCreatePublicAPIDocsForCommit, enrichmenthandler.NewAPIDocs(
-		c.repositoryStore, c.fileStore, c.enrichmentStore, c.associationStore, c.enrichQ, c.apiDocService, c.trackerFactory, c.logger,
+		c.repoStores.Repositories, c.repoStores.Files, c.enrichCtx, c.apiDocService,
 	))
 
 	// Example extraction handler
 	c.registry.Register(task.OperationExtractExamplesForCommit, enrichmenthandler.NewExtractExamples(
-		c.repositoryStore, c.commitStore, c.gitAdapter, c.enrichmentStore, c.associationStore, c.enrichQ, c.exampleDiscoverer, c.trackerFactory, c.logger,
+		c.repoStores.Repositories, c.repoStores.Commits, c.gitInfra.Adapter, c.enrichCtx, c.exampleDiscoverer,
 	))
 
 	c.logger.Info("registered task handlers", slog.Int("count", len(c.registry.Operations())))
@@ -485,8 +488,8 @@ func (c *Client) Search(ctx context.Context, query string, opts ...SearchOption)
 // Enrichments returns the enrichment query interface.
 func (c *Client) Enrichments() Enrichments {
 	return &enrichmentsImpl{
-		enrichQ:         c.enrichQ,
-		enrichmentStore: c.enrichmentStore,
+		enrichQ:         c.enrichCtx.Query,
+		enrichmentStore: c.enrichCtx.Enrichments,
 	}
 }
 
@@ -498,15 +501,6 @@ func (c *Client) Tasks() Tasks {
 	}
 }
 
-// NewAPIServer creates an HTTP API server that uses the given Client.
-// The API server provides REST endpoints for repository management, search, and more.
-func NewAPIServer(client *Client) APIServer {
-	return &apiServerImpl{
-		client: client,
-		logger: client.logger,
-	}
-}
-
 // CodeSearchService returns the underlying code search service.
 // This is useful for advanced callers like MCP servers that need
 // full control over search requests (e.g., MultiSearchRequest).
@@ -515,10 +509,64 @@ func (c *Client) CodeSearchService() *service.CodeSearch {
 	return c.codeSearch
 }
 
+// RepositoryQuery returns the repository query service.
+func (c *Client) RepositoryQuery() *service.RepositoryQuery {
+	return c.repoQuery
+}
+
+// RepositorySync returns the repository sync service.
+func (c *Client) RepositorySync() *service.RepositorySync {
+	return c.repoSync
+}
+
+// TrackingQuery returns the task tracking query service.
+func (c *Client) TrackingQuery() *service.TrackingQuery {
+	return c.trackingQuery
+}
+
+// EnrichmentQuery returns the enrichment query service.
+func (c *Client) EnrichmentQuery() *service.EnrichmentQuery {
+	return c.enrichCtx.Query
+}
+
+// EnrichmentStore returns the enrichment persistence store.
+func (c *Client) EnrichmentStore() enrichment.EnrichmentStore {
+	return c.enrichCtx.Enrichments
+}
+
+// AssociationStore returns the enrichment association store.
+func (c *Client) AssociationStore() enrichment.AssociationStore {
+	return c.enrichCtx.Associations
+}
+
 // SnippetStore returns access to the snippet storage.
-// This is useful for callers that need to retrieve snippets by SHA.
 func (c *Client) SnippetStore() snippet.SnippetStore {
 	return c.snippetStore
+}
+
+// CodeVectorStore returns the code vector store for embedding lookups.
+func (c *Client) CodeVectorStore() search.VectorStore {
+	return c.codeIndex.Store
+}
+
+// Queue returns the task queue service.
+func (c *Client) Queue() *service.Queue {
+	return c.queue
+}
+
+// TaskStore returns the task persistence store.
+func (c *Client) TaskStore() task.TaskStore {
+	return c.taskStore
+}
+
+// StatusStore returns the task status persistence store.
+func (c *Client) StatusStore() task.StatusStore {
+	return c.statusStore
+}
+
+// Logger returns the client's logger.
+func (c *Client) Logger() *slog.Logger {
+	return c.logger
 }
 
 // SearchResult represents the result of a hybrid search.
@@ -595,29 +643,6 @@ type Tasks interface {
 	Cancel(ctx context.Context, id int64) error
 }
 
-// APIServer is an HTTP server.
-type APIServer interface {
-	// Router returns the chi router for customization before starting.
-	// Call this first, add custom middleware with router.Use(), then call MountRoutes().
-	// If not called, ListenAndServe creates a default router with all standard routes.
-	Router() chi.Router
-
-	// MountRoutes wires up all v1 API routes on the router.
-	// Call this after adding any custom middleware via Router().Use().
-	MountRoutes()
-
-	// DocsRouter returns a router for Swagger UI and OpenAPI spec.
-	// The specURL parameter is the URL path where the OpenAPI spec will be served.
-	// Mount the returned router at your preferred path (e.g., router.Mount("/docs", api.DocsRouter("/docs/openapi.json").Routes())).
-	DocsRouter(specURL string) *api.DocsRouter
-
-	// ListenAndServe starts the HTTP server.
-	ListenAndServe(addr string) error
-
-	// Shutdown gracefully shuts down the server.
-	Shutdown(ctx context.Context) error
-}
-
 // repositoriesImpl implements Repositories.
 type repositoriesImpl struct {
 	repoSync  *service.RepositorySync
@@ -663,7 +688,7 @@ func (r *repositoriesImpl) Sync(ctx context.Context, id int64) error {
 // enrichmentsImpl implements Enrichments.
 type enrichmentsImpl struct {
 	enrichQ         *service.EnrichmentQuery
-	enrichmentStore persistence.EnrichmentStore
+	enrichmentStore enrichment.EnrichmentStore
 }
 
 func (e *enrichmentsImpl) ForCommit(ctx context.Context, commitSHA string, _ ...EnrichmentOption) ([]enrichment.Enrichment, error) {
@@ -694,122 +719,6 @@ func (t *tasksImpl) Cancel(ctx context.Context, id int64) error {
 		return err
 	}
 	return t.taskStore.Delete(ctx, tsk)
-}
-
-// apiServerImpl implements APIServer.
-type apiServerImpl struct {
-	client       *Client
-	server       *api.Server
-	router       chi.Router
-	routerCalled bool
-	logger       *slog.Logger
-}
-
-// Router returns the chi router for customization.
-// Call this first, add custom middleware with router.Use(), then call MountRoutes().
-func (a *apiServerImpl) Router() chi.Router {
-	if a.router != nil {
-		return a.router
-	}
-
-	// Create a standalone chi router for customization
-	router := chi.NewRouter()
-
-	// Apply auth middleware if API keys configured
-	if len(a.client.apiKeys) > 0 {
-		router.Use(middleware.APIKeyAuth(a.client.apiKeys))
-	}
-
-	a.router = router
-	a.routerCalled = true
-	return router
-}
-
-// MountRoutes wires up all v1 API routes on the router.
-// Call this after adding any custom middleware via Router().Use().
-func (a *apiServerImpl) MountRoutes() {
-	if a.router == nil {
-		a.Router() // Ensure router is created
-	}
-	a.mountAPIRoutes(a.router)
-}
-
-// mountAPIRoutes wires up all v1 API routes on the given router.
-func (a *apiServerImpl) mountAPIRoutes(router chi.Router) {
-	// Repositories router
-	reposRouter := v1.NewRepositoriesRouter(
-		a.client.repoQuery,
-		a.client.repoSync,
-		a.logger,
-	)
-	reposRouter.WithTrackingQueryService(a.client.trackingQuery)
-	reposRouter.WithEnrichmentServices(a.client.enrichQ, a.client.enrichmentStore, a.client.associationStore)
-	reposRouter.WithIndexingServices(a.client.snippetStore, a.client.codeVectorStore)
-
-	// Queue router
-	queueRouter := v1.NewQueueRouter(
-		a.client.queue,
-		a.client.taskStore,
-		a.client.statusStore,
-		a.logger,
-	)
-
-	// Enrichments router
-	enrichmentsRouter := v1.NewEnrichmentsRouter(a.client.enrichmentStore, a.logger)
-
-	// Commits router
-	commitsRouter := v1.NewCommitsRouter(
-		a.client.repoQuery,
-		a.logger,
-	)
-
-	// Mount routes
-	router.Route("/api/v1", func(r chi.Router) {
-		r.Mount("/repositories", reposRouter.Routes())
-		r.Mount("/commits", commitsRouter.Routes())
-		r.Mount("/queue", queueRouter.Routes())
-		r.Mount("/enrichments", enrichmentsRouter.Routes())
-
-		// Mount search router if search service is configured
-		if a.client.codeSearch != nil {
-			searchRouter := v1.NewSearchRouter(*a.client.codeSearch, a.logger)
-			r.Mount("/search", searchRouter.Routes())
-		}
-	})
-}
-
-func (a *apiServerImpl) ListenAndServe(addr string) error {
-	server := api.NewServer(addr, a.logger)
-	a.server = &server
-
-	if a.routerCalled && a.router != nil {
-		// Use the pre-configured router by mounting it on the server's router
-		server.Router().Mount("/", a.router)
-	} else {
-		// Mount routes directly on the server's router
-		router := server.Router()
-
-		// Apply auth middleware if API keys configured
-		if len(a.client.apiKeys) > 0 {
-			router.Use(middleware.APIKeyAuth(a.client.apiKeys))
-		}
-
-		a.mountAPIRoutes(router)
-	}
-
-	return server.Start()
-}
-
-// DocsRouter returns a router for Swagger UI and OpenAPI spec.
-func (a *apiServerImpl) DocsRouter(specURL string) *api.DocsRouter {
-	return api.NewDocsRouter(specURL)
-}
-
-func (a *apiServerImpl) Shutdown(ctx context.Context) error {
-	if a.server == nil {
-		return nil
-	}
-	return a.server.Shutdown(ctx)
 }
 
 // buildDatabaseURL constructs the database URL from configuration.

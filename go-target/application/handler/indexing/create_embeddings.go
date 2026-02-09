@@ -6,34 +6,30 @@ import (
 
 	"github.com/helixml/kodit/application/handler"
 	"github.com/helixml/kodit/domain/search"
-	domainservice "github.com/helixml/kodit/domain/service"
 	"github.com/helixml/kodit/domain/snippet"
 	"github.com/helixml/kodit/domain/task"
 )
 
 // CreateCodeEmbeddings creates vector embeddings for commit snippets.
 type CreateCodeEmbeddings struct {
-	embeddingService domainservice.Embedding
-	snippetStore     snippet.SnippetStore
-	vectorStore      search.VectorStore
-	trackerFactory   handler.TrackerFactory
-	logger           *slog.Logger
+	codeIndex      handler.VectorIndex
+	snippetStore   snippet.SnippetStore
+	trackerFactory handler.TrackerFactory
+	logger         *slog.Logger
 }
 
 // NewCreateCodeEmbeddings creates a new CreateCodeEmbeddings handler.
 func NewCreateCodeEmbeddings(
-	embeddingService domainservice.Embedding,
+	codeIndex handler.VectorIndex,
 	snippetStore snippet.SnippetStore,
-	vectorStore search.VectorStore,
 	trackerFactory handler.TrackerFactory,
 	logger *slog.Logger,
 ) *CreateCodeEmbeddings {
 	return &CreateCodeEmbeddings{
-		embeddingService: embeddingService,
-		snippetStore:     snippetStore,
-		vectorStore:      vectorStore,
-		trackerFactory:   trackerFactory,
-		logger:           logger,
+		codeIndex:      codeIndex,
+		snippetStore:   snippetStore,
+		trackerFactory: trackerFactory,
+		logger:         logger,
 	}
 }
 
@@ -101,7 +97,7 @@ func (h *CreateCodeEmbeddings) Execute(ctx context.Context, payload map[string]a
 	}
 
 	request := search.NewIndexRequest(documents)
-	if err := h.embeddingService.Index(ctx, request); err != nil {
+	if err := h.codeIndex.Embedding.Index(ctx, request); err != nil {
 		h.logger.Error("failed to create embeddings", slog.String("error", err.Error()))
 		if failErr := tracker.Fail(ctx, err.Error()); failErr != nil {
 			h.logger.Warn("failed to mark tracker as failed", slog.String("error", failErr.Error()))
@@ -129,7 +125,7 @@ func (h *CreateCodeEmbeddings) filterNewSnippets(ctx context.Context, snippets [
 	newSnippets := make([]snippet.Snippet, 0, len(snippets))
 
 	for _, s := range snippets {
-		hasEmbedding, err := h.vectorStore.HasEmbedding(ctx, s.SHA(), snippet.EmbeddingTypeCode)
+		hasEmbedding, err := h.codeIndex.Store.HasEmbedding(ctx, s.SHA(), snippet.EmbeddingTypeCode)
 		if err != nil {
 			return nil, err
 		}

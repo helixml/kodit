@@ -6,7 +6,6 @@ import (
 	"log/slog"
 
 	"github.com/helixml/kodit/application/handler"
-	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/task"
@@ -19,36 +18,24 @@ type APIDocExtractor interface {
 
 // APIDocs handles the CREATE_PUBLIC_API_DOCS_FOR_COMMIT operation.
 type APIDocs struct {
-	repoStore        repository.RepositoryStore
-	fileStore        repository.FileStore
-	enrichmentStore  enrichment.EnrichmentStore
-	associationStore enrichment.AssociationStore
-	queryService     *service.EnrichmentQuery
-	extractor        APIDocExtractor
-	trackerFactory   handler.TrackerFactory
-	logger           *slog.Logger
+	repoStore repository.RepositoryStore
+	fileStore repository.FileStore
+	enrichCtx handler.EnrichmentContext
+	extractor APIDocExtractor
 }
 
 // NewAPIDocs creates a new APIDocs handler.
 func NewAPIDocs(
 	repoStore repository.RepositoryStore,
 	fileStore repository.FileStore,
-	enrichmentStore enrichment.EnrichmentStore,
-	associationStore enrichment.AssociationStore,
-	queryService *service.EnrichmentQuery,
+	enrichCtx handler.EnrichmentContext,
 	extractor APIDocExtractor,
-	trackerFactory handler.TrackerFactory,
-	logger *slog.Logger,
 ) *APIDocs {
 	return &APIDocs{
-		repoStore:        repoStore,
-		fileStore:        fileStore,
-		enrichmentStore:  enrichmentStore,
-		associationStore: associationStore,
-		queryService:     queryService,
-		extractor:        extractor,
-		trackerFactory:   trackerFactory,
-		logger:           logger,
+		repoStore: repoStore,
+		fileStore: fileStore,
+		enrichCtx: enrichCtx,
+		extractor: extractor,
 	}
 }
 
@@ -64,21 +51,21 @@ func (h *APIDocs) Execute(ctx context.Context, payload map[string]any) error {
 		return err
 	}
 
-	tracker := h.trackerFactory.ForOperation(
+	tracker := h.enrichCtx.Tracker.ForOperation(
 		task.OperationCreatePublicAPIDocsForCommit,
 		task.TrackableTypeRepository,
 		repoID,
 	)
 
-	hasAPIDocs, err := h.queryService.HasAPIDocsForCommit(ctx, commitSHA)
+	hasAPIDocs, err := h.enrichCtx.Query.HasAPIDocsForCommit(ctx, commitSHA)
 	if err != nil {
-		h.logger.Error("failed to check existing API docs", slog.String("error", err.Error()))
+		h.enrichCtx.Logger.Error("failed to check existing API docs", slog.String("error", err.Error()))
 		return err
 	}
 
 	if hasAPIDocs {
 		if skipErr := tracker.Skip(ctx, "API docs already exist for commit"); skipErr != nil {
-			h.logger.Warn("failed to mark tracker as skipped", slog.String("error", skipErr.Error()))
+			h.enrichCtx.Logger.Warn("failed to mark tracker as skipped", slog.String("error", skipErr.Error()))
 		}
 		return nil
 	}
@@ -95,7 +82,7 @@ func (h *APIDocs) Execute(ctx context.Context, payload map[string]any) error {
 
 	if len(files) == 0 {
 		if skipErr := tracker.Skip(ctx, "No files to extract API docs from"); skipErr != nil {
-			h.logger.Warn("failed to mark tracker as skipped", slog.String("error", skipErr.Error()))
+			h.enrichCtx.Logger.Warn("failed to mark tracker as skipped", slog.String("error", skipErr.Error()))
 		}
 		return nil
 	}
@@ -103,7 +90,7 @@ func (h *APIDocs) Execute(ctx context.Context, payload map[string]any) error {
 	langFiles := groupFilesByLanguage(files)
 
 	if setTotalErr := tracker.SetTotal(ctx, len(langFiles)); setTotalErr != nil {
-		h.logger.Warn("failed to set tracker total", slog.String("error", setTotalErr.Error()))
+		h.enrichCtx.Logger.Warn("failed to set tracker total", slog.String("error", setTotalErr.Error()))
 	}
 
 	var allEnrichments []enrichment.Enrichment
@@ -111,12 +98,12 @@ func (h *APIDocs) Execute(ctx context.Context, payload map[string]any) error {
 	i := 0
 	for lang, langFileList := range langFiles {
 		if currentErr := tracker.SetCurrent(ctx, i, fmt.Sprintf("Extracting API docs for %s", lang)); currentErr != nil {
-			h.logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
+			h.enrichCtx.Logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
 		}
 
 		enrichments, err := h.extractor.Extract(ctx, langFileList, lang, false)
 		if err != nil {
-			h.logger.Warn("failed to extract API docs",
+			h.enrichCtx.Logger.Warn("failed to extract API docs",
 				slog.String("language", lang),
 				slog.String("error", err.Error()),
 			)
@@ -129,19 +116,19 @@ func (h *APIDocs) Execute(ctx context.Context, payload map[string]any) error {
 	}
 
 	for _, e := range allEnrichments {
-		saved, err := h.enrichmentStore.Save(ctx, e)
+		saved, err := h.enrichCtx.Enrichments.Save(ctx, e)
 		if err != nil {
 			return fmt.Errorf("save API docs enrichment: %w", err)
 		}
 
 		commitAssoc := enrichment.CommitAssociation(saved.ID(), commitSHA)
-		if _, err := h.associationStore.Save(ctx, commitAssoc); err != nil {
+		if _, err := h.enrichCtx.Associations.Save(ctx, commitAssoc); err != nil {
 			return fmt.Errorf("save commit association: %w", err)
 		}
 	}
 
 	if completeErr := tracker.Complete(ctx); completeErr != nil {
-		h.logger.Warn("failed to mark tracker as complete", slog.String("error", completeErr.Error()))
+		h.enrichCtx.Logger.Warn("failed to mark tracker as complete", slog.String("error", completeErr.Error()))
 	}
 
 	return nil

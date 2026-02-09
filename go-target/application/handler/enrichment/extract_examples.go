@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/helixml/kodit/application/handler"
-	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/snippet"
@@ -25,15 +24,11 @@ type ExampleDiscoverer interface {
 
 // ExtractExamples handles the EXTRACT_EXAMPLES_FOR_COMMIT operation.
 type ExtractExamples struct {
-	repoStore        repository.RepositoryStore
-	commitStore      repository.CommitStore
-	adapter          infraGit.Adapter
-	enrichmentStore  enrichment.EnrichmentStore
-	associationStore enrichment.AssociationStore
-	queryService     *service.EnrichmentQuery
-	discoverer       ExampleDiscoverer
-	trackerFactory   handler.TrackerFactory
-	logger           *slog.Logger
+	repoStore   repository.RepositoryStore
+	commitStore repository.CommitStore
+	adapter     infraGit.Adapter
+	enrichCtx   handler.EnrichmentContext
+	discoverer  ExampleDiscoverer
 }
 
 // NewExtractExamples creates a new ExtractExamples handler.
@@ -41,23 +36,15 @@ func NewExtractExamples(
 	repoStore repository.RepositoryStore,
 	commitStore repository.CommitStore,
 	adapter infraGit.Adapter,
-	enrichmentStore enrichment.EnrichmentStore,
-	associationStore enrichment.AssociationStore,
-	queryService *service.EnrichmentQuery,
+	enrichCtx handler.EnrichmentContext,
 	discoverer ExampleDiscoverer,
-	trackerFactory handler.TrackerFactory,
-	logger *slog.Logger,
 ) *ExtractExamples {
 	return &ExtractExamples{
-		repoStore:        repoStore,
-		commitStore:      commitStore,
-		adapter:          adapter,
-		enrichmentStore:  enrichmentStore,
-		associationStore: associationStore,
-		queryService:     queryService,
-		discoverer:       discoverer,
-		trackerFactory:   trackerFactory,
-		logger:           logger,
+		repoStore:   repoStore,
+		commitStore: commitStore,
+		adapter:     adapter,
+		enrichCtx:   enrichCtx,
+		discoverer:  discoverer,
 	}
 }
 
@@ -73,21 +60,21 @@ func (h *ExtractExamples) Execute(ctx context.Context, payload map[string]any) e
 		return err
 	}
 
-	tracker := h.trackerFactory.ForOperation(
+	tracker := h.enrichCtx.Tracker.ForOperation(
 		task.OperationExtractExamplesForCommit,
 		task.TrackableTypeRepository,
 		repoID,
 	)
 
-	hasExamples, err := h.queryService.HasExamplesForCommit(ctx, commitSHA)
+	hasExamples, err := h.enrichCtx.Query.HasExamplesForCommit(ctx, commitSHA)
 	if err != nil {
-		h.logger.Error("failed to check existing examples", slog.String("error", err.Error()))
+		h.enrichCtx.Logger.Error("failed to check existing examples", slog.String("error", err.Error()))
 		return err
 	}
 
 	if hasExamples {
 		if skipErr := tracker.Skip(ctx, "Examples already extracted for commit"); skipErr != nil {
-			h.logger.Warn("failed to mark tracker as skipped", slog.String("error", skipErr.Error()))
+			h.enrichCtx.Logger.Warn("failed to mark tracker as skipped", slog.String("error", skipErr.Error()))
 		}
 		return nil
 	}
@@ -116,7 +103,7 @@ func (h *ExtractExamples) Execute(ctx context.Context, payload map[string]any) e
 	}
 
 	if setTotalErr := tracker.SetTotal(ctx, len(candidates)); setTotalErr != nil {
-		h.logger.Warn("failed to set tracker total", slog.String("error", setTotalErr.Error()))
+		h.enrichCtx.Logger.Warn("failed to set tracker total", slog.String("error", setTotalErr.Error()))
 	}
 
 	var examples []string
@@ -126,7 +113,7 @@ func (h *ExtractExamples) Execute(ctx context.Context, payload map[string]any) e
 		fileName := filepath.Base(file.Path)
 
 		if currentErr := tracker.SetCurrent(ctx, i, fmt.Sprintf("Processing %s", fileName)); currentErr != nil {
-			h.logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
+			h.enrichCtx.Logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
 		}
 
 		if h.discoverer.IsDocumentationFile(fullPath) {
@@ -144,7 +131,7 @@ func (h *ExtractExamples) Execute(ctx context.Context, payload map[string]any) e
 
 	uniqueExamples := deduplicateExamples(examples)
 
-	h.logger.Info("extracted examples",
+	h.enrichCtx.Logger.Info("extracted examples",
 		slog.Int("total", len(examples)),
 		slog.Int("unique", len(uniqueExamples)),
 		slog.String("commit", handler.ShortSHA(commitSHA)),
@@ -159,19 +146,19 @@ func (h *ExtractExamples) Execute(ctx context.Context, payload map[string]any) e
 			sanitized,
 		)
 
-		saved, err := h.enrichmentStore.Save(ctx, exampleEnrichment)
+		saved, err := h.enrichCtx.Enrichments.Save(ctx, exampleEnrichment)
 		if err != nil {
 			return fmt.Errorf("save example enrichment: %w", err)
 		}
 
 		commitAssoc := enrichment.CommitAssociation(saved.ID(), commitSHA)
-		if _, err := h.associationStore.Save(ctx, commitAssoc); err != nil {
+		if _, err := h.enrichCtx.Associations.Save(ctx, commitAssoc); err != nil {
 			return fmt.Errorf("save commit association: %w", err)
 		}
 	}
 
 	if completeErr := tracker.Complete(ctx); completeErr != nil {
-		h.logger.Warn("failed to mark tracker as complete", slog.String("error", completeErr.Error()))
+		h.enrichCtx.Logger.Warn("failed to mark tracker as complete", slog.String("error", completeErr.Error()))
 	}
 
 	return nil
@@ -180,7 +167,7 @@ func (h *ExtractExamples) Execute(ctx context.Context, payload map[string]any) e
 func (h *ExtractExamples) extractFromDocumentation(path string) string {
 	content, err := os.ReadFile(path)
 	if err != nil {
-		h.logger.Warn("failed to read file", slog.String("path", path), slog.String("error", err.Error()))
+		h.enrichCtx.Logger.Warn("failed to read file", slog.String("path", path), slog.String("error", err.Error()))
 		return ""
 	}
 
@@ -203,7 +190,7 @@ func (h *ExtractExamples) extractFullFile(path string) string {
 
 	content, err := os.ReadFile(path)
 	if err != nil {
-		h.logger.Warn("failed to read file", slog.String("path", path), slog.String("error", err.Error()))
+		h.enrichCtx.Logger.Warn("failed to read file", slog.String("path", path), slog.String("error", err.Error()))
 		return ""
 	}
 

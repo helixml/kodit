@@ -48,7 +48,7 @@ type TestServer struct {
 	queueService  *service.Queue
 	queryService  *service.RepositoryQuery
 	syncService   *service.RepositorySync
-	searchService service.CodeSearch
+	searchService *service.CodeSearch
 }
 
 // NewTestServer creates a new test server with all dependencies wired up.
@@ -119,7 +119,7 @@ func NewTestServer(t *testing.T) *TestServer {
 		commitsRouter := v1.NewCommitsRouter(queryService, logger)
 		r.Mount("/commits", commitsRouter.Routes())
 
-		searchRouter := v1.NewSearchRouter(searchService, logger)
+		searchRouter := v1.NewSearchRouter(*searchService, logger)
 		r.Mount("/search", searchRouter.Routes())
 
 		enrichmentsRouter := v1.NewEnrichmentsRouter(enrichmentStore, logger)
