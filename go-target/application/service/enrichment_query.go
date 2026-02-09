@@ -166,6 +166,56 @@ func (s *EnrichmentQuery) ExamplesForCommit(ctx context.Context, commitSHA strin
 	return s.EnrichmentsForCommit(ctx, commitSHA, &typ, &sub)
 }
 
+// Get retrieves a single enrichment by ID.
+func (s *EnrichmentQuery) Get(ctx context.Context, id int64) (enrichment.Enrichment, error) {
+	return s.enrichmentStore.Get(ctx, id)
+}
+
+// List returns enrichments matching the given filter.
+func (s *EnrichmentQuery) List(ctx context.Context, filter enrichment.Filter) ([]enrichment.Enrichment, error) {
+	typ := filter.FirstType()
+	sub := filter.FirstSubtype()
+
+	if typ != nil && sub != nil {
+		return s.enrichmentStore.FindByTypeAndSubtype(ctx, *typ, *sub)
+	}
+	if typ != nil {
+		return s.enrichmentStore.FindByType(ctx, *typ)
+	}
+	return []enrichment.Enrichment{}, nil
+}
+
+// Update replaces the content of an enrichment and returns the saved result.
+func (s *EnrichmentQuery) Update(ctx context.Context, id int64, content string) (enrichment.Enrichment, error) {
+	existing, err := s.enrichmentStore.Get(ctx, id)
+	if err != nil {
+		return enrichment.Enrichment{}, err
+	}
+	updated := existing.WithContent(content)
+	return s.enrichmentStore.Save(ctx, updated)
+}
+
+// Delete removes an enrichment and its associations by ID.
+func (s *EnrichmentQuery) Delete(ctx context.Context, id int64) error {
+	existing, err := s.enrichmentStore.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+	_ = s.associationStore.DeleteByEnrichmentID(ctx, id)
+	return s.enrichmentStore.Delete(ctx, existing)
+}
+
+// DeleteForCommit removes all enrichments and associations for a commit.
+func (s *EnrichmentQuery) DeleteForCommit(ctx context.Context, commitSHA string) error {
+	enrichments, err := s.EnrichmentsForCommit(ctx, commitSHA, nil, nil)
+	if err == nil {
+		for _, en := range enrichments {
+			_ = s.enrichmentStore.Delete(ctx, en)
+		}
+	}
+	return s.associationStore.DeleteByEntityID(ctx, commitSHA)
+}
+
 // EnrichmentsForCommits returns enrichments for multiple commits with optional type filter.
 // Results are aggregated across all commits and deduplicated.
 func (s *EnrichmentQuery) EnrichmentsForCommits(

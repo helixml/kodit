@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/helixml/kodit"
 	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/domain/snippet"
@@ -16,18 +17,15 @@ import (
 
 // SearchRouter handles search API endpoints.
 type SearchRouter struct {
-	searchService service.CodeSearch
-	logger        *slog.Logger
+	client *kodit.Client
+	logger *slog.Logger
 }
 
 // NewSearchRouter creates a new SearchRouter.
-func NewSearchRouter(searchService service.CodeSearch, logger *slog.Logger) *SearchRouter {
-	if logger == nil {
-		logger = slog.Default()
-	}
+func NewSearchRouter(client *kodit.Client) *SearchRouter {
 	return &SearchRouter{
-		searchService: searchService,
-		logger:        logger,
+		client: client,
+		logger: client.Logger(),
 	}
 }
 
@@ -63,7 +61,7 @@ func (r *SearchRouter) Search(w http.ResponseWriter, req *http.Request) {
 	}
 
 	searchReq := buildSearchRequest(body)
-	result, err := r.searchService.Search(ctx, searchReq)
+	result, err := r.client.CodeSearchService().Search(ctx, searchReq)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return

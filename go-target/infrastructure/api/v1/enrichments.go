@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/helixml/kodit"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/infrastructure/api/middleware"
 	"github.com/helixml/kodit/infrastructure/api/v1/dto"
@@ -15,18 +16,15 @@ import (
 
 // EnrichmentsRouter handles enrichment API endpoints.
 type EnrichmentsRouter struct {
-	enrichmentStore enrichment.EnrichmentStore
-	logger          *slog.Logger
+	client *kodit.Client
+	logger *slog.Logger
 }
 
 // NewEnrichmentsRouter creates a new EnrichmentsRouter.
-func NewEnrichmentsRouter(enrichmentStore enrichment.EnrichmentStore, logger *slog.Logger) *EnrichmentsRouter {
-	if logger == nil {
-		logger = slog.Default()
-	}
+func NewEnrichmentsRouter(client *kodit.Client) *EnrichmentsRouter {
 	return &EnrichmentsRouter{
-		enrichmentStore: enrichmentStore,
-		logger:          logger,
+		client: client,
+		logger: client.Logger(),
 	}
 }
 
@@ -65,9 +63,6 @@ func (r *EnrichmentsRouter) List(w http.ResponseWriter, req *http.Request) {
 	typeParam := req.URL.Query().Get("enrichment_type")
 	subtypeParam := req.URL.Query().Get("enrichment_subtype")
 
-	// Parse pagination parameters
-	pagination := ParsePagination(req)
-
 	// If no filters provided, require at least one filter
 	if typeParam == "" && subtypeParam == "" {
 		middleware.WriteJSON(w, http.StatusOK, dto.EnrichmentJSONAPIListResponse{
@@ -76,25 +71,23 @@ func (r *EnrichmentsRouter) List(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	var enrichments []enrichment.Enrichment
-	var err error
-
-	if typeParam != "" && subtypeParam != "" {
-		enrichments, err = r.enrichmentStore.FindByTypeAndSubtype(
-			ctx,
-			enrichment.Type(typeParam),
-			enrichment.Subtype(subtypeParam),
-		)
-	} else if typeParam != "" {
-		enrichments, err = r.enrichmentStore.FindByType(ctx, enrichment.Type(typeParam))
+	// Build domain filter
+	filter := enrichment.NewFilter()
+	if typeParam != "" {
+		filter = filter.WithType(enrichment.Type(typeParam))
+	}
+	if subtypeParam != "" {
+		filter = filter.WithSubtype(enrichment.Subtype(subtypeParam))
 	}
 
+	enrichments, err := r.client.Enrichments().List(ctx, filter)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
 
 	// Apply pagination manually
+	pagination := ParsePagination(req)
 	offset := pagination.Offset()
 	limit := pagination.Limit()
 
@@ -138,7 +131,7 @@ func (r *EnrichmentsRouter) Get(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	e, err := r.enrichmentStore.Get(ctx, id)
+	e, err := r.client.Enrichments().Get(ctx, id)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -201,18 +194,7 @@ func (r *EnrichmentsRouter) Update(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// Get existing enrichment
-	e, err := r.enrichmentStore.Get(ctx, id)
-	if err != nil {
-		middleware.WriteError(w, req, err, r.logger)
-		return
-	}
-
-	// Update content
-	updated := e.WithContent(body.Data.Attributes.Content)
-
-	// Save updated enrichment
-	saved, err := r.enrichmentStore.Save(ctx, updated)
+	saved, err := r.client.Enrichments().Update(ctx, id, body.Data.Attributes.Content)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -246,15 +228,7 @@ func (r *EnrichmentsRouter) Delete(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// Get existing enrichment
-	e, err := r.enrichmentStore.Get(ctx, id)
-	if err != nil {
-		middleware.WriteError(w, req, err, r.logger)
-		return
-	}
-
-	// Delete enrichment
-	if err := r.enrichmentStore.Delete(ctx, e); err != nil {
+	if err := r.client.Enrichments().Delete(ctx, id); err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}

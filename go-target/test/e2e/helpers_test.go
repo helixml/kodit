@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -13,10 +12,9 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/helixml/kodit/application/service"
+	"github.com/helixml/kodit"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
-	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/domain/snippet"
 	"github.com/helixml/kodit/domain/task"
 	"github.com/helixml/kodit/infrastructure/api"
@@ -28,11 +26,11 @@ import (
 // TestServer wraps the API server for e2e testing.
 type TestServer struct {
 	t          *testing.T
+	client     *kodit.Client
 	db         persistence.Database
 	httpServer *httptest.Server
-	logger     *slog.Logger
 
-	// Stores - created via persistence package, schema via auto-migrate
+	// Stores - for direct DB manipulation in tests
 	repoStore        persistence.RepositoryStore
 	commitStore      persistence.CommitStore
 	branchStore      persistence.BranchStore
@@ -43,37 +41,33 @@ type TestServer struct {
 	taskStatusStore  persistence.StatusStore
 	enrichmentStore  persistence.EnrichmentStore
 	associationStore persistence.AssociationStore
-
-	// Services
-	queueService  *service.Queue
-	queryService  *service.RepositoryQuery
-	syncService   *service.RepositorySync
-	searchService *service.CodeSearch
 }
 
 // NewTestServer creates a new test server with all dependencies wired up.
-// Uses GORM auto-migrate for schema creation instead of manual SQL.
+// Creates a kodit.Client backed by SQLite and a separate DB handle for test data seeding.
 func NewTestServer(t *testing.T) *TestServer {
 	t.Helper()
 
 	ctx := context.Background()
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
-	url := "sqlite:///" + dbPath
 
-	db, err := persistence.NewDatabase(ctx, url)
+	// Create the kodit client first
+	client, err := kodit.New(
+		kodit.WithSQLite(dbPath),
+		kodit.WithDataDir(tmpDir),
+	)
+	if err != nil {
+		t.Fatalf("create kodit client: %v", err)
+	}
+
+	// Open a separate DB handle for seeding test data
+	db, err := persistence.NewDatabase(ctx, "sqlite:///"+dbPath)
 	if err != nil {
 		t.Fatalf("create database: %v", err)
 	}
 
-	// Use auto-migrate instead of manual SQL
-	if err := db.AutoMigrate(); err != nil {
-		t.Fatalf("auto migrate: %v", err)
-	}
-
-	logger := slog.Default()
-
-	// Create stores
+	// Create stores for direct test data manipulation
 	repoStore := persistence.NewRepositoryStore(db)
 	commitStore := persistence.NewCommitStore(db)
 	branchStore := persistence.NewBranchStore(db)
@@ -85,18 +79,8 @@ func NewTestServer(t *testing.T) *TestServer {
 	associationStore := persistence.NewAssociationStore(db)
 	snippetStore := persistence.NewSnippetStore(db)
 
-	// Create services
-	queueService := service.NewQueue(taskStore, logger)
-	queryService := service.NewRepositoryQuery(repoStore, commitStore, branchStore, tagStore).
-		WithFileStore(fileStore)
-	syncService := service.NewRepositorySync(repoStore, queueService, logger)
-
-	// Create search service with fakes (SQLite doesn't have vector extensions)
-	fakeTextVector := &fakeVectorStore{}
-	fakeCodeVector := &fakeVectorStore{}
-	searchService := service.NewCodeSearch(fakeTextVector, fakeCodeVector, snippetStore, enrichmentStore, logger)
-
-	// Create API server
+	// Create API server using the client
+	logger := client.Logger()
 	server := api.NewServer(":0", logger)
 	router := server.Router()
 
@@ -104,29 +88,16 @@ func NewTestServer(t *testing.T) *TestServer {
 	router.Use(apimiddleware.Logging(logger))
 	router.Use(apimiddleware.CorrelationID)
 
-	// Create query services
-	trackingQuery := service.NewTrackingQuery(taskStatusStore, taskStore)
-	enrichmentQuery := service.NewEnrichmentQuery(enrichmentStore, associationStore)
-
-	// Register routes
+	// Register routes — each router takes just the client
 	router.Route("/api/v1", func(r chi.Router) {
-		reposRouter := v1.NewRepositoriesRouter(queryService, syncService, logger).
-			WithTrackingQueryService(trackingQuery).
-			WithEnrichmentServices(enrichmentQuery, enrichmentStore, associationStore).
-			WithIndexingServices(snippetStore, fakeCodeVector)
-		r.Mount("/repositories", reposRouter.Routes())
+		r.Mount("/repositories", v1.NewRepositoriesRouter(client).Routes())
+		r.Mount("/commits", v1.NewCommitsRouter(client).Routes())
+		r.Mount("/enrichments", v1.NewEnrichmentsRouter(client).Routes())
+		r.Mount("/queue", v1.NewQueueRouter(client).Routes())
 
-		commitsRouter := v1.NewCommitsRouter(queryService, logger)
-		r.Mount("/commits", commitsRouter.Routes())
-
-		searchRouter := v1.NewSearchRouter(*searchService, logger)
-		r.Mount("/search", searchRouter.Routes())
-
-		enrichmentsRouter := v1.NewEnrichmentsRouter(enrichmentStore, logger)
-		r.Mount("/enrichments", enrichmentsRouter.Routes())
-
-		queueRouter := v1.NewQueueRouter(queueService, taskStore, taskStatusStore, logger)
-		r.Mount("/queue", queueRouter.Routes())
+		if client.CodeSearchService() != nil {
+			r.Mount("/search", v1.NewSearchRouter(client).Routes())
+		}
 	})
 
 	// Health check
@@ -139,9 +110,9 @@ func NewTestServer(t *testing.T) *TestServer {
 
 	ts := &TestServer{
 		t:                t,
+		client:           client,
 		db:               db,
 		httpServer:       httpServer,
-		logger:           logger,
 		repoStore:        repoStore,
 		commitStore:      commitStore,
 		branchStore:      branchStore,
@@ -152,10 +123,6 @@ func NewTestServer(t *testing.T) *TestServer {
 		taskStatusStore:  taskStatusStore,
 		enrichmentStore:  enrichmentStore,
 		associationStore: associationStore,
-		queueService:     queueService,
-		queryService:     queryService,
-		syncService:      syncService,
-		searchService:    searchService,
 	}
 
 	t.Cleanup(func() {
@@ -173,6 +140,7 @@ func (ts *TestServer) URL() string {
 // Close shuts down the test server.
 func (ts *TestServer) Close() {
 	ts.httpServer.Close()
+	_ = ts.client.Close()
 	_ = ts.db.Close()
 }
 
@@ -260,19 +228,11 @@ func (ts *TestServer) CreateTask(operation task.Operation, payload map[string]an
 	ctx := context.Background()
 
 	tsk := task.NewTask(operation, int(task.PriorityNormal), payload)
-	if err := ts.queueService.Enqueue(ctx, tsk); err != nil {
-		ts.t.Fatalf("enqueue task: %v", err)
-	}
-
-	// Get the task back to have the ID
-	tasks, err := ts.taskStore.FindAll(ctx)
+	saved, err := ts.taskStore.Save(ctx, tsk)
 	if err != nil {
-		ts.t.Fatalf("find tasks: %v", err)
+		ts.t.Fatalf("save task: %v", err)
 	}
-	if len(tasks) == 0 {
-		ts.t.Fatalf("no tasks found")
-	}
-	return tasks[len(tasks)-1]
+	return saved
 }
 
 // CreateEnrichment creates an enrichment in the database directly.
@@ -360,42 +320,4 @@ func (ts *TestServer) CreateEnrichmentAssociation(e enrichment.Enrichment, entit
 		ts.t.Fatalf("save association: %v", err)
 	}
 	return saved
-}
-
-// fakeBM25Store is a fake BM25 store for testing (SQLite doesn't have VectorChord).
-type fakeBM25Store struct{}
-
-func (f *fakeBM25Store) Index(_ context.Context, _ search.IndexRequest) error {
-	return nil
-}
-
-func (f *fakeBM25Store) Search(_ context.Context, _ search.Request) ([]search.Result, error) {
-	return []search.Result{}, nil
-}
-
-func (f *fakeBM25Store) Delete(_ context.Context, _ search.DeleteRequest) error {
-	return nil
-}
-
-// fakeVectorStore is a fake vector store for testing (SQLite doesn't have VectorChord).
-type fakeVectorStore struct{}
-
-func (f *fakeVectorStore) Index(_ context.Context, _ search.IndexRequest) error {
-	return nil
-}
-
-func (f *fakeVectorStore) Search(_ context.Context, _ search.Request) ([]search.Result, error) {
-	return []search.Result{}, nil
-}
-
-func (f *fakeVectorStore) HasEmbedding(_ context.Context, _ string, _ snippet.EmbeddingType) (bool, error) {
-	return false, nil
-}
-
-func (f *fakeVectorStore) Delete(_ context.Context, _ search.DeleteRequest) error {
-	return nil
-}
-
-func (f *fakeVectorStore) EmbeddingsForSnippets(_ context.Context, _ []string) ([]snippet.EmbeddingInfo, error) {
-	return []snippet.EmbeddingInfo{}, nil
 }

@@ -37,18 +37,10 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/helixml/kodit/application/handler"
-	commithandler "github.com/helixml/kodit/application/handler/commit"
-	enrichmenthandler "github.com/helixml/kodit/application/handler/enrichment"
-	indexinghandler "github.com/helixml/kodit/application/handler/indexing"
-	repohandler "github.com/helixml/kodit/application/handler/repository"
 	"github.com/helixml/kodit/application/service"
-	"github.com/helixml/kodit/domain/enrichment"
-	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
 	domainservice "github.com/helixml/kodit/domain/service"
 	"github.com/helixml/kodit/domain/snippet"
-	"github.com/helixml/kodit/domain/task"
 	"github.com/helixml/kodit/infrastructure/enricher"
 	"github.com/helixml/kodit/infrastructure/enricher/example"
 	"github.com/helixml/kodit/infrastructure/git"
@@ -343,104 +335,33 @@ func (c *Client) Close() error {
 	return nil
 }
 
-// registerHandlers registers all task handlers with the worker registry.
-func (c *Client) registerHandlers() {
-	// Repository handlers (always registered)
-	c.registry.Register(task.OperationCloneRepository, repohandler.NewClone(
-		c.repoStores.Repositories, c.gitInfra.Cloner, c.queue, c.enrichCtx.Tracker, c.logger,
-	))
-	c.registry.Register(task.OperationSyncRepository, repohandler.NewSync(
-		c.repoStores.Repositories, c.repoStores.Branches, c.gitInfra.Cloner, c.gitInfra.Scanner, c.queue, c.enrichCtx.Tracker, c.logger,
-	))
-	c.registry.Register(task.OperationDeleteRepository, repohandler.NewDelete(
-		c.repoStores, c.snippetStore, c.enrichCtx.Tracker, c.logger,
-	))
-	c.registry.Register(task.OperationScanCommit, commithandler.NewScan(
-		c.repoStores.Repositories, c.repoStores.Commits, c.repoStores.Files, c.gitInfra.Scanner, c.enrichCtx.Tracker, c.logger,
-	))
-	c.registry.Register(task.OperationRescanCommit, commithandler.NewRescan(
-		c.snippetStore, c.enrichCtx.Associations, c.enrichCtx.Tracker, c.logger,
-	))
-
-	// Indexing handlers (always registered for snippet extraction)
-	c.registry.Register(task.OperationExtractSnippetsForCommit, indexinghandler.NewExtractSnippets(
-		c.repoStores.Repositories, c.snippetStore, c.repoStores.Files, c.slicer, c.enrichCtx.Tracker, c.logger,
-	))
-
-	// BM25 index handler
-	c.registry.Register(task.OperationCreateBM25IndexForCommit, indexinghandler.NewCreateBM25Index(
-		c.bm25Service, c.snippetStore, c.enrichCtx.Tracker, c.logger,
-	))
-
-	// Code embeddings for snippets
-	c.registry.Register(task.OperationCreateCodeEmbeddingsForCommit, indexinghandler.NewCreateCodeEmbeddings(
-		c.codeIndex, c.snippetStore, c.enrichCtx.Tracker, c.logger,
-	))
-
-	// Example code embeddings (enrichment content from extracted examples)
-	c.registry.Register(task.OperationCreateExampleCodeEmbeddingsForCommit, indexinghandler.NewCreateExampleCodeEmbeddings(
-		c.codeIndex, c.enrichCtx.Query, c.enrichCtx.Tracker, c.logger,
-	))
-
-	// Summary embeddings (enrichment content from snippet summaries)
-	c.registry.Register(task.OperationCreateSummaryEmbeddingsForCommit, indexinghandler.NewCreateSummaryEmbeddings(
-		c.textIndex, c.enrichCtx.Query, c.enrichCtx.Associations, c.enrichCtx.Tracker, c.logger,
-	))
-
-	// Example summary embeddings (enrichment content from example summaries)
-	c.registry.Register(task.OperationCreateExampleSummaryEmbeddingsForCommit, indexinghandler.NewCreateExampleSummaryEmbeddings(
-		c.textIndex, c.enrichCtx.Query, c.enrichCtx.Tracker, c.logger,
-	))
-
-	// Enrichment handlers
-	// Summary enrichment
-	c.registry.Register(task.OperationCreateSummaryEnrichmentForCommit, enrichmenthandler.NewCreateSummary(
-		c.snippetStore, c.enrichCtx,
-	))
-
-	// Commit description
-	c.registry.Register(task.OperationCreateCommitDescriptionForCommit, enrichmenthandler.NewCommitDescription(
-		c.repoStores.Repositories, c.enrichCtx, c.gitInfra.Adapter,
-	))
-
-	// Architecture discovery
-	c.registry.Register(task.OperationCreateArchitectureEnrichmentForCommit, enrichmenthandler.NewArchitectureDiscovery(
-		c.repoStores.Repositories, c.enrichCtx, c.archDiscoverer,
-	))
-
-	// Example summary
-	c.registry.Register(task.OperationCreateExampleSummaryForCommit, enrichmenthandler.NewExampleSummary(
-		c.enrichCtx,
-	))
-
-	// Database schema enrichment
-	c.registry.Register(task.OperationCreateDatabaseSchemaForCommit, enrichmenthandler.NewDatabaseSchema(
-		c.repoStores.Repositories, c.enrichCtx, c.schemaDiscoverer,
-	))
-
-	// Cookbook enrichment
-	c.registry.Register(task.OperationCreateCookbookForCommit, enrichmenthandler.NewCookbook(
-		c.repoStores.Repositories, c.repoStores.Files, c.enrichCtx, c.cookbookContext,
-	))
-
-	// API docs enrichment
-	c.registry.Register(task.OperationCreatePublicAPIDocsForCommit, enrichmenthandler.NewAPIDocs(
-		c.repoStores.Repositories, c.repoStores.Files, c.enrichCtx, c.apiDocService,
-	))
-
-	// Example extraction handler
-	c.registry.Register(task.OperationExtractExamplesForCommit, enrichmenthandler.NewExtractExamples(
-		c.repoStores.Repositories, c.repoStores.Commits, c.gitInfra.Adapter, c.enrichCtx, c.exampleDiscoverer,
-	))
-
-	c.logger.Info("registered task handlers", slog.Int("count", len(c.registry.Operations())))
-}
-
 // Repositories returns the repository management interface.
 func (c *Client) Repositories() Repositories {
 	return &repositoriesImpl{
 		repoSync:  c.repoSync,
 		repoQuery: c.repoQuery,
+	}
+}
+
+// Enrichments returns the enrichment query interface.
+func (c *Client) Enrichments() Enrichments {
+	return &enrichmentsImpl{
+		query: c.enrichCtx.Query,
+	}
+}
+
+// Tasks returns the task queue interface.
+func (c *Client) Tasks() Tasks {
+	return &tasksImpl{
+		queue: c.queue,
+	}
+}
+
+// Snippets returns the snippet query interface.
+func (c *Client) Snippets() Snippets {
+	return &snippetsImpl{
+		snippetStore: c.snippetStore,
+		vectorStore:  c.codeIndex.Store,
 	}
 }
 
@@ -485,22 +406,6 @@ func (c *Client) Search(ctx context.Context, query string, opts ...SearchOption)
 	}, nil
 }
 
-// Enrichments returns the enrichment query interface.
-func (c *Client) Enrichments() Enrichments {
-	return &enrichmentsImpl{
-		enrichQ:         c.enrichCtx.Query,
-		enrichmentStore: c.enrichCtx.Enrichments,
-	}
-}
-
-// Tasks returns the task queue interface.
-func (c *Client) Tasks() Tasks {
-	return &tasksImpl{
-		queue:     c.queue,
-		taskStore: c.taskStore,
-	}
-}
-
 // CodeSearchService returns the underlying code search service.
 // This is useful for advanced callers like MCP servers that need
 // full control over search requests (e.g., MultiSearchRequest).
@@ -524,226 +429,7 @@ func (c *Client) TrackingQuery() *service.TrackingQuery {
 	return c.trackingQuery
 }
 
-// EnrichmentQuery returns the enrichment query service.
-func (c *Client) EnrichmentQuery() *service.EnrichmentQuery {
-	return c.enrichCtx.Query
-}
-
-// EnrichmentStore returns the enrichment persistence store.
-func (c *Client) EnrichmentStore() enrichment.EnrichmentStore {
-	return c.enrichCtx.Enrichments
-}
-
-// AssociationStore returns the enrichment association store.
-func (c *Client) AssociationStore() enrichment.AssociationStore {
-	return c.enrichCtx.Associations
-}
-
-// SnippetStore returns access to the snippet storage.
-func (c *Client) SnippetStore() snippet.SnippetStore {
-	return c.snippetStore
-}
-
-// CodeVectorStore returns the code vector store for embedding lookups.
-func (c *Client) CodeVectorStore() search.VectorStore {
-	return c.codeIndex.Store
-}
-
-// Queue returns the task queue service.
-func (c *Client) Queue() *service.Queue {
-	return c.queue
-}
-
-// TaskStore returns the task persistence store.
-func (c *Client) TaskStore() task.TaskStore {
-	return c.taskStore
-}
-
-// StatusStore returns the task status persistence store.
-func (c *Client) StatusStore() task.StatusStore {
-	return c.statusStore
-}
-
 // Logger returns the client's logger.
 func (c *Client) Logger() *slog.Logger {
 	return c.logger
-}
-
-// SearchResult represents the result of a hybrid search.
-type SearchResult struct {
-	snippets    []snippet.Snippet
-	enrichments []enrichment.Enrichment
-	scores      map[string]float64
-}
-
-// Snippets returns the matched code snippets.
-func (r SearchResult) Snippets() []snippet.Snippet {
-	result := make([]snippet.Snippet, len(r.snippets))
-	copy(result, r.snippets)
-	return result
-}
-
-// Enrichments returns the enrichments associated with matched snippets.
-func (r SearchResult) Enrichments() []enrichment.Enrichment {
-	result := make([]enrichment.Enrichment, len(r.enrichments))
-	copy(result, r.enrichments)
-	return result
-}
-
-// Scores returns a map of snippet SHA to fused search score.
-func (r SearchResult) Scores() map[string]float64 {
-	result := make(map[string]float64, len(r.scores))
-	for k, v := range r.scores {
-		result[k] = v
-	}
-	return result
-}
-
-// Count returns the number of snippets in the result.
-func (r SearchResult) Count() int {
-	return len(r.snippets)
-}
-
-// Repositories provides repository management operations.
-type Repositories interface {
-	// Clone clones a repository and queues it for indexing.
-	Clone(ctx context.Context, url string) (repository.Repository, error)
-
-	// Get retrieves a repository by ID.
-	Get(ctx context.Context, id int64) (repository.Repository, error)
-
-	// List returns all repositories.
-	List(ctx context.Context) ([]repository.Repository, error)
-
-	// Delete removes a repository and all associated data.
-	Delete(ctx context.Context, id int64) error
-
-	// Sync triggers re-indexing of a repository.
-	Sync(ctx context.Context, id int64) error
-}
-
-// Enrichments provides enrichment query operations.
-type Enrichments interface {
-	// ForCommit returns enrichments for a specific commit.
-	ForCommit(ctx context.Context, commitSHA string, opts ...EnrichmentOption) ([]enrichment.Enrichment, error)
-
-	// Get retrieves a specific enrichment by ID.
-	Get(ctx context.Context, id int64) (enrichment.Enrichment, error)
-}
-
-// Tasks provides task queue operations.
-type Tasks interface {
-	// List returns pending tasks.
-	List(ctx context.Context, opts ...TaskOption) ([]task.Task, error)
-
-	// Get retrieves a task by ID.
-	Get(ctx context.Context, id int64) (task.Task, error)
-
-	// Cancel cancels a pending task.
-	Cancel(ctx context.Context, id int64) error
-}
-
-// repositoriesImpl implements Repositories.
-type repositoriesImpl struct {
-	repoSync  *service.RepositorySync
-	repoQuery *service.RepositoryQuery
-}
-
-func (r *repositoriesImpl) Clone(ctx context.Context, url string) (repository.Repository, error) {
-	source, err := r.repoSync.AddRepository(ctx, url)
-	if err != nil {
-		return repository.Repository{}, err
-	}
-	return source.Repository(), nil
-}
-
-func (r *repositoriesImpl) Get(ctx context.Context, id int64) (repository.Repository, error) {
-	source, err := r.repoQuery.ByID(ctx, id)
-	if err != nil {
-		return repository.Repository{}, err
-	}
-	return source.Repository(), nil
-}
-
-func (r *repositoriesImpl) List(ctx context.Context) ([]repository.Repository, error) {
-	sources, err := r.repoQuery.All(ctx)
-	if err != nil {
-		return nil, err
-	}
-	repos := make([]repository.Repository, len(sources))
-	for i, src := range sources {
-		repos[i] = src.Repository()
-	}
-	return repos, nil
-}
-
-func (r *repositoriesImpl) Delete(ctx context.Context, id int64) error {
-	return r.repoSync.RequestDelete(ctx, id)
-}
-
-func (r *repositoriesImpl) Sync(ctx context.Context, id int64) error {
-	return r.repoSync.RequestSync(ctx, id)
-}
-
-// enrichmentsImpl implements Enrichments.
-type enrichmentsImpl struct {
-	enrichQ         *service.EnrichmentQuery
-	enrichmentStore enrichment.EnrichmentStore
-}
-
-func (e *enrichmentsImpl) ForCommit(ctx context.Context, commitSHA string, _ ...EnrichmentOption) ([]enrichment.Enrichment, error) {
-	return e.enrichQ.EnrichmentsForCommit(ctx, commitSHA, nil, nil)
-}
-
-func (e *enrichmentsImpl) Get(ctx context.Context, id int64) (enrichment.Enrichment, error) {
-	return e.enrichmentStore.Get(ctx, id)
-}
-
-// tasksImpl implements Tasks.
-type tasksImpl struct {
-	queue     *service.Queue
-	taskStore persistence.TaskStore
-}
-
-func (t *tasksImpl) List(ctx context.Context, _ ...TaskOption) ([]task.Task, error) {
-	return t.queue.List(ctx, nil)
-}
-
-func (t *tasksImpl) Get(ctx context.Context, id int64) (task.Task, error) {
-	return t.taskStore.Get(ctx, id)
-}
-
-func (t *tasksImpl) Cancel(ctx context.Context, id int64) error {
-	tsk, err := t.taskStore.Get(ctx, id)
-	if err != nil {
-		return err
-	}
-	return t.taskStore.Delete(ctx, tsk)
-}
-
-// buildDatabaseURL constructs the database URL from configuration.
-func buildDatabaseURL(cfg *clientConfig) (string, error) {
-	switch cfg.database {
-	case databaseSQLite:
-		return "sqlite:///" + cfg.dbPath, nil
-	case databasePostgres, databasePostgresPgvector, databasePostgresVectorchord:
-		return cfg.dbDSN, nil
-	default:
-		return "", ErrNoDatabase
-	}
-}
-
-// trackerFactoryImpl implements handler.TrackerFactory for progress reporting.
-type trackerFactoryImpl struct {
-	reporters []tracking.Reporter
-	logger    *slog.Logger
-}
-
-// ForOperation creates a Tracker for the given operation.
-func (f *trackerFactoryImpl) ForOperation(operation task.Operation, trackableType task.TrackableType, trackableID int64) handler.Tracker {
-	tracker := tracking.TrackerForOperation(operation, f.logger, trackableType, trackableID)
-	for _, reporter := range f.reporters {
-		tracker.Subscribe(reporter)
-	}
-	return tracker
 }

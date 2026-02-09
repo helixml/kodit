@@ -14,23 +14,28 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
+// SnippetLookup provides snippet retrieval by SHA for MCP tools.
+type SnippetLookup interface {
+	BySHA(ctx context.Context, sha string) (snippet.Snippet, error)
+}
+
 // Server wraps the MCP server with kodit-specific tools.
 type Server struct {
 	mcpServer     *server.MCPServer
 	searchService service.CodeSearch
-	snippetStore  snippet.SnippetStore
+	snippets      SnippetLookup
 	logger        *slog.Logger
 }
 
 // NewServer creates a new MCP server with the given dependencies.
-func NewServer(searchService service.CodeSearch, snippetStore snippet.SnippetStore, logger *slog.Logger) *Server {
+func NewServer(searchService service.CodeSearch, snippets SnippetLookup, logger *slog.Logger) *Server {
 	if logger == nil {
 		logger = slog.Default()
 	}
 
 	s := &Server{
 		searchService: searchService,
-		snippetStore:  snippetStore,
+		snippets:      snippets,
 		logger:        logger,
 	}
 
@@ -141,11 +146,11 @@ func (s *Server) handleGetSnippet(ctx context.Context, request mcp.CallToolReque
 		return mcp.NewToolResultError("sha is required"), nil
 	}
 
-	if s.snippetStore == nil {
-		return mcp.NewToolResultError("snippet store not configured"), nil
+	if s.snippets == nil {
+		return mcp.NewToolResultError("snippet lookup not configured"), nil
 	}
 
-	snip, err := s.snippetStore.BySHA(ctx, sha)
+	snip, err := s.snippets.BySHA(ctx, sha)
 	if err != nil {
 		s.logger.Error("failed to get snippet", slog.String("sha", sha), slog.Any("error", err))
 		return mcp.NewToolResultError(fmt.Sprintf("failed to get snippet: %v", err)), nil

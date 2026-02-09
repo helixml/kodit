@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/helixml/kodit"
+	"github.com/helixml/kodit/domain/task"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -83,7 +84,7 @@ func TestClient_Tasks_List_Empty(t *testing.T) {
 	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
-	tasks, err := client.Tasks().List(ctx)
+	tasks, err := client.Tasks().List(ctx, task.NewFilter())
 	require.NoError(t, err)
 	assert.Empty(t, tasks)
 }

@@ -94,6 +94,32 @@ func (s *Queue) TaskByDedupKey(ctx context.Context, dedupKey string) (task.Task,
 	return task.Task{}, false, nil
 }
 
+// Get retrieves a task by ID.
+func (s *Queue) Get(ctx context.Context, id int64) (task.Task, error) {
+	return s.store.Get(ctx, id)
+}
+
+// Cancel removes a pending task by ID.
+func (s *Queue) Cancel(ctx context.Context, id int64) error {
+	tsk, err := s.store.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+	return s.store.Delete(ctx, tsk)
+}
+
+// ListFiltered returns tasks matching the given filter.
+func (s *Queue) ListFiltered(ctx context.Context, filter task.Filter) ([]task.Task, error) {
+	tasks, err := s.List(ctx, filter.Operation())
+	if err != nil {
+		return nil, err
+	}
+	if filter.Limit() > 0 && len(tasks) > filter.Limit() {
+		tasks = tasks[:filter.Limit()]
+	}
+	return tasks, nil
+}
+
 // PendingCount returns the count of pending tasks.
 func (s *Queue) PendingCount(ctx context.Context) (int64, error) {
 	return s.store.CountPending(ctx)

@@ -1,84 +1,74 @@
-package v1
+package v1_test
 
 import (
-	"context"
 	"encoding/json"
-	"log/slog"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"testing"
 
+	"github.com/helixml/kodit"
 	"github.com/helixml/kodit/domain/enrichment"
+	v1 "github.com/helixml/kodit/infrastructure/api/v1"
 	"github.com/helixml/kodit/infrastructure/api/v1/dto"
 	"github.com/helixml/kodit/infrastructure/persistence"
 )
 
-// FakeEnrichmentStore implements enrichment.EnrichmentStore for testing.
-type FakeEnrichmentStore struct {
-	enrichments []enrichment.Enrichment
-	getErr      error
-}
-
-func (f *FakeEnrichmentStore) Get(_ context.Context, id int64) (enrichment.Enrichment, error) {
-	if f.getErr != nil {
-		return enrichment.Enrichment{}, f.getErr
+func newTestClient(t *testing.T) *kodit.Client {
+	t.Helper()
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+	client, err := kodit.New(
+		kodit.WithSQLite(dbPath),
+		kodit.WithDataDir(tmpDir),
+	)
+	if err != nil {
+		t.Fatalf("create client: %v", err)
 	}
-	for _, e := range f.enrichments {
-		if e.ID() == id {
-			return e, nil
-		}
+	t.Cleanup(func() { _ = client.Close() })
+	return client
+}
+
+// newTestClientWithSeededEnrichment creates a client with a pre-seeded enrichment.
+// It opens the DB first to seed data, then creates the client.
+func newTestClientWithSeededEnrichment(t *testing.T) (*kodit.Client, enrichment.Enrichment) {
+	t.Helper()
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+
+	db := openTestDB(t, dbPath)
+	store := persistence.NewEnrichmentStore(db)
+	e := enrichment.NewEnrichment(
+		enrichment.TypeDevelopment,
+		enrichment.SubtypeSnippet,
+		enrichment.EntityTypeSnippet,
+		"test content",
+	)
+	ctx := httptest.NewRequest(http.MethodGet, "/", nil).Context()
+	saved, err := store.Save(ctx, e)
+	if err != nil {
+		t.Fatalf("save enrichment: %v", err)
 	}
-	return enrichment.Enrichment{}, persistence.ErrNotFound
-}
+	_ = db.Close()
 
-func (f *FakeEnrichmentStore) Save(_ context.Context, e enrichment.Enrichment) (enrichment.Enrichment, error) {
-	return e, nil
-}
-
-func (f *FakeEnrichmentStore) Delete(_ context.Context, _ enrichment.Enrichment) error {
-	return nil
-}
-
-func (f *FakeEnrichmentStore) FindByType(_ context.Context, _ enrichment.Type) ([]enrichment.Enrichment, error) {
-	return f.enrichments, nil
-}
-
-func (f *FakeEnrichmentStore) FindByTypeAndSubtype(_ context.Context, typ enrichment.Type, subtype enrichment.Subtype) ([]enrichment.Enrichment, error) {
-	var result []enrichment.Enrichment
-	for _, e := range f.enrichments {
-		if e.Type() == typ && e.Subtype() == subtype {
-			result = append(result, e)
-		}
+	client, err := kodit.New(
+		kodit.WithSQLite(dbPath),
+		kodit.WithDataDir(tmpDir),
+	)
+	if err != nil {
+		t.Fatalf("create client: %v", err)
 	}
-	return result, nil
-}
-
-func (f *FakeEnrichmentStore) FindByEntityKey(_ context.Context, key enrichment.EntityTypeKey) ([]enrichment.Enrichment, error) {
-	var result []enrichment.Enrichment
-	for _, e := range f.enrichments {
-		if e.EntityTypeKey() == key {
-			result = append(result, e)
-		}
-	}
-	return result, nil
+	t.Cleanup(func() { _ = client.Close() })
+	return client, saved
 }
 
 func TestEnrichmentsRouter_List(t *testing.T) {
-	fake := &FakeEnrichmentStore{
-		enrichments: []enrichment.Enrichment{
-			enrichment.NewEnrichment(
-				enrichment.TypeDevelopment,
-				enrichment.SubtypeSnippet,
-				enrichment.EntityTypeSnippet,
-				"test content",
-			).WithID(1),
-		},
-	}
+	client, _ := newTestClientWithSeededEnrichment(t)
 
-	router := NewEnrichmentsRouter(fake, slog.Default())
+	router := v1.NewEnrichmentsRouter(client)
 	routes := router.Routes()
 
-	// List endpoint requires enrichment_type query parameter
 	req := httptest.NewRequest(http.MethodGet, "/?enrichment_type=development", nil)
 	w := httptest.NewRecorder()
 
@@ -102,21 +92,11 @@ func TestEnrichmentsRouter_List(t *testing.T) {
 }
 
 func TestEnrichmentsRouter_List_NoFilter(t *testing.T) {
-	fake := &FakeEnrichmentStore{
-		enrichments: []enrichment.Enrichment{
-			enrichment.NewEnrichment(
-				enrichment.TypeDevelopment,
-				enrichment.SubtypeSnippet,
-				enrichment.EntityTypeSnippet,
-				"test content",
-			).WithID(1),
-		},
-	}
+	client := newTestClient(t)
 
-	router := NewEnrichmentsRouter(fake, slog.Default())
+	router := v1.NewEnrichmentsRouter(client)
 	routes := router.Routes()
 
-	// Without enrichment_type filter, should return empty list
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := httptest.NewRecorder()
 
@@ -137,21 +117,13 @@ func TestEnrichmentsRouter_List_NoFilter(t *testing.T) {
 }
 
 func TestEnrichmentsRouter_Get(t *testing.T) {
-	fake := &FakeEnrichmentStore{
-		enrichments: []enrichment.Enrichment{
-			enrichment.NewEnrichment(
-				enrichment.TypeDevelopment,
-				enrichment.SubtypeSnippet,
-				enrichment.EntityTypeSnippet,
-				"test content",
-			).WithID(1),
-		},
-	}
+	client, saved := newTestClientWithSeededEnrichment(t)
 
-	router := NewEnrichmentsRouter(fake, slog.Default())
+	router := v1.NewEnrichmentsRouter(client)
 	routes := router.Routes()
 
-	req := httptest.NewRequest(http.MethodGet, "/1", nil)
+	idStr := fmt.Sprintf("%d", saved.ID())
+	req := httptest.NewRequest(http.MethodGet, "/"+idStr, nil)
 	w := httptest.NewRecorder()
 
 	routes.ServeHTTP(w, req)
@@ -165,8 +137,8 @@ func TestEnrichmentsRouter_Get(t *testing.T) {
 		t.Fatalf("failed to decode response: %v", err)
 	}
 
-	if response.Data.ID != "1" {
-		t.Errorf("ID = %v, want 1", response.Data.ID)
+	if response.Data.ID != idStr {
+		t.Errorf("ID = %v, want %v", response.Data.ID, idStr)
 	}
 	if response.Data.Type != "enrichment" {
 		t.Errorf("type = %v, want enrichment", response.Data.Type)
@@ -174,11 +146,9 @@ func TestEnrichmentsRouter_Get(t *testing.T) {
 }
 
 func TestEnrichmentsRouter_Get_NotFound(t *testing.T) {
-	fake := &FakeEnrichmentStore{
-		enrichments: []enrichment.Enrichment{},
-	}
+	client := newTestClient(t)
 
-	router := NewEnrichmentsRouter(fake, slog.Default())
+	router := v1.NewEnrichmentsRouter(client)
 	routes := router.Routes()
 
 	req := httptest.NewRequest(http.MethodGet, "/999", nil)
@@ -189,4 +159,17 @@ func TestEnrichmentsRouter_Get_NotFound(t *testing.T) {
 	if w.Code != http.StatusNotFound {
 		t.Errorf("status code = %v, want %v", w.Code, http.StatusNotFound)
 	}
+}
+
+func openTestDB(t *testing.T, dbPath string) persistence.Database {
+	t.Helper()
+	ctx := httptest.NewRequest(http.MethodGet, "/", nil).Context()
+	db, err := persistence.NewDatabase(ctx, "sqlite:///"+dbPath)
+	if err != nil {
+		t.Fatalf("open database: %v", err)
+	}
+	if err := db.AutoMigrate(); err != nil {
+		t.Fatalf("auto migrate: %v", err)
+	}
+	return db
 }

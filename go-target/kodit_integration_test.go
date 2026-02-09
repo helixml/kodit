@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/helixml/kodit"
+	"github.com/helixml/kodit/domain/task"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -103,7 +104,7 @@ func waitForTasks(ctx context.Context, t *testing.T, client *kodit.Client, timeo
 	deadline := time.Now().Add(timeout)
 	lastCount := -1
 	for time.Now().Before(deadline) {
-		tasks, err := client.Tasks().List(ctx)
+		tasks, err := client.Tasks().List(ctx, task.NewFilter())
 		require.NoError(t, err)
 
 		if len(tasks) == 0 {
@@ -121,7 +122,7 @@ func waitForTasks(ctx context.Context, t *testing.T, client *kodit.Client, timeo
 		time.Sleep(500 * time.Millisecond)
 	}
 
-	tasks, _ := client.Tasks().List(ctx)
+	tasks, _ := client.Tasks().List(ctx, task.NewFilter())
 	t.Fatalf("timeout waiting for tasks to complete, %d remaining", len(tasks))
 }
 
@@ -153,7 +154,7 @@ func TestIntegration_IndexRepository_QueuesCloneTask(t *testing.T) {
 	assert.Greater(t, repo.ID(), int64(0), "repository should have an ID")
 
 	// Verify a clone task was queued
-	tasks, err := client.Tasks().List(ctx)
+	tasks, err := client.Tasks().List(ctx, task.NewFilter())
 	require.NoError(t, err)
 	assert.NotEmpty(t, tasks, "expected clone task to be queued")
 }

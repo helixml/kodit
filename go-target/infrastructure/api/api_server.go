@@ -53,25 +53,18 @@ func (a *APIServer) MountRoutes() {
 func (a *APIServer) mountRoutes(router chi.Router) {
 	c := a.client
 
-	reposRouter := v1.NewRepositoriesRouter(c.RepositoryQuery(), c.RepositorySync(), a.logger)
-	reposRouter.WithTrackingQueryService(c.TrackingQuery())
-	reposRouter.WithEnrichmentServices(c.EnrichmentQuery(), c.EnrichmentStore(), c.AssociationStore())
-	reposRouter.WithIndexingServices(c.SnippetStore(), c.CodeVectorStore())
-
-	queueRouter := v1.NewQueueRouter(c.Queue(), c.TaskStore(), c.StatusStore(), a.logger)
-	enrichmentsRouter := v1.NewEnrichmentsRouter(c.EnrichmentStore(), a.logger)
-	commitsRouter := v1.NewCommitsRouter(c.RepositoryQuery(), a.logger)
+	reposRouter := v1.NewRepositoriesRouter(c)
+	queueRouter := v1.NewQueueRouter(c)
+	enrichmentsRouter := v1.NewEnrichmentsRouter(c)
+	commitsRouter := v1.NewCommitsRouter(c)
+	searchRouter := v1.NewSearchRouter(c)
 
 	router.Route("/api/v1", func(r chi.Router) {
 		r.Mount("/repositories", reposRouter.Routes())
 		r.Mount("/commits", commitsRouter.Routes())
 		r.Mount("/queue", queueRouter.Routes())
 		r.Mount("/enrichments", enrichmentsRouter.Routes())
-
-		if c.CodeSearchService() != nil {
-			searchRouter := v1.NewSearchRouter(*c.CodeSearchService(), a.logger)
-			r.Mount("/search", searchRouter.Routes())
-		}
+		r.Mount("/search", searchRouter.Routes())
 	})
 }
 

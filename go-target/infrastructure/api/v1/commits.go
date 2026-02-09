@@ -6,7 +6,7 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/helixml/kodit/application/service"
+	"github.com/helixml/kodit"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/infrastructure/api/middleware"
 	"github.com/helixml/kodit/infrastructure/api/v1/dto"
@@ -14,18 +14,15 @@ import (
 
 // CommitsRouter handles commit API endpoints.
 type CommitsRouter struct {
-	queryService *service.RepositoryQuery
-	logger       *slog.Logger
+	client *kodit.Client
+	logger *slog.Logger
 }
 
 // NewCommitsRouter creates a new CommitsRouter.
-func NewCommitsRouter(queryService *service.RepositoryQuery, logger *slog.Logger) *CommitsRouter {
-	if logger == nil {
-		logger = slog.Default()
-	}
+func NewCommitsRouter(client *kodit.Client) *CommitsRouter {
 	return &CommitsRouter{
-		queryService: queryService,
-		logger:       logger,
+		client: client,
+		logger: client.Logger(),
 	}
 }
 
@@ -56,7 +53,7 @@ func (r *CommitsRouter) ListByRepository(w http.ResponseWriter, req *http.Reques
 		return
 	}
 
-	commits, err := r.queryService.CommitsForRepository(ctx, repoID)
+	commits, err := r.client.RepositoryQuery().CommitsForRepository(ctx, repoID)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return

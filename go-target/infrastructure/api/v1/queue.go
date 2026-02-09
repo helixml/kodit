@@ -7,7 +7,7 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/helixml/kodit/application/service"
+	"github.com/helixml/kodit"
 	"github.com/helixml/kodit/domain/task"
 	"github.com/helixml/kodit/infrastructure/api/middleware"
 	"github.com/helixml/kodit/infrastructure/api/v1/dto"
@@ -15,27 +15,15 @@ import (
 
 // QueueRouter handles queue API endpoints.
 type QueueRouter struct {
-	queueService *service.Queue
-	taskStore    task.TaskStore
-	statusStore  task.StatusStore
-	logger       *slog.Logger
+	client *kodit.Client
+	logger *slog.Logger
 }
 
 // NewQueueRouter creates a new QueueRouter.
-func NewQueueRouter(
-	queueService *service.Queue,
-	taskStore task.TaskStore,
-	statusStore task.StatusStore,
-	logger *slog.Logger,
-) *QueueRouter {
-	if logger == nil {
-		logger = slog.Default()
-	}
+func NewQueueRouter(client *kodit.Client) *QueueRouter {
 	return &QueueRouter{
-		queueService: queueService,
-		taskStore:    taskStore,
-		statusStore:  statusStore,
-		logger:       logger,
+		client: client,
+		logger: client.Logger(),
 	}
 }
 
@@ -66,29 +54,25 @@ func (r *QueueRouter) Routes() chi.Router {
 func (r *QueueRouter) ListTasks(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
+	// Build domain filter from query params
+	filter := task.NewFilter()
+
 	limit := 50
 	if limitStr := req.URL.Query().Get("limit"); limitStr != "" {
 		if parsed, err := strconv.Atoi(limitStr); err == nil && parsed > 0 {
 			limit = parsed
 		}
 	}
+	filter = filter.WithLimit(limit)
 
-	// Get task type filter if specified
-	var operation *task.Operation
 	if taskType := req.URL.Query().Get("task_type"); taskType != "" {
-		op := task.Operation(taskType)
-		operation = &op
+		filter = filter.WithOperation(task.Operation(taskType))
 	}
 
-	tasks, err := r.queueService.List(ctx, operation)
+	tasks, err := r.client.Tasks().List(ctx, filter)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
-	}
-
-	// Apply limit
-	if len(tasks) > limit {
-		tasks = tasks[:limit]
 	}
 
 	response := dto.TaskListResponse{
@@ -121,7 +105,7 @@ func (r *QueueRouter) GetTask(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	t, err := r.taskStore.Get(ctx, id)
+	t, err := r.client.Tasks().Get(ctx, id)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
