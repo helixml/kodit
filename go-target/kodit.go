@@ -15,12 +15,14 @@
 //	defer client.Close()
 //
 //	// Index a repository
-//	repo, err := client.Repositories().Clone(ctx, "https://github.com/kubernetes/kubernetes")
+//	repo, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{
+//	    URL: "https://github.com/kubernetes/kubernetes",
+//	})
 //
 //	// Hybrid search
-//	results, err := client.Search(ctx, "create a deployment",
-//	    kodit.WithSemanticWeight(0.7),
-//	    kodit.WithLimit(10),
+//	results, err := client.Search.Query(ctx, "create a deployment",
+//	    service.WithSemanticWeight(0.7),
+//	    service.WithLimit(10),
 //	)
 //
 //	// Iterate results
@@ -54,7 +56,24 @@ import (
 
 // Client is the main entry point for the kodit library.
 // The background worker starts automatically on creation.
+//
+// Access resources via struct fields:
+//
+//	client.Repositories.List(ctx, nil)
+//	client.Commits.List(ctx, &service.CommitListParams{RepositoryID: id})
+//	client.Search.Query(ctx, "query")
 type Client struct {
+	// Public resource fields (direct service access)
+	Repositories *service.Repository
+	Commits      *service.Commit
+	Tags         *service.Tag
+	Files        *service.File
+	Snippets     *service.Snippet
+	Enrichments  *service.Enrichment
+	Tasks        *service.Queue
+	Tracking     *service.Tracking
+	Search       *service.Search
+
 	db         persistence.Database
 	repoStores RepositoryStores
 
@@ -62,7 +81,6 @@ type Client struct {
 	snippetStore snippet.SnippetStore
 	taskStore    persistence.TaskStore
 	statusStore  persistence.StatusStore
-	bm25Store    search.BM25Store
 
 	// Aggregate dependencies
 	enrichCtx EnrichmentContext
@@ -70,15 +88,11 @@ type Client struct {
 	textIndex VectorIndex
 	gitInfra  GitInfrastructure
 
-	// Application services
-	repoSync      *service.RepositorySync
-	repoQuery     *service.RepositoryQuery
-	trackingQuery *service.TrackingQuery
-	codeSearch    *service.CodeSearch
-	bm25Service   *domainservice.BM25
-	queue         *service.Queue
-	worker        *service.Worker
-	registry      *service.Registry
+	// Application services (internal only)
+	bm25Service *domainservice.BM25
+	queue       *service.Queue
+	worker      *service.Worker
+	registry    *service.Registry
 
 	// Code slicing (internal)
 	slicer *slicing.Slicer
@@ -170,34 +184,7 @@ func New(opts ...Option) (*Client, error) {
 	}
 
 	// Create search stores based on storage type
-	var textVectorStore search.VectorStore
-	var codeVectorStore search.VectorStore
-	var bm25Store search.BM25Store
-
-	switch cfg.database {
-	case databaseSQLite:
-		bm25Store = infraSearch.NewSQLiteBM25Store(db.GORM(), logger)
-		if cfg.embeddingProvider != nil {
-			textVectorStore = infraSearch.NewSQLiteVectorStore(db.GORM(), infraSearch.TaskNameText, cfg.embeddingProvider, logger)
-			codeVectorStore = infraSearch.NewSQLiteVectorStore(db.GORM(), infraSearch.TaskNameCode, cfg.embeddingProvider, logger)
-		}
-	case databasePostgres:
-		bm25Store = infraSearch.NewPostgresBM25Store(db.GORM(), logger)
-	case databasePostgresPgvector:
-		bm25Store = infraSearch.NewPostgresBM25Store(db.GORM(), logger)
-		if cfg.embeddingProvider != nil {
-			textVectorStore = infraSearch.NewPgvectorStore(db.GORM(), infraSearch.TaskNameText, cfg.embeddingProvider, logger)
-			codeVectorStore = infraSearch.NewPgvectorStore(db.GORM(), infraSearch.TaskNameCode, cfg.embeddingProvider, logger)
-		}
-	case databasePostgresVectorchord:
-		bm25Store = infraSearch.NewVectorChordBM25Store(db.GORM(), logger)
-		if cfg.embeddingProvider != nil {
-			textVectorStore = infraSearch.NewVectorChordVectorStore(db.GORM(), infraSearch.TaskNameText, cfg.embeddingProvider, logger)
-			codeVectorStore = infraSearch.NewVectorChordVectorStore(db.GORM(), infraSearch.TaskNameCode, cfg.embeddingProvider, logger)
-		}
-	default:
-		return nil, errors.New("unsupported database type")
-	}
+	textVectorStore, codeVectorStore, bm25Store := buildSearchStores(cfg, db, logger)
 
 	// Create vector indices (pairing embedding services with their stores)
 	codeIndex := VectorIndex{
@@ -214,16 +201,11 @@ func New(opts ...Option) (*Client, error) {
 	queue := service.NewQueue(taskStore, logger)
 	worker := service.NewWorker(taskStore, registry, logger)
 
-	repoSyncSvc := service.NewRepositorySync(repoStore, queue, logger)
-	repoQuerySvc := service.NewRepositoryQuery(repoStore, commitStore, branchStore, tagStore).WithFileStore(fileStore)
-	enrichQSvc := service.NewEnrichmentQuery(enrichmentStore, associationStore)
-	trackingQSvc := service.NewTrackingQuery(statusStore, taskStore)
+	enrichQSvc := service.NewEnrichment(enrichmentStore, associationStore)
+	trackingSvc := service.NewTracking(statusStore, taskStore)
 
 	// Create BM25 service for keyword search (always available)
 	bm25Svc := domainservice.NewBM25(bm25Store)
-
-	// Create code search service if vector stores are available
-	codeSearchSvc := service.NewCodeSearch(textVectorStore, codeVectorStore, snippetStore, enrichmentStore, logger)
 
 	// Create git infrastructure
 	gitAdapter := git.NewGoGitAdapter(logger)
@@ -271,8 +253,8 @@ func New(opts ...Option) (*Client, error) {
 	archDiscoverer := enricher.NewPhysicalArchitectureService()
 	exampleDiscoverer := example.NewDiscovery()
 	schemaDiscoverer := enricher.NewDatabaseSchemaService()
-	apiDocService := enricher.NewAPIDocService()
-	cookbookContext := enricher.NewCookbookContextService()
+	apiDocSvc := enricher.NewAPIDocService()
+	cookbookCtx := enricher.NewCookbookContextService()
 
 	client := &Client{
 		db:                db,
@@ -280,15 +262,10 @@ func New(opts ...Option) (*Client, error) {
 		snippetStore:      snippetStore,
 		taskStore:         taskStore,
 		statusStore:       statusStore,
-		bm25Store:         bm25Store,
 		enrichCtx:         enrichCtx,
 		codeIndex:         codeIndex,
 		textIndex:         textIndex,
 		gitInfra:          gitInfra,
-		repoSync:          repoSyncSvc,
-		repoQuery:         repoQuerySvc,
-		trackingQuery:     trackingQSvc,
-		codeSearch:        codeSearchSvc,
 		bm25Service:       bm25Svc,
 		queue:             queue,
 		worker:            worker,
@@ -297,13 +274,24 @@ func New(opts ...Option) (*Client, error) {
 		archDiscoverer:    archDiscoverer,
 		exampleDiscoverer: exampleDiscoverer,
 		schemaDiscoverer:  schemaDiscoverer,
-		apiDocService:     apiDocService,
-		cookbookContext:   cookbookContext,
+		apiDocService:     apiDocSvc,
+		cookbookContext:   cookbookCtx,
 		logger:            logger,
 		dataDir:           dataDir,
 		cloneDir:          cloneDir,
 		apiKeys:           cfg.apiKeys,
 	}
+
+	// Initialize service fields directly
+	client.Repositories = service.NewRepository(repoStore, commitStore, branchStore, tagStore, queue, logger)
+	client.Commits = service.NewCommit(commitStore)
+	client.Tags = service.NewTag(tagStore)
+	client.Files = service.NewFile(fileStore)
+	client.Snippets = service.NewSnippet(snippetStore, codeIndex.Store)
+	client.Enrichments = enrichQSvc
+	client.Tasks = queue
+	client.Tracking = trackingSvc
+	client.Search = service.NewSearch(textVectorStore, codeVectorStore, snippetStore, enrichmentStore, &client.closed, logger)
 
 	// Register task handlers
 	client.registerHandlers()
@@ -335,101 +323,34 @@ func (c *Client) Close() error {
 	return nil
 }
 
-// Repositories returns the repository management interface.
-func (c *Client) Repositories() Repositories {
-	return &repositoriesImpl{
-		repoSync:  c.repoSync,
-		repoQuery: c.repoQuery,
-	}
-}
-
-// Enrichments returns the enrichment query interface.
-func (c *Client) Enrichments() Enrichments {
-	return &enrichmentsImpl{
-		query: c.enrichCtx.Query,
-	}
-}
-
-// Tasks returns the task queue interface.
-func (c *Client) Tasks() Tasks {
-	return &tasksImpl{
-		queue: c.queue,
-	}
-}
-
-// Snippets returns the snippet query interface.
-func (c *Client) Snippets() Snippets {
-	return &snippetsImpl{
-		snippetStore: c.snippetStore,
-		vectorStore:  c.codeIndex.Store,
-	}
-}
-
-// Search performs a hybrid code search.
-// Returns empty results if search infrastructure is not configured (no embedding provider).
-func (c *Client) Search(ctx context.Context, query string, opts ...SearchOption) (SearchResult, error) {
-	if c.closed.Load() {
-		return SearchResult{}, ErrClientClosed
-	}
-
-	// Apply search options
-	searchCfg := newSearchConfig()
-	for _, opt := range opts {
-		opt(searchCfg)
-	}
-
-	// If no search service configured, return empty result
-	if c.codeSearch == nil {
-		return SearchResult{}, nil
-	}
-
-	// Build filters from options
-	var filterOpts []search.FiltersOption
-	if len(searchCfg.languages) > 0 && len(searchCfg.languages) == 1 {
-		filterOpts = append(filterOpts, search.WithLanguage(searchCfg.languages[0]))
-	}
-	filters := search.NewFilters(filterOpts...)
-
-	// Build multi-search request
-	// Use query for both text (BM25) and code (vector) queries
-	request := search.NewMultiRequest(searchCfg.limit, query, query, nil, filters)
-
-	result, err := c.codeSearch.Search(ctx, request)
-	if err != nil {
-		return SearchResult{}, err
-	}
-
-	return SearchResult{
-		snippets:    result.Snippets(),
-		enrichments: result.Enrichments(),
-		scores:      result.FusedScores(),
-	}, nil
-}
-
-// CodeSearchService returns the underlying code search service.
-// This is useful for advanced callers like MCP servers that need
-// full control over search requests (e.g., MultiSearchRequest).
-// Returns nil if no search stores are configured.
-func (c *Client) CodeSearchService() *service.CodeSearch {
-	return c.codeSearch
-}
-
-// RepositoryQuery returns the repository query service.
-func (c *Client) RepositoryQuery() *service.RepositoryQuery {
-	return c.repoQuery
-}
-
-// RepositorySync returns the repository sync service.
-func (c *Client) RepositorySync() *service.RepositorySync {
-	return c.repoSync
-}
-
-// TrackingQuery returns the task tracking query service.
-func (c *Client) TrackingQuery() *service.TrackingQuery {
-	return c.trackingQuery
-}
-
 // Logger returns the client's logger.
 func (c *Client) Logger() *slog.Logger {
 	return c.logger
+}
+
+// buildSearchStores creates the search stores based on config.
+func buildSearchStores(cfg *clientConfig, db persistence.Database, logger *slog.Logger) (textVectorStore, codeVectorStore search.VectorStore, bm25Store search.BM25Store) {
+	switch cfg.database {
+	case databaseSQLite:
+		bm25Store = infraSearch.NewSQLiteBM25Store(db.GORM(), logger)
+		if cfg.embeddingProvider != nil {
+			textVectorStore = infraSearch.NewSQLiteVectorStore(db.GORM(), infraSearch.TaskNameText, cfg.embeddingProvider, logger)
+			codeVectorStore = infraSearch.NewSQLiteVectorStore(db.GORM(), infraSearch.TaskNameCode, cfg.embeddingProvider, logger)
+		}
+	case databasePostgres:
+		bm25Store = infraSearch.NewPostgresBM25Store(db.GORM(), logger)
+	case databasePostgresPgvector:
+		bm25Store = infraSearch.NewPostgresBM25Store(db.GORM(), logger)
+		if cfg.embeddingProvider != nil {
+			textVectorStore = infraSearch.NewPgvectorStore(db.GORM(), infraSearch.TaskNameText, cfg.embeddingProvider, logger)
+			codeVectorStore = infraSearch.NewPgvectorStore(db.GORM(), infraSearch.TaskNameCode, cfg.embeddingProvider, logger)
+		}
+	case databasePostgresVectorchord:
+		bm25Store = infraSearch.NewVectorChordBM25Store(db.GORM(), logger)
+		if cfg.embeddingProvider != nil {
+			textVectorStore = infraSearch.NewVectorChordVectorStore(db.GORM(), infraSearch.TaskNameText, cfg.embeddingProvider, logger)
+			codeVectorStore = infraSearch.NewVectorChordVectorStore(db.GORM(), infraSearch.TaskNameCode, cfg.embeddingProvider, logger)
+		}
+	}
+	return
 }

@@ -7,6 +7,12 @@ import (
 	"github.com/helixml/kodit/domain/task"
 )
 
+// TaskListParams configures task listing.
+type TaskListParams struct {
+	Operation *task.Operation
+	Limit     int
+}
+
 // Queue provides the main interface for enqueuing and managing tasks.
 type Queue struct {
 	store  task.TaskStore
@@ -118,6 +124,20 @@ func (s *Queue) ListFiltered(ctx context.Context, filter task.Filter) ([]task.Ta
 		tasks = tasks[:filter.Limit()]
 	}
 	return tasks, nil
+}
+
+// ListByParams returns tasks matching the given params.
+func (s *Queue) ListByParams(ctx context.Context, params *TaskListParams) ([]task.Task, error) {
+	filter := task.NewFilter()
+	if params != nil {
+		if params.Operation != nil {
+			filter = filter.WithOperation(*params.Operation)
+		}
+		if params.Limit > 0 {
+			filter = filter.WithLimit(params.Limit)
+		}
+	}
+	return s.ListFiltered(ctx, filter)
 }
 
 // PendingCount returns the count of pending tasks.

@@ -1,6 +1,10 @@
 package kodit
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/helixml/kodit/application/service"
+)
 
 // Exported errors for library consumers.
 var (
@@ -25,6 +29,7 @@ var (
 	// ErrProviderNotCapable indicates the provider lacks required capability.
 	ErrProviderNotCapable = errors.New("kodit: provider does not support required capability")
 
-	// ErrClientClosed indicates the client has been closed.
-	ErrClientClosed = errors.New("kodit: client is closed")
+	// ErrClientClosed is the canonical error for a closed client.
+	// It references the service-level error so errors.Is works across packages.
+	ErrClientClosed = service.ErrClientClosed
 )

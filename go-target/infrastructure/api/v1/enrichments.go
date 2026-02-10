@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/helixml/kodit"
+	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/infrastructure/api/middleware"
 	"github.com/helixml/kodit/infrastructure/api/v1/dto"
@@ -71,16 +72,18 @@ func (r *EnrichmentsRouter) List(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// Build domain filter
-	filter := enrichment.NewFilter()
+	// Build list params
+	params := &service.EnrichmentListParams{}
 	if typeParam != "" {
-		filter = filter.WithType(enrichment.Type(typeParam))
+		t := enrichment.Type(typeParam)
+		params.Type = &t
 	}
 	if subtypeParam != "" {
-		filter = filter.WithSubtype(enrichment.Subtype(subtypeParam))
+		s := enrichment.Subtype(subtypeParam)
+		params.Subtype = &s
 	}
 
-	enrichments, err := r.client.Enrichments().List(ctx, filter)
+	enrichments, err := r.client.Enrichments.ListByParams(ctx, params)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -131,7 +134,7 @@ func (r *EnrichmentsRouter) Get(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	e, err := r.client.Enrichments().Get(ctx, id)
+	e, err := r.client.Enrichments.Get(ctx, id)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -194,7 +197,9 @@ func (r *EnrichmentsRouter) Update(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	saved, err := r.client.Enrichments().Update(ctx, id, body.Data.Attributes.Content)
+	saved, err := r.client.Enrichments.UpdateByParams(ctx, id, &service.EnrichmentUpdateParams{
+		Content: body.Data.Attributes.Content,
+	})
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -228,7 +233,7 @@ func (r *EnrichmentsRouter) Delete(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if err := r.client.Enrichments().Delete(ctx, id); err != nil {
+	if err := r.client.Enrichments.Delete(ctx, id); err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}

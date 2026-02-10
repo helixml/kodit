@@ -14,6 +14,11 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
+// Searcher provides code search operations for MCP tools.
+type Searcher interface {
+	Search(ctx context.Context, request search.MultiRequest) (service.MultiSearchResult, error)
+}
+
 // SnippetLookup provides snippet retrieval by SHA for MCP tools.
 type SnippetLookup interface {
 	BySHA(ctx context.Context, sha string) (snippet.Snippet, error)
@@ -22,13 +27,13 @@ type SnippetLookup interface {
 // Server wraps the MCP server with kodit-specific tools.
 type Server struct {
 	mcpServer     *server.MCPServer
-	searchService service.CodeSearch
+	searchService Searcher
 	snippets      SnippetLookup
 	logger        *slog.Logger
 }
 
 // NewServer creates a new MCP server with the given dependencies.
-func NewServer(searchService service.CodeSearch, snippets SnippetLookup, logger *slog.Logger) *Server {
+func NewServer(searchService Searcher, snippets SnippetLookup, logger *slog.Logger) *Server {
 	if logger == nil {
 		logger = slog.Default()
 	}

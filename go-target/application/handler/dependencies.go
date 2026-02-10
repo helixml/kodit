@@ -15,7 +15,7 @@ import (
 type EnrichmentContext struct {
 	Enrichments  enrichment.EnrichmentStore
 	Associations enrichment.AssociationStore
-	Query        *service.EnrichmentQuery
+	Query        *service.Enrichment
 	Enricher     domainservice.Enricher // nil if no text provider configured
 	Tracker      TrackerFactory
 	Logger       *slog.Logger

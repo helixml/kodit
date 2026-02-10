@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/helixml/kodit"
-	"github.com/helixml/kodit/domain/task"
+	"github.com/helixml/kodit/application/service"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -104,7 +104,7 @@ func waitForTasks(ctx context.Context, t *testing.T, client *kodit.Client, timeo
 	deadline := time.Now().Add(timeout)
 	lastCount := -1
 	for time.Now().Before(deadline) {
-		tasks, err := client.Tasks().List(ctx, task.NewFilter())
+		tasks, err := client.Tasks.List(ctx, nil)
 		require.NoError(t, err)
 
 		if len(tasks) == 0 {
@@ -122,7 +122,7 @@ func waitForTasks(ctx context.Context, t *testing.T, client *kodit.Client, timeo
 		time.Sleep(500 * time.Millisecond)
 	}
 
-	tasks, _ := client.Tasks().List(ctx, task.NewFilter())
+	tasks, _ := client.Tasks.List(ctx, nil)
 	t.Fatalf("timeout waiting for tasks to complete, %d remaining", len(tasks))
 }
 
@@ -149,12 +149,12 @@ func TestIntegration_IndexRepository_QueuesCloneTask(t *testing.T) {
 	ctx := context.Background()
 
 	// Clone the local repository
-	repo, err := client.Repositories().Clone(ctx, "file://"+repoPath)
+	repo, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{URL: "file://" + repoPath})
 	require.NoError(t, err)
 	assert.Greater(t, repo.ID(), int64(0), "repository should have an ID")
 
 	// Verify a clone task was queued
-	tasks, err := client.Tasks().List(ctx, task.NewFilter())
+	tasks, err := client.Tasks.List(ctx, nil)
 	require.NoError(t, err)
 	assert.NotEmpty(t, tasks, "expected clone task to be queued")
 }
@@ -184,7 +184,7 @@ func TestIntegration_FullIndexingWorkflow(t *testing.T) {
 	ctx := context.Background()
 
 	// Clone the local repository
-	repo, err := client.Repositories().Clone(ctx, "file://"+repoPath)
+	repo, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{URL: "file://" + repoPath})
 	require.NoError(t, err)
 	t.Logf("created repository with ID %d", repo.ID())
 
@@ -193,18 +193,18 @@ func TestIntegration_FullIndexingWorkflow(t *testing.T) {
 	waitForTasks(ctx, t, client, 60*time.Second)
 
 	// Verify repository is in the list
-	repos, err := client.Repositories().List(ctx)
+	repos, err := client.Repositories.List(ctx, nil)
 	require.NoError(t, err)
 	assert.Len(t, repos, 1)
 	assert.Equal(t, repo.ID(), repos[0].ID())
 
 	// Check if repository has working copy - this indicates clone completed
 	// Note: The working copy path is updated asynchronously after clone completes
-	updatedRepo, err := client.Repositories().Get(ctx, repo.ID())
+	updatedRepo, err := client.Repositories.Get(ctx, repo.ID())
 	require.NoError(t, err)
 
 	// Log the result rather than failing - clone may still be in progress
-	if updatedRepo.HasWorkingCopy() {
+	if updatedRepo.IsCloned() {
 		t.Logf("repository successfully cloned to: %s", updatedRepo.WorkingCopy().Path())
 	} else {
 		t.Logf("repository does not have working copy yet (clone may have failed or still in progress)")
@@ -236,7 +236,7 @@ func TestIntegration_SearchAfterIndexing(t *testing.T) {
 	ctx := context.Background()
 
 	// Clone the repository
-	_, err = client.Repositories().Clone(ctx, "file://"+repoPath)
+	_, err = client.Repositories.Add(ctx, &service.RepositoryAddParams{URL: "file://" + repoPath})
 	require.NoError(t, err)
 
 	// Wait for indexing to complete
@@ -244,8 +244,8 @@ func TestIntegration_SearchAfterIndexing(t *testing.T) {
 
 	// Search for content
 	// Note: Text search uses vector embeddings on enrichment summaries
-	result, err := client.Search(ctx, "add numbers",
-		kodit.WithLimit(10),
+	result, err := client.Search.Query(ctx, "add numbers",
+		service.WithLimit(10),
 	)
 	require.NoError(t, err)
 
@@ -278,21 +278,21 @@ func TestIntegration_DeleteRepository(t *testing.T) {
 	ctx := context.Background()
 
 	// Clone the repository
-	repo, err := client.Repositories().Clone(ctx, "file://"+repoPath)
+	repo, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{URL: "file://" + repoPath})
 	require.NoError(t, err)
 
 	// Wait for initial tasks
 	waitForTasks(ctx, t, client, 60*time.Second)
 
 	// Delete the repository
-	err = client.Repositories().Delete(ctx, repo.ID())
+	err = client.Repositories.Delete(ctx, repo.ID())
 	require.NoError(t, err)
 
 	// Wait for delete task to complete
 	waitForTasks(ctx, t, client, 30*time.Second)
 
 	// Verify repository is gone
-	repos, err := client.Repositories().List(ctx)
+	repos, err := client.Repositories.List(ctx, nil)
 	require.NoError(t, err)
 	assert.Empty(t, repos, "repository should be deleted")
 }
@@ -323,17 +323,17 @@ func TestIntegration_MultipleRepositories(t *testing.T) {
 	ctx := context.Background()
 
 	// Clone both repositories
-	repo1, err := client.Repositories().Clone(ctx, "file://"+repoPath1)
+	repo1, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{URL: "file://" + repoPath1})
 	require.NoError(t, err)
 
-	repo2, err := client.Repositories().Clone(ctx, "file://"+repoPath2)
+	repo2, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{URL: "file://" + repoPath2})
 	require.NoError(t, err)
 
 	// Wait for all tasks (longer timeout for multiple repos)
 	waitForTasks(ctx, t, client, 120*time.Second)
 
 	// Verify both repositories exist
-	repos, err := client.Repositories().List(ctx)
+	repos, err := client.Repositories.List(ctx, nil)
 	require.NoError(t, err)
 	assert.Len(t, repos, 2)
 

@@ -16,7 +16,7 @@ import (
 // CreateSummaryEmbeddings creates vector embeddings for snippet summary enrichments.
 type CreateSummaryEmbeddings struct {
 	textIndex        handler.VectorIndex
-	queryService     *service.EnrichmentQuery
+	queryService     *service.Enrichment
 	associationStore enrichment.AssociationStore
 	trackerFactory   handler.TrackerFactory
 	logger           *slog.Logger
@@ -25,7 +25,7 @@ type CreateSummaryEmbeddings struct {
 // NewCreateSummaryEmbeddings creates a new CreateSummaryEmbeddings handler.
 func NewCreateSummaryEmbeddings(
 	textIndex handler.VectorIndex,
-	queryService *service.EnrichmentQuery,
+	queryService *service.Enrichment,
 	associationStore enrichment.AssociationStore,
 	trackerFactory handler.TrackerFactory,
 	logger *slog.Logger,
@@ -192,7 +192,7 @@ var _ handler.Handler = (*CreateSummaryEmbeddings)(nil)
 // CreateExampleCodeEmbeddings creates vector embeddings for extracted example code.
 type CreateExampleCodeEmbeddings struct {
 	codeIndex      handler.VectorIndex
-	queryService   *service.EnrichmentQuery
+	queryService   *service.Enrichment
 	trackerFactory handler.TrackerFactory
 	logger         *slog.Logger
 }
@@ -200,7 +200,7 @@ type CreateExampleCodeEmbeddings struct {
 // NewCreateExampleCodeEmbeddings creates a new CreateExampleCodeEmbeddings handler.
 func NewCreateExampleCodeEmbeddings(
 	codeIndex handler.VectorIndex,
-	queryService *service.EnrichmentQuery,
+	queryService *service.Enrichment,
 	trackerFactory handler.TrackerFactory,
 	logger *slog.Logger,
 ) *CreateExampleCodeEmbeddings {
@@ -324,7 +324,7 @@ var _ handler.Handler = (*CreateExampleCodeEmbeddings)(nil)
 // CreateExampleSummaryEmbeddings creates vector embeddings for example summary enrichments.
 type CreateExampleSummaryEmbeddings struct {
 	textIndex      handler.VectorIndex
-	queryService   *service.EnrichmentQuery
+	queryService   *service.Enrichment
 	trackerFactory handler.TrackerFactory
 	logger         *slog.Logger
 }
@@ -332,7 +332,7 @@ type CreateExampleSummaryEmbeddings struct {
 // NewCreateExampleSummaryEmbeddings creates a new CreateExampleSummaryEmbeddings handler.
 func NewCreateExampleSummaryEmbeddings(
 	textIndex handler.VectorIndex,
-	queryService *service.EnrichmentQuery,
+	queryService *service.Enrichment,
 	trackerFactory handler.TrackerFactory,
 	logger *slog.Logger,
 ) *CreateExampleSummaryEmbeddings {

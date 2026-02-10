@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/helixml/kodit"
-	"github.com/helixml/kodit/domain/task"
+	"github.com/helixml/kodit/application/service"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -67,7 +67,7 @@ func TestClient_Repositories_List_Empty(t *testing.T) {
 	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
-	repos, err := client.Repositories().List(ctx)
+	repos, err := client.Repositories.List(ctx, nil)
 	require.NoError(t, err)
 	assert.Empty(t, repos)
 }
@@ -84,7 +84,7 @@ func TestClient_Tasks_List_Empty(t *testing.T) {
 	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
-	tasks, err := client.Tasks().List(ctx, task.NewFilter())
+	tasks, err := client.Tasks.List(ctx, nil)
 	require.NoError(t, err)
 	assert.Empty(t, tasks)
 }
@@ -101,9 +101,9 @@ func TestClient_Search_ReturnsEmpty(t *testing.T) {
 	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
-	result, err := client.Search(ctx, "test query",
-		kodit.WithLimit(10),
-		kodit.WithSemanticWeight(0.5),
+	result, err := client.Search.Query(ctx, "test query",
+		service.WithLimit(10),
+		service.WithSemanticWeight(0.5),
 	)
 	require.NoError(t, err)
 	assert.Equal(t, 0, result.Count())
@@ -123,7 +123,7 @@ func TestClient_Search_AfterClose_ReturnsError(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	_, err = client.Search(ctx, "test query")
+	_, err = client.Search.Query(ctx, "test query")
 	assert.ErrorIs(t, err, kodit.ErrClientClosed)
 }
 

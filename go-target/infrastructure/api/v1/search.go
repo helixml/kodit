@@ -61,7 +61,7 @@ func (r *SearchRouter) Search(w http.ResponseWriter, req *http.Request) {
 	}
 
 	searchReq := buildSearchRequest(body)
-	result, err := r.client.CodeSearchService().Search(ctx, searchReq)
+	result, err := r.client.Search.Search(ctx, searchReq)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return

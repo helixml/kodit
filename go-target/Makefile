@@ -88,7 +88,7 @@ test-e2e: ## Run end-to-end tests only
 
 .PHONY: smoke
 smoke: ## Run smoke tests (starts server, tests API endpoints)
-	$(GOTEST) -v -timeout 15m ./tests/smoke/...
+	$(GOTEST) -v -timeout 15m ./test/smoke/...
 
 ##@ Code Quality
 

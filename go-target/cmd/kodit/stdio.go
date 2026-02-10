@@ -90,19 +90,14 @@ func runStdio(envFile string) error {
 		}
 	}()
 
-	// Get code search service from client
-	codeSearch := client.CodeSearchService()
-
-	// Create MCP server
-	// Note: codeSearch may be nil if no search stores configured, MCP server handles this
-	var mcpServer *mcp.Server
-	if codeSearch != nil {
-		mcpServer = mcp.NewServer(*codeSearch, client.Snippets(), slogger)
-	} else {
-		// Create with empty search service - search will return errors
+	// Check code search availability
+	if !client.Search.Available() {
 		slogger.Warn("code search service not available - search will not work")
 		return fmt.Errorf("code search service not available: configure database and embedding provider")
 	}
+
+	// Create MCP server
+	mcpServer := mcp.NewServer(client.Search, client.Snippets, slogger)
 
 	// Run on stdio
 	return mcpServer.ServeStdio()

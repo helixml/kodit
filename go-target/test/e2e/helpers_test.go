@@ -95,9 +95,7 @@ func NewTestServer(t *testing.T) *TestServer {
 		r.Mount("/enrichments", v1.NewEnrichmentsRouter(client).Routes())
 		r.Mount("/queue", v1.NewQueueRouter(client).Routes())
 
-		if client.CodeSearchService() != nil {
-			r.Mount("/search", v1.NewSearchRouter(client).Routes())
-		}
+		r.Mount("/search", v1.NewSearchRouter(client).Routes())
 	})
 
 	// Health check

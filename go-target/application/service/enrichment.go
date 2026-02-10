@@ -6,25 +6,74 @@ import (
 	"github.com/helixml/kodit/domain/enrichment"
 )
 
-// EnrichmentQuery provides queries for enrichments and their associations.
-type EnrichmentQuery struct {
-	enrichmentStore enrichment.EnrichmentStore
+// EnrichmentListParams configures enrichment listing.
+type EnrichmentListParams struct {
+	Type       *enrichment.Type
+	Subtype    *enrichment.Subtype
+	CommitSHA  string
+	CommitSHAs []string
+	Limit      int
+}
+
+// EnrichmentUpdateParams configures enrichment content updates.
+type EnrichmentUpdateParams struct {
+	Content string
+}
+
+// Enrichment provides queries for enrichments and their associations.
+type Enrichment struct {
+	enrichmentStore  enrichment.EnrichmentStore
 	associationStore enrichment.AssociationStore
 }
 
-// NewEnrichmentQuery creates a new enrichment query service.
-func NewEnrichmentQuery(
+// NewEnrichment creates a new Enrichment service.
+func NewEnrichment(
 	enrichmentStore enrichment.EnrichmentStore,
 	associationStore enrichment.AssociationStore,
-) *EnrichmentQuery {
-	return &EnrichmentQuery{
+) *Enrichment {
+	return &Enrichment{
 		enrichmentStore:  enrichmentStore,
 		associationStore: associationStore,
 	}
 }
 
+// ListByParams returns enrichments matching the given params.
+// If CommitSHA is set, returns enrichments for that commit.
+// If CommitSHAs is set, returns enrichments across multiple commits.
+// Otherwise returns enrichments matching the type/subtype filter.
+func (s *Enrichment) ListByParams(ctx context.Context, params *EnrichmentListParams) ([]enrichment.Enrichment, error) {
+	if params == nil {
+		return []enrichment.Enrichment{}, nil
+	}
+
+	if params.CommitSHA != "" {
+		return s.EnrichmentsForCommit(ctx, params.CommitSHA, params.Type, params.Subtype)
+	}
+
+	if len(params.CommitSHAs) > 0 {
+		return s.EnrichmentsForCommits(ctx, params.CommitSHAs, params.Type, params.Limit)
+	}
+
+	filter := enrichment.NewFilter()
+	if params.Type != nil {
+		filter = filter.WithType(*params.Type)
+	}
+	if params.Subtype != nil {
+		filter = filter.WithSubtype(*params.Subtype)
+	}
+	if params.Limit > 0 {
+		filter = filter.WithLimit(params.Limit)
+	}
+	return s.List(ctx, filter)
+}
+
+// UpdateByParams replaces the content of an enrichment using params.
+func (s *Enrichment) UpdateByParams(ctx context.Context, id int64, params *EnrichmentUpdateParams) (enrichment.Enrichment, error) {
+	return s.Update(ctx, id, params.Content)
+}
+
 // EnrichmentsForCommit returns all enrichments associated with a commit.
-func (s *EnrichmentQuery) EnrichmentsForCommit(
+func (s *Enrichment) EnrichmentsForCommit(
 	ctx context.Context,
 	commitSHA string,
 	typ *enrichment.Type,
@@ -65,7 +114,7 @@ func (s *EnrichmentQuery) EnrichmentsForCommit(
 }
 
 // HasSummariesForCommit checks if a commit has snippet summary enrichments.
-func (s *EnrichmentQuery) HasSummariesForCommit(ctx context.Context, commitSHA string) (bool, error) {
+func (s *Enrichment) HasSummariesForCommit(ctx context.Context, commitSHA string) (bool, error) {
 	typ := enrichment.TypeDevelopment
 	sub := enrichment.SubtypeSnippetSummary
 	enrichments, err := s.EnrichmentsForCommit(ctx, commitSHA, &typ, &sub)
@@ -76,7 +125,7 @@ func (s *EnrichmentQuery) HasSummariesForCommit(ctx context.Context, commitSHA s
 }
 
 // HasArchitectureForCommit checks if a commit has architecture enrichments.
-func (s *EnrichmentQuery) HasArchitectureForCommit(ctx context.Context, commitSHA string) (bool, error) {
+func (s *Enrichment) HasArchitectureForCommit(ctx context.Context, commitSHA string) (bool, error) {
 	typ := enrichment.TypeArchitecture
 	sub := enrichment.SubtypePhysical
 	enrichments, err := s.EnrichmentsForCommit(ctx, commitSHA, &typ, &sub)
@@ -87,7 +136,7 @@ func (s *EnrichmentQuery) HasArchitectureForCommit(ctx context.Context, commitSH
 }
 
 // HasAPIDocsForCommit checks if a commit has API documentation enrichments.
-func (s *EnrichmentQuery) HasAPIDocsForCommit(ctx context.Context, commitSHA string) (bool, error) {
+func (s *Enrichment) HasAPIDocsForCommit(ctx context.Context, commitSHA string) (bool, error) {
 	typ := enrichment.TypeUsage
 	sub := enrichment.SubtypeAPIDocs
 	enrichments, err := s.EnrichmentsForCommit(ctx, commitSHA, &typ, &sub)
@@ -98,7 +147,7 @@ func (s *EnrichmentQuery) HasAPIDocsForCommit(ctx context.Context, commitSHA str
 }
 
 // HasCommitDescriptionForCommit checks if a commit has commit description enrichments.
-func (s *EnrichmentQuery) HasCommitDescriptionForCommit(ctx context.Context, commitSHA string) (bool, error) {
+func (s *Enrichment) HasCommitDescriptionForCommit(ctx context.Context, commitSHA string) (bool, error) {
 	typ := enrichment.TypeHistory
 	sub := enrichment.SubtypeCommitDescription
 	enrichments, err := s.EnrichmentsForCommit(ctx, commitSHA, &typ, &sub)
@@ -109,7 +158,7 @@ func (s *EnrichmentQuery) HasCommitDescriptionForCommit(ctx context.Context, com
 }
 
 // HasDatabaseSchemaForCommit checks if a commit has database schema enrichments.
-func (s *EnrichmentQuery) HasDatabaseSchemaForCommit(ctx context.Context, commitSHA string) (bool, error) {
+func (s *Enrichment) HasDatabaseSchemaForCommit(ctx context.Context, commitSHA string) (bool, error) {
 	typ := enrichment.TypeArchitecture
 	sub := enrichment.SubtypeDatabaseSchema
 	enrichments, err := s.EnrichmentsForCommit(ctx, commitSHA, &typ, &sub)
@@ -120,7 +169,7 @@ func (s *EnrichmentQuery) HasDatabaseSchemaForCommit(ctx context.Context, commit
 }
 
 // HasCookbookForCommit checks if a commit has cookbook enrichments.
-func (s *EnrichmentQuery) HasCookbookForCommit(ctx context.Context, commitSHA string) (bool, error) {
+func (s *Enrichment) HasCookbookForCommit(ctx context.Context, commitSHA string) (bool, error) {
 	typ := enrichment.TypeUsage
 	sub := enrichment.SubtypeCookbook
 	enrichments, err := s.EnrichmentsForCommit(ctx, commitSHA, &typ, &sub)
@@ -131,7 +180,7 @@ func (s *EnrichmentQuery) HasCookbookForCommit(ctx context.Context, commitSHA st
 }
 
 // HasExamplesForCommit checks if a commit has example enrichments.
-func (s *EnrichmentQuery) HasExamplesForCommit(ctx context.Context, commitSHA string) (bool, error) {
+func (s *Enrichment) HasExamplesForCommit(ctx context.Context, commitSHA string) (bool, error) {
 	typ := enrichment.TypeDevelopment
 	sub := enrichment.SubtypeExample
 	enrichments, err := s.EnrichmentsForCommit(ctx, commitSHA, &typ, &sub)
@@ -142,7 +191,7 @@ func (s *EnrichmentQuery) HasExamplesForCommit(ctx context.Context, commitSHA st
 }
 
 // HasExampleSummariesForCommit checks if a commit has example summary enrichments.
-func (s *EnrichmentQuery) HasExampleSummariesForCommit(ctx context.Context, commitSHA string) (bool, error) {
+func (s *Enrichment) HasExampleSummariesForCommit(ctx context.Context, commitSHA string) (bool, error) {
 	typ := enrichment.TypeDevelopment
 	sub := enrichment.SubtypeExampleSummary
 	enrichments, err := s.EnrichmentsForCommit(ctx, commitSHA, &typ, &sub)
@@ -153,26 +202,26 @@ func (s *EnrichmentQuery) HasExampleSummariesForCommit(ctx context.Context, comm
 }
 
 // SnippetsForCommit returns all snippet enrichments for a commit.
-func (s *EnrichmentQuery) SnippetsForCommit(ctx context.Context, commitSHA string) ([]enrichment.Enrichment, error) {
+func (s *Enrichment) SnippetsForCommit(ctx context.Context, commitSHA string) ([]enrichment.Enrichment, error) {
 	typ := enrichment.TypeDevelopment
 	sub := enrichment.SubtypeSnippet
 	return s.EnrichmentsForCommit(ctx, commitSHA, &typ, &sub)
 }
 
 // ExamplesForCommit returns all example enrichments for a commit.
-func (s *EnrichmentQuery) ExamplesForCommit(ctx context.Context, commitSHA string) ([]enrichment.Enrichment, error) {
+func (s *Enrichment) ExamplesForCommit(ctx context.Context, commitSHA string) ([]enrichment.Enrichment, error) {
 	typ := enrichment.TypeDevelopment
 	sub := enrichment.SubtypeExample
 	return s.EnrichmentsForCommit(ctx, commitSHA, &typ, &sub)
 }
 
 // Get retrieves a single enrichment by ID.
-func (s *EnrichmentQuery) Get(ctx context.Context, id int64) (enrichment.Enrichment, error) {
+func (s *Enrichment) Get(ctx context.Context, id int64) (enrichment.Enrichment, error) {
 	return s.enrichmentStore.Get(ctx, id)
 }
 
 // List returns enrichments matching the given filter.
-func (s *EnrichmentQuery) List(ctx context.Context, filter enrichment.Filter) ([]enrichment.Enrichment, error) {
+func (s *Enrichment) List(ctx context.Context, filter enrichment.Filter) ([]enrichment.Enrichment, error) {
 	typ := filter.FirstType()
 	sub := filter.FirstSubtype()
 
@@ -186,7 +235,7 @@ func (s *EnrichmentQuery) List(ctx context.Context, filter enrichment.Filter) ([
 }
 
 // Update replaces the content of an enrichment and returns the saved result.
-func (s *EnrichmentQuery) Update(ctx context.Context, id int64, content string) (enrichment.Enrichment, error) {
+func (s *Enrichment) Update(ctx context.Context, id int64, content string) (enrichment.Enrichment, error) {
 	existing, err := s.enrichmentStore.Get(ctx, id)
 	if err != nil {
 		return enrichment.Enrichment{}, err
@@ -196,7 +245,7 @@ func (s *EnrichmentQuery) Update(ctx context.Context, id int64, content string) 
 }
 
 // Delete removes an enrichment and its associations by ID.
-func (s *EnrichmentQuery) Delete(ctx context.Context, id int64) error {
+func (s *Enrichment) Delete(ctx context.Context, id int64) error {
 	existing, err := s.enrichmentStore.Get(ctx, id)
 	if err != nil {
 		return err
@@ -206,7 +255,7 @@ func (s *EnrichmentQuery) Delete(ctx context.Context, id int64) error {
 }
 
 // DeleteForCommit removes all enrichments and associations for a commit.
-func (s *EnrichmentQuery) DeleteForCommit(ctx context.Context, commitSHA string) error {
+func (s *Enrichment) DeleteForCommit(ctx context.Context, commitSHA string) error {
 	enrichments, err := s.EnrichmentsForCommit(ctx, commitSHA, nil, nil)
 	if err == nil {
 		for _, en := range enrichments {
@@ -218,7 +267,7 @@ func (s *EnrichmentQuery) DeleteForCommit(ctx context.Context, commitSHA string)
 
 // EnrichmentsForCommits returns enrichments for multiple commits with optional type filter.
 // Results are aggregated across all commits and deduplicated.
-func (s *EnrichmentQuery) EnrichmentsForCommits(
+func (s *Enrichment) EnrichmentsForCommits(
 	ctx context.Context,
 	commitSHAs []string,
 	typ *enrichment.Type,

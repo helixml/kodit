@@ -371,7 +371,7 @@ func newFakeEnrichmentContext(
 	return handler.EnrichmentContext{
 		Enrichments:  enrichmentStore,
 		Associations: associationStore,
-		Query:        service.NewEnrichmentQuery(enrichmentStore, associationStore),
+		Query:        service.NewEnrichment(enrichmentStore, associationStore),
 		Enricher:     enricher,
 		Tracker:      &fakeTrackerFactory{},
 		Logger:       logger,
