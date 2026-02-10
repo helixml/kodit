@@ -69,7 +69,7 @@ func (h *CommitDescription) Execute(ctx context.Context, payload map[string]any)
 		repoID,
 	)
 
-	hasDescription, err := h.queryService.HasCommitDescriptionForCommit(ctx, commitSHA)
+	hasDescription, err := h.queryService.Exists(ctx, &enrichment.ExistsParams{CommitSHA: commitSHA, Type: enrichment.TypeHistory, Subtype: enrichment.SubtypeCommitDescription})
 	if err != nil {
 		h.logger.Error("failed to check existing commit description", slog.String("error", err.Error()))
 		return err

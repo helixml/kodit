@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/helixml/kodit/application/handler"
+	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	domainservice "github.com/helixml/kodit/domain/service"
@@ -118,7 +119,7 @@ func (h *DatabaseSchema) Execute(ctx context.Context, payload map[string]any) er
 		repoID,
 	)
 
-	hasSchema, err := h.enrichCtx.Query.HasDatabaseSchemaForCommit(ctx, commitSHA)
+	hasSchema, err := h.enrichCtx.Query.Exists(ctx, &service.EnrichmentExistsParams{CommitSHA: commitSHA, Type: enrichment.TypeArchitecture, Subtype: enrichment.SubtypeDatabaseSchema})
 	if err != nil {
 		h.enrichCtx.Logger.Error("failed to check existing database schema", slog.String("error", err.Error()))
 		return err

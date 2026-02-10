@@ -66,7 +66,7 @@ func (h *CreateSummary) Execute(ctx context.Context, payload map[string]any) err
 		repoID,
 	)
 
-	hasSummaries, err := h.queryService.HasSummariesForCommit(ctx, commitSHA)
+	hasSummaries, err := h.queryService.Exists(ctx, &enrichment.ExistsParams{CommitSHA: commitSHA, Type: enrichment.TypeDevelopment, Subtype: enrichment.SubtypeSnippetSummary})
 	if err != nil {
 		h.logger.Error("failed to check existing summaries", slog.String("error", err.Error()))
 		return err

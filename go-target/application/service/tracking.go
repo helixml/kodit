@@ -26,25 +26,29 @@ func NewTracking(
 
 // Statuses returns all task statuses for a repository.
 func (s *Tracking) Statuses(ctx context.Context, repositoryID int64) ([]task.Status, error) {
-	return s.StatusesForRepository(ctx, repositoryID)
+	return s.statusStore.LoadWithHierarchy(
+		ctx,
+		task.TrackableTypeRepository,
+		repositoryID,
+	)
 }
 
 // Summary returns an aggregated status summary for a repository.
 func (s *Tracking) Summary(ctx context.Context, repositoryID int64) (tracking.RepositoryStatusSummary, error) {
-	return s.SummaryForRepository(ctx, repositoryID)
+	statuses, err := s.Statuses(ctx, repositoryID)
+	if err != nil {
+		return tracking.RepositoryStatusSummary{}, err
+	}
+
+	pendingCount, err := s.pendingTaskCount(ctx, repositoryID)
+	if err != nil {
+		return tracking.RepositoryStatusSummary{}, err
+	}
+
+	return tracking.StatusSummaryFromTasks(statuses, pendingCount), nil
 }
 
-// StatusesForRepository returns all task statuses for a specific repository.
-func (s *Tracking) StatusesForRepository(ctx context.Context, repoID int64) ([]task.Status, error) {
-	return s.statusStore.LoadWithHierarchy(
-		ctx,
-		task.TrackableTypeRepository,
-		repoID,
-	)
-}
-
-// PendingTaskCountForRepository returns the count of pending queue tasks for a repository.
-func (s *Tracking) PendingTaskCountForRepository(ctx context.Context, repoID int64) (int, error) {
+func (s *Tracking) pendingTaskCount(ctx context.Context, _ int64) (int, error) {
 	if s.taskStore == nil {
 		return 0, nil
 	}
@@ -54,19 +58,4 @@ func (s *Tracking) PendingTaskCountForRepository(ctx context.Context, repoID int
 		return 0, err
 	}
 	return int(count), nil
-}
-
-// SummaryForRepository returns an aggregated status summary for a repository.
-func (s *Tracking) SummaryForRepository(ctx context.Context, repoID int64) (tracking.RepositoryStatusSummary, error) {
-	statuses, err := s.StatusesForRepository(ctx, repoID)
-	if err != nil {
-		return tracking.RepositoryStatusSummary{}, err
-	}
-
-	pendingCount, err := s.PendingTaskCountForRepository(ctx, repoID)
-	if err != nil {
-		return tracking.RepositoryStatusSummary{}, err
-	}
-
-	return tracking.StatusSummaryFromTasks(statuses, pendingCount), nil
 }

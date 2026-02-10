@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/helixml/kodit/application/handler"
+	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/snippet"
@@ -66,7 +67,7 @@ func (h *ExtractExamples) Execute(ctx context.Context, payload map[string]any) e
 		repoID,
 	)
 
-	hasExamples, err := h.enrichCtx.Query.HasExamplesForCommit(ctx, commitSHA)
+	hasExamples, err := h.enrichCtx.Query.Exists(ctx, &service.EnrichmentExistsParams{CommitSHA: commitSHA, Type: enrichment.TypeDevelopment, Subtype: enrichment.SubtypeExample})
 	if err != nil {
 		h.enrichCtx.Logger.Error("failed to check existing examples", slog.String("error", err.Error()))
 		return err

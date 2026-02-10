@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/helixml/kodit/application/handler"
+	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/enrichment"
 	domainservice "github.com/helixml/kodit/domain/service"
 	"github.com/helixml/kodit/domain/snippet"
@@ -52,7 +53,7 @@ func (h *CreateSummary) Execute(ctx context.Context, payload map[string]any) err
 		repoID,
 	)
 
-	hasSummaries, err := h.enrichCtx.Query.HasSummariesForCommit(ctx, commitSHA)
+	hasSummaries, err := h.enrichCtx.Query.Exists(ctx, &service.EnrichmentExistsParams{CommitSHA: commitSHA, Type: enrichment.TypeDevelopment, Subtype: enrichment.SubtypeSnippetSummary})
 	if err != nil {
 		h.enrichCtx.Logger.Error("failed to check existing summaries", slog.String("error", err.Error()))
 		return err

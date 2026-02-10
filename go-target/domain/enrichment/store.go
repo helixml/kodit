@@ -15,6 +15,9 @@ type EnrichmentStore interface {
 	// Delete removes an enrichment.
 	Delete(ctx context.Context, enrichment Enrichment) error
 
+	// DeleteByIDs removes enrichments by their IDs.
+	DeleteByIDs(ctx context.Context, ids []int64) error
+
 	// FindByType returns all enrichments of a specific type.
 	FindByType(ctx context.Context, typ Type) ([]Enrichment, error)
 

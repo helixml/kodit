@@ -69,7 +69,7 @@ func (r *QueueRouter) ListTasks(w http.ResponseWriter, req *http.Request) {
 		params.Operation = &op
 	}
 
-	tasks, err := r.client.Tasks.ListByParams(ctx, params)
+	tasks, err := r.client.Tasks.List(ctx, params)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return

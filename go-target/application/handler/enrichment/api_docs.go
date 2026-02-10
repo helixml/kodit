@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/helixml/kodit/application/handler"
+	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/task"
@@ -57,7 +58,7 @@ func (h *APIDocs) Execute(ctx context.Context, payload map[string]any) error {
 		repoID,
 	)
 
-	hasAPIDocs, err := h.enrichCtx.Query.HasAPIDocsForCommit(ctx, commitSHA)
+	hasAPIDocs, err := h.enrichCtx.Query.Exists(ctx, &service.EnrichmentExistsParams{CommitSHA: commitSHA, Type: enrichment.TypeUsage, Subtype: enrichment.SubtypeAPIDocs})
 	if err != nil {
 		h.enrichCtx.Logger.Error("failed to check existing API docs", slog.String("error", err.Error()))
 		return err

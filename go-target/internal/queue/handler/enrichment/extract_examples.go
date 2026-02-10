@@ -81,7 +81,7 @@ func (h *ExtractExamples) Execute(ctx context.Context, payload map[string]any) e
 		repoID,
 	)
 
-	hasExamples, err := h.queryService.HasExamplesForCommit(ctx, commitSHA)
+	hasExamples, err := h.queryService.Exists(ctx, &enrichment.ExistsParams{CommitSHA: commitSHA, Type: enrichment.TypeDevelopment, Subtype: enrichment.SubtypeExample})
 	if err != nil {
 		h.logger.Error("failed to check existing examples", slog.String("error", err.Error()))
 		return err

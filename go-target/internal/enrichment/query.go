@@ -21,8 +21,7 @@ func NewQueryService(
 	}
 }
 
-// EnrichmentsForCommit returns all enrichments associated with a commit.
-func (s *QueryService) EnrichmentsForCommit(
+func (s *QueryService) enrichmentsForCommit(
 	ctx context.Context,
 	commitSHA string,
 	typ *Type,
@@ -62,106 +61,37 @@ func (s *QueryService) EnrichmentsForCommit(
 	return enrichments, nil
 }
 
-// HasSummariesForCommit checks if a commit has snippet summary enrichments.
-func (s *QueryService) HasSummariesForCommit(ctx context.Context, commitSHA string) (bool, error) {
-	typ := TypeDevelopment
-	sub := SubtypeSnippetSummary
-	enrichments, err := s.EnrichmentsForCommit(ctx, commitSHA, &typ, &sub)
+// ListParams configures enrichment listing.
+type ListParams struct {
+	CommitSHA string
+	Type      *Type
+	Subtype   *Subtype
+}
+
+// List returns enrichments matching the given params.
+func (s *QueryService) List(ctx context.Context, params *ListParams) ([]Enrichment, error) {
+	if params == nil {
+		return []Enrichment{}, nil
+	}
+	return s.enrichmentsForCommit(ctx, params.CommitSHA, params.Type, params.Subtype)
+}
+
+// ExistsParams specifies which enrichments to check for existence.
+type ExistsParams struct {
+	CommitSHA string
+	Type      Type
+	Subtype   Subtype
+}
+
+// Exists checks whether any enrichments match the given params.
+func (s *QueryService) Exists(ctx context.Context, params *ExistsParams) (bool, error) {
+	typ := params.Type
+	sub := params.Subtype
+	enrichments, err := s.enrichmentsForCommit(ctx, params.CommitSHA, &typ, &sub)
 	if err != nil {
 		return false, err
 	}
 	return len(enrichments) > 0, nil
-}
-
-// HasArchitectureForCommit checks if a commit has architecture enrichments.
-func (s *QueryService) HasArchitectureForCommit(ctx context.Context, commitSHA string) (bool, error) {
-	typ := TypeArchitecture
-	sub := SubtypePhysical
-	enrichments, err := s.EnrichmentsForCommit(ctx, commitSHA, &typ, &sub)
-	if err != nil {
-		return false, err
-	}
-	return len(enrichments) > 0, nil
-}
-
-// HasAPIDocsForCommit checks if a commit has API documentation enrichments.
-func (s *QueryService) HasAPIDocsForCommit(ctx context.Context, commitSHA string) (bool, error) {
-	typ := TypeUsage
-	sub := SubtypeAPIDocs
-	enrichments, err := s.EnrichmentsForCommit(ctx, commitSHA, &typ, &sub)
-	if err != nil {
-		return false, err
-	}
-	return len(enrichments) > 0, nil
-}
-
-// HasCommitDescriptionForCommit checks if a commit has commit description enrichments.
-func (s *QueryService) HasCommitDescriptionForCommit(ctx context.Context, commitSHA string) (bool, error) {
-	typ := TypeHistory
-	sub := SubtypeCommitDescription
-	enrichments, err := s.EnrichmentsForCommit(ctx, commitSHA, &typ, &sub)
-	if err != nil {
-		return false, err
-	}
-	return len(enrichments) > 0, nil
-}
-
-// HasDatabaseSchemaForCommit checks if a commit has database schema enrichments.
-func (s *QueryService) HasDatabaseSchemaForCommit(ctx context.Context, commitSHA string) (bool, error) {
-	typ := TypeArchitecture
-	sub := SubtypeDatabaseSchema
-	enrichments, err := s.EnrichmentsForCommit(ctx, commitSHA, &typ, &sub)
-	if err != nil {
-		return false, err
-	}
-	return len(enrichments) > 0, nil
-}
-
-// HasCookbookForCommit checks if a commit has cookbook enrichments.
-func (s *QueryService) HasCookbookForCommit(ctx context.Context, commitSHA string) (bool, error) {
-	typ := TypeUsage
-	sub := SubtypeCookbook
-	enrichments, err := s.EnrichmentsForCommit(ctx, commitSHA, &typ, &sub)
-	if err != nil {
-		return false, err
-	}
-	return len(enrichments) > 0, nil
-}
-
-// HasExamplesForCommit checks if a commit has example enrichments.
-func (s *QueryService) HasExamplesForCommit(ctx context.Context, commitSHA string) (bool, error) {
-	typ := TypeDevelopment
-	sub := SubtypeExample
-	enrichments, err := s.EnrichmentsForCommit(ctx, commitSHA, &typ, &sub)
-	if err != nil {
-		return false, err
-	}
-	return len(enrichments) > 0, nil
-}
-
-// HasExampleSummariesForCommit checks if a commit has example summary enrichments.
-func (s *QueryService) HasExampleSummariesForCommit(ctx context.Context, commitSHA string) (bool, error) {
-	typ := TypeDevelopment
-	sub := SubtypeExampleSummary
-	enrichments, err := s.EnrichmentsForCommit(ctx, commitSHA, &typ, &sub)
-	if err != nil {
-		return false, err
-	}
-	return len(enrichments) > 0, nil
-}
-
-// SnippetsForCommit returns all snippet enrichments for a commit.
-func (s *QueryService) SnippetsForCommit(ctx context.Context, commitSHA string) ([]Enrichment, error) {
-	typ := TypeDevelopment
-	sub := SubtypeSnippet
-	return s.EnrichmentsForCommit(ctx, commitSHA, &typ, &sub)
-}
-
-// ExamplesForCommit returns all example enrichments for a commit.
-func (s *QueryService) ExamplesForCommit(ctx context.Context, commitSHA string) ([]Enrichment, error) {
-	typ := TypeDevelopment
-	sub := SubtypeExample
-	return s.EnrichmentsForCommit(ctx, commitSHA, &typ, &sub)
 }
 
 // EnrichmentsForCommits returns enrichments for multiple commits with optional type filter.
@@ -188,7 +118,7 @@ func (s *QueryService) EnrichmentsForCommits(
 			break
 		}
 
-		commitEnrichments, err := s.EnrichmentsForCommit(ctx, sha, typ, nil)
+		commitEnrichments, err := s.enrichmentsForCommit(ctx, sha, typ, nil)
 		if err != nil {
 			continue
 		}

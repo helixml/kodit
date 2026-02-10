@@ -593,7 +593,7 @@ func (r *RepositoriesRouter) ListCommitEnrichments(w http.ResponseWriter, req *h
 		params.Subtype = &s
 	}
 
-	enrichments, err := r.client.Enrichments.ListByParams(ctx, params)
+	enrichments, err := r.client.Enrichments.List(ctx, params)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -725,7 +725,7 @@ func (r *RepositoriesRouter) DeleteCommitEnrichments(w http.ResponseWriter, req 
 		return
 	}
 
-	if err := r.client.Enrichments.DeleteForCommit(ctx, commitSHA); err != nil {
+	if err := r.client.Enrichments.Delete(ctx, &service.EnrichmentDeleteParams{CommitSHA: commitSHA}); err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
@@ -780,7 +780,7 @@ func (r *RepositoriesRouter) DeleteCommitEnrichment(w http.ResponseWriter, req *
 		return
 	}
 
-	if err := r.client.Enrichments.Delete(ctx, enrichmentID); err != nil {
+	if err := r.client.Enrichments.Delete(ctx, &service.EnrichmentDeleteParams{ID: &enrichmentID}); err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
@@ -1101,7 +1101,7 @@ func (r *RepositoriesRouter) ListRepositoryEnrichments(w http.ResponseWriter, re
 	}
 
 	// Get enrichments across commits
-	enrichments, err := r.client.Enrichments.ListByParams(ctx, &service.EnrichmentListParams{
+	enrichments, err := r.client.Enrichments.List(ctx, &service.EnrichmentListParams{
 		CommitSHAs: commitSHAs,
 		Type:       typ,
 		Limit:      pageSize,

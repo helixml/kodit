@@ -132,7 +132,7 @@ func (h *DatabaseSchema) Execute(ctx context.Context, payload map[string]any) er
 		repoID,
 	)
 
-	hasSchema, err := h.queryService.HasDatabaseSchemaForCommit(ctx, commitSHA)
+	hasSchema, err := h.queryService.Exists(ctx, &enrichment.ExistsParams{CommitSHA: commitSHA, Type: enrichment.TypeArchitecture, Subtype: enrichment.SubtypeDatabaseSchema})
 	if err != nil {
 		h.logger.Error("failed to check existing database schema", slog.String("error", err.Error()))
 		return err

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/helixml/kodit/application/handler"
+	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	domainservice "github.com/helixml/kodit/domain/service"
@@ -56,7 +57,7 @@ func (h *CommitDescription) Execute(ctx context.Context, payload map[string]any)
 		repoID,
 	)
 
-	hasDescription, err := h.enrichCtx.Query.HasCommitDescriptionForCommit(ctx, commitSHA)
+	hasDescription, err := h.enrichCtx.Query.Exists(ctx, &service.EnrichmentExistsParams{CommitSHA: commitSHA, Type: enrichment.TypeHistory, Subtype: enrichment.SubtypeCommitDescription})
 	if err != nil {
 		h.enrichCtx.Logger.Error("failed to check existing commit description", slog.String("error", err.Error()))
 		return err

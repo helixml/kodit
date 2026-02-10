@@ -63,100 +63,36 @@ func (s *Queue) EnqueueOperations(
 	return nil
 }
 
-// List returns all tasks in the queue, optionally filtered by operation.
+// List returns tasks matching the given params.
 // Tasks are sorted by priority (highest first) then by created_at (oldest first).
-func (s *Queue) List(ctx context.Context, operation *task.Operation) ([]task.Task, error) {
+func (s *Queue) List(ctx context.Context, params *TaskListParams) ([]task.Task, error) {
 	tasks, err := s.store.FindPending(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	if operation == nil {
+	if params == nil {
 		return tasks, nil
 	}
 
-	// Filter by operation if specified
-	filtered := make([]task.Task, 0, len(tasks))
-	for _, t := range tasks {
-		if t.Operation() == *operation {
-			filtered = append(filtered, t)
+	if params.Operation != nil {
+		filtered := make([]task.Task, 0, len(tasks))
+		for _, t := range tasks {
+			if t.Operation() == *params.Operation {
+				filtered = append(filtered, t)
+			}
 		}
-	}
-	return filtered, nil
-}
-
-// TaskByDedupKey returns a task by its dedup_key.
-func (s *Queue) TaskByDedupKey(ctx context.Context, dedupKey string) (task.Task, bool, error) {
-	tasks, err := s.store.FindPending(ctx)
-	if err != nil {
-		return task.Task{}, false, err
+		tasks = filtered
 	}
 
-	for _, t := range tasks {
-		if t.DedupKey() == dedupKey {
-			return t, true, nil
-		}
+	if params.Limit > 0 && len(tasks) > params.Limit {
+		tasks = tasks[:params.Limit]
 	}
-	return task.Task{}, false, nil
+
+	return tasks, nil
 }
 
 // Get retrieves a task by ID.
 func (s *Queue) Get(ctx context.Context, id int64) (task.Task, error) {
 	return s.store.Get(ctx, id)
-}
-
-// Cancel removes a pending task by ID.
-func (s *Queue) Cancel(ctx context.Context, id int64) error {
-	tsk, err := s.store.Get(ctx, id)
-	if err != nil {
-		return err
-	}
-	return s.store.Delete(ctx, tsk)
-}
-
-// ListFiltered returns tasks matching the given filter.
-func (s *Queue) ListFiltered(ctx context.Context, filter task.Filter) ([]task.Task, error) {
-	tasks, err := s.List(ctx, filter.Operation())
-	if err != nil {
-		return nil, err
-	}
-	if filter.Limit() > 0 && len(tasks) > filter.Limit() {
-		tasks = tasks[:filter.Limit()]
-	}
-	return tasks, nil
-}
-
-// ListByParams returns tasks matching the given params.
-func (s *Queue) ListByParams(ctx context.Context, params *TaskListParams) ([]task.Task, error) {
-	filter := task.NewFilter()
-	if params != nil {
-		if params.Operation != nil {
-			filter = filter.WithOperation(*params.Operation)
-		}
-		if params.Limit > 0 {
-			filter = filter.WithLimit(params.Limit)
-		}
-	}
-	return s.ListFiltered(ctx, filter)
-}
-
-// PendingCount returns the count of pending tasks.
-func (s *Queue) PendingCount(ctx context.Context) (int64, error) {
-	return s.store.CountPending(ctx)
-}
-
-// PendingCountByOperation returns the count of pending tasks for an operation.
-func (s *Queue) PendingCountByOperation(ctx context.Context, operation task.Operation) (int64, error) {
-	tasks, err := s.store.FindPending(ctx)
-	if err != nil {
-		return 0, err
-	}
-
-	var count int64
-	for _, t := range tasks {
-		if t.Operation() == operation {
-			count++
-		}
-	}
-	return count, nil
 }

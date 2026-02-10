@@ -69,7 +69,7 @@ func (h *APIDocs) Execute(ctx context.Context, payload map[string]any) error {
 		repoID,
 	)
 
-	hasAPIDocs, err := h.queryService.HasAPIDocsForCommit(ctx, commitSHA)
+	hasAPIDocs, err := h.queryService.Exists(ctx, &enrichment.ExistsParams{CommitSHA: commitSHA, Type: enrichment.TypeUsage, Subtype: enrichment.SubtypeAPIDocs})
 	if err != nil {
 		h.logger.Error("failed to check existing API docs", slog.String("error", err.Error()))
 		return err

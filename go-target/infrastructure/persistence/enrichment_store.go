@@ -70,6 +70,18 @@ func (s EnrichmentStore) Delete(ctx context.Context, e enrichment.Enrichment) er
 	return nil
 }
 
+// DeleteByIDs removes enrichments by their IDs.
+func (s EnrichmentStore) DeleteByIDs(ctx context.Context, ids []int64) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	result := s.db.Session(ctx).Where("id IN ?", ids).Delete(&EnrichmentModel{})
+	if result.Error != nil {
+		return fmt.Errorf("delete enrichments by ids: %w", result.Error)
+	}
+	return nil
+}
+
 // FindByType returns all enrichments of a specific type.
 func (s EnrichmentStore) FindByType(ctx context.Context, typ enrichment.Type) ([]enrichment.Enrichment, error) {
 	var models []EnrichmentModel

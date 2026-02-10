@@ -62,7 +62,7 @@ func (h *ExampleSummary) Execute(ctx context.Context, payload map[string]any) er
 		repoID,
 	)
 
-	hasSummaries, err := h.queryService.HasExampleSummariesForCommit(ctx, commitSHA)
+	hasSummaries, err := h.queryService.Exists(ctx, &enrichment.ExistsParams{CommitSHA: commitSHA, Type: enrichment.TypeDevelopment, Subtype: enrichment.SubtypeExampleSummary})
 	if err != nil {
 		h.logger.Error("failed to check existing example summaries", slog.String("error", err.Error()))
 		return err
@@ -75,7 +75,9 @@ func (h *ExampleSummary) Execute(ctx context.Context, payload map[string]any) er
 		return nil
 	}
 
-	examples, err := h.queryService.ExamplesForCommit(ctx, commitSHA)
+	exTyp := enrichment.TypeDevelopment
+	exSub := enrichment.SubtypeExample
+	examples, err := h.queryService.List(ctx, &enrichment.ListParams{CommitSHA: commitSHA, Type: &exTyp, Subtype: &exSub})
 	if err != nil {
 		return fmt.Errorf("get examples: %w", err)
 	}

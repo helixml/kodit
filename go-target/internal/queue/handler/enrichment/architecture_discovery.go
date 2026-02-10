@@ -89,7 +89,7 @@ func (h *ArchitectureDiscovery) Execute(ctx context.Context, payload map[string]
 		h.logger.Warn("failed to set tracker total", slog.String("error", setTotalErr.Error()))
 	}
 
-	hasArchitecture, err := h.queryService.HasArchitectureForCommit(ctx, commitSHA)
+	hasArchitecture, err := h.queryService.Exists(ctx, &enrichment.ExistsParams{CommitSHA: commitSHA, Type: enrichment.TypeArchitecture, Subtype: enrichment.SubtypePhysical})
 	if err != nil {
 		h.logger.Error("failed to check existing architecture", slog.String("error", err.Error()))
 		return err

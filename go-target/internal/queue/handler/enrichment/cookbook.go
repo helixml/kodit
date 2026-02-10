@@ -93,7 +93,7 @@ func (h *Cookbook) Execute(ctx context.Context, payload map[string]any) error {
 		repoID,
 	)
 
-	hasCookbook, err := h.queryService.HasCookbookForCommit(ctx, commitSHA)
+	hasCookbook, err := h.queryService.Exists(ctx, &enrichment.ExistsParams{CommitSHA: commitSHA, Type: enrichment.TypeUsage, Subtype: enrichment.SubtypeCookbook})
 	if err != nil {
 		h.logger.Error("failed to check existing cookbook", slog.String("error", err.Error()))
 		return err

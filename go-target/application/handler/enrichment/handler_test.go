@@ -86,6 +86,13 @@ func (f *fakeEnrichmentStore) Delete(_ context.Context, e enrichment.Enrichment)
 	return nil
 }
 
+func (f *fakeEnrichmentStore) DeleteByIDs(_ context.Context, ids []int64) error {
+	for _, id := range ids {
+		delete(f.enrichments, id)
+	}
+	return nil
+}
+
 func (f *fakeEnrichmentStore) FindByType(_ context.Context, t enrichment.Type) ([]enrichment.Enrichment, error) {
 	var result []enrichment.Enrichment
 	for _, e := range f.enrichments {

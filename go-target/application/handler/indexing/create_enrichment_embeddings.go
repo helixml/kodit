@@ -57,9 +57,9 @@ func (h *CreateSummaryEmbeddings) Execute(ctx context.Context, payload map[strin
 		repoID,
 	)
 
-	typ := enrichment.TypeDevelopment
-	sub := enrichment.SubtypeSnippetSummary
-	enrichments, err := h.queryService.EnrichmentsForCommit(ctx, commitSHA, &typ, &sub)
+	summaryTyp := enrichment.TypeDevelopment
+	summarySub := enrichment.SubtypeSnippetSummary
+	enrichments, err := h.queryService.List(ctx, &service.EnrichmentListParams{CommitSHA: commitSHA, Type: &summaryTyp, Subtype: &summarySub})
 	if err != nil {
 		h.logger.Error("failed to get summary enrichments", slog.String("error", err.Error()))
 		return err
@@ -230,7 +230,9 @@ func (h *CreateExampleCodeEmbeddings) Execute(ctx context.Context, payload map[s
 		repoID,
 	)
 
-	examples, err := h.queryService.ExamplesForCommit(ctx, commitSHA)
+	exTyp := enrichment.TypeDevelopment
+	exSub := enrichment.SubtypeExample
+	examples, err := h.queryService.List(ctx, &service.EnrichmentListParams{CommitSHA: commitSHA, Type: &exTyp, Subtype: &exSub})
 	if err != nil {
 		h.logger.Error("failed to get example enrichments", slog.String("error", err.Error()))
 		return err
@@ -362,9 +364,9 @@ func (h *CreateExampleSummaryEmbeddings) Execute(ctx context.Context, payload ma
 		repoID,
 	)
 
-	typ := enrichment.TypeDevelopment
-	sub := enrichment.SubtypeExampleSummary
-	enrichments, err := h.queryService.EnrichmentsForCommit(ctx, commitSHA, &typ, &sub)
+	exSumTyp := enrichment.TypeDevelopment
+	exSumSub := enrichment.SubtypeExampleSummary
+	enrichments, err := h.queryService.List(ctx, &service.EnrichmentListParams{CommitSHA: commitSHA, Type: &exSumTyp, Subtype: &exSumSub})
 	if err != nil {
 		h.logger.Error("failed to get example summary enrichments", slog.String("error", err.Error()))
 		return err

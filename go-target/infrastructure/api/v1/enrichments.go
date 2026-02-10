@@ -83,7 +83,7 @@ func (r *EnrichmentsRouter) List(w http.ResponseWriter, req *http.Request) {
 		params.Subtype = &s
 	}
 
-	enrichments, err := r.client.Enrichments.ListByParams(ctx, params)
+	enrichments, err := r.client.Enrichments.List(ctx, params)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -197,7 +197,7 @@ func (r *EnrichmentsRouter) Update(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	saved, err := r.client.Enrichments.UpdateByParams(ctx, id, &service.EnrichmentUpdateParams{
+	saved, err := r.client.Enrichments.Update(ctx, id, &service.EnrichmentUpdateParams{
 		Content: body.Data.Attributes.Content,
 	})
 	if err != nil {
@@ -233,7 +233,7 @@ func (r *EnrichmentsRouter) Delete(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if err := r.client.Enrichments.Delete(ctx, id); err != nil {
+	if err := r.client.Enrichments.Delete(ctx, &service.EnrichmentDeleteParams{ID: &id}); err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}

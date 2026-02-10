@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/helixml/kodit/application/handler"
+	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	domainservice "github.com/helixml/kodit/domain/service"
@@ -75,7 +76,7 @@ func (h *ArchitectureDiscovery) Execute(ctx context.Context, payload map[string]
 		h.enrichCtx.Logger.Warn("failed to set tracker total", slog.String("error", setTotalErr.Error()))
 	}
 
-	hasArchitecture, err := h.enrichCtx.Query.HasArchitectureForCommit(ctx, commitSHA)
+	hasArchitecture, err := h.enrichCtx.Query.Exists(ctx, &service.EnrichmentExistsParams{CommitSHA: commitSHA, Type: enrichment.TypeArchitecture, Subtype: enrichment.SubtypePhysical})
 	if err != nil {
 		h.enrichCtx.Logger.Error("failed to check existing architecture", slog.String("error", err.Error()))
 		return err
