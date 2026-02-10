@@ -73,7 +73,7 @@ func (h *ExtractSnippets) Execute(ctx context.Context, payload map[string]any) e
 		return nil
 	}
 
-	repo, err := h.repoStore.Get(ctx, repoID)
+	repo, err := h.repoStore.FindOne(ctx, repository.WithID(repoID))
 	if err != nil {
 		return fmt.Errorf("get repository: %w", err)
 	}
@@ -84,7 +84,7 @@ func (h *ExtractSnippets) Execute(ctx context.Context, payload map[string]any) e
 	}
 
 	// Load files from database (which have IDs from SCAN_COMMIT step)
-	files, err := h.fileStore.FindByCommitSHA(ctx, commitSHA)
+	files, err := h.fileStore.Find(ctx, repository.WithCommitSHA(commitSHA))
 	if err != nil {
 		return fmt.Errorf("get commit files from database: %w", err)
 	}

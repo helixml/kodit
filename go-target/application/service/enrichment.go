@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/helixml/kodit/domain/enrichment"
+	"github.com/helixml/kodit/domain/repository"
 )
 
 // EnrichmentListParams configures enrichment listing.
@@ -36,7 +37,9 @@ type EnrichmentDeleteParams struct {
 }
 
 // Enrichment provides queries for enrichments and their associations.
+// Embeds Collection for Find/Get; bespoke methods handle writes and complex queries.
 type Enrichment struct {
+	repository.Collection[enrichment.Enrichment]
 	enrichmentStore  enrichment.EnrichmentStore
 	associationStore enrichment.AssociationStore
 }
@@ -47,6 +50,7 @@ func NewEnrichment(
 	associationStore enrichment.AssociationStore,
 ) *Enrichment {
 	return &Enrichment{
+		Collection:       repository.NewCollection[enrichment.Enrichment](enrichmentStore),
 		enrichmentStore:  enrichmentStore,
 		associationStore: associationStore,
 	}
@@ -62,7 +66,7 @@ func (s *Enrichment) List(ctx context.Context, params *EnrichmentListParams) ([]
 	}
 
 	if params.CommitSHA != "" {
-		associations, err := s.associationStore.FindByEntityTypeAndID(ctx, enrichment.EntityTypeCommit, params.CommitSHA)
+		associations, err := s.associationStore.Find(ctx, enrichment.WithEntityType(enrichment.EntityTypeCommit), enrichment.WithEntityID(params.CommitSHA))
 		if err != nil {
 			return nil, err
 		}
@@ -72,7 +76,7 @@ func (s *Enrichment) List(ctx context.Context, params *EnrichmentListParams) ([]
 
 		var enrichments []enrichment.Enrichment
 		for _, a := range associations {
-			e, err := s.enrichmentStore.Get(ctx, a.EnrichmentID())
+			e, err := s.enrichmentStore.FindOne(ctx, repository.WithID(a.EnrichmentID()))
 			if err != nil {
 				continue
 			}
@@ -92,17 +96,17 @@ func (s *Enrichment) List(ctx context.Context, params *EnrichmentListParams) ([]
 	}
 
 	if params.Type != nil && params.Subtype != nil {
-		return s.enrichmentStore.FindByTypeAndSubtype(ctx, *params.Type, *params.Subtype)
+		return s.enrichmentStore.Find(ctx, enrichment.WithType(*params.Type), enrichment.WithSubtype(*params.Subtype))
 	}
 	if params.Type != nil {
-		return s.enrichmentStore.FindByType(ctx, *params.Type)
+		return s.enrichmentStore.Find(ctx, enrichment.WithType(*params.Type))
 	}
 	return []enrichment.Enrichment{}, nil
 }
 
 // Update replaces the content of an enrichment and returns the saved result.
 func (s *Enrichment) Update(ctx context.Context, id int64, params *EnrichmentUpdateParams) (enrichment.Enrichment, error) {
-	existing, err := s.enrichmentStore.Get(ctx, id)
+	existing, err := s.enrichmentStore.FindOne(ctx, repository.WithID(id))
 	if err != nil {
 		return enrichment.Enrichment{}, err
 	}
@@ -125,22 +129,17 @@ func (s *Enrichment) Exists(ctx context.Context, params *EnrichmentExistsParams)
 	return len(enrichments) > 0, nil
 }
 
-// Get retrieves a single enrichment by ID.
-func (s *Enrichment) Get(ctx context.Context, id int64) (enrichment.Enrichment, error) {
-	return s.enrichmentStore.Get(ctx, id)
-}
-
 // Delete removes enrichments and their associations.
 // When ID is set, deletes a single enrichment.
 // When CommitSHA is set, batch-deletes all enrichments for that commit.
 func (s *Enrichment) Delete(ctx context.Context, params *EnrichmentDeleteParams) error {
 	if params.ID != nil {
-		_ = s.associationStore.DeleteByEnrichmentID(ctx, *params.ID)
-		return s.enrichmentStore.DeleteByIDs(ctx, []int64{*params.ID})
+		_ = s.associationStore.DeleteBy(ctx, enrichment.WithEnrichmentID(*params.ID))
+		return s.enrichmentStore.DeleteBy(ctx, repository.WithID(*params.ID))
 	}
 
 	if params.CommitSHA != "" {
-		associations, err := s.associationStore.FindByEntityTypeAndID(ctx, enrichment.EntityTypeCommit, params.CommitSHA)
+		associations, err := s.associationStore.Find(ctx, enrichment.WithEntityType(enrichment.EntityTypeCommit), enrichment.WithEntityID(params.CommitSHA))
 		if err != nil {
 			return fmt.Errorf("find associations for commit: %w", err)
 		}
@@ -150,12 +149,12 @@ func (s *Enrichment) Delete(ctx context.Context, params *EnrichmentDeleteParams)
 			for i, a := range associations {
 				ids[i] = a.EnrichmentID()
 			}
-			if err := s.enrichmentStore.DeleteByIDs(ctx, ids); err != nil {
+			if err := s.enrichmentStore.DeleteBy(ctx, repository.WithIDIn(ids)); err != nil {
 				return fmt.Errorf("delete enrichments: %w", err)
 			}
 		}
 
-		return s.associationStore.DeleteByEntityID(ctx, params.CommitSHA)
+		return s.associationStore.DeleteBy(ctx, enrichment.WithEntityID(params.CommitSHA))
 	}
 
 	return nil

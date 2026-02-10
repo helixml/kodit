@@ -2,46 +2,30 @@ package persistence
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/helixml/kodit/domain/repository"
-	"gorm.io/gorm"
+	"github.com/helixml/kodit/internal/database"
 	"gorm.io/gorm/clause"
 )
 
 // FileStore implements repository.FileStore using GORM.
 type FileStore struct {
-	db     Database
-	mapper FileMapper
+	database.Repository[repository.File, FileModel]
 }
 
 // NewFileStore creates a new FileStore.
-func NewFileStore(db Database) FileStore {
+func NewFileStore(db database.Database) FileStore {
 	return FileStore{
-		db:     db,
-		mapper: FileMapper{},
+		Repository: database.NewRepository[repository.File, FileModel](db, FileMapper{}, "file"),
 	}
-}
-
-// Get retrieves a file by ID.
-func (s FileStore) Get(ctx context.Context, id int64) (repository.File, error) {
-	var model FileModel
-	result := s.db.Session(ctx).Where("id = ?", id).First(&model)
-	if result.Error != nil {
-		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return repository.File{}, fmt.Errorf("%w: file with id %d", ErrNotFound, id)
-		}
-		return repository.File{}, fmt.Errorf("get file: %w", result.Error)
-	}
-	return s.mapper.ToDomain(model), nil
 }
 
 // Save creates or updates a file.
 func (s FileStore) Save(ctx context.Context, file repository.File) (repository.File, error) {
-	model := s.mapper.ToModel(file)
+	model := s.Mapper().ToModel(file)
 
-	result := s.db.Session(ctx).Clauses(clause.OnConflict{
+	result := s.DB(ctx).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "commit_sha"}, {Name: "path"}},
 		DoUpdates: clause.AssignmentColumns([]string{"blob_sha", "mime_type", "extension", "size"}),
 	}).Create(&model)
@@ -49,7 +33,7 @@ func (s FileStore) Save(ctx context.Context, file repository.File) (repository.F
 	if result.Error != nil {
 		return repository.File{}, fmt.Errorf("save file: %w", result.Error)
 	}
-	return s.mapper.ToDomain(model), nil
+	return s.Mapper().ToDomain(model), nil
 }
 
 // SaveAll creates or updates multiple files.
@@ -60,10 +44,10 @@ func (s FileStore) SaveAll(ctx context.Context, files []repository.File) ([]repo
 
 	models := make([]FileModel, len(files))
 	for i, f := range files {
-		models[i] = s.mapper.ToModel(f)
+		models[i] = s.Mapper().ToModel(f)
 	}
 
-	result := s.db.Session(ctx).Clauses(clause.OnConflict{
+	result := s.DB(ctx).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "commit_sha"}, {Name: "path"}},
 		DoUpdates: clause.AssignmentColumns([]string{"blob_sha", "mime_type", "extension", "size"}),
 	}).Create(&models)
@@ -74,81 +58,16 @@ func (s FileStore) SaveAll(ctx context.Context, files []repository.File) ([]repo
 
 	saved := make([]repository.File, len(models))
 	for i, m := range models {
-		saved[i] = s.mapper.ToDomain(m)
+		saved[i] = s.Mapper().ToDomain(m)
 	}
 	return saved, nil
 }
 
 // Delete removes a file.
 func (s FileStore) Delete(ctx context.Context, file repository.File) error {
-	result := s.db.Session(ctx).Where("commit_sha = ? AND path = ?", file.CommitSHA(), file.Path()).Delete(&FileModel{})
+	result := s.DB(ctx).Where("commit_sha = ? AND path = ?", file.CommitSHA(), file.Path()).Delete(&FileModel{})
 	if result.Error != nil {
 		return fmt.Errorf("delete file: %w", result.Error)
 	}
 	return nil
-}
-
-// FindByCommitSHA retrieves all files for a commit.
-func (s FileStore) FindByCommitSHA(ctx context.Context, sha string) ([]repository.File, error) {
-	var models []FileModel
-	result := s.db.Session(ctx).Where("commit_sha = ?", sha).Order("path ASC").Find(&models)
-	if result.Error != nil {
-		return nil, fmt.Errorf("find files by commit: %w", result.Error)
-	}
-
-	files := make([]repository.File, len(models))
-	for i, m := range models {
-		files[i] = s.mapper.ToDomain(m)
-	}
-	return files, nil
-}
-
-// DeleteByCommitSHA deletes all files for a commit.
-func (s FileStore) DeleteByCommitSHA(ctx context.Context, sha string) error {
-	result := s.db.Session(ctx).Where("commit_sha = ?", sha).Delete(&FileModel{})
-	if result.Error != nil {
-		return fmt.Errorf("delete files by commit: %w", result.Error)
-	}
-	return nil
-}
-
-// GetByCommitAndBlobSHA retrieves a file by commit SHA and blob SHA.
-func (s FileStore) GetByCommitAndBlobSHA(ctx context.Context, commitSHA, blobSHA string) (repository.File, error) {
-	var model FileModel
-	result := s.db.Session(ctx).Where("commit_sha = ? AND blob_sha = ?", commitSHA, blobSHA).First(&model)
-	if result.Error != nil {
-		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return repository.File{}, fmt.Errorf("%w: file with blob %s at commit %s", ErrNotFound, blobSHA, commitSHA)
-		}
-		return repository.File{}, fmt.Errorf("get file: %w", result.Error)
-	}
-	return s.mapper.ToDomain(model), nil
-}
-
-// GetByCommitAndPath retrieves a file by commit SHA and path.
-func (s FileStore) GetByCommitAndPath(ctx context.Context, commitSHA, path string) (repository.File, error) {
-	var model FileModel
-	result := s.db.Session(ctx).Where("commit_sha = ? AND path = ?", commitSHA, path).First(&model)
-	if result.Error != nil {
-		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return repository.File{}, fmt.Errorf("%w: file %s at commit %s", ErrNotFound, path, commitSHA)
-		}
-		return repository.File{}, fmt.Errorf("get file: %w", result.Error)
-	}
-	return s.mapper.ToDomain(model), nil
-}
-
-// Find retrieves files matching a query.
-func (s FileStore) Find(ctx context.Context, query Query) ([]repository.File, error) {
-	var models []FileModel
-	result := query.Apply(s.db.Session(ctx).Model(&FileModel{})).Find(&models)
-	if result.Error != nil {
-		return nil, fmt.Errorf("find files: %w", result.Error)
-	}
-
-	files := make([]repository.File, len(models))
-	for i, m := range models {
-		files[i] = s.mapper.ToDomain(m)
-	}
-	return files, nil
 }

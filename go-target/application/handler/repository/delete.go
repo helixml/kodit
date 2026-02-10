@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/helixml/kodit/application/handler"
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/snippet"
 	"github.com/helixml/kodit/domain/task"
 )
@@ -48,7 +49,7 @@ func (h *Delete) Execute(ctx context.Context, payload map[string]any) error {
 		repoID,
 	)
 
-	repo, err := h.repoStores.Repositories.Get(ctx, repoID)
+	repo, err := h.repoStores.Repositories.FindOne(ctx, repository.WithID(repoID))
 	if err != nil {
 		if failErr := tracker.Fail(ctx, err.Error()); failErr != nil {
 			h.logger.Warn("failed to mark tracker as failed", slog.String("error", failErr.Error()))
@@ -64,7 +65,7 @@ func (h *Delete) Execute(ctx context.Context, payload map[string]any) error {
 		h.logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
 	}
 
-	commits, err := h.repoStores.Commits.FindByRepoID(ctx, repoID)
+	commits, err := h.repoStores.Commits.Find(ctx, repository.WithRepoID(repoID))
 	if err != nil {
 		h.logger.Warn("failed to find commits", slog.String("error", err.Error()))
 	}
@@ -138,7 +139,7 @@ func (h *Delete) Execute(ctx context.Context, payload map[string]any) error {
 }
 
 func (h *Delete) deleteCommitData(ctx context.Context, commitSHA string) error {
-	if err := h.repoStores.Files.DeleteByCommitSHA(ctx, commitSHA); err != nil {
+	if err := h.repoStores.Files.DeleteBy(ctx, repository.WithCommitSHA(commitSHA)); err != nil {
 		return fmt.Errorf("delete files: %w", err)
 	}
 
@@ -150,7 +151,7 @@ func (h *Delete) deleteCommitData(ctx context.Context, commitSHA string) error {
 }
 
 func (h *Delete) deleteBranches(ctx context.Context, repoID int64) error {
-	branches, err := h.repoStores.Branches.FindByRepoID(ctx, repoID)
+	branches, err := h.repoStores.Branches.Find(ctx, repository.WithRepoID(repoID))
 	if err != nil {
 		return fmt.Errorf("find branches: %w", err)
 	}
@@ -168,7 +169,7 @@ func (h *Delete) deleteBranches(ctx context.Context, repoID int64) error {
 }
 
 func (h *Delete) deleteTags(ctx context.Context, repoID int64) error {
-	tags, err := h.repoStores.Tags.FindByRepoID(ctx, repoID)
+	tags, err := h.repoStores.Tags.Find(ctx, repository.WithRepoID(repoID))
 	if err != nil {
 		return fmt.Errorf("find tags: %w", err)
 	}

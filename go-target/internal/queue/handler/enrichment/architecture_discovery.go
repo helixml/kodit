@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"log/slog"
 
+	domainenrichment "github.com/helixml/kodit/domain/enrichment"
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/internal/domain"
 	"github.com/helixml/kodit/internal/enrichment"
-	"github.com/helixml/kodit/internal/git"
 	"github.com/helixml/kodit/internal/queue"
 )
 
@@ -34,9 +35,9 @@ type ArchitectureDiscoverer interface {
 
 // ArchitectureDiscovery handles the CREATE_ARCHITECTURE_ENRICHMENT_FOR_COMMIT operation.
 type ArchitectureDiscovery struct {
-	repoRepo           git.RepoRepository
-	enrichmentRepo     enrichment.EnrichmentRepository
-	associationRepo    enrichment.AssociationRepository
+	repoRepo           repository.RepositoryStore
+	enrichmentRepo     domainenrichment.EnrichmentStore
+	associationRepo    domainenrichment.AssociationStore
 	queryService       *enrichment.QueryService
 	discoverer         ArchitectureDiscoverer
 	enricher           enrichment.Enricher
@@ -46,9 +47,9 @@ type ArchitectureDiscovery struct {
 
 // NewArchitectureDiscovery creates a new ArchitectureDiscovery handler.
 func NewArchitectureDiscovery(
-	repoRepo git.RepoRepository,
-	enrichmentRepo enrichment.EnrichmentRepository,
-	associationRepo enrichment.AssociationRepository,
+	repoRepo repository.RepositoryStore,
+	enrichmentRepo domainenrichment.EnrichmentStore,
+	associationRepo domainenrichment.AssociationStore,
 	queryService *enrichment.QueryService,
 	discoverer ArchitectureDiscoverer,
 	enricher enrichment.Enricher,
@@ -89,7 +90,7 @@ func (h *ArchitectureDiscovery) Execute(ctx context.Context, payload map[string]
 		h.logger.Warn("failed to set tracker total", slog.String("error", setTotalErr.Error()))
 	}
 
-	hasArchitecture, err := h.queryService.Exists(ctx, &enrichment.ExistsParams{CommitSHA: commitSHA, Type: enrichment.TypeArchitecture, Subtype: enrichment.SubtypePhysical})
+	hasArchitecture, err := h.queryService.Exists(ctx, &enrichment.ExistsParams{CommitSHA: commitSHA, Type: domainenrichment.TypeArchitecture, Subtype: domainenrichment.SubtypePhysical})
 	if err != nil {
 		h.logger.Error("failed to check existing architecture", slog.String("error", err.Error()))
 		return err
@@ -102,7 +103,7 @@ func (h *ArchitectureDiscovery) Execute(ctx context.Context, payload map[string]
 		return nil
 	}
 
-	repo, err := h.repoRepo.Get(ctx, repoID)
+	repo, err := h.repoRepo.FindOne(ctx, repository.WithID(repoID))
 	if err != nil {
 		return fmt.Errorf("get repository: %w", err)
 	}
@@ -139,13 +140,13 @@ func (h *ArchitectureDiscovery) Execute(ctx context.Context, payload map[string]
 		return fmt.Errorf("no enrichment response for commit %s", commitSHA)
 	}
 
-	archEnrichment := enrichment.NewPhysicalArchitecture(responses[0].Text())
+	archEnrichment := domainenrichment.NewPhysicalArchitecture(responses[0].Text())
 	saved, err := h.enrichmentRepo.Save(ctx, archEnrichment)
 	if err != nil {
 		return fmt.Errorf("save architecture enrichment: %w", err)
 	}
 
-	commitAssoc := enrichment.CommitAssociation(saved.ID(), commitSHA)
+	commitAssoc := domainenrichment.CommitAssociation(saved.ID(), commitSHA)
 	if _, err := h.associationRepo.Save(ctx, commitAssoc); err != nil {
 		return fmt.Errorf("save commit association: %w", err)
 	}

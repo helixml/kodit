@@ -4,24 +4,24 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/helixml/kodit/internal/git"
+	"github.com/helixml/kodit/domain/repository"
 )
 
 // Resolver resolves trackables to ordered lists of commit SHAs.
 // This is a domain service that orchestrates multiple repositories
 // (branches, tags, commits) to resolve references.
 type Resolver struct {
-	commitRepo git.CommitRepository
-	branchRepo git.BranchRepository
-	tagRepo    git.TagRepository
+	commitRepo repository.CommitStore
+	branchRepo repository.BranchStore
+	tagRepo    repository.TagStore
 	logger     *slog.Logger
 }
 
 // NewResolver creates a new trackable resolver.
 func NewResolver(
-	commitRepo git.CommitRepository,
-	branchRepo git.BranchRepository,
-	tagRepo git.TagRepository,
+	commitRepo repository.CommitStore,
+	branchRepo repository.BranchStore,
+	tagRepo repository.TagStore,
 	logger *slog.Logger,
 ) *Resolver {
 	return &Resolver{
@@ -48,7 +48,7 @@ func (r *Resolver) Commits(ctx context.Context, trackable Trackable, limit int) 
 }
 
 func (r *Resolver) resolveBranch(ctx context.Context, trackable Trackable, limit int) ([]string, error) {
-	branch, err := r.branchRepo.GetByName(ctx, trackable.RepoID(), trackable.Identifier())
+	branch, err := r.branchRepo.FindOne(ctx, repository.WithRepoID(trackable.RepoID()), repository.WithName(trackable.Identifier()))
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func (r *Resolver) resolveBranch(ctx context.Context, trackable Trackable, limit
 }
 
 func (r *Resolver) resolveTag(ctx context.Context, trackable Trackable, limit int) ([]string, error) {
-	tag, err := r.tagRepo.GetByName(ctx, trackable.RepoID(), trackable.Identifier())
+	tag, err := r.tagRepo.FindOne(ctx, repository.WithRepoID(trackable.RepoID()), repository.WithName(trackable.Identifier()))
 	if err != nil {
 		return nil, err
 	}

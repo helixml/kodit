@@ -132,7 +132,7 @@ func (h *DatabaseSchema) Execute(ctx context.Context, payload map[string]any) er
 		return nil
 	}
 
-	repo, err := h.repoStore.Get(ctx, repoID)
+	repo, err := h.repoStore.FindOne(ctx, repository.WithID(repoID))
 	if err != nil {
 		return fmt.Errorf("get repository: %w", err)
 	}

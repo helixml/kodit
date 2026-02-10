@@ -10,6 +10,7 @@ import (
 
 	"github.com/helixml/kodit"
 	"github.com/helixml/kodit/application/service"
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -193,18 +194,18 @@ func TestIntegration_FullIndexingWorkflow(t *testing.T) {
 	waitForTasks(ctx, t, client, 60*time.Second)
 
 	// Verify repository is in the list
-	repos, err := client.Repositories.List(ctx, nil)
+	repos, err := client.Repositories.Find(ctx)
 	require.NoError(t, err)
 	assert.Len(t, repos, 1)
 	assert.Equal(t, repo.ID(), repos[0].ID())
 
 	// Check if repository has working copy - this indicates clone completed
 	// Note: The working copy path is updated asynchronously after clone completes
-	updatedRepo, err := client.Repositories.Get(ctx, repo.ID())
+	updatedRepo, err := client.Repositories.Get(ctx, repository.WithID(repo.ID()))
 	require.NoError(t, err)
 
 	// Log the result rather than failing - clone may still be in progress
-	if updatedRepo.IsCloned() {
+	if updatedRepo.HasWorkingCopy() {
 		t.Logf("repository successfully cloned to: %s", updatedRepo.WorkingCopy().Path())
 	} else {
 		t.Logf("repository does not have working copy yet (clone may have failed or still in progress)")
@@ -292,7 +293,7 @@ func TestIntegration_DeleteRepository(t *testing.T) {
 	waitForTasks(ctx, t, client, 30*time.Second)
 
 	// Verify repository is gone
-	repos, err := client.Repositories.List(ctx, nil)
+	repos, err := client.Repositories.Find(ctx)
 	require.NoError(t, err)
 	assert.Empty(t, repos, "repository should be deleted")
 }
@@ -333,7 +334,7 @@ func TestIntegration_MultipleRepositories(t *testing.T) {
 	waitForTasks(ctx, t, client, 120*time.Second)
 
 	// Verify both repositories exist
-	repos, err := client.Repositories.List(ctx, nil)
+	repos, err := client.Repositories.Find(ctx)
 	require.NoError(t, err)
 	assert.Len(t, repos, 2)
 

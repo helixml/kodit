@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/internal/domain"
 	"github.com/helixml/kodit/internal/git"
 	"github.com/helixml/kodit/internal/queue"
@@ -13,9 +14,9 @@ import (
 // ScanCommit handles the SCAN_COMMIT task operation.
 // It scans a specific commit to extract its metadata and files.
 type ScanCommit struct {
-	repoRepo       git.RepoRepository
-	commitRepo     git.CommitRepository
-	fileRepo       git.FileRepository
+	repoRepo       repository.RepositoryStore
+	commitRepo     repository.CommitStore
+	fileRepo       repository.FileStore
 	scanner        git.Scanner
 	trackerFactory TrackerFactory
 	logger         *slog.Logger
@@ -23,9 +24,9 @@ type ScanCommit struct {
 
 // NewScanCommit creates a new ScanCommit handler.
 func NewScanCommit(
-	repoRepo git.RepoRepository,
-	commitRepo git.CommitRepository,
-	fileRepo git.FileRepository,
+	repoRepo repository.RepositoryStore,
+	commitRepo repository.CommitStore,
+	fileRepo repository.FileStore,
 	scanner git.Scanner,
 	trackerFactory TrackerFactory,
 	logger *slog.Logger,
@@ -58,7 +59,7 @@ func (h *ScanCommit) Execute(ctx context.Context, payload map[string]any) error 
 		repoID,
 	)
 
-	existing, err := h.commitRepo.ExistsBySHA(ctx, repoID, commitSHA)
+	existing, err := h.commitRepo.Exists(ctx, repository.WithRepoID(repoID), repository.WithSHA(commitSHA))
 	if err != nil {
 		h.logger.Warn("failed to check existing commit", slog.String("error", err.Error()))
 	}
@@ -74,7 +75,7 @@ func (h *ScanCommit) Execute(ctx context.Context, payload map[string]any) error 
 		return nil
 	}
 
-	repo, err := h.repoRepo.Get(ctx, repoID)
+	repo, err := h.repoRepo.FindOne(ctx, repository.WithID(repoID))
 	if err != nil {
 		if failErr := tracker.Fail(ctx, err.Error()); failErr != nil {
 			h.logger.Warn("failed to mark tracker as failed", slog.String("error", failErr.Error()))

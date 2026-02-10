@@ -13,6 +13,7 @@ import (
 	v1 "github.com/helixml/kodit/infrastructure/api/v1"
 	"github.com/helixml/kodit/infrastructure/api/v1/dto"
 	"github.com/helixml/kodit/infrastructure/persistence"
+	"github.com/helixml/kodit/internal/database"
 )
 
 func newTestClient(t *testing.T) *kodit.Client {
@@ -161,14 +162,14 @@ func TestEnrichmentsRouter_Get_NotFound(t *testing.T) {
 	}
 }
 
-func openTestDB(t *testing.T, dbPath string) persistence.Database {
+func openTestDB(t *testing.T, dbPath string) database.Database {
 	t.Helper()
 	ctx := httptest.NewRequest(http.MethodGet, "/", nil).Context()
-	db, err := persistence.NewDatabase(ctx, "sqlite:///"+dbPath)
+	db, err := database.NewDatabase(ctx, "sqlite:///"+dbPath)
 	if err != nil {
 		t.Fatalf("open database: %v", err)
 	}
-	if err := db.AutoMigrate(); err != nil {
+	if err := persistence.AutoMigrate(db); err != nil {
 		t.Fatalf("auto migrate: %v", err)
 	}
 	return db

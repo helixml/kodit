@@ -2,18 +2,21 @@ package enrichment
 
 import (
 	"context"
+
+	enrichmentdomain "github.com/helixml/kodit/domain/enrichment"
+	"github.com/helixml/kodit/domain/repository"
 )
 
 // QueryService provides queries for enrichments and their associations.
 type QueryService struct {
-	enrichmentRepo  EnrichmentRepository
-	associationRepo AssociationRepository
+	enrichmentRepo  enrichmentdomain.EnrichmentStore
+	associationRepo enrichmentdomain.AssociationStore
 }
 
 // NewQueryService creates a new enrichment query service.
 func NewQueryService(
-	enrichmentRepo EnrichmentRepository,
-	associationRepo AssociationRepository,
+	enrichmentRepo enrichmentdomain.EnrichmentStore,
+	associationRepo enrichmentdomain.AssociationStore,
 ) *QueryService {
 	return &QueryService{
 		enrichmentRepo:  enrichmentRepo,
@@ -24,10 +27,10 @@ func NewQueryService(
 func (s *QueryService) enrichmentsForCommit(
 	ctx context.Context,
 	commitSHA string,
-	typ *Type,
-	subtype *Subtype,
-) ([]Enrichment, error) {
-	associations, err := s.associationRepo.FindByEntityTypeAndID(ctx, EntityTypeCommit, commitSHA)
+	typ *enrichmentdomain.Type,
+	subtype *enrichmentdomain.Subtype,
+) ([]enrichmentdomain.Enrichment, error) {
+	associations, err := s.associationRepo.Find(ctx, enrichmentdomain.WithEntityType(enrichmentdomain.EntityTypeCommit), enrichmentdomain.WithEntityID(commitSHA))
 	if err != nil {
 		return nil, err
 	}
@@ -41,9 +44,9 @@ func (s *QueryService) enrichmentsForCommit(
 		enrichmentIDs = append(enrichmentIDs, a.EnrichmentID())
 	}
 
-	var enrichments []Enrichment
+	var enrichments []enrichmentdomain.Enrichment
 	for _, id := range enrichmentIDs {
-		e, err := s.enrichmentRepo.Get(ctx, id)
+		e, err := s.enrichmentRepo.FindOne(ctx, repository.WithID(id))
 		if err != nil {
 			continue
 		}
@@ -64,14 +67,14 @@ func (s *QueryService) enrichmentsForCommit(
 // ListParams configures enrichment listing.
 type ListParams struct {
 	CommitSHA string
-	Type      *Type
-	Subtype   *Subtype
+	Type      *enrichmentdomain.Type
+	Subtype   *enrichmentdomain.Subtype
 }
 
 // List returns enrichments matching the given params.
-func (s *QueryService) List(ctx context.Context, params *ListParams) ([]Enrichment, error) {
+func (s *QueryService) List(ctx context.Context, params *ListParams) ([]enrichmentdomain.Enrichment, error) {
 	if params == nil {
-		return []Enrichment{}, nil
+		return []enrichmentdomain.Enrichment{}, nil
 	}
 	return s.enrichmentsForCommit(ctx, params.CommitSHA, params.Type, params.Subtype)
 }
@@ -79,8 +82,8 @@ func (s *QueryService) List(ctx context.Context, params *ListParams) ([]Enrichme
 // ExistsParams specifies which enrichments to check for existence.
 type ExistsParams struct {
 	CommitSHA string
-	Type      Type
-	Subtype   Subtype
+	Type      enrichmentdomain.Type
+	Subtype   enrichmentdomain.Subtype
 }
 
 // Exists checks whether any enrichments match the given params.
@@ -99,11 +102,11 @@ func (s *QueryService) Exists(ctx context.Context, params *ExistsParams) (bool, 
 func (s *QueryService) EnrichmentsForCommits(
 	ctx context.Context,
 	commitSHAs []string,
-	typ *Type,
+	typ *enrichmentdomain.Type,
 	limit int,
-) ([]Enrichment, error) {
+) ([]enrichmentdomain.Enrichment, error) {
 	if len(commitSHAs) == 0 {
-		return []Enrichment{}, nil
+		return []enrichmentdomain.Enrichment{}, nil
 	}
 
 	if limit <= 0 {
@@ -111,7 +114,7 @@ func (s *QueryService) EnrichmentsForCommits(
 	}
 
 	seen := make(map[int64]struct{})
-	var enrichments []Enrichment
+	var enrichments []enrichmentdomain.Enrichment
 
 	for _, sha := range commitSHAs {
 		if len(enrichments) >= limit {

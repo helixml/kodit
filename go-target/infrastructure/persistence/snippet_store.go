@@ -8,17 +8,18 @@ import (
 
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/snippet"
+	"github.com/helixml/kodit/internal/database"
 	"gorm.io/gorm"
 )
 
 // SnippetStore implements snippet.SnippetStore using GORM.
 type SnippetStore struct {
-	db     Database
+	db     database.Database
 	mapper SnippetMapper
 }
 
 // NewSnippetStore creates a new SnippetStore.
-func NewSnippetStore(db Database) SnippetStore {
+func NewSnippetStore(db database.Database) SnippetStore {
 	return SnippetStore{
 		db:     db,
 		mapper: SnippetMapper{},
@@ -211,7 +212,7 @@ func (s SnippetStore) BySHA(ctx context.Context, sha string) (snippet.Snippet, e
 	err := s.db.Session(ctx).Where("sha = ?", sha).First(&model).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return snippet.Snippet{}, fmt.Errorf("%w: snippet %s", ErrNotFound, sha)
+			return snippet.Snippet{}, fmt.Errorf("%w: snippet %s", database.ErrNotFound, sha)
 		}
 		return snippet.Snippet{}, err
 	}
@@ -221,12 +222,12 @@ func (s SnippetStore) BySHA(ctx context.Context, sha string) (snippet.Snippet, e
 
 // CommitIndexStore implements snippet.CommitIndexStore using GORM.
 type CommitIndexStore struct {
-	db     Database
+	db     database.Database
 	mapper CommitIndexMapper
 }
 
 // NewCommitIndexStore creates a new CommitIndexStore.
-func NewCommitIndexStore(db Database) CommitIndexStore {
+func NewCommitIndexStore(db database.Database) CommitIndexStore {
 	return CommitIndexStore{
 		db:     db,
 		mapper: CommitIndexMapper{},
@@ -239,7 +240,7 @@ func (s CommitIndexStore) Get(ctx context.Context, commitSHA string) (snippet.Co
 	err := s.db.Session(ctx).Where("commit_sha = ?", commitSHA).First(&model).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return snippet.CommitIndex{}, fmt.Errorf("%w: commit index %s", ErrNotFound, commitSHA)
+			return snippet.CommitIndex{}, fmt.Errorf("%w: commit index %s", database.ErrNotFound, commitSHA)
 		}
 		return snippet.CommitIndex{}, err
 	}

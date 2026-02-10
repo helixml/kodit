@@ -6,18 +6,19 @@ import (
 	"fmt"
 
 	"github.com/helixml/kodit/domain/task"
+	"github.com/helixml/kodit/internal/database"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
 // TaskStore implements task.TaskStore using GORM.
 type TaskStore struct {
-	db     Database
+	db     database.Database
 	mapper TaskMapper
 }
 
 // NewTaskStore creates a new TaskStore.
-func NewTaskStore(db Database) TaskStore {
+func NewTaskStore(db database.Database) TaskStore {
 	return TaskStore{
 		db:     db,
 		mapper: TaskMapper{},
@@ -30,7 +31,7 @@ func (s TaskStore) Get(ctx context.Context, id int64) (task.Task, error) {
 	result := s.db.Session(ctx).Where("id = ?", id).First(&model)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return task.Task{}, fmt.Errorf("%w: task id %d", ErrNotFound, id)
+			return task.Task{}, fmt.Errorf("%w: task id %d", database.ErrNotFound, id)
 		}
 		return task.Task{}, fmt.Errorf("get task: %w", result.Error)
 	}
@@ -215,12 +216,12 @@ func (s TaskStore) DequeueByOperation(ctx context.Context, operation task.Operat
 
 // StatusStore implements task.StatusStore using GORM.
 type StatusStore struct {
-	db     Database
+	db     database.Database
 	mapper TaskStatusMapper
 }
 
 // NewStatusStore creates a new StatusStore.
-func NewStatusStore(db Database) StatusStore {
+func NewStatusStore(db database.Database) StatusStore {
 	return StatusStore{
 		db:     db,
 		mapper: TaskStatusMapper{},
@@ -233,7 +234,7 @@ func (s StatusStore) Get(ctx context.Context, id string) (task.Status, error) {
 	result := s.db.Session(ctx).Where("id = ?", id).First(&model)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return task.Status{}, fmt.Errorf("%w: status id %s", ErrNotFound, id)
+			return task.Status{}, fmt.Errorf("%w: status id %s", database.ErrNotFound, id)
 		}
 		return task.Status{}, fmt.Errorf("get status: %w", result.Error)
 	}

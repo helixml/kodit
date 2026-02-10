@@ -7,7 +7,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/helixml/kodit"
-	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/infrastructure/api/middleware"
 	"github.com/helixml/kodit/infrastructure/api/v1/dto"
@@ -54,7 +53,7 @@ func (r *CommitsRouter) ListByRepository(w http.ResponseWriter, req *http.Reques
 		return
 	}
 
-	commits, err := r.client.Commits.List(ctx, &service.CommitListParams{RepositoryID: repoID})
+	commits, err := r.client.Commits.Find(ctx, repository.WithRepoID(repoID))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return

@@ -172,7 +172,7 @@ func (h *CreateSummaryEmbeddings) filterNewEnrichments(ctx context.Context, enri
 
 // findSnippetSHA finds the snippet SHA associated with an enrichment.
 func (h *CreateSummaryEmbeddings) findSnippetSHA(ctx context.Context, enrichmentID int64) (string, error) {
-	associations, err := h.associationStore.FindByEnrichmentID(ctx, enrichmentID)
+	associations, err := h.associationStore.Find(ctx, enrichment.WithEnrichmentID(enrichmentID))
 	if err != nil {
 		return "", err
 	}

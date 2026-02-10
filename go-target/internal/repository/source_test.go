@@ -5,14 +5,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/helixml/kodit/internal/git"
+	repositorydomain "github.com/helixml/kodit/domain/repository"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestNewSource(t *testing.T) {
 	tests := []struct {
 		name           string
-		repo           git.Repo
+		repo           repositorydomain.Repository
 		expectedStatus SourceStatus
 	}{
 		{
@@ -70,7 +70,7 @@ func TestSource_WithError(t *testing.T) {
 func TestSource_WithWorkingCopy(t *testing.T) {
 	repo := mustNewRepo("https://github.com/test/repo.git")
 	source := NewSource(repo)
-	wc := git.NewWorkingCopy("/tmp/repo", "https://github.com/test/repo.git")
+	wc := repositorydomain.NewWorkingCopy("/tmp/repo", "https://github.com/test/repo.git")
 
 	updated := source.WithWorkingCopy(wc)
 
@@ -83,7 +83,7 @@ func TestSource_WithWorkingCopy(t *testing.T) {
 func TestSource_WithTrackingConfig(t *testing.T) {
 	repo := mustNewRepo("https://github.com/test/repo.git")
 	source := NewSource(repo)
-	tc := git.NewTrackingConfigForBranch("main")
+	tc := repositorydomain.NewTrackingConfigForBranch("main")
 
 	updated := source.WithTrackingConfig(tc)
 
@@ -227,11 +227,11 @@ func TestSourceStatus_IsTerminal(t *testing.T) {
 
 func TestSource_Accessors(t *testing.T) {
 	now := time.Now()
-	repo := git.ReconstructRepo(
+	repo := repositorydomain.ReconstructRepository(
 		42,
 		"https://github.com/test/repo.git",
-		git.NewWorkingCopy("/tmp/repo", "https://github.com/test/repo.git"),
-		git.NewTrackingConfigForBranch("main"),
+		repositorydomain.NewWorkingCopy("/tmp/repo", "https://github.com/test/repo.git"),
+		repositorydomain.NewTrackingConfigForBranch("main"),
 		now,
 		now,
 	)
@@ -246,16 +246,16 @@ func TestSource_Accessors(t *testing.T) {
 	assert.Equal(t, repo, source.Repo())
 }
 
-func mustNewRepo(url string) git.Repo {
-	repo, err := git.NewRepo(url)
+func mustNewRepo(url string) repositorydomain.Repository {
+	repo, err := repositorydomain.NewRepository(url)
 	if err != nil {
 		panic(err)
 	}
 	return repo
 }
 
-func repoWithWorkingCopy(url, path string) git.Repo {
+func repoWithWorkingCopy(url, path string) repositorydomain.Repository {
 	repo := mustNewRepo(url)
-	wc := git.NewWorkingCopy(path, url)
+	wc := repositorydomain.NewWorkingCopy(path, url)
 	return repo.WithWorkingCopy(wc)
 }

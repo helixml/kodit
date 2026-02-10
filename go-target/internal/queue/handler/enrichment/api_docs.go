@@ -5,23 +5,24 @@ import (
 	"fmt"
 	"log/slog"
 
+	domainenrichment "github.com/helixml/kodit/domain/enrichment"
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/internal/domain"
 	"github.com/helixml/kodit/internal/enrichment"
-	"github.com/helixml/kodit/internal/git"
 	"github.com/helixml/kodit/internal/queue"
 )
 
 // APIDocExtractor extracts API documentation from files.
 type APIDocExtractor interface {
-	Extract(ctx context.Context, files []git.File, language string, includePrivate bool) ([]enrichment.Enrichment, error)
+	Extract(ctx context.Context, files []repository.File, language string, includePrivate bool) ([]domainenrichment.Enrichment, error)
 }
 
 // APIDocs handles the CREATE_PUBLIC_API_DOCS_FOR_COMMIT operation.
 type APIDocs struct {
-	repoRepo        git.RepoRepository
-	fileRepo        git.FileRepository
-	enrichmentRepo  enrichment.EnrichmentRepository
-	associationRepo enrichment.AssociationRepository
+	repoRepo        repository.RepositoryStore
+	fileRepo        repository.FileStore
+	enrichmentRepo  domainenrichment.EnrichmentStore
+	associationRepo domainenrichment.AssociationStore
 	queryService    *enrichment.QueryService
 	extractor       APIDocExtractor
 	trackerFactory  TrackerFactory
@@ -30,10 +31,10 @@ type APIDocs struct {
 
 // NewAPIDocs creates a new APIDocs handler.
 func NewAPIDocs(
-	repoRepo git.RepoRepository,
-	fileRepo git.FileRepository,
-	enrichmentRepo enrichment.EnrichmentRepository,
-	associationRepo enrichment.AssociationRepository,
+	repoRepo repository.RepositoryStore,
+	fileRepo repository.FileStore,
+	enrichmentRepo domainenrichment.EnrichmentStore,
+	associationRepo domainenrichment.AssociationStore,
 	queryService *enrichment.QueryService,
 	extractor APIDocExtractor,
 	trackerFactory TrackerFactory,
@@ -69,7 +70,7 @@ func (h *APIDocs) Execute(ctx context.Context, payload map[string]any) error {
 		repoID,
 	)
 
-	hasAPIDocs, err := h.queryService.Exists(ctx, &enrichment.ExistsParams{CommitSHA: commitSHA, Type: enrichment.TypeUsage, Subtype: enrichment.SubtypeAPIDocs})
+	hasAPIDocs, err := h.queryService.Exists(ctx, &enrichment.ExistsParams{CommitSHA: commitSHA, Type: domainenrichment.TypeUsage, Subtype: domainenrichment.SubtypeAPIDocs})
 	if err != nil {
 		h.logger.Error("failed to check existing API docs", slog.String("error", err.Error()))
 		return err
@@ -82,12 +83,12 @@ func (h *APIDocs) Execute(ctx context.Context, payload map[string]any) error {
 		return nil
 	}
 
-	_, err = h.repoRepo.Get(ctx, repoID)
+	_, err = h.repoRepo.FindOne(ctx, repository.WithID(repoID))
 	if err != nil {
 		return fmt.Errorf("get repository: %w", err)
 	}
 
-	files, err := h.fileRepo.FindByCommitSHA(ctx, commitSHA)
+	files, err := h.fileRepo.Find(ctx, repository.WithCommitSHA(commitSHA))
 	if err != nil {
 		return fmt.Errorf("get files: %w", err)
 	}
@@ -105,7 +106,7 @@ func (h *APIDocs) Execute(ctx context.Context, payload map[string]any) error {
 		h.logger.Warn("failed to set tracker total", slog.String("error", setTotalErr.Error()))
 	}
 
-	var allEnrichments []enrichment.Enrichment
+	var allEnrichments []domainenrichment.Enrichment
 
 	i := 0
 	for lang, langFileList := range langFiles {
@@ -133,7 +134,7 @@ func (h *APIDocs) Execute(ctx context.Context, payload map[string]any) error {
 			return fmt.Errorf("save API docs enrichment: %w", err)
 		}
 
-		commitAssoc := enrichment.CommitAssociation(saved.ID(), commitSHA)
+		commitAssoc := domainenrichment.CommitAssociation(saved.ID(), commitSHA)
 		if _, err := h.associationRepo.Save(ctx, commitAssoc); err != nil {
 			return fmt.Errorf("save commit association: %w", err)
 		}
@@ -146,8 +147,8 @@ func (h *APIDocs) Execute(ctx context.Context, payload map[string]any) error {
 	return nil
 }
 
-func (h *APIDocs) groupFilesByLanguage(files []git.File) map[string][]git.File {
-	result := make(map[string][]git.File)
+func (h *APIDocs) groupFilesByLanguage(files []repository.File) map[string][]repository.File {
+	result := make(map[string][]repository.File)
 
 	for _, f := range files {
 		lang := f.Language()

@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"path/filepath"
 
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/internal/domain"
-	"github.com/helixml/kodit/internal/git"
 	"github.com/helixml/kodit/internal/indexing"
 	"github.com/helixml/kodit/internal/indexing/slicer"
 	"github.com/helixml/kodit/internal/queue"
@@ -16,10 +16,10 @@ import (
 
 // ExtractSnippets extracts code snippets from commit files using AST parsing.
 type ExtractSnippets struct {
-	repoRepo       git.RepoRepository
-	commitRepo     git.CommitRepository
+	repoRepo       repository.RepositoryStore
+	commitRepo     repository.CommitStore
 	snippetRepo    indexing.SnippetRepository
-	fileRepo       git.FileRepository
+	fileRepo       repository.FileStore
 	slicer         *slicer.Slicer
 	trackerFactory TrackerFactory
 	logger         *slog.Logger
@@ -32,10 +32,10 @@ type TrackerFactory interface {
 
 // NewExtractSnippets creates a new ExtractSnippets handler.
 func NewExtractSnippets(
-	repoRepo git.RepoRepository,
-	commitRepo git.CommitRepository,
+	repoRepo repository.RepositoryStore,
+	commitRepo repository.CommitStore,
 	snippetRepo indexing.SnippetRepository,
-	fileRepo git.FileRepository,
+	fileRepo repository.FileStore,
 	slicerInstance *slicer.Slicer,
 	trackerFactory TrackerFactory,
 	logger *slog.Logger,
@@ -82,7 +82,7 @@ func (h *ExtractSnippets) Execute(ctx context.Context, payload map[string]any) e
 		return nil
 	}
 
-	repo, err := h.repoRepo.Get(ctx, repoID)
+	repo, err := h.repoRepo.FindOne(ctx, repository.WithID(repoID))
 	if err != nil {
 		return fmt.Errorf("get repository: %w", err)
 	}
@@ -93,7 +93,7 @@ func (h *ExtractSnippets) Execute(ctx context.Context, payload map[string]any) e
 	}
 
 	// Load files from database (which have IDs from SCAN_COMMIT step)
-	files, err := h.fileRepo.FindByCommitSHA(ctx, commitSHA)
+	files, err := h.fileRepo.Find(ctx, repository.WithCommitSHA(commitSHA))
 	if err != nil {
 		return fmt.Errorf("get commit files from database: %w", err)
 	}
@@ -157,8 +157,8 @@ func (h *ExtractSnippets) Execute(ctx context.Context, payload map[string]any) e
 	return nil
 }
 
-func (h *ExtractSnippets) groupFilesByExtension(files []git.File) map[string][]git.File {
-	result := make(map[string][]git.File)
+func (h *ExtractSnippets) groupFilesByExtension(files []repository.File) map[string][]repository.File {
+	result := make(map[string][]repository.File)
 
 	for _, f := range files {
 		ext := filepath.Ext(f.Path())

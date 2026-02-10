@@ -21,13 +21,14 @@ import (
 	apimiddleware "github.com/helixml/kodit/infrastructure/api/middleware"
 	v1 "github.com/helixml/kodit/infrastructure/api/v1"
 	"github.com/helixml/kodit/infrastructure/persistence"
+	"github.com/helixml/kodit/internal/database"
 )
 
 // TestServer wraps the API server for e2e testing.
 type TestServer struct {
 	t          *testing.T
 	client     *kodit.Client
-	db         persistence.Database
+	db         database.Database
 	httpServer *httptest.Server
 
 	// Stores - for direct DB manipulation in tests
@@ -62,7 +63,7 @@ func NewTestServer(t *testing.T) *TestServer {
 	}
 
 	// Open a separate DB handle for seeding test data
-	db, err := persistence.NewDatabase(ctx, "sqlite:///"+dbPath)
+	db, err := database.NewDatabase(ctx, "sqlite:///"+dbPath)
 	if err != nil {
 		t.Fatalf("create database: %v", err)
 	}

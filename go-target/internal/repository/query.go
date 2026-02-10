@@ -5,25 +5,25 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/helixml/kodit/internal/git"
+	"github.com/helixml/kodit/domain/repository"
 	"gorm.io/gorm"
 )
 
 // QueryService provides read-only queries for repositories.
 type QueryService struct {
-	repoRepo   git.RepoRepository
-	commitRepo git.CommitRepository
-	branchRepo git.BranchRepository
-	tagRepo    git.TagRepository
-	fileRepo   git.FileRepository
+	repoRepo   repository.RepositoryStore
+	commitRepo repository.CommitStore
+	branchRepo repository.BranchStore
+	tagRepo    repository.TagStore
+	fileRepo   repository.FileStore
 }
 
 // NewQueryService creates a new QueryService.
 func NewQueryService(
-	repoRepo git.RepoRepository,
-	commitRepo git.CommitRepository,
-	branchRepo git.BranchRepository,
-	tagRepo git.TagRepository,
+	repoRepo repository.RepositoryStore,
+	commitRepo repository.CommitStore,
+	branchRepo repository.BranchStore,
+	tagRepo repository.TagStore,
 ) *QueryService {
 	return &QueryService{
 		repoRepo:   repoRepo,
@@ -34,7 +34,7 @@ func NewQueryService(
 }
 
 // WithFileRepository sets the file repository (optional).
-func (s *QueryService) WithFileRepository(repo git.FileRepository) *QueryService {
+func (s *QueryService) WithFileRepository(repo repository.FileStore) *QueryService {
 	s.fileRepo = repo
 	return s
 }
@@ -80,7 +80,7 @@ func (s RepositorySummary) DefaultBranch() string { return s.defaultBranch }
 
 // ByID returns a repository by ID.
 func (s *QueryService) ByID(ctx context.Context, id int64) (Source, error) {
-	repo, err := s.repoRepo.Get(ctx, id)
+	repo, err := s.repoRepo.FindOne(ctx, repository.WithID(id))
 	if err != nil {
 		return Source{}, fmt.Errorf("get repository: %w", err)
 	}
@@ -89,7 +89,7 @@ func (s *QueryService) ByID(ctx context.Context, id int64) (Source, error) {
 
 // ByRemoteURL returns a repository by its remote URL.
 func (s *QueryService) ByRemoteURL(ctx context.Context, url string) (Source, bool, error) {
-	repo, err := s.repoRepo.GetByRemoteURL(ctx, url)
+	repo, err := s.repoRepo.FindOne(ctx, repository.WithRemoteURL(url))
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return Source{}, false, nil
@@ -101,7 +101,7 @@ func (s *QueryService) ByRemoteURL(ctx context.Context, url string) (Source, boo
 
 // All returns all repositories.
 func (s *QueryService) All(ctx context.Context) ([]Source, error) {
-	repos, err := s.repoRepo.FindAll(ctx)
+	repos, err := s.repoRepo.Find(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("find all repositories: %w", err)
 	}
@@ -116,22 +116,22 @@ func (s *QueryService) All(ctx context.Context) ([]Source, error) {
 
 // SummaryByID returns a detailed summary for a repository.
 func (s *QueryService) SummaryByID(ctx context.Context, id int64) (RepositorySummary, error) {
-	repo, err := s.repoRepo.Get(ctx, id)
+	repo, err := s.repoRepo.FindOne(ctx, repository.WithID(id))
 	if err != nil {
 		return RepositorySummary{}, fmt.Errorf("get repository: %w", err)
 	}
 
-	branches, err := s.branchRepo.FindByRepoID(ctx, id)
+	branches, err := s.branchRepo.Find(ctx, repository.WithRepoID(id))
 	if err != nil {
 		return RepositorySummary{}, fmt.Errorf("find branches: %w", err)
 	}
 
-	tags, err := s.tagRepo.FindByRepoID(ctx, id)
+	tags, err := s.tagRepo.Find(ctx, repository.WithRepoID(id))
 	if err != nil {
 		return RepositorySummary{}, fmt.Errorf("find tags: %w", err)
 	}
 
-	commits, err := s.commitRepo.FindByRepoID(ctx, id)
+	commits, err := s.commitRepo.Find(ctx, repository.WithRepoID(id))
 	if err != nil {
 		return RepositorySummary{}, fmt.Errorf("find commits: %w", err)
 	}
@@ -155,12 +155,12 @@ func (s *QueryService) SummaryByID(ctx context.Context, id int64) (RepositorySum
 
 // Exists checks if a repository exists by remote URL.
 func (s *QueryService) Exists(ctx context.Context, url string) (bool, error) {
-	return s.repoRepo.ExistsByRemoteURL(ctx, url)
+	return s.repoRepo.Exists(ctx, repository.WithRemoteURL(url))
 }
 
 // CommitsForRepository returns all indexed commits for a repository.
-func (s *QueryService) CommitsForRepository(ctx context.Context, repoID int64) ([]git.Commit, error) {
-	commits, err := s.commitRepo.FindByRepoID(ctx, repoID)
+func (s *QueryService) CommitsForRepository(ctx context.Context, repoID int64) ([]repository.Commit, error) {
+	commits, err := s.commitRepo.Find(ctx, repository.WithRepoID(repoID))
 	if err != nil {
 		return nil, fmt.Errorf("find commits: %w", err)
 	}
@@ -168,8 +168,8 @@ func (s *QueryService) CommitsForRepository(ctx context.Context, repoID int64) (
 }
 
 // BranchesForRepository returns all branches for a repository.
-func (s *QueryService) BranchesForRepository(ctx context.Context, repoID int64) ([]git.Branch, error) {
-	branches, err := s.branchRepo.FindByRepoID(ctx, repoID)
+func (s *QueryService) BranchesForRepository(ctx context.Context, repoID int64) ([]repository.Branch, error) {
+	branches, err := s.branchRepo.Find(ctx, repository.WithRepoID(repoID))
 	if err != nil {
 		return nil, fmt.Errorf("find branches: %w", err)
 	}
@@ -177,8 +177,8 @@ func (s *QueryService) BranchesForRepository(ctx context.Context, repoID int64) 
 }
 
 // TagsForRepository returns all tags for a repository.
-func (s *QueryService) TagsForRepository(ctx context.Context, repoID int64) ([]git.Tag, error) {
-	tags, err := s.tagRepo.FindByRepoID(ctx, repoID)
+func (s *QueryService) TagsForRepository(ctx context.Context, repoID int64) ([]repository.Tag, error) {
+	tags, err := s.tagRepo.Find(ctx, repository.WithRepoID(repoID))
 	if err != nil {
 		return nil, fmt.Errorf("find tags: %w", err)
 	}
@@ -186,33 +186,33 @@ func (s *QueryService) TagsForRepository(ctx context.Context, repoID int64) ([]g
 }
 
 // TagByID returns a specific tag by ID within a repository.
-func (s *QueryService) TagByID(ctx context.Context, repoID, tagID int64) (git.Tag, error) {
-	tag, err := s.tagRepo.Get(ctx, tagID)
+func (s *QueryService) TagByID(ctx context.Context, repoID, tagID int64) (repository.Tag, error) {
+	tag, err := s.tagRepo.FindOne(ctx, repository.WithID(tagID))
 	if err != nil {
-		return git.Tag{}, fmt.Errorf("get tag: %w", err)
+		return repository.Tag{}, fmt.Errorf("get tag: %w", err)
 	}
 	// Verify tag belongs to the repository
 	if tag.RepoID() != repoID {
-		return git.Tag{}, fmt.Errorf("tag %d not found in repository %d", tagID, repoID)
+		return repository.Tag{}, fmt.Errorf("tag %d not found in repository %d", tagID, repoID)
 	}
 	return tag, nil
 }
 
 // CommitBySHA returns a specific commit by SHA within a repository.
-func (s *QueryService) CommitBySHA(ctx context.Context, repoID int64, sha string) (git.Commit, error) {
-	commit, err := s.commitRepo.GetByRepoAndSHA(ctx, repoID, sha)
+func (s *QueryService) CommitBySHA(ctx context.Context, repoID int64, sha string) (repository.Commit, error) {
+	commit, err := s.commitRepo.FindOne(ctx, repository.WithRepoID(repoID), repository.WithSHA(sha))
 	if err != nil {
-		return git.Commit{}, fmt.Errorf("get commit: %w", err)
+		return repository.Commit{}, fmt.Errorf("get commit: %w", err)
 	}
 	return commit, nil
 }
 
 // FilesForCommit returns all files for a commit.
-func (s *QueryService) FilesForCommit(ctx context.Context, commitSHA string) ([]git.File, error) {
+func (s *QueryService) FilesForCommit(ctx context.Context, commitSHA string) ([]repository.File, error) {
 	if s.fileRepo == nil {
-		return []git.File{}, nil
+		return []repository.File{}, nil
 	}
-	files, err := s.fileRepo.FindByCommitSHA(ctx, commitSHA)
+	files, err := s.fileRepo.Find(ctx, repository.WithCommitSHA(commitSHA))
 	if err != nil {
 		return nil, fmt.Errorf("find files: %w", err)
 	}
@@ -220,13 +220,13 @@ func (s *QueryService) FilesForCommit(ctx context.Context, commitSHA string) ([]
 }
 
 // FileByBlobSHA returns a file by commit SHA and blob SHA.
-func (s *QueryService) FileByBlobSHA(ctx context.Context, commitSHA, blobSHA string) (git.File, error) {
+func (s *QueryService) FileByBlobSHA(ctx context.Context, commitSHA, blobSHA string) (repository.File, error) {
 	if s.fileRepo == nil {
-		return git.File{}, fmt.Errorf("file repository not configured")
+		return repository.File{}, fmt.Errorf("file repository not configured")
 	}
-	file, err := s.fileRepo.GetByCommitAndBlobSHA(ctx, commitSHA, blobSHA)
+	file, err := s.fileRepo.FindOne(ctx, repository.WithCommitSHA(commitSHA), repository.WithBlobSHA(blobSHA))
 	if err != nil {
-		return git.File{}, fmt.Errorf("get file: %w", err)
+		return repository.File{}, fmt.Errorf("get file: %w", err)
 	}
 	return file, nil
 }

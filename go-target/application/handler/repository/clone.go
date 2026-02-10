@@ -52,7 +52,7 @@ func (h *Clone) Execute(ctx context.Context, payload map[string]any) error {
 		repoID,
 	)
 
-	repo, err := h.repoStore.Get(ctx, repoID)
+	repo, err := h.repoStore.FindOne(ctx, repository.WithID(repoID))
 	if err != nil {
 		if failErr := tracker.Fail(ctx, err.Error()); failErr != nil {
 			h.logger.Warn("failed to mark tracker as failed", slog.String("error", failErr.Error()))

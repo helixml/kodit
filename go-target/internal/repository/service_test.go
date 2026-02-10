@@ -7,59 +7,79 @@ import (
 	"os"
 	"testing"
 
-	"github.com/helixml/kodit/internal/database"
-	"github.com/helixml/kodit/internal/git"
+	repositorydomain "github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/internal/queue"
 	"github.com/stretchr/testify/assert"
 )
 
-// FakeRepoRepository implements git.RepoRepository for testing.
+// FakeRepoRepository implements repositorydomain.RepositoryStore for testing.
 type FakeRepoRepository struct {
-	repos      map[int64]git.Repo
-	reposByURL map[string]git.Repo
+	repos      map[int64]repositorydomain.Repository
+	reposByURL map[string]repositorydomain.Repository
 	nextID     int64
-	getErr     error
+	findOneErr error
 	saveErr    error
 }
 
 func NewFakeRepoRepository() *FakeRepoRepository {
 	return &FakeRepoRepository{
-		repos:      make(map[int64]git.Repo),
-		reposByURL: make(map[string]git.Repo),
+		repos:      make(map[int64]repositorydomain.Repository),
+		reposByURL: make(map[string]repositorydomain.Repository),
 		nextID:     1,
 	}
 }
 
-func (r *FakeRepoRepository) Get(ctx context.Context, id int64) (git.Repo, error) {
-	if r.getErr != nil {
-		return git.Repo{}, r.getErr
-	}
-	repo, ok := r.repos[id]
-	if !ok {
-		return git.Repo{}, errors.New("not found")
-	}
-	return repo, nil
-}
-
-func (r *FakeRepoRepository) Find(ctx context.Context, query database.Query) ([]git.Repo, error) {
-	var repos []git.Repo
+func (r *FakeRepoRepository) Find(ctx context.Context, options ...repositorydomain.Option) ([]repositorydomain.Repository, error) {
+	var repos []repositorydomain.Repository
 	for _, repo := range r.repos {
 		repos = append(repos, repo)
 	}
 	return repos, nil
 }
 
-func (r *FakeRepoRepository) FindAll(ctx context.Context) ([]git.Repo, error) {
-	var repos []git.Repo
-	for _, repo := range r.repos {
-		repos = append(repos, repo)
+func (r *FakeRepoRepository) FindOne(ctx context.Context, options ...repositorydomain.Option) (repositorydomain.Repository, error) {
+	if r.findOneErr != nil {
+		return repositorydomain.Repository{}, r.findOneErr
 	}
-	return repos, nil
+	q := repositorydomain.Build(options...)
+	for _, cond := range q.Conditions() {
+		switch cond.Field() {
+		case "id":
+			id, ok := cond.Value().(int64)
+			if !ok {
+				continue
+			}
+			repo, found := r.repos[id]
+			if !found {
+				return repositorydomain.Repository{}, errors.New("not found")
+			}
+			return repo, nil
+		case "sanitized_remote_uri":
+			url, ok := cond.Value().(string)
+			if !ok {
+				continue
+			}
+			repo, found := r.reposByURL[url]
+			if !found {
+				return repositorydomain.Repository{}, errors.New("not found")
+			}
+			return repo, nil
+		}
+	}
+	return repositorydomain.Repository{}, errors.New("not found")
 }
 
-func (r *FakeRepoRepository) Save(ctx context.Context, repo git.Repo) (git.Repo, error) {
+func (r *FakeRepoRepository) Exists(ctx context.Context, options ...repositorydomain.Option) (bool, error) {
+	_, err := r.FindOne(ctx, options...)
+	if err != nil {
+		return false, nil
+	}
+	return true, nil
+}
+
+func (r *FakeRepoRepository) Save(ctx context.Context, repo repositorydomain.Repository) (repositorydomain.Repository, error) {
 	if r.saveErr != nil {
-		return git.Repo{}, r.saveErr
+		return repositorydomain.Repository{}, r.saveErr
 	}
 	if repo.ID() == 0 {
 		repo = repo.WithID(r.nextID)
@@ -70,26 +90,13 @@ func (r *FakeRepoRepository) Save(ctx context.Context, repo git.Repo) (git.Repo,
 	return repo, nil
 }
 
-func (r *FakeRepoRepository) Delete(ctx context.Context, repo git.Repo) error {
+func (r *FakeRepoRepository) Delete(ctx context.Context, repo repositorydomain.Repository) error {
 	delete(r.repos, repo.ID())
 	delete(r.reposByURL, repo.RemoteURL())
 	return nil
 }
 
-func (r *FakeRepoRepository) GetByRemoteURL(ctx context.Context, url string) (git.Repo, error) {
-	repo, ok := r.reposByURL[url]
-	if !ok {
-		return git.Repo{}, errors.New("not found")
-	}
-	return repo, nil
-}
-
-func (r *FakeRepoRepository) ExistsByRemoteURL(ctx context.Context, url string) (bool, error) {
-	_, ok := r.reposByURL[url]
-	return ok, nil
-}
-
-func (r *FakeRepoRepository) AddRepo(repo git.Repo) {
+func (r *FakeRepoRepository) AddRepo(repo repositorydomain.Repository) {
 	if repo.ID() == 0 {
 		repo = repo.WithID(r.nextID)
 		r.nextID++
@@ -98,138 +105,114 @@ func (r *FakeRepoRepository) AddRepo(repo git.Repo) {
 	r.reposByURL[repo.RemoteURL()] = repo
 }
 
-// FakeCommitRepository implements git.CommitRepository for testing.
+// FakeCommitRepository implements repositorydomain.CommitStore for testing.
 type FakeCommitRepository struct {
-	commits map[int64]git.Commit
+	commits map[int64]repositorydomain.Commit
 }
 
 func NewFakeCommitRepository() *FakeCommitRepository {
 	return &FakeCommitRepository{
-		commits: make(map[int64]git.Commit),
+		commits: make(map[int64]repositorydomain.Commit),
 	}
 }
 
-func (r *FakeCommitRepository) Get(ctx context.Context, id int64) (git.Commit, error) {
-	commit, ok := r.commits[id]
-	if !ok {
-		return git.Commit{}, errors.New("not found")
+func (r *FakeCommitRepository) Find(ctx context.Context, options ...repositorydomain.Option) ([]repositorydomain.Commit, error) {
+	var commits []repositorydomain.Commit
+	for _, commit := range r.commits {
+		commits = append(commits, commit)
 	}
-	return commit, nil
-}
-
-func (r *FakeCommitRepository) Find(ctx context.Context, query database.Query) ([]git.Commit, error) {
-	return nil, nil
-}
-
-func (r *FakeCommitRepository) Save(ctx context.Context, commit git.Commit) (git.Commit, error) {
-	return commit, nil
-}
-
-func (r *FakeCommitRepository) SaveAll(ctx context.Context, commits []git.Commit) ([]git.Commit, error) {
 	return commits, nil
 }
 
-func (r *FakeCommitRepository) Delete(ctx context.Context, commit git.Commit) error {
+func (r *FakeCommitRepository) FindOne(ctx context.Context, options ...repositorydomain.Option) (repositorydomain.Commit, error) {
+	for _, commit := range r.commits {
+		return commit, nil
+	}
+	return repositorydomain.Commit{}, errors.New("not found")
+}
+
+func (r *FakeCommitRepository) Exists(ctx context.Context, options ...repositorydomain.Option) (bool, error) {
+	return len(r.commits) > 0, nil
+}
+
+func (r *FakeCommitRepository) Save(ctx context.Context, commit repositorydomain.Commit) (repositorydomain.Commit, error) {
+	return commit, nil
+}
+
+func (r *FakeCommitRepository) SaveAll(ctx context.Context, commits []repositorydomain.Commit) ([]repositorydomain.Commit, error) {
+	return commits, nil
+}
+
+func (r *FakeCommitRepository) Delete(ctx context.Context, commit repositorydomain.Commit) error {
 	return nil
 }
 
-func (r *FakeCommitRepository) GetByRepoAndSHA(ctx context.Context, repoID int64, sha string) (git.Commit, error) {
-	return git.Commit{}, errors.New("not found")
-}
-
-func (r *FakeCommitRepository) FindByRepoID(ctx context.Context, repoID int64) ([]git.Commit, error) {
-	return nil, nil
-}
-
-func (r *FakeCommitRepository) ExistsBySHA(ctx context.Context, repoID int64, sha string) (bool, error) {
-	return false, nil
-}
-
-// FakeBranchRepository implements git.BranchRepository for testing.
+// FakeBranchRepository implements repositorydomain.BranchStore for testing.
 type FakeBranchRepository struct {
-	branches []git.Branch
+	branches []repositorydomain.Branch
 }
 
 func NewFakeBranchRepository() *FakeBranchRepository {
 	return &FakeBranchRepository{
-		branches: make([]git.Branch, 0),
+		branches: make([]repositorydomain.Branch, 0),
 	}
 }
 
-func (r *FakeBranchRepository) Get(ctx context.Context, id int64) (git.Branch, error) {
-	return git.Branch{}, errors.New("not found")
-}
-
-func (r *FakeBranchRepository) Find(ctx context.Context, query database.Query) ([]git.Branch, error) {
+func (r *FakeBranchRepository) Find(ctx context.Context, options ...repositorydomain.Option) ([]repositorydomain.Branch, error) {
 	return r.branches, nil
 }
 
-func (r *FakeBranchRepository) Save(ctx context.Context, branch git.Branch) (git.Branch, error) {
+func (r *FakeBranchRepository) FindOne(ctx context.Context, options ...repositorydomain.Option) (repositorydomain.Branch, error) {
+	if len(r.branches) == 0 {
+		return repositorydomain.Branch{}, errors.New("not found")
+	}
+	return r.branches[0], nil
+}
+
+func (r *FakeBranchRepository) Save(ctx context.Context, branch repositorydomain.Branch) (repositorydomain.Branch, error) {
 	return branch, nil
 }
 
-func (r *FakeBranchRepository) SaveAll(ctx context.Context, branches []git.Branch) ([]git.Branch, error) {
+func (r *FakeBranchRepository) SaveAll(ctx context.Context, branches []repositorydomain.Branch) ([]repositorydomain.Branch, error) {
 	return branches, nil
 }
 
-func (r *FakeBranchRepository) Delete(ctx context.Context, branch git.Branch) error {
+func (r *FakeBranchRepository) Delete(ctx context.Context, branch repositorydomain.Branch) error {
 	return nil
 }
 
-func (r *FakeBranchRepository) GetByName(ctx context.Context, repoID int64, name string) (git.Branch, error) {
-	return git.Branch{}, errors.New("not found")
-}
-
-func (r *FakeBranchRepository) FindByRepoID(ctx context.Context, repoID int64) ([]git.Branch, error) {
-	return r.branches, nil
-}
-
-func (r *FakeBranchRepository) GetDefaultBranch(ctx context.Context, repoID int64) (git.Branch, error) {
-	for _, b := range r.branches {
-		if b.IsDefault() {
-			return b, nil
-		}
-	}
-	return git.Branch{}, errors.New("not found")
-}
-
-// FakeTagRepository implements git.TagRepository for testing.
+// FakeTagRepository implements repositorydomain.TagStore for testing.
 type FakeTagRepository struct {
-	tags []git.Tag
+	tags []repositorydomain.Tag
 }
 
 func NewFakeTagRepository() *FakeTagRepository {
 	return &FakeTagRepository{
-		tags: make([]git.Tag, 0),
+		tags: make([]repositorydomain.Tag, 0),
 	}
 }
 
-func (r *FakeTagRepository) Get(ctx context.Context, id int64) (git.Tag, error) {
-	return git.Tag{}, errors.New("not found")
-}
-
-func (r *FakeTagRepository) Find(ctx context.Context, query database.Query) ([]git.Tag, error) {
+func (r *FakeTagRepository) Find(ctx context.Context, options ...repositorydomain.Option) ([]repositorydomain.Tag, error) {
 	return r.tags, nil
 }
 
-func (r *FakeTagRepository) Save(ctx context.Context, tag git.Tag) (git.Tag, error) {
+func (r *FakeTagRepository) FindOne(ctx context.Context, options ...repositorydomain.Option) (repositorydomain.Tag, error) {
+	if len(r.tags) == 0 {
+		return repositorydomain.Tag{}, errors.New("not found")
+	}
+	return r.tags[0], nil
+}
+
+func (r *FakeTagRepository) Save(ctx context.Context, tag repositorydomain.Tag) (repositorydomain.Tag, error) {
 	return tag, nil
 }
 
-func (r *FakeTagRepository) SaveAll(ctx context.Context, tags []git.Tag) ([]git.Tag, error) {
+func (r *FakeTagRepository) SaveAll(ctx context.Context, tags []repositorydomain.Tag) ([]repositorydomain.Tag, error) {
 	return tags, nil
 }
 
-func (r *FakeTagRepository) Delete(ctx context.Context, tag git.Tag) error {
+func (r *FakeTagRepository) Delete(ctx context.Context, tag repositorydomain.Tag) error {
 	return nil
-}
-
-func (r *FakeTagRepository) GetByName(ctx context.Context, repoID int64, name string) (git.Tag, error) {
-	return git.Tag{}, errors.New("not found")
-}
-
-func (r *FakeTagRepository) FindByRepoID(ctx context.Context, repoID int64) ([]git.Tag, error) {
-	return r.tags, nil
 }
 
 func TestQueryService_ByID(t *testing.T) {
@@ -240,9 +223,9 @@ func TestQueryService_ByID(t *testing.T) {
 	branchRepo := NewFakeBranchRepository()
 	tagRepo := NewFakeTagRepository()
 
-	repo, _ := git.NewRepo("https://github.com/test/repo.git")
+	repo, _ := repositorydomain.NewRepository("https://github.com/test/repo.git")
 	repo = repo.WithID(1)
-	wc := git.NewWorkingCopy("/tmp/repo", "https://github.com/test/repo.git")
+	wc := repositorydomain.NewWorkingCopy("/tmp/repo", "https://github.com/test/repo.git")
 	repo = repo.WithWorkingCopy(wc)
 	repoRepo.AddRepo(repo)
 
@@ -279,10 +262,10 @@ func TestQueryService_All(t *testing.T) {
 	branchRepo := NewFakeBranchRepository()
 	tagRepo := NewFakeTagRepository()
 
-	repo1, _ := git.NewRepo("https://github.com/test/repo1.git")
+	repo1, _ := repositorydomain.NewRepository("https://github.com/test/repo1.git")
 	repoRepo.AddRepo(repo1)
 
-	repo2, _ := git.NewRepo("https://github.com/test/repo2.git")
+	repo2, _ := repositorydomain.NewRepository("https://github.com/test/repo2.git")
 	repoRepo.AddRepo(repo2)
 
 	svc := NewQueryService(repoRepo, commitRepo, branchRepo, tagRepo)
@@ -301,7 +284,7 @@ func TestQueryService_Exists(t *testing.T) {
 	branchRepo := NewFakeBranchRepository()
 	tagRepo := NewFakeTagRepository()
 
-	repo, _ := git.NewRepo("https://github.com/test/repo.git")
+	repo, _ := repositorydomain.NewRepository("https://github.com/test/repo.git")
 	repoRepo.AddRepo(repo)
 
 	svc := NewQueryService(repoRepo, commitRepo, branchRepo, tagRepo)
@@ -338,7 +321,7 @@ func TestSyncService_AddRepository_AlreadyExists(t *testing.T) {
 	repoRepo := NewFakeRepoRepository()
 	queueService := queue.NewService(queue.NewFakeTaskRepository(), logger)
 
-	repo, _ := git.NewRepo("https://github.com/test/repo.git")
+	repo, _ := repositorydomain.NewRepository("https://github.com/test/repo.git")
 	repoRepo.AddRepo(repo)
 
 	svc := NewSyncService(repoRepo, queueService, logger)
@@ -356,9 +339,9 @@ func TestSyncService_RequestSync(t *testing.T) {
 	repoRepo := NewFakeRepoRepository()
 	queueService := queue.NewService(queue.NewFakeTaskRepository(), logger)
 
-	repo, _ := git.NewRepo("https://github.com/test/repo.git")
+	repo, _ := repositorydomain.NewRepository("https://github.com/test/repo.git")
 	repo = repo.WithID(1)
-	wc := git.NewWorkingCopy("/tmp/repo", "https://github.com/test/repo.git")
+	wc := repositorydomain.NewWorkingCopy("/tmp/repo", "https://github.com/test/repo.git")
 	repo = repo.WithWorkingCopy(wc)
 	repoRepo.AddRepo(repo)
 
@@ -376,7 +359,7 @@ func TestSyncService_RequestSync_NotCloned(t *testing.T) {
 	repoRepo := NewFakeRepoRepository()
 	queueService := queue.NewService(queue.NewFakeTaskRepository(), logger)
 
-	repo, _ := git.NewRepo("https://github.com/test/repo.git")
+	repo, _ := repositorydomain.NewRepository("https://github.com/test/repo.git")
 	repo = repo.WithID(1)
 	repoRepo.AddRepo(repo)
 
@@ -395,7 +378,7 @@ func TestSyncService_RequestDelete(t *testing.T) {
 	repoRepo := NewFakeRepoRepository()
 	queueService := queue.NewService(queue.NewFakeTaskRepository(), logger)
 
-	repo, _ := git.NewRepo("https://github.com/test/repo.git")
+	repo, _ := repositorydomain.NewRepository("https://github.com/test/repo.git")
 	repo = repo.WithID(1)
 	repoRepo.AddRepo(repo)
 
@@ -413,13 +396,13 @@ func TestSyncService_UpdateTrackingConfig(t *testing.T) {
 	repoRepo := NewFakeRepoRepository()
 	queueService := queue.NewService(queue.NewFakeTaskRepository(), logger)
 
-	repo, _ := git.NewRepo("https://github.com/test/repo.git")
+	repo, _ := repositorydomain.NewRepository("https://github.com/test/repo.git")
 	repo = repo.WithID(1)
 	repoRepo.AddRepo(repo)
 
 	svc := NewSyncService(repoRepo, queueService, logger)
 
-	tc := git.NewTrackingConfigForBranch("develop")
+	tc := repositorydomain.NewTrackingConfigForBranch("develop")
 	source, err := svc.UpdateTrackingConfig(ctx, 1, tc)
 
 	assert.NoError(t, err)

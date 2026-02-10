@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 
+	domainenrichment "github.com/helixml/kodit/domain/enrichment"
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/internal/domain"
 	"github.com/helixml/kodit/internal/enrichment"
 	"github.com/helixml/kodit/internal/git"
@@ -18,9 +20,9 @@ Please provide a concise description of what changes were made and why.
 
 // CommitDescription handles the CREATE_COMMIT_DESCRIPTION_FOR_COMMIT operation.
 type CommitDescription struct {
-	repoRepo        git.RepoRepository
-	enrichmentRepo  enrichment.EnrichmentRepository
-	associationRepo enrichment.AssociationRepository
+	repoRepo        repository.RepositoryStore
+	enrichmentRepo  domainenrichment.EnrichmentStore
+	associationRepo domainenrichment.AssociationStore
 	queryService    *enrichment.QueryService
 	adapter         git.Adapter
 	enricher        enrichment.Enricher
@@ -30,9 +32,9 @@ type CommitDescription struct {
 
 // NewCommitDescription creates a new CommitDescription handler.
 func NewCommitDescription(
-	repoRepo git.RepoRepository,
-	enrichmentRepo enrichment.EnrichmentRepository,
-	associationRepo enrichment.AssociationRepository,
+	repoRepo repository.RepositoryStore,
+	enrichmentRepo domainenrichment.EnrichmentStore,
+	associationRepo domainenrichment.AssociationStore,
 	queryService *enrichment.QueryService,
 	adapter git.Adapter,
 	enricher enrichment.Enricher,
@@ -69,7 +71,7 @@ func (h *CommitDescription) Execute(ctx context.Context, payload map[string]any)
 		repoID,
 	)
 
-	hasDescription, err := h.queryService.Exists(ctx, &enrichment.ExistsParams{CommitSHA: commitSHA, Type: enrichment.TypeHistory, Subtype: enrichment.SubtypeCommitDescription})
+	hasDescription, err := h.queryService.Exists(ctx, &enrichment.ExistsParams{CommitSHA: commitSHA, Type: domainenrichment.TypeHistory, Subtype: domainenrichment.SubtypeCommitDescription})
 	if err != nil {
 		h.logger.Error("failed to check existing commit description", slog.String("error", err.Error()))
 		return err
@@ -82,7 +84,7 @@ func (h *CommitDescription) Execute(ctx context.Context, payload map[string]any)
 		return nil
 	}
 
-	repo, err := h.repoRepo.Get(ctx, repoID)
+	repo, err := h.repoRepo.FindOne(ctx, repository.WithID(repoID))
 	if err != nil {
 		return fmt.Errorf("get repository: %w", err)
 	}
@@ -129,13 +131,13 @@ func (h *CommitDescription) Execute(ctx context.Context, payload map[string]any)
 		return fmt.Errorf("no enrichment response for commit %s", commitSHA)
 	}
 
-	descEnrichment := enrichment.NewCommitDescription(responses[0].Text())
+	descEnrichment := domainenrichment.NewCommitDescription(responses[0].Text())
 	saved, err := h.enrichmentRepo.Save(ctx, descEnrichment)
 	if err != nil {
 		return fmt.Errorf("save commit description enrichment: %w", err)
 	}
 
-	commitAssoc := enrichment.CommitAssociation(saved.ID(), commitSHA)
+	commitAssoc := domainenrichment.CommitAssociation(saved.ID(), commitSHA)
 	if _, err := h.associationRepo.Save(ctx, commitAssoc); err != nil {
 		return fmt.Errorf("save commit association: %w", err)
 	}

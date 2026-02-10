@@ -75,14 +75,14 @@ func (r *RepositoriesRouter) Routes() chi.Router {
 func (r *RepositoriesRouter) List(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
-	sources, err := r.client.Repositories.List(ctx, nil)
+	repos, err := r.client.Repositories.Find(ctx)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
 
 	response := dto.RepositoryListResponse{
-		Data: sourcesToDTO(sources),
+		Data: reposToDTO(repos),
 	}
 
 	middleware.WriteJSON(w, http.StatusOK, response)
@@ -111,13 +111,13 @@ func (r *RepositoriesRouter) Get(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	source, err := r.client.Repositories.Get(ctx, id)
+	repo, err := r.client.Repositories.Get(ctx, repository.WithID(id))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
 
-	middleware.WriteJSON(w, http.StatusOK, dto.RepositoryResponse{Data: sourceToDTO(source)})
+	middleware.WriteJSON(w, http.StatusOK, dto.RepositoryResponse{Data: repoToDTO(repo)})
 }
 
 // Add handles POST /api/v1/repositories.
@@ -160,7 +160,7 @@ func (r *RepositoriesRouter) Add(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	middleware.WriteJSON(w, http.StatusCreated, dto.RepositoryResponse{Data: sourceToDTO(source)})
+	middleware.WriteJSON(w, http.StatusCreated, dto.RepositoryResponse{Data: repoToDTO(source.Repo())})
 }
 
 // Delete handles DELETE /api/v1/repositories/{id}.
@@ -218,7 +218,7 @@ func (r *RepositoriesRouter) GetStatus(w http.ResponseWriter, req *http.Request)
 	}
 
 	// Check repository exists
-	_, err = r.client.Repositories.Get(ctx, id)
+	_, err = r.client.Repositories.Get(ctx, repository.WithID(id))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -278,7 +278,7 @@ func (r *RepositoriesRouter) GetStatusSummary(w http.ResponseWriter, req *http.R
 	}
 
 	// Check repository exists
-	_, err = r.client.Repositories.Get(ctx, id)
+	_, err = r.client.Repositories.Get(ctx, repository.WithID(id))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -327,13 +327,13 @@ func (r *RepositoriesRouter) ListCommits(w http.ResponseWriter, req *http.Reques
 	}
 
 	// Check repository exists
-	_, err = r.client.Repositories.Get(ctx, id)
+	_, err = r.client.Repositories.Get(ctx, repository.WithID(id))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
 
-	commits, err := r.client.Commits.List(ctx, &service.CommitListParams{RepositoryID: id})
+	commits, err := r.client.Commits.Find(ctx, repository.WithRepoID(id))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -384,13 +384,13 @@ func (r *RepositoriesRouter) GetCommit(w http.ResponseWriter, req *http.Request)
 	commitSHA := chi.URLParam(req, "commit_sha")
 
 	// Check repository exists
-	_, err = r.client.Repositories.Get(ctx, id)
+	_, err = r.client.Repositories.Get(ctx, repository.WithID(id))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
 
-	commit, err := r.client.Commits.Get(ctx, &service.CommitGetParams{RepositoryID: id, SHA: commitSHA})
+	commit, err := r.client.Commits.Get(ctx, repository.WithRepoID(id), repository.WithSHA(commitSHA))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -438,20 +438,20 @@ func (r *RepositoriesRouter) ListCommitFiles(w http.ResponseWriter, req *http.Re
 	commitSHA := chi.URLParam(req, "commit_sha")
 
 	// Check repository exists
-	_, err = r.client.Repositories.Get(ctx, id)
+	_, err = r.client.Repositories.Get(ctx, repository.WithID(id))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
 
 	// Check commit exists and belongs to this repo
-	_, err = r.client.Commits.Get(ctx, &service.CommitGetParams{RepositoryID: id, SHA: commitSHA})
+	_, err = r.client.Commits.Get(ctx, repository.WithRepoID(id), repository.WithSHA(commitSHA))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
 
-	files, err := r.client.Files.List(ctx, &service.FileListParams{CommitSHA: commitSHA})
+	files, err := r.client.Files.Find(ctx, repository.WithCommitSHA(commitSHA))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -504,20 +504,20 @@ func (r *RepositoriesRouter) GetCommitFile(w http.ResponseWriter, req *http.Requ
 	blobSHA := chi.URLParam(req, "blob_sha")
 
 	// Check repository exists
-	_, err = r.client.Repositories.Get(ctx, id)
+	_, err = r.client.Repositories.Get(ctx, repository.WithID(id))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
 
 	// Check commit exists and belongs to this repo
-	_, err = r.client.Commits.Get(ctx, &service.CommitGetParams{RepositoryID: id, SHA: commitSHA})
+	_, err = r.client.Commits.Get(ctx, repository.WithRepoID(id), repository.WithSHA(commitSHA))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
 
-	file, err := r.client.Files.Get(ctx, &service.FileGetParams{CommitSHA: commitSHA, BlobSHA: blobSHA})
+	file, err := r.client.Files.Get(ctx, repository.WithCommitSHA(commitSHA), repository.WithBlobSHA(blobSHA))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -567,14 +567,14 @@ func (r *RepositoriesRouter) ListCommitEnrichments(w http.ResponseWriter, req *h
 	commitSHA := chi.URLParam(req, "commit_sha")
 
 	// Check repository exists
-	_, err = r.client.Repositories.Get(ctx, id)
+	_, err = r.client.Repositories.Get(ctx, repository.WithID(id))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
 
 	// Check commit exists and belongs to this repo
-	_, err = r.client.Commits.Get(ctx, &service.CommitGetParams{RepositoryID: id, SHA: commitSHA})
+	_, err = r.client.Commits.Get(ctx, repository.WithRepoID(id), repository.WithSHA(commitSHA))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -651,20 +651,20 @@ func (r *RepositoriesRouter) GetCommitEnrichment(w http.ResponseWriter, req *htt
 	}
 
 	// Check repository exists
-	_, err = r.client.Repositories.Get(ctx, id)
+	_, err = r.client.Repositories.Get(ctx, repository.WithID(id))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
 
 	// Check commit exists and belongs to this repo
-	_, err = r.client.Commits.Get(ctx, &service.CommitGetParams{RepositoryID: id, SHA: commitSHA})
+	_, err = r.client.Commits.Get(ctx, repository.WithRepoID(id), repository.WithSHA(commitSHA))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
 
-	e, err := r.client.Enrichments.Get(ctx, enrichmentID)
+	e, err := r.client.Enrichments.Get(ctx, repository.WithID(enrichmentID))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -712,14 +712,14 @@ func (r *RepositoriesRouter) DeleteCommitEnrichments(w http.ResponseWriter, req 
 	commitSHA := chi.URLParam(req, "commit_sha")
 
 	// Check repository exists
-	_, err = r.client.Repositories.Get(ctx, id)
+	_, err = r.client.Repositories.Get(ctx, repository.WithID(id))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
 
 	// Check commit exists and belongs to this repo
-	_, err = r.client.Commits.Get(ctx, &service.CommitGetParams{RepositoryID: id, SHA: commitSHA})
+	_, err = r.client.Commits.Get(ctx, repository.WithRepoID(id), repository.WithSHA(commitSHA))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -767,14 +767,14 @@ func (r *RepositoriesRouter) DeleteCommitEnrichment(w http.ResponseWriter, req *
 	}
 
 	// Check repository exists
-	_, err = r.client.Repositories.Get(ctx, id)
+	_, err = r.client.Repositories.Get(ctx, repository.WithID(id))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
 
 	// Check commit exists and belongs to this repo
-	_, err = r.client.Commits.Get(ctx, &service.CommitGetParams{RepositoryID: id, SHA: commitSHA})
+	_, err = r.client.Commits.Get(ctx, repository.WithRepoID(id), repository.WithSHA(commitSHA))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -816,14 +816,14 @@ func (r *RepositoriesRouter) ListCommitSnippets(w http.ResponseWriter, req *http
 	commitSHA := chi.URLParam(req, "commit_sha")
 
 	// Check repository exists
-	_, err = r.client.Repositories.Get(ctx, id)
+	_, err = r.client.Repositories.Get(ctx, repository.WithID(id))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
 
 	// Check commit exists and belongs to this repo
-	_, err = r.client.Commits.Get(ctx, &service.CommitGetParams{RepositoryID: id, SHA: commitSHA})
+	_, err = r.client.Commits.Get(ctx, repository.WithRepoID(id), repository.WithSHA(commitSHA))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -907,14 +907,14 @@ func (r *RepositoriesRouter) RescanCommit(w http.ResponseWriter, req *http.Reque
 	commitSHA := chi.URLParam(req, "commit_sha")
 
 	// Check repository exists
-	_, err = r.client.Repositories.Get(ctx, id)
+	_, err = r.client.Repositories.Get(ctx, repository.WithID(id))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
 
 	// Check commit exists and belongs to this repo
-	_, err = r.client.Commits.Get(ctx, &service.CommitGetParams{RepositoryID: id, SHA: commitSHA})
+	_, err = r.client.Commits.Get(ctx, repository.WithRepoID(id), repository.WithSHA(commitSHA))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -956,14 +956,14 @@ func (r *RepositoriesRouter) ListCommitEmbeddings(w http.ResponseWriter, req *ht
 	commitSHA := chi.URLParam(req, "commit_sha")
 
 	// Check repository exists
-	_, err = r.client.Repositories.Get(ctx, id)
+	_, err = r.client.Repositories.Get(ctx, repository.WithID(id))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
 
 	// Check commit exists and belongs to this repo
-	_, err = r.client.Commits.Get(ctx, &service.CommitGetParams{RepositoryID: id, SHA: commitSHA})
+	_, err = r.client.Commits.Get(ctx, repository.WithRepoID(id), repository.WithSHA(commitSHA))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -1050,7 +1050,7 @@ func (r *RepositoriesRouter) ListRepositoryEnrichments(w http.ResponseWriter, re
 	}
 
 	// Check repository exists
-	_, err = r.client.Repositories.Get(ctx, id)
+	_, err = r.client.Repositories.Get(ctx, repository.WithID(id))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -1083,7 +1083,7 @@ func (r *RepositoriesRouter) ListRepositoryEnrichments(w http.ResponseWriter, re
 	}
 
 	// Get recent commits for the repository
-	commits, err := r.client.Commits.List(ctx, &service.CommitListParams{RepositoryID: id})
+	commits, err := r.client.Commits.Find(ctx, repository.WithRepoID(id))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -1154,13 +1154,13 @@ func (r *RepositoriesRouter) ListTags(w http.ResponseWriter, req *http.Request) 
 	}
 
 	// Check repository exists
-	_, err = r.client.Repositories.Get(ctx, id)
+	_, err = r.client.Repositories.Get(ctx, repository.WithID(id))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
 
-	tags, err := r.client.Tags.List(ctx, &service.TagListParams{RepositoryID: id})
+	tags, err := r.client.Tags.Find(ctx, repository.WithRepoID(id))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -1214,13 +1214,13 @@ func (r *RepositoriesRouter) GetTag(w http.ResponseWriter, req *http.Request) {
 	}
 
 	// Check repository exists
-	_, err = r.client.Repositories.Get(ctx, id)
+	_, err = r.client.Repositories.Get(ctx, repository.WithID(id))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
 
-	tag, err := r.client.Tags.Get(ctx, &service.TagGetParams{RepositoryID: id, TagID: tagID})
+	tag, err := r.client.Tags.Get(ctx, repository.WithID(tagID), repository.WithRepoID(id))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -1279,13 +1279,13 @@ func (r *RepositoriesRouter) GetTrackingConfig(w http.ResponseWriter, req *http.
 		return
 	}
 
-	source, err := r.client.Repositories.Get(ctx, id)
+	repo, err := r.client.Repositories.Get(ctx, repository.WithID(id))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
 
-	tc := source.Repo().TrackingConfig()
+	tc := repo.TrackingConfig()
 	middleware.WriteJSON(w, http.StatusOK, trackingConfigToResponse(tc))
 }
 
@@ -1369,16 +1369,15 @@ func trackingConfigToResponse(tc repository.TrackingConfig) dto.TrackingConfigRe
 	}
 }
 
-func sourcesToDTO(sources []service.Source) []dto.RepositoryData {
-	result := make([]dto.RepositoryData, len(sources))
-	for i, source := range sources {
-		result[i] = sourceToDTO(source)
+func reposToDTO(repos []repository.Repository) []dto.RepositoryData {
+	result := make([]dto.RepositoryData, len(repos))
+	for i, repo := range repos {
+		result[i] = repoToDTO(repo)
 	}
 	return result
 }
 
-func sourceToDTO(source service.Source) dto.RepositoryData {
-	repo := source.Repo()
+func repoToDTO(repo repository.Repository) dto.RepositoryData {
 	createdAt := repo.CreatedAt()
 	updatedAt := repo.UpdatedAt()
 	clonedPath := repo.WorkingCopy().Path()

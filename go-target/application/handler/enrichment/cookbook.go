@@ -93,7 +93,7 @@ func (h *Cookbook) Execute(ctx context.Context, payload map[string]any) error {
 		return nil
 	}
 
-	repo, err := h.repoStore.Get(ctx, repoID)
+	repo, err := h.repoStore.FindOne(ctx, repository.WithID(repoID))
 	if err != nil {
 		return fmt.Errorf("get repository: %w", err)
 	}
@@ -111,7 +111,7 @@ func (h *Cookbook) Execute(ctx context.Context, payload map[string]any) error {
 		h.enrichCtx.Logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
 	}
 
-	files, err := h.fileStore.FindByCommitSHA(ctx, commitSHA)
+	files, err := h.fileStore.Find(ctx, repository.WithCommitSHA(commitSHA))
 	if err != nil {
 		return fmt.Errorf("get files: %w", err)
 	}

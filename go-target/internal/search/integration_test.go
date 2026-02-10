@@ -5,10 +5,10 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/helixml/kodit/domain/enrichment"
+	"github.com/helixml/kodit/domain/repository"
+	"github.com/helixml/kodit/infrastructure/persistence"
 	"github.com/helixml/kodit/internal/domain"
-	"github.com/helixml/kodit/internal/enrichment"
-	enrichmentpostgres "github.com/helixml/kodit/internal/enrichment/postgres"
-	"github.com/helixml/kodit/internal/git"
 	"github.com/helixml/kodit/internal/indexing"
 	"github.com/helixml/kodit/internal/search"
 	"github.com/helixml/kodit/internal/testutil"
@@ -25,14 +25,14 @@ func TestService_Search_TextQueryFindsMatchingSnippets_Integration(t *testing.T)
 	logger := slog.Default()
 
 	// Create repositories
-	enrichmentRepo := enrichmentpostgres.NewEnrichmentRepository(db)
+	enrichmentRepo := persistence.NewEnrichmentStore(db)
 	fakeSnippetRepo := testutil.NewFakeSnippetRepository()
 	fakeBM25Repo := testutil.NewFakeBM25Repository()
 	fakeVectorRepo := testutil.NewFakeVectorRepository()
 
 	// Create test data: a snippet with code content
 	snippetContent := "def calculate_sum(a, b):\n    return a + b"
-	snippet := indexing.NewSnippet(snippetContent, "py", []git.File{})
+	snippet := indexing.NewSnippet(snippetContent, "py", []repository.File{})
 	fakeSnippetRepo.AddSnippet(snippet)
 
 	// Configure BM25 to return our snippet when searching
@@ -60,17 +60,17 @@ func TestService_Search_ClassQueryReturnsCorrectResult_Integration(t *testing.T)
 	db := testutil.TestDatabaseWithSchema(t, testutil.TestSchema)
 	logger := slog.Default()
 
-	enrichmentRepo := enrichmentpostgres.NewEnrichmentRepository(db)
+	enrichmentRepo := persistence.NewEnrichmentStore(db)
 	fakeSnippetRepo := testutil.NewFakeSnippetRepository()
 	fakeBM25Repo := testutil.NewFakeBM25Repository()
 	fakeVectorRepo := testutil.NewFakeVectorRepository()
 
 	// Create multiple snippets with different content
 	snippet1Content := "class UserService:\n    def authenticate(self, user):\n        pass"
-	snippet1 := indexing.NewSnippet(snippet1Content, "py", []git.File{})
+	snippet1 := indexing.NewSnippet(snippet1Content, "py", []repository.File{})
 
 	snippet2Content := "class PaymentProcessor:\n    def process_payment(self, amount):\n        pass"
-	snippet2 := indexing.NewSnippet(snippet2Content, "py", []git.File{})
+	snippet2 := indexing.NewSnippet(snippet2Content, "py", []repository.File{})
 
 	fakeSnippetRepo.AddSnippet(snippet1)
 	fakeSnippetRepo.AddSnippet(snippet2)
@@ -99,7 +99,7 @@ func TestService_Search_EmptyQueryReturnsEmpty_Integration(t *testing.T) {
 	db := testutil.TestDatabaseWithSchema(t, testutil.TestSchema)
 	logger := slog.Default()
 
-	enrichmentRepo := enrichmentpostgres.NewEnrichmentRepository(db)
+	enrichmentRepo := persistence.NewEnrichmentStore(db)
 	fakeSnippetRepo := testutil.NewFakeSnippetRepository()
 	fakeBM25Repo := testutil.NewFakeBM25Repository()
 	fakeVectorRepo := testutil.NewFakeVectorRepository()
@@ -119,7 +119,7 @@ func TestService_Search_TopKLimitsResults_Integration(t *testing.T) {
 	db := testutil.TestDatabaseWithSchema(t, testutil.TestSchema)
 	logger := slog.Default()
 
-	enrichmentRepo := enrichmentpostgres.NewEnrichmentRepository(db)
+	enrichmentRepo := persistence.NewEnrichmentStore(db)
 	fakeSnippetRepo := testutil.NewFakeSnippetRepository()
 	fakeBM25Repo := testutil.NewFakeBM25Repository()
 	fakeVectorRepo := testutil.NewFakeVectorRepository()
@@ -128,7 +128,7 @@ func TestService_Search_TopKLimitsResults_Integration(t *testing.T) {
 	var searchResults []domain.SearchResult
 	for i := 0; i < 5; i++ {
 		content := "func process" + string(rune('A'+i)) + "() {}"
-		snippet := indexing.NewSnippet(content, "go", []git.File{})
+		snippet := indexing.NewSnippet(content, "go", []repository.File{})
 		fakeSnippetRepo.AddSnippet(snippet)
 		searchResults = append(searchResults, domain.NewSearchResult(snippet.SHA(), float64(5-i)/10.0))
 	}
@@ -150,15 +150,15 @@ func TestService_Search_HybridSearchCombinesResults_Integration(t *testing.T) {
 	db := testutil.TestDatabaseWithSchema(t, testutil.TestSchema)
 	logger := slog.Default()
 
-	enrichmentRepo := enrichmentpostgres.NewEnrichmentRepository(db)
+	enrichmentRepo := persistence.NewEnrichmentStore(db)
 	fakeSnippetRepo := testutil.NewFakeSnippetRepository()
 	fakeBM25Repo := testutil.NewFakeBM25Repository()
 	fakeVectorRepo := testutil.NewFakeVectorRepository()
 
 	// Create snippets
-	snippet1 := indexing.NewSnippet("def keyword_match():\n    pass", "py", []git.File{})
-	snippet2 := indexing.NewSnippet("def semantic_similar():\n    pass", "py", []git.File{})
-	snippet3 := indexing.NewSnippet("def both_match():\n    pass", "py", []git.File{})
+	snippet1 := indexing.NewSnippet("def keyword_match():\n    pass", "py", []repository.File{})
+	snippet2 := indexing.NewSnippet("def semantic_similar():\n    pass", "py", []repository.File{})
+	snippet3 := indexing.NewSnippet("def both_match():\n    pass", "py", []repository.File{})
 
 	fakeSnippetRepo.AddSnippet(snippet1)
 	fakeSnippetRepo.AddSnippet(snippet2)
@@ -198,12 +198,12 @@ func TestService_SearchBM25_ReturnsKeywordMatches_Integration(t *testing.T) {
 	db := testutil.TestDatabaseWithSchema(t, testutil.TestSchema)
 	logger := slog.Default()
 
-	enrichmentRepo := enrichmentpostgres.NewEnrichmentRepository(db)
+	enrichmentRepo := persistence.NewEnrichmentStore(db)
 	fakeSnippetRepo := testutil.NewFakeSnippetRepository()
 	fakeBM25Repo := testutil.NewFakeBM25Repository()
 	fakeVectorRepo := testutil.NewFakeVectorRepository()
 
-	snippet := indexing.NewSnippet("func handleRequest() error { return nil }", "go", []git.File{})
+	snippet := indexing.NewSnippet("func handleRequest() error { return nil }", "go", []repository.File{})
 	fakeSnippetRepo.AddSnippet(snippet)
 
 	fakeBM25Repo.SetResults([]domain.SearchResult{
@@ -223,12 +223,12 @@ func TestService_SearchVector_ReturnsSimilarCode_Integration(t *testing.T) {
 	db := testutil.TestDatabaseWithSchema(t, testutil.TestSchema)
 	logger := slog.Default()
 
-	enrichmentRepo := enrichmentpostgres.NewEnrichmentRepository(db)
+	enrichmentRepo := persistence.NewEnrichmentStore(db)
 	fakeSnippetRepo := testutil.NewFakeSnippetRepository()
 	fakeBM25Repo := testutil.NewFakeBM25Repository()
 	fakeVectorRepo := testutil.NewFakeVectorRepository()
 
-	snippet := indexing.NewSnippet("func processData(data []byte) { /* implementation */ }", "go", []git.File{})
+	snippet := indexing.NewSnippet("func processData(data []byte) { /* implementation */ }", "go", []repository.File{})
 	fakeSnippetRepo.AddSnippet(snippet)
 
 	fakeVectorRepo.SetResults([]domain.SearchResult{
@@ -248,14 +248,14 @@ func TestService_Search_WithEnrichmentsAttached_Integration(t *testing.T) {
 	db := testutil.TestDatabaseWithSchema(t, testutil.TestSchema)
 	logger := slog.Default()
 
-	enrichmentRepo := enrichmentpostgres.NewEnrichmentRepository(db)
+	enrichmentRepo := persistence.NewEnrichmentStore(db)
 	fakeSnippetRepo := testutil.NewFakeSnippetRepository()
 	fakeBM25Repo := testutil.NewFakeBM25Repository()
 	fakeVectorRepo := testutil.NewFakeVectorRepository()
 
 	// Create a snippet
 	snippetContent := "def validate_input(data):\n    if not data:\n        raise ValueError('Empty data')"
-	snippet := indexing.NewSnippet(snippetContent, "py", []git.File{})
+	snippet := indexing.NewSnippet(snippetContent, "py", []repository.File{})
 	fakeSnippetRepo.AddSnippet(snippet)
 
 	// Create an enrichment for this snippet (snippet summary)
@@ -291,15 +291,15 @@ func TestService_Search_OrdersByFusedScore_Integration(t *testing.T) {
 	db := testutil.TestDatabaseWithSchema(t, testutil.TestSchema)
 	logger := slog.Default()
 
-	enrichmentRepo := enrichmentpostgres.NewEnrichmentRepository(db)
+	enrichmentRepo := persistence.NewEnrichmentStore(db)
 	fakeSnippetRepo := testutil.NewFakeSnippetRepository()
 	fakeBM25Repo := testutil.NewFakeBM25Repository()
 	fakeVectorRepo := testutil.NewFakeVectorRepository()
 
 	// Create snippets with predictable ordering
-	lowScoreSnippet := indexing.NewSnippet("def low_score(): pass", "py", []git.File{})
-	midScoreSnippet := indexing.NewSnippet("def mid_score(): pass", "py", []git.File{})
-	highScoreSnippet := indexing.NewSnippet("def high_score(): pass", "py", []git.File{})
+	lowScoreSnippet := indexing.NewSnippet("def low_score(): pass", "py", []repository.File{})
+	midScoreSnippet := indexing.NewSnippet("def mid_score(): pass", "py", []repository.File{})
+	highScoreSnippet := indexing.NewSnippet("def high_score(): pass", "py", []repository.File{})
 
 	fakeSnippetRepo.AddSnippet(lowScoreSnippet)
 	fakeSnippetRepo.AddSnippet(midScoreSnippet)
@@ -333,7 +333,7 @@ func TestService_Search_DefaultTopK_Integration(t *testing.T) {
 	db := testutil.TestDatabaseWithSchema(t, testutil.TestSchema)
 	logger := slog.Default()
 
-	enrichmentRepo := enrichmentpostgres.NewEnrichmentRepository(db)
+	enrichmentRepo := persistence.NewEnrichmentStore(db)
 	fakeSnippetRepo := testutil.NewFakeSnippetRepository()
 	fakeBM25Repo := testutil.NewFakeBM25Repository()
 	fakeVectorRepo := testutil.NewFakeVectorRepository()
@@ -342,7 +342,7 @@ func TestService_Search_DefaultTopK_Integration(t *testing.T) {
 	var searchResults []domain.SearchResult
 	for i := 0; i < 15; i++ {
 		content := "func function" + string(rune('A'+i)) + "() {}"
-		snippet := indexing.NewSnippet(content, "go", []git.File{})
+		snippet := indexing.NewSnippet(content, "go", []repository.File{})
 		fakeSnippetRepo.AddSnippet(snippet)
 		searchResults = append(searchResults, domain.NewSearchResult(snippet.SHA(), float64(15-i)/15.0))
 	}

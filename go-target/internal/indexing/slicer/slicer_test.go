@@ -6,13 +6,12 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/helixml/kodit/domain/repository"
+	"github.com/helixml/kodit/internal/indexing/slicer"
+	"github.com/helixml/kodit/internal/indexing/slicer/analyzers"
 	sitter "github.com/smacker/go-tree-sitter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/helixml/kodit/internal/git"
-	"github.com/helixml/kodit/internal/indexing/slicer"
-	"github.com/helixml/kodit/internal/indexing/slicer/analyzers"
 )
 
 func newParser(lang slicer.Language) *sitter.Parser {
@@ -165,8 +164,8 @@ def main():
 	factory := analyzers.NewFactory(config)
 	s := slicer.NewSlicer(config, factory)
 
-	files := []git.File{
-		git.NewFile("abc123", "test.py", "python", int64(len(pythonCode))),
+	files := []repository.File{
+		repository.NewFile("abc123", "test.py", "python", int64(len(pythonCode))),
 	}
 
 	cfg := slicer.DefaultSliceConfig()
@@ -213,8 +212,8 @@ func main() {
 	factory := analyzers.NewFactory(config)
 	s := slicer.NewSlicer(config, factory)
 
-	files := []git.File{
-		git.NewFile("abc123", "test.go", "go", int64(len(goCode))),
+	files := []repository.File{
+		repository.NewFile("abc123", "test.go", "go", int64(len(goCode))),
 	}
 
 	cfg := slicer.DefaultSliceConfig()
@@ -251,8 +250,8 @@ const sayHello = () => {
 	factory := analyzers.NewFactory(config)
 	s := slicer.NewSlicer(config, factory)
 
-	files := []git.File{
-		git.NewFile("abc123", "test.js", "javascript", int64(len(jsCode))),
+	files := []repository.File{
+		repository.NewFile("abc123", "test.js", "javascript", int64(len(jsCode))),
 	}
 
 	cfg := slicer.DefaultSliceConfig()

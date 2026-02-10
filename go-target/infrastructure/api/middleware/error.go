@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/helixml/kodit/infrastructure/persistence"
+	"github.com/helixml/kodit/internal/database"
 )
 
 // JSONAPIError represents a JSON:API error response.
@@ -62,7 +62,7 @@ func WriteError(w http.ResponseWriter, r *http.Request, err error, logger *slog.
 		status = http.StatusUnauthorized
 		title = "Authentication Failed"
 		detail = authErr.Error()
-	case errors.Is(err, persistence.ErrNotFound):
+	case errors.Is(err, database.ErrNotFound):
 		status = http.StatusNotFound
 		title = "Not Found"
 	case errors.Is(err, ErrValidation):

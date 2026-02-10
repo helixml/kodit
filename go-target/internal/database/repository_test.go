@@ -5,6 +5,8 @@ import (
 	"errors"
 	"path/filepath"
 	"testing"
+
+	"github.com/helixml/kodit/domain/repository"
 )
 
 // Test domain entity
@@ -15,10 +17,8 @@ type testUser struct {
 	active bool
 }
 
-func (u testUser) ID() int64      { return u.id }
-func (u testUser) Name() string   { return u.name }
-func (u testUser) Email() string  { return u.email }
-func (u testUser) Active() bool   { return u.active }
+func (u testUser) ID() int64    { return u.id }
+func (u testUser) Name() string { return u.name }
 
 // Test database entity
 type testUserEntity struct {
@@ -27,6 +27,8 @@ type testUserEntity struct {
 	Email  string `gorm:"column:email"`
 	Active bool   `gorm:"column:active"`
 }
+
+func (testUserEntity) TableName() string { return "users" }
 
 // Test mapper
 type testUserMapper struct{}
@@ -40,7 +42,7 @@ func (m testUserMapper) ToDomain(entity testUserEntity) testUser {
 	}
 }
 
-func (m testUserMapper) ToDatabase(domain testUser) testUserEntity {
+func (m testUserMapper) ToModel(domain testUser) testUserEntity {
 	return testUserEntity{
 		ID:     domain.id,
 		Name:   domain.name,
@@ -49,7 +51,7 @@ func (m testUserMapper) ToDatabase(domain testUser) testUserEntity {
 	}
 }
 
-func setupTestRepo(t *testing.T) (Repository[testUser, testUserEntity], Database, func()) {
+func setupTestRepo(t *testing.T) (Repository[testUser, testUserEntity], func()) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
@@ -60,7 +62,6 @@ func setupTestRepo(t *testing.T) (Repository[testUser, testUserEntity], Database
 		t.Fatalf("NewDatabase: %v", err)
 	}
 
-	// Create test table
 	err = db.Session(ctx).Exec(`
 		CREATE TABLE users (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -73,86 +74,33 @@ func setupTestRepo(t *testing.T) (Repository[testUser, testUserEntity], Database
 		t.Fatalf("create table: %v", err)
 	}
 
-	repo := NewRepository[testUser, testUserEntity](db, testUserMapper{}, "users")
+	repo := NewRepository[testUser, testUserEntity](db, testUserMapper{}, "user")
 	cleanup := func() { _ = db.Close() }
 
-	return repo, db, cleanup
+	return repo, cleanup
 }
 
-func TestRepository_Create(t *testing.T) {
+func seedUser(t *testing.T, repo Repository[testUser, testUserEntity], name, email string, active bool) testUser {
+	t.Helper()
 	ctx := context.Background()
-	repo, _, cleanup := setupTestRepo(t)
-	defer cleanup()
-
-	user := testUser{name: "Alice", email: "alice@example.com", active: true}
-	created, err := repo.Create(ctx, user)
-	if err != nil {
-		t.Fatalf("Create: %v", err)
+	entity := testUserEntity{Name: name, Email: email, Active: active}
+	result := repo.DB(ctx).Create(&entity)
+	if result.Error != nil {
+		t.Fatalf("seed user: %v", result.Error)
 	}
-
-	if created.ID() == 0 {
-		t.Error("expected non-zero ID")
-	}
-	if created.Name() != "Alice" {
-		t.Errorf("Name() = %v, want Alice", created.Name())
-	}
-}
-
-func TestRepository_Get(t *testing.T) {
-	ctx := context.Background()
-	repo, _, cleanup := setupTestRepo(t)
-	defer cleanup()
-
-	user := testUser{name: "Bob", email: "bob@example.com", active: true}
-	created, err := repo.Create(ctx, user)
-	if err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-
-	retrieved, err := repo.Get(ctx, created.ID())
-	if err != nil {
-		t.Fatalf("Get: %v", err)
-	}
-
-	if retrieved.Name() != "Bob" {
-		t.Errorf("Name() = %v, want Bob", retrieved.Name())
-	}
-}
-
-func TestRepository_Get_NotFound(t *testing.T) {
-	ctx := context.Background()
-	repo, _, cleanup := setupTestRepo(t)
-	defer cleanup()
-
-	_, err := repo.Get(ctx, 999)
-	if err == nil {
-		t.Fatal("expected error for non-existent ID")
-	}
-	if !errors.Is(err, ErrNotFound) {
-		t.Errorf("expected ErrNotFound, got: %v", err)
-	}
+	return repo.Mapper().ToDomain(entity)
 }
 
 func TestRepository_Find(t *testing.T) {
 	ctx := context.Background()
-	repo, _, cleanup := setupTestRepo(t)
+	repo, cleanup := setupTestRepo(t)
 	defer cleanup()
 
-	// Create test users
-	users := []testUser{
-		{name: "Alice", email: "alice@example.com", active: true},
-		{name: "Bob", email: "bob@example.com", active: false},
-		{name: "Charlie", email: "charlie@example.com", active: true},
-	}
-	for _, u := range users {
-		if _, err := repo.Create(ctx, u); err != nil {
-			t.Fatalf("Create: %v", err)
-		}
-	}
+	seedUser(t, repo, "Alice", "alice@example.com", true)
+	seedUser(t, repo, "Bob", "bob@example.com", false)
+	seedUser(t, repo, "Charlie", "charlie@example.com", true)
 
-	// Find active users
-	query := NewQuery().Equal("active", true)
-	found, err := repo.Find(ctx, query)
+	found, err := repo.Find(ctx, repository.WithCondition("active", true))
 	if err != nil {
 		t.Fatalf("Find: %v", err)
 	}
@@ -162,24 +110,17 @@ func TestRepository_Find(t *testing.T) {
 	}
 }
 
-func TestRepository_FindAll(t *testing.T) {
+func TestRepository_Find_All(t *testing.T) {
 	ctx := context.Background()
-	repo, _, cleanup := setupTestRepo(t)
+	repo, cleanup := setupTestRepo(t)
 	defer cleanup()
 
-	users := []testUser{
-		{name: "Alice", email: "alice@example.com", active: true},
-		{name: "Bob", email: "bob@example.com", active: false},
-	}
-	for _, u := range users {
-		if _, err := repo.Create(ctx, u); err != nil {
-			t.Fatalf("Create: %v", err)
-		}
-	}
+	seedUser(t, repo, "Alice", "alice@example.com", true)
+	seedUser(t, repo, "Bob", "bob@example.com", false)
 
-	found, err := repo.FindAll(ctx)
+	found, err := repo.Find(ctx)
 	if err != nil {
-		t.Fatalf("FindAll: %v", err)
+		t.Fatalf("Find: %v", err)
 	}
 
 	if len(found) != 2 {
@@ -187,179 +128,14 @@ func TestRepository_FindAll(t *testing.T) {
 	}
 }
 
-func TestRepository_Save(t *testing.T) {
-	ctx := context.Background()
-	repo, _, cleanup := setupTestRepo(t)
-	defer cleanup()
-
-	user := testUser{name: "Alice", email: "alice@example.com", active: true}
-	created, err := repo.Create(ctx, user)
-	if err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-
-	// Update user
-	updated := testUser{
-		id:     created.ID(),
-		name:   "Alice Smith",
-		email:  "alice.smith@example.com",
-		active: false,
-	}
-	saved, err := repo.Save(ctx, updated)
-	if err != nil {
-		t.Fatalf("Save: %v", err)
-	}
-
-	if saved.Name() != "Alice Smith" {
-		t.Errorf("Name() = %v, want Alice Smith", saved.Name())
-	}
-
-	// Verify update persisted
-	retrieved, err := repo.Get(ctx, created.ID())
-	if err != nil {
-		t.Fatalf("Get: %v", err)
-	}
-	if retrieved.Name() != "Alice Smith" {
-		t.Errorf("Name() after Get = %v, want Alice Smith", retrieved.Name())
-	}
-}
-
-func TestRepository_Delete(t *testing.T) {
-	ctx := context.Background()
-	repo, _, cleanup := setupTestRepo(t)
-	defer cleanup()
-
-	user := testUser{name: "Alice", email: "alice@example.com", active: true}
-	created, err := repo.Create(ctx, user)
-	if err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-
-	err = repo.Delete(ctx, created)
-	if err != nil {
-		t.Fatalf("Delete: %v", err)
-	}
-
-	_, err = repo.Get(ctx, created.ID())
-	if !errors.Is(err, ErrNotFound) {
-		t.Errorf("expected ErrNotFound after delete, got: %v", err)
-	}
-}
-
-func TestRepository_DeleteByID(t *testing.T) {
-	ctx := context.Background()
-	repo, _, cleanup := setupTestRepo(t)
-	defer cleanup()
-
-	user := testUser{name: "Alice", email: "alice@example.com", active: true}
-	created, err := repo.Create(ctx, user)
-	if err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-
-	err = repo.DeleteByID(ctx, created.ID())
-	if err != nil {
-		t.Fatalf("DeleteByID: %v", err)
-	}
-
-	_, err = repo.Get(ctx, created.ID())
-	if !errors.Is(err, ErrNotFound) {
-		t.Errorf("expected ErrNotFound after delete, got: %v", err)
-	}
-}
-
-func TestRepository_Count(t *testing.T) {
-	ctx := context.Background()
-	repo, _, cleanup := setupTestRepo(t)
-	defer cleanup()
-
-	users := []testUser{
-		{name: "Alice", email: "alice@example.com", active: true},
-		{name: "Bob", email: "bob@example.com", active: false},
-		{name: "Charlie", email: "charlie@example.com", active: true},
-	}
-	for _, u := range users {
-		if _, err := repo.Create(ctx, u); err != nil {
-			t.Fatalf("Create: %v", err)
-		}
-	}
-
-	count, err := repo.Count(ctx, NewQuery().Equal("active", true))
-	if err != nil {
-		t.Fatalf("Count: %v", err)
-	}
-
-	if count != 2 {
-		t.Errorf("Count() = %d, want 2", count)
-	}
-}
-
-func TestRepository_Exists(t *testing.T) {
-	ctx := context.Background()
-	repo, _, cleanup := setupTestRepo(t)
-	defer cleanup()
-
-	user := testUser{name: "Alice", email: "alice@example.com", active: true}
-	if _, err := repo.Create(ctx, user); err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-
-	exists, err := repo.Exists(ctx, NewQuery().Equal("name", "Alice"))
-	if err != nil {
-		t.Fatalf("Exists: %v", err)
-	}
-	if !exists {
-		t.Error("expected Exists to return true")
-	}
-
-	exists, err = repo.Exists(ctx, NewQuery().Equal("name", "Bob"))
-	if err != nil {
-		t.Fatalf("Exists: %v", err)
-	}
-	if exists {
-		t.Error("expected Exists to return false for non-existent name")
-	}
-}
-
-func TestRepository_ExistsByID(t *testing.T) {
-	ctx := context.Background()
-	repo, _, cleanup := setupTestRepo(t)
-	defer cleanup()
-
-	user := testUser{name: "Alice", email: "alice@example.com", active: true}
-	created, err := repo.Create(ctx, user)
-	if err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-
-	exists, err := repo.ExistsByID(ctx, created.ID())
-	if err != nil {
-		t.Fatalf("ExistsByID: %v", err)
-	}
-	if !exists {
-		t.Error("expected ExistsByID to return true")
-	}
-
-	exists, err = repo.ExistsByID(ctx, 999)
-	if err != nil {
-		t.Fatalf("ExistsByID: %v", err)
-	}
-	if exists {
-		t.Error("expected ExistsByID to return false for non-existent ID")
-	}
-}
-
 func TestRepository_FindOne(t *testing.T) {
 	ctx := context.Background()
-	repo, _, cleanup := setupTestRepo(t)
+	repo, cleanup := setupTestRepo(t)
 	defer cleanup()
 
-	user := testUser{name: "Alice", email: "alice@example.com", active: true}
-	if _, err := repo.Create(ctx, user); err != nil {
-		t.Fatalf("Create: %v", err)
-	}
+	seedUser(t, repo, "Alice", "alice@example.com", true)
 
-	found, err := repo.FindOne(ctx, NewQuery().Equal("name", "Alice"))
+	found, err := repo.FindOne(ctx, repository.WithCondition("name", "Alice"))
 	if err != nil {
 		t.Fatalf("FindOne: %v", err)
 	}
@@ -371,10 +147,10 @@ func TestRepository_FindOne(t *testing.T) {
 
 func TestRepository_FindOne_NotFound(t *testing.T) {
 	ctx := context.Background()
-	repo, _, cleanup := setupTestRepo(t)
+	repo, cleanup := setupTestRepo(t)
 	defer cleanup()
 
-	_, err := repo.FindOne(ctx, NewQuery().Equal("name", "NonExistent"))
+	_, err := repo.FindOne(ctx, repository.WithCondition("name", "NonExistent"))
 	if err == nil {
 		t.Fatal("expected error for non-existent entity")
 	}
@@ -383,3 +159,62 @@ func TestRepository_FindOne_NotFound(t *testing.T) {
 	}
 }
 
+func TestRepository_Exists(t *testing.T) {
+	ctx := context.Background()
+	repo, cleanup := setupTestRepo(t)
+	defer cleanup()
+
+	seedUser(t, repo, "Alice", "alice@example.com", true)
+
+	exists, err := repo.Exists(ctx, repository.WithCondition("name", "Alice"))
+	if err != nil {
+		t.Fatalf("Exists: %v", err)
+	}
+	if !exists {
+		t.Error("expected Exists to return true")
+	}
+
+	exists, err = repo.Exists(ctx, repository.WithCondition("name", "Bob"))
+	if err != nil {
+		t.Fatalf("Exists: %v", err)
+	}
+	if exists {
+		t.Error("expected Exists to return false for non-existent name")
+	}
+}
+
+func TestRepository_DeleteBy(t *testing.T) {
+	ctx := context.Background()
+	repo, cleanup := setupTestRepo(t)
+	defer cleanup()
+
+	seedUser(t, repo, "Alice", "alice@example.com", true)
+	seedUser(t, repo, "Bob", "bob@example.com", false)
+
+	err := repo.DeleteBy(ctx, repository.WithCondition("name", "Alice"))
+	if err != nil {
+		t.Fatalf("DeleteBy: %v", err)
+	}
+
+	found, err := repo.Find(ctx)
+	if err != nil {
+		t.Fatalf("Find: %v", err)
+	}
+	if len(found) != 1 {
+		t.Errorf("expected 1 user after delete, got %d", len(found))
+	}
+	if found[0].Name() != "Bob" {
+		t.Errorf("expected remaining user Bob, got %s", found[0].Name())
+	}
+}
+
+func TestRepository_DB(t *testing.T) {
+	ctx := context.Background()
+	repo, cleanup := setupTestRepo(t)
+	defer cleanup()
+
+	db := repo.DB(ctx)
+	if db == nil {
+		t.Fatal("expected non-nil DB session")
+	}
+}

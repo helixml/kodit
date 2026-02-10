@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"maps"
 
+	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/internal/domain"
-	"github.com/helixml/kodit/internal/enrichment"
 	"github.com/helixml/kodit/internal/indexing"
 )
 
@@ -70,7 +70,7 @@ type Service struct {
 	bm25Repo       indexing.BM25Repository
 	vectorRepo     indexing.VectorSearchRepository
 	snippetRepo    indexing.SnippetRepository
-	enrichmentRepo enrichment.EnrichmentRepository
+	enrichmentRepo enrichment.EnrichmentStore
 	fusionService  FusionService
 	logger         *slog.Logger
 }
@@ -80,7 +80,7 @@ func NewService(
 	bm25Repo indexing.BM25Repository,
 	vectorRepo indexing.VectorSearchRepository,
 	snippetRepo indexing.SnippetRepository,
-	enrichmentRepo enrichment.EnrichmentRepository,
+	enrichmentRepo enrichment.EnrichmentStore,
 	logger *slog.Logger,
 ) Service {
 	if logger == nil {

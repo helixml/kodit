@@ -2,17 +2,12 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/task"
-	"gorm.io/gorm"
 )
-
-// RepositoryListParams configures repository listing.
-type RepositoryListParams struct{}
 
 // RepositoryAddParams configures adding a new repository.
 type RepositoryAddParams struct {
@@ -36,8 +31,9 @@ type TrackingConfigParams struct {
 }
 
 // Repository provides repository management and query operations.
-// Merges write operations (sync, add, delete) with read operations (list, get, summary).
+// Embeds Collection for Find/Get; bespoke methods handle writes and lifecycle.
 type Repository struct {
+	repository.Collection[repository.Repository]
 	repoStore   repository.RepositoryStore
 	commitStore repository.CommitStore
 	branchStore repository.BranchStore
@@ -56,6 +52,7 @@ func NewRepository(
 	logger *slog.Logger,
 ) *Repository {
 	return &Repository{
+		Collection:  repository.NewCollection[repository.Repository](repoStore),
 		repoStore:   repoStore,
 		commitStore: commitStore,
 		branchStore: branchStore,
@@ -63,30 +60,6 @@ func NewRepository(
 		queue:       queue,
 		logger:      logger,
 	}
-}
-
-// List returns all repositories.
-func (s *Repository) List(ctx context.Context, _ *RepositoryListParams) ([]Source, error) {
-	repos, err := s.repoStore.FindAll(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("find all repositories: %w", err)
-	}
-
-	sources := make([]Source, 0, len(repos))
-	for _, repo := range repos {
-		sources = append(sources, NewSource(repo))
-	}
-
-	return sources, nil
-}
-
-// Get retrieves a repository by ID.
-func (s *Repository) Get(ctx context.Context, id int64) (Source, error) {
-	repo, err := s.repoStore.Get(ctx, id)
-	if err != nil {
-		return Source{}, fmt.Errorf("get repository: %w", err)
-	}
-	return NewSource(repo), nil
 }
 
 // Add creates a new repository and queues it for indexing.
@@ -119,41 +92,29 @@ func (s *Repository) UpdateTrackingConfig(ctx context.Context, id int64, params 
 	return s.updateTrackingConfig(ctx, id, tc)
 }
 
-// ByRemoteURL returns a repository by its remote URL.
-func (s *Repository) ByRemoteURL(ctx context.Context, url string) (Source, bool, error) {
-	repo, err := s.repoStore.GetByRemoteURL(ctx, url)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return Source{}, false, nil
-		}
-		return Source{}, false, fmt.Errorf("get repository by URL: %w", err)
-	}
-	return NewSource(repo), true, nil
-}
-
 // Exists checks if a repository exists by remote URL.
 func (s *Repository) Exists(ctx context.Context, url string) (bool, error) {
-	return s.repoStore.ExistsByRemoteURL(ctx, url)
+	return s.repoStore.Exists(ctx, repository.WithRemoteURL(url))
 }
 
 // SummaryByID returns a detailed summary for a repository.
 func (s *Repository) SummaryByID(ctx context.Context, id int64) (RepositorySummary, error) {
-	repo, err := s.repoStore.Get(ctx, id)
+	repo, err := s.repoStore.FindOne(ctx, repository.WithID(id))
 	if err != nil {
 		return RepositorySummary{}, fmt.Errorf("get repository: %w", err)
 	}
 
-	branches, err := s.branchStore.FindByRepoID(ctx, id)
+	branches, err := s.branchStore.Find(ctx, repository.WithRepoID(id))
 	if err != nil {
 		return RepositorySummary{}, fmt.Errorf("find branches: %w", err)
 	}
 
-	tags, err := s.tagStore.FindByRepoID(ctx, id)
+	tags, err := s.tagStore.Find(ctx, repository.WithRepoID(id))
 	if err != nil {
 		return RepositorySummary{}, fmt.Errorf("find tags: %w", err)
 	}
 
-	commits, err := s.commitStore.FindByRepoID(ctx, id)
+	commits, err := s.commitStore.Find(ctx, repository.WithRepoID(id))
 	if err != nil {
 		return RepositorySummary{}, fmt.Errorf("find commits: %w", err)
 	}
@@ -177,7 +138,7 @@ func (s *Repository) SummaryByID(ctx context.Context, id int64) (RepositorySumma
 
 // BranchesForRepository returns all branches for a repository.
 func (s *Repository) BranchesForRepository(ctx context.Context, repoID int64) ([]repository.Branch, error) {
-	branches, err := s.branchStore.FindByRepoID(ctx, repoID)
+	branches, err := s.branchStore.Find(ctx, repository.WithRepoID(repoID))
 	if err != nil {
 		return nil, fmt.Errorf("find branches: %w", err)
 	}
@@ -186,7 +147,7 @@ func (s *Repository) BranchesForRepository(ctx context.Context, repoID int64) ([
 
 // SyncAll queues sync operations for all cloned repositories.
 func (s *Repository) SyncAll(ctx context.Context) (int, error) {
-	repos, err := s.repoStore.FindAll(ctx)
+	repos, err := s.repoStore.Find(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("find all repositories: %w", err)
 	}
@@ -217,7 +178,7 @@ func (s *Repository) SyncAll(ctx context.Context) (int, error) {
 // --- internal write operations (from RepositorySync) ---
 
 func (s *Repository) add(ctx context.Context, remoteURL string) (Source, error) {
-	existing, err := s.repoStore.ExistsByRemoteURL(ctx, remoteURL)
+	existing, err := s.repoStore.Exists(ctx, repository.WithRemoteURL(remoteURL))
 	if err != nil {
 		return Source{}, fmt.Errorf("check existing: %w", err)
 	}
@@ -246,7 +207,7 @@ func (s *Repository) add(ctx context.Context, remoteURL string) (Source, error) 
 }
 
 func (s *Repository) addWithTracking(ctx context.Context, remoteURL string, trackingConfig repository.TrackingConfig) (Source, error) {
-	existing, err := s.repoStore.ExistsByRemoteURL(ctx, remoteURL)
+	existing, err := s.repoStore.Exists(ctx, repository.WithRemoteURL(remoteURL))
 	if err != nil {
 		return Source{}, fmt.Errorf("check existing: %w", err)
 	}
@@ -290,7 +251,7 @@ func (s *Repository) enqueueNewRepository(ctx context.Context, repo repository.R
 }
 
 func (s *Repository) requestSync(ctx context.Context, repoID int64) error {
-	repo, err := s.repoStore.Get(ctx, repoID)
+	repo, err := s.repoStore.FindOne(ctx, repository.WithID(repoID))
 	if err != nil {
 		return fmt.Errorf("get repository: %w", err)
 	}
@@ -314,7 +275,7 @@ func (s *Repository) requestSync(ctx context.Context, repoID int64) error {
 }
 
 func (s *Repository) requestDelete(ctx context.Context, repoID int64) error {
-	_, err := s.repoStore.Get(ctx, repoID)
+	_, err := s.repoStore.FindOne(ctx, repository.WithID(repoID))
 	if err != nil {
 		return fmt.Errorf("get repository: %w", err)
 	}
@@ -334,7 +295,7 @@ func (s *Repository) requestDelete(ctx context.Context, repoID int64) error {
 }
 
 func (s *Repository) updateTrackingConfig(ctx context.Context, repoID int64, trackingConfig repository.TrackingConfig) (Source, error) {
-	repo, err := s.repoStore.Get(ctx, repoID)
+	repo, err := s.repoStore.FindOne(ctx, repository.WithID(repoID))
 	if err != nil {
 		return Source{}, fmt.Errorf("get repository: %w", err)
 	}
@@ -355,7 +316,7 @@ func (s *Repository) updateTrackingConfig(ctx context.Context, repoID int64, tra
 }
 
 func (s *Repository) requestRescan(ctx context.Context, repoID int64, commitSHA string) error {
-	repo, err := s.repoStore.Get(ctx, repoID)
+	repo, err := s.repoStore.FindOne(ctx, repository.WithID(repoID))
 	if err != nil {
 		return fmt.Errorf("get repository: %w", err)
 	}

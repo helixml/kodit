@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+
+	"github.com/helixml/kodit/domain/repository"
 )
 
 // Cloner handles repository cloning and updating operations.
@@ -68,7 +70,7 @@ func (c Cloner) CloneToPath(ctx context.Context, remoteURI string, clonePath str
 }
 
 // Update updates a repository based on its tracking configuration.
-func (c Cloner) Update(ctx context.Context, repo Repo) error {
+func (c Cloner) Update(ctx context.Context, repo repository.Repository) error {
 	if !repo.HasWorkingCopy() {
 		return fmt.Errorf("repository %d has never been cloned", repo.ID())
 	}

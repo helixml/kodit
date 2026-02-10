@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/internal/domain"
 	"github.com/helixml/kodit/internal/git"
 	"github.com/helixml/kodit/internal/queue"
@@ -14,8 +15,8 @@ import (
 // It fetches the latest changes from the remote repository and optionally
 // queues commit scanning tasks.
 type SyncRepository struct {
-	repoRepo       git.RepoRepository
-	branchRepo     git.BranchRepository
+	repoRepo       repository.RepositoryStore
+	branchRepo     repository.BranchStore
 	cloner         git.Cloner
 	scanner        git.Scanner
 	queueService   *queue.Service
@@ -25,8 +26,8 @@ type SyncRepository struct {
 
 // NewSyncRepository creates a new SyncRepository handler.
 func NewSyncRepository(
-	repoRepo git.RepoRepository,
-	branchRepo git.BranchRepository,
+	repoRepo repository.RepositoryStore,
+	branchRepo repository.BranchStore,
 	cloner git.Cloner,
 	scanner git.Scanner,
 	queueService *queue.Service,
@@ -57,7 +58,7 @@ func (h *SyncRepository) Execute(ctx context.Context, payload map[string]any) er
 		repoID,
 	)
 
-	repo, err := h.repoRepo.Get(ctx, repoID)
+	repo, err := h.repoRepo.FindOne(ctx, repository.WithID(repoID))
 	if err != nil {
 		if failErr := tracker.Fail(ctx, err.Error()); failErr != nil {
 			h.logger.Warn("failed to mark tracker as failed", slog.String("error", failErr.Error()))
@@ -121,7 +122,7 @@ func (h *SyncRepository) Execute(ctx context.Context, payload map[string]any) er
 	return nil
 }
 
-func (h *SyncRepository) enqueueCommitScans(ctx context.Context, repo git.Repo, branches []git.Branch) error {
+func (h *SyncRepository) enqueueCommitScans(ctx context.Context, repo repository.Repository, branches []repository.Branch) error {
 	var commitSHA string
 
 	if repo.HasTrackingConfig() {

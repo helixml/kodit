@@ -4,8 +4,8 @@ import (
 	"database/sql"
 	"time"
 
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/internal/domain"
-	"github.com/helixml/kodit/internal/git"
 	"github.com/helixml/kodit/internal/indexing"
 )
 
@@ -95,10 +95,10 @@ func (SnippetMapper) ToDomainWithRelations(
 	derivations []FileDerivationWithFile,
 	enrichments []EnrichmentWithData,
 ) indexing.Snippet {
-	// Convert file derivations to git.File
-	files := make([]git.File, len(derivations))
+	// Convert file derivations to repository.File
+	files := make([]repository.File, len(derivations))
 	for i, d := range derivations {
-		files[i] = git.ReconstructFile(
+		files[i] = repository.ReconstructFile(
 			d.FileID,
 			d.CommitSHA,
 			d.Path,

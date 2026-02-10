@@ -72,7 +72,7 @@ func (h *Rescan) Execute(ctx context.Context, payload map[string]any) error {
 		h.logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
 	}
 
-	if err := h.associationStore.DeleteByEntityID(ctx, commitSHA); err != nil {
+	if err := h.associationStore.DeleteBy(ctx, enrichment.WithEntityID(commitSHA)); err != nil {
 		if failErr := tracker.Fail(ctx, err.Error()); failErr != nil {
 			h.logger.Warn("failed to mark tracker as failed", slog.String("error", failErr.Error()))
 		}

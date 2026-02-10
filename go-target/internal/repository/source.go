@@ -4,7 +4,7 @@ package repository
 import (
 	"time"
 
-	"github.com/helixml/kodit/internal/git"
+	"github.com/helixml/kodit/domain/repository"
 )
 
 // SourceStatus represents the current state of a repository source.
@@ -33,13 +33,13 @@ func (s SourceStatus) IsTerminal() bool {
 // Source represents a repository being managed by the system.
 // It wraps a GitRepo and provides lifecycle management operations.
 type Source struct {
-	repo      git.Repo
+	repo      repository.Repository
 	status    SourceStatus
 	lastError string
 }
 
 // NewSource creates a new Source from a GitRepo.
-func NewSource(repo git.Repo) Source {
+func NewSource(repo repository.Repository) Source {
 	status := StatusPending
 	if repo.HasWorkingCopy() {
 		status = StatusCloned
@@ -51,7 +51,7 @@ func NewSource(repo git.Repo) Source {
 }
 
 // ReconstructSource reconstructs a Source from persistence.
-func ReconstructSource(repo git.Repo, status SourceStatus, lastError string) Source {
+func ReconstructSource(repo repository.Repository, status SourceStatus, lastError string) Source {
 	return Source{
 		repo:      repo,
 		status:    status,
@@ -70,17 +70,17 @@ func (s Source) RemoteURL() string {
 }
 
 // WorkingCopy returns the local working copy, if available.
-func (s Source) WorkingCopy() git.WorkingCopy {
+func (s Source) WorkingCopy() repository.WorkingCopy {
 	return s.repo.WorkingCopy()
 }
 
 // TrackingConfig returns the tracking configuration.
-func (s Source) TrackingConfig() git.TrackingConfig {
+func (s Source) TrackingConfig() repository.TrackingConfig {
 	return s.repo.TrackingConfig()
 }
 
 // Repo returns the underlying GitRepo.
-func (s Source) Repo() git.Repo {
+func (s Source) Repo() repository.Repository {
 	return s.repo
 }
 
@@ -133,7 +133,7 @@ func (s Source) WithError(err error) Source {
 }
 
 // WithWorkingCopy returns a new Source with an updated working copy.
-func (s Source) WithWorkingCopy(wc git.WorkingCopy) Source {
+func (s Source) WithWorkingCopy(wc repository.WorkingCopy) Source {
 	s.repo = s.repo.WithWorkingCopy(wc)
 	s.status = StatusCloned
 	s.lastError = ""
@@ -141,13 +141,13 @@ func (s Source) WithWorkingCopy(wc git.WorkingCopy) Source {
 }
 
 // WithTrackingConfig returns a new Source with an updated tracking config.
-func (s Source) WithTrackingConfig(tc git.TrackingConfig) Source {
+func (s Source) WithTrackingConfig(tc repository.TrackingConfig) Source {
 	s.repo = s.repo.WithTrackingConfig(tc)
 	return s
 }
 
 // WithRepo returns a new Source with an updated GitRepo.
-func (s Source) WithRepo(repo git.Repo) Source {
+func (s Source) WithRepo(repo repository.Repository) Source {
 	s.repo = repo
 	return s
 }

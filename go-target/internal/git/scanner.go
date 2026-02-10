@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"path/filepath"
 	"time"
+
+	"github.com/helixml/kodit/domain/repository"
 )
 
 // Scanner extracts data from Git repositories without mutation.
@@ -24,15 +26,15 @@ func NewScanner(adapter Adapter, logger *slog.Logger) Scanner {
 
 // ScanCommitResult holds the result of scanning a single commit.
 type ScanCommitResult struct {
-	commit Commit
-	files  []File
+	commit repository.Commit
+	files  []repository.File
 }
 
 // Commit returns the scanned commit.
-func (r ScanCommitResult) Commit() Commit { return r.commit }
+func (r ScanCommitResult) Commit() repository.Commit { return r.commit }
 
 // Files returns the scanned files.
-func (r ScanCommitResult) Files() []File { return r.files }
+func (r ScanCommitResult) Files() []repository.File { return r.files }
 
 // ScanCommit scans a specific commit and returns commit with its files.
 func (s Scanner) ScanCommit(ctx context.Context, clonedPath string, commitSHA string, repoID int64) (ScanCommitResult, error) {
@@ -64,7 +66,7 @@ func (s Scanner) ScanCommit(ctx context.Context, clonedPath string, commitSHA st
 }
 
 // ScanBranch scans all commits on a branch.
-func (s Scanner) ScanBranch(ctx context.Context, clonedPath string, branchName string, repoID int64) ([]Commit, error) {
+func (s Scanner) ScanBranch(ctx context.Context, clonedPath string, branchName string, repoID int64) ([]repository.Commit, error) {
 	s.logger.Info("scanning branch",
 		slog.String("branch", branchName),
 		slog.String("path", clonedPath),
@@ -75,7 +77,7 @@ func (s Scanner) ScanBranch(ctx context.Context, clonedPath string, branchName s
 		return nil, fmt.Errorf("get branch commits: %w", err)
 	}
 
-	commits := make([]Commit, 0, len(commitInfos))
+	commits := make([]repository.Commit, 0, len(commitInfos))
 	for _, info := range commitInfos {
 		commits = append(commits, s.commitFromInfo(info, repoID))
 	}
@@ -89,7 +91,7 @@ func (s Scanner) ScanBranch(ctx context.Context, clonedPath string, branchName s
 }
 
 // ScanAllBranches scans metadata for all branches.
-func (s Scanner) ScanAllBranches(ctx context.Context, clonedPath string, repoID int64) ([]Branch, error) {
+func (s Scanner) ScanAllBranches(ctx context.Context, clonedPath string, repoID int64) ([]repository.Branch, error) {
 	s.logger.Info("scanning all branches",
 		slog.String("path", clonedPath),
 	)
@@ -99,7 +101,7 @@ func (s Scanner) ScanAllBranches(ctx context.Context, clonedPath string, repoID 
 		return nil, fmt.Errorf("get all branches: %w", err)
 	}
 
-	branches := make([]Branch, 0, len(branchInfos))
+	branches := make([]repository.Branch, 0, len(branchInfos))
 	for _, info := range branchInfos {
 		branches = append(branches, s.branchFromInfo(info, repoID))
 	}
@@ -112,7 +114,7 @@ func (s Scanner) ScanAllBranches(ctx context.Context, clonedPath string, repoID 
 }
 
 // ScanAllTags scans metadata for all tags.
-func (s Scanner) ScanAllTags(ctx context.Context, clonedPath string, repoID int64) ([]Tag, error) {
+func (s Scanner) ScanAllTags(ctx context.Context, clonedPath string, repoID int64) ([]repository.Tag, error) {
 	s.logger.Info("scanning all tags",
 		slog.String("path", clonedPath),
 	)
@@ -122,7 +124,7 @@ func (s Scanner) ScanAllTags(ctx context.Context, clonedPath string, repoID int6
 		return nil, fmt.Errorf("get all tags: %w", err)
 	}
 
-	tags := make([]Tag, 0, len(tagInfos))
+	tags := make([]repository.Tag, 0, len(tagInfos))
 	for _, info := range tagInfos {
 		tags = append(tags, s.tagFromInfo(info, repoID))
 	}
@@ -136,13 +138,13 @@ func (s Scanner) ScanAllTags(ctx context.Context, clonedPath string, repoID int6
 
 // FilesForCommitsBatch processes files for a batch of commits.
 // Reuses adapter resources efficiently for large batches.
-func (s Scanner) FilesForCommitsBatch(ctx context.Context, clonedPath string, commitSHAs []string) ([]File, error) {
+func (s Scanner) FilesForCommitsBatch(ctx context.Context, clonedPath string, commitSHAs []string) ([]repository.File, error) {
 	s.logger.Info("processing files for commit batch",
 		slog.String("path", clonedPath),
 		slog.Int("commits", len(commitSHAs)),
 	)
 
-	var files []File
+	var files []repository.File
 	for _, sha := range commitSHAs {
 		filesInfo, err := s.adapter.CommitFiles(ctx, clonedPath, sha)
 		if err != nil {
@@ -159,11 +161,11 @@ func (s Scanner) FilesForCommitsBatch(ctx context.Context, clonedPath string, co
 	return files, nil
 }
 
-func (s Scanner) commitFromInfo(info CommitInfo, repoID int64) Commit {
-	author := NewAuthor(info.AuthorName, info.AuthorEmail)
-	committer := NewAuthor(info.CommitterName, info.CommitterEmail)
+func (s Scanner) commitFromInfo(info CommitInfo, repoID int64) repository.Commit {
+	author := repository.NewAuthor(info.AuthorName, info.AuthorEmail)
+	committer := repository.NewAuthor(info.CommitterName, info.CommitterEmail)
 
-	return NewCommit(
+	return repository.NewCommit(
 		info.SHA,
 		repoID,
 		info.Message,
@@ -174,21 +176,21 @@ func (s Scanner) commitFromInfo(info CommitInfo, repoID int64) Commit {
 	)
 }
 
-func (s Scanner) branchFromInfo(info BranchInfo, repoID int64) Branch {
-	return NewBranch(repoID, info.Name, info.HeadSHA, info.IsDefault)
+func (s Scanner) branchFromInfo(info BranchInfo, repoID int64) repository.Branch {
+	return repository.NewBranch(repoID, info.Name, info.HeadSHA, info.IsDefault)
 }
 
-func (s Scanner) tagFromInfo(info TagInfo, repoID int64) Tag {
+func (s Scanner) tagFromInfo(info TagInfo, repoID int64) repository.Tag {
 	if info.Message != "" || info.TaggerName != "" {
-		tagger := NewAuthor(info.TaggerName, info.TaggerEmail)
-		return NewAnnotatedTag(repoID, info.Name, info.TargetCommitSHA, info.Message, tagger, info.TaggedAt)
+		tagger := repository.NewAuthor(info.TaggerName, info.TaggerEmail)
+		return repository.NewAnnotatedTag(repoID, info.Name, info.TargetCommitSHA, info.Message, tagger, info.TaggedAt)
 	}
-	return NewTag(repoID, info.Name, info.TargetCommitSHA)
+	return repository.NewTag(repoID, info.Name, info.TargetCommitSHA)
 }
 
-func (s Scanner) filesFromInfo(clonedPath string, infos []FileInfo, commitSHA string) []File {
+func (s Scanner) filesFromInfo(clonedPath string, infos []FileInfo, commitSHA string) []repository.File {
 	now := time.Now()
-	files := make([]File, 0, len(infos))
+	files := make([]repository.File, 0, len(infos))
 
 	for _, info := range infos {
 		fullPath := filepath.Join(clonedPath, info.Path)
@@ -196,7 +198,7 @@ func (s Scanner) filesFromInfo(clonedPath string, infos []FileInfo, commitSHA st
 		extension := extensionFromPath(info.Path)
 		mimeType := mimeTypeFromExtension(extension)
 
-		file := ReconstructFile(
+		file := repository.ReconstructFile(
 			0, // ID assigned on save
 			commitSHA,
 			fullPath,

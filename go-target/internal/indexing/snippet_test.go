@@ -6,16 +6,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/internal/domain"
-	"github.com/helixml/kodit/internal/git"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestNewSnippet(t *testing.T) {
 	content := "func main() { fmt.Println(\"Hello\") }"
 	extension := "go"
-	file := git.NewFile("abc123", "main.go", "go", 100)
-	derivesFrom := []git.File{file}
+	file := repository.NewFile("abc123", "main.go", "go", 100)
+	derivesFrom := []repository.File{file}
 
 	snippet := NewSnippet(content, extension, derivesFrom)
 
@@ -61,12 +61,12 @@ func TestReconstructSnippet(t *testing.T) {
 	extension := "go"
 	createdAt := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	updatedAt := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
-	file := git.NewFile("commit1", "test.go", "go", 50)
+	file := repository.NewFile("commit1", "test.go", "go", 50)
 	enrichment := domain.NewEnrichment("summary", "This is a test function")
 
 	snippet := ReconstructSnippet(
 		sha, content, extension,
-		[]git.File{file},
+		[]repository.File{file},
 		[]domain.Enrichment{enrichment},
 		createdAt, updatedAt,
 	)
@@ -105,13 +105,13 @@ func TestSnippetWithEnrichments(t *testing.T) {
 }
 
 func TestSnippetDerivesFromIsCopied(t *testing.T) {
-	file := git.NewFile("abc123", "main.go", "go", 100)
-	derivesFrom := []git.File{file}
+	file := repository.NewFile("abc123", "main.go", "go", 100)
+	derivesFrom := []repository.File{file}
 
 	snippet := NewSnippet("func main() {}", "go", derivesFrom)
 
 	// Modifying the original slice should not affect the snippet
-	derivesFrom[0] = git.NewFile("xyz789", "other.go", "go", 200)
+	derivesFrom[0] = repository.NewFile("xyz789", "other.go", "go", 200)
 
 	// Snippet should still have the original file
 	assert.Equal(t, "main.go", snippet.DerivesFrom()[0].Path())

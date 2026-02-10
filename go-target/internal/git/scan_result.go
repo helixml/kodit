@@ -1,15 +1,17 @@
 package git
 
+import "github.com/helixml/kodit/domain/repository"
+
 // ScanResult contains the results of scanning a Git repository.
 type ScanResult struct {
-	branches []Branch
-	commits  []Commit
-	files    []File
-	tags     []Tag
+	branches []repository.Branch
+	commits  []repository.Commit
+	files    []repository.File
+	tags     []repository.Tag
 }
 
 // NewScanResult creates a new ScanResult.
-func NewScanResult(branches []Branch, commits []Commit, files []File, tags []Tag) ScanResult {
+func NewScanResult(branches []repository.Branch, commits []repository.Commit, files []repository.File, tags []repository.Tag) ScanResult {
 	return ScanResult{
 		branches: copyBranches(branches),
 		commits:  copyCommits(commits),
@@ -19,22 +21,22 @@ func NewScanResult(branches []Branch, commits []Commit, files []File, tags []Tag
 }
 
 // Branches returns the discovered branches.
-func (s ScanResult) Branches() []Branch {
+func (s ScanResult) Branches() []repository.Branch {
 	return copyBranches(s.branches)
 }
 
 // Commits returns the discovered commits.
-func (s ScanResult) Commits() []Commit {
+func (s ScanResult) Commits() []repository.Commit {
 	return copyCommits(s.commits)
 }
 
 // Files returns the discovered files.
-func (s ScanResult) Files() []File {
+func (s ScanResult) Files() []repository.File {
 	return copyFiles(s.files)
 }
 
 // Tags returns the discovered tags.
-func (s ScanResult) Tags() []Tag {
+func (s ScanResult) Tags() []repository.Tag {
 	return copyTags(s.tags)
 }
 
@@ -46,38 +48,38 @@ func (s ScanResult) IsEmpty() bool {
 		len(s.tags) == 0
 }
 
-func copyBranches(branches []Branch) []Branch {
+func copyBranches(branches []repository.Branch) []repository.Branch {
 	if branches == nil {
 		return nil
 	}
-	result := make([]Branch, len(branches))
+	result := make([]repository.Branch, len(branches))
 	copy(result, branches)
 	return result
 }
 
-func copyCommits(commits []Commit) []Commit {
+func copyCommits(commits []repository.Commit) []repository.Commit {
 	if commits == nil {
 		return nil
 	}
-	result := make([]Commit, len(commits))
+	result := make([]repository.Commit, len(commits))
 	copy(result, commits)
 	return result
 }
 
-func copyFiles(files []File) []File {
+func copyFiles(files []repository.File) []repository.File {
 	if files == nil {
 		return nil
 	}
-	result := make([]File, len(files))
+	result := make([]repository.File, len(files))
 	copy(result, files)
 	return result
 }
 
-func copyTags(tags []Tag) []Tag {
+func copyTags(tags []repository.Tag) []repository.Tag {
 	if tags == nil {
 		return nil
 	}
-	result := make([]Tag, len(tags))
+	result := make([]repository.Tag, len(tags))
 	copy(result, tags)
 	return result
 }

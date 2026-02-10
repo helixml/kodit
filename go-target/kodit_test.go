@@ -67,7 +67,7 @@ func TestClient_Repositories_List_Empty(t *testing.T) {
 	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
-	repos, err := client.Repositories.List(ctx, nil)
+	repos, err := client.Repositories.Find(ctx)
 	require.NoError(t, err)
 	assert.Empty(t, repos)
 }

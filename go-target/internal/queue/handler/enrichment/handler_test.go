@@ -8,7 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/helixml/kodit/internal/database"
+	domainenrichment "github.com/helixml/kodit/domain/enrichment"
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/internal/domain"
 	"github.com/helixml/kodit/internal/enrichment"
 	"github.com/helixml/kodit/internal/git"
@@ -48,26 +49,49 @@ func (f *fakeEnricher) Enrich(_ context.Context, requests []enrichment.Request) 
 }
 
 type fakeEnrichmentRepo struct {
-	enrichments map[int64]enrichment.Enrichment
+	enrichments map[int64]domainenrichment.Enrichment
 	nextID      int64
 }
 
 func newFakeEnrichmentRepo() *fakeEnrichmentRepo {
 	return &fakeEnrichmentRepo{
-		enrichments: make(map[int64]enrichment.Enrichment),
+		enrichments: make(map[int64]domainenrichment.Enrichment),
 		nextID:      1,
 	}
 }
 
-func (f *fakeEnrichmentRepo) Get(_ context.Context, id int64) (enrichment.Enrichment, error) {
-	e, ok := f.enrichments[id]
-	if !ok {
-		return enrichment.Enrichment{}, errors.New("not found")
+func (f *fakeEnrichmentRepo) Find(_ context.Context, options ...repository.Option) ([]domainenrichment.Enrichment, error) {
+	q := repository.Build(options...)
+	var result []domainenrichment.Enrichment
+	for _, e := range f.enrichments {
+		if matchesEnrichment(e, q) {
+			result = append(result, e)
+		}
 	}
-	return e, nil
+	return result, nil
 }
 
-func (f *fakeEnrichmentRepo) Save(_ context.Context, e enrichment.Enrichment) (enrichment.Enrichment, error) {
+func (f *fakeEnrichmentRepo) FindOne(_ context.Context, options ...repository.Option) (domainenrichment.Enrichment, error) {
+	q := repository.Build(options...)
+	for _, e := range f.enrichments {
+		if matchesEnrichment(e, q) {
+			return e, nil
+		}
+	}
+	return domainenrichment.Enrichment{}, errors.New("not found")
+}
+
+func (f *fakeEnrichmentRepo) DeleteBy(_ context.Context, options ...repository.Option) error {
+	q := repository.Build(options...)
+	for id, e := range f.enrichments {
+		if matchesEnrichment(e, q) {
+			delete(f.enrichments, id)
+		}
+	}
+	return nil
+}
+
+func (f *fakeEnrichmentRepo) Save(_ context.Context, e domainenrichment.Enrichment) (domainenrichment.Enrichment, error) {
 	id := f.nextID
 	f.nextID++
 	saved := e.WithID(id)
@@ -75,33 +99,13 @@ func (f *fakeEnrichmentRepo) Save(_ context.Context, e enrichment.Enrichment) (e
 	return saved, nil
 }
 
-func (f *fakeEnrichmentRepo) Delete(_ context.Context, e enrichment.Enrichment) error {
+func (f *fakeEnrichmentRepo) Delete(_ context.Context, e domainenrichment.Enrichment) error {
 	delete(f.enrichments, e.ID())
 	return nil
 }
 
-func (f *fakeEnrichmentRepo) FindByType(_ context.Context, t enrichment.Type) ([]enrichment.Enrichment, error) {
-	var result []enrichment.Enrichment
-	for _, e := range f.enrichments {
-		if e.Type() == t {
-			result = append(result, e)
-		}
-	}
-	return result, nil
-}
-
-func (f *fakeEnrichmentRepo) FindByTypeAndSubtype(_ context.Context, t enrichment.Type, s enrichment.Subtype) ([]enrichment.Enrichment, error) {
-	var result []enrichment.Enrichment
-	for _, e := range f.enrichments {
-		if e.Type() == t && e.Subtype() == s {
-			result = append(result, e)
-		}
-	}
-	return result, nil
-}
-
-func (f *fakeEnrichmentRepo) FindByEntityKey(_ context.Context, key enrichment.EntityTypeKey) ([]enrichment.Enrichment, error) {
-	var result []enrichment.Enrichment
+func (f *fakeEnrichmentRepo) FindByEntityKey(_ context.Context, key domainenrichment.EntityTypeKey) ([]domainenrichment.Enrichment, error) {
+	var result []domainenrichment.Enrichment
 	for _, e := range f.enrichments {
 		if e.EntityTypeKey() == key {
 			result = append(result, e)
@@ -110,27 +114,70 @@ func (f *fakeEnrichmentRepo) FindByEntityKey(_ context.Context, key enrichment.E
 	return result, nil
 }
 
+func matchesEnrichment(e domainenrichment.Enrichment, q repository.Query) bool {
+	for _, c := range q.Conditions() {
+		switch c.Field() {
+		case "id":
+			if id, ok := c.Value().(int64); ok && e.ID() != id {
+				return false
+			}
+		case "type":
+			if t, ok := c.Value().(string); ok && string(e.Type()) != t {
+				return false
+			}
+		case "subtype":
+			if s, ok := c.Value().(string); ok && string(e.Subtype()) != s {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 type fakeAssociationRepo struct {
-	associations map[int64]enrichment.Association
+	associations map[int64]domainenrichment.Association
 	nextID       int64
 }
 
 func newFakeAssociationRepo() *fakeAssociationRepo {
 	return &fakeAssociationRepo{
-		associations: make(map[int64]enrichment.Association),
+		associations: make(map[int64]domainenrichment.Association),
 		nextID:       1,
 	}
 }
 
-func (f *fakeAssociationRepo) Get(_ context.Context, id int64) (enrichment.Association, error) {
-	a, ok := f.associations[id]
-	if !ok {
-		return enrichment.Association{}, errors.New("not found")
+func (f *fakeAssociationRepo) Find(_ context.Context, options ...repository.Option) ([]domainenrichment.Association, error) {
+	q := repository.Build(options...)
+	var result []domainenrichment.Association
+	for _, a := range f.associations {
+		if matchesAssociation(a, q) {
+			result = append(result, a)
+		}
 	}
-	return a, nil
+	return result, nil
 }
 
-func (f *fakeAssociationRepo) Save(_ context.Context, a enrichment.Association) (enrichment.Association, error) {
+func (f *fakeAssociationRepo) FindOne(_ context.Context, options ...repository.Option) (domainenrichment.Association, error) {
+	q := repository.Build(options...)
+	for _, a := range f.associations {
+		if matchesAssociation(a, q) {
+			return a, nil
+		}
+	}
+	return domainenrichment.Association{}, errors.New("not found")
+}
+
+func (f *fakeAssociationRepo) DeleteBy(_ context.Context, options ...repository.Option) error {
+	q := repository.Build(options...)
+	for id, a := range f.associations {
+		if matchesAssociation(a, q) {
+			delete(f.associations, id)
+		}
+	}
+	return nil
+}
+
+func (f *fakeAssociationRepo) Save(_ context.Context, a domainenrichment.Association) (domainenrichment.Association, error) {
 	id := f.nextID
 	f.nextID++
 	saved := a.WithID(id)
@@ -138,57 +185,33 @@ func (f *fakeAssociationRepo) Save(_ context.Context, a enrichment.Association) 
 	return saved, nil
 }
 
-func (f *fakeAssociationRepo) Delete(_ context.Context, a enrichment.Association) error {
+func (f *fakeAssociationRepo) Delete(_ context.Context, a domainenrichment.Association) error {
 	delete(f.associations, a.ID())
 	return nil
 }
 
-func (f *fakeAssociationRepo) FindByEnrichmentID(_ context.Context, enrichmentID int64) ([]enrichment.Association, error) {
-	var result []enrichment.Association
-	for _, a := range f.associations {
-		if a.EnrichmentID() == enrichmentID {
-			result = append(result, a)
+func matchesAssociation(a domainenrichment.Association, q repository.Query) bool {
+	for _, c := range q.Conditions() {
+		switch c.Field() {
+		case "id":
+			if id, ok := c.Value().(int64); ok && a.ID() != id {
+				return false
+			}
+		case "enrichment_id":
+			if id, ok := c.Value().(int64); ok && a.EnrichmentID() != id {
+				return false
+			}
+		case "entity_id":
+			if eid, ok := c.Value().(string); ok && a.EntityID() != eid {
+				return false
+			}
+		case "entity_type":
+			if et, ok := c.Value().(string); ok && string(a.EntityType()) != et {
+				return false
+			}
 		}
 	}
-	return result, nil
-}
-
-func (f *fakeAssociationRepo) FindByEntityID(_ context.Context, entityID string) ([]enrichment.Association, error) {
-	var result []enrichment.Association
-	for _, a := range f.associations {
-		if a.EntityID() == entityID {
-			result = append(result, a)
-		}
-	}
-	return result, nil
-}
-
-func (f *fakeAssociationRepo) FindByEntityTypeAndID(_ context.Context, entityType enrichment.EntityTypeKey, entityID string) ([]enrichment.Association, error) {
-	var result []enrichment.Association
-	for _, a := range f.associations {
-		if a.EntityType() == entityType && a.EntityID() == entityID {
-			result = append(result, a)
-		}
-	}
-	return result, nil
-}
-
-func (f *fakeAssociationRepo) DeleteByEnrichmentID(_ context.Context, enrichmentID int64) error {
-	for id, a := range f.associations {
-		if a.EnrichmentID() == enrichmentID {
-			delete(f.associations, id)
-		}
-	}
-	return nil
-}
-
-func (f *fakeAssociationRepo) DeleteByEntityID(_ context.Context, entityID string) error {
-	for id, a := range f.associations {
-		if a.EntityID() == entityID {
-			delete(f.associations, id)
-		}
-	}
-	return nil
+	return true
 }
 
 type fakeSnippetRepo struct {
@@ -323,45 +346,64 @@ func (f *fakeGitAdapter) CommitDiff(_ context.Context, _, _ string) (string, err
 }
 
 type fakeRepoRepo struct {
-	repos map[int64]git.Repo
+	repos map[int64]repository.Repository
 }
 
 func newFakeRepoRepo() *fakeRepoRepo {
 	return &fakeRepoRepo{
-		repos: make(map[int64]git.Repo),
+		repos: make(map[int64]repository.Repository),
 	}
 }
 
-func (f *fakeRepoRepo) Get(_ context.Context, id int64) (git.Repo, error) {
-	r, ok := f.repos[id]
-	if !ok {
-		return git.Repo{}, errors.New("not found")
+func (f *fakeRepoRepo) Find(_ context.Context, options ...repository.Option) ([]repository.Repository, error) {
+	q := repository.Build(options...)
+	var result []repository.Repository
+	for _, r := range f.repos {
+		if matchesRepo(r, q) {
+			result = append(result, r)
+		}
 	}
+	return result, nil
+}
+
+func (f *fakeRepoRepo) FindOne(_ context.Context, options ...repository.Option) (repository.Repository, error) {
+	q := repository.Build(options...)
+	for _, r := range f.repos {
+		if matchesRepo(r, q) {
+			return r, nil
+		}
+	}
+	return repository.Repository{}, errors.New("not found")
+}
+
+func (f *fakeRepoRepo) Exists(_ context.Context, options ...repository.Option) (bool, error) {
+	q := repository.Build(options...)
+	for _, r := range f.repos {
+		if matchesRepo(r, q) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (f *fakeRepoRepo) Save(_ context.Context, r repository.Repository) (repository.Repository, error) {
 	return r, nil
 }
 
-func (f *fakeRepoRepo) Find(_ context.Context, _ database.Query) ([]git.Repo, error) {
-	return nil, nil
-}
-
-func (f *fakeRepoRepo) FindAll(_ context.Context) ([]git.Repo, error) {
-	return nil, nil
-}
-
-func (f *fakeRepoRepo) Save(_ context.Context, r git.Repo) (git.Repo, error) {
-	return r, nil
-}
-
-func (f *fakeRepoRepo) Delete(_ context.Context, _ git.Repo) error {
+func (f *fakeRepoRepo) Delete(_ context.Context, _ repository.Repository) error {
 	return nil
 }
 
-func (f *fakeRepoRepo) GetByRemoteURL(_ context.Context, _ string) (git.Repo, error) {
-	return git.Repo{}, nil
-}
-
-func (f *fakeRepoRepo) ExistsByRemoteURL(_ context.Context, _ string) (bool, error) {
-	return false, nil
+func matchesRepo(r repository.Repository, q repository.Query) bool {
+	for _, c := range q.Conditions() {
+		switch c.Field() {
+		case "id":
+			if id, ok := c.Value().(int64); ok && r.ID() != id {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func TestCommitDescriptionHandler(t *testing.T) {
@@ -375,10 +417,10 @@ func TestCommitDescriptionHandler(t *testing.T) {
 	adapter := &fakeGitAdapter{diff: "diff --git a/file.go"}
 	enricher := &fakeEnricher{}
 
-	testRepo := git.ReconstructRepo(
+	testRepo := repository.ReconstructRepository(
 		1, "https://github.com/test/repo",
-		git.NewWorkingCopy("/tmp/repo", "https://github.com/test/repo"),
-		git.NewTrackingConfig("main", "", ""),
+		repository.NewWorkingCopy("/tmp/repo", "https://github.com/test/repo"),
+		repository.NewTrackingConfig("main", "", ""),
 		time.Now(), time.Now(),
 	)
 	repoRepo.repos[1] = testRepo
@@ -407,8 +449,8 @@ func TestCommitDescriptionHandler(t *testing.T) {
 		assert.Len(t, associationRepo.associations, 1)
 
 		for _, e := range enrichmentRepo.enrichments {
-			assert.Equal(t, enrichment.TypeHistory, e.Type())
-			assert.Equal(t, enrichment.SubtypeCommitDescription, e.Subtype())
+			assert.Equal(t, domainenrichment.TypeHistory, e.Type())
+			assert.Equal(t, domainenrichment.SubtypeCommitDescription, e.Subtype())
 		}
 	})
 
@@ -465,8 +507,8 @@ func TestCreateSummaryHandler(t *testing.T) {
 		assert.Len(t, enrichmentRepo.enrichments, 2)
 
 		for _, e := range enrichmentRepo.enrichments {
-			assert.Equal(t, enrichment.TypeDevelopment, e.Type())
-			assert.Equal(t, enrichment.SubtypeSnippetSummary, e.Subtype())
+			assert.Equal(t, domainenrichment.TypeDevelopment, e.Type())
+			assert.Equal(t, domainenrichment.SubtypeSnippetSummary, e.Subtype())
 		}
 	})
 

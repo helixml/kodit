@@ -5,9 +5,9 @@ import (
 	"log/slog"
 	"testing"
 
+	repositorydomain "github.com/helixml/kodit/domain/repository"
+	"github.com/helixml/kodit/infrastructure/persistence"
 	"github.com/helixml/kodit/internal/domain"
-	"github.com/helixml/kodit/internal/git"
-	gitpostgres "github.com/helixml/kodit/internal/git/postgres"
 	"github.com/helixml/kodit/internal/queue"
 	queuepostgres "github.com/helixml/kodit/internal/queue/postgres"
 	"github.com/helixml/kodit/internal/repository"
@@ -24,7 +24,7 @@ func TestSyncService_AddRepository_Integration(t *testing.T) {
 	db := testutil.TestDatabaseWithSchema(t, testutil.TestSchema)
 	logger := slog.Default()
 
-	repoRepo := gitpostgres.NewRepoRepository(db)
+	repoRepo := persistence.NewRepositoryStore(db)
 	taskRepo := queuepostgres.NewTaskRepository(db)
 	queueService := queue.NewService(taskRepo, logger)
 	syncService := repository.NewSyncService(repoRepo, queueService, logger)
@@ -49,7 +49,7 @@ func TestSyncService_AddRepository_DuplicateFails_Integration(t *testing.T) {
 	db := testutil.TestDatabaseWithSchema(t, testutil.TestSchema)
 	logger := slog.Default()
 
-	repoRepo := gitpostgres.NewRepoRepository(db)
+	repoRepo := persistence.NewRepositoryStore(db)
 	taskRepo := queuepostgres.NewTaskRepository(db)
 	queueService := queue.NewService(taskRepo, logger)
 	syncService := repository.NewSyncService(repoRepo, queueService, logger)
@@ -69,13 +69,13 @@ func TestSyncService_AddRepositoryWithTracking_Integration(t *testing.T) {
 	db := testutil.TestDatabaseWithSchema(t, testutil.TestSchema)
 	logger := slog.Default()
 
-	repoRepo := gitpostgres.NewRepoRepository(db)
+	repoRepo := persistence.NewRepositoryStore(db)
 	taskRepo := queuepostgres.NewTaskRepository(db)
 	queueService := queue.NewService(taskRepo, logger)
 	syncService := repository.NewSyncService(repoRepo, queueService, logger)
 
 	// Add repository with branch tracking
-	trackingConfig := git.NewTrackingConfigForBranch("main")
+	trackingConfig := repositorydomain.NewTrackingConfigForBranch("main")
 	source, err := syncService.AddRepositoryWithTracking(ctx, "https://github.com/example/tracked-repo.git", trackingConfig)
 	require.NoError(t, err)
 
@@ -88,15 +88,15 @@ func TestSyncService_RequestSync_Integration(t *testing.T) {
 	db := testutil.TestDatabaseWithSchema(t, testutil.TestSchema)
 	logger := slog.Default()
 
-	repoRepo := gitpostgres.NewRepoRepository(db)
+	repoRepo := persistence.NewRepositoryStore(db)
 	taskRepo := queuepostgres.NewTaskRepository(db)
 	queueService := queue.NewService(taskRepo, logger)
 	syncService := repository.NewSyncService(repoRepo, queueService, logger)
 
 	// Create a repository with working copy
-	repo, err := git.NewRepo("https://github.com/example/sync-test.git")
+	repo, err := repositorydomain.NewRepository("https://github.com/example/sync-test.git")
 	require.NoError(t, err)
-	repo = repo.WithWorkingCopy(git.NewWorkingCopy("/tmp/test-repo", "https://github.com/example/sync-test.git"))
+	repo = repo.WithWorkingCopy(repositorydomain.NewWorkingCopy("/tmp/test-repo", "https://github.com/example/sync-test.git"))
 	savedRepo, err := repoRepo.Save(ctx, repo)
 	require.NoError(t, err)
 
@@ -122,13 +122,13 @@ func TestSyncService_RequestSync_RequiresWorkingCopy_Integration(t *testing.T) {
 	db := testutil.TestDatabaseWithSchema(t, testutil.TestSchema)
 	logger := slog.Default()
 
-	repoRepo := gitpostgres.NewRepoRepository(db)
+	repoRepo := persistence.NewRepositoryStore(db)
 	taskRepo := queuepostgres.NewTaskRepository(db)
 	queueService := queue.NewService(taskRepo, logger)
 	syncService := repository.NewSyncService(repoRepo, queueService, logger)
 
 	// Create a repository without working copy
-	repo, err := git.NewRepo("https://github.com/example/no-working-copy.git")
+	repo, err := repositorydomain.NewRepository("https://github.com/example/no-working-copy.git")
 	require.NoError(t, err)
 	savedRepo, err := repoRepo.Save(ctx, repo)
 	require.NoError(t, err)
@@ -144,19 +144,19 @@ func TestSyncService_UpdateTrackingConfig_Integration(t *testing.T) {
 	db := testutil.TestDatabaseWithSchema(t, testutil.TestSchema)
 	logger := slog.Default()
 
-	repoRepo := gitpostgres.NewRepoRepository(db)
+	repoRepo := persistence.NewRepositoryStore(db)
 	taskRepo := queuepostgres.NewTaskRepository(db)
 	queueService := queue.NewService(taskRepo, logger)
 	syncService := repository.NewSyncService(repoRepo, queueService, logger)
 
 	// Create a repository
-	repo, err := git.NewRepo("https://github.com/example/track-update.git")
+	repo, err := repositorydomain.NewRepository("https://github.com/example/track-update.git")
 	require.NoError(t, err)
 	savedRepo, err := repoRepo.Save(ctx, repo)
 	require.NoError(t, err)
 
 	// Update tracking to track a specific branch
-	newConfig := git.NewTrackingConfigForBranch("develop")
+	newConfig := repositorydomain.NewTrackingConfigForBranch("develop")
 	updatedSource, err := syncService.UpdateTrackingConfig(ctx, savedRepo.ID(), newConfig)
 	require.NoError(t, err)
 
@@ -168,13 +168,13 @@ func TestSyncService_RequestDelete_Integration(t *testing.T) {
 	db := testutil.TestDatabaseWithSchema(t, testutil.TestSchema)
 	logger := slog.Default()
 
-	repoRepo := gitpostgres.NewRepoRepository(db)
+	repoRepo := persistence.NewRepositoryStore(db)
 	taskRepo := queuepostgres.NewTaskRepository(db)
 	queueService := queue.NewService(taskRepo, logger)
 	syncService := repository.NewSyncService(repoRepo, queueService, logger)
 
 	// Create a repository
-	repo, err := git.NewRepo("https://github.com/example/delete-test.git")
+	repo, err := repositorydomain.NewRepository("https://github.com/example/delete-test.git")
 	require.NoError(t, err)
 	savedRepo, err := repoRepo.Save(ctx, repo)
 	require.NoError(t, err)
@@ -201,15 +201,15 @@ func TestSyncService_RequestRescan_Integration(t *testing.T) {
 	db := testutil.TestDatabaseWithSchema(t, testutil.TestSchema)
 	logger := slog.Default()
 
-	repoRepo := gitpostgres.NewRepoRepository(db)
+	repoRepo := persistence.NewRepositoryStore(db)
 	taskRepo := queuepostgres.NewTaskRepository(db)
 	queueService := queue.NewService(taskRepo, logger)
 	syncService := repository.NewSyncService(repoRepo, queueService, logger)
 
 	// Create a repository with working copy
-	repo, err := git.NewRepo("https://github.com/example/rescan-test.git")
+	repo, err := repositorydomain.NewRepository("https://github.com/example/rescan-test.git")
 	require.NoError(t, err)
-	repo = repo.WithWorkingCopy(git.NewWorkingCopy("/tmp/rescan-repo", "https://github.com/example/rescan-test.git"))
+	repo = repo.WithWorkingCopy(repositorydomain.NewWorkingCopy("/tmp/rescan-repo", "https://github.com/example/rescan-test.git"))
 	savedRepo, err := repoRepo.Save(ctx, repo)
 	require.NoError(t, err)
 
@@ -237,22 +237,22 @@ func TestSyncService_SyncAll_Integration(t *testing.T) {
 	db := testutil.TestDatabaseWithSchema(t, testutil.TestSchema)
 	logger := slog.Default()
 
-	repoRepo := gitpostgres.NewRepoRepository(db)
+	repoRepo := persistence.NewRepositoryStore(db)
 	taskRepo := queuepostgres.NewTaskRepository(db)
 	queueService := queue.NewService(taskRepo, logger)
 	syncService := repository.NewSyncService(repoRepo, queueService, logger)
 
 	// Create multiple repositories with working copies
 	for i := 1; i <= 3; i++ {
-		repo, err := git.NewRepo("https://github.com/example/sync-all-" + string(rune('0'+i)) + ".git")
+		repo, err := repositorydomain.NewRepository("https://github.com/example/sync-all-" + string(rune('0'+i)) + ".git")
 		require.NoError(t, err)
-		repo = repo.WithWorkingCopy(git.NewWorkingCopy("/tmp/sync-all-"+string(rune('0'+i)), repo.RemoteURL()))
+		repo = repo.WithWorkingCopy(repositorydomain.NewWorkingCopy("/tmp/sync-all-"+string(rune('0'+i)), repo.RemoteURL()))
 		_, err = repoRepo.Save(ctx, repo)
 		require.NoError(t, err)
 	}
 
 	// Add one without working copy (should be skipped)
-	repo, err := git.NewRepo("https://github.com/example/sync-all-no-wc.git")
+	repo, err := repositorydomain.NewRepository("https://github.com/example/sync-all-no-wc.git")
 	require.NoError(t, err)
 	_, err = repoRepo.Save(ctx, repo)
 	require.NoError(t, err)
@@ -278,14 +278,14 @@ func TestQueryService_ByID_Integration(t *testing.T) {
 	ctx := context.Background()
 	db := testutil.TestDatabaseWithSchema(t, testutil.TestSchema)
 
-	repoRepo := gitpostgres.NewRepoRepository(db)
-	commitRepo := gitpostgres.NewCommitRepository(db)
-	branchRepo := gitpostgres.NewBranchRepository(db)
-	tagRepo := gitpostgres.NewTagRepository(db)
+	repoRepo := persistence.NewRepositoryStore(db)
+	commitRepo := persistence.NewCommitStore(db)
+	branchRepo := persistence.NewBranchStore(db)
+	tagRepo := persistence.NewTagStore(db)
 	queryService := repository.NewQueryService(repoRepo, commitRepo, branchRepo, tagRepo)
 
 	// Create a repository
-	repo, err := git.NewRepo("https://github.com/example/query-test.git")
+	repo, err := repositorydomain.NewRepository("https://github.com/example/query-test.git")
 	require.NoError(t, err)
 	savedRepo, err := repoRepo.Save(ctx, repo)
 	require.NoError(t, err)
@@ -301,14 +301,14 @@ func TestQueryService_ByRemoteURL_Integration(t *testing.T) {
 	ctx := context.Background()
 	db := testutil.TestDatabaseWithSchema(t, testutil.TestSchema)
 
-	repoRepo := gitpostgres.NewRepoRepository(db)
-	commitRepo := gitpostgres.NewCommitRepository(db)
-	branchRepo := gitpostgres.NewBranchRepository(db)
-	tagRepo := gitpostgres.NewTagRepository(db)
+	repoRepo := persistence.NewRepositoryStore(db)
+	commitRepo := persistence.NewCommitStore(db)
+	branchRepo := persistence.NewBranchStore(db)
+	tagRepo := persistence.NewTagStore(db)
 	queryService := repository.NewQueryService(repoRepo, commitRepo, branchRepo, tagRepo)
 
 	// Create a repository
-	repo, err := git.NewRepo("https://github.com/example/url-query.git")
+	repo, err := repositorydomain.NewRepository("https://github.com/example/url-query.git")
 	require.NoError(t, err)
 	savedRepo, err := repoRepo.Save(ctx, repo)
 	require.NoError(t, err)
@@ -324,10 +324,10 @@ func TestQueryService_ByRemoteURL_NotFound_Integration(t *testing.T) {
 	ctx := context.Background()
 	db := testutil.TestDatabaseWithSchema(t, testutil.TestSchema)
 
-	repoRepo := gitpostgres.NewRepoRepository(db)
-	commitRepo := gitpostgres.NewCommitRepository(db)
-	branchRepo := gitpostgres.NewBranchRepository(db)
-	tagRepo := gitpostgres.NewTagRepository(db)
+	repoRepo := persistence.NewRepositoryStore(db)
+	commitRepo := persistence.NewCommitStore(db)
+	branchRepo := persistence.NewBranchStore(db)
+	tagRepo := persistence.NewTagStore(db)
 	queryService := repository.NewQueryService(repoRepo, commitRepo, branchRepo, tagRepo)
 
 	// Note: Due to a bug in QueryService.ByRemoteURL (checks for gorm.ErrRecordNotFound
@@ -349,15 +349,15 @@ func TestQueryService_All_Integration(t *testing.T) {
 	ctx := context.Background()
 	db := testutil.TestDatabaseWithSchema(t, testutil.TestSchema)
 
-	repoRepo := gitpostgres.NewRepoRepository(db)
-	commitRepo := gitpostgres.NewCommitRepository(db)
-	branchRepo := gitpostgres.NewBranchRepository(db)
-	tagRepo := gitpostgres.NewTagRepository(db)
+	repoRepo := persistence.NewRepositoryStore(db)
+	commitRepo := persistence.NewCommitStore(db)
+	branchRepo := persistence.NewBranchStore(db)
+	tagRepo := persistence.NewTagStore(db)
 	queryService := repository.NewQueryService(repoRepo, commitRepo, branchRepo, tagRepo)
 
 	// Create multiple repositories
 	for i := 1; i <= 3; i++ {
-		repo, err := git.NewRepo("https://github.com/example/all-query-" + string(rune('0'+i)) + ".git")
+		repo, err := repositorydomain.NewRepository("https://github.com/example/all-query-" + string(rune('0'+i)) + ".git")
 		require.NoError(t, err)
 		_, err = repoRepo.Save(ctx, repo)
 		require.NoError(t, err)
@@ -373,26 +373,26 @@ func TestQueryService_SummaryByID_Integration(t *testing.T) {
 	ctx := context.Background()
 	db := testutil.TestDatabaseWithSchema(t, testutil.TestSchema)
 
-	repoRepo := gitpostgres.NewRepoRepository(db)
-	commitRepo := gitpostgres.NewCommitRepository(db)
-	branchRepo := gitpostgres.NewBranchRepository(db)
-	tagRepo := gitpostgres.NewTagRepository(db)
+	repoRepo := persistence.NewRepositoryStore(db)
+	commitRepo := persistence.NewCommitStore(db)
+	branchRepo := persistence.NewBranchStore(db)
+	tagRepo := persistence.NewTagStore(db)
 	queryService := repository.NewQueryService(repoRepo, commitRepo, branchRepo, tagRepo)
 
 	// Create a repository
-	repo, err := git.NewRepo("https://github.com/example/summary-test.git")
+	repo, err := repositorydomain.NewRepository("https://github.com/example/summary-test.git")
 	require.NoError(t, err)
 	savedRepo, err := repoRepo.Save(ctx, repo)
 	require.NoError(t, err)
 
 	// Add branches
-	branch1 := git.NewBranch(savedRepo.ID(), "main", "abc123", true)
-	branch2 := git.NewBranch(savedRepo.ID(), "develop", "def456", false)
-	_, err = branchRepo.SaveAll(ctx, []git.Branch{branch1, branch2})
+	branch1 := repositorydomain.NewBranch(savedRepo.ID(), "main", "abc123", true)
+	branch2 := repositorydomain.NewBranch(savedRepo.ID(), "develop", "def456", false)
+	_, err = branchRepo.SaveAll(ctx, []repositorydomain.Branch{branch1, branch2})
 	require.NoError(t, err)
 
 	// Add a tag
-	tag := git.NewTag(savedRepo.ID(), "v1.0.0", "abc123")
+	tag := repositorydomain.NewTag(savedRepo.ID(), "v1.0.0", "abc123")
 	_, err = tagRepo.Save(ctx, tag)
 	require.NoError(t, err)
 
@@ -410,22 +410,22 @@ func TestQueryService_BranchesForRepository_Integration(t *testing.T) {
 	ctx := context.Background()
 	db := testutil.TestDatabaseWithSchema(t, testutil.TestSchema)
 
-	repoRepo := gitpostgres.NewRepoRepository(db)
-	commitRepo := gitpostgres.NewCommitRepository(db)
-	branchRepo := gitpostgres.NewBranchRepository(db)
-	tagRepo := gitpostgres.NewTagRepository(db)
+	repoRepo := persistence.NewRepositoryStore(db)
+	commitRepo := persistence.NewCommitStore(db)
+	branchRepo := persistence.NewBranchStore(db)
+	tagRepo := persistence.NewTagStore(db)
 	queryService := repository.NewQueryService(repoRepo, commitRepo, branchRepo, tagRepo)
 
 	// Create a repository
-	repo, err := git.NewRepo("https://github.com/example/branches-test.git")
+	repo, err := repositorydomain.NewRepository("https://github.com/example/branches-test.git")
 	require.NoError(t, err)
 	savedRepo, err := repoRepo.Save(ctx, repo)
 	require.NoError(t, err)
 
 	// Add branches
-	branch1 := git.NewBranch(savedRepo.ID(), "main", "sha1", true)
-	branch2 := git.NewBranch(savedRepo.ID(), "feature-x", "sha2", false)
-	_, err = branchRepo.SaveAll(ctx, []git.Branch{branch1, branch2})
+	branch1 := repositorydomain.NewBranch(savedRepo.ID(), "main", "sha1", true)
+	branch2 := repositorydomain.NewBranch(savedRepo.ID(), "feature-x", "sha2", false)
+	_, err = branchRepo.SaveAll(ctx, []repositorydomain.Branch{branch1, branch2})
 	require.NoError(t, err)
 
 	// Query branches
@@ -438,21 +438,21 @@ func TestQueryService_TagsForRepository_Integration(t *testing.T) {
 	ctx := context.Background()
 	db := testutil.TestDatabaseWithSchema(t, testutil.TestSchema)
 
-	repoRepo := gitpostgres.NewRepoRepository(db)
-	commitRepo := gitpostgres.NewCommitRepository(db)
-	branchRepo := gitpostgres.NewBranchRepository(db)
-	tagRepo := gitpostgres.NewTagRepository(db)
+	repoRepo := persistence.NewRepositoryStore(db)
+	commitRepo := persistence.NewCommitStore(db)
+	branchRepo := persistence.NewBranchStore(db)
+	tagRepo := persistence.NewTagStore(db)
 	queryService := repository.NewQueryService(repoRepo, commitRepo, branchRepo, tagRepo)
 
 	// Create a repository
-	repo, err := git.NewRepo("https://github.com/example/tags-test.git")
+	repo, err := repositorydomain.NewRepository("https://github.com/example/tags-test.git")
 	require.NoError(t, err)
 	savedRepo, err := repoRepo.Save(ctx, repo)
 	require.NoError(t, err)
 
 	// Add tags
-	tag1 := git.NewTag(savedRepo.ID(), "v1.0.0", "sha1")
-	tag2 := git.NewTag(savedRepo.ID(), "v2.0.0", "sha2")
+	tag1 := repositorydomain.NewTag(savedRepo.ID(), "v1.0.0", "sha1")
+	tag2 := repositorydomain.NewTag(savedRepo.ID(), "v2.0.0", "sha2")
 	_, err = tagRepo.Save(ctx, tag1)
 	require.NoError(t, err)
 	_, err = tagRepo.Save(ctx, tag2)
@@ -468,14 +468,14 @@ func TestQueryService_Exists_Integration(t *testing.T) {
 	ctx := context.Background()
 	db := testutil.TestDatabaseWithSchema(t, testutil.TestSchema)
 
-	repoRepo := gitpostgres.NewRepoRepository(db)
-	commitRepo := gitpostgres.NewCommitRepository(db)
-	branchRepo := gitpostgres.NewBranchRepository(db)
-	tagRepo := gitpostgres.NewTagRepository(db)
+	repoRepo := persistence.NewRepositoryStore(db)
+	commitRepo := persistence.NewCommitStore(db)
+	branchRepo := persistence.NewBranchStore(db)
+	tagRepo := persistence.NewTagStore(db)
 	queryService := repository.NewQueryService(repoRepo, commitRepo, branchRepo, tagRepo)
 
 	// Create a repository
-	repo, err := git.NewRepo("https://github.com/example/exists-test.git")
+	repo, err := repositorydomain.NewRepository("https://github.com/example/exists-test.git")
 	require.NoError(t, err)
 	_, err = repoRepo.Save(ctx, repo)
 	require.NoError(t, err)
@@ -496,7 +496,7 @@ func TestSyncService_AddRepositoryEnqueuesUserInitiatedPriority_Integration(t *t
 	db := testutil.TestDatabaseWithSchema(t, testutil.TestSchema)
 	logger := slog.Default()
 
-	repoRepo := gitpostgres.NewRepoRepository(db)
+	repoRepo := persistence.NewRepositoryStore(db)
 	taskRepo := queuepostgres.NewTaskRepository(db)
 	queueService := queue.NewService(taskRepo, logger)
 	syncService := repository.NewSyncService(repoRepo, queueService, logger)

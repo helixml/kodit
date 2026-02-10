@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
+	repositorydomain "github.com/helixml/kodit/domain/repository"
+	"github.com/helixml/kodit/infrastructure/persistence"
 	"github.com/helixml/kodit/internal/domain"
 	"github.com/helixml/kodit/internal/git"
-	gitpostgres "github.com/helixml/kodit/internal/git/postgres"
 	"github.com/helixml/kodit/internal/queue"
 	"github.com/helixml/kodit/internal/queue/handler"
 	queuepostgres "github.com/helixml/kodit/internal/queue/postgres"
@@ -158,12 +159,12 @@ func TestCloneRepositoryHandler_SavesWorkingCopy_Integration(t *testing.T) {
 	db := testutil.TestDatabaseWithSchema(t, testutil.TestSchema)
 	logger := slog.Default()
 
-	repoRepo := gitpostgres.NewRepoRepository(db)
+	repoRepo := persistence.NewRepositoryStore(db)
 	taskRepo := queuepostgres.NewTaskRepository(db)
 	queueService := queue.NewService(taskRepo, logger)
 
 	// Create a repository without working copy
-	repo, err := git.NewRepo("https://github.com/example/clone-test.git")
+	repo, err := repositorydomain.NewRepository("https://github.com/example/clone-test.git")
 	require.NoError(t, err)
 	savedRepo, err := repoRepo.Save(ctx, repo)
 	require.NoError(t, err)
@@ -183,7 +184,7 @@ func TestCloneRepositoryHandler_SavesWorkingCopy_Integration(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify working copy was saved
-	updatedRepo, err := repoRepo.Get(ctx, savedRepo.ID())
+	updatedRepo, err := repoRepo.FindOne(ctx, repositorydomain.WithID(savedRepo.ID()))
 	require.NoError(t, err)
 	assert.True(t, updatedRepo.HasWorkingCopy())
 	assert.NotEmpty(t, updatedRepo.WorkingCopy().Path())
@@ -196,14 +197,14 @@ func TestCloneRepositoryHandler_SkipsAlreadyCloned_Integration(t *testing.T) {
 	db := testutil.TestDatabaseWithSchema(t, testutil.TestSchema)
 	logger := slog.Default()
 
-	repoRepo := gitpostgres.NewRepoRepository(db)
+	repoRepo := persistence.NewRepositoryStore(db)
 	taskRepo := queuepostgres.NewTaskRepository(db)
 	queueService := queue.NewService(taskRepo, logger)
 
 	// Create a repository WITH working copy
-	repo, err := git.NewRepo("https://github.com/example/already-cloned.git")
+	repo, err := repositorydomain.NewRepository("https://github.com/example/already-cloned.git")
 	require.NoError(t, err)
-	repo = repo.WithWorkingCopy(git.NewWorkingCopy("/tmp/already-cloned", repo.RemoteURL()))
+	repo = repo.WithWorkingCopy(repositorydomain.NewWorkingCopy("/tmp/already-cloned", repo.RemoteURL()))
 	savedRepo, err := repoRepo.Save(ctx, repo)
 	require.NoError(t, err)
 
@@ -229,12 +230,12 @@ func TestCloneRepositoryHandler_EnqueuesFollowUp_Integration(t *testing.T) {
 	db := testutil.TestDatabaseWithSchema(t, testutil.TestSchema)
 	logger := slog.Default()
 
-	repoRepo := gitpostgres.NewRepoRepository(db)
+	repoRepo := persistence.NewRepositoryStore(db)
 	taskRepo := queuepostgres.NewTaskRepository(db)
 	queueService := queue.NewService(taskRepo, logger)
 
 	// Create a repository
-	repo, err := git.NewRepo("https://github.com/example/follow-up.git")
+	repo, err := repositorydomain.NewRepository("https://github.com/example/follow-up.git")
 	require.NoError(t, err)
 	savedRepo, err := repoRepo.Save(ctx, repo)
 	require.NoError(t, err)
@@ -271,15 +272,15 @@ func TestSyncRepositoryHandler_FetchesAndScans_Integration(t *testing.T) {
 	db := testutil.TestDatabaseWithSchema(t, testutil.TestSchema)
 	logger := slog.Default()
 
-	repoRepo := gitpostgres.NewRepoRepository(db)
-	branchRepo := gitpostgres.NewBranchRepository(db)
+	repoRepo := persistence.NewRepositoryStore(db)
+	branchRepo := persistence.NewBranchStore(db)
 	taskRepo := queuepostgres.NewTaskRepository(db)
 	queueService := queue.NewService(taskRepo, logger)
 
 	// Create a repository with working copy
-	repo, err := git.NewRepo("https://github.com/example/sync-test.git")
+	repo, err := repositorydomain.NewRepository("https://github.com/example/sync-test.git")
 	require.NoError(t, err)
-	repo = repo.WithWorkingCopy(git.NewWorkingCopy("/tmp/sync-test", repo.RemoteURL()))
+	repo = repo.WithWorkingCopy(repositorydomain.NewWorkingCopy("/tmp/sync-test", repo.RemoteURL()))
 	savedRepo, err := repoRepo.Save(ctx, repo)
 	require.NoError(t, err)
 
@@ -308,7 +309,7 @@ func TestSyncRepositoryHandler_FetchesAndScans_Integration(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify branches were saved
-	branches, err := branchRepo.FindByRepoID(ctx, savedRepo.ID())
+	branches, err := branchRepo.Find(ctx, repositorydomain.WithRepoID(savedRepo.ID()))
 	require.NoError(t, err)
 	assert.Len(t, branches, 2)
 }
@@ -320,15 +321,15 @@ func TestSyncRepositoryHandler_EnqueuesCommitScans_Integration(t *testing.T) {
 	db := testutil.TestDatabaseWithSchema(t, testutil.TestSchema)
 	logger := slog.Default()
 
-	repoRepo := gitpostgres.NewRepoRepository(db)
-	branchRepo := gitpostgres.NewBranchRepository(db)
+	repoRepo := persistence.NewRepositoryStore(db)
+	branchRepo := persistence.NewBranchStore(db)
 	taskRepo := queuepostgres.NewTaskRepository(db)
 	queueService := queue.NewService(taskRepo, logger)
 
 	// Create a repository with working copy
-	repo, err := git.NewRepo("https://github.com/example/commit-scan.git")
+	repo, err := repositorydomain.NewRepository("https://github.com/example/commit-scan.git")
 	require.NoError(t, err)
-	repo = repo.WithWorkingCopy(git.NewWorkingCopy("/tmp/commit-scan", repo.RemoteURL()))
+	repo = repo.WithWorkingCopy(repositorydomain.NewWorkingCopy("/tmp/commit-scan", repo.RemoteURL()))
 	savedRepo, err := repoRepo.Save(ctx, repo)
 	require.NoError(t, err)
 
@@ -370,14 +371,14 @@ func TestScanCommitHandler_SavesCommitAndFiles_Integration(t *testing.T) {
 	db := testutil.TestDatabaseWithSchema(t, testutil.TestSchema)
 	logger := slog.Default()
 
-	repoRepo := gitpostgres.NewRepoRepository(db)
-	commitRepo := gitpostgres.NewCommitRepository(db)
-	fileRepo := gitpostgres.NewFileRepository(db)
+	repoRepo := persistence.NewRepositoryStore(db)
+	commitRepo := persistence.NewCommitStore(db)
+	fileRepo := persistence.NewFileStore(db)
 
 	// Create a repository with working copy
-	repo, err := git.NewRepo("https://github.com/example/scan-commit.git")
+	repo, err := repositorydomain.NewRepository("https://github.com/example/scan-commit.git")
 	require.NoError(t, err)
-	repo = repo.WithWorkingCopy(git.NewWorkingCopy("/tmp/scan-commit", repo.RemoteURL()))
+	repo = repo.WithWorkingCopy(repositorydomain.NewWorkingCopy("/tmp/scan-commit", repo.RemoteURL()))
 	savedRepo, err := repoRepo.Save(ctx, repo)
 	require.NoError(t, err)
 
@@ -413,12 +414,12 @@ func TestScanCommitHandler_SavesCommitAndFiles_Integration(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify commit was saved
-	savedCommit, err := commitRepo.GetByRepoAndSHA(ctx, savedRepo.ID(), "abc123def456")
+	savedCommit, err := commitRepo.FindOne(ctx, repositorydomain.WithRepoID(savedRepo.ID()), repositorydomain.WithSHA("abc123def456"))
 	require.NoError(t, err)
 	assert.Equal(t, "Test commit", savedCommit.Message())
 
 	// Verify files were saved
-	savedFiles, err := fileRepo.FindByCommitSHA(ctx, "abc123def456")
+	savedFiles, err := fileRepo.Find(ctx, repositorydomain.WithCommitSHA("abc123def456"))
 	require.NoError(t, err)
 	assert.Len(t, savedFiles, 2)
 }
@@ -430,14 +431,14 @@ func TestScanCommitHandler_IsIdempotent_Integration(t *testing.T) {
 	db := testutil.TestDatabaseWithSchema(t, testutil.TestSchema)
 	logger := slog.Default()
 
-	repoRepo := gitpostgres.NewRepoRepository(db)
-	commitRepo := gitpostgres.NewCommitRepository(db)
-	fileRepo := gitpostgres.NewFileRepository(db)
+	repoRepo := persistence.NewRepositoryStore(db)
+	commitRepo := persistence.NewCommitStore(db)
+	fileRepo := persistence.NewFileStore(db)
 
 	// Create a repository with working copy
-	repo, err := git.NewRepo("https://github.com/example/idempotent.git")
+	repo, err := repositorydomain.NewRepository("https://github.com/example/idempotent.git")
 	require.NoError(t, err)
-	repo = repo.WithWorkingCopy(git.NewWorkingCopy("/tmp/idempotent", repo.RemoteURL()))
+	repo = repo.WithWorkingCopy(repositorydomain.NewWorkingCopy("/tmp/idempotent", repo.RemoteURL()))
 	savedRepo, err := repoRepo.Save(ctx, repo)
 	require.NoError(t, err)
 
@@ -474,7 +475,7 @@ func TestScanCommitHandler_IsIdempotent_Integration(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify only one commit exists
-	commits, err := commitRepo.FindByRepoID(ctx, savedRepo.ID())
+	commits, err := commitRepo.Find(ctx, repositorydomain.WithRepoID(savedRepo.ID()))
 	require.NoError(t, err)
 	assert.Len(t, commits, 1)
 }
@@ -486,13 +487,13 @@ func TestSyncRepositoryHandler_RequiresWorkingCopy_Integration(t *testing.T) {
 	db := testutil.TestDatabaseWithSchema(t, testutil.TestSchema)
 	logger := slog.Default()
 
-	repoRepo := gitpostgres.NewRepoRepository(db)
-	branchRepo := gitpostgres.NewBranchRepository(db)
+	repoRepo := persistence.NewRepositoryStore(db)
+	branchRepo := persistence.NewBranchStore(db)
 	taskRepo := queuepostgres.NewTaskRepository(db)
 	queueService := queue.NewService(taskRepo, logger)
 
 	// Create a repository WITHOUT working copy
-	repo, err := git.NewRepo("https://github.com/example/no-wc.git")
+	repo, err := repositorydomain.NewRepository("https://github.com/example/no-wc.git")
 	require.NoError(t, err)
 	savedRepo, err := repoRepo.Save(ctx, repo)
 	require.NoError(t, err)
@@ -519,12 +520,12 @@ func TestScanCommitHandler_RequiresWorkingCopy_Integration(t *testing.T) {
 	db := testutil.TestDatabaseWithSchema(t, testutil.TestSchema)
 	logger := slog.Default()
 
-	repoRepo := gitpostgres.NewRepoRepository(db)
-	commitRepo := gitpostgres.NewCommitRepository(db)
-	fileRepo := gitpostgres.NewFileRepository(db)
+	repoRepo := persistence.NewRepositoryStore(db)
+	commitRepo := persistence.NewCommitStore(db)
+	fileRepo := persistence.NewFileStore(db)
 
 	// Create a repository WITHOUT working copy
-	repo, err := git.NewRepo("https://github.com/example/scan-no-wc.git")
+	repo, err := repositorydomain.NewRepository("https://github.com/example/scan-no-wc.git")
 	require.NoError(t, err)
 	savedRepo, err := repoRepo.Save(ctx, repo)
 	require.NoError(t, err)
@@ -551,16 +552,16 @@ func TestSyncRepositoryHandler_WithTrackingConfig_Integration(t *testing.T) {
 	db := testutil.TestDatabaseWithSchema(t, testutil.TestSchema)
 	logger := slog.Default()
 
-	repoRepo := gitpostgres.NewRepoRepository(db)
-	branchRepo := gitpostgres.NewBranchRepository(db)
+	repoRepo := persistence.NewRepositoryStore(db)
+	branchRepo := persistence.NewBranchStore(db)
 	taskRepo := queuepostgres.NewTaskRepository(db)
 	queueService := queue.NewService(taskRepo, logger)
 
 	// Create a repository with working copy AND tracking config for develop branch
-	repo, err := git.NewRepo("https://github.com/example/tracking.git")
+	repo, err := repositorydomain.NewRepository("https://github.com/example/tracking.git")
 	require.NoError(t, err)
-	repo = repo.WithWorkingCopy(git.NewWorkingCopy("/tmp/tracking", repo.RemoteURL()))
-	repo = repo.WithTrackingConfig(git.NewTrackingConfigForBranch("develop"))
+	repo = repo.WithWorkingCopy(repositorydomain.NewWorkingCopy("/tmp/tracking", repo.RemoteURL()))
+	repo = repo.WithTrackingConfig(repositorydomain.NewTrackingConfigForBranch("develop"))
 	savedRepo, err := repoRepo.Save(ctx, repo)
 	require.NoError(t, err)
 

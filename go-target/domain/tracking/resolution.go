@@ -48,7 +48,7 @@ func (r *Resolver) Commits(ctx context.Context, trackable Trackable, limit int) 
 }
 
 func (r *Resolver) resolveBranch(ctx context.Context, trackable Trackable, limit int) ([]string, error) {
-	branch, err := r.branchStore.GetByName(ctx, trackable.RepoID(), trackable.Identifier())
+	branch, err := r.branchStore.FindOne(ctx, repository.WithRepoID(trackable.RepoID()), repository.WithName(trackable.Identifier()))
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func (r *Resolver) resolveBranch(ctx context.Context, trackable Trackable, limit
 }
 
 func (r *Resolver) resolveTag(ctx context.Context, trackable Trackable, limit int) ([]string, error) {
-	tag, err := r.tagStore.GetByName(ctx, trackable.RepoID(), trackable.Identifier())
+	tag, err := r.tagStore.FindOne(ctx, repository.WithRepoID(trackable.RepoID()), repository.WithName(trackable.Identifier()))
 	if err != nil {
 		return nil, err
 	}

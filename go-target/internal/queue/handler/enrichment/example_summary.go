@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	domainenrichment "github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/internal/domain"
 	"github.com/helixml/kodit/internal/enrichment"
 	"github.com/helixml/kodit/internal/queue"
@@ -17,8 +18,8 @@ Please provide a concise explanation of what this example demonstrates and how i
 
 // ExampleSummary handles the CREATE_EXAMPLE_SUMMARY_FOR_COMMIT operation.
 type ExampleSummary struct {
-	enrichmentRepo  enrichment.EnrichmentRepository
-	associationRepo enrichment.AssociationRepository
+	enrichmentRepo  domainenrichment.EnrichmentStore
+	associationRepo domainenrichment.AssociationStore
 	queryService    *enrichment.QueryService
 	enricher        enrichment.Enricher
 	trackerFactory  TrackerFactory
@@ -27,8 +28,8 @@ type ExampleSummary struct {
 
 // NewExampleSummary creates a new ExampleSummary handler.
 func NewExampleSummary(
-	enrichmentRepo enrichment.EnrichmentRepository,
-	associationRepo enrichment.AssociationRepository,
+	enrichmentRepo domainenrichment.EnrichmentStore,
+	associationRepo domainenrichment.AssociationStore,
 	queryService *enrichment.QueryService,
 	enricher enrichment.Enricher,
 	trackerFactory TrackerFactory,
@@ -62,7 +63,7 @@ func (h *ExampleSummary) Execute(ctx context.Context, payload map[string]any) er
 		repoID,
 	)
 
-	hasSummaries, err := h.queryService.Exists(ctx, &enrichment.ExistsParams{CommitSHA: commitSHA, Type: enrichment.TypeDevelopment, Subtype: enrichment.SubtypeExampleSummary})
+	hasSummaries, err := h.queryService.Exists(ctx, &enrichment.ExistsParams{CommitSHA: commitSHA, Type: domainenrichment.TypeDevelopment, Subtype: domainenrichment.SubtypeExampleSummary})
 	if err != nil {
 		h.logger.Error("failed to check existing example summaries", slog.String("error", err.Error()))
 		return err
@@ -75,8 +76,8 @@ func (h *ExampleSummary) Execute(ctx context.Context, payload map[string]any) er
 		return nil
 	}
 
-	exTyp := enrichment.TypeDevelopment
-	exSub := enrichment.SubtypeExample
+	exTyp := domainenrichment.TypeDevelopment
+	exSub := domainenrichment.SubtypeExample
 	examples, err := h.queryService.List(ctx, &enrichment.ListParams{CommitSHA: commitSHA, Type: &exTyp, Subtype: &exSub})
 	if err != nil {
 		return fmt.Errorf("get examples: %w", err)
@@ -93,7 +94,7 @@ func (h *ExampleSummary) Execute(ctx context.Context, payload map[string]any) er
 		h.logger.Warn("failed to set tracker total", slog.String("error", setTotalErr.Error()))
 	}
 
-	exampleMap := make(map[string]enrichment.Enrichment, len(examples))
+	exampleMap := make(map[string]domainenrichment.Enrichment, len(examples))
 	requests := make([]enrichment.Request, 0, len(examples))
 
 	for _, example := range examples {
@@ -117,18 +118,18 @@ func (h *ExampleSummary) Execute(ctx context.Context, payload map[string]any) er
 			continue
 		}
 
-		summaryEnrichment := enrichment.NewExampleSummary(resp.Text())
+		summaryEnrichment := domainenrichment.NewExampleSummary(resp.Text())
 		saved, err := h.enrichmentRepo.Save(ctx, summaryEnrichment)
 		if err != nil {
 			return fmt.Errorf("save example summary enrichment: %w", err)
 		}
 
-		exampleAssoc := enrichment.NewAssociation(saved.ID(), fmt.Sprintf("%d", example.ID()), enrichment.EntityTypeSnippet)
+		exampleAssoc := domainenrichment.NewAssociation(saved.ID(), fmt.Sprintf("%d", example.ID()), domainenrichment.EntityTypeSnippet)
 		if _, err := h.associationRepo.Save(ctx, exampleAssoc); err != nil {
 			return fmt.Errorf("save example association: %w", err)
 		}
 
-		commitAssoc := enrichment.CommitAssociation(saved.ID(), commitSHA)
+		commitAssoc := domainenrichment.CommitAssociation(saved.ID(), commitSHA)
 		if _, err := h.associationRepo.Save(ctx, commitAssoc); err != nil {
 			return fmt.Errorf("save commit association: %w", err)
 		}

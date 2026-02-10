@@ -7,9 +7,9 @@ import (
 	"sort"
 	"strings"
 
-	sitter "github.com/smacker/go-tree-sitter"
-	"github.com/helixml/kodit/internal/git"
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/internal/indexing"
+	sitter "github.com/smacker/go-tree-sitter"
 )
 
 // Slicer extracts code snippets from source files using AST parsing.
@@ -92,18 +92,18 @@ type State struct {
 	defIndex     map[string]FunctionDefinition
 	callGraph    *CallGraph
 	importIndex  map[string]map[string]string
-	fileIndex    map[string]git.File // Maps file path to the original git.File with ID
+	fileIndex    map[string]repository.File // Maps file path to the original repository.File with ID
 }
 
 // Slice extracts snippets from the given files.
-func (s *Slicer) Slice(ctx context.Context, files []git.File, basePath string, cfg SliceConfig) (SliceResult, error) {
+func (s *Slicer) Slice(ctx context.Context, files []repository.File, basePath string, cfg SliceConfig) (SliceResult, error) {
 	result := NewSliceResult()
 	state := &State{
 		files:       make([]ParsedFile, 0, len(files)),
 		defIndex:    make(map[string]FunctionDefinition),
 		callGraph:   NewCallGraph(),
 		importIndex: make(map[string]map[string]string),
-		fileIndex:   make(map[string]git.File, len(files)),
+		fileIndex:   make(map[string]repository.File, len(files)),
 	}
 
 	// Build file index mapping path to original file object (with ID)
@@ -154,7 +154,7 @@ func (s *Slicer) Slice(ctx context.Context, files []git.File, basePath string, c
 	return result, nil
 }
 
-func (s *Slicer) parseFile(file git.File, basePath string) (ParsedFile, error) {
+func (s *Slicer) parseFile(file repository.File, basePath string) (ParsedFile, error) {
 	// If file.Path() already includes basePath (stored as full path), use directly
 	var fullPath string
 	if strings.HasPrefix(file.Path(), basePath) {
@@ -416,13 +416,13 @@ func (s *Slicer) buildSnippet(name string, funcDef FunctionDefinition, state *St
 	ext := filepath.Ext(funcDef.FilePath())
 
 	// Look up the original file with database ID from the file index
-	var derivesFrom []git.File
+	var derivesFrom []repository.File
 	if file, found := state.fileIndex[funcDef.FilePath()]; found {
-		derivesFrom = []git.File{file}
+		derivesFrom = []repository.File{file}
 	} else {
 		// Fallback: create a file without ID (this shouldn't happen if files were loaded from DB)
-		derivesFrom = []git.File{
-			git.NewFile("", funcDef.FilePath(), extToLanguage(ext), 0),
+		derivesFrom = []repository.File{
+			repository.NewFile("", funcDef.FilePath(), extToLanguage(ext), 0),
 		}
 	}
 

@@ -6,8 +6,8 @@ import (
 	"encoding/hex"
 	"time"
 
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/internal/domain"
-	"github.com/helixml/kodit/internal/git"
 )
 
 // Snippet represents a content-addressed code snippet.
@@ -16,17 +16,17 @@ type Snippet struct {
 	sha         string
 	content     string
 	extension   string
-	derivesFrom []git.File
+	derivesFrom []repository.File
 	enrichments []domain.Enrichment
 	createdAt   time.Time
 	updatedAt   time.Time
 }
 
 // NewSnippet creates a new Snippet with content-addressed SHA.
-func NewSnippet(content, extension string, derivesFrom []git.File) Snippet {
+func NewSnippet(content, extension string, derivesFrom []repository.File) Snippet {
 	now := time.Now()
 
-	files := make([]git.File, len(derivesFrom))
+	files := make([]repository.File, len(derivesFrom))
 	copy(files, derivesFrom)
 
 	return Snippet{
@@ -43,11 +43,11 @@ func NewSnippet(content, extension string, derivesFrom []git.File) Snippet {
 // ReconstructSnippet reconstructs a Snippet from persistence.
 func ReconstructSnippet(
 	sha, content, extension string,
-	derivesFrom []git.File,
+	derivesFrom []repository.File,
 	enrichments []domain.Enrichment,
 	createdAt, updatedAt time.Time,
 ) Snippet {
-	files := make([]git.File, len(derivesFrom))
+	files := make([]repository.File, len(derivesFrom))
 	copy(files, derivesFrom)
 
 	enrich := make([]domain.Enrichment, len(enrichments))
@@ -74,8 +74,8 @@ func (s Snippet) Content() string { return s.content }
 func (s Snippet) Extension() string { return s.extension }
 
 // DerivesFrom returns the source files this snippet was extracted from.
-func (s Snippet) DerivesFrom() []git.File {
-	result := make([]git.File, len(s.derivesFrom))
+func (s Snippet) DerivesFrom() []repository.File {
+	result := make([]repository.File, len(s.derivesFrom))
 	copy(result, s.derivesFrom)
 	return result
 }

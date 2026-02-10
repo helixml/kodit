@@ -4,8 +4,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/helixml/kodit/domain/enrichment"
+	repositorydomain "github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/internal/domain"
-	"github.com/helixml/kodit/internal/enrichment"
 	"github.com/helixml/kodit/internal/indexing"
 	"github.com/stretchr/testify/assert"
 )
@@ -130,56 +131,56 @@ func (f *FakeSnippetRepository) BySHA(ctx context.Context, sha string) (indexing
 	return indexing.Snippet{}, nil
 }
 
-// FakeEnrichmentRepository is a test double for EnrichmentRepository.
-type FakeEnrichmentRepository struct {
-	saveFn                 func(ctx context.Context, e enrichment.Enrichment) (enrichment.Enrichment, error)
-	getFn                  func(ctx context.Context, id int64) (enrichment.Enrichment, error)
-	findByTypeFn           func(ctx context.Context, typ enrichment.Type) ([]enrichment.Enrichment, error)
-	findByTypeAndSubtypeFn func(ctx context.Context, typ enrichment.Type, subtype enrichment.Subtype) ([]enrichment.Enrichment, error)
-	findByEntityKeyFn      func(ctx context.Context, key enrichment.EntityTypeKey) ([]enrichment.Enrichment, error)
-	deleteFn               func(ctx context.Context, e enrichment.Enrichment) error
+// FakeEnrichmentStore is a test double for EnrichmentStore.
+type FakeEnrichmentStore struct {
+	findFn            func(ctx context.Context, options ...repositorydomain.Option) ([]enrichment.Enrichment, error)
+	findOneFn         func(ctx context.Context, options ...repositorydomain.Option) (enrichment.Enrichment, error)
+	deleteByFn        func(ctx context.Context, options ...repositorydomain.Option) error
+	saveFn            func(ctx context.Context, e enrichment.Enrichment) (enrichment.Enrichment, error)
+	deleteFn          func(ctx context.Context, e enrichment.Enrichment) error
+	findByEntityKeyFn func(ctx context.Context, key enrichment.EntityTypeKey) ([]enrichment.Enrichment, error)
 }
 
-func (f *FakeEnrichmentRepository) Save(ctx context.Context, e enrichment.Enrichment) (enrichment.Enrichment, error) {
+func (f *FakeEnrichmentStore) Find(ctx context.Context, options ...repositorydomain.Option) ([]enrichment.Enrichment, error) {
+	if f.findFn != nil {
+		return f.findFn(ctx, options...)
+	}
+	return nil, nil
+}
+
+func (f *FakeEnrichmentStore) FindOne(ctx context.Context, options ...repositorydomain.Option) (enrichment.Enrichment, error) {
+	if f.findOneFn != nil {
+		return f.findOneFn(ctx, options...)
+	}
+	return enrichment.Enrichment{}, nil
+}
+
+func (f *FakeEnrichmentStore) DeleteBy(ctx context.Context, options ...repositorydomain.Option) error {
+	if f.deleteByFn != nil {
+		return f.deleteByFn(ctx, options...)
+	}
+	return nil
+}
+
+func (f *FakeEnrichmentStore) Save(ctx context.Context, e enrichment.Enrichment) (enrichment.Enrichment, error) {
 	if f.saveFn != nil {
 		return f.saveFn(ctx, e)
 	}
 	return e, nil
 }
 
-func (f *FakeEnrichmentRepository) Get(ctx context.Context, id int64) (enrichment.Enrichment, error) {
-	if f.getFn != nil {
-		return f.getFn(ctx, id)
-	}
-	return enrichment.Enrichment{}, nil
-}
-
-func (f *FakeEnrichmentRepository) FindByType(ctx context.Context, typ enrichment.Type) ([]enrichment.Enrichment, error) {
-	if f.findByTypeFn != nil {
-		return f.findByTypeFn(ctx, typ)
-	}
-	return nil, nil
-}
-
-func (f *FakeEnrichmentRepository) FindByTypeAndSubtype(ctx context.Context, typ enrichment.Type, subtype enrichment.Subtype) ([]enrichment.Enrichment, error) {
-	if f.findByTypeAndSubtypeFn != nil {
-		return f.findByTypeAndSubtypeFn(ctx, typ, subtype)
-	}
-	return nil, nil
-}
-
-func (f *FakeEnrichmentRepository) FindByEntityKey(ctx context.Context, key enrichment.EntityTypeKey) ([]enrichment.Enrichment, error) {
-	if f.findByEntityKeyFn != nil {
-		return f.findByEntityKeyFn(ctx, key)
-	}
-	return nil, nil
-}
-
-func (f *FakeEnrichmentRepository) Delete(ctx context.Context, e enrichment.Enrichment) error {
+func (f *FakeEnrichmentStore) Delete(ctx context.Context, e enrichment.Enrichment) error {
 	if f.deleteFn != nil {
 		return f.deleteFn(ctx, e)
 	}
 	return nil
+}
+
+func (f *FakeEnrichmentStore) FindByEntityKey(ctx context.Context, key enrichment.EntityTypeKey) ([]enrichment.Enrichment, error) {
+	if f.findByEntityKeyFn != nil {
+		return f.findByEntityKeyFn(ctx, key)
+	}
+	return nil, nil
 }
 
 func TestNewService(t *testing.T) {
@@ -187,7 +188,7 @@ func TestNewService(t *testing.T) {
 		&FakeBM25Repository{},
 		&FakeVectorRepository{},
 		&FakeSnippetRepository{},
-		&FakeEnrichmentRepository{},
+		&FakeEnrichmentStore{},
 		nil,
 	)
 
@@ -199,7 +200,7 @@ func TestService_Search_BothQueriesEmpty(t *testing.T) {
 		&FakeBM25Repository{},
 		&FakeVectorRepository{},
 		&FakeSnippetRepository{},
-		&FakeEnrichmentRepository{},
+		&FakeEnrichmentStore{},
 		nil,
 	)
 
@@ -233,7 +234,7 @@ func TestService_Search_TextQueryOnly(t *testing.T) {
 		bm25Repo,
 		&FakeVectorRepository{},
 		snippetRepo,
-		&FakeEnrichmentRepository{},
+		&FakeEnrichmentStore{},
 		nil,
 	)
 
@@ -268,7 +269,7 @@ func TestService_Search_CodeQueryOnly(t *testing.T) {
 		&FakeBM25Repository{},
 		vectorRepo,
 		snippetRepo,
-		&FakeEnrichmentRepository{},
+		&FakeEnrichmentStore{},
 		nil,
 	)
 
@@ -319,7 +320,7 @@ func TestService_Search_HybridSearch(t *testing.T) {
 		bm25Repo,
 		vectorRepo,
 		snippetRepo,
-		&FakeEnrichmentRepository{},
+		&FakeEnrichmentStore{},
 		nil,
 	)
 
@@ -365,7 +366,7 @@ func TestService_SearchBM25(t *testing.T) {
 		bm25Repo,
 		&FakeVectorRepository{},
 		snippetRepo,
-		&FakeEnrichmentRepository{},
+		&FakeEnrichmentStore{},
 		nil,
 	)
 
@@ -398,7 +399,7 @@ func TestService_SearchVector(t *testing.T) {
 		&FakeBM25Repository{},
 		vectorRepo,
 		snippetRepo,
-		&FakeEnrichmentRepository{},
+		&FakeEnrichmentStore{},
 		nil,
 	)
 
@@ -422,7 +423,7 @@ func TestService_SearchBM25_DefaultTopK(t *testing.T) {
 		bm25Repo,
 		&FakeVectorRepository{},
 		snippetRepo,
-		&FakeEnrichmentRepository{},
+		&FakeEnrichmentStore{},
 		nil,
 	)
 

@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	domainenrichment "github.com/helixml/kodit/domain/enrichment"
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/internal/domain"
 	"github.com/helixml/kodit/internal/enrichment"
 	"github.com/helixml/kodit/internal/git"
@@ -27,11 +29,11 @@ type DocumentationParser interface {
 
 // ExtractExamples handles the EXTRACT_EXAMPLES_FOR_COMMIT operation.
 type ExtractExamples struct {
-	repoRepo        git.RepoRepository
-	commitRepo      git.CommitRepository
+	repoRepo        repository.RepositoryStore
+	commitRepo      repository.CommitStore
 	adapter         git.Adapter
-	enrichmentRepo  enrichment.EnrichmentRepository
-	associationRepo enrichment.AssociationRepository
+	enrichmentRepo  domainenrichment.EnrichmentStore
+	associationRepo domainenrichment.AssociationStore
 	queryService    *enrichment.QueryService
 	discoverer      ExampleDiscoverer
 	trackerFactory  TrackerFactory
@@ -40,11 +42,11 @@ type ExtractExamples struct {
 
 // NewExtractExamples creates a new ExtractExamples handler.
 func NewExtractExamples(
-	repoRepo git.RepoRepository,
-	commitRepo git.CommitRepository,
+	repoRepo repository.RepositoryStore,
+	commitRepo repository.CommitStore,
 	adapter git.Adapter,
-	enrichmentRepo enrichment.EnrichmentRepository,
-	associationRepo enrichment.AssociationRepository,
+	enrichmentRepo domainenrichment.EnrichmentStore,
+	associationRepo domainenrichment.AssociationStore,
 	queryService *enrichment.QueryService,
 	discoverer ExampleDiscoverer,
 	trackerFactory TrackerFactory,
@@ -81,7 +83,7 @@ func (h *ExtractExamples) Execute(ctx context.Context, payload map[string]any) e
 		repoID,
 	)
 
-	hasExamples, err := h.queryService.Exists(ctx, &enrichment.ExistsParams{CommitSHA: commitSHA, Type: enrichment.TypeDevelopment, Subtype: enrichment.SubtypeExample})
+	hasExamples, err := h.queryService.Exists(ctx, &enrichment.ExistsParams{CommitSHA: commitSHA, Type: domainenrichment.TypeDevelopment, Subtype: domainenrichment.SubtypeExample})
 	if err != nil {
 		h.logger.Error("failed to check existing examples", slog.String("error", err.Error()))
 		return err
@@ -94,7 +96,7 @@ func (h *ExtractExamples) Execute(ctx context.Context, payload map[string]any) e
 		return nil
 	}
 
-	repo, err := h.repoRepo.Get(ctx, repoID)
+	repo, err := h.repoRepo.FindOne(ctx, repository.WithID(repoID))
 	if err != nil {
 		return fmt.Errorf("get repository: %w", err)
 	}
@@ -154,14 +156,14 @@ func (h *ExtractExamples) Execute(ctx context.Context, payload map[string]any) e
 
 	for _, content := range uniqueExamples {
 		sanitized := h.sanitizeContent(content)
-		exampleEnrichment := enrichment.NewExample(sanitized)
+		exampleEnrichment := domainenrichment.NewExample(sanitized)
 
 		saved, err := h.enrichmentRepo.Save(ctx, exampleEnrichment)
 		if err != nil {
 			return fmt.Errorf("save example enrichment: %w", err)
 		}
 
-		commitAssoc := enrichment.CommitAssociation(saved.ID(), commitSHA)
+		commitAssoc := domainenrichment.CommitAssociation(saved.ID(), commitSHA)
 		if _, err := h.associationRepo.Save(ctx, commitAssoc); err != nil {
 			return fmt.Errorf("save commit association: %w", err)
 		}

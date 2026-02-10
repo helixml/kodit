@@ -5,55 +5,43 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/helixml/kodit/domain/repository"
 	"gorm.io/gorm"
 )
 
 // ErrNotFound indicates the requested entity was not found.
 var ErrNotFound = errors.New("entity not found")
 
-// EntityMapper defines the interface for mapping between domain and database entities.
+// EntityMapper defines the interface for mapping between domain and database model types.
 type EntityMapper[D any, E any] interface {
 	ToDomain(entity E) D
-	ToDatabase(domain D) E
+	ToModel(domain D) E
 }
 
-// Repository provides generic CRUD operations for database entities.
+// Repository provides generic persistence operations for database entities
+// using repository.Option-based queries.
 type Repository[D any, E any] struct {
 	db     Database
 	mapper EntityMapper[D, E]
-	table  string
+	label  string
 }
 
 // NewRepository creates a new Repository.
-func NewRepository[D any, E any](db Database, mapper EntityMapper[D, E], table string) Repository[D, E] {
+func NewRepository[D any, E any](db Database, mapper EntityMapper[D, E], label string) Repository[D, E] {
 	return Repository[D, E]{
 		db:     db,
 		mapper: mapper,
-		table:  table,
+		label:  label,
 	}
 }
 
-// Get retrieves an entity by ID.
-func (r Repository[D, E]) Get(ctx context.Context, id int64) (D, error) {
-	var entity E
-	result := r.db.Session(ctx).Table(r.table).Where("id = ?", id).First(&entity)
-	if result.Error != nil {
-		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			var zero D
-			return zero, fmt.Errorf("%w: id %d", ErrNotFound, id)
-		}
-		var zero D
-		return zero, fmt.Errorf("get entity: %w", result.Error)
-	}
-	return r.mapper.ToDomain(entity), nil
-}
-
-// Find retrieves entities matching a query.
-func (r Repository[D, E]) Find(ctx context.Context, query Query) ([]D, error) {
+// Find retrieves entities matching the given options.
+func (r Repository[D, E]) Find(ctx context.Context, options ...repository.Option) ([]D, error) {
 	var entities []E
-	result := query.Apply(r.db.Session(ctx).Table(r.table)).Find(&entities)
+	db := ApplyOptions(r.db.Session(ctx).Model(new(E)), options...)
+	result := db.Find(&entities)
 	if result.Error != nil {
-		return nil, fmt.Errorf("find entities: %w", result.Error)
+		return nil, fmt.Errorf("find %s: %w", r.label, result.Error)
 	}
 
 	domains := make([]D, len(entities))
@@ -63,103 +51,49 @@ func (r Repository[D, E]) Find(ctx context.Context, query Query) ([]D, error) {
 	return domains, nil
 }
 
-// FindAll retrieves all entities.
-func (r Repository[D, E]) FindAll(ctx context.Context) ([]D, error) {
-	return r.Find(ctx, NewQuery())
-}
-
-// Save creates or updates an entity.
-func (r Repository[D, E]) Save(ctx context.Context, domain D) (D, error) {
-	entity := r.mapper.ToDatabase(domain)
-	result := r.db.Session(ctx).Table(r.table).Save(&entity)
-	if result.Error != nil {
-		var zero D
-		return zero, fmt.Errorf("save entity: %w", result.Error)
-	}
-	return r.mapper.ToDomain(entity), nil
-}
-
-// Create creates a new entity.
-func (r Repository[D, E]) Create(ctx context.Context, domain D) (D, error) {
-	entity := r.mapper.ToDatabase(domain)
-	result := r.db.Session(ctx).Table(r.table).Create(&entity)
-	if result.Error != nil {
-		var zero D
-		return zero, fmt.Errorf("create entity: %w", result.Error)
-	}
-	return r.mapper.ToDomain(entity), nil
-}
-
-// Update updates an existing entity.
-func (r Repository[D, E]) Update(ctx context.Context, domain D) error {
-	entity := r.mapper.ToDatabase(domain)
-	result := r.db.Session(ctx).Table(r.table).Save(&entity)
-	if result.Error != nil {
-		return fmt.Errorf("update entity: %w", result.Error)
-	}
-	return nil
-}
-
-// Delete removes an entity.
-func (r Repository[D, E]) Delete(ctx context.Context, domain D) error {
-	entity := r.mapper.ToDatabase(domain)
-	result := r.db.Session(ctx).Table(r.table).Delete(&entity)
-	if result.Error != nil {
-		return fmt.Errorf("delete entity: %w", result.Error)
-	}
-	return nil
-}
-
-// DeleteByID removes an entity by ID.
-func (r Repository[D, E]) DeleteByID(ctx context.Context, id int64) error {
+// FindOne retrieves a single entity matching the given options.
+func (r Repository[D, E]) FindOne(ctx context.Context, options ...repository.Option) (D, error) {
 	var entity E
-	result := r.db.Session(ctx).Table(r.table).Where("id = ?", id).Delete(&entity)
+	db := ApplyOptions(r.db.Session(ctx), options...)
+	result := db.First(&entity)
 	if result.Error != nil {
-		return fmt.Errorf("delete entity: %w", result.Error)
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			var zero D
+			return zero, fmt.Errorf("%w: %s", ErrNotFound, r.label)
+		}
+		var zero D
+		return zero, fmt.Errorf("find one %s: %w", r.label, result.Error)
 	}
-	return nil
+	return r.mapper.ToDomain(entity), nil
 }
 
-// Count returns the count of entities matching a query.
-func (r Repository[D, E]) Count(ctx context.Context, query Query) (int64, error) {
+// Exists checks if any entity matches the given options.
+func (r Repository[D, E]) Exists(ctx context.Context, options ...repository.Option) (bool, error) {
 	var count int64
-	result := query.Apply(r.db.Session(ctx).Table(r.table)).Count(&count)
+	db := ApplyOptions(r.db.Session(ctx).Model(new(E)), options...)
+	result := db.Count(&count)
 	if result.Error != nil {
-		return 0, fmt.Errorf("count entities: %w", result.Error)
-	}
-	return count, nil
-}
-
-// Exists checks if any entity matches the query.
-func (r Repository[D, E]) Exists(ctx context.Context, query Query) (bool, error) {
-	count, err := r.Count(ctx, query)
-	if err != nil {
-		return false, err
+		return false, fmt.Errorf("check %s exists: %w", r.label, result.Error)
 	}
 	return count > 0, nil
 }
 
-// ExistsByID checks if an entity with the given ID exists.
-func (r Repository[D, E]) ExistsByID(ctx context.Context, id int64) (bool, error) {
-	return r.Exists(ctx, NewQuery().Equal("id", id))
-}
-
-// FindOne retrieves a single entity matching a query.
-func (r Repository[D, E]) FindOne(ctx context.Context, query Query) (D, error) {
-	var entity E
-	result := query.Apply(r.db.Session(ctx).Table(r.table)).First(&entity)
+// DeleteBy removes entities matching the given options.
+func (r Repository[D, E]) DeleteBy(ctx context.Context, options ...repository.Option) error {
+	db := ApplyOptions(r.db.Session(ctx), options...)
+	result := db.Delete(new(E))
 	if result.Error != nil {
-		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			var zero D
-			return zero, ErrNotFound
-		}
-		var zero D
-		return zero, fmt.Errorf("find one: %w", result.Error)
+		return fmt.Errorf("delete %s: %w", r.label, result.Error)
 	}
-	return r.mapper.ToDomain(entity), nil
+	return nil
 }
 
-// Session returns the underlying GORM session for custom queries.
-func (r Repository[D, E]) Session(ctx context.Context) *gorm.DB {
-	return r.db.Session(ctx).Table(r.table)
+// DB returns the underlying GORM session for custom queries.
+func (r Repository[D, E]) DB(ctx context.Context) *gorm.DB {
+	return r.db.Session(ctx)
+}
+
+// Mapper returns the entity mapper for external use.
+func (r Repository[D, E]) Mapper() EntityMapper[D, E] {
+	return r.mapper
 }

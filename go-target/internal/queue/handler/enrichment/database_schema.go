@@ -6,9 +6,10 @@ import (
 	"log/slog"
 	"strings"
 
+	domainenrichment "github.com/helixml/kodit/domain/enrichment"
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/internal/domain"
 	"github.com/helixml/kodit/internal/enrichment"
-	"github.com/helixml/kodit/internal/git"
 	"github.com/helixml/kodit/internal/queue"
 )
 
@@ -81,9 +82,9 @@ type SchemaDiscoverer interface {
 
 // DatabaseSchema handles the CREATE_DATABASE_SCHEMA_FOR_COMMIT operation.
 type DatabaseSchema struct {
-	repoRepo        git.RepoRepository
-	enrichmentRepo  enrichment.EnrichmentRepository
-	associationRepo enrichment.AssociationRepository
+	repoRepo        repository.RepositoryStore
+	enrichmentRepo  domainenrichment.EnrichmentStore
+	associationRepo domainenrichment.AssociationStore
 	queryService    *enrichment.QueryService
 	discoverer      SchemaDiscoverer
 	enricher        enrichment.Enricher
@@ -93,9 +94,9 @@ type DatabaseSchema struct {
 
 // NewDatabaseSchema creates a new DatabaseSchema handler.
 func NewDatabaseSchema(
-	repoRepo git.RepoRepository,
-	enrichmentRepo enrichment.EnrichmentRepository,
-	associationRepo enrichment.AssociationRepository,
+	repoRepo repository.RepositoryStore,
+	enrichmentRepo domainenrichment.EnrichmentStore,
+	associationRepo domainenrichment.AssociationStore,
 	queryService *enrichment.QueryService,
 	discoverer SchemaDiscoverer,
 	enricher enrichment.Enricher,
@@ -132,7 +133,7 @@ func (h *DatabaseSchema) Execute(ctx context.Context, payload map[string]any) er
 		repoID,
 	)
 
-	hasSchema, err := h.queryService.Exists(ctx, &enrichment.ExistsParams{CommitSHA: commitSHA, Type: enrichment.TypeArchitecture, Subtype: enrichment.SubtypeDatabaseSchema})
+	hasSchema, err := h.queryService.Exists(ctx, &enrichment.ExistsParams{CommitSHA: commitSHA, Type: domainenrichment.TypeArchitecture, Subtype: domainenrichment.SubtypeDatabaseSchema})
 	if err != nil {
 		h.logger.Error("failed to check existing database schema", slog.String("error", err.Error()))
 		return err
@@ -145,7 +146,7 @@ func (h *DatabaseSchema) Execute(ctx context.Context, payload map[string]any) er
 		return nil
 	}
 
-	repo, err := h.repoRepo.Get(ctx, repoID)
+	repo, err := h.repoRepo.FindOne(ctx, repository.WithID(repoID))
 	if err != nil {
 		return fmt.Errorf("get repository: %w", err)
 	}
@@ -193,13 +194,13 @@ func (h *DatabaseSchema) Execute(ctx context.Context, payload map[string]any) er
 		return fmt.Errorf("no enrichment response for commit %s", commitSHA)
 	}
 
-	schemaEnrichment := enrichment.NewDatabaseSchema(responses[0].Text())
+	schemaEnrichment := domainenrichment.NewDatabaseSchema(responses[0].Text())
 	saved, err := h.enrichmentRepo.Save(ctx, schemaEnrichment)
 	if err != nil {
 		return fmt.Errorf("save database schema enrichment: %w", err)
 	}
 
-	commitAssoc := enrichment.CommitAssociation(saved.ID(), commitSHA)
+	commitAssoc := domainenrichment.CommitAssociation(saved.ID(), commitSHA)
 	if _, err := h.associationRepo.Save(ctx, commitAssoc); err != nil {
 		return fmt.Errorf("save commit association: %w", err)
 	}

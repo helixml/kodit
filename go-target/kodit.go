@@ -48,6 +48,7 @@ import (
 	"github.com/helixml/kodit/infrastructure/git"
 	"github.com/helixml/kodit/infrastructure/persistence"
 	infraSearch "github.com/helixml/kodit/infrastructure/search"
+	"github.com/helixml/kodit/internal/database"
 	"github.com/helixml/kodit/infrastructure/slicing"
 	"github.com/helixml/kodit/infrastructure/slicing/language"
 	"github.com/helixml/kodit/infrastructure/tracking"
@@ -59,8 +60,8 @@ import (
 //
 // Access resources via struct fields:
 //
-//	client.Repositories.List(ctx, nil)
-//	client.Commits.List(ctx, &service.CommitListParams{RepositoryID: id})
+//	client.Repositories.Find(ctx)
+//	client.Commits.Find(ctx, repository.WithRepoID(id))
 //	client.Search.Query(ctx, "query")
 type Client struct {
 	// Public resource fields (direct service access)
@@ -74,7 +75,7 @@ type Client struct {
 	Tracking     *service.Tracking
 	Search       *service.Search
 
-	db         persistence.Database
+	db         database.Database
 	repoStores RepositoryStores
 
 	// Stores not grouped into aggregates
@@ -151,13 +152,13 @@ func New(opts ...Option) (*Client, error) {
 	}
 
 	// Open database
-	db, err := persistence.NewDatabase(ctx, dbURL)
+	db, err := database.NewDatabase(ctx, dbURL)
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
 
 	// Run auto migration
-	if err := db.AutoMigrate(); err != nil {
+	if err := persistence.AutoMigrate(db); err != nil {
 		errClose := db.Close()
 		return nil, errors.Join(fmt.Errorf("auto migrate: %w", err), errClose)
 	}
@@ -329,7 +330,7 @@ func (c *Client) Logger() *slog.Logger {
 }
 
 // buildSearchStores creates the search stores based on config.
-func buildSearchStores(cfg *clientConfig, db persistence.Database, logger *slog.Logger) (textVectorStore, codeVectorStore search.VectorStore, bm25Store search.BM25Store) {
+func buildSearchStores(cfg *clientConfig, db database.Database, logger *slog.Logger) (textVectorStore, codeVectorStore search.VectorStore, bm25Store search.BM25Store) {
 	switch cfg.database {
 	case databaseSQLite:
 		bm25Store = infraSearch.NewSQLiteBM25Store(db.GORM(), logger)

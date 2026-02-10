@@ -11,6 +11,7 @@ import (
 	"github.com/helixml/kodit"
 	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/enrichment"
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/infrastructure/api/middleware"
 	"github.com/helixml/kodit/infrastructure/api/v1/dto"
 )
@@ -134,7 +135,7 @@ func (r *EnrichmentsRouter) Get(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	e, err := r.client.Enrichments.Get(ctx, id)
+	e, err := r.client.Enrichments.Get(ctx, repository.WithID(id))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return

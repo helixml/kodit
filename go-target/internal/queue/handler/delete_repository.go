@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/internal/domain"
-	"github.com/helixml/kodit/internal/git"
 	"github.com/helixml/kodit/internal/indexing"
 	"github.com/helixml/kodit/internal/queue"
 )
@@ -15,11 +15,11 @@ import (
 // DeleteRepository handles the DELETE_REPOSITORY task operation.
 // It removes a repository and all its associated data from the system.
 type DeleteRepository struct {
-	repoRepo       git.RepoRepository
-	commitRepo     git.CommitRepository
-	branchRepo     git.BranchRepository
-	tagRepo        git.TagRepository
-	fileRepo       git.FileRepository
+	repoRepo       repository.RepositoryStore
+	commitRepo     repository.CommitStore
+	branchRepo     repository.BranchStore
+	tagRepo        repository.TagStore
+	fileRepo       repository.FileStore
 	snippetRepo    indexing.SnippetRepository
 	trackerFactory TrackerFactory
 	logger         *slog.Logger
@@ -27,11 +27,11 @@ type DeleteRepository struct {
 
 // NewDeleteRepository creates a new DeleteRepository handler.
 func NewDeleteRepository(
-	repoRepo git.RepoRepository,
-	commitRepo git.CommitRepository,
-	branchRepo git.BranchRepository,
-	tagRepo git.TagRepository,
-	fileRepo git.FileRepository,
+	repoRepo repository.RepositoryStore,
+	commitRepo repository.CommitStore,
+	branchRepo repository.BranchStore,
+	tagRepo repository.TagStore,
+	fileRepo repository.FileStore,
 	snippetRepo indexing.SnippetRepository,
 	trackerFactory TrackerFactory,
 	logger *slog.Logger,
@@ -61,7 +61,7 @@ func (h *DeleteRepository) Execute(ctx context.Context, payload map[string]any) 
 		repoID,
 	)
 
-	repo, err := h.repoRepo.Get(ctx, repoID)
+	repo, err := h.repoRepo.FindOne(ctx, repository.WithID(repoID))
 	if err != nil {
 		if failErr := tracker.Fail(ctx, err.Error()); failErr != nil {
 			h.logger.Warn("failed to mark tracker as failed", slog.String("error", failErr.Error()))
@@ -77,7 +77,7 @@ func (h *DeleteRepository) Execute(ctx context.Context, payload map[string]any) 
 		h.logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
 	}
 
-	commits, err := h.commitRepo.FindByRepoID(ctx, repoID)
+	commits, err := h.commitRepo.Find(ctx, repository.WithRepoID(repoID))
 	if err != nil {
 		h.logger.Warn("failed to find commits", slog.String("error", err.Error()))
 	}
@@ -151,7 +151,7 @@ func (h *DeleteRepository) Execute(ctx context.Context, payload map[string]any) 
 }
 
 func (h *DeleteRepository) deleteCommitData(ctx context.Context, commitSHA string) error {
-	if err := h.fileRepo.DeleteByCommitSHA(ctx, commitSHA); err != nil {
+	if err := h.fileRepo.DeleteBy(ctx, repository.WithCommitSHA(commitSHA)); err != nil {
 		return fmt.Errorf("delete files: %w", err)
 	}
 
@@ -163,7 +163,7 @@ func (h *DeleteRepository) deleteCommitData(ctx context.Context, commitSHA strin
 }
 
 func (h *DeleteRepository) deleteBranches(ctx context.Context, repoID int64) error {
-	branches, err := h.branchRepo.FindByRepoID(ctx, repoID)
+	branches, err := h.branchRepo.Find(ctx, repository.WithRepoID(repoID))
 	if err != nil {
 		return fmt.Errorf("find branches: %w", err)
 	}
@@ -181,7 +181,7 @@ func (h *DeleteRepository) deleteBranches(ctx context.Context, repoID int64) err
 }
 
 func (h *DeleteRepository) deleteTags(ctx context.Context, repoID int64) error {
-	tags, err := h.tagRepo.FindByRepoID(ctx, repoID)
+	tags, err := h.tagRepo.Find(ctx, repository.WithRepoID(repoID))
 	if err != nil {
 		return fmt.Errorf("find tags: %w", err)
 	}

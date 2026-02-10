@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	domainenrichment "github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/internal/domain"
 	"github.com/helixml/kodit/internal/enrichment"
 	"github.com/helixml/kodit/internal/indexing"
@@ -19,8 +20,8 @@ Please provide a concise explanation of the code.
 // CreateSummary handles the CREATE_SUMMARY_ENRICHMENT_FOR_COMMIT operation.
 type CreateSummary struct {
 	snippetRepo     indexing.SnippetRepository
-	enrichmentRepo  enrichment.EnrichmentRepository
-	associationRepo enrichment.AssociationRepository
+	enrichmentRepo  domainenrichment.EnrichmentStore
+	associationRepo domainenrichment.AssociationStore
 	queryService    *enrichment.QueryService
 	enricher        enrichment.Enricher
 	trackerFactory  TrackerFactory
@@ -30,8 +31,8 @@ type CreateSummary struct {
 // NewCreateSummary creates a new CreateSummary handler.
 func NewCreateSummary(
 	snippetRepo indexing.SnippetRepository,
-	enrichmentRepo enrichment.EnrichmentRepository,
-	associationRepo enrichment.AssociationRepository,
+	enrichmentRepo domainenrichment.EnrichmentStore,
+	associationRepo domainenrichment.AssociationStore,
 	queryService *enrichment.QueryService,
 	enricher enrichment.Enricher,
 	trackerFactory TrackerFactory,
@@ -66,7 +67,7 @@ func (h *CreateSummary) Execute(ctx context.Context, payload map[string]any) err
 		repoID,
 	)
 
-	hasSummaries, err := h.queryService.Exists(ctx, &enrichment.ExistsParams{CommitSHA: commitSHA, Type: enrichment.TypeDevelopment, Subtype: enrichment.SubtypeSnippetSummary})
+	hasSummaries, err := h.queryService.Exists(ctx, &enrichment.ExistsParams{CommitSHA: commitSHA, Type: domainenrichment.TypeDevelopment, Subtype: domainenrichment.SubtypeSnippetSummary})
 	if err != nil {
 		h.logger.Error("failed to check existing summaries", slog.String("error", err.Error()))
 		return err
@@ -119,18 +120,18 @@ func (h *CreateSummary) Execute(ctx context.Context, payload map[string]any) err
 			continue
 		}
 
-		summaryEnrichment := enrichment.NewSnippetSummary(resp.Text())
+		summaryEnrichment := domainenrichment.NewSnippetSummary(resp.Text())
 		saved, err := h.enrichmentRepo.Save(ctx, summaryEnrichment)
 		if err != nil {
 			return fmt.Errorf("save summary enrichment: %w", err)
 		}
 
-		snippetAssoc := enrichment.SnippetAssociation(saved.ID(), snippet.SHA())
+		snippetAssoc := domainenrichment.SnippetAssociation(saved.ID(), snippet.SHA())
 		if _, err := h.associationRepo.Save(ctx, snippetAssoc); err != nil {
 			return fmt.Errorf("save snippet association: %w", err)
 		}
 
-		commitAssoc := enrichment.CommitAssociation(saved.ID(), commitSHA)
+		commitAssoc := domainenrichment.CommitAssociation(saved.ID(), commitSHA)
 		if _, err := h.associationRepo.Save(ctx, commitAssoc); err != nil {
 			return fmt.Errorf("save commit association: %w", err)
 		}

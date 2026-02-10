@@ -65,12 +65,61 @@ func newFakeEnrichmentStore() *fakeEnrichmentStore {
 	}
 }
 
-func (f *fakeEnrichmentStore) Get(_ context.Context, id int64) (enrichment.Enrichment, error) {
-	e, ok := f.enrichments[id]
-	if !ok {
+func (f *fakeEnrichmentStore) Find(_ context.Context, options ...repository.Option) ([]enrichment.Enrichment, error) {
+	q := repository.Build(options...)
+	var result []enrichment.Enrichment
+	for _, e := range f.enrichments {
+		match := true
+		for _, c := range q.Conditions() {
+			switch c.Field() {
+			case "id":
+				if id, ok := c.Value().(int64); ok && e.ID() != id {
+					match = false
+				}
+			case "type":
+				if t, ok := c.Value().(enrichment.Type); ok && e.Type() != t {
+					match = false
+				}
+			case "subtype":
+				if s, ok := c.Value().(enrichment.Subtype); ok && e.Subtype() != s {
+					match = false
+				}
+			}
+		}
+		if match {
+			result = append(result, e)
+		}
+	}
+	return result, nil
+}
+
+func (f *fakeEnrichmentStore) FindOne(ctx context.Context, options ...repository.Option) (enrichment.Enrichment, error) {
+	results, err := f.Find(ctx, options...)
+	if err != nil {
+		return enrichment.Enrichment{}, err
+	}
+	if len(results) == 0 {
 		return enrichment.Enrichment{}, errors.New("not found")
 	}
-	return e, nil
+	return results[0], nil
+}
+
+func (f *fakeEnrichmentStore) DeleteBy(_ context.Context, options ...repository.Option) error {
+	q := repository.Build(options...)
+	for id, e := range f.enrichments {
+		match := true
+		for _, c := range q.Conditions() {
+			if c.Field() == "id" {
+				if cid, ok := c.Value().(int64); ok && e.ID() != cid {
+					match = false
+				}
+			}
+		}
+		if match {
+			delete(f.enrichments, id)
+		}
+	}
+	return nil
 }
 
 func (f *fakeEnrichmentStore) Save(_ context.Context, e enrichment.Enrichment) (enrichment.Enrichment, error) {
@@ -84,33 +133,6 @@ func (f *fakeEnrichmentStore) Save(_ context.Context, e enrichment.Enrichment) (
 func (f *fakeEnrichmentStore) Delete(_ context.Context, e enrichment.Enrichment) error {
 	delete(f.enrichments, e.ID())
 	return nil
-}
-
-func (f *fakeEnrichmentStore) DeleteByIDs(_ context.Context, ids []int64) error {
-	for _, id := range ids {
-		delete(f.enrichments, id)
-	}
-	return nil
-}
-
-func (f *fakeEnrichmentStore) FindByType(_ context.Context, t enrichment.Type) ([]enrichment.Enrichment, error) {
-	var result []enrichment.Enrichment
-	for _, e := range f.enrichments {
-		if e.Type() == t {
-			result = append(result, e)
-		}
-	}
-	return result, nil
-}
-
-func (f *fakeEnrichmentStore) FindByTypeAndSubtype(_ context.Context, t enrichment.Type, s enrichment.Subtype) ([]enrichment.Enrichment, error) {
-	var result []enrichment.Enrichment
-	for _, e := range f.enrichments {
-		if e.Type() == t && e.Subtype() == s {
-			result = append(result, e)
-		}
-	}
-	return result, nil
 }
 
 func (f *fakeEnrichmentStore) FindByEntityKey(_ context.Context, key enrichment.EntityTypeKey) ([]enrichment.Enrichment, error) {
@@ -135,12 +157,70 @@ func newFakeAssociationStore() *fakeAssociationStore {
 	}
 }
 
-func (f *fakeAssociationStore) Get(_ context.Context, id int64) (enrichment.Association, error) {
-	a, ok := f.associations[id]
-	if !ok {
+func (f *fakeAssociationStore) Find(_ context.Context, options ...repository.Option) ([]enrichment.Association, error) {
+	q := repository.Build(options...)
+	var result []enrichment.Association
+	for _, a := range f.associations {
+		match := true
+		for _, c := range q.Conditions() {
+			switch c.Field() {
+			case "id":
+				if id, ok := c.Value().(int64); ok && a.ID() != id {
+					match = false
+				}
+			case "enrichment_id":
+				if eid, ok := c.Value().(int64); ok && a.EnrichmentID() != eid {
+					match = false
+				}
+			case "entity_id":
+				if entityID, ok := c.Value().(string); ok && a.EntityID() != entityID {
+					match = false
+				}
+			case "entity_type":
+				if entityType, ok := c.Value().(enrichment.EntityTypeKey); ok && a.EntityType() != entityType {
+					match = false
+				}
+			}
+		}
+		if match {
+			result = append(result, a)
+		}
+	}
+	return result, nil
+}
+
+func (f *fakeAssociationStore) FindOne(ctx context.Context, options ...repository.Option) (enrichment.Association, error) {
+	results, err := f.Find(ctx, options...)
+	if err != nil {
+		return enrichment.Association{}, err
+	}
+	if len(results) == 0 {
 		return enrichment.Association{}, errors.New("not found")
 	}
-	return a, nil
+	return results[0], nil
+}
+
+func (f *fakeAssociationStore) DeleteBy(_ context.Context, options ...repository.Option) error {
+	q := repository.Build(options...)
+	for id, a := range f.associations {
+		match := true
+		for _, c := range q.Conditions() {
+			switch c.Field() {
+			case "enrichment_id":
+				if eid, ok := c.Value().(int64); ok && a.EnrichmentID() != eid {
+					match = false
+				}
+			case "entity_id":
+				if entityID, ok := c.Value().(string); ok && a.EntityID() != entityID {
+					match = false
+				}
+			}
+		}
+		if match {
+			delete(f.associations, id)
+		}
+	}
+	return nil
 }
 
 func (f *fakeAssociationStore) Save(_ context.Context, a enrichment.Association) (enrichment.Association, error) {
@@ -153,54 +233,6 @@ func (f *fakeAssociationStore) Save(_ context.Context, a enrichment.Association)
 
 func (f *fakeAssociationStore) Delete(_ context.Context, a enrichment.Association) error {
 	delete(f.associations, a.ID())
-	return nil
-}
-
-func (f *fakeAssociationStore) FindByEnrichmentID(_ context.Context, enrichmentID int64) ([]enrichment.Association, error) {
-	var result []enrichment.Association
-	for _, a := range f.associations {
-		if a.EnrichmentID() == enrichmentID {
-			result = append(result, a)
-		}
-	}
-	return result, nil
-}
-
-func (f *fakeAssociationStore) FindByEntityID(_ context.Context, entityID string) ([]enrichment.Association, error) {
-	var result []enrichment.Association
-	for _, a := range f.associations {
-		if a.EntityID() == entityID {
-			result = append(result, a)
-		}
-	}
-	return result, nil
-}
-
-func (f *fakeAssociationStore) FindByEntityTypeAndID(_ context.Context, entityType enrichment.EntityTypeKey, entityID string) ([]enrichment.Association, error) {
-	var result []enrichment.Association
-	for _, a := range f.associations {
-		if a.EntityType() == entityType && a.EntityID() == entityID {
-			result = append(result, a)
-		}
-	}
-	return result, nil
-}
-
-func (f *fakeAssociationStore) DeleteByEnrichmentID(_ context.Context, enrichmentID int64) error {
-	for id, a := range f.associations {
-		if a.EnrichmentID() == enrichmentID {
-			delete(f.associations, id)
-		}
-	}
-	return nil
-}
-
-func (f *fakeAssociationStore) DeleteByEntityID(_ context.Context, entityID string) error {
-	for id, a := range f.associations {
-		if a.EntityID() == entityID {
-			delete(f.associations, id)
-		}
-	}
 	return nil
 }
 
@@ -341,16 +373,42 @@ func newFakeRepoStore() *fakeRepoStore {
 	}
 }
 
-func (f *fakeRepoStore) Get(_ context.Context, id int64) (repository.Repository, error) {
-	r, ok := f.repos[id]
-	if !ok {
-		return repository.Repository{}, errors.New("not found")
+func (f *fakeRepoStore) Find(_ context.Context, options ...repository.Option) ([]repository.Repository, error) {
+	q := repository.Build(options...)
+	var result []repository.Repository
+	for _, r := range f.repos {
+		match := true
+		for _, c := range q.Conditions() {
+			if c.Field() == "id" {
+				if id, ok := c.Value().(int64); ok && r.ID() != id {
+					match = false
+				}
+			}
+		}
+		if match {
+			result = append(result, r)
+		}
 	}
-	return r, nil
+	return result, nil
 }
 
-func (f *fakeRepoStore) FindAll(_ context.Context) ([]repository.Repository, error) {
-	return nil, nil
+func (f *fakeRepoStore) FindOne(ctx context.Context, options ...repository.Option) (repository.Repository, error) {
+	results, err := f.Find(ctx, options...)
+	if err != nil {
+		return repository.Repository{}, err
+	}
+	if len(results) == 0 {
+		return repository.Repository{}, errors.New("not found")
+	}
+	return results[0], nil
+}
+
+func (f *fakeRepoStore) Exists(ctx context.Context, options ...repository.Option) (bool, error) {
+	results, err := f.Find(ctx, options...)
+	if err != nil {
+		return false, err
+	}
+	return len(results) > 0, nil
 }
 
 func (f *fakeRepoStore) Save(_ context.Context, r repository.Repository) (repository.Repository, error) {
@@ -359,14 +417,6 @@ func (f *fakeRepoStore) Save(_ context.Context, r repository.Repository) (reposi
 
 func (f *fakeRepoStore) Delete(_ context.Context, _ repository.Repository) error {
 	return nil
-}
-
-func (f *fakeRepoStore) GetByRemoteURL(_ context.Context, _ string) (repository.Repository, error) {
-	return repository.Repository{}, nil
-}
-
-func (f *fakeRepoStore) ExistsByRemoteURL(_ context.Context, _ string) (bool, error) {
-	return false, nil
 }
 
 func newFakeEnrichmentContext(

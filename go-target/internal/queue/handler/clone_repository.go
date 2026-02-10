@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/internal/domain"
 	"github.com/helixml/kodit/internal/git"
 	"github.com/helixml/kodit/internal/queue"
@@ -13,7 +14,7 @@ import (
 // CloneRepository handles the CLONE_REPOSITORY task operation.
 // It clones a Git repository to the local filesystem and updates the repo record.
 type CloneRepository struct {
-	repoRepo       git.RepoRepository
+	repoRepo       repository.RepositoryStore
 	cloner         git.Cloner
 	queueService   *queue.Service
 	trackerFactory TrackerFactory
@@ -22,7 +23,7 @@ type CloneRepository struct {
 
 // NewCloneRepository creates a new CloneRepository handler.
 func NewCloneRepository(
-	repoRepo git.RepoRepository,
+	repoRepo repository.RepositoryStore,
 	cloner git.Cloner,
 	queueService *queue.Service,
 	trackerFactory TrackerFactory,
@@ -50,7 +51,7 @@ func (h *CloneRepository) Execute(ctx context.Context, payload map[string]any) e
 		repoID,
 	)
 
-	repo, err := h.repoRepo.Get(ctx, repoID)
+	repo, err := h.repoRepo.FindOne(ctx, repository.WithID(repoID))
 	if err != nil {
 		if failErr := tracker.Fail(ctx, err.Error()); failErr != nil {
 			h.logger.Warn("failed to mark tracker as failed", slog.String("error", failErr.Error()))
@@ -85,7 +86,7 @@ func (h *CloneRepository) Execute(ctx context.Context, payload map[string]any) e
 		return fmt.Errorf("clone repository: %w", err)
 	}
 
-	wc := git.NewWorkingCopy(clonedPath, repo.RemoteURL())
+	wc := repository.NewWorkingCopy(clonedPath, repo.RemoteURL())
 	updatedRepo := repo.WithWorkingCopy(wc)
 
 	if _, err := h.repoRepo.Save(ctx, updatedRepo); err != nil {

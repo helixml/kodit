@@ -5,21 +5,21 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/internal/domain"
-	"github.com/helixml/kodit/internal/git"
 	"github.com/helixml/kodit/internal/queue"
 )
 
 // SyncService orchestrates repository synchronization operations.
 type SyncService struct {
-	repoRepo     git.RepoRepository
+	repoRepo     repository.RepositoryStore
 	queueService *queue.Service
 	logger       *slog.Logger
 }
 
 // NewSyncService creates a new SyncService.
 func NewSyncService(
-	repoRepo git.RepoRepository,
+	repoRepo repository.RepositoryStore,
 	queueService *queue.Service,
 	logger *slog.Logger,
 ) *SyncService {
@@ -32,7 +32,7 @@ func NewSyncService(
 
 // AddRepository creates a new repository and queues cloning.
 func (s *SyncService) AddRepository(ctx context.Context, remoteURL string) (Source, error) {
-	existing, err := s.repoRepo.ExistsByRemoteURL(ctx, remoteURL)
+	existing, err := s.repoRepo.Exists(ctx, repository.WithRemoteURL(remoteURL))
 	if err != nil {
 		return Source{}, fmt.Errorf("check existing: %w", err)
 	}
@@ -40,7 +40,7 @@ func (s *SyncService) AddRepository(ctx context.Context, remoteURL string) (Sour
 		return Source{}, fmt.Errorf("repository already exists: %s", remoteURL)
 	}
 
-	repo, err := git.NewRepo(remoteURL)
+	repo, err := repository.NewRepository(remoteURL)
 	if err != nil {
 		return Source{}, fmt.Errorf("create repository: %w", err)
 	}
@@ -72,9 +72,9 @@ func (s *SyncService) AddRepository(ctx context.Context, remoteURL string) (Sour
 func (s *SyncService) AddRepositoryWithTracking(
 	ctx context.Context,
 	remoteURL string,
-	trackingConfig git.TrackingConfig,
+	trackingConfig repository.TrackingConfig,
 ) (Source, error) {
-	existing, err := s.repoRepo.ExistsByRemoteURL(ctx, remoteURL)
+	existing, err := s.repoRepo.Exists(ctx, repository.WithRemoteURL(remoteURL))
 	if err != nil {
 		return Source{}, fmt.Errorf("check existing: %w", err)
 	}
@@ -82,7 +82,7 @@ func (s *SyncService) AddRepositoryWithTracking(
 		return Source{}, fmt.Errorf("repository already exists: %s", remoteURL)
 	}
 
-	repo, err := git.NewRepo(remoteURL)
+	repo, err := repository.NewRepository(remoteURL)
 	if err != nil {
 		return Source{}, fmt.Errorf("create repository: %w", err)
 	}
@@ -115,7 +115,7 @@ func (s *SyncService) AddRepositoryWithTracking(
 
 // RequestSync queues a sync operation for a repository.
 func (s *SyncService) RequestSync(ctx context.Context, repoID int64) error {
-	repo, err := s.repoRepo.Get(ctx, repoID)
+	repo, err := s.repoRepo.FindOne(ctx, repository.WithID(repoID))
 	if err != nil {
 		return fmt.Errorf("get repository: %w", err)
 	}
@@ -140,7 +140,7 @@ func (s *SyncService) RequestSync(ctx context.Context, repoID int64) error {
 
 // RequestDelete queues a delete operation for a repository.
 func (s *SyncService) RequestDelete(ctx context.Context, repoID int64) error {
-	_, err := s.repoRepo.Get(ctx, repoID)
+	_, err := s.repoRepo.FindOne(ctx, repository.WithID(repoID))
 	if err != nil {
 		return fmt.Errorf("get repository: %w", err)
 	}
@@ -163,9 +163,9 @@ func (s *SyncService) RequestDelete(ctx context.Context, repoID int64) error {
 func (s *SyncService) UpdateTrackingConfig(
 	ctx context.Context,
 	repoID int64,
-	trackingConfig git.TrackingConfig,
+	trackingConfig repository.TrackingConfig,
 ) (Source, error) {
-	repo, err := s.repoRepo.Get(ctx, repoID)
+	repo, err := s.repoRepo.FindOne(ctx, repository.WithID(repoID))
 	if err != nil {
 		return Source{}, fmt.Errorf("get repository: %w", err)
 	}
@@ -187,7 +187,7 @@ func (s *SyncService) UpdateTrackingConfig(
 
 // RequestRescan queues a rescan operation for a specific commit.
 func (s *SyncService) RequestRescan(ctx context.Context, repoID int64, commitSHA string) error {
-	repo, err := s.repoRepo.Get(ctx, repoID)
+	repo, err := s.repoRepo.FindOne(ctx, repository.WithID(repoID))
 	if err != nil {
 		return fmt.Errorf("get repository: %w", err)
 	}
@@ -216,7 +216,7 @@ func (s *SyncService) RequestRescan(ctx context.Context, repoID int64, commitSHA
 
 // SyncAll queues sync operations for all cloned repositories.
 func (s *SyncService) SyncAll(ctx context.Context) (int, error) {
-	repos, err := s.repoRepo.FindAll(ctx)
+	repos, err := s.repoRepo.Find(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("find all repositories: %w", err)
 	}
