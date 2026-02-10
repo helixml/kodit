@@ -76,7 +76,7 @@ func TestSmoke(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "go", "run", cmdDir,
+	cmd := exec.CommandContext(ctx, "go", "run", "-tags=fts5", cmdDir,
 		"serve",
 		"--host", baseHost,
 		"--port", strconv.Itoa(basePort),

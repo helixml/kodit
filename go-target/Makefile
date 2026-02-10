@@ -4,7 +4,7 @@
 # Go parameters
 GOCMD=go
 GOBUILD=$(GOCMD) build -tags "fts5"
-GOTEST=$(GOCMD) test
+GOTEST=$(GOCMD) test -tags "fts5"
 GOGET=$(GOCMD) get
 GOMOD=$(GOCMD) mod
 GOFMT=gofmt
