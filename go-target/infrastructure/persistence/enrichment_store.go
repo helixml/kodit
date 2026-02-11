@@ -79,7 +79,7 @@ func (s EnrichmentStore) FindByCommitSHA(ctx context.Context, commitSHA string, 
 	var models []EnrichmentModel
 	db := s.DB(ctx).
 		Joins("JOIN enrichment_associations ON enrichment_associations.enrichment_id = enrichments_v2.id").
-		Where("enrichment_associations.entity_type = ?", "commits").
+		Where("enrichment_associations.entity_type = ?", string(enrichment.EntityTypeCommit)).
 		Where("enrichment_associations.entity_id = ?", commitSHA).
 		Distinct()
 	db = database.ApplyOptions(db, options...)
@@ -100,7 +100,7 @@ func (s EnrichmentStore) CountByCommitSHA(ctx context.Context, commitSHA string,
 	var count int64
 	db := s.DB(ctx).Model(&EnrichmentModel{}).
 		Joins("JOIN enrichment_associations ON enrichment_associations.enrichment_id = enrichments_v2.id").
-		Where("enrichment_associations.entity_type = ?", "commits").
+		Where("enrichment_associations.entity_type = ?", string(enrichment.EntityTypeCommit)).
 		Where("enrichment_associations.entity_id = ?", commitSHA)
 	db = database.ApplyConditions(db, options...)
 	result := db.Distinct("enrichments_v2.id").Count(&count)
@@ -119,7 +119,7 @@ func (s EnrichmentStore) FindByCommitSHAs(ctx context.Context, commitSHAs []stri
 	var models []EnrichmentModel
 	db := s.DB(ctx).
 		Joins("JOIN enrichment_associations ON enrichment_associations.enrichment_id = enrichments_v2.id").
-		Where("enrichment_associations.entity_type = ?", "commits").
+		Where("enrichment_associations.entity_type = ?", string(enrichment.EntityTypeCommit)).
 		Where("enrichment_associations.entity_id IN ?", commitSHAs).
 		Distinct()
 	db = database.ApplyOptions(db, options...)
@@ -144,7 +144,7 @@ func (s EnrichmentStore) CountByCommitSHAs(ctx context.Context, commitSHAs []str
 	var count int64
 	db := s.DB(ctx).Model(&EnrichmentModel{}).
 		Joins("JOIN enrichment_associations ON enrichment_associations.enrichment_id = enrichments_v2.id").
-		Where("enrichment_associations.entity_type = ?", "commits").
+		Where("enrichment_associations.entity_type = ?", string(enrichment.EntityTypeCommit)).
 		Where("enrichment_associations.entity_id IN ?", commitSHAs)
 	db = database.ApplyConditions(db, options...)
 	result := db.Distinct("enrichments_v2.id").Count(&count)
