@@ -316,35 +316,6 @@ func (s *SQLiteVectorStore) HasEmbedding(ctx context.Context, snippetID string, 
 	return count > 0, nil
 }
 
-// EmbeddingsForSnippets returns embedding info for the specified snippet IDs.
-func (s *SQLiteVectorStore) EmbeddingsForSnippets(ctx context.Context, snippetIDs []string) ([]snippet.EmbeddingInfo, error) {
-	if err := s.initialize(ctx); err != nil {
-		return nil, err
-	}
-
-	if len(snippetIDs) == 0 {
-		return []snippet.EmbeddingInfo{}, nil
-	}
-
-	vectors, err := s.loadVectors(ctx, snippetIDs)
-	if err != nil {
-		return nil, err
-	}
-
-	// Determine embedding type based on table name
-	embType := snippet.EmbeddingTypeCode
-	if s.tableName == "kodit_text_embeddings" {
-		embType = snippet.EmbeddingTypeSummary
-	}
-
-	results := make([]snippet.EmbeddingInfo, 0, len(vectors))
-	for _, v := range vectors {
-		results = append(results, snippet.NewEmbeddingInfo(v.SnippetID(), embType, v.Embedding()))
-	}
-
-	return results, nil
-}
-
 // Delete removes documents from the vector store.
 func (s *SQLiteVectorStore) Delete(ctx context.Context, request search.DeleteRequest) error {
 	if err := s.initialize(ctx); err != nil {

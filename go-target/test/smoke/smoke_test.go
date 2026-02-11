@@ -552,51 +552,11 @@ func TestSmoke(t *testing.T) {
 		t.Logf("retrieved global enrichment by ID: %s", globalEnrichmentID)
 	}
 
-	// Test embeddings (truncated by default)
-	resp = doRequest(t, client, "GET", commitURL+"/embeddings?full=false", nil)
-	assertStatus(t, resp, http.StatusOK)
-	embeddings := decodeJSON[embeddingListResponse](t, resp.Body)
-	t.Logf("retrieved embeddings: count=%d", len(embeddings.Data))
-
-	// Embeddings are required - fail if none found
-	if len(embeddings.Data) == 0 {
-		t.Fatal("expected at least one embedding - ensure embedding provider is configured")
-	}
-
-	// Validate embedding structure
-	emb := embeddings.Data[0]
-	if emb.ID == "" {
-		t.Fatal("expected embedding to have ID")
-	}
-	if emb.Attributes.SnippetSHA == "" {
-		t.Fatal("expected embedding to have snippet_sha")
-	}
-	if emb.Attributes.EmbeddingType == "" {
-		t.Fatal("expected embedding to have embedding_type")
-	}
-	// Truncated embeddings should have 5 values (or fewer if embedding is shorter)
-	if len(emb.Attributes.Embedding) == 0 {
-		t.Fatal("expected embedding to have values")
-	}
-	if len(emb.Attributes.Embedding) > 5 {
-		t.Fatalf("truncated embedding should have at most 5 values, got %d", len(emb.Attributes.Embedding))
-	}
-	t.Logf("truncated embedding: id=%s, type=%s, values=%d",
-		emb.ID, emb.Attributes.EmbeddingType, len(emb.Attributes.Embedding))
-
-	// Test full embeddings
-	resp = doRequest(t, client, "GET", commitURL+"/embeddings?full=true", nil)
-	assertStatus(t, resp, http.StatusOK)
-	fullEmbeddings := decodeJSON[embeddingListResponse](t, resp.Body)
-	if len(fullEmbeddings.Data) == 0 {
-		t.Fatal("expected at least one full embedding")
-	}
-	fullEmb := fullEmbeddings.Data[0]
-	// Full embeddings should have many more values (typically 384, 768, or 1536)
-	if len(fullEmb.Attributes.Embedding) < 100 {
-		t.Fatalf("full embedding should have at least 100 values, got %d", len(fullEmb.Attributes.Embedding))
-	}
-	t.Logf("full embedding: id=%s, dimensions=%d", fullEmb.ID, len(fullEmb.Attributes.Embedding))
+	// Test embeddings endpoint is deprecated
+	resp = doRequest(t, client, "GET", commitURL+"/embeddings", nil)
+	assertStatus(t, resp, http.StatusGone)
+	_ = resp.Body.Close()
+	t.Log("embeddings endpoint correctly returns 410 Gone")
 
 	// Test search API - Keywords mode
 	t.Log("testing search API - keywords mode...")
@@ -1117,22 +1077,6 @@ type enrichmentListResponse struct {
 
 type enrichmentResponse struct {
 	Data enrichmentData `json:"data"`
-}
-
-type embeddingAttributes struct {
-	SnippetSHA    string    `json:"snippet_sha"`
-	EmbeddingType string    `json:"embedding_type"`
-	Embedding     []float64 `json:"embedding"`
-}
-
-type embeddingData struct {
-	Type       string              `json:"type"`
-	ID         string              `json:"id"`
-	Attributes embeddingAttributes `json:"attributes"`
-}
-
-type embeddingListResponse struct {
-	Data []embeddingData `json:"data"`
 }
 
 type searchRequestAttributes struct {

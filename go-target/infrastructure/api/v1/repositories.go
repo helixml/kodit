@@ -50,7 +50,7 @@ func (r *RepositoriesRouter) Routes() chi.Router {
 	router.Get("/{id}/commits/{commit_sha}/enrichments/{enrichment_id}", r.GetCommitEnrichment)
 	router.Delete("/{id}/commits/{commit_sha}/enrichments/{enrichment_id}", r.DeleteCommitEnrichment)
 	router.Get("/{id}/commits/{commit_sha}/snippets", r.ListCommitSnippets)
-	router.Get("/{id}/commits/{commit_sha}/embeddings", r.ListCommitEmbeddings)
+	router.Get("/{id}/commits/{commit_sha}/embeddings", r.ListCommitEmbeddingsDeprecated)
 	router.Post("/{id}/commits/{commit_sha}/rescan", r.RescanCommit)
 	router.Get("/{id}/tags", r.ListTags)
 	router.Get("/{id}/tags/{tag_id}", r.GetTag)
@@ -880,6 +880,15 @@ func (r *RepositoriesRouter) ListCommitSnippets(w http.ResponseWriter, req *http
 	middleware.WriteJSON(w, http.StatusOK, dto.SnippetListResponse{Data: data})
 }
 
+// ListCommitEmbeddingsDeprecated handles GET /api/v1/repositories/{id}/commits/{commit_sha}/embeddings.
+// This endpoint is deprecated. Embeddings are an internal implementation detail of snippets and enrichments.
+func (r *RepositoriesRouter) ListCommitEmbeddingsDeprecated(w http.ResponseWriter, _ *http.Request) {
+	middleware.WriteJSON(w, http.StatusGone, map[string]string{
+		"error":   "this endpoint has been removed",
+		"message": "embeddings are an internal detail of snippets and enrichments, not a commit-level resource",
+	})
+}
+
 // RescanCommit handles POST /api/v1/repositories/{id}/commits/{commit_sha}/rescan.
 //
 //	@Summary		Rescan commit
@@ -926,100 +935,6 @@ func (r *RepositoriesRouter) RescanCommit(w http.ResponseWriter, req *http.Reque
 	}
 
 	w.WriteHeader(http.StatusAccepted)
-}
-
-// ListCommitEmbeddings handles GET /api/v1/repositories/{id}/commits/{commit_sha}/embeddings.
-//
-//	@Summary		List commit embeddings
-//	@Description	List embeddings for snippets in a commit
-//	@Tags			repositories
-//	@Accept			json
-//	@Produce		json
-//	@Param			id			path		int		true	"Repository ID"
-//	@Param			commit_sha	path		string	true	"Commit SHA"
-//	@Param			full		query		bool	false	"Return full embedding vectors"
-//	@Success		200			{object}	dto.EmbeddingJSONAPIListResponse
-//	@Failure		404			{object}	map[string]string
-//	@Failure		500			{object}	map[string]string
-//	@Security		APIKeyAuth
-//	@Router			/repositories/{id}/commits/{commit_sha}/embeddings [get]
-func (r *RepositoriesRouter) ListCommitEmbeddings(w http.ResponseWriter, req *http.Request) {
-	ctx := req.Context()
-
-	idStr := chi.URLParam(req, "id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		middleware.WriteError(w, req, err, r.logger)
-		return
-	}
-
-	commitSHA := chi.URLParam(req, "commit_sha")
-
-	// Check repository exists
-	_, err = r.client.Repositories.Get(ctx, repository.WithID(id))
-	if err != nil {
-		middleware.WriteError(w, req, err, r.logger)
-		return
-	}
-
-	// Check commit exists and belongs to this repo
-	_, err = r.client.Commits.Get(ctx, repository.WithRepoID(id), repository.WithSHA(commitSHA))
-	if err != nil {
-		middleware.WriteError(w, req, err, r.logger)
-		return
-	}
-
-	// Parse optional full parameter (default: false, only return first 5 values)
-	fullStr := req.URL.Query().Get("full")
-	full := fullStr == "true"
-
-	// Get snippets for the commit
-	snippets, err := r.client.Snippets.List(ctx, &service.SnippetListParams{CommitSHA: commitSHA})
-	if err != nil {
-		middleware.WriteError(w, req, err, r.logger)
-		return
-	}
-
-	if len(snippets) == 0 {
-		middleware.WriteJSON(w, http.StatusOK, dto.EmbeddingJSONAPIListResponse{Data: []dto.EmbeddingData{}})
-		return
-	}
-
-	// Extract snippet IDs
-	snippetIDs := make([]string, 0, len(snippets))
-	for _, s := range snippets {
-		snippetIDs = append(snippetIDs, s.SHA())
-	}
-
-	// Get embeddings for snippets
-	embeddings, err := r.client.Snippets.Embeddings(ctx, snippetIDs)
-	if err != nil {
-		middleware.WriteError(w, req, err, r.logger)
-		return
-	}
-
-	// Build response
-	data := make([]dto.EmbeddingData, 0, len(embeddings))
-	for i, emb := range embeddings {
-		var embVector []float64
-		if full {
-			embVector = emb.Embedding()
-		} else {
-			embVector = emb.EmbeddingTruncated(5)
-		}
-
-		data = append(data, dto.EmbeddingData{
-			Type: "embedding",
-			ID:   fmt.Sprintf("%d", i),
-			Attributes: dto.EmbeddingAttributes{
-				SnippetSHA:    emb.SnippetID(),
-				EmbeddingType: emb.Type(),
-				Embedding:     embVector,
-			},
-		})
-	}
-
-	middleware.WriteJSON(w, http.StatusOK, dto.EmbeddingJSONAPIListResponse{Data: data})
 }
 
 // ListRepositoryEnrichments handles GET /api/v1/repositories/{id}/enrichments.

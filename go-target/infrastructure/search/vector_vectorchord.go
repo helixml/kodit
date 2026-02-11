@@ -328,46 +328,6 @@ func (s *VectorChordVectorStore) HasEmbedding(ctx context.Context, snippetID str
 	return exists, nil
 }
 
-// EmbeddingsForSnippets returns embedding info for the specified snippet IDs.
-func (s *VectorChordVectorStore) EmbeddingsForSnippets(ctx context.Context, snippetIDs []string) ([]snippet.EmbeddingInfo, error) {
-	if err := s.initialize(ctx); err != nil {
-		return nil, err
-	}
-
-	if len(snippetIDs) == 0 {
-		return []snippet.EmbeddingInfo{}, nil
-	}
-
-	var rows []struct {
-		SnippetID string `gorm:"column:snippet_id"`
-		Embedding string `gorm:"column:embedding"`
-	}
-
-	query := fmt.Sprintf("SELECT snippet_id, embedding::text FROM %s WHERE snippet_id IN ?", s.tableName)
-	err := s.db.WithContext(ctx).Raw(query, snippetIDs).Scan(&rows).Error
-	if err != nil {
-		return nil, err
-	}
-
-	// Determine embedding type based on table name
-	embType := snippet.EmbeddingTypeCode
-	if s.tableName == "vectorchord_text_embeddings" {
-		embType = snippet.EmbeddingTypeSummary
-	}
-
-	results := make([]snippet.EmbeddingInfo, 0, len(rows))
-	for _, row := range rows {
-		embedding, err := parseEmbedding(row.Embedding)
-		if err != nil {
-			s.logger.Warn("failed to parse embedding", "snippet_id", row.SnippetID, "error", err)
-			continue
-		}
-		results = append(results, snippet.NewEmbeddingInfo(row.SnippetID, embType, embedding))
-	}
-
-	return results, nil
-}
-
 // Delete removes documents from the vector index.
 func (s *VectorChordVectorStore) Delete(ctx context.Context, request search.DeleteRequest) error {
 	if err := s.initialize(ctx); err != nil {

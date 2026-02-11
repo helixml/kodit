@@ -17,9 +17,6 @@ type VectorStore interface {
 	// HasEmbedding checks if a snippet has an embedding of the given type.
 	HasEmbedding(ctx context.Context, snippetID string, embeddingType snippet.EmbeddingType) (bool, error)
 
-	// EmbeddingsForSnippets returns embedding info for the specified snippet IDs.
-	EmbeddingsForSnippets(ctx context.Context, snippetIDs []string) ([]snippet.EmbeddingInfo, error)
-
 	// Delete removes documents from the vector index.
 	Delete(ctx context.Context, request DeleteRequest) error
 }

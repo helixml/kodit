@@ -288,7 +288,7 @@ func New(opts ...Option) (*Client, error) {
 	client.Commits = service.NewCommit(commitStore)
 	client.Tags = service.NewTag(tagStore)
 	client.Files = service.NewFile(fileStore)
-	client.Snippets = service.NewSnippet(snippetStore, codeIndex.Store)
+	client.Snippets = service.NewSnippet(snippetStore)
 	client.Enrichments = enrichQSvc
 	client.Tasks = queue
 	client.Tracking = trackingSvc

@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 
-	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/domain/snippet"
 )
 
@@ -15,14 +14,12 @@ type SnippetListParams struct {
 // Snippet provides snippet query operations.
 type Snippet struct {
 	snippetStore snippet.SnippetStore
-	vectorStore  search.VectorStore
 }
 
 // NewSnippet creates a new Snippet service.
-func NewSnippet(snippetStore snippet.SnippetStore, vectorStore search.VectorStore) *Snippet {
+func NewSnippet(snippetStore snippet.SnippetStore) *Snippet {
 	return &Snippet{
 		snippetStore: snippetStore,
-		vectorStore:  vectorStore,
 	}
 }
 
@@ -34,12 +31,4 @@ func (s *Snippet) List(ctx context.Context, params *SnippetListParams) ([]snippe
 // BySHA retrieves a single snippet by its SHA.
 func (s *Snippet) BySHA(ctx context.Context, sha string) (snippet.Snippet, error) {
 	return s.snippetStore.BySHA(ctx, sha)
-}
-
-// Embeddings returns embedding info for the given snippet IDs.
-func (s *Snippet) Embeddings(ctx context.Context, snippetIDs []string) ([]snippet.EmbeddingInfo, error) {
-	if s.vectorStore == nil {
-		return []snippet.EmbeddingInfo{}, nil
-	}
-	return s.vectorStore.EmbeddingsForSnippets(ctx, snippetIDs)
 }

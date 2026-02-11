@@ -294,36 +294,6 @@ func TestSQLiteVectorStore_HasEmbedding(t *testing.T) {
 	assert.True(t, has)
 }
 
-func TestSQLiteVectorStore_EmbeddingsForSnippets(t *testing.T) {
-	db := testDB(t)
-	embedder := newFakeEmbedder(4)
-	store := NewSQLiteVectorStore(db, TaskNameCode, embedder, nil)
-	ctx := context.Background()
-
-	// Index documents
-	docs := []search.Document{
-		search.NewDocument("snippet1", "test content one"),
-		search.NewDocument("snippet2", "test content two"),
-	}
-	err := store.Index(ctx, search.NewIndexRequest(docs))
-	require.NoError(t, err)
-
-	// Retrieve embeddings
-	infos, err := store.EmbeddingsForSnippets(ctx, []string{"snippet1", "snippet2"})
-	require.NoError(t, err)
-	assert.Len(t, infos, 2)
-
-	// Verify embeddings have correct IDs and type
-	ids := make(map[string]bool)
-	for _, info := range infos {
-		ids[info.SnippetID()] = true
-		assert.Equal(t, snippet.EmbeddingTypeCode, info.EmbeddingType())
-		assert.Len(t, info.Embedding(), 4)
-	}
-	assert.True(t, ids["snippet1"])
-	assert.True(t, ids["snippet2"])
-}
-
 func TestSQLiteVectorStore_Delete(t *testing.T) {
 	db := testDB(t)
 	embedder := newFakeEmbedder(4)

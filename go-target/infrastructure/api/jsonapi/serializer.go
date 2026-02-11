@@ -80,13 +80,6 @@ type EnrichmentAttributes struct {
 	UpdatedAt *time.Time `json:"updated_at,omitempty"`
 }
 
-// EmbeddingAttributes represents embedding attributes in JSON:API format.
-type EmbeddingAttributes struct {
-	SnippetSHA    string    `json:"snippet_sha"`
-	EmbeddingType string    `json:"embedding_type"`
-	Embedding     []float64 `json:"embedding"`
-}
-
 // TaskAttributes represents task attributes in JSON:API format.
 type TaskAttributes struct {
 	Type      string     `json:"type"`
@@ -394,32 +387,6 @@ func (s *Serializer) TrackingConfigResource(repoID int64, tc repository.Tracking
 		Value: value,
 	}
 	return NewResource("tracking-config", fmt.Sprintf("%d", repoID), attrs)
-}
-
-// EmbeddingResource converts an embedding to a JSON:API resource.
-func (s *Serializer) EmbeddingResource(idx int, emb snippet.EmbeddingInfo, full bool) *Resource {
-	var embedding []float64
-	if full {
-		embedding = emb.Embedding()
-	} else {
-		embedding = emb.EmbeddingTruncated(5)
-	}
-
-	attrs := &EmbeddingAttributes{
-		SnippetSHA:    emb.SnippetID(),
-		EmbeddingType: string(emb.Type()),
-		Embedding:     embedding,
-	}
-	return NewResource("embedding", fmt.Sprintf("%d", idx), attrs)
-}
-
-// EmbeddingResources converts multiple embeddings to JSON:API resources.
-func (s *Serializer) EmbeddingResources(embeddings []snippet.EmbeddingInfo, full bool) []*Resource {
-	resources := make([]*Resource, len(embeddings))
-	for i, emb := range embeddings {
-		resources[i] = s.EmbeddingResource(i, emb, full)
-	}
-	return resources
 }
 
 // SnippetResource converts a snippet with enrichments to a JSON:API resource for search results.
