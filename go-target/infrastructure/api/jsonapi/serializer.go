@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/snippet"
@@ -195,7 +194,7 @@ func NewSerializer() *Serializer {
 }
 
 // RepositoryResource converts a repository source to a JSON:API resource.
-func (s *Serializer) RepositoryResource(source service.Source) *Resource {
+func (s *Serializer) RepositoryResource(source repository.Source) *Resource {
 	repo := source.Repo()
 	createdAt := repo.CreatedAt()
 	updatedAt := repo.UpdatedAt()
@@ -220,7 +219,7 @@ func (s *Serializer) RepositoryResource(source service.Source) *Resource {
 }
 
 // RepositoryResources converts multiple sources to JSON:API resources.
-func (s *Serializer) RepositoryResources(sources []service.Source) []*Resource {
+func (s *Serializer) RepositoryResources(sources []repository.Source) []*Resource {
 	resources := make([]*Resource, len(sources))
 	for i, source := range sources {
 		resources[i] = s.RepositoryResource(source)

@@ -63,18 +63,18 @@ func NewRepository(
 }
 
 // Add creates a new repository and queues it for indexing.
-func (s *Repository) Add(ctx context.Context, params *RepositoryAddParams) (Source, error) {
+func (s *Repository) Add(ctx context.Context, params *RepositoryAddParams) (repository.Source, error) {
 	existing, err := s.repoStore.Exists(ctx, repository.WithRemoteURL(params.URL))
 	if err != nil {
-		return Source{}, fmt.Errorf("check existing: %w", err)
+		return repository.Source{}, fmt.Errorf("check existing: %w", err)
 	}
 	if existing {
-		return Source{}, fmt.Errorf("repository already exists: %s", params.URL)
+		return repository.Source{}, fmt.Errorf("repository already exists: %s", params.URL)
 	}
 
 	repo, err := repository.NewRepository(params.URL)
 	if err != nil {
-		return Source{}, fmt.Errorf("create repository: %w", err)
+		return repository.Source{}, fmt.Errorf("create repository: %w", err)
 	}
 	if params.Branch != "" || params.Tag != "" || params.Commit != "" {
 		repo = repo.WithTrackingConfig(
@@ -84,7 +84,7 @@ func (s *Repository) Add(ctx context.Context, params *RepositoryAddParams) (Sour
 
 	savedRepo, err := s.repoStore.Save(ctx, repo)
 	if err != nil {
-		return Source{}, fmt.Errorf("save repository: %w", err)
+		return repository.Source{}, fmt.Errorf("save repository: %w", err)
 	}
 
 	payload := map[string]any{"repository_id": savedRepo.ID()}
@@ -104,7 +104,7 @@ func (s *Repository) Add(ctx context.Context, params *RepositoryAddParams) (Sour
 		slog.String("local_path", savedRepo.WorkingCopy().Path()),
 	)
 
-	return NewSource(savedRepo), nil
+	return repository.NewSource(savedRepo), nil
 }
 
 // Delete removes a repository and all associated data.
@@ -151,18 +151,18 @@ func (s *Repository) RescanAll(ctx context.Context) error {
 }
 
 // UpdateTrackingConfig updates a repository's tracking configuration.
-func (s *Repository) UpdateTrackingConfig(ctx context.Context, id int64, params *TrackingConfigParams) (Source, error) {
+func (s *Repository) UpdateTrackingConfig(ctx context.Context, id int64, params *TrackingConfigParams) (repository.Source, error) {
 	trackingConfig := repository.NewTrackingConfig(params.Branch, params.Tag, params.Commit)
 	repo, err := s.repoStore.FindOne(ctx, repository.WithID(id))
 	if err != nil {
-		return Source{}, fmt.Errorf("get repository: %w", err)
+		return repository.Source{}, fmt.Errorf("get repository: %w", err)
 	}
 
 	updatedRepo := repo.WithTrackingConfig(trackingConfig)
 
 	savedRepo, err := s.repoStore.Save(ctx, updatedRepo)
 	if err != nil {
-		return Source{}, fmt.Errorf("save repository: %w", err)
+		return repository.Source{}, fmt.Errorf("save repository: %w", err)
 	}
 
 	s.logger.Info("tracking config updated",
@@ -170,29 +170,29 @@ func (s *Repository) UpdateTrackingConfig(ctx context.Context, id int64, params 
 		slog.String("tracking", trackingConfig.Reference()),
 	)
 
-	return NewSource(savedRepo), nil
+	return repository.NewSource(savedRepo), nil
 }
 
 // SummaryByID returns a detailed summary for a repository.
-func (s *Repository) SummaryByID(ctx context.Context, id int64) (RepositorySummary, error) {
+func (s *Repository) SummaryByID(ctx context.Context, id int64) (repository.RepositorySummary, error) {
 	repo, err := s.repoStore.FindOne(ctx, repository.WithID(id))
 	if err != nil {
-		return RepositorySummary{}, fmt.Errorf("get repository: %w", err)
+		return repository.RepositorySummary{}, fmt.Errorf("get repository: %w", err)
 	}
 
 	branches, err := s.branchStore.Find(ctx, repository.WithRepoID(id))
 	if err != nil {
-		return RepositorySummary{}, fmt.Errorf("find branches: %w", err)
+		return repository.RepositorySummary{}, fmt.Errorf("find branches: %w", err)
 	}
 
 	tags, err := s.tagStore.Find(ctx, repository.WithRepoID(id))
 	if err != nil {
-		return RepositorySummary{}, fmt.Errorf("find tags: %w", err)
+		return repository.RepositorySummary{}, fmt.Errorf("find tags: %w", err)
 	}
 
 	commits, err := s.commitStore.Find(ctx, repository.WithRepoID(id))
 	if err != nil {
-		return RepositorySummary{}, fmt.Errorf("find commits: %w", err)
+		return repository.RepositorySummary{}, fmt.Errorf("find commits: %w", err)
 	}
 
 	var defaultBranch string
@@ -203,8 +203,8 @@ func (s *Repository) SummaryByID(ctx context.Context, id int64) (RepositorySumma
 		}
 	}
 
-	return NewRepositorySummary(
-		NewSource(repo),
+	return repository.NewRepositorySummary(
+		repository.NewSource(repo),
 		len(branches),
 		len(tags),
 		len(commits),
@@ -221,7 +221,7 @@ func (s *Repository) BranchesForRepository(ctx context.Context, repoID int64) ([
 	return branches, nil
 }
 
-// --- internal write operations (from RepositorySync) ---
+// --- internal write operations ---
 
 func (s *Repository) enqueueRescan(ctx context.Context, params *RescanParams) error {
 	payload := map[string]any{
@@ -241,194 +241,3 @@ func (s *Repository) enqueueRescan(ctx context.Context, params *RescanParams) er
 
 	return nil
 }
-
-// --- Source and RepositorySummary types ---
-
-// SourceStatus represents the current state of a repository source.
-type SourceStatus string
-
-// Status values for a repository source.
-const (
-	StatusPending  SourceStatus = "pending"
-	StatusCloning  SourceStatus = "cloning"
-	StatusCloned   SourceStatus = "cloned"
-	StatusSyncing  SourceStatus = "syncing"
-	StatusFailed   SourceStatus = "failed"
-	StatusDeleting SourceStatus = "deleting"
-)
-
-// String returns the string representation of the status.
-func (s SourceStatus) String() string {
-	return string(s)
-}
-
-// IsTerminal returns true if the status is a terminal state.
-func (s SourceStatus) IsTerminal() bool {
-	return s == StatusCloned || s == StatusFailed
-}
-
-// Source represents a repository being managed by the system.
-// It wraps a Repository and provides lifecycle management operations.
-type Source struct {
-	repo      repository.Repository
-	status    SourceStatus
-	lastError string
-}
-
-// NewSource creates a new Source from a Repository.
-func NewSource(repo repository.Repository) Source {
-	status := StatusPending
-	if repo.HasWorkingCopy() {
-		status = StatusCloned
-	}
-	return Source{
-		repo:   repo,
-		status: status,
-	}
-}
-
-// ReconstructSource reconstructs a Source from persistence.
-func ReconstructSource(repo repository.Repository, status SourceStatus, lastError string) Source {
-	return Source{
-		repo:      repo,
-		status:    status,
-		lastError: lastError,
-	}
-}
-
-// ID returns the repository ID.
-func (s Source) ID() int64 {
-	return s.repo.ID()
-}
-
-// RemoteURL returns the repository remote URL.
-func (s Source) RemoteURL() string {
-	return s.repo.RemoteURL()
-}
-
-// WorkingCopy returns the local working copy, if available.
-func (s Source) WorkingCopy() repository.WorkingCopy {
-	return s.repo.WorkingCopy()
-}
-
-// TrackingConfig returns the tracking configuration.
-func (s Source) TrackingConfig() repository.TrackingConfig {
-	return s.repo.TrackingConfig()
-}
-
-// Repository returns the underlying Repository.
-func (s Source) Repository() repository.Repository {
-	return s.repo
-}
-
-// Repo returns the underlying Repository (alias for Repository() for API compatibility).
-func (s Source) Repo() repository.Repository {
-	return s.repo
-}
-
-// Status returns the current source status.
-func (s Source) Status() SourceStatus {
-	return s.status
-}
-
-// LastError returns the last error message, if any.
-func (s Source) LastError() string {
-	return s.lastError
-}
-
-// IsCloned returns true if the repository has been cloned.
-func (s Source) IsCloned() bool {
-	return s.repo.HasWorkingCopy()
-}
-
-// ClonedPath returns the local filesystem path, or empty string if not cloned.
-func (s Source) ClonedPath() string {
-	if !s.repo.HasWorkingCopy() {
-		return ""
-	}
-	return s.repo.WorkingCopy().Path()
-}
-
-// WithStatus returns a new Source with the given status.
-func (s Source) WithStatus(status SourceStatus) Source {
-	s.status = status
-	return s
-}
-
-// WithError returns a new Source with an error status and message.
-func (s Source) WithError(err error) Source {
-	s.status = StatusFailed
-	if err != nil {
-		s.lastError = err.Error()
-	}
-	return s
-}
-
-// WithWorkingCopy returns a new Source with an updated working copy.
-func (s Source) WithWorkingCopy(wc repository.WorkingCopy) Source {
-	s.repo = s.repo.WithWorkingCopy(wc)
-	s.status = StatusCloned
-	s.lastError = ""
-	return s
-}
-
-// WithTrackingConfig returns a new Source with an updated tracking config.
-func (s Source) WithTrackingConfig(tc repository.TrackingConfig) Source {
-	s.repo = s.repo.WithTrackingConfig(tc)
-	return s
-}
-
-// WithRepository returns a new Source with an updated Repository.
-func (s Source) WithRepository(repo repository.Repository) Source {
-	s.repo = repo
-	return s
-}
-
-// CanSync returns true if the repository can be synced.
-func (s Source) CanSync() bool {
-	return s.IsCloned() && s.status != StatusSyncing && s.status != StatusDeleting
-}
-
-// CanDelete returns true if the repository can be deleted.
-func (s Source) CanDelete() bool {
-	return s.status != StatusDeleting
-}
-
-// RepositorySummary provides a summary view of a repository.
-type RepositorySummary struct {
-	source        Source
-	branchCount   int
-	tagCount      int
-	commitCount   int
-	defaultBranch string
-}
-
-// NewRepositorySummary creates a new RepositorySummary.
-func NewRepositorySummary(
-	source Source,
-	branchCount, tagCount, commitCount int,
-	defaultBranch string,
-) RepositorySummary {
-	return RepositorySummary{
-		source:        source,
-		branchCount:   branchCount,
-		tagCount:      tagCount,
-		commitCount:   commitCount,
-		defaultBranch: defaultBranch,
-	}
-}
-
-// Source returns the repository source.
-func (s RepositorySummary) Source() Source { return s.source }
-
-// BranchCount returns the number of branches.
-func (s RepositorySummary) BranchCount() int { return s.branchCount }
-
-// TagCount returns the number of tags.
-func (s RepositorySummary) TagCount() int { return s.tagCount }
-
-// CommitCount returns the number of indexed commits.
-func (s RepositorySummary) CommitCount() int { return s.commitCount }
-
-// DefaultBranch returns the default branch name.
-func (s RepositorySummary) DefaultBranch() string { return s.defaultBranch }
