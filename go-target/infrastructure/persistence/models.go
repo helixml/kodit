@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"time"
+
+	"github.com/helixml/kodit/domain/snippet"
 )
 
 // RepositoryModel represents a Git repository in the database.
@@ -185,7 +187,7 @@ func (EnrichmentAssociationModel) TableName() string {
 type EmbeddingModel struct {
 	ID        int64     `gorm:"column:id;primaryKey;autoIncrement"`
 	SnippetID string    `gorm:"column:snippet_id;index"`
-	Type      int       `gorm:"column:type;index"`
+	Type      snippet.EmbeddingType `gorm:"column:type;index"`
 	Embedding []float64 `gorm:"column:embedding;type:json"`
 	CreatedAt time.Time `gorm:"column:created_at;not null"`
 	UpdatedAt time.Time `gorm:"column:updated_at;not null"`
@@ -195,12 +197,6 @@ type EmbeddingModel struct {
 func (EmbeddingModel) TableName() string {
 	return "embeddings"
 }
-
-// EmbeddingType constants.
-const (
-	EmbeddingTypeCode = 1
-	EmbeddingTypeText = 2
-)
 
 // TaskModel represents a task in the database.
 type TaskModel struct {

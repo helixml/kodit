@@ -158,6 +158,12 @@ func New(opts ...Option) (*Client, error) {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
 
+	// One-time schema conversions from Python-era database
+	if err := persistence.PreMigrate(db); err != nil {
+		errClose := db.Close()
+		return nil, errors.Join(fmt.Errorf("pre migrate: %w", err), errClose)
+	}
+
 	// Run auto migration
 	if err := persistence.AutoMigrate(db); err != nil {
 		errClose := db.Close()

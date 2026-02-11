@@ -36,7 +36,7 @@ func normalizeDBURL(raw string) string {
 	}
 	scheme := raw[:plus]
 	rest := raw[colon:]
-	slog.Warn("normalized legacy DB_URL driver suffix",
+	slog.Warn("deprecated: DB_URL contains a SQLAlchemy driver suffix — please update your .env to use the plain scheme",
 		"original", raw,
 		"normalized", scheme+rest,
 	)
@@ -50,7 +50,7 @@ func normalizeModel(raw string) string {
 	for _, prefix := range litellmPrefixes {
 		if strings.HasPrefix(raw, prefix) {
 			normalized := raw[len(prefix):]
-			slog.Warn("normalized legacy litellm model prefix",
+			slog.Warn("deprecated: model name contains a litellm provider prefix — please update your .env to use the bare model name",
 				"original", raw,
 				"normalized", normalized,
 			)
