@@ -343,29 +343,6 @@ func (s *VectorChordVectorStore) Delete(ctx context.Context, request search.Dele
 	return s.db.WithContext(ctx).Exec(deleteSQL, ids).Error
 }
 
-// parseEmbedding parses a PostgreSQL vector string like "[1.0,2.0,3.0]" to []float64.
-func parseEmbedding(s string) ([]float64, error) {
-	// Remove brackets
-	s = strings.TrimPrefix(s, "[")
-	s = strings.TrimSuffix(s, "]")
-
-	if s == "" {
-		return []float64{}, nil
-	}
-
-	parts := strings.Split(s, ",")
-	result := make([]float64, len(parts))
-	for i, part := range parts {
-		var val float64
-		_, err := fmt.Sscanf(strings.TrimSpace(part), "%f", &val)
-		if err != nil {
-			return nil, fmt.Errorf("parse float at index %d: %w", i, err)
-		}
-		result[i] = val
-	}
-	return result, nil
-}
-
 // formatEmbedding formats a float slice as a PostgreSQL vector string.
 func formatEmbedding(embedding []float64) string {
 	parts := make([]string, len(embedding))

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -180,7 +181,7 @@ func (w *Worker) processTask(ctx context.Context, t task.Task) error {
 		return w.store.Delete(ctx, t)
 	}
 
-	if err := h.Execute(ctx, t.Payload()); err != nil {
+	if err := w.executeWithRecovery(ctx, h, t); err != nil {
 		w.logger.Error("task execution failed",
 			slog.Int64("task_id", t.ID()),
 			slog.String("operation", t.Operation().String()),
@@ -199,6 +200,15 @@ func (w *Worker) processTask(ctx context.Context, t task.Task) error {
 	)
 
 	return w.store.Delete(ctx, t)
+}
+
+func (w *Worker) executeWithRecovery(ctx context.Context, h Handler, t task.Task) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("handler panicked: %v", r)
+		}
+	}()
+	return h.Execute(ctx, t.Payload())
 }
 
 // markStatusFailed updates the tracking status to failed for a task that errored.
