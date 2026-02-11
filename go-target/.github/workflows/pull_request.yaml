@@ -1,0 +1,51 @@
+name: Go Coverage
+
+on:
+  pull_request:
+    branches:
+      - "*"
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run tests with coverage
+        run: go test -tags fts5 -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Post coverage comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TOTAL=$(go tool cover -func=coverage.out | grep total | awk '{print $3}')
+          REPORT=$(go tool cover -func=coverage.out)
+          BODY=$(cat <<'DELIM'
+          ## Go Test Coverage
+
+          **Total coverage: TOTAL_PLACEHOLDER**
+
+          <details>
+          <summary>Full coverage report</summary>
+
+          ```
+          REPORT_PLACEHOLDER
+          ```
+
+          </details>
+          DELIM
+          )
+          BODY="${BODY/TOTAL_PLACEHOLDER/$TOTAL}"
+          BODY="${BODY/REPORT_PLACEHOLDER/$REPORT}"
+          gh pr comment ${{ github.event.pull_request.number }} --body "${BODY}" --edit-last 2>/dev/null || \
+          gh pr comment ${{ github.event.pull_request.number }} --body "${BODY}"

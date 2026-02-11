@@ -1,0 +1,69 @@
+name: Update Docs on Tag
+
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+
+jobs:
+  update-docs:
+    name: Update documentation after tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Generate docs
+        run: make docs
+
+      - name: Check for changes
+        id: check_changes
+        run: |
+          if git diff --quiet; then
+            echo "changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "changes=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create branch and push changes
+        if: steps.check_changes.outputs.changes == 'true'
+        run: |
+          BRANCH_NAME="docs/update-after-tag-${{ github.ref_name }}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git checkout -b "$BRANCH_NAME"
+          git add -A
+          git commit -m "docs: update generated docs after tag ${{ github.ref_name }}"
+          git push origin "$BRANCH_NAME"
+
+      - name: Create pull request
+        if: steps.check_changes.outputs.changes == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH_NAME="docs/update-after-tag-${{ github.ref_name }}"
+
+          gh pr create \
+            --base main \
+            --head "$BRANCH_NAME" \
+            --title "docs: update generated docs after tag ${{ github.ref_name }}" \
+            --body "This PR updates the generated documentation after creating tag \`${{ github.ref_name }}\`.
+
+          **Manual merge required** due to branch protection rules."

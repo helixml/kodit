@@ -1,0 +1,106 @@
+name: Helm Chart
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "charts/**"
+      - ".github/workflows/helm.yaml"
+  pull_request:
+    paths:
+      - "charts/**"
+      - ".github/workflows/helm.yaml"
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Test Helm chart on Kind
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Helm
+        run: |
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+      - name: Install Kind
+        run: |
+          [ $(uname -m) = x86_64 ] && curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.25.0/kind-linux-amd64
+          chmod +x ./kind
+          sudo mv ./kind /usr/local/bin/kind
+
+      - name: Create Kind cluster
+        run: |
+          kind create cluster --wait 5m
+
+      - name: Install Helm chart
+        run: |
+          helm install kodit charts/kodit \
+            --namespace kodit \
+            --create-namespace \
+            --wait \
+            --timeout 5m
+
+      - name: Verify pods are running
+        run: |
+          kubectl get pods -n kodit
+          kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=kodit -n kodit --timeout=120s || true
+          kubectl describe pods -n kodit
+
+      - name: Show logs on failure
+        if: failure()
+        run: |
+          kubectl logs -n kodit -l app.kubernetes.io/name=kodit --all-containers=true || true
+          kubectl describe pods -n kodit || true
+
+  release:
+    name: Release Helm chart
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+
+      - name: Install Helm
+        run: |
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+      - name: Package Helm chart
+        run: |
+          mkdir -p .cr-release-packages
+          helm package charts/kodit -d .cr-release-packages
+
+      - name: Checkout gh-pages branch
+        run: |
+          git fetch origin gh-pages:gh-pages || git checkout --orphan gh-pages
+          git checkout gh-pages
+          git pull origin gh-pages || true
+
+      - name: Update Helm repo index
+        run: |
+          # Copy new packages
+          cp .cr-release-packages/*.tgz . 2>/dev/null || true
+          # Generate or update index.yaml
+          helm repo index . --url https://helixml.github.io/kodit --merge index.yaml || helm repo index . --url https://helixml.github.io/kodit
+
+      - name: Push to gh-pages
+        run: |
+          git add index.yaml *.tgz
+          git commit -m "Release Helm chart" || echo "No changes to commit"
+          git push origin gh-pages

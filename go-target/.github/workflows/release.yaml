@@ -1,0 +1,70 @@
+name: Release
+
+on:
+  release:
+    types: [released]
+
+permissions:
+  contents: write
+
+jobs:
+  binaries:
+    name: Build and upload release binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-tags: true
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build release binaries
+        run: make release VERSION=${{ github.event.release.tag_name }}
+
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for binary in build/kodit-*; do
+            gh release upload "${{ github.event.release.tag_name }}" "$binary"
+          done
+
+  homebrew:
+    name: Bump Homebrew formula
+    needs: binaries
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Wait for release assets to be available
+        run: |
+          count=0
+          while true; do
+            if curl -sfL "https://github.com/${{ github.repository }}/releases/download/${{ github.event.release.tag_name }}/kodit-linux-amd64" > /dev/null; then
+              break
+            fi
+            sleep 5
+            count=$((count+1))
+            if [ $count -ge 60 ]; then
+              echo "Timeout reached after 300 seconds"
+              exit 1
+            fi
+          done
+
+      - uses: mislav/bump-homebrew-formula-action@v3
+        with:
+          formula-name: ${{ github.event.repository.name }}
+          formula-path: Formula/${{ github.event.repository.name }}.rb
+          homebrew-tap: ${{ github.repository_owner }}/homebrew-${{ github.event.repository.name }}
+          tag-name: "${{ github.event.release.tag_name }}"
+          download-url: "https://github.com/${{ github.repository }}/archive/refs/tags/${{ github.event.release.tag_name }}.tar.gz"
+          commit-message: |
+            {{formulaName}} {{version}}
+        env:
+          COMMITTER_TOKEN: ${{ secrets.COMMITTER_TOKEN }}
