@@ -201,6 +201,7 @@ func (r MultiSearchResult) Count() int {
 type Search struct {
 	textVectorStore search.VectorStore
 	codeVectorStore search.VectorStore
+	bm25Store       search.BM25Store
 	snippetStore    snippet.SnippetStore
 	enrichmentStore enrichment.EnrichmentStore
 	fusion          search.Fusion
@@ -212,6 +213,7 @@ type Search struct {
 func NewSearch(
 	textVectorStore search.VectorStore,
 	codeVectorStore search.VectorStore,
+	bm25Store search.BM25Store,
 	snippetStore snippet.SnippetStore,
 	enrichmentStore enrichment.EnrichmentStore,
 	closed *atomic.Bool,
@@ -223,6 +225,7 @@ func NewSearch(
 	return &Search{
 		textVectorStore: textVectorStore,
 		codeVectorStore: codeVectorStore,
+		bm25Store:       bm25Store,
 		snippetStore:    snippetStore,
 		enrichmentStore: enrichmentStore,
 		fusion:          search.NewFusion(),
@@ -233,7 +236,7 @@ func NewSearch(
 
 // Available reports whether code search is configured.
 func (s Search) Available() bool {
-	return s.textVectorStore != nil || s.codeVectorStore != nil
+	return s.textVectorStore != nil || s.codeVectorStore != nil || s.bm25Store != nil
 }
 
 // Query performs a simple hybrid code search with options.
@@ -277,7 +280,7 @@ func (s Search) Search(ctx context.Context, request search.MultiRequest) (MultiS
 		topK = 10
 	}
 
-	var textResults, codeResults []search.Result
+	var fusionLists [][]search.FusionRequest
 
 	// Run text vector search if text query provided and store is available
 	if textQuery != "" && s.textVectorStore != nil {
@@ -285,8 +288,8 @@ func (s Search) Search(ctx context.Context, request search.MultiRequest) (MultiS
 		results, err := s.textVectorStore.Search(ctx, searchReq)
 		if err != nil {
 			s.logger.Warn("text vector search failed", "error", err)
-		} else {
-			textResults = results
+		} else if len(results) > 0 {
+			fusionLists = append(fusionLists, toFusionRequests(results))
 		}
 	}
 
@@ -296,29 +299,35 @@ func (s Search) Search(ctx context.Context, request search.MultiRequest) (MultiS
 		results, err := s.codeVectorStore.Search(ctx, searchReq)
 		if err != nil {
 			s.logger.Warn("code vector search failed", "error", err)
-		} else {
-			codeResults = results
+		} else if len(results) > 0 {
+			fusionLists = append(fusionLists, toFusionRequests(results))
 		}
 	}
 
-	// If both queries are empty, return empty result
-	if textQuery == "" && codeQuery == "" {
+	// Run BM25 keyword search per-keyword if keywords provided and store is available
+	keywords := request.Keywords()
+	if len(keywords) > 0 && s.bm25Store != nil {
+		var bm25Fusion []search.FusionRequest
+		for _, keyword := range keywords {
+			bm25Req := search.NewRequest(keyword, topK*2, nil)
+			results, err := s.bm25Store.Search(ctx, bm25Req)
+			if err != nil {
+				s.logger.Warn("bm25 keyword search failed", "keyword", keyword, "error", err)
+				continue
+			}
+			bm25Fusion = append(bm25Fusion, toFusionRequests(results)...)
+		}
+		if len(bm25Fusion) > 0 {
+			fusionLists = append(fusionLists, bm25Fusion)
+		}
+	}
+
+	if len(fusionLists) == 0 {
 		return NewMultiSearchResult(nil, nil, nil), nil
 	}
 
-	// Convert to fusion requests
-	textFusion := toFusionRequests(textResults)
-	codeFusion := toFusionRequests(codeResults)
-
-	// Fuse results
-	var fusedResults []search.FusionResult
-	if len(textFusion) > 0 && len(codeFusion) > 0 {
-		fusedResults = s.fusion.FuseTopK(topK, textFusion, codeFusion)
-	} else if len(textFusion) > 0 {
-		fusedResults = s.fusion.FuseTopK(topK, textFusion)
-	} else if len(codeFusion) > 0 {
-		fusedResults = s.fusion.FuseTopK(topK, codeFusion)
-	}
+	// Fuse all result lists together
+	fusedResults := s.fusion.FuseTopK(topK, fusionLists...)
 
 	// Extract snippet IDs from fused results
 	snippetIDs := make([]string, len(fusedResults))

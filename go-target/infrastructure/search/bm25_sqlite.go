@@ -2,6 +2,7 @@ package search
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"log/slog"
 	"sync"
@@ -16,7 +17,6 @@ const (
 CREATE VIRTUAL TABLE IF NOT EXISTS kodit_bm25_documents USING fts5(
     snippet_id UNINDEXED,
     passage,
-    content='',
     tokenize='porter ascii'
 )`
 
@@ -94,6 +94,7 @@ func (s *SQLiteBM25Store) initialize(ctx context.Context) error {
 func (s *SQLiteBM25Store) createTable(ctx context.Context) error {
 	return s.db.WithContext(ctx).Exec(sqliteCreateFTS5Table).Error
 }
+
 
 func (s *SQLiteBM25Store) existingIDs(ctx context.Context, ids []string) (map[string]struct{}, error) {
 	if len(ids) == 0 {
@@ -189,28 +190,36 @@ func (s *SQLiteBM25Store) Search(ctx context.Context, request search.Request) ([
 	// Escape special FTS5 characters and format query
 	ftsQuery := escapeF5Query(query)
 
-	var rows []struct {
-		SnippetID string  `gorm:"column:snippet_id"`
-		Score     float64 `gorm:"column:score"`
-	}
-
 	var err error
 	snippetIDs := request.SnippetIDs()
+
+	// Use manual row scanning to ensure FTS5 UNINDEXED columns are read correctly
+	var sqlRows *sql.Rows
 	if len(snippetIDs) > 0 {
-		err = s.db.WithContext(ctx).Raw(sqliteSearchQueryWithFilter, ftsQuery, snippetIDs, topK).Scan(&rows).Error
+		sqlRows, err = s.db.WithContext(ctx).Raw(sqliteSearchQueryWithFilter, ftsQuery, snippetIDs, topK).Rows()
 	} else {
-		err = s.db.WithContext(ctx).Raw(sqliteSearchQuery, ftsQuery, topK).Scan(&rows).Error
+		sqlRows, err = s.db.WithContext(ctx).Raw(sqliteSearchQuery, ftsQuery, topK).Rows()
 	}
 
 	if err != nil {
 		return nil, err
 	}
+	defer sqlRows.Close()
 
-	results := make([]search.Result, len(rows))
-	for i, row := range rows {
+	var results []search.Result
+	for sqlRows.Next() {
+		var snippetID string
+		var score float64
+		if err := sqlRows.Scan(&snippetID, &score); err != nil {
+			return nil, err
+		}
 		// SQLite bm25() returns negative scores (lower/more negative is better)
 		// Convert to positive scores for consistency (negate)
-		results[i] = search.NewResult(row.SnippetID, -row.Score)
+		results = append(results, search.NewResult(snippetID, -score))
+	}
+
+	if err := sqlRows.Err(); err != nil {
+		return nil, err
 	}
 
 	return results, nil

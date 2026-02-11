@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
-	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/helixml/kodit"
@@ -87,13 +86,6 @@ func buildSearchRequest(body dto.SearchRequest) search.MultiRequest {
 	}
 	if attrs.Code != nil {
 		codeQuery = *attrs.Code
-	}
-
-	// If neither specified, use keywords combined
-	if textQuery == "" && codeQuery == "" && len(attrs.Keywords) > 0 {
-		combined := strings.Join(attrs.Keywords, " ")
-		textQuery = combined
-		codeQuery = combined
 	}
 
 	// Build filters

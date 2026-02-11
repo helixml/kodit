@@ -301,7 +301,7 @@ func New(opts ...Option) (*Client, error) {
 	client.Enrichments = enrichQSvc
 	client.Tasks = queue
 	client.Tracking = trackingSvc
-	client.Search = service.NewSearch(textVectorStore, codeVectorStore, snippetStore, enrichmentStore, &client.closed, logger)
+	client.Search = service.NewSearch(textVectorStore, codeVectorStore, bm25Store, snippetStore, enrichmentStore, &client.closed, logger)
 
 	// Register task handlers
 	client.registerHandlers()
