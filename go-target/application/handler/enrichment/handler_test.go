@@ -54,8 +54,9 @@ func (f *fakeEnricher) Enrich(_ context.Context, requests []domainservice.Enrich
 }
 
 type fakeEnrichmentStore struct {
-	enrichments map[int64]enrichment.Enrichment
-	nextID      int64
+	enrichments  map[int64]enrichment.Enrichment
+	nextID       int64
+	associations *fakeAssociationStore
 }
 
 func newFakeEnrichmentStore() *fakeEnrichmentStore {
@@ -135,6 +136,10 @@ func (f *fakeEnrichmentStore) Delete(_ context.Context, e enrichment.Enrichment)
 	return nil
 }
 
+func (f *fakeEnrichmentStore) Count(_ context.Context, _ ...repository.Option) (int64, error) {
+	return int64(len(f.enrichments)), nil
+}
+
 func (f *fakeEnrichmentStore) FindByEntityKey(_ context.Context, key enrichment.EntityTypeKey) ([]enrichment.Enrichment, error) {
 	var result []enrichment.Enrichment
 	for _, e := range f.enrichments {
@@ -143,6 +148,49 @@ func (f *fakeEnrichmentStore) FindByEntityKey(_ context.Context, key enrichment.
 		}
 	}
 	return result, nil
+}
+
+func (f *fakeEnrichmentStore) FindByCommitSHA(_ context.Context, commitSHA string, options ...repository.Option) ([]enrichment.Enrichment, error) {
+	if f.associations == nil {
+		return nil, nil
+	}
+	q := repository.Build(options...)
+	var result []enrichment.Enrichment
+	for _, a := range f.associations.associations {
+		if a.EntityID() == commitSHA && a.EntityType() == enrichment.EntityTypeCommit {
+			if e, ok := f.enrichments[a.EnrichmentID()]; ok {
+				match := true
+				for _, c := range q.Conditions() {
+					switch c.Field() {
+					case "type":
+						if t, ok := c.Value().(enrichment.Type); ok && e.Type() != t {
+							match = false
+						}
+					case "subtype":
+						if s, ok := c.Value().(enrichment.Subtype); ok && e.Subtype() != s {
+							match = false
+						}
+					}
+				}
+				if match {
+					result = append(result, e)
+				}
+			}
+		}
+	}
+	return result, nil
+}
+
+func (f *fakeEnrichmentStore) CountByCommitSHA(_ context.Context, _ string, _ ...repository.Option) (int64, error) {
+	return 0, nil
+}
+
+func (f *fakeEnrichmentStore) FindByCommitSHAs(_ context.Context, _ []string, _ ...repository.Option) ([]enrichment.Enrichment, error) {
+	return nil, nil
+}
+
+func (f *fakeEnrichmentStore) CountByCommitSHAs(_ context.Context, _ []string, _ ...repository.Option) (int64, error) {
+	return 0, nil
 }
 
 type fakeAssociationStore struct {
@@ -236,6 +284,10 @@ func (f *fakeAssociationStore) Delete(_ context.Context, a enrichment.Associatio
 	return nil
 }
 
+func (f *fakeAssociationStore) Count(_ context.Context, _ ...repository.Option) (int64, error) {
+	return int64(len(f.associations)), nil
+}
+
 type fakeSnippetStore struct {
 	snippets map[string][]snippet.Snippet
 }
@@ -246,8 +298,12 @@ func newFakeSnippetStore() *fakeSnippetStore {
 	}
 }
 
-func (f *fakeSnippetStore) SnippetsForCommit(_ context.Context, commitSHA string) ([]snippet.Snippet, error) {
+func (f *fakeSnippetStore) SnippetsForCommit(_ context.Context, commitSHA string, _ ...repository.Option) ([]snippet.Snippet, error) {
 	return f.snippets[commitSHA], nil
+}
+
+func (f *fakeSnippetStore) CountForCommit(_ context.Context, commitSHA string) (int64, error) {
+	return int64(len(f.snippets[commitSHA])), nil
 }
 
 func (f *fakeSnippetStore) Save(_ context.Context, commitSHA string, snippets []snippet.Snippet) error {
@@ -419,12 +475,17 @@ func (f *fakeRepoStore) Delete(_ context.Context, _ repository.Repository) error
 	return nil
 }
 
+func (f *fakeRepoStore) Count(_ context.Context, _ ...repository.Option) (int64, error) {
+	return int64(len(f.repos)), nil
+}
+
 func newFakeEnrichmentContext(
 	enrichmentStore *fakeEnrichmentStore,
 	associationStore *fakeAssociationStore,
 	enricher domainservice.Enricher,
 	logger *slog.Logger,
 ) handler.EnrichmentContext {
+	enrichmentStore.associations = associationStore
 	return handler.EnrichmentContext{
 		Enrichments:  enrichmentStore,
 		Associations: associationStore,

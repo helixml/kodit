@@ -46,7 +46,8 @@ func (r *QueueRouter) Routes() chi.Router {
 //	@Tags			queue
 //	@Accept			json
 //	@Produce		json
-//	@Param			limit		query		int		false	"Max results (default: 50)"
+//	@Param			page		query		int		false	"Page number (default: 1)"
+//	@Param			page_size	query		int		false	"Results per page (default: 20, max: 100)"
 //	@Param			task_type	query		string	false	"Filter by task type"
 //	@Success		200			{object}	dto.TaskListResponse
 //	@Failure		500			{object}	map[string]string
@@ -54,14 +55,11 @@ func (r *QueueRouter) Routes() chi.Router {
 //	@Router			/queue [get]
 func (r *QueueRouter) ListTasks(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
+	pagination := ParsePagination(req)
 
-	// Build params from query string
-	params := &service.TaskListParams{Limit: 50}
-
-	if limitStr := req.URL.Query().Get("limit"); limitStr != "" {
-		if parsed, err := strconv.Atoi(limitStr); err == nil && parsed > 0 {
-			params.Limit = parsed
-		}
+	params := &service.TaskListParams{
+		Limit:  pagination.Limit(),
+		Offset: pagination.Offset(),
 	}
 
 	if taskType := req.URL.Query().Get("task_type"); taskType != "" {
@@ -75,8 +73,16 @@ func (r *QueueRouter) ListTasks(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	total, err := r.client.Tasks.Count(ctx)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
 	response := dto.TaskListResponse{
-		Data: tasksToDTO(tasks),
+		Data:  tasksToDTO(tasks),
+		Meta:  PaginationMeta(pagination, total),
+		Links: PaginationLinks(req, pagination, total),
 	}
 
 	middleware.WriteJSON(w, http.StatusOK, response)

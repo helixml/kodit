@@ -93,6 +93,16 @@ func (r Repository[D, E]) DB(ctx context.Context) *gorm.DB {
 	return r.db.Session(ctx)
 }
 
+// Count returns the number of entities matching the given options.
+func (r Repository[D, E]) Count(ctx context.Context, options ...repository.Option) (int64, error) {
+	var count int64
+	db := ApplyConditions(r.db.Session(ctx).Model(new(E)), options...)
+	if result := db.Count(&count); result.Error != nil {
+		return 0, fmt.Errorf("count %s: %w", r.label, result.Error)
+	}
+	return count, nil
+}
+
 // Mapper returns the entity mapper for external use.
 func (r Repository[D, E]) Mapper() EntityMapper[D, E] {
 	return r.mapper

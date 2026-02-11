@@ -1,7 +1,11 @@
 // Package dto provides data transfer objects for the API layer.
 package dto
 
-import "time"
+import (
+	"time"
+
+	"github.com/helixml/kodit/infrastructure/api/jsonapi"
+)
 
 // RepositoryAttributes represents repository attributes in JSON:API format.
 type RepositoryAttributes struct {
@@ -30,7 +34,9 @@ type RepositoryResponse struct {
 
 // RepositoryListResponse represents a list of repositories in JSON:API format.
 type RepositoryListResponse struct {
-	Data []RepositoryData `json:"data"`
+	Data  []RepositoryData `json:"data"`
+	Meta  *jsonapi.Meta    `json:"meta,omitempty"`
+	Links *jsonapi.Links   `json:"links,omitempty"`
 }
 
 // RepositoryBranchData represents branch data for repository details.
@@ -93,7 +99,9 @@ type TaskStatusData struct {
 
 // TaskStatusListResponse represents a list of task statuses in JSON:API format.
 type TaskStatusListResponse struct {
-	Data []TaskStatusData `json:"data"`
+	Data  []TaskStatusData `json:"data"`
+	Meta  *jsonapi.Meta    `json:"meta,omitempty"`
+	Links *jsonapi.Links   `json:"links,omitempty"`
 }
 
 // RepositoryStatusSummaryAttributes represents status summary attributes.

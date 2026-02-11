@@ -21,3 +21,8 @@ func (c Collection[T]) Find(ctx context.Context, options ...Option) ([]T, error)
 func (c Collection[T]) Get(ctx context.Context, options ...Option) (T, error) {
 	return c.store.FindOne(ctx, options...)
 }
+
+// Count returns the total number of entities matching the given options.
+func (c Collection[T]) Count(ctx context.Context, options ...Option) (int64, error) {
+	return c.store.Count(ctx, options...)
+}

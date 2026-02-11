@@ -1,6 +1,10 @@
 package dto
 
-import "time"
+import (
+	"time"
+
+	"github.com/helixml/kodit/infrastructure/api/jsonapi"
+)
 
 // SearchFilters represents search filters in JSON:API format.
 type SearchFilters struct {
@@ -79,7 +83,9 @@ type SearchResponse struct {
 
 // SnippetListResponse represents a list of snippets in JSON:API format.
 type SnippetListResponse struct {
-	Data []SnippetData `json:"data"`
+	Data  []SnippetData  `json:"data"`
+	Meta  *jsonapi.Meta  `json:"meta,omitempty"`
+	Links *jsonapi.Links `json:"links,omitempty"`
 }
 
 // Legacy types for backwards compatibility during migration

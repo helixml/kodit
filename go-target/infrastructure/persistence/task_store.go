@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/task"
 	"github.com/helixml/kodit/internal/database"
 	"gorm.io/gorm"
@@ -53,10 +54,12 @@ func (s TaskStore) FindAll(ctx context.Context) ([]task.Task, error) {
 	return tasks, nil
 }
 
-// FindPending retrieves all pending tasks ordered by priority.
-func (s TaskStore) FindPending(ctx context.Context) ([]task.Task, error) {
+// FindPending retrieves pending tasks ordered by priority.
+func (s TaskStore) FindPending(ctx context.Context, options ...repository.Option) ([]task.Task, error) {
 	var models []TaskModel
-	result := s.db.Session(ctx).Order("priority DESC, created_at ASC").Find(&models)
+	db := s.db.Session(ctx).Order("priority DESC, created_at ASC")
+	db = database.ApplyOptions(db, options...)
+	result := db.Find(&models)
 	if result.Error != nil {
 		return nil, fmt.Errorf("find pending tasks: %w", result.Error)
 	}
@@ -131,9 +134,10 @@ func (s TaskStore) DeleteAll(ctx context.Context) error {
 }
 
 // CountPending returns the number of pending tasks.
-func (s TaskStore) CountPending(ctx context.Context) (int64, error) {
+func (s TaskStore) CountPending(ctx context.Context, options ...repository.Option) (int64, error) {
 	var count int64
-	result := s.db.Session(ctx).Model(&TaskModel{}).Count(&count)
+	db := database.ApplyConditions(s.db.Session(ctx).Model(&TaskModel{}), options...)
+	result := db.Count(&count)
 	if result.Error != nil {
 		return 0, fmt.Errorf("count pending tasks: %w", result.Error)
 	}

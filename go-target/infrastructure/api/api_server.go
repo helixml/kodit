@@ -56,12 +56,10 @@ func (a *APIServer) mountRoutes(router chi.Router) {
 	reposRouter := v1.NewRepositoriesRouter(c)
 	queueRouter := v1.NewQueueRouter(c)
 	enrichmentsRouter := v1.NewEnrichmentsRouter(c)
-	commitsRouter := v1.NewCommitsRouter(c)
 	searchRouter := v1.NewSearchRouter(c)
 
 	router.Route("/api/v1", func(r chi.Router) {
 		r.Mount("/repositories", reposRouter.Routes())
-		r.Mount("/commits", commitsRouter.Routes())
 		r.Mount("/queue", queueRouter.Routes())
 		r.Mount("/enrichments", enrichmentsRouter.Routes())
 		r.Mount("/search", searchRouter.Routes())

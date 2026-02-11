@@ -147,3 +147,8 @@ func WithOrderDesc(field string) Option {
 		return q
 	}
 }
+
+// WithPagination returns limit and offset options for a page.
+func WithPagination(limit, offset int) []Option {
+	return []Option{WithLimit(limit), WithOffset(offset)}
+}

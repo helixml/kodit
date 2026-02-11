@@ -68,21 +68,32 @@ func (r *RepositoriesRouter) Routes() chi.Router {
 //	@Tags			repositories
 //	@Accept			json
 //	@Produce		json
+//	@Param			page		query	int	false	"Page number (default: 1)"
+//	@Param			page_size	query	int	false	"Results per page (default: 20, max: 100)"
 //	@Success		200	{object}	dto.RepositoryListResponse
 //	@Failure		500	{object}	map[string]string
 //	@Security		APIKeyAuth
 //	@Router			/repositories [get]
 func (r *RepositoriesRouter) List(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
+	pagination := ParsePagination(req)
 
-	repos, err := r.client.Repositories.Find(ctx)
+	repos, err := r.client.Repositories.Find(ctx, pagination.Options()...)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	total, err := r.client.Repositories.Count(ctx)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
 
 	response := dto.RepositoryListResponse{
-		Data: reposToDTO(repos),
+		Data:  reposToDTO(repos),
+		Meta:  PaginationMeta(pagination, total),
+		Links: PaginationLinks(req, pagination, total),
 	}
 
 	middleware.WriteJSON(w, http.StatusOK, response)
@@ -310,7 +321,9 @@ func (r *RepositoriesRouter) GetStatusSummary(w http.ResponseWriter, req *http.R
 //	@Tags			repositories
 //	@Accept			json
 //	@Produce		json
-//	@Param			id	path		int	true	"Repository ID"
+//	@Param			id			path		int	true	"Repository ID"
+//	@Param			page		query		int	false	"Page number (default: 1)"
+//	@Param			page_size	query		int	false	"Results per page (default: 20, max: 100)"
 //	@Success		200	{object}	dto.CommitJSONAPIListResponse
 //	@Failure		404	{object}	map[string]string
 //	@Failure		500	{object}	map[string]string
@@ -318,6 +331,7 @@ func (r *RepositoriesRouter) GetStatusSummary(w http.ResponseWriter, req *http.R
 //	@Router			/repositories/{id}/commits [get]
 func (r *RepositoriesRouter) ListCommits(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
+	pagination := ParsePagination(req)
 
 	idStr := chi.URLParam(req, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
@@ -333,7 +347,14 @@ func (r *RepositoriesRouter) ListCommits(w http.ResponseWriter, req *http.Reques
 		return
 	}
 
-	commits, err := r.client.Commits.Find(ctx, repository.WithRepoID(id))
+	filterOpts := []repository.Option{repository.WithRepoID(id)}
+	commits, err := r.client.Commits.Find(ctx, append(filterOpts, pagination.Options()...)...)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	total, err := r.client.Commits.Count(ctx, filterOpts...)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -354,7 +375,11 @@ func (r *RepositoriesRouter) ListCommits(w http.ResponseWriter, req *http.Reques
 		})
 	}
 
-	middleware.WriteJSON(w, http.StatusOK, dto.CommitJSONAPIListResponse{Data: data})
+	middleware.WriteJSON(w, http.StatusOK, dto.CommitJSONAPIListResponse{
+		Data:  data,
+		Meta:  PaginationMeta(pagination, total),
+		Links: PaginationLinks(req, pagination, total),
+	})
 }
 
 // GetCommit handles GET /api/v1/repositories/{id}/commits/{commit_sha}.
@@ -420,6 +445,8 @@ func (r *RepositoriesRouter) GetCommit(w http.ResponseWriter, req *http.Request)
 //	@Produce		json
 //	@Param			id			path		int		true	"Repository ID"
 //	@Param			commit_sha	path		string	true	"Commit SHA"
+//	@Param			page		query		int		false	"Page number (default: 1)"
+//	@Param			page_size	query		int		false	"Results per page (default: 20, max: 100)"
 //	@Success		200			{object}	dto.FileJSONAPIListResponse
 //	@Failure		404			{object}	map[string]string
 //	@Failure		500			{object}	map[string]string
@@ -427,6 +454,7 @@ func (r *RepositoriesRouter) GetCommit(w http.ResponseWriter, req *http.Request)
 //	@Router			/repositories/{id}/commits/{commit_sha}/files [get]
 func (r *RepositoriesRouter) ListCommitFiles(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
+	pagination := ParsePagination(req)
 
 	idStr := chi.URLParam(req, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
@@ -451,7 +479,14 @@ func (r *RepositoriesRouter) ListCommitFiles(w http.ResponseWriter, req *http.Re
 		return
 	}
 
-	files, err := r.client.Files.Find(ctx, repository.WithCommitSHA(commitSHA))
+	filterOpts := []repository.Option{repository.WithCommitSHA(commitSHA)}
+	files, err := r.client.Files.Find(ctx, append(filterOpts, pagination.Options()...)...)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	total, err := r.client.Files.Count(ctx, filterOpts...)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -472,7 +507,11 @@ func (r *RepositoriesRouter) ListCommitFiles(w http.ResponseWriter, req *http.Re
 		})
 	}
 
-	middleware.WriteJSON(w, http.StatusOK, dto.FileJSONAPIListResponse{Data: data})
+	middleware.WriteJSON(w, http.StatusOK, dto.FileJSONAPIListResponse{
+		Data:  data,
+		Meta:  PaginationMeta(pagination, total),
+		Links: PaginationLinks(req, pagination, total),
+	})
 }
 
 // GetCommitFile handles GET /api/v1/repositories/{id}/commits/{commit_sha}/files/{blob_sha}.
@@ -549,6 +588,8 @@ func (r *RepositoriesRouter) GetCommitFile(w http.ResponseWriter, req *http.Requ
 //	@Param			commit_sha			path		string	true	"Commit SHA"
 //	@Param			enrichment_type		query		string	false	"Filter by enrichment type"
 //	@Param			enrichment_subtype	query		string	false	"Filter by enrichment subtype"
+//	@Param			page				query		int		false	"Page number (default: 1)"
+//	@Param			page_size			query		int		false	"Results per page (default: 20, max: 100)"
 //	@Success		200					{object}	dto.EnrichmentJSONAPIListResponse
 //	@Failure		404					{object}	map[string]string
 //	@Failure		500					{object}	map[string]string
@@ -556,6 +597,7 @@ func (r *RepositoriesRouter) GetCommitFile(w http.ResponseWriter, req *http.Requ
 //	@Router			/repositories/{id}/commits/{commit_sha}/enrichments [get]
 func (r *RepositoriesRouter) ListCommitEnrichments(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
+	pagination := ParsePagination(req)
 
 	idStr := chi.URLParam(req, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
@@ -583,6 +625,8 @@ func (r *RepositoriesRouter) ListCommitEnrichments(w http.ResponseWriter, req *h
 	// Build enrichment list params from query params
 	params := &service.EnrichmentListParams{
 		CommitSHA: commitSHA,
+		Limit:     pagination.Limit(),
+		Offset:    pagination.Offset(),
 	}
 	if typeStr := req.URL.Query().Get("enrichment_type"); typeStr != "" {
 		t := enrichment.Type(typeStr)
@@ -594,6 +638,12 @@ func (r *RepositoriesRouter) ListCommitEnrichments(w http.ResponseWriter, req *h
 	}
 
 	enrichments, err := r.client.Enrichments.List(ctx, params)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	total, err := r.client.Enrichments.Count(ctx, params)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -614,7 +664,11 @@ func (r *RepositoriesRouter) ListCommitEnrichments(w http.ResponseWriter, req *h
 		})
 	}
 
-	middleware.WriteJSON(w, http.StatusOK, dto.EnrichmentJSONAPIListResponse{Data: data})
+	middleware.WriteJSON(w, http.StatusOK, dto.EnrichmentJSONAPIListResponse{
+		Data:  data,
+		Meta:  PaginationMeta(pagination, total),
+		Links: PaginationLinks(req, pagination, total),
+	})
 }
 
 // GetCommitEnrichment handles GET /api/v1/repositories/{id}/commits/{commit_sha}/enrichments/{enrichment_id}.
@@ -797,6 +851,8 @@ func (r *RepositoriesRouter) DeleteCommitEnrichment(w http.ResponseWriter, req *
 //	@Produce		json
 //	@Param			id			path		int		true	"Repository ID"
 //	@Param			commit_sha	path		string	true	"Commit SHA"
+//	@Param			page		query		int		false	"Page number (default: 1)"
+//	@Param			page_size	query		int		false	"Results per page (default: 20, max: 100)"
 //	@Success		200			{object}	dto.SnippetListResponse
 //	@Failure		401			{object}	map[string]string
 //	@Failure		404			{object}	map[string]string
@@ -805,6 +861,7 @@ func (r *RepositoriesRouter) DeleteCommitEnrichment(w http.ResponseWriter, req *
 //	@Router			/repositories/{id}/commits/{commit_sha}/snippets [get]
 func (r *RepositoriesRouter) ListCommitSnippets(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
+	pagination := ParsePagination(req)
 
 	idStr := chi.URLParam(req, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
@@ -829,7 +886,19 @@ func (r *RepositoriesRouter) ListCommitSnippets(w http.ResponseWriter, req *http
 		return
 	}
 
-	snippets, err := r.client.Snippets.List(ctx, &service.SnippetListParams{CommitSHA: commitSHA})
+	snippetParams := &service.SnippetListParams{
+		CommitSHA: commitSHA,
+		Limit:     pagination.Limit(),
+		Offset:    pagination.Offset(),
+	}
+
+	snippets, err := r.client.Snippets.List(ctx, snippetParams)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	total, err := r.client.Snippets.Count(ctx, snippetParams)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -877,7 +946,11 @@ func (r *RepositoriesRouter) ListCommitSnippets(w http.ResponseWriter, req *http
 		})
 	}
 
-	middleware.WriteJSON(w, http.StatusOK, dto.SnippetListResponse{Data: data})
+	middleware.WriteJSON(w, http.StatusOK, dto.SnippetListResponse{
+		Data:  data,
+		Meta:  PaginationMeta(pagination, total),
+		Links: PaginationLinks(req, pagination, total),
+	})
 }
 
 // ListCommitEmbeddingsDeprecated handles GET /api/v1/repositories/{id}/commits/{commit_sha}/embeddings.
@@ -948,6 +1021,7 @@ func (r *RepositoriesRouter) RescanCommit(w http.ResponseWriter, req *http.Reque
 //	@Param			id					path		int		true	"Repository ID"
 //	@Param			enrichment_type		query		string	false	"Filter by enrichment type"
 //	@Param			max_commits_to_check	query		int		false	"Max commits to check (default: 100)"
+//	@Param			page				query		int		false	"Page number (default: 1)"
 //	@Param			page_size			query		int		false	"Results per page (default: 20, max: 100)"
 //	@Success		200					{object}	dto.EnrichmentJSONAPIListResponse
 //	@Failure		404					{object}	map[string]string
@@ -956,6 +1030,7 @@ func (r *RepositoriesRouter) RescanCommit(w http.ResponseWriter, req *http.Reque
 //	@Router			/repositories/{id}/enrichments [get]
 func (r *RepositoriesRouter) ListRepositoryEnrichments(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
+	pagination := ParsePagination(req)
 
 	idStr := chi.URLParam(req, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
@@ -978,17 +1053,6 @@ func (r *RepositoriesRouter) ListRepositoryEnrichments(w http.ResponseWriter, re
 		typ = &t
 	}
 
-	// Parse page_size (default: 20, max: 100)
-	pageSize := 20
-	if sizeStr := req.URL.Query().Get("page_size"); sizeStr != "" {
-		if parsed, err := strconv.Atoi(sizeStr); err == nil && parsed > 0 {
-			pageSize = parsed
-			if pageSize > 100 {
-				pageSize = 100
-			}
-		}
-	}
-
 	// Parse max_commits_to_check (default: 100)
 	maxCommits := 100
 	if maxStr := req.URL.Query().Get("max_commits_to_check"); maxStr != "" {
@@ -998,15 +1062,10 @@ func (r *RepositoriesRouter) ListRepositoryEnrichments(w http.ResponseWriter, re
 	}
 
 	// Get recent commits for the repository
-	commits, err := r.client.Commits.Find(ctx, repository.WithRepoID(id))
+	commits, err := r.client.Commits.Find(ctx, repository.WithRepoID(id), repository.WithLimit(maxCommits))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
-	}
-
-	// Limit to most recent commits
-	if len(commits) > maxCommits {
-		commits = commits[:maxCommits]
 	}
 
 	// Extract commit SHAs
@@ -1015,12 +1074,20 @@ func (r *RepositoriesRouter) ListRepositoryEnrichments(w http.ResponseWriter, re
 		commitSHAs = append(commitSHAs, c.SHA())
 	}
 
-	// Get enrichments across commits
-	enrichments, err := r.client.Enrichments.List(ctx, &service.EnrichmentListParams{
+	params := &service.EnrichmentListParams{
 		CommitSHAs: commitSHAs,
 		Type:       typ,
-		Limit:      pageSize,
-	})
+		Limit:      pagination.Limit(),
+		Offset:     pagination.Offset(),
+	}
+
+	enrichments, err := r.client.Enrichments.List(ctx, params)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	total, err := r.client.Enrichments.Count(ctx, params)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -1042,7 +1109,11 @@ func (r *RepositoriesRouter) ListRepositoryEnrichments(w http.ResponseWriter, re
 		})
 	}
 
-	middleware.WriteJSON(w, http.StatusOK, dto.EnrichmentJSONAPIListResponse{Data: data})
+	middleware.WriteJSON(w, http.StatusOK, dto.EnrichmentJSONAPIListResponse{
+		Data:  data,
+		Meta:  PaginationMeta(pagination, total),
+		Links: PaginationLinks(req, pagination, total),
+	})
 }
 
 // ListTags handles GET /api/v1/repositories/{id}/tags.
@@ -1052,14 +1123,17 @@ func (r *RepositoriesRouter) ListRepositoryEnrichments(w http.ResponseWriter, re
 //	@Tags			repositories
 //	@Accept			json
 //	@Produce		json
-//	@Param			id	path		int	true	"Repository ID"
-//	@Success		200	{object}	dto.TagJSONAPIListResponse
+//	@Param			id			path		int	true	"Repository ID"
+//	@Param			page		query		int	false	"Page number (default: 1)"
+//	@Param			page_size	query		int	false	"Results per page (default: 20, max: 100)"
+//	@Success		200			{object}	dto.TagJSONAPIListResponse
 //	@Failure		404	{object}	map[string]string
 //	@Failure		500	{object}	map[string]string
 //	@Security		APIKeyAuth
 //	@Router			/repositories/{id}/tags [get]
 func (r *RepositoriesRouter) ListTags(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
+	pagination := ParsePagination(req)
 
 	idStr := chi.URLParam(req, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
@@ -1075,7 +1149,14 @@ func (r *RepositoriesRouter) ListTags(w http.ResponseWriter, req *http.Request) 
 		return
 	}
 
-	tags, err := r.client.Tags.Find(ctx, repository.WithRepoID(id))
+	filterOpts := []repository.Option{repository.WithRepoID(id)}
+	tags, err := r.client.Tags.Find(ctx, append(filterOpts, pagination.Options()...)...)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	total, err := r.client.Tags.Count(ctx, filterOpts...)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -1094,7 +1175,11 @@ func (r *RepositoriesRouter) ListTags(w http.ResponseWriter, req *http.Request) 
 		})
 	}
 
-	middleware.WriteJSON(w, http.StatusOK, dto.TagJSONAPIListResponse{Data: data})
+	middleware.WriteJSON(w, http.StatusOK, dto.TagJSONAPIListResponse{
+		Data:  data,
+		Meta:  PaginationMeta(pagination, total),
+		Links: PaginationLinks(req, pagination, total),
+	})
 }
 
 // GetTag handles GET /api/v1/repositories/{id}/tags/{tag_id}.

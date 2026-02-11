@@ -37,3 +37,18 @@ func ApplyOptions(db *gorm.DB, options ...repository.Option) *gorm.DB {
 
 	return db
 }
+
+// ApplyConditions applies only WHERE conditions (no limit/offset/order) for COUNT queries.
+func ApplyConditions(db *gorm.DB, options ...repository.Option) *gorm.DB {
+	q := repository.Build(options...)
+
+	for _, cond := range q.Conditions() {
+		if cond.In() {
+			db = db.Where(fmt.Sprintf("%s IN ?", cond.Field()), cond.Value())
+		} else {
+			db = db.Where(fmt.Sprintf("%s = ?", cond.Field()), cond.Value())
+		}
+	}
+
+	return db
+}

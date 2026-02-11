@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/task"
 )
 
@@ -11,6 +12,7 @@ import (
 type TaskListParams struct {
 	Operation *task.Operation
 	Limit     int
+	Offset    int
 }
 
 // Queue provides the main interface for enqueuing and managing tasks.
@@ -66,16 +68,18 @@ func (s *Queue) EnqueueOperations(
 // List returns tasks matching the given params.
 // Tasks are sorted by priority (highest first) then by created_at (oldest first).
 func (s *Queue) List(ctx context.Context, params *TaskListParams) ([]task.Task, error) {
-	tasks, err := s.store.FindPending(ctx)
+	var options []repository.Option
+
+	if params != nil && params.Limit > 0 {
+		options = append(options, repository.WithPagination(params.Limit, params.Offset)...)
+	}
+
+	tasks, err := s.store.FindPending(ctx, options...)
 	if err != nil {
 		return nil, err
 	}
 
-	if params == nil {
-		return tasks, nil
-	}
-
-	if params.Operation != nil {
+	if params != nil && params.Operation != nil {
 		filtered := make([]task.Task, 0, len(tasks))
 		for _, t := range tasks {
 			if t.Operation() == *params.Operation {
@@ -85,11 +89,12 @@ func (s *Queue) List(ctx context.Context, params *TaskListParams) ([]task.Task, 
 		tasks = filtered
 	}
 
-	if params.Limit > 0 && len(tasks) > params.Limit {
-		tasks = tasks[:params.Limit]
-	}
-
 	return tasks, nil
+}
+
+// Count returns the total number of pending tasks.
+func (s *Queue) Count(ctx context.Context) (int64, error) {
+	return s.store.CountPending(ctx)
 }
 
 // Get retrieves a task by ID.

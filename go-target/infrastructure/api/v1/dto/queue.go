@@ -1,6 +1,10 @@
 package dto
 
-import "time"
+import (
+	"time"
+
+	"github.com/helixml/kodit/infrastructure/api/jsonapi"
+)
 
 // TaskAttributes represents task attributes in JSON:API format.
 type TaskAttributes struct {
@@ -25,7 +29,9 @@ type TaskResponse struct {
 
 // TaskListResponse represents a list of tasks in JSON:API format.
 type TaskListResponse struct {
-	Data []TaskData `json:"data"`
+	Data  []TaskData     `json:"data"`
+	Meta  *jsonapi.Meta  `json:"meta,omitempty"`
+	Links *jsonapi.Links `json:"links,omitempty"`
 }
 
 // Legacy types for backwards compatibility

@@ -1,32 +1,10 @@
 package dto
 
-import "time"
+import (
+	"time"
 
-// CommitResponse represents a commit in API responses.
-type CommitResponse struct {
-	SHA          string    `json:"sha"`
-	RepositoryID int64     `json:"repository_id"`
-	Message      string    `json:"message"`
-	AuthorName   string    `json:"author_name"`
-	AuthorEmail  string    `json:"author_email"`
-	CommittedAt  time.Time `json:"committed_at"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
-}
-
-// CommitListResponse represents a list of commits.
-type CommitListResponse struct {
-	Data       []CommitResponse `json:"data"`
-	TotalCount int              `json:"total_count"`
-}
-
-// CommitFilterRequest represents filters for commit queries.
-type CommitFilterRequest struct {
-	RepositoryID int64      `json:"repository_id,omitempty"`
-	Author       string     `json:"author,omitempty"`
-	Since        *time.Time `json:"since,omitempty"`
-	Until        *time.Time `json:"until,omitempty"`
-}
+	"github.com/helixml/kodit/infrastructure/api/jsonapi"
+)
 
 // CommitAttributes represents commit attributes in JSON:API format.
 type CommitAttributes struct {
@@ -46,7 +24,9 @@ type CommitData struct {
 
 // CommitJSONAPIListResponse represents a list of commits in JSON:API format.
 type CommitJSONAPIListResponse struct {
-	Data []CommitData `json:"data"`
+	Data  []CommitData   `json:"data"`
+	Meta  *jsonapi.Meta  `json:"meta,omitempty"`
+	Links *jsonapi.Links `json:"links,omitempty"`
 }
 
 // CommitJSONAPIResponse represents a single commit in JSON:API format.
@@ -77,7 +57,9 @@ type FileJSONAPIResponse struct {
 
 // FileJSONAPIListResponse represents a list of files in JSON:API format.
 type FileJSONAPIListResponse struct {
-	Data []FileData `json:"data"`
+	Data  []FileData     `json:"data"`
+	Meta  *jsonapi.Meta  `json:"meta,omitempty"`
+	Links *jsonapi.Links `json:"links,omitempty"`
 }
 
 // TagAttributes represents tag attributes in JSON:API format.
@@ -101,5 +83,7 @@ type TagJSONAPIResponse struct {
 
 // TagJSONAPIListResponse represents a list of tags in JSON:API format.
 type TagJSONAPIListResponse struct {
-	Data []TagData `json:"data"`
+	Data  []TagData      `json:"data"`
+	Meta  *jsonapi.Meta  `json:"meta,omitempty"`
+	Links *jsonapi.Links `json:"links,omitempty"`
 }

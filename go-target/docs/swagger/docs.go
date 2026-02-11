@@ -266,8 +266,14 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "Max results (default: 50)",
-                        "name": "limit",
+                        "description": "Page number (default: 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Results per page (default: 20, max: 100)",
+                        "name": "page_size",
                         "in": "query"
                     },
                     {
@@ -369,6 +375,20 @@ const docTemplate = `{
                     "repositories"
                 ],
                 "summary": "List repositories",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page number (default: 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Results per page (default: 20, max: 100)",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -573,6 +593,18 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number (default: 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Results per page (default: 20, max: 100)",
+                        "name": "page_size",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -665,74 +697,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/repositories/{id}/commits/{commit_sha}/embeddings": {
-            "get": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "List embeddings for snippets in a commit",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "repositories"
-                ],
-                "summary": "List commit embeddings",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Repository ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Commit SHA",
-                        "name": "commit_sha",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "boolean",
-                        "description": "Return full embedding vectors",
-                        "name": "full",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/dto.EmbeddingJSONAPIListResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
         "/repositories/{id}/commits/{commit_sha}/enrichments": {
             "get": {
                 "security": [
@@ -776,6 +740,18 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Filter by enrichment subtype",
                         "name": "enrichment_subtype",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number (default: 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Results per page (default: 20, max: 100)",
+                        "name": "page_size",
                         "in": "query"
                     }
                 ],
@@ -1029,6 +1005,18 @@ const docTemplate = `{
                         "name": "commit_sha",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number (default: 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Results per page (default: 20, max: 100)",
+                        "name": "page_size",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -1219,6 +1207,18 @@ const docTemplate = `{
                         "name": "commit_sha",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number (default: 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Results per page (default: 20, max: 100)",
+                        "name": "page_size",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -1294,6 +1294,12 @@ const docTemplate = `{
                         "type": "integer",
                         "description": "Max commits to check (default: 100)",
                         "name": "max_commits_to_check",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number (default: 1)",
+                        "name": "page",
                         "in": "query"
                     },
                     {
@@ -1466,6 +1472,18 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number (default: 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Results per page (default: 20, max: 100)",
+                        "name": "page_size",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -1776,6 +1794,12 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/dto.CommitData"
                     }
+                },
+                "links": {
+                    "$ref": "#/definitions/jsonapi.Links"
+                },
+                "meta": {
+                    "$ref": "#/definitions/jsonapi.Meta"
                 }
             }
         },
@@ -1784,48 +1808,6 @@ const docTemplate = `{
             "properties": {
                 "data": {
                     "$ref": "#/definitions/dto.CommitData"
-                }
-            }
-        },
-        "dto.EmbeddingAttributes": {
-            "type": "object",
-            "properties": {
-                "embedding": {
-                    "type": "array",
-                    "items": {
-                        "type": "number"
-                    }
-                },
-                "embedding_type": {
-                    "type": "string"
-                },
-                "snippet_sha": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.EmbeddingData": {
-            "type": "object",
-            "properties": {
-                "attributes": {
-                    "$ref": "#/definitions/dto.EmbeddingAttributes"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "type": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.EmbeddingJSONAPIListResponse": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dto.EmbeddingData"
-                    }
                 }
             }
         },
@@ -1871,6 +1853,12 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/dto.EnrichmentData"
                     }
+                },
+                "links": {
+                    "$ref": "#/definitions/jsonapi.Links"
+                },
+                "meta": {
+                    "$ref": "#/definitions/jsonapi.Meta"
                 }
             }
         },
@@ -1962,6 +1950,12 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/dto.FileData"
                     }
+                },
+                "links": {
+                    "$ref": "#/definitions/jsonapi.Links"
+                },
+                "meta": {
+                    "$ref": "#/definitions/jsonapi.Meta"
                 }
             }
         },
@@ -2044,6 +2038,12 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/dto.RepositoryData"
                     }
+                },
+                "links": {
+                    "$ref": "#/definitions/jsonapi.Links"
+                },
+                "meta": {
+                    "$ref": "#/definitions/jsonapi.Meta"
                 }
             }
         },
@@ -2279,6 +2279,12 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/dto.SnippetData"
                     }
+                },
+                "links": {
+                    "$ref": "#/definitions/jsonapi.Links"
+                },
+                "meta": {
+                    "$ref": "#/definitions/jsonapi.Meta"
                 }
             }
         },
@@ -2318,6 +2324,12 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/dto.TagData"
                     }
+                },
+                "links": {
+                    "$ref": "#/definitions/jsonapi.Links"
+                },
+                "meta": {
+                    "$ref": "#/definitions/jsonapi.Meta"
                 }
             }
         },
@@ -2369,6 +2381,12 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/dto.TaskData"
                     }
+                },
+                "links": {
+                    "$ref": "#/definitions/jsonapi.Links"
+                },
+                "meta": {
+                    "$ref": "#/definitions/jsonapi.Meta"
                 }
             }
         },
@@ -2434,6 +2452,12 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/dto.TaskStatusData"
                     }
+                },
+                "links": {
+                    "$ref": "#/definitions/jsonapi.Links"
+                },
+                "meta": {
+                    "$ref": "#/definitions/jsonapi.Meta"
                 }
             }
         },
@@ -2507,6 +2531,30 @@ const docTemplate = `{
                 "TrackingModeBranch",
                 "TrackingModeTag"
             ]
+        },
+        "jsonapi.Links": {
+            "type": "object",
+            "properties": {
+                "first": {
+                    "type": "string"
+                },
+                "last": {
+                    "type": "string"
+                },
+                "next": {
+                    "type": "string"
+                },
+                "prev": {
+                    "type": "string"
+                },
+                "self": {
+                    "type": "string"
+                }
+            }
+        },
+        "jsonapi.Meta": {
+            "type": "object",
+            "additionalProperties": {}
         }
     },
     "securityDefinitions": {

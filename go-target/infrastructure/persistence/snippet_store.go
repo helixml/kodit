@@ -89,10 +89,13 @@ func (s SnippetStore) Save(ctx context.Context, commitSHA string, snippets []sni
 	})
 }
 
-// SnippetsForCommit returns all snippets for a specific commit.
-func (s SnippetStore) SnippetsForCommit(ctx context.Context, commitSHA string) ([]snippet.Snippet, error) {
+// SnippetsForCommit returns snippets for a specific commit.
+func (s SnippetStore) SnippetsForCommit(ctx context.Context, commitSHA string, options ...repository.Option) ([]snippet.Snippet, error) {
+	db := s.db.Session(ctx).Where("commit_sha = ?", commitSHA)
+	db = database.ApplyOptions(db, options...)
+
 	var associations []SnippetCommitAssociationModel
-	err := s.db.Session(ctx).Where("commit_sha = ?", commitSHA).Find(&associations).Error
+	err := db.Find(&associations).Error
 	if err != nil {
 		return nil, err
 	}
@@ -113,6 +116,16 @@ func (s SnippetStore) SnippetsForCommit(ctx context.Context, commitSHA string) (
 	}
 
 	return s.ByIDs(ctx, shas)
+}
+
+// CountForCommit returns the number of snippets for a commit.
+func (s SnippetStore) CountForCommit(ctx context.Context, commitSHA string) (int64, error) {
+	var count int64
+	err := s.db.Session(ctx).Model(&SnippetCommitAssociationModel{}).Where("commit_sha = ?", commitSHA).Count(&count).Error
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
 }
 
 // DeleteForCommit removes all snippet associations for a commit.

@@ -7,36 +7,6 @@
         "version": "1.0"
     },
     "paths": {
-        "/healthz": {
-            "get": {
-                "description": "Return a health check for the kodit API.",
-                "tags": [
-                    "health"
-                ],
-                "summary": "Health check",
-                "responses": {
-                    "200": {
-                        "description": "Successful Response",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "status": {
-                                            "type": "string",
-                                            "example": "healthy"
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error"
-                    }
-                }
-            }
-        },
         "/enrichments": {
             "get": {
                 "security": [
@@ -313,8 +283,16 @@
                 "summary": "List tasks",
                 "parameters": [
                     {
-                        "description": "Max results (default: 50)",
-                        "name": "limit",
+                        "description": "Page number (default: 1)",
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Results per page (default: 20, max: 100)",
+                        "name": "page_size",
                         "in": "query",
                         "schema": {
                             "type": "integer"
@@ -431,6 +409,24 @@
                     "repositories"
                 ],
                 "summary": "List repositories",
+                "parameters": [
+                    {
+                        "description": "Page number (default: 1)",
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Results per page (default: 20, max: 100)",
+                        "name": "page_size",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -657,6 +653,22 @@
                         "schema": {
                             "type": "integer"
                         }
+                    },
+                    {
+                        "description": "Page number (default: 1)",
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Results per page (default: 20, max: 100)",
+                        "name": "page_size",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
                     }
                 ],
                 "responses": {
@@ -771,86 +783,6 @@
                 }
             }
         },
-        "/repositories/{id}/commits/{commit_sha}/embeddings": {
-            "get": {
-                "security": [
-                    {
-                        "APIKeyAuth": []
-                    }
-                ],
-                "description": "List embeddings for snippets in a commit",
-                "tags": [
-                    "repositories"
-                ],
-                "summary": "List commit embeddings",
-                "parameters": [
-                    {
-                        "description": "Repository ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "integer"
-                        }
-                    },
-                    {
-                        "description": "Commit SHA",
-                        "name": "commit_sha",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "description": "Return full embedding vectors",
-                        "name": "full",
-                        "in": "query",
-                        "schema": {
-                            "type": "boolean"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/dto.EmbeddingJSONAPIListResponse"
-                                }
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
         "/repositories/{id}/commits/{commit_sha}/enrichments": {
             "get": {
                 "security": [
@@ -896,6 +828,22 @@
                         "in": "query",
                         "schema": {
                             "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Page number (default: 1)",
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Results per page (default: 20, max: 100)",
+                        "name": "page_size",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
                         }
                     }
                 ],
@@ -1185,6 +1133,22 @@
                         "schema": {
                             "type": "string"
                         }
+                    },
+                    {
+                        "description": "Page number (default: 1)",
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Results per page (default: 20, max: 100)",
+                        "name": "page_size",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
                     }
                 ],
                 "responses": {
@@ -1403,6 +1367,22 @@
                         "schema": {
                             "type": "string"
                         }
+                    },
+                    {
+                        "description": "Page number (default: 1)",
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Results per page (default: 20, max: 100)",
+                        "name": "page_size",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
                     }
                 ],
                 "responses": {
@@ -1491,6 +1471,14 @@
                     {
                         "description": "Max commits to check (default: 100)",
                         "name": "max_commits_to_check",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Page number (default: 1)",
+                        "name": "page",
                         "in": "query",
                         "schema": {
                             "type": "integer"
@@ -1689,6 +1677,22 @@
                         "name": "id",
                         "in": "path",
                         "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Page number (default: 1)",
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Results per page (default: 20, max: 100)",
+                        "name": "page_size",
+                        "in": "query",
                         "schema": {
                             "type": "integer"
                         }
@@ -2061,6 +2065,12 @@
                         "items": {
                             "$ref": "#/components/schemas/dto.CommitData"
                         }
+                    },
+                    "links": {
+                        "$ref": "#/components/schemas/jsonapi.Links"
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/jsonapi.Meta"
                     }
                 }
             },
@@ -2069,48 +2079,6 @@
                 "properties": {
                     "data": {
                         "$ref": "#/components/schemas/dto.CommitData"
-                    }
-                }
-            },
-            "dto.EmbeddingAttributes": {
-                "type": "object",
-                "properties": {
-                    "embedding": {
-                        "type": "array",
-                        "items": {
-                            "type": "number"
-                        }
-                    },
-                    "embedding_type": {
-                        "type": "string"
-                    },
-                    "snippet_sha": {
-                        "type": "string"
-                    }
-                }
-            },
-            "dto.EmbeddingData": {
-                "type": "object",
-                "properties": {
-                    "attributes": {
-                        "$ref": "#/components/schemas/dto.EmbeddingAttributes"
-                    },
-                    "id": {
-                        "type": "string"
-                    },
-                    "type": {
-                        "type": "string"
-                    }
-                }
-            },
-            "dto.EmbeddingJSONAPIListResponse": {
-                "type": "object",
-                "properties": {
-                    "data": {
-                        "type": "array",
-                        "items": {
-                            "$ref": "#/components/schemas/dto.EmbeddingData"
-                        }
                     }
                 }
             },
@@ -2156,6 +2124,12 @@
                         "items": {
                             "$ref": "#/components/schemas/dto.EnrichmentData"
                         }
+                    },
+                    "links": {
+                        "$ref": "#/components/schemas/jsonapi.Links"
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/jsonapi.Meta"
                     }
                 }
             },
@@ -2247,6 +2221,12 @@
                         "items": {
                             "$ref": "#/components/schemas/dto.FileData"
                         }
+                    },
+                    "links": {
+                        "$ref": "#/components/schemas/jsonapi.Links"
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/jsonapi.Meta"
                     }
                 }
             },
@@ -2329,6 +2309,12 @@
                         "items": {
                             "$ref": "#/components/schemas/dto.RepositoryData"
                         }
+                    },
+                    "links": {
+                        "$ref": "#/components/schemas/jsonapi.Links"
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/jsonapi.Meta"
                     }
                 }
             },
@@ -2564,6 +2550,12 @@
                         "items": {
                             "$ref": "#/components/schemas/dto.SnippetData"
                         }
+                    },
+                    "links": {
+                        "$ref": "#/components/schemas/jsonapi.Links"
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/jsonapi.Meta"
                     }
                 }
             },
@@ -2603,6 +2595,12 @@
                         "items": {
                             "$ref": "#/components/schemas/dto.TagData"
                         }
+                    },
+                    "links": {
+                        "$ref": "#/components/schemas/jsonapi.Links"
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/jsonapi.Meta"
                     }
                 }
             },
@@ -2613,46 +2611,6 @@
                         "$ref": "#/components/schemas/dto.TagData"
                     }
                 }
-            },
-            "TaskOperation": {
-                "type": "string",
-                "description": "Task operation type",
-                "enum": [
-                    "kodit.root",
-                    "kodit.index.create",
-                    "kodit.index.run",
-                    "kodit.index.run.refresh_working_copy",
-                    "kodit.index.run.delete_old_snippets",
-                    "kodit.index.run.extract_snippets",
-                    "kodit.index.run.create_bm25_index",
-                    "kodit.index.run.create_code_embeddings",
-                    "kodit.index.run.enrich_snippets",
-                    "kodit.index.run.create_text_embeddings",
-                    "kodit.index.run.update_index_timestamp",
-                    "kodit.index.run.clear_file_processing_statuses",
-                    "kodit.repository",
-                    "kodit.repository.create",
-                    "kodit.repository.delete",
-                    "kodit.repository.clone",
-                    "kodit.repository.sync",
-                    "kodit.commit",
-                    "kodit.commit.extract_snippets",
-                    "kodit.commit.create_bm25_index",
-                    "kodit.commit.create_code_embeddings",
-                    "kodit.commit.create_summary_enrichment",
-                    "kodit.commit.create_summary_embeddings",
-                    "kodit.commit.create_architecture_enrichment",
-                    "kodit.commit.create_public_api_docs",
-                    "kodit.commit.create_commit_description",
-                    "kodit.commit.create_database_schema",
-                    "kodit.commit.create_cookbook",
-                    "kodit.commit.extract_examples",
-                    "kodit.commit.create_example_summary",
-                    "kodit.commit.create_example_code_embeddings",
-                    "kodit.commit.create_example_summary_embeddings",
-                    "kodit.commit.scan",
-                    "kodit.commit.rescan"
-                ]
             },
             "dto.TaskAttributes": {
                 "type": "object",
@@ -2694,6 +2652,12 @@
                         "items": {
                             "$ref": "#/components/schemas/dto.TaskData"
                         }
+                    },
+                    "links": {
+                        "$ref": "#/components/schemas/jsonapi.Links"
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/jsonapi.Meta"
                     }
                 }
             },
@@ -2759,6 +2723,12 @@
                         "items": {
                             "$ref": "#/components/schemas/dto.TaskStatusData"
                         }
+                    },
+                    "links": {
+                        "$ref": "#/components/schemas/jsonapi.Links"
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/jsonapi.Meta"
                     }
                 }
             },
@@ -2832,6 +2802,30 @@
                     "TrackingModeBranch",
                     "TrackingModeTag"
                 ]
+            },
+            "jsonapi.Links": {
+                "type": "object",
+                "properties": {
+                    "first": {
+                        "type": "string"
+                    },
+                    "last": {
+                        "type": "string"
+                    },
+                    "next": {
+                        "type": "string"
+                    },
+                    "prev": {
+                        "type": "string"
+                    },
+                    "self": {
+                        "type": "string"
+                    }
+                }
+            },
+            "jsonapi.Meta": {
+                "type": "object",
+                "additionalProperties": {}
             }
         }
     }

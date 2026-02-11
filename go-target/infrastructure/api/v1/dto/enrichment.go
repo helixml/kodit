@@ -1,6 +1,10 @@
 package dto
 
-import "time"
+import (
+	"time"
+
+	"github.com/helixml/kodit/infrastructure/api/jsonapi"
+)
 
 // EnrichmentResponse represents an enrichment in API responses.
 type EnrichmentResponse struct {
@@ -50,7 +54,9 @@ type EnrichmentJSONAPIResponse struct {
 
 // EnrichmentJSONAPIListResponse represents a list of enrichments in JSON:API format.
 type EnrichmentJSONAPIListResponse struct {
-	Data []EnrichmentData `json:"data"`
+	Data  []EnrichmentData `json:"data"`
+	Meta  *jsonapi.Meta    `json:"meta,omitempty"`
+	Links *jsonapi.Links   `json:"links,omitempty"`
 }
 
 // EnrichmentUpdateAttributes represents the attributes that can be updated.

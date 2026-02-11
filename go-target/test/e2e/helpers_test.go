@@ -92,7 +92,6 @@ func NewTestServer(t *testing.T) *TestServer {
 	// Register routes — each router takes just the client
 	router.Route("/api/v1", func(r chi.Router) {
 		r.Mount("/repositories", v1.NewRepositoriesRouter(client).Routes())
-		r.Mount("/commits", v1.NewCommitsRouter(client).Routes())
 		r.Mount("/enrichments", v1.NewEnrichmentsRouter(client).Routes())
 		r.Mount("/queue", v1.NewQueueRouter(client).Routes())
 

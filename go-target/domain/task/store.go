@@ -2,6 +2,8 @@ package task
 
 import (
 	"context"
+
+	"github.com/helixml/kodit/domain/repository"
 )
 
 // TaskStore defines the interface for Task persistence operations.
@@ -12,8 +14,8 @@ type TaskStore interface {
 	// FindAll retrieves all tasks.
 	FindAll(ctx context.Context) ([]Task, error)
 
-	// FindPending retrieves all pending tasks ordered by priority.
-	FindPending(ctx context.Context) ([]Task, error)
+	// FindPending retrieves pending tasks ordered by priority.
+	FindPending(ctx context.Context, options ...repository.Option) ([]Task, error)
 
 	// Save creates a new task or updates an existing one.
 	// Uses dedup_key for conflict resolution - if a task with the same
@@ -30,7 +32,7 @@ type TaskStore interface {
 	DeleteAll(ctx context.Context) error
 
 	// CountPending returns the number of pending tasks.
-	CountPending(ctx context.Context) (int64, error)
+	CountPending(ctx context.Context, options ...repository.Option) (int64, error)
 
 	// Exists checks if a task with the given ID exists.
 	Exists(ctx context.Context, id int64) (bool, error)

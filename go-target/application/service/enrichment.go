@@ -15,6 +15,7 @@ type EnrichmentListParams struct {
 	CommitSHA  string
 	CommitSHAs []string
 	Limit      int
+	Offset     int
 }
 
 // EnrichmentExistsParams specifies which enrichments to check for existence.
@@ -65,43 +66,57 @@ func (s *Enrichment) List(ctx context.Context, params *EnrichmentListParams) ([]
 		return []enrichment.Enrichment{}, nil
 	}
 
-	if params.CommitSHA != "" {
-		associations, err := s.associationStore.Find(ctx, enrichment.WithEntityType(enrichment.EntityTypeCommit), enrichment.WithEntityID(params.CommitSHA))
-		if err != nil {
-			return nil, err
-		}
-		if len(associations) == 0 {
-			return []enrichment.Enrichment{}, nil
-		}
+	paginationOpts := s.paginationOptions(params)
 
-		var enrichments []enrichment.Enrichment
-		for _, a := range associations {
-			e, err := s.enrichmentStore.FindOne(ctx, repository.WithID(a.EnrichmentID()))
-			if err != nil {
-				continue
-			}
-			if params.Type != nil && e.Type() != *params.Type {
-				continue
-			}
-			if params.Subtype != nil && e.Subtype() != *params.Subtype {
-				continue
-			}
-			enrichments = append(enrichments, e)
-		}
-		return enrichments, nil
+	if params.CommitSHA != "" {
+		opts := append(s.filterOptions(params), paginationOpts...)
+		return s.enrichmentStore.FindByCommitSHA(ctx, params.CommitSHA, opts...)
 	}
 
 	if len(params.CommitSHAs) > 0 {
-		return s.listForCommits(ctx, params.CommitSHAs, params.Type, params.Limit)
+		opts := append(s.filterOptions(params), paginationOpts...)
+		return s.enrichmentStore.FindByCommitSHAs(ctx, params.CommitSHAs, opts...)
 	}
 
-	if params.Type != nil && params.Subtype != nil {
-		return s.enrichmentStore.Find(ctx, enrichment.WithType(*params.Type), enrichment.WithSubtype(*params.Subtype))
+	opts := append(s.filterOptions(params), paginationOpts...)
+	return s.enrichmentStore.Find(ctx, opts...)
+}
+
+// Count returns the total count of enrichments matching the given params (without pagination).
+func (s *Enrichment) Count(ctx context.Context, params *EnrichmentListParams) (int64, error) {
+	if params == nil {
+		return 0, nil
 	}
+
+	filterOpts := s.filterOptions(params)
+
+	if params.CommitSHA != "" {
+		return s.enrichmentStore.CountByCommitSHA(ctx, params.CommitSHA, filterOpts...)
+	}
+
+	if len(params.CommitSHAs) > 0 {
+		return s.enrichmentStore.CountByCommitSHAs(ctx, params.CommitSHAs, filterOpts...)
+	}
+
+	return s.enrichmentStore.Count(ctx, filterOpts...)
+}
+
+func (s *Enrichment) filterOptions(params *EnrichmentListParams) []repository.Option {
+	var opts []repository.Option
 	if params.Type != nil {
-		return s.enrichmentStore.Find(ctx, enrichment.WithType(*params.Type))
+		opts = append(opts, enrichment.WithType(*params.Type))
 	}
-	return []enrichment.Enrichment{}, nil
+	if params.Subtype != nil {
+		opts = append(opts, enrichment.WithSubtype(*params.Subtype))
+	}
+	return opts
+}
+
+func (s *Enrichment) paginationOptions(params *EnrichmentListParams) []repository.Option {
+	if params.Limit > 0 {
+		return repository.WithPagination(params.Limit, params.Offset)
+	}
+	return nil
 }
 
 // Update replaces the content of an enrichment and returns the saved result.
@@ -160,43 +175,3 @@ func (s *Enrichment) Delete(ctx context.Context, params *EnrichmentDeleteParams)
 	return nil
 }
 
-func (s *Enrichment) listForCommits(
-	ctx context.Context,
-	commitSHAs []string,
-	typ *enrichment.Type,
-	limit int,
-) ([]enrichment.Enrichment, error) {
-	if len(commitSHAs) == 0 {
-		return []enrichment.Enrichment{}, nil
-	}
-
-	if limit <= 0 {
-		limit = 20
-	}
-
-	seen := make(map[int64]struct{})
-	var enrichments []enrichment.Enrichment
-
-	for _, sha := range commitSHAs {
-		if len(enrichments) >= limit {
-			break
-		}
-
-		batch, err := s.List(ctx, &EnrichmentListParams{CommitSHA: sha, Type: typ})
-		if err != nil {
-			continue
-		}
-
-		for _, e := range batch {
-			if len(enrichments) >= limit {
-				break
-			}
-			if _, exists := seen[e.ID()]; !exists {
-				seen[e.ID()] = struct{}{}
-				enrichments = append(enrichments, e)
-			}
-		}
-	}
-
-	return enrichments, nil
-}

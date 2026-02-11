@@ -84,29 +84,26 @@ func (r *EnrichmentsRouter) List(w http.ResponseWriter, req *http.Request) {
 		params.Subtype = &s
 	}
 
+	pagination := ParsePagination(req)
+	params.Limit = pagination.Limit()
+	params.Offset = pagination.Offset()
+
 	enrichments, err := r.client.Enrichments.List(ctx, params)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
 
-	// Apply pagination manually
-	pagination := ParsePagination(req)
-	offset := pagination.Offset()
-	limit := pagination.Limit()
-
-	if offset >= len(enrichments) {
-		enrichments = []enrichment.Enrichment{}
-	} else {
-		end := offset + limit
-		if end > len(enrichments) {
-			end = len(enrichments)
-		}
-		enrichments = enrichments[offset:end]
+	total, err := r.client.Enrichments.Count(ctx, params)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
 	}
 
 	response := dto.EnrichmentJSONAPIListResponse{
-		Data: enrichmentsToJSONAPIDTO(enrichments),
+		Data:  enrichmentsToJSONAPIDTO(enrichments),
+		Meta:  PaginationMeta(pagination, total),
+		Links: PaginationLinks(req, pagination, total),
 	}
 
 	middleware.WriteJSON(w, http.StatusOK, response)

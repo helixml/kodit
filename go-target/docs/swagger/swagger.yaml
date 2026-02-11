@@ -28,38 +28,15 @@ definitions:
         items:
           $ref: '#/definitions/dto.CommitData'
         type: array
+      links:
+        $ref: '#/definitions/jsonapi.Links'
+      meta:
+        $ref: '#/definitions/jsonapi.Meta'
     type: object
   dto.CommitJSONAPIResponse:
     properties:
       data:
         $ref: '#/definitions/dto.CommitData'
-    type: object
-  dto.EmbeddingAttributes:
-    properties:
-      embedding:
-        items:
-          type: number
-        type: array
-      embedding_type:
-        type: string
-      snippet_sha:
-        type: string
-    type: object
-  dto.EmbeddingData:
-    properties:
-      attributes:
-        $ref: '#/definitions/dto.EmbeddingAttributes'
-      id:
-        type: string
-      type:
-        type: string
-    type: object
-  dto.EmbeddingJSONAPIListResponse:
-    properties:
-      data:
-        items:
-          $ref: '#/definitions/dto.EmbeddingData'
-        type: array
     type: object
   dto.EnrichmentAttributes:
     properties:
@@ -89,6 +66,10 @@ definitions:
         items:
           $ref: '#/definitions/dto.EnrichmentData'
         type: array
+      links:
+        $ref: '#/definitions/jsonapi.Links'
+      meta:
+        $ref: '#/definitions/jsonapi.Meta'
     type: object
   dto.EnrichmentJSONAPIResponse:
     properties:
@@ -147,6 +128,10 @@ definitions:
         items:
           $ref: '#/definitions/dto.FileData'
         type: array
+      links:
+        $ref: '#/definitions/jsonapi.Links'
+      meta:
+        $ref: '#/definitions/jsonapi.Meta'
     type: object
   dto.FileJSONAPIResponse:
     properties:
@@ -200,6 +185,10 @@ definitions:
         items:
           $ref: '#/definitions/dto.RepositoryData'
         type: array
+      links:
+        $ref: '#/definitions/jsonapi.Links'
+      meta:
+        $ref: '#/definitions/jsonapi.Meta'
     type: object
   dto.RepositoryRequest:
     properties:
@@ -352,6 +341,10 @@ definitions:
         items:
           $ref: '#/definitions/dto.SnippetData'
         type: array
+      links:
+        $ref: '#/definitions/jsonapi.Links'
+      meta:
+        $ref: '#/definitions/jsonapi.Meta'
     type: object
   dto.TagAttributes:
     properties:
@@ -377,6 +370,10 @@ definitions:
         items:
           $ref: '#/definitions/dto.TagData'
         type: array
+      links:
+        $ref: '#/definitions/jsonapi.Links'
+      meta:
+        $ref: '#/definitions/jsonapi.Meta'
     type: object
   dto.TagJSONAPIResponse:
     properties:
@@ -410,6 +407,10 @@ definitions:
         items:
           $ref: '#/definitions/dto.TaskData'
         type: array
+      links:
+        $ref: '#/definitions/jsonapi.Links'
+      meta:
+        $ref: '#/definitions/jsonapi.Meta'
     type: object
   dto.TaskResponse:
     properties:
@@ -452,6 +453,10 @@ definitions:
         items:
           $ref: '#/definitions/dto.TaskStatusData'
         type: array
+      links:
+        $ref: '#/definitions/jsonapi.Links'
+      meta:
+        $ref: '#/definitions/jsonapi.Meta'
     type: object
   dto.TrackingConfigAttributes:
     properties:
@@ -499,6 +504,22 @@ definitions:
     x-enum-varnames:
     - TrackingModeBranch
     - TrackingModeTag
+  jsonapi.Links:
+    properties:
+      first:
+        type: string
+      last:
+        type: string
+      next:
+        type: string
+      prev:
+        type: string
+      self:
+        type: string
+    type: object
+  jsonapi.Meta:
+    additionalProperties: {}
+    type: object
 host: localhost:8080
 info:
   contact: {}
@@ -659,9 +680,13 @@ paths:
       - application/json
       description: List tasks in the queue
       parameters:
-      - description: 'Max results (default: 50)'
+      - description: 'Page number (default: 1)'
         in: query
-        name: limit
+        name: page
+        type: integer
+      - description: 'Results per page (default: 20, max: 100)'
+        in: query
+        name: page_size
         type: integer
       - description: Filter by task type
         in: query
@@ -725,6 +750,15 @@ paths:
       consumes:
       - application/json
       description: Get all tracked Git repositories
+      parameters:
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Results per page (default: 20, max: 100)'
+        in: query
+        name: page_size
+        type: integer
       produces:
       - application/json
       responses:
@@ -856,6 +890,14 @@ paths:
         name: id
         required: true
         type: integer
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Results per page (default: 20, max: 100)'
+        in: query
+        name: page_size
+        type: integer
       produces:
       - application/json
       responses:
@@ -920,50 +962,6 @@ paths:
       summary: Get commit
       tags:
       - repositories
-  /repositories/{id}/commits/{commit_sha}/embeddings:
-    get:
-      consumes:
-      - application/json
-      description: List embeddings for snippets in a commit
-      parameters:
-      - description: Repository ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      - description: Commit SHA
-        in: path
-        name: commit_sha
-        required: true
-        type: string
-      - description: Return full embedding vectors
-        in: query
-        name: full
-        type: boolean
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/dto.EmbeddingJSONAPIListResponse'
-        "404":
-          description: Not Found
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      security:
-      - APIKeyAuth: []
-      summary: List commit embeddings
-      tags:
-      - repositories
   /repositories/{id}/commits/{commit_sha}/enrichments:
     delete:
       consumes:
@@ -1025,6 +1023,14 @@ paths:
         in: query
         name: enrichment_subtype
         type: string
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Results per page (default: 20, max: 100)'
+        in: query
+        name: page_size
+        type: integer
       produces:
       - application/json
       responses:
@@ -1152,6 +1158,14 @@ paths:
         name: commit_sha
         required: true
         type: string
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Results per page (default: 20, max: 100)'
+        in: query
+        name: page_size
+        type: integer
       produces:
       - application/json
       responses:
@@ -1275,6 +1289,14 @@ paths:
         name: commit_sha
         required: true
         type: string
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Results per page (default: 20, max: 100)'
+        in: query
+        name: page_size
+        type: integer
       produces:
       - application/json
       responses:
@@ -1323,6 +1345,10 @@ paths:
       - description: 'Max commits to check (default: 100)'
         in: query
         name: max_commits_to_check
+        type: integer
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
         type: integer
       - description: 'Results per page (default: 20, max: 100)'
         in: query
@@ -1432,6 +1458,14 @@ paths:
         in: path
         name: id
         required: true
+        type: integer
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Results per page (default: 20, max: 100)'
+        in: query
+        name: page_size
         type: integer
       produces:
       - application/json

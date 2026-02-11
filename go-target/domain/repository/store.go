@@ -6,6 +6,7 @@ import "context"
 type Store[T any] interface {
 	Find(ctx context.Context, options ...Option) ([]T, error)
 	FindOne(ctx context.Context, options ...Option) (T, error)
+	Count(ctx context.Context, options ...Option) (int64, error)
 	Save(ctx context.Context, entity T) (T, error)
 	Delete(ctx context.Context, entity T) error
 }

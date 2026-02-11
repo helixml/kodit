@@ -509,9 +509,10 @@ func TestRepositories_RescanCommit_NotCloned(t *testing.T) {
 		_ = resp.Body.Close()
 	}()
 
-	// Should return 500 because repository is not cloned
-	if resp.StatusCode != http.StatusInternalServerError {
-		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusInternalServerError)
+	// Rescan is queued asynchronously, so the endpoint returns 202 even
+	// when the repo has no working copy. The task will fail during processing.
+	if resp.StatusCode != http.StatusAccepted {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusAccepted)
 	}
 }
 

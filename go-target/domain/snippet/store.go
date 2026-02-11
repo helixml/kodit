@@ -2,6 +2,8 @@ package snippet
 
 import (
 	"context"
+
+	"github.com/helixml/kodit/domain/repository"
 )
 
 // SnippetStore defines operations for snippet persistence.
@@ -9,8 +11,11 @@ type SnippetStore interface {
 	// Save persists snippets for a commit.
 	Save(ctx context.Context, commitSHA string, snippets []Snippet) error
 
-	// SnippetsForCommit returns all snippets for a specific commit.
-	SnippetsForCommit(ctx context.Context, commitSHA string) ([]Snippet, error)
+	// SnippetsForCommit returns snippets for a specific commit.
+	SnippetsForCommit(ctx context.Context, commitSHA string, options ...repository.Option) ([]Snippet, error)
+
+	// CountForCommit returns the number of snippets for a commit.
+	CountForCommit(ctx context.Context, commitSHA string) (int64, error)
 
 	// DeleteForCommit removes all snippet associations for a commit.
 	DeleteForCommit(ctx context.Context, commitSHA string) error

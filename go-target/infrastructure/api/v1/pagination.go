@@ -1,8 +1,12 @@
 package v1
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
+
+	"github.com/helixml/kodit/domain/repository"
+	"github.com/helixml/kodit/infrastructure/api/jsonapi"
 )
 
 // PaginationParams holds pagination parameters parsed from query strings.
@@ -88,44 +92,55 @@ func (p PaginationParams) WithPageSize(size int) PaginationParams {
 	return p
 }
 
-// PaginatedResponse wraps a list response with pagination metadata.
-type PaginatedResponse struct {
-	Data  any            `json:"data"`
-	Meta  PaginationMeta `json:"meta,omitempty"`
-	Links *PaginationLinks `json:"links,omitempty"`
+// Options returns repository options for database pagination.
+func (p PaginationParams) Options() []repository.Option {
+	return repository.WithPagination(p.Limit(), p.Offset())
 }
 
-// PaginationMeta contains pagination metadata.
-type PaginationMeta struct {
-	Page       int `json:"page"`
-	PageSize   int `json:"page_size"`
-	TotalCount int `json:"total_count,omitempty"`
-	TotalPages int `json:"total_pages,omitempty"`
-}
-
-// PaginationLinks contains pagination links.
-type PaginationLinks struct {
-	Self  string `json:"self,omitempty"`
-	First string `json:"first,omitempty"`
-	Last  string `json:"last,omitempty"`
-	Prev  string `json:"prev,omitempty"`
-	Next  string `json:"next,omitempty"`
-}
-
-// NewPaginatedResponse creates a paginated response.
-func NewPaginatedResponse(data any, params PaginationParams, totalCount int) PaginatedResponse {
+// PaginationMeta builds a JSON:API meta object from pagination params and total count.
+func PaginationMeta(params PaginationParams, totalCount int64) *jsonapi.Meta {
 	totalPages := 0
-	if params.pageSize > 0 {
-		totalPages = (totalCount + params.pageSize - 1) / params.pageSize
+	if params.PageSize() > 0 {
+		totalPages = (int(totalCount) + params.PageSize() - 1) / params.PageSize()
+	}
+	return &jsonapi.Meta{
+		"page":        params.Page(),
+		"page_size":   params.PageSize(),
+		"total_count": totalCount,
+		"total_pages": totalPages,
+	}
+}
+
+// PaginationLinks builds JSON:API links from the request, params, and total count.
+func PaginationLinks(r *http.Request, params PaginationParams, totalCount int64) *jsonapi.Links {
+	totalPages := 0
+	if params.PageSize() > 0 {
+		totalPages = (int(totalCount) + params.PageSize() - 1) / params.PageSize()
 	}
 
-	return PaginatedResponse{
-		Data: data,
-		Meta: PaginationMeta{
-			Page:       params.page,
-			PageSize:   params.pageSize,
-			TotalCount: totalCount,
-			TotalPages: totalPages,
-		},
+	buildURL := func(page int) string {
+		q := r.URL.Query()
+		q.Set("page", strconv.Itoa(page))
+		q.Set("page_size", strconv.Itoa(params.PageSize()))
+		return fmt.Sprintf("%s?%s", r.URL.Path, q.Encode())
 	}
+
+	links := jsonapi.Links{
+		Self:  buildURL(params.Page()),
+		First: buildURL(1),
+	}
+
+	if totalPages > 0 {
+		links.Last = buildURL(totalPages)
+	}
+
+	if params.Page() > 1 {
+		links.Prev = buildURL(params.Page() - 1)
+	}
+
+	if params.Page() < totalPages {
+		links.Next = buildURL(params.Page() + 1)
+	}
+
+	return &links
 }
