@@ -9,6 +9,16 @@ import (
 	"github.com/helixml/kodit/domain/task"
 )
 
+// WorkerTracker marks a task status as failed.
+type WorkerTracker interface {
+	Fail(ctx context.Context, message string) error
+}
+
+// WorkerTrackerFactory creates trackers for task status updates.
+type WorkerTrackerFactory interface {
+	ForOperation(operation task.Operation, trackableType task.TrackableType, trackableID int64) WorkerTracker
+}
+
 // Handler executes a specific task operation.
 type Handler interface {
 	Execute(ctx context.Context, payload map[string]any) error
@@ -56,10 +66,11 @@ func (r *Registry) Operations() []task.Operation {
 
 // Worker processes tasks from the queue.
 type Worker struct {
-	store      task.TaskStore
-	registry   *Registry
-	logger     *slog.Logger
-	pollPeriod time.Duration
+	store          task.TaskStore
+	registry       *Registry
+	trackerFactory WorkerTrackerFactory
+	logger         *slog.Logger
+	pollPeriod     time.Duration
 
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -67,12 +78,13 @@ type Worker struct {
 }
 
 // NewWorker creates a new queue worker.
-func NewWorker(store task.TaskStore, registry *Registry, logger *slog.Logger) *Worker {
+func NewWorker(store task.TaskStore, registry *Registry, trackerFactory WorkerTrackerFactory, logger *slog.Logger) *Worker {
 	return &Worker{
-		store:      store,
-		registry:   registry,
-		logger:     logger,
-		pollPeriod: time.Second,
+		store:          store,
+		registry:       registry,
+		trackerFactory: trackerFactory,
+		logger:         logger,
+		pollPeriod:     time.Second,
 	}
 }
 
@@ -158,7 +170,7 @@ func (w *Worker) processTask(ctx context.Context, t task.Task) error {
 		slog.String("operation", t.Operation().String()),
 	)
 
-	handler, ok := w.registry.Handler(t.Operation())
+	h, ok := w.registry.Handler(t.Operation())
 	if !ok {
 		w.logger.Error("no handler for operation",
 			slog.Int64("task_id", t.ID()),
@@ -168,12 +180,13 @@ func (w *Worker) processTask(ctx context.Context, t task.Task) error {
 		return w.store.Delete(ctx, t)
 	}
 
-	if err := handler.Execute(ctx, t.Payload()); err != nil {
+	if err := h.Execute(ctx, t.Payload()); err != nil {
 		w.logger.Error("task execution failed",
 			slog.Int64("task_id", t.ID()),
 			slog.String("operation", t.Operation().String()),
 			slog.String("error", err.Error()),
 		)
+		w.markStatusFailed(ctx, t, err)
 		// Delete the task - failed tasks are not retried
 		return w.store.Delete(ctx, t)
 	}
@@ -186,6 +199,44 @@ func (w *Worker) processTask(ctx context.Context, t task.Task) error {
 	)
 
 	return w.store.Delete(ctx, t)
+}
+
+// markStatusFailed updates the tracking status to failed for a task that errored.
+func (w *Worker) markStatusFailed(ctx context.Context, t task.Task, err error) {
+	if w.trackerFactory == nil {
+		return
+	}
+
+	payload := t.Payload()
+	repoID, _ := extractInt64(payload, "repository_id")
+	if repoID == 0 {
+		return
+	}
+
+	tracker := w.trackerFactory.ForOperation(t.Operation(), task.TrackableTypeRepository, repoID)
+	if failErr := tracker.Fail(ctx, err.Error()); failErr != nil {
+		w.logger.Warn("failed to mark status as failed",
+			slog.String("operation", t.Operation().String()),
+			slog.String("error", failErr.Error()),
+		)
+	}
+}
+
+func extractInt64(payload map[string]any, key string) (int64, bool) {
+	val, ok := payload[key]
+	if !ok {
+		return 0, false
+	}
+	switch v := val.(type) {
+	case int64:
+		return v, true
+	case int:
+		return int64(v), true
+	case float64:
+		return int64(v), true
+	default:
+		return 0, false
+	}
 }
 
 // ProcessOne processes a single task synchronously (for testing).

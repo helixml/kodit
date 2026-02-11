@@ -8,6 +8,7 @@ import (
 	enrichmenthandler "github.com/helixml/kodit/application/handler/enrichment"
 	indexinghandler "github.com/helixml/kodit/application/handler/indexing"
 	repohandler "github.com/helixml/kodit/application/handler/repository"
+	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/task"
 	"github.com/helixml/kodit/infrastructure/tracking"
 )
@@ -130,4 +131,14 @@ func (f *trackerFactoryImpl) ForOperation(operation task.Operation, trackableTyp
 		tracker.Subscribe(reporter)
 	}
 	return tracker
+}
+
+// workerTrackerAdapter adapts trackerFactoryImpl to service.WorkerTrackerFactory.
+type workerTrackerAdapter struct {
+	factory *trackerFactoryImpl
+}
+
+// ForOperation creates a WorkerTracker for the given operation.
+func (a *workerTrackerAdapter) ForOperation(operation task.Operation, trackableType task.TrackableType, trackableID int64) service.WorkerTracker {
+	return a.factory.ForOperation(operation, trackableType, trackableID)
 }

@@ -200,7 +200,6 @@ func New(opts ...Option) (*Client, error) {
 	// Create application services
 	registry := service.NewRegistry()
 	queue := service.NewQueue(taskStore, logger)
-	worker := service.NewWorker(taskStore, registry, logger)
 
 	enrichQSvc := service.NewEnrichment(enrichmentStore, associationStore)
 	trackingSvc := service.NewTracking(statusStore, taskStore)
@@ -233,6 +232,7 @@ func New(opts ...Option) (*Client, error) {
 		reporters: reporters,
 		logger:    logger,
 	}
+	worker := service.NewWorker(taskStore, registry, &workerTrackerAdapter{trackerFactory}, logger)
 
 	// Create enricher infrastructure (only if text provider is configured)
 	var enricherImpl domainservice.Enricher

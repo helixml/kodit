@@ -64,37 +64,113 @@ func NewRepository(
 
 // Add creates a new repository and queues it for indexing.
 func (s *Repository) Add(ctx context.Context, params *RepositoryAddParams) (Source, error) {
-	if params.Branch != "" || params.Tag != "" || params.Commit != "" {
-		tc := repository.NewTrackingConfig(params.Branch, params.Tag, params.Commit)
-		return s.addWithTracking(ctx, params.URL, tc)
+	existing, err := s.repoStore.Exists(ctx, repository.WithRemoteURL(params.URL))
+	if err != nil {
+		return Source{}, fmt.Errorf("check existing: %w", err)
 	}
-	return s.add(ctx, params.URL)
+	if existing {
+		return Source{}, fmt.Errorf("repository already exists: %s", params.URL)
+	}
+
+	repo, err := repository.NewRepository(params.URL)
+	if err != nil {
+		return Source{}, fmt.Errorf("create repository: %w", err)
+	}
+	if params.Branch != "" || params.Tag != "" || params.Commit != "" {
+		repo = repo.WithTrackingConfig(
+			repository.NewTrackingConfig(params.Branch, params.Tag, params.Commit),
+		)
+	}
+
+	savedRepo, err := s.repoStore.Save(ctx, repo)
+	if err != nil {
+		return Source{}, fmt.Errorf("save repository: %w", err)
+	}
+
+	payload := map[string]any{"repository_id": savedRepo.ID()}
+	operations := task.PrescribedOperations{}.CreateNewRepository()
+
+	if err := s.queue.EnqueueOperations(ctx, operations, task.PriorityUserInitiated, payload); err != nil {
+		s.logger.Warn("failed to enqueue clone task",
+			slog.Int64("repo_id", repo.ID()),
+			slog.String("error", err.Error()),
+		)
+	}
+
+	s.logger.Info("repository added",
+		slog.Int64("repo_id", savedRepo.ID()),
+		slog.String("url", savedRepo.RemoteURL()),
+		slog.String("tracking", savedRepo.TrackingConfig().Reference()),
+		slog.String("local_path", savedRepo.WorkingCopy().Path()),
+	)
+
+	return NewSource(savedRepo), nil
 }
 
 // Delete removes a repository and all associated data.
 func (s *Repository) Delete(ctx context.Context, id int64) error {
-	return s.requestDelete(ctx, id)
-}
+	_, err := s.repoStore.FindOne(ctx, repository.WithID(id))
+	if err != nil {
+		return fmt.Errorf("get repository: %w", err)
+	}
 
-// Sync triggers re-indexing of a repository.
-func (s *Repository) Sync(ctx context.Context, id int64) error {
-	return s.requestSync(ctx, id)
+	payload := map[string]any{"repository_id": id}
+	t := task.NewTask(task.OperationDeleteRepository, int(task.PriorityUserInitiated), payload)
+
+	if err := s.queue.Enqueue(ctx, t); err != nil {
+		return fmt.Errorf("enqueue delete: %w", err)
+	}
+
+	s.logger.Info("delete requested",
+		slog.Int64("repo_id", id),
+	)
+
+	return nil
 }
 
 // Rescan triggers a rescan of a specific commit.
 func (s *Repository) Rescan(ctx context.Context, params *RescanParams) error {
-	return s.requestRescan(ctx, params.RepositoryID, params.CommitSHA)
+	_, err := s.repoStore.FindOne(ctx, repository.WithID(params.RepositoryID))
+	if err != nil {
+		return fmt.Errorf("get repository: %w", err)
+	}
+	return s.enqueueRescan(ctx, params)
+}
+
+func (s *Repository) RescanAll(ctx context.Context) error {
+	repos, err := s.repoStore.Find(ctx)
+	if err != nil {
+		return fmt.Errorf("find repositories: %w", err)
+	}
+	for _, repo := range repos {
+		if err := s.enqueueRescan(ctx, &RescanParams{RepositoryID: repo.ID()}); err != nil {
+			return fmt.Errorf("enqueue rescan: %w", err)
+		}
+	}
+	return nil
 }
 
 // UpdateTrackingConfig updates a repository's tracking configuration.
 func (s *Repository) UpdateTrackingConfig(ctx context.Context, id int64, params *TrackingConfigParams) (Source, error) {
-	tc := repository.NewTrackingConfig(params.Branch, params.Tag, params.Commit)
-	return s.updateTrackingConfig(ctx, id, tc)
-}
+	trackingConfig := repository.NewTrackingConfig(params.Branch, params.Tag, params.Commit)
+	repo, err := s.repoStore.FindOne(ctx, repository.WithID(id))
+	if err != nil {
+		return Source{}, fmt.Errorf("get repository: %w", err)
+	}
 
-// Exists checks if a repository exists by remote URL.
-func (s *Repository) Exists(ctx context.Context, url string) (bool, error) {
-	return s.repoStore.Exists(ctx, repository.WithRemoteURL(url))
+	updatedRepo := repo.WithTrackingConfig(trackingConfig)
+
+	savedRepo, err := s.repoStore.Save(ctx, updatedRepo)
+	if err != nil {
+		return Source{}, fmt.Errorf("save repository: %w", err)
+	}
+
+	s.logger.Info("tracking config updated",
+		slog.Int64("repo_id", id),
+		slog.String("tracking", trackingConfig.Reference()),
+	)
+
+	return NewSource(savedRepo), nil
 }
 
 // SummaryByID returns a detailed summary for a repository.
@@ -145,189 +221,12 @@ func (s *Repository) BranchesForRepository(ctx context.Context, repoID int64) ([
 	return branches, nil
 }
 
-// SyncAll queues sync operations for all cloned repositories.
-func (s *Repository) SyncAll(ctx context.Context) (int, error) {
-	repos, err := s.repoStore.Find(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("find all repositories: %w", err)
-	}
-
-	syncCount := 0
-	for _, repo := range repos {
-		if !repo.HasWorkingCopy() {
-			continue
-		}
-
-		if err := s.requestSync(ctx, repo.ID()); err != nil {
-			s.logger.Warn("failed to request sync",
-				slog.Int64("repo_id", repo.ID()),
-				slog.String("error", err.Error()),
-			)
-			continue
-		}
-		syncCount++
-	}
-
-	s.logger.Info("sync all requested",
-		slog.Int("repositories", syncCount),
-	)
-
-	return syncCount, nil
-}
-
 // --- internal write operations (from RepositorySync) ---
 
-func (s *Repository) add(ctx context.Context, remoteURL string) (Source, error) {
-	existing, err := s.repoStore.Exists(ctx, repository.WithRemoteURL(remoteURL))
-	if err != nil {
-		return Source{}, fmt.Errorf("check existing: %w", err)
-	}
-	if existing {
-		return Source{}, fmt.Errorf("repository already exists: %s", remoteURL)
-	}
-
-	repo, err := repository.NewRepository(remoteURL)
-	if err != nil {
-		return Source{}, fmt.Errorf("create repository: %w", err)
-	}
-
-	savedRepo, err := s.repoStore.Save(ctx, repo)
-	if err != nil {
-		return Source{}, fmt.Errorf("save repository: %w", err)
-	}
-
-	s.enqueueNewRepository(ctx, savedRepo)
-
-	s.logger.Info("repository added",
-		slog.Int64("repo_id", savedRepo.ID()),
-		slog.String("url", remoteURL),
-	)
-
-	return NewSource(savedRepo), nil
-}
-
-func (s *Repository) addWithTracking(ctx context.Context, remoteURL string, trackingConfig repository.TrackingConfig) (Source, error) {
-	existing, err := s.repoStore.Exists(ctx, repository.WithRemoteURL(remoteURL))
-	if err != nil {
-		return Source{}, fmt.Errorf("check existing: %w", err)
-	}
-	if existing {
-		return Source{}, fmt.Errorf("repository already exists: %s", remoteURL)
-	}
-
-	repo, err := repository.NewRepository(remoteURL)
-	if err != nil {
-		return Source{}, fmt.Errorf("create repository: %w", err)
-	}
-
-	repo = repo.WithTrackingConfig(trackingConfig)
-
-	savedRepo, err := s.repoStore.Save(ctx, repo)
-	if err != nil {
-		return Source{}, fmt.Errorf("save repository: %w", err)
-	}
-
-	s.enqueueNewRepository(ctx, savedRepo)
-
-	s.logger.Info("repository added with tracking",
-		slog.Int64("repo_id", savedRepo.ID()),
-		slog.String("url", remoteURL),
-		slog.String("tracking", trackingConfig.Reference()),
-	)
-
-	return NewSource(savedRepo), nil
-}
-
-func (s *Repository) enqueueNewRepository(ctx context.Context, repo repository.Repository) {
-	payload := map[string]any{"repository_id": repo.ID()}
-	operations := task.PrescribedOperations{}.CreateNewRepository()
-
-	if err := s.queue.EnqueueOperations(ctx, operations, task.PriorityUserInitiated, payload); err != nil {
-		s.logger.Warn("failed to enqueue clone task",
-			slog.Int64("repo_id", repo.ID()),
-			slog.String("error", err.Error()),
-		)
-	}
-}
-
-func (s *Repository) requestSync(ctx context.Context, repoID int64) error {
-	repo, err := s.repoStore.FindOne(ctx, repository.WithID(repoID))
-	if err != nil {
-		return fmt.Errorf("get repository: %w", err)
-	}
-
-	if !repo.HasWorkingCopy() {
-		return fmt.Errorf("repository %d has not been cloned", repoID)
-	}
-
-	payload := map[string]any{"repository_id": repoID}
-	operations := task.PrescribedOperations{}.SyncRepository()
-
-	if err := s.queue.EnqueueOperations(ctx, operations, task.PriorityNormal, payload); err != nil {
-		return fmt.Errorf("enqueue sync: %w", err)
-	}
-
-	s.logger.Info("sync requested",
-		slog.Int64("repo_id", repoID),
-	)
-
-	return nil
-}
-
-func (s *Repository) requestDelete(ctx context.Context, repoID int64) error {
-	_, err := s.repoStore.FindOne(ctx, repository.WithID(repoID))
-	if err != nil {
-		return fmt.Errorf("get repository: %w", err)
-	}
-
-	payload := map[string]any{"repository_id": repoID}
-	t := task.NewTask(task.OperationDeleteRepository, int(task.PriorityUserInitiated), payload)
-
-	if err := s.queue.Enqueue(ctx, t); err != nil {
-		return fmt.Errorf("enqueue delete: %w", err)
-	}
-
-	s.logger.Info("delete requested",
-		slog.Int64("repo_id", repoID),
-	)
-
-	return nil
-}
-
-func (s *Repository) updateTrackingConfig(ctx context.Context, repoID int64, trackingConfig repository.TrackingConfig) (Source, error) {
-	repo, err := s.repoStore.FindOne(ctx, repository.WithID(repoID))
-	if err != nil {
-		return Source{}, fmt.Errorf("get repository: %w", err)
-	}
-
-	updatedRepo := repo.WithTrackingConfig(trackingConfig)
-
-	savedRepo, err := s.repoStore.Save(ctx, updatedRepo)
-	if err != nil {
-		return Source{}, fmt.Errorf("save repository: %w", err)
-	}
-
-	s.logger.Info("tracking config updated",
-		slog.Int64("repo_id", repoID),
-		slog.String("tracking", trackingConfig.Reference()),
-	)
-
-	return NewSource(savedRepo), nil
-}
-
-func (s *Repository) requestRescan(ctx context.Context, repoID int64, commitSHA string) error {
-	repo, err := s.repoStore.FindOne(ctx, repository.WithID(repoID))
-	if err != nil {
-		return fmt.Errorf("get repository: %w", err)
-	}
-
-	if !repo.HasWorkingCopy() {
-		return fmt.Errorf("repository %d has not been cloned", repoID)
-	}
-
+func (s *Repository) enqueueRescan(ctx context.Context, params *RescanParams) error {
 	payload := map[string]any{
-		"repository_id": repoID,
-		"commit_sha":    commitSHA,
+		"repository_id": params.RepositoryID,
+		"commit_sha":    params.CommitSHA,
 	}
 	operations := task.PrescribedOperations{}.RescanCommit()
 
@@ -336,8 +235,8 @@ func (s *Repository) requestRescan(ctx context.Context, repoID int64, commitSHA 
 	}
 
 	s.logger.Info("rescan requested",
-		slog.Int64("repo_id", repoID),
-		slog.String("commit_sha", commitSHA),
+		slog.Int64("repo_id", params.RepositoryID),
+		slog.String("commit_sha", params.CommitSHA),
 	)
 
 	return nil
