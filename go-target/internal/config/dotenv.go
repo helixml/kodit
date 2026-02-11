@@ -77,6 +77,6 @@ func LoadConfig(envPath string) (AppConfig, error) {
 		return AppConfig{}, err
 	}
 
-	return envCfg.ToAppConfig(), nil
+	return envCfg.Normalize().ToAppConfig(), nil
 }
 
