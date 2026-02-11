@@ -157,6 +157,9 @@ func runServe(envFile, host string, port int) error {
 		opts = append(opts, kodit.WithWorkerCount(cfg.WorkerCount()))
 	}
 
+	// Configure periodic sync
+	opts = append(opts, kodit.WithPeriodicSyncConfig(cfg.PeriodicSync()))
+
 	// Skip provider validation if explicitly disabled (for testing)
 	if cfg.SkipProviderValidation() {
 		opts = append(opts, kodit.WithSkipProviderValidation())

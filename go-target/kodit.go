@@ -90,10 +90,11 @@ type Client struct {
 	gitInfra  GitInfrastructure
 
 	// Application services (internal only)
-	bm25Service *domainservice.BM25
-	queue       *service.Queue
-	worker      *service.Worker
-	registry    *service.Registry
+	bm25Service  *domainservice.BM25
+	queue        *service.Queue
+	worker       *service.Worker
+	periodicSync *service.PeriodicSync
+	registry     *service.Registry
 
 	// Code slicing (internal)
 	slicer *slicing.Slicer
@@ -233,6 +234,7 @@ func New(opts ...Option) (*Client, error) {
 		logger:    logger,
 	}
 	worker := service.NewWorker(taskStore, registry, &workerTrackerAdapter{trackerFactory}, logger)
+	periodicSync := service.NewPeriodicSync(cfg.periodicSync, repoStore, queue, logger)
 
 	// Create enricher infrastructure (only if text provider is configured)
 	var enricherImpl domainservice.Enricher
@@ -270,6 +272,7 @@ func New(opts ...Option) (*Client, error) {
 		bm25Service:       bm25Svc,
 		queue:             queue,
 		worker:            worker,
+		periodicSync:      periodicSync,
 		registry:          registry,
 		slicer:            slicer,
 		archDiscoverer:    archDiscoverer,
@@ -297,8 +300,9 @@ func New(opts ...Option) (*Client, error) {
 	// Register task handlers
 	client.registerHandlers()
 
-	// Start the background worker
+	// Start the background worker and periodic sync
 	worker.Start(ctx)
+	periodicSync.Start(ctx)
 
 	return client, nil
 }
@@ -312,7 +316,8 @@ func (c *Client) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// Stop the worker
+	// Stop the periodic sync and worker
+	c.periodicSync.Stop()
 	c.worker.Stop()
 
 	// Close the database

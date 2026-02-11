@@ -32,14 +32,16 @@ type clientConfig struct {
 	apiKeys                []string
 	workerCount            int
 	skipProviderValidation bool
+	periodicSync           config.PeriodicSyncConfig
 }
 
 // newClientConfig creates a clientConfig with defaults from internal/config.
 // This ensures all defaults come from the single source of truth.
 func newClientConfig() *clientConfig {
 	return &clientConfig{
-		dataDir:     config.DefaultDataDir(),
-		workerCount: config.DefaultWorkerCount,
+		dataDir:      config.DefaultDataDir(),
+		workerCount:  config.DefaultWorkerCount,
+		periodicSync: config.NewPeriodicSyncConfig(),
 	}
 }
 
@@ -178,4 +180,9 @@ func WithSkipProviderValidation() Option {
 	}
 }
 
-
+// WithPeriodicSyncConfig sets the periodic sync configuration.
+func WithPeriodicSyncConfig(cfg config.PeriodicSyncConfig) Option {
+	return func(c *clientConfig) {
+		c.periodicSync = cfg
+	}
+}
