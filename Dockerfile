@@ -1,86 +1,71 @@
-# syntax=docker/dockerfile:1.9
-ARG PYTHON_VERSION=3.13.5
-FROM python:${PYTHON_VERSION}-slim-bookworm AS build
+# Kodit Go Dockerfile
+# Multi-stage build with tree-sitter CGo dependencies
 
-# The following does not work in Podman unless you build in Docker
-# compatibility mode: <https://github.com/containers/podman/issues/8477>
-# You can manually prepend every RUN script with `set -ex` too.
-SHELL ["sh", "-exc"]
+# Build stage
+FROM golang:1.25-alpine AS builder
 
-# Ensure apt-get doesn't open a menu on you.
-ENV DEBIAN_FRONTEND=noninteractive
+# Install build dependencies for CGo (tree-sitter)
+RUN apk add --no-cache \
+    build-base \
+    gcc \
+    g++ \
+    musl-dev \
+    git
 
-RUN <<EOT
-apt-get update -qy
-apt-get install -qyy \
-    -o APT::Install-Recommends=false \
-    -o APT::Install-Suggests=false \
-    git \
-    build-essential
-EOT
-
-# Security-conscious organizations should package/review uv themselves.
-COPY --from=ghcr.io/astral-sh/uv:0.7.2 /uv /usr/local/bin/uv
-
-# - Silence uv complaining about not being able to use hard links,
-# - tell uv to byte-compile packages for faster application startups,
-# - prevent uv from accidentally downloading isolated Python builds,
-# - pick a Python (use `/usr/bin/python3.13` on uv 0.5.0 and later),
-# - and finally declare `/app` as the target for `uv sync`.
-ENV UV_LINK_MODE=copy \
-    UV_COMPILE_BYTECODE=1 \
-    UV_PYTHON_DOWNLOADS=never \
-    UV_PROJECT_ENVIRONMENT=/app
-
-# Write the PYTHON_VERSION to a .python-version
-RUN echo ${PYTHON_VERSION} > .python-version
-
-# Synchronize DEPENDENCIES without the application itself.
-# This layer is cached until uv.lock or pyproject.toml change, which are
-# only temporarily mounted into the build container since we don't need
-# them in the production one.
-# You can create `/app` using `uv venv` in a separate `RUN`
-# step to have it cached, but with uv it's so fast, it's not worth
-# it, so we let `uv sync` create it for us automagically.
-RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=uv.lock,target=uv.lock \
-    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    UV_PYTHON="python$(echo ${PYTHON_VERSION} | cut -d. -f1-2)" \
-    uv sync \
-        --locked \
-        --no-dev \
-        --no-install-project
-
-# Now install the rest from `/src`: The APPLICATION w/o dependencies.
-# `/src` will NOT be copied into the runtime container.
-# LEAVE THIS OUT if your application is NOT a proper Python package.
-COPY . /src
-WORKDIR /src
-RUN --mount=type=cache,target=/root/.cache/uv \
-    UV_PYTHON="python$(echo ${PYTHON_VERSION} | cut -d. -f1-2)" \
-    uv sync \
-        --locked \
-        --no-dev \
-        --no-editable
-
-##########################################################################
-
-FROM python:${PYTHON_VERSION}-slim-bookworm
-SHELL ["sh", "-exc"]
-
-RUN <<EOT
-apt-get update -qy
-apt-get install -qyy \
-    -o APT::Install-Recommends=false \
-    -o APT::Install-Suggests=false \
-    curl \
-    git 
-EOT
-
-ENV PATH=/app/bin:$PATH
-
+# Set working directory
 WORKDIR /app
-ENTRYPOINT ["/app/bin/kodit"]
 
-# Copy the pre-built `/app` directory to the runtime container
-COPY --from=build /app /app
+# Copy go.mod and go.sum first for better caching
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build the application
+# CGO_ENABLED=1 is required for tree-sitter
+ARG VERSION=dev
+ARG COMMIT=unknown
+ARG BUILD_TIME=unknown
+RUN CGO_ENABLED=1 GOOS=linux go build \
+    -tags "fts5" \
+    -ldflags "-X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.BuildTime=${BUILD_TIME} -linkmode external -extldflags '-static'" \
+    -o /app/kodit \
+    ./cmd/kodit
+
+# Final stage - minimal alpine image
+FROM alpine:3.19
+
+# Install runtime dependencies
+RUN apk add --no-cache \
+    ca-certificates \
+    tzdata
+
+# Create non-root user
+RUN addgroup -g 1000 kodit && \
+    adduser -u 1000 -G kodit -s /bin/sh -D kodit
+
+# Create data directory
+RUN mkdir -p /data && chown kodit:kodit /data
+
+# Copy binary from builder
+COPY --from=builder /app/kodit /usr/local/bin/kodit
+
+# Switch to non-root user
+USER kodit
+
+# Set working directory
+WORKDIR /data
+
+# Expose port
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/healthz || exit 1
+
+# Default command
+ENTRYPOINT ["/usr/local/bin/kodit"]
+CMD ["serve"]
