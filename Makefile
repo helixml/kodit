@@ -48,11 +48,11 @@ build-all: ## Build for all platforms (linux/amd64, linux/arm64, darwin/amd64, d
 
 .PHONY: run
 run: ## Run the HTTP server
-	$(GOCMD) run $(CMD_DIR) serve
+	$(GOCMD) run -tags "fts5" $(CMD_DIR) serve
 
 .PHONY: run-stdio
 run-stdio: ## Run the MCP server on stdio
-	$(GOCMD) run $(CMD_DIR) stdio
+	$(GOCMD) run -tags "fts5" $(CMD_DIR) stdio
 
 .PHONY: clean
 clean: ## Remove build artifacts

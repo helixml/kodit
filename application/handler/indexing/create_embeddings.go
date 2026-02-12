@@ -2,6 +2,7 @@ package indexing
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	"github.com/helixml/kodit/application/handler"
@@ -24,13 +25,25 @@ func NewCreateCodeEmbeddings(
 	snippetStore snippet.SnippetStore,
 	trackerFactory handler.TrackerFactory,
 	logger *slog.Logger,
-) *CreateCodeEmbeddings {
+) (*CreateCodeEmbeddings, error) {
+	if codeIndex.Embedding == nil {
+		return nil, fmt.Errorf("NewCreateCodeEmbeddings: nil Embedding")
+	}
+	if codeIndex.Store == nil {
+		return nil, fmt.Errorf("NewCreateCodeEmbeddings: nil Store")
+	}
+	if snippetStore == nil {
+		return nil, fmt.Errorf("NewCreateCodeEmbeddings: nil snippetStore")
+	}
+	if trackerFactory == nil {
+		return nil, fmt.Errorf("NewCreateCodeEmbeddings: nil trackerFactory")
+	}
 	return &CreateCodeEmbeddings{
 		codeIndex:      codeIndex,
 		snippetStore:   snippetStore,
 		trackerFactory: trackerFactory,
 		logger:         logger,
-	}
+	}, nil
 }
 
 // Execute processes the CREATE_CODE_EMBEDDINGS_FOR_COMMIT task.

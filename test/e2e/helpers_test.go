@@ -57,6 +57,7 @@ func NewTestServer(t *testing.T) *TestServer {
 	client, err := kodit.New(
 		kodit.WithSQLite(dbPath),
 		kodit.WithDataDir(tmpDir),
+		kodit.WithSkipProviderValidation(),
 	)
 	if err != nil {
 		t.Fatalf("create kodit client: %v", err)

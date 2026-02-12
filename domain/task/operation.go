@@ -61,6 +61,29 @@ func (o Operation) IsCommitOperation() bool {
 // PrescribedOperations provides predefined operation sequences for common workflows.
 type PrescribedOperations struct{}
 
+// All returns every operation that appears in any prescribed workflow.
+// Used at startup to validate that all required handlers are registered.
+func (PrescribedOperations) All() []Operation {
+	seen := make(map[Operation]struct{})
+	var all []Operation
+
+	for _, ops := range [][]Operation{
+		PrescribedOperations{}.CreateNewRepository(),
+		PrescribedOperations{}.SyncRepository(),
+		PrescribedOperations{}.ScanAndIndexCommit(),
+		PrescribedOperations{}.IndexCommit(),
+		PrescribedOperations{}.RescanCommit(),
+	} {
+		for _, op := range ops {
+			if _, ok := seen[op]; !ok {
+				seen[op] = struct{}{}
+				all = append(all, op)
+			}
+		}
+	}
+	return all
+}
+
 // CreateNewRepository returns the operations needed to create a new repository.
 func (PrescribedOperations) CreateNewRepository() []Operation {
 	return []Operation{

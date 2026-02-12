@@ -516,11 +516,12 @@ func TestCommitDescriptionHandler(t *testing.T) {
 	)
 	repoStore.repos[1] = testRepo
 
-	h := NewCommitDescription(
+	h, err := NewCommitDescription(
 		repoStore,
 		enrichCtx,
 		adapter,
 	)
+	require.NoError(t, err)
 
 	t.Run("creates commit description", func(t *testing.T) {
 		payload := map[string]any{
@@ -572,10 +573,11 @@ func TestCreateSummaryHandler(t *testing.T) {
 	}
 	snippetStore.snippets["abc123"] = snippets
 
-	h := NewCreateSummary(
+	h, err := NewCreateSummary(
 		snippetStore,
 		enrichCtx,
 	)
+	require.NoError(t, err)
 
 	t.Run("creates summaries for snippets", func(t *testing.T) {
 		payload := map[string]any{
@@ -601,18 +603,19 @@ func TestCreateSummaryHandler(t *testing.T) {
 
 		enrichCtx2 := newFakeEnrichmentContext(enrichmentStore2, associationStore2, enricher, logger)
 
-		handler2 := NewCreateSummary(
+		handler2, err2 := NewCreateSummary(
 			snippetStore2,
 			enrichCtx2,
 		)
+		require.NoError(t, err2)
 
 		payload := map[string]any{
 			"repository_id": int64(1),
 			"commit_sha":    "empty123",
 		}
 
-		err := handler2.Execute(ctx, payload)
-		require.NoError(t, err)
+		err2 = handler2.Execute(ctx, payload)
+		require.NoError(t, err2)
 
 		assert.Len(t, enrichmentStore2.enrichments, 0)
 	})

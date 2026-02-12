@@ -16,7 +16,7 @@ type EnrichmentContext struct {
 	Enrichments  enrichment.EnrichmentStore
 	Associations enrichment.AssociationStore
 	Query        *service.Enrichment
-	Enricher     domainservice.Enricher // nil if no text provider configured
+	Enricher     domainservice.Enricher
 	Tracker      TrackerFactory
 	Logger       *slog.Logger
 }

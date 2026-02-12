@@ -53,13 +53,25 @@ func NewCookbook(
 	fileStore repository.FileStore,
 	enrichCtx handler.EnrichmentContext,
 	contextGatherer CookbookContextGatherer,
-) *Cookbook {
+) (*Cookbook, error) {
+	if repoStore == nil {
+		return nil, fmt.Errorf("NewCookbook: nil repoStore")
+	}
+	if fileStore == nil {
+		return nil, fmt.Errorf("NewCookbook: nil fileStore")
+	}
+	if enrichCtx.Enricher == nil {
+		return nil, fmt.Errorf("NewCookbook: nil Enricher")
+	}
+	if contextGatherer == nil {
+		return nil, fmt.Errorf("NewCookbook: nil contextGatherer")
+	}
 	return &Cookbook{
 		repoStore:       repoStore,
 		fileStore:       fileStore,
 		enrichCtx:       enrichCtx,
 		contextGatherer: contextGatherer,
-	}
+	}, nil
 }
 
 // Execute processes the CREATE_COOKBOOK_FOR_COMMIT task.

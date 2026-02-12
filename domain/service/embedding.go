@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/helixml/kodit/domain/search"
@@ -26,10 +27,13 @@ type EmbeddingService struct {
 }
 
 // NewEmbedding creates a new embedding service.
-func NewEmbedding(store search.VectorStore) *EmbeddingService {
+func NewEmbedding(store search.VectorStore) (*EmbeddingService, error) {
+	if store == nil {
+		return nil, fmt.Errorf("NewEmbedding: nil store")
+	}
 	return &EmbeddingService{
 		store: store,
-	}
+	}, nil
 }
 
 // Index indexes documents using domain business rules.

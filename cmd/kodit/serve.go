@@ -126,13 +126,13 @@ func runServe(envFile, host string, port int) error {
 	// Configure embedding provider if available
 	embEndpoint := cfg.EmbeddingEndpoint()
 	if embEndpoint != nil && embEndpoint.BaseURL() != "" && embEndpoint.APIKey() != "" {
-		opts = append(opts, kodit.WithOpenAIConfig(provider.OpenAIConfig{
+		opts = append(opts, kodit.WithEmbeddingProvider(provider.NewOpenAIProviderFromConfig(provider.OpenAIConfig{
 			APIKey:         embEndpoint.APIKey(),
 			BaseURL:        embEndpoint.BaseURL(),
 			EmbeddingModel: embEndpoint.Model(),
 			Timeout:        embEndpoint.Timeout(),
 			MaxRetries:     embEndpoint.MaxRetries(),
-		}))
+		})))
 	}
 
 	// Configure text generation provider if available

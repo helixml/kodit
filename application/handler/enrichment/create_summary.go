@@ -28,11 +28,17 @@ type CreateSummary struct {
 func NewCreateSummary(
 	snippetStore snippet.SnippetStore,
 	enrichCtx handler.EnrichmentContext,
-) *CreateSummary {
+) (*CreateSummary, error) {
+	if snippetStore == nil {
+		return nil, fmt.Errorf("NewCreateSummary: nil snippetStore")
+	}
+	if enrichCtx.Enricher == nil {
+		return nil, fmt.Errorf("NewCreateSummary: nil Enricher")
+	}
 	return &CreateSummary{
 		snippetStore: snippetStore,
 		enrichCtx:    enrichCtx,
-	}
+	}, nil
 }
 
 // Execute processes the CREATE_SUMMARY_ENRICHMENT_FOR_COMMIT task.

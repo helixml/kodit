@@ -29,14 +29,29 @@ func NewCreateSummaryEmbeddings(
 	associationStore enrichment.AssociationStore,
 	trackerFactory handler.TrackerFactory,
 	logger *slog.Logger,
-) *CreateSummaryEmbeddings {
+) (*CreateSummaryEmbeddings, error) {
+	if textIndex.Embedding == nil {
+		return nil, fmt.Errorf("NewCreateSummaryEmbeddings: nil Embedding")
+	}
+	if textIndex.Store == nil {
+		return nil, fmt.Errorf("NewCreateSummaryEmbeddings: nil Store")
+	}
+	if queryService == nil {
+		return nil, fmt.Errorf("NewCreateSummaryEmbeddings: nil queryService")
+	}
+	if associationStore == nil {
+		return nil, fmt.Errorf("NewCreateSummaryEmbeddings: nil associationStore")
+	}
+	if trackerFactory == nil {
+		return nil, fmt.Errorf("NewCreateSummaryEmbeddings: nil trackerFactory")
+	}
 	return &CreateSummaryEmbeddings{
 		textIndex:        textIndex,
 		queryService:     queryService,
 		associationStore: associationStore,
 		trackerFactory:   trackerFactory,
 		logger:           logger,
-	}
+	}, nil
 }
 
 // Execute processes the CREATE_SUMMARY_EMBEDDINGS_FOR_COMMIT task.
@@ -203,13 +218,25 @@ func NewCreateExampleCodeEmbeddings(
 	queryService *service.Enrichment,
 	trackerFactory handler.TrackerFactory,
 	logger *slog.Logger,
-) *CreateExampleCodeEmbeddings {
+) (*CreateExampleCodeEmbeddings, error) {
+	if codeIndex.Embedding == nil {
+		return nil, fmt.Errorf("NewCreateExampleCodeEmbeddings: nil Embedding")
+	}
+	if codeIndex.Store == nil {
+		return nil, fmt.Errorf("NewCreateExampleCodeEmbeddings: nil Store")
+	}
+	if queryService == nil {
+		return nil, fmt.Errorf("NewCreateExampleCodeEmbeddings: nil queryService")
+	}
+	if trackerFactory == nil {
+		return nil, fmt.Errorf("NewCreateExampleCodeEmbeddings: nil trackerFactory")
+	}
 	return &CreateExampleCodeEmbeddings{
 		codeIndex:      codeIndex,
 		queryService:   queryService,
 		trackerFactory: trackerFactory,
 		logger:         logger,
-	}
+	}, nil
 }
 
 // Execute processes the CREATE_EXAMPLE_CODE_EMBEDDINGS_FOR_COMMIT task.
@@ -337,13 +364,25 @@ func NewCreateExampleSummaryEmbeddings(
 	queryService *service.Enrichment,
 	trackerFactory handler.TrackerFactory,
 	logger *slog.Logger,
-) *CreateExampleSummaryEmbeddings {
+) (*CreateExampleSummaryEmbeddings, error) {
+	if textIndex.Embedding == nil {
+		return nil, fmt.Errorf("NewCreateExampleSummaryEmbeddings: nil Embedding")
+	}
+	if textIndex.Store == nil {
+		return nil, fmt.Errorf("NewCreateExampleSummaryEmbeddings: nil Store")
+	}
+	if queryService == nil {
+		return nil, fmt.Errorf("NewCreateExampleSummaryEmbeddings: nil queryService")
+	}
+	if trackerFactory == nil {
+		return nil, fmt.Errorf("NewCreateExampleSummaryEmbeddings: nil trackerFactory")
+	}
 	return &CreateExampleSummaryEmbeddings{
 		textIndex:      textIndex,
 		queryService:   queryService,
 		trackerFactory: trackerFactory,
 		logger:         logger,
-	}
+	}, nil
 }
 
 // Execute processes the CREATE_EXAMPLE_SUMMARY_EMBEDDINGS_FOR_COMMIT task.

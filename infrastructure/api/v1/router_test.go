@@ -23,6 +23,7 @@ func newTestClient(t *testing.T) *kodit.Client {
 	client, err := kodit.New(
 		kodit.WithSQLite(dbPath),
 		kodit.WithDataDir(tmpDir),
+		kodit.WithSkipProviderValidation(),
 	)
 	if err != nil {
 		t.Fatalf("create client: %v", err)
@@ -56,6 +57,7 @@ func newTestClientWithSeededEnrichment(t *testing.T) (*kodit.Client, enrichment.
 	client, err := kodit.New(
 		kodit.WithSQLite(dbPath),
 		kodit.WithDataDir(tmpDir),
+		kodit.WithSkipProviderValidation(),
 	)
 	if err != nil {
 		t.Fatalf("create client: %v", err)

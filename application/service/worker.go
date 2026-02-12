@@ -53,6 +53,14 @@ func (r *Registry) Handler(operation task.Operation) (Handler, bool) {
 	return handler, ok
 }
 
+// HasHandler reports whether a handler is registered for the operation.
+func (r *Registry) HasHandler(operation task.Operation) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	_, ok := r.handlers[operation]
+	return ok
+}
+
 // Operations returns all registered operations.
 func (r *Registry) Operations() []task.Operation {
 	r.mu.RLock()

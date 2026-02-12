@@ -31,12 +31,21 @@ func NewCommitDescription(
 	repoStore repository.RepositoryStore,
 	enrichCtx handler.EnrichmentContext,
 	adapter infraGit.Adapter,
-) *CommitDescription {
+) (*CommitDescription, error) {
+	if repoStore == nil {
+		return nil, fmt.Errorf("NewCommitDescription: nil repoStore")
+	}
+	if enrichCtx.Enricher == nil {
+		return nil, fmt.Errorf("NewCommitDescription: nil Enricher")
+	}
+	if adapter == nil {
+		return nil, fmt.Errorf("NewCommitDescription: nil adapter")
+	}
 	return &CommitDescription{
 		repoStore: repoStore,
 		enrichCtx: enrichCtx,
 		adapter:   adapter,
-	}
+	}, nil
 }
 
 // Execute processes the CREATE_COMMIT_DESCRIPTION_FOR_COMMIT task.

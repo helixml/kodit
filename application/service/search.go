@@ -362,6 +362,10 @@ func (s Search) Search(ctx context.Context, request search.MultiRequest) (MultiS
 
 // SearchText performs text vector search against enrichment summaries.
 func (s Search) SearchText(ctx context.Context, query string, topK int) ([]snippet.Snippet, error) {
+	if s.textVectorStore == nil {
+		return nil, nil
+	}
+
 	if topK <= 0 {
 		topK = 10
 	}
@@ -382,6 +386,10 @@ func (s Search) SearchText(ctx context.Context, query string, topK int) ([]snipp
 
 // SearchCode performs code vector search against code snippet embeddings.
 func (s Search) SearchCode(ctx context.Context, query string, topK int) ([]snippet.Snippet, error) {
+	if s.codeVectorStore == nil {
+		return nil, nil
+	}
+
 	if topK <= 0 {
 		topK = 10
 	}

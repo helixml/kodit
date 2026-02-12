@@ -25,10 +25,13 @@ type ExampleSummary struct {
 // NewExampleSummary creates a new ExampleSummary handler.
 func NewExampleSummary(
 	enrichCtx handler.EnrichmentContext,
-) *ExampleSummary {
+) (*ExampleSummary, error) {
+	if enrichCtx.Enricher == nil {
+		return nil, fmt.Errorf("NewExampleSummary: nil Enricher")
+	}
 	return &ExampleSummary{
 		enrichCtx: enrichCtx,
-	}
+	}, nil
 }
 
 // Execute processes the CREATE_EXAMPLE_SUMMARY_FOR_COMMIT task.

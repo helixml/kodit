@@ -195,13 +195,27 @@ func New(opts ...Option) (*Client, error) {
 	textVectorStore, codeVectorStore, bm25Store := buildSearchStores(cfg, db, logger)
 
 	// Create vector indices (pairing embedding services with their stores)
-	codeIndex := VectorIndex{
-		Embedding: domainservice.NewEmbedding(codeVectorStore),
-		Store:     codeVectorStore,
+	var codeIndex VectorIndex
+	if codeVectorStore != nil {
+		embSvc, err := domainservice.NewEmbedding(codeVectorStore)
+		if err != nil {
+			return nil, fmt.Errorf("create code embedding service: %w", err)
+		}
+		codeIndex = VectorIndex{
+			Embedding: embSvc,
+			Store:     codeVectorStore,
+		}
 	}
-	textIndex := VectorIndex{
-		Embedding: domainservice.NewEmbedding(textVectorStore),
-		Store:     textVectorStore,
+	var textIndex VectorIndex
+	if textVectorStore != nil {
+		embSvc, err := domainservice.NewEmbedding(textVectorStore)
+		if err != nil {
+			return nil, fmt.Errorf("create text embedding service: %w", err)
+		}
+		textIndex = VectorIndex{
+			Embedding: embSvc,
+			Store:     textVectorStore,
+		}
 	}
 
 	// Create application services
@@ -212,7 +226,10 @@ func New(opts ...Option) (*Client, error) {
 	trackingSvc := service.NewTracking(statusStore, taskStore)
 
 	// Create BM25 service for keyword search (always available)
-	bm25Svc := domainservice.NewBM25(bm25Store)
+	bm25Svc, err := domainservice.NewBM25(bm25Store)
+	if err != nil {
+		return nil, fmt.Errorf("create bm25 service: %w", err)
+	}
 
 	// Create git infrastructure
 	gitAdapter := git.NewGoGitAdapter(logger)
@@ -304,7 +321,18 @@ func New(opts ...Option) (*Client, error) {
 	client.Search = service.NewSearch(textVectorStore, codeVectorStore, bm25Store, snippetStore, enrichmentStore, &client.closed, logger)
 
 	// Register task handlers
-	client.registerHandlers()
+	if err := client.registerHandlers(); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("register handlers: %w", err)
+	}
+
+	// Validate all prescribed operations have handlers
+	if !cfg.skipProviderValidation {
+		if err := client.validateHandlers(); err != nil {
+			_ = db.Close()
+			return nil, err
+		}
+	}
 
 	// Start the background worker and periodic sync
 	worker.Start(ctx)

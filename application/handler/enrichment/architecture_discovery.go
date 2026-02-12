@@ -46,12 +46,21 @@ func NewArchitectureDiscovery(
 	repoStore repository.RepositoryStore,
 	enrichCtx handler.EnrichmentContext,
 	discoverer ArchitectureDiscoverer,
-) *ArchitectureDiscovery {
+) (*ArchitectureDiscovery, error) {
+	if repoStore == nil {
+		return nil, fmt.Errorf("NewArchitectureDiscovery: nil repoStore")
+	}
+	if enrichCtx.Enricher == nil {
+		return nil, fmt.Errorf("NewArchitectureDiscovery: nil Enricher")
+	}
+	if discoverer == nil {
+		return nil, fmt.Errorf("NewArchitectureDiscovery: nil discoverer")
+	}
 	return &ArchitectureDiscovery{
 		repoStore:  repoStore,
 		enrichCtx:  enrichCtx,
 		discoverer: discoverer,
-	}
+	}, nil
 }
 
 // Execute processes the CREATE_ARCHITECTURE_ENRICHMENT_FOR_COMMIT task.

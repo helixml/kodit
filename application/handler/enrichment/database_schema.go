@@ -93,12 +93,21 @@ func NewDatabaseSchema(
 	repoStore repository.RepositoryStore,
 	enrichCtx handler.EnrichmentContext,
 	discoverer SchemaDiscoverer,
-) *DatabaseSchema {
+) (*DatabaseSchema, error) {
+	if repoStore == nil {
+		return nil, fmt.Errorf("NewDatabaseSchema: nil repoStore")
+	}
+	if enrichCtx.Enricher == nil {
+		return nil, fmt.Errorf("NewDatabaseSchema: nil Enricher")
+	}
+	if discoverer == nil {
+		return nil, fmt.Errorf("NewDatabaseSchema: nil discoverer")
+	}
 	return &DatabaseSchema{
 		repoStore:  repoStore,
 		enrichCtx:  enrichCtx,
 		discoverer: discoverer,
-	}
+	}, nil
 }
 
 // Execute processes the CREATE_DATABASE_SCHEMA_FOR_COMMIT task.

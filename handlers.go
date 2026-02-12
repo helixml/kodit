@@ -1,7 +1,9 @@
 package kodit
 
 import (
+	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/helixml/kodit/application/handler"
 	commithandler "github.com/helixml/kodit/application/handler/commit"
@@ -14,7 +16,7 @@ import (
 )
 
 // registerHandlers registers all task handlers with the worker registry.
-func (c *Client) registerHandlers() {
+func (c *Client) registerHandlers() error {
 	// Repository handlers (always registered)
 	c.registry.Register(task.OperationCloneRepository, repohandler.NewClone(
 		c.repoStores.Repositories, c.gitInfra.Cloner, c.queue, c.enrichCtx.Tracker, c.logger,
@@ -42,68 +44,105 @@ func (c *Client) registerHandlers() {
 		c.bm25Service, c.snippetStore, c.enrichCtx.Tracker, c.logger,
 	))
 
-	// Code embeddings for snippets
-	c.registry.Register(task.OperationCreateCodeEmbeddingsForCommit, indexinghandler.NewCreateCodeEmbeddings(
-		c.codeIndex, c.snippetStore, c.enrichCtx.Tracker, c.logger,
-	))
+	// Code embedding handlers — only if embedding provider configured
+	if c.codeIndex.Store != nil {
+		h, err := indexinghandler.NewCreateCodeEmbeddings(c.codeIndex, c.snippetStore, c.enrichCtx.Tracker, c.logger)
+		if err != nil {
+			return fmt.Errorf("create code embeddings handler: %w", err)
+		}
+		c.registry.Register(task.OperationCreateCodeEmbeddingsForCommit, h)
 
-	// Example code embeddings (enrichment content from extracted examples)
-	c.registry.Register(task.OperationCreateExampleCodeEmbeddingsForCommit, indexinghandler.NewCreateExampleCodeEmbeddings(
-		c.codeIndex, c.enrichCtx.Query, c.enrichCtx.Tracker, c.logger,
-	))
+		h2, err := indexinghandler.NewCreateExampleCodeEmbeddings(c.codeIndex, c.enrichCtx.Query, c.enrichCtx.Tracker, c.logger)
+		if err != nil {
+			return fmt.Errorf("create example code embeddings handler: %w", err)
+		}
+		c.registry.Register(task.OperationCreateExampleCodeEmbeddingsForCommit, h2)
+	}
 
-	// Summary embeddings (enrichment content from snippet summaries)
-	c.registry.Register(task.OperationCreateSummaryEmbeddingsForCommit, indexinghandler.NewCreateSummaryEmbeddings(
-		c.textIndex, c.enrichCtx.Query, c.enrichCtx.Associations, c.enrichCtx.Tracker, c.logger,
-	))
+	// Text embedding handlers — only if text embedding provider configured
+	if c.textIndex.Store != nil {
+		h, err := indexinghandler.NewCreateSummaryEmbeddings(c.textIndex, c.enrichCtx.Query, c.enrichCtx.Associations, c.enrichCtx.Tracker, c.logger)
+		if err != nil {
+			return fmt.Errorf("create summary embeddings handler: %w", err)
+		}
+		c.registry.Register(task.OperationCreateSummaryEmbeddingsForCommit, h)
 
-	// Example summary embeddings (enrichment content from example summaries)
-	c.registry.Register(task.OperationCreateExampleSummaryEmbeddingsForCommit, indexinghandler.NewCreateExampleSummaryEmbeddings(
-		c.textIndex, c.enrichCtx.Query, c.enrichCtx.Tracker, c.logger,
-	))
+		h2, err := indexinghandler.NewCreateExampleSummaryEmbeddings(c.textIndex, c.enrichCtx.Query, c.enrichCtx.Tracker, c.logger)
+		if err != nil {
+			return fmt.Errorf("create example summary embeddings handler: %w", err)
+		}
+		c.registry.Register(task.OperationCreateExampleSummaryEmbeddingsForCommit, h2)
+	}
 
-	// Enrichment handlers
-	// Summary enrichment
-	c.registry.Register(task.OperationCreateSummaryEnrichmentForCommit, enrichmenthandler.NewCreateSummary(
-		c.snippetStore, c.enrichCtx,
-	))
+	// Enrichment handlers that call Enricher — only if text provider configured
+	if c.enrichCtx.Enricher != nil {
+		h, err := enrichmenthandler.NewCreateSummary(c.snippetStore, c.enrichCtx)
+		if err != nil {
+			return fmt.Errorf("create summary handler: %w", err)
+		}
+		c.registry.Register(task.OperationCreateSummaryEnrichmentForCommit, h)
 
-	// Commit description
-	c.registry.Register(task.OperationCreateCommitDescriptionForCommit, enrichmenthandler.NewCommitDescription(
-		c.repoStores.Repositories, c.enrichCtx, c.gitInfra.Adapter,
-	))
+		h2, err := enrichmenthandler.NewCommitDescription(c.repoStores.Repositories, c.enrichCtx, c.gitInfra.Adapter)
+		if err != nil {
+			return fmt.Errorf("commit description handler: %w", err)
+		}
+		c.registry.Register(task.OperationCreateCommitDescriptionForCommit, h2)
 
-	// Architecture discovery
-	c.registry.Register(task.OperationCreateArchitectureEnrichmentForCommit, enrichmenthandler.NewArchitectureDiscovery(
-		c.repoStores.Repositories, c.enrichCtx, c.archDiscoverer,
-	))
+		h3, err := enrichmenthandler.NewArchitectureDiscovery(c.repoStores.Repositories, c.enrichCtx, c.archDiscoverer)
+		if err != nil {
+			return fmt.Errorf("architecture discovery handler: %w", err)
+		}
+		c.registry.Register(task.OperationCreateArchitectureEnrichmentForCommit, h3)
 
-	// Example summary
-	c.registry.Register(task.OperationCreateExampleSummaryForCommit, enrichmenthandler.NewExampleSummary(
-		c.enrichCtx,
-	))
+		h4, err := enrichmenthandler.NewExampleSummary(c.enrichCtx)
+		if err != nil {
+			return fmt.Errorf("example summary handler: %w", err)
+		}
+		c.registry.Register(task.OperationCreateExampleSummaryForCommit, h4)
 
-	// Database schema enrichment
-	c.registry.Register(task.OperationCreateDatabaseSchemaForCommit, enrichmenthandler.NewDatabaseSchema(
-		c.repoStores.Repositories, c.enrichCtx, c.schemaDiscoverer,
-	))
+		h5, err := enrichmenthandler.NewDatabaseSchema(c.repoStores.Repositories, c.enrichCtx, c.schemaDiscoverer)
+		if err != nil {
+			return fmt.Errorf("database schema handler: %w", err)
+		}
+		c.registry.Register(task.OperationCreateDatabaseSchemaForCommit, h5)
 
-	// Cookbook enrichment
-	c.registry.Register(task.OperationCreateCookbookForCommit, enrichmenthandler.NewCookbook(
-		c.repoStores.Repositories, c.repoStores.Files, c.enrichCtx, c.cookbookContext,
-	))
+		h6, err := enrichmenthandler.NewCookbook(c.repoStores.Repositories, c.repoStores.Files, c.enrichCtx, c.cookbookContext)
+		if err != nil {
+			return fmt.Errorf("cookbook handler: %w", err)
+		}
+		c.registry.Register(task.OperationCreateCookbookForCommit, h6)
+	}
 
-	// API docs enrichment
+	// API docs enrichment (AST-based, no LLM dependency)
 	c.registry.Register(task.OperationCreatePublicAPIDocsForCommit, enrichmenthandler.NewAPIDocs(
 		c.repoStores.Repositories, c.repoStores.Files, c.enrichCtx, c.apiDocService,
 	))
 
-	// Example extraction handler
+	// Example extraction handler (no LLM dependency)
 	c.registry.Register(task.OperationExtractExamplesForCommit, enrichmenthandler.NewExtractExamples(
 		c.repoStores.Repositories, c.repoStores.Commits, c.gitInfra.Adapter, c.enrichCtx, c.exampleDiscoverer,
 	))
 
 	c.logger.Info("registered task handlers", slog.Int("count", len(c.registry.Operations())))
+	return nil
+}
+
+// validateHandlers checks that every prescribed operation has a registered handler.
+// Returns an error listing missing operations and which provider to configure.
+func (c *Client) validateHandlers() error {
+	var missing []string
+	for _, op := range (task.PrescribedOperations{}).All() {
+		if !c.registry.HasHandler(op) {
+			missing = append(missing, op.String())
+		}
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+	return fmt.Errorf(
+		"missing handlers for operations: [%s] — configure a text provider (WithOpenAI, WithAnthropic) and an embedding provider (WithOpenAI, WithOllama) or set SKIP_PROVIDER_VALIDATION=true to start without them",
+		strings.Join(missing, ", "),
+	)
 }
 
 // buildDatabaseURL constructs the database URL from configuration.

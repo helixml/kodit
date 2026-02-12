@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/helixml/kodit/domain/search"
@@ -20,10 +21,13 @@ type BM25 struct {
 }
 
 // NewBM25 creates a new BM25 service.
-func NewBM25(store search.BM25Store) *BM25 {
+func NewBM25(store search.BM25Store) (*BM25, error) {
+	if store == nil {
+		return nil, fmt.Errorf("NewBM25: nil store")
+	}
 	return &BM25{
 		store: store,
-	}
+	}, nil
 }
 
 // Index indexes documents using domain business rules.
