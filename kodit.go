@@ -232,7 +232,10 @@ func New(opts ...Option) (*Client, error) {
 	}
 
 	// Create git infrastructure
-	gitAdapter := git.NewGoGitAdapter(logger)
+	gitAdapter, err := git.NewGiteaAdapter(logger)
+	if err != nil {
+		return nil, fmt.Errorf("create git adapter: %w", err)
+	}
 	clonerSvc := git.NewRepositoryCloner(gitAdapter, cloneDir, logger)
 	scannerSvc := git.NewRepositoryScanner(gitAdapter, logger)
 

@@ -7,7 +7,7 @@ import (
 )
 
 // Adapter defines the interface for Git repository operations.
-// Implementations wrap specific git libraries (e.g., go-git).
+// Implementations wrap specific git libraries (e.g., Gitea's git module).
 type Adapter interface {
 	// CloneRepository clones a repository to local path.
 	CloneRepository(ctx context.Context, remoteURI string, localPath string) error

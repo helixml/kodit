@@ -41,7 +41,8 @@ FROM alpine:3.19
 # Install runtime dependencies
 RUN apk add --no-cache \
     ca-certificates \
-    tzdata
+    tzdata \
+    git
 
 # Create non-root user
 RUN addgroup -g 1000 kodit && \

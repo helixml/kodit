@@ -2,20 +2,19 @@ package git
 
 import (
 	"bufio"
+	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
-
-	gogit "github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
 )
 
 // IgnorePattern provides file ignore pattern matching for git repositories.
 // It combines gitignore rules from the repository with custom .noindex patterns.
 type IgnorePattern struct {
 	base         string
-	repo         *gogit.Repository
-	noIndexRules []gitignore.Pattern
+	isGitRepo    bool
+	noIndexRules []string
 }
 
 // NewIgnorePattern creates an IgnorePattern for the given base directory.
@@ -33,10 +32,10 @@ func NewIgnorePattern(base string) (IgnorePattern, error) {
 		base: base,
 	}
 
-	// Try to open as git repository
-	repo, err := gogit.PlainOpen(base)
+	// Check if this is a git repository by looking for .git directory
+	_, err = os.Stat(filepath.Join(base, ".git"))
 	if err == nil {
-		pattern.repo = repo
+		pattern.isGitRepo = true
 	}
 
 	// Load .noindex patterns if present
@@ -77,7 +76,7 @@ func (p IgnorePattern) ShouldIgnore(path string) bool {
 	}
 
 	// Check git ignore rules if repo is available
-	if p.repo != nil {
+	if p.isGitRepo {
 		if p.matchGitIgnore(relPath) {
 			return true
 		}
@@ -91,23 +90,13 @@ func (p IgnorePattern) ShouldIgnore(path string) bool {
 	return false
 }
 
-// matchGitIgnore checks if the path matches gitignore rules.
+// matchGitIgnore checks if the path matches gitignore rules using git check-ignore.
 func (p IgnorePattern) matchGitIgnore(relPath string) bool {
-	wt, err := p.repo.Worktree()
-	if err != nil {
-		return false
-	}
-
-	patterns, err := gitignore.ReadPatterns(wt.Filesystem, nil)
-	if err != nil {
-		return false
-	}
-
-	// Split path into parts for matching
-	parts := strings.Split(relPath, "/")
-	matcher := gitignore.NewMatcher(patterns)
-
-	return matcher.Match(parts, false)
+	cmd := exec.CommandContext(context.Background(), "git", "check-ignore", "-q", relPath)
+	cmd.Dir = p.base
+	err := cmd.Run()
+	// Exit 0 means the path is ignored, exit 1 means it's not
+	return err == nil
 }
 
 // matchNoIndex checks if the path matches .noindex patterns.
@@ -116,21 +105,35 @@ func (p IgnorePattern) matchNoIndex(relPath string) bool {
 		return false
 	}
 
-	parts := strings.Split(relPath, "/")
-	matcher := gitignore.NewMatcher(p.noIndexRules)
+	for _, pattern := range p.noIndexRules {
+		// Try matching against the full relative path
+		matched, err := filepath.Match(pattern, relPath)
+		if err == nil && matched {
+			return true
+		}
 
-	return matcher.Match(parts, false)
+		// Try matching against each path component
+		parts := strings.Split(relPath, "/")
+		for _, part := range parts {
+			matched, err = filepath.Match(pattern, part)
+			if err == nil && matched {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 // loadNoIndexPatterns reads patterns from a .noindex file.
-func loadNoIndexPatterns(path string) ([]gitignore.Pattern, error) {
+func loadNoIndexPatterns(path string) ([]string, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = file.Close() }()
 
-	var patterns []gitignore.Pattern
+	var patterns []string
 	scanner := bufio.NewScanner(file)
 
 	for scanner.Scan() {
@@ -138,7 +141,7 @@ func loadNoIndexPatterns(path string) ([]gitignore.Pattern, error) {
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		patterns = append(patterns, gitignore.ParsePattern(line, nil))
+		patterns = append(patterns, line)
 	}
 
 	if err := scanner.Err(); err != nil {
