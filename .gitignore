@@ -2,3 +2,4 @@
 .kodit/
 build/
 *.env
+infrastructure/provider/models/

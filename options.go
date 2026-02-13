@@ -26,6 +26,7 @@ type clientConfig struct {
 	dbDSN                  string
 	dataDir                string
 	cloneDir               string
+	modelDir               string
 	textProvider           provider.TextGenerator
 	embeddingProvider      provider.Embedder
 	logger                 *slog.Logger
@@ -184,5 +185,13 @@ func WithSkipProviderValidation() Option {
 func WithPeriodicSyncConfig(cfg config.PeriodicSyncConfig) Option {
 	return func(c *clientConfig) {
 		c.periodicSync = cfg
+	}
+}
+
+// WithModelDir sets the directory where built-in model files are stored.
+// Defaults to {dataDir}/models if not specified.
+func WithModelDir(dir string) Option {
+	return func(c *clientConfig) {
+		c.modelDir = dir
 	}
 }

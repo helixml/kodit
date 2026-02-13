@@ -17,9 +17,7 @@ services:
     environment:
       - DISABLE_TELEMETRY=true
       - "DB_URL=sqlite:///:memory:"
-      - EMBEDDING_ENDPOINT_BASE_URL=http://ollama:11434/v1
-      - EMBEDDING_ENDPOINT_MODEL=all-minilm
-      - EMBEDDING_ENDPOINT_API_KEY=ollama
+      # Embeddings use the built-in jina-embeddings-v2-base-code model (no external API needed)
       - ENRICHMENT_ENDPOINT_BASE_URL=http://ollama:11434/v1
       - ENRICHMENT_ENDPOINT_MODEL=qwen2.5:0.5b
       - ENRICHMENT_ENDPOINT_API_KEY=ollama

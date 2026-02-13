@@ -3,8 +3,11 @@
 
 # Go parameters
 GOCMD=go
-GOBUILD=$(GOCMD) build -tags "fts5"
-GOTEST=$(GOCMD) test -tags "fts5"
+TAGS=fts5
+BUILD_TAGS=$(TAGS) embed_model
+GOBUILD=$(GOCMD) build -tags "$(BUILD_TAGS)"
+GOTEST=$(GOCMD) test -tags "$(TAGS)"
+GORUN=$(GOCMD) run -tags "$(TAGS)"
 GOGET=$(GOCMD) get
 GOMOD=$(GOCMD) mod
 GOFMT=gofmt
@@ -36,23 +39,23 @@ help: ## Display this help
 ##@ Development
 
 .PHONY: build
-build: ## Build the application binary
+build: download-model ## Build the application binary (with embedded model)
 	$(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) $(CMD_DIR)
 
 .PHONY: build-all
-build-all: ## Build for all platforms (linux/amd64, linux/arm64, darwin/amd64, darwin/arm64)
+build-all: download-model ## Build for all platforms (linux/amd64, linux/arm64, darwin/amd64, darwin/arm64)
 	GOOS=linux GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64 $(CMD_DIR)
 	GOOS=linux GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-arm64 $(CMD_DIR)
 	GOOS=darwin GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-amd64 $(CMD_DIR)
 	GOOS=darwin GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-arm64 $(CMD_DIR)
 
 .PHONY: run
-run: ## Run the HTTP server
-	$(GOCMD) run -tags "fts5" $(CMD_DIR) serve
+run: ## Run the HTTP server (downloads model on first use if needed)
+	$(GORUN) $(CMD_DIR) serve
 
 .PHONY: run-stdio
 run-stdio: ## Run the MCP server on stdio
-	$(GOCMD) run -tags "fts5" $(CMD_DIR) stdio
+	$(GORUN) $(CMD_DIR) stdio
 
 .PHONY: clean
 clean: ## Remove build artifacts
@@ -87,8 +90,8 @@ test-e2e: ## Run end-to-end tests only
 	$(GOTEST) -v ./test/e2e/...
 
 .PHONY: smoke
-smoke: ## Run smoke tests (starts server, tests API endpoints)
-	$(GOTEST) -v -timeout 15m -count 1 ./test/smoke/...
+smoke: download-model ## Run smoke tests (starts server, tests API endpoints)
+	$(GOCMD) test -tags "$(BUILD_TAGS)" -v -timeout 15m -count 1 ./test/smoke/...
 
 ##@ Code Quality
 
@@ -117,6 +120,12 @@ vet: ## Run go vet
 
 .PHONY: check
 check: fmt vet lint test ## Run all checks (format, vet, lint, test)
+
+##@ Models
+
+.PHONY: download-model
+download-model: ## Download the built-in embedding model for binary embedding
+	$(GOCMD) run ./tools/download-model
 
 ##@ Dependencies
 

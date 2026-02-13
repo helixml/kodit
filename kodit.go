@@ -36,6 +36,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 
@@ -47,12 +48,13 @@ import (
 	"github.com/helixml/kodit/infrastructure/enricher/example"
 	"github.com/helixml/kodit/infrastructure/git"
 	"github.com/helixml/kodit/infrastructure/persistence"
+	"github.com/helixml/kodit/infrastructure/provider"
 	infraSearch "github.com/helixml/kodit/infrastructure/search"
-	"github.com/helixml/kodit/internal/database"
 	"github.com/helixml/kodit/infrastructure/slicing"
 	"github.com/helixml/kodit/infrastructure/slicing/language"
 	"github.com/helixml/kodit/infrastructure/tracking"
 	"github.com/helixml/kodit/internal/config"
+	"github.com/helixml/kodit/internal/database"
 )
 
 // Client is the main entry point for the kodit library.
@@ -106,6 +108,8 @@ type Client struct {
 	apiDocService     *enricher.APIDocService
 	cookbookContext   *enricher.CookbookContextService
 
+	hugotEmbedding *provider.HugotEmbedding
+
 	logger   *slog.Logger
 	dataDir  string
 	cloneDir string
@@ -143,6 +147,18 @@ func New(opts ...Option) (*Client, error) {
 	cloneDir, err := config.PrepareCloneDir(cfg.cloneDir, dataDir)
 	if err != nil {
 		return nil, err
+	}
+
+	// Create built-in embedding provider if no external provider is configured
+	var hugotEmbedding *provider.HugotEmbedding
+	if cfg.embeddingProvider == nil {
+		modelDir := cfg.modelDir
+		if modelDir == "" {
+			modelDir = filepath.Join(dataDir, "models")
+		}
+		hugotEmbedding = provider.NewHugotEmbedding(modelDir)
+		cfg.embeddingProvider = hugotEmbedding
+		logger.Info("built-in embedding provider enabled", slog.String("model_dir", modelDir))
 	}
 
 	// Build database URL
@@ -306,6 +322,7 @@ func New(opts ...Option) (*Client, error) {
 		schemaDiscoverer:  schemaDiscoverer,
 		apiDocService:     apiDocSvc,
 		cookbookContext:   cookbookCtx,
+		hugotEmbedding:    hugotEmbedding,
 		logger:            logger,
 		dataDir:           dataDir,
 		cloneDir:          cloneDir,
@@ -356,6 +373,13 @@ func (c *Client) Close() error {
 	// Stop the periodic sync and worker
 	c.periodicSync.Stop()
 	c.worker.Stop()
+
+	// Close built-in embedding provider
+	if c.hugotEmbedding != nil {
+		if err := c.hugotEmbedding.Close(); err != nil {
+			c.logger.Error("failed to close hugot embedding", slog.Any("error", err))
+		}
+	}
 
 	// Close the database
 	if err := c.db.Close(); err != nil {

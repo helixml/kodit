@@ -1,10 +1,6 @@
 ## New Features
 
-- [ ] Bundle a built-in embedding model in the binary. Bundle a "built-in" embedding mode. Default to this if no embedding provider is configured.
-
-## Refactorings
-
-- [ ] Completely remove go-git and use the gitea library instead.
+- [x] Bundle a built-in embedding model in the binary. Bundle a "built-in" embedding mode. Default to this if no embedding provider is configured.
 
 ## Bugs
 

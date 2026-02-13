@@ -163,7 +163,7 @@ CREATE TABLE IF NOT EXISTS %s (
 	}
 
 	if result.RowsAffected > 0 && dbDimension != dimension {
-		return fmt.Errorf("%w: database has %d, provider has %d", ErrDimensionMismatch, dbDimension, dimension)
+		return fmt.Errorf("%w: database has %d dimensions, provider has %d — if you switched embedding providers, drop the embedding tables and re-index", ErrDimensionMismatch, dbDimension, dimension)
 	}
 
 	return nil

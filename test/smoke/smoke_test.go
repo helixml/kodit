@@ -87,24 +87,16 @@ func TestSmoke(t *testing.T) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	// Check required API keys are set
-	embeddingAPIKey := os.Getenv("EMBEDDING_ENDPOINT_API_KEY")
 	enrichmentAPIKey := os.Getenv("ENRICHMENT_ENDPOINT_API_KEY")
-	if embeddingAPIKey == "" {
-		t.Fatal("EMBEDDING_ENDPOINT_API_KEY environment variable is required")
-	}
 	if enrichmentAPIKey == "" {
 		t.Fatal("ENRICHMENT_ENDPOINT_API_KEY environment variable is required")
 	}
 
 	// Set environment - use in-memory SQLite by default
-	// Hardcode OpenRouter settings for embedding and enrichment providers
+	// Embeddings use the built-in jina-embeddings-v2-base-code model (no external API needed)
 	cmd.Env = append(os.Environ(),
 		"DISABLE_TELEMETRY=true",
 		"DB_URL=sqlite:///:memory:",
-		// Embedding provider (OpenRouter with Codestral Embed)
-		"EMBEDDING_ENDPOINT_BASE_URL=https://openrouter.ai/api/v1",
-		"EMBEDDING_ENDPOINT_MODEL=mistralai/codestral-embed-2505",
-		"EMBEDDING_ENDPOINT_API_KEY="+embeddingAPIKey,
 		// Enrichment provider (OpenRouter with Ministral 8B)
 		"ENRICHMENT_ENDPOINT_BASE_URL=https://openrouter.ai/api/v1",
 		"ENRICHMENT_ENDPOINT_MODEL=mistralai/ministral-8b-2512",
