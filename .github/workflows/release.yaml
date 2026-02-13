@@ -18,15 +18,23 @@ jobs:
           - goos: linux
             goarch: amd64
             runner: ubuntu-latest
+            ext: ""
           - goos: linux
             goarch: arm64
             runner: ubuntu-24.04-arm
+            ext: ""
           - goos: darwin
             goarch: amd64
-            runner: macos-13
+            runner: macos-15-intel
+            ext: ""
           - goos: darwin
             goarch: arm64
             runner: macos-latest
+            ext: ""
+          - goos: windows
+            goarch: amd64
+            runner: windows-latest
+            ext: .exe
     steps:
       - uses: actions/checkout@v4
         with:
@@ -39,17 +47,18 @@ jobs:
           go-version-file: go.mod
 
       - name: Build binary
+        shell: bash
         run: |
           CGO_ENABLED=1 go build -tags "fts5" \
             -ldflags "-X main.Version=${{ github.event.release.tag_name }} -X main.Commit=$(git rev-parse --short HEAD) -X main.BuildTime=$(date -u '+%Y-%m-%d_%H:%M:%S')" \
-            -o kodit-${{ matrix.goos }}-${{ matrix.goarch }} \
+            -o kodit-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} \
             ./cmd/kodit
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: kodit-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: kodit-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: kodit-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
           if-no-files-found: error
           retention-days: 1
 
