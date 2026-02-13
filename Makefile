@@ -5,7 +5,8 @@
 GOCMD=go
 TAGS=fts5
 BUILD_TAGS=$(TAGS) embed_model
-GOBUILD=$(GOCMD) build -tags "$(BUILD_TAGS)"
+CGO_ENABLED?=1
+GOBUILD=CGO_ENABLED=$(CGO_ENABLED) $(GOCMD) build -tags "$(BUILD_TAGS)"
 GOTEST=$(GOCMD) test -tags "$(TAGS)"
 GORUN=$(GOCMD) run -tags "$(TAGS)"
 GOGET=$(GOCMD) get
@@ -15,17 +16,22 @@ GOIMPORTS=goimports
 
 # Binary name and paths
 BINARY_NAME=kodit
+BINARY_OUTPUT?=$(BUILD_DIR)/$(BINARY_NAME)
 CMD_DIR=./cmd/kodit
 BUILD_DIR=./build
 COVERAGE_FILE=coverage.out
 
-# Version info (can be overridden via environment)
+# Version info (can be overridden via environment or make args)
 VERSION?=0.1.0
 COMMIT?=$(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_TIME?=$(shell date -u '+%Y-%m-%d_%H:%M:%S')
 
 # Linker flags for version info
-LDFLAGS=-ldflags "-X main.Version=$(VERSION) -X main.Commit=$(COMMIT) -X main.BuildTime=$(BUILD_TIME)"
+# Set STATIC=1 for static linking (alpine/musl Docker builds)
+ifdef STATIC
+LINK_FLAGS=-linkmode external -extldflags '-static'
+endif
+LDFLAGS=-ldflags "-X main.Version=$(VERSION) -X main.Commit=$(COMMIT) -X main.BuildTime=$(BUILD_TIME) $(LINK_FLAGS)"
 
 # Default target
 .DEFAULT_GOAL := help
@@ -40,7 +46,7 @@ help: ## Display this help
 
 .PHONY: build
 build: download-model ## Build the application binary (with embedded model)
-	$(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) $(CMD_DIR)
+	$(GOBUILD) $(LDFLAGS) -o $(BINARY_OUTPUT) $(CMD_DIR)
 
 .PHONY: build-all
 build-all: download-model ## Build for all platforms (linux/amd64, linux/arm64, darwin/amd64, darwin/arm64)

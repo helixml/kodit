@@ -88,7 +88,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /tmp/ollama-models
-          key: ollama-models-all-minilm-qwen2.5-0.5b
+          key: ollama-models-qwen2.5-0.5b
 
       - name: Start compose stack
         run: docker compose -f test/smoke/docker-compose.yml up -d
@@ -97,7 +97,6 @@ jobs:
 
       - name: Pull Ollama models
         run: |
-          docker compose -f test/smoke/docker-compose.yml exec ollama ollama pull all-minilm
           docker compose -f test/smoke/docker-compose.yml exec ollama ollama pull qwen2.5:0.5b
           sudo chown -R $(id -u):$(id -g) /tmp/ollama-models
 

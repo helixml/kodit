@@ -47,12 +47,10 @@ jobs:
           go-version-file: go.mod
 
       - name: Build binary
-        shell: bash
-        run: |
-          CGO_ENABLED=1 go build -tags "fts5" \
-            -ldflags "-X main.Version=${{ github.event.release.tag_name }} -X main.Commit=$(git rev-parse --short HEAD) -X main.BuildTime=$(date -u '+%Y-%m-%d_%H:%M:%S')" \
-            -o kodit-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} \
-            ./cmd/kodit
+        run: make build VERSION=${{ github.event.release.tag_name }} BINARY_OUTPUT=kodit-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

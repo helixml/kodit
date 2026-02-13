@@ -4,13 +4,14 @@
 # Build stage
 FROM golang:1.25-alpine AS builder
 
-# Install build dependencies for CGo (tree-sitter)
+# Install build dependencies for CGo (tree-sitter) and make
 RUN apk add --no-cache \
     build-base \
     gcc \
     g++ \
     musl-dev \
-    git
+    git \
+    make
 
 # Set working directory
 WORKDIR /app
@@ -24,16 +25,11 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build the application
-# CGO_ENABLED=1 is required for tree-sitter
+# Build the application (downloads model, embeds it, static links for alpine)
 ARG VERSION=dev
 ARG COMMIT=unknown
 ARG BUILD_TIME=unknown
-RUN CGO_ENABLED=1 GOOS=linux go build \
-    -tags "fts5" \
-    -ldflags "-X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.BuildTime=${BUILD_TIME} -linkmode external -extldflags '-static'" \
-    -o /app/kodit \
-    ./cmd/kodit
+RUN make build VERSION=${VERSION} COMMIT=${COMMIT} BUILD_TIME=${BUILD_TIME} STATIC=1
 
 # Final stage - minimal alpine image
 FROM alpine:3.19
@@ -52,7 +48,7 @@ RUN addgroup -g 1000 kodit && \
 RUN mkdir -p /data && chown kodit:kodit /data
 
 # Copy binary from builder
-COPY --from=builder /app/kodit /usr/local/bin/kodit
+COPY --from=builder /app/build/kodit /usr/local/bin/kodit
 
 # Switch to non-root user
 USER kodit
