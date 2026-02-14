@@ -64,6 +64,7 @@ jobs:
           go-version-file: go.mod
 
       - name: Download model
+        if: matrix.use_ort
         run: go run ./tools/download-model
 
       - name: Download ORT libraries
@@ -77,7 +78,7 @@ jobs:
       - name: Run unit tests (Go backend)
         if: ${{ !matrix.use_ort }}
         shell: bash
-        run: go test -tags "fts5 embed_model" -v $(go list ./... | grep -v /test/smoke)
+        run: go test -tags "fts5" -v $(go list ./... | grep -v /test/smoke)
 
       - name: Run e2e tests (ORT)
         if: matrix.use_ort
@@ -86,7 +87,7 @@ jobs:
       - name: Run e2e tests (Go backend)
         if: ${{ !matrix.use_ort }}
         shell: bash
-        run: go test -tags "fts5 embed_model" -v ./test/e2e/...
+        run: go test -tags "fts5" -v ./test/e2e/...
 
   build:
     name: build (${{ matrix.name }})
@@ -127,9 +128,7 @@ jobs:
       - name: Build (Go backend)
         if: ${{ !matrix.use_ort }}
         shell: bash
-        run: |
-          go run ./tools/download-model
-          CGO_ENABLED=1 go build -tags "fts5 embed_model" -o build/kodit${{ matrix.ext }} ./cmd/kodit
+        run: CGO_ENABLED=1 go build -tags "fts5" -o build/kodit${{ matrix.ext }} ./cmd/kodit
 
       - name: Verify binary runs
         shell: bash
