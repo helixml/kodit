@@ -52,6 +52,13 @@ func NewDatabase(ctx context.Context, url string) (Database, error) {
 		return Database{}, fmt.Errorf("ping database: %w", err)
 	}
 
+	// SQLite supports only one writer at a time. Limiting the pool to a
+	// single connection serializes all access through one handle, which
+	// avoids "database is locked" errors under concurrent load.
+	if db.Name() == "sqlite" {
+		sqlDB.SetMaxOpenConns(1)
+	}
+
 	return Database{db: db}, nil
 }
 
@@ -74,6 +81,10 @@ func NewDatabaseWithConfig(ctx context.Context, url string, config *gorm.Config)
 
 	if err := sqlDB.PingContext(ctx); err != nil {
 		return Database{}, fmt.Errorf("ping database: %w", err)
+	}
+
+	if db.Name() == "sqlite" {
+		sqlDB.SetMaxOpenConns(1)
 	}
 
 	return Database{db: db}, nil
@@ -125,7 +136,10 @@ func parseDialector(url string) (gorm.Dialector, error) {
 	switch {
 	case strings.HasPrefix(url, "sqlite:///"):
 		path := strings.TrimPrefix(url, "sqlite:///")
-		return sqlite.Open(path), nil
+		// WAL mode allows concurrent reads during writes.
+		// busy_timeout makes SQLite wait for locks instead of failing immediately.
+		dsn := path + "?_journal_mode=WAL&_busy_timeout=5000"
+		return sqlite.Open(dsn), nil
 	case strings.HasPrefix(url, "postgresql://"), strings.HasPrefix(url, "postgres://"):
 		return postgres.Open(url), nil
 	default:
