@@ -29,16 +29,22 @@ COPY . .
 ARG VERSION=dev
 ARG COMMIT=unknown
 ARG BUILD_TIME=unknown
+ARG ORT_VERSION=1.23.2
+
+# Download ORT and tokenizers libraries
+RUN ORT_VERSION=${ORT_VERSION} go run ./tools/download-ort
+
 RUN make build VERSION=${VERSION} COMMIT=${COMMIT} BUILD_TIME=${BUILD_TIME} STATIC=1
 
 # Final stage - minimal alpine image
 FROM alpine:3.19
 
-# Install runtime dependencies
+# Install runtime dependencies (gcompat provides glibc compatibility for ONNX Runtime)
 RUN apk add --no-cache \
     ca-certificates \
     tzdata \
-    git
+    git \
+    gcompat
 
 # Create non-root user
 RUN addgroup -g 1000 kodit && \
@@ -47,8 +53,9 @@ RUN addgroup -g 1000 kodit && \
 # Create data directory
 RUN mkdir -p /data && chown kodit:kodit /data
 
-# Copy binary from builder
+# Copy binary and ORT library from builder
 COPY --from=builder /app/build/kodit /usr/local/bin/kodit
+COPY --from=builder /app/lib/libonnxruntime.so /usr/lib/
 
 # Switch to non-root user
 USER kodit

@@ -142,7 +142,7 @@ func (g *GiteaAdapter) AllBranches(ctx context.Context, localPath string) ([]Bra
 	if err != nil {
 		return nil, fmt.Errorf("open repository: %w", err)
 	}
-	defer repo.Close()
+	defer func() { _ = repo.Close() }()
 
 	// Get HEAD for detecting default branch
 	headSHA, err := repo.GetRefCommitID("HEAD")
@@ -277,7 +277,7 @@ func (g *GiteaAdapter) AllBranchHeadSHAs(ctx context.Context, localPath string, 
 	if err != nil {
 		return nil, fmt.Errorf("open repository: %w", err)
 	}
-	defer repo.Close()
+	defer func() { _ = repo.Close() }()
 
 	result := make(map[string]string)
 	for _, name := range branchNames {
@@ -302,14 +302,14 @@ func (g *GiteaAdapter) CommitFiles(ctx context.Context, localPath string, commit
 	if err != nil {
 		return nil, fmt.Errorf("open repository: %w", err)
 	}
-	defer repo.Close()
+	defer func() { _ = repo.Close() }()
 
 	commit, err := repo.GetCommit(commitSHA)
 	if err != nil {
 		return nil, fmt.Errorf("get commit: %w", err)
 	}
 
-	entries, err := commit.Tree.ListEntriesRecursiveWithSize()
+	entries, err := commit.ListEntriesRecursiveWithSize()
 	if err != nil {
 		return nil, fmt.Errorf("list tree entries: %w", err)
 	}
@@ -355,7 +355,7 @@ func (g *GiteaAdapter) CommitDetails(ctx context.Context, localPath string, comm
 	if err != nil {
 		return CommitInfo{}, fmt.Errorf("open repository: %w", err)
 	}
-	defer repo.Close()
+	defer func() { _ = repo.Close() }()
 
 	commit, err := repo.GetCommit(commitSHA)
 	if err != nil {
@@ -384,7 +384,7 @@ func (g *GiteaAdapter) FileContent(ctx context.Context, localPath string, commit
 	if err != nil {
 		return nil, fmt.Errorf("open repository: %w", err)
 	}
-	defer repo.Close()
+	defer func() { _ = repo.Close() }()
 
 	commit, err := repo.GetCommit(commitSHA)
 	if err != nil {
@@ -416,7 +416,7 @@ func (g *GiteaAdapter) DefaultBranch(ctx context.Context, localPath string) (str
 	if err != nil {
 		return "", fmt.Errorf("open repository: %w", err)
 	}
-	defer repo.Close()
+	defer func() { _ = repo.Close() }()
 
 	// Strategy 2: Look for common default branch names
 	for _, candidate := range []string{"main", "master"} {
@@ -442,7 +442,7 @@ func (g *GiteaAdapter) LatestCommitSHA(ctx context.Context, localPath string, br
 	if err != nil {
 		return "", fmt.Errorf("open repository: %w", err)
 	}
-	defer repo.Close()
+	defer func() { _ = repo.Close() }()
 
 	if branchName == "" || branchName == "HEAD" {
 		sha, err := repo.GetRefCommitID("HEAD")
@@ -469,7 +469,7 @@ func (g *GiteaAdapter) AllTags(ctx context.Context, localPath string) ([]TagInfo
 	if err != nil {
 		return nil, fmt.Errorf("open repository: %w", err)
 	}
-	defer repo.Close()
+	defer func() { _ = repo.Close() }()
 
 	giteaTags, _, err := repo.GetTagInfos(0, 0)
 	if err != nil {
@@ -507,7 +507,7 @@ func (g *GiteaAdapter) CommitDiff(ctx context.Context, localPath string, commitS
 	if err != nil {
 		return "", fmt.Errorf("open repository: %w", err)
 	}
-	defer repo.Close()
+	defer func() { _ = repo.Close() }()
 
 	var buf bytes.Buffer
 	err = giteagit.GetRawDiff(repo, commitSHA, giteagit.RawDiffNormal, &buf)
@@ -525,7 +525,7 @@ func (g *GiteaAdapter) resolveBranch(ctx context.Context, localPath string, bran
 	if err != nil {
 		return "", fmt.Errorf("open repository: %w", err)
 	}
-	defer repo.Close()
+	defer func() { _ = repo.Close() }()
 
 	// Try local branch
 	_, err = repo.GetBranchCommitID(branchName)

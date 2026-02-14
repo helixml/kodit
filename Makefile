@@ -3,12 +3,16 @@
 
 # Go parameters
 GOCMD=go
-TAGS=fts5
+TAGS=fts5 ORT
+ORT_VERSION?=1.23.2
 BUILD_TAGS=$(TAGS) embed_model
 CGO_ENABLED?=1
-GOBUILD=CGO_ENABLED=$(CGO_ENABLED) $(GOCMD) build -tags "$(BUILD_TAGS)"
-GOTEST=$(GOCMD) test -tags "$(TAGS)"
-GORUN=$(GOCMD) run -tags "$(TAGS)"
+ORT_LIB_DIR?=$(CURDIR)/lib
+CGO_LDFLAGS?=-L$(ORT_LIB_DIR)
+GOENV=CGO_LDFLAGS="$(CGO_LDFLAGS)" ORT_LIB_DIR="$(ORT_LIB_DIR)"
+GOBUILD=CGO_ENABLED=$(CGO_ENABLED) $(GOENV) $(GOCMD) build -tags "$(BUILD_TAGS)"
+GOTEST=$(GOENV) $(GOCMD) test -tags "$(BUILD_TAGS)"
+GORUN=$(GOENV) $(GOCMD) run -tags "$(BUILD_TAGS)"
 GOGET=$(GOCMD) get
 GOMOD=$(GOCMD) mod
 GOFMT=gofmt
@@ -45,7 +49,7 @@ help: ## Display this help
 ##@ Development
 
 .PHONY: build
-build: download-model ## Build the application binary (with embedded model)
+build: download-model download-ort ## Build the application binary (with embedded model)
 	$(GOBUILD) $(LDFLAGS) -o $(BINARY_OUTPUT) $(CMD_DIR)
 
 .PHONY: build-all
@@ -66,6 +70,7 @@ run-stdio: ## Run the MCP server on stdio
 .PHONY: clean
 clean: ## Remove build artifacts
 	rm -rf $(BUILD_DIR)
+	rm -rf lib/
 	rm -f $(COVERAGE_FILE)
 
 ##@ Testing
@@ -96,8 +101,8 @@ test-e2e: ## Run end-to-end tests only
 	$(GOTEST) -v ./test/e2e/...
 
 .PHONY: smoke
-smoke: download-model ## Run smoke tests (starts server, tests API endpoints)
-	$(GOCMD) test -tags "$(BUILD_TAGS)" -v -timeout 15m -count 1 ./test/smoke/...
+smoke: download-model download-ort ## Run smoke tests (starts server, tests API endpoints)
+	$(GOENV) $(GOCMD) test -tags "$(BUILD_TAGS)" -v -timeout 15m -count 1 ./test/smoke/...
 
 ##@ Code Quality
 
@@ -132,6 +137,10 @@ check: fmt vet lint test ## Run all checks (format, vet, lint, test)
 .PHONY: download-model
 download-model: ## Download the built-in embedding model for binary embedding
 	$(GOCMD) run ./tools/download-model
+
+.PHONY: download-ort
+download-ort: ## Download the ONNX Runtime shared library for the current platform
+	ORT_VERSION=$(ORT_VERSION) $(GOCMD) run ./tools/download-ort
 
 ##@ Dependencies
 

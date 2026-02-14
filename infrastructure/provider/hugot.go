@@ -43,7 +43,7 @@ func (h *HugotEmbedding) initialize() error {
 		return nil
 	}
 
-	session, err := hugot.NewGoSession()
+	session, err := newHugotSession()
 	if err != nil {
 		return fmt.Errorf("create hugot session: %w", err)
 	}

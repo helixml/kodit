@@ -54,6 +54,7 @@ jobs:
             VERSION=${{ steps.version.outputs.VERSION }}
             COMMIT=${{ steps.version.outputs.COMMIT }}
             BUILD_TIME=${{ steps.version.outputs.BUILD_TIME }}
+            ORT_VERSION=1.23.2
           cache-from: type=gha,scope=${{ matrix.platform }}
           cache-to: type=gha,mode=max,scope=${{ matrix.platform }}
 
@@ -199,6 +200,7 @@ jobs:
             VERSION=${{ steps.version.outputs.VERSION }}
             COMMIT=${{ steps.version.outputs.COMMIT }}
             BUILD_TIME=${{ steps.version.outputs.BUILD_TIME }}
+            ORT_VERSION=1.23.2
           cache-from: |
             type=gha,scope=linux/amd64
             type=gha,scope=linux/arm64

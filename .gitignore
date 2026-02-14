@@ -1,5 +1,6 @@
 *.db
 .kodit/
 build/
+lib/
 *.env
 infrastructure/provider/models/
