@@ -1,17 +1,15 @@
 # Kodit Go Dockerfile
 # Multi-stage build with tree-sitter CGo dependencies
 
-# Build stage
-FROM golang:1.25-alpine AS builder
+# Build stage — Debian-based for glibc (required by libtokenizers.a and libonnxruntime)
+FROM golang:1.25 AS builder
 
 # Install build dependencies for CGo (tree-sitter) and make
-RUN apk add --no-cache \
-    build-base \
-    gcc \
-    g++ \
-    musl-dev \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
     git \
-    make
+    make \
+    && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
@@ -25,7 +23,7 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build the application (downloads model, embeds it, static links for alpine)
+# Build the application (downloads model, embeds it)
 ARG VERSION=dev
 ARG COMMIT=unknown
 ARG BUILD_TIME=unknown
@@ -34,21 +32,21 @@ ARG ORT_VERSION=1.23.2
 # Download ORT and tokenizers libraries
 RUN ORT_VERSION=${ORT_VERSION} go run ./tools/download-ort
 
-RUN make build VERSION=${VERSION} COMMIT=${COMMIT} BUILD_TIME=${BUILD_TIME} STATIC=1
+RUN make build VERSION=${VERSION} COMMIT=${COMMIT} BUILD_TIME=${BUILD_TIME}
 
-# Final stage - minimal alpine image
-FROM alpine:3.19
+# Final stage — Debian slim for native glibc support
+FROM debian:bookworm-slim
 
-# Install runtime dependencies (gcompat provides glibc compatibility for ONNX Runtime)
-RUN apk add --no-cache \
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
-    tzdata \
     git \
-    gcompat
+    wget \
+    && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
-RUN addgroup -g 1000 kodit && \
-    adduser -u 1000 -G kodit -s /bin/sh -D kodit
+RUN groupadd -g 1000 kodit && \
+    useradd -u 1000 -g kodit -s /bin/sh -m kodit
 
 # Create data directory
 RUN mkdir -p /data && chown kodit:kodit /data
