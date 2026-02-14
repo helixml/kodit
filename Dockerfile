@@ -2,7 +2,7 @@
 # Multi-stage build with tree-sitter CGo dependencies
 
 # Build stage — Debian-based for glibc (required by libtokenizers.a and libonnxruntime)
-FROM golang:1.25 AS builder
+FROM golang:1.25-bookworm AS builder
 
 # Install build dependencies for CGo (tree-sitter) and make
 RUN apt-get update && apt-get install -y --no-install-recommends \
