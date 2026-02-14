@@ -157,8 +157,12 @@ func New(opts ...Option) (*Client, error) {
 			modelDir = filepath.Join(dataDir, "models")
 		}
 		hugotEmbedding = provider.NewHugotEmbedding(modelDir)
-		cfg.embeddingProvider = hugotEmbedding
-		logger.Info("built-in embedding provider enabled", slog.String("model_dir", modelDir))
+		if hugotEmbedding.Available() {
+			cfg.embeddingProvider = hugotEmbedding
+			logger.Info("built-in embedding provider enabled", slog.String("model_dir", modelDir))
+		} else {
+			logger.Info("built-in embedding provider not available (no model found)", slog.String("model_dir", modelDir))
+		}
 	}
 
 	// Build database URL

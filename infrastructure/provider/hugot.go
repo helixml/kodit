@@ -35,6 +35,15 @@ func NewHugotEmbedding(modelDir string) *HugotEmbedding {
 	}
 }
 
+// Available reports whether a model is present (on disk or embedded).
+func (h *HugotEmbedding) Available() bool {
+	if hasEmbeddedModel {
+		return true
+	}
+	_, err := findModelOnDisk(h.modelDir)
+	return err == nil
+}
+
 func (h *HugotEmbedding) initialize() error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
