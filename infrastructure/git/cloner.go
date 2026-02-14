@@ -207,7 +207,7 @@ func sanitizeURIForPath(uri string) string {
 
 	// Remove common prefixes
 	s := string(result)
-	for _, prefix := range []string{"https___", "http___", "git___"} {
+	for _, prefix := range []string{"https___", "http___", "git___", "file____", "file___"} {
 		if len(s) > len(prefix) && s[:len(prefix)] == prefix {
 			s = s[len(prefix):]
 			break

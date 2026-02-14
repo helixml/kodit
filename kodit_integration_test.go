@@ -2,6 +2,7 @@ package kodit_test
 
 import (
 	"context"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,6 +15,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// fileURI converts an absolute filesystem path to a file:// URI.
+// On Unix:    /tmp/repo  → file:///tmp/repo
+// On Windows: C:\Users\x → file:///C:/Users/x
+func fileURI(path string) string {
+	return (&url.URL{Scheme: "file", Path: filepath.ToSlash(path)}).String()
+}
 
 // createTestGitRepo creates a small local git repository for testing.
 // Returns the path to the repository.
@@ -98,29 +106,40 @@ def divide(a, b):
 }
 
 // waitForTasks waits until no pending tasks remain or timeout is reached.
-// It uses longer sleep intervals to give tasks time to process.
+// Tasks are deleted from the database when dequeued by the worker, so a
+// single empty poll does not guarantee all work is finished. We require
+// several consecutive empty polls (a stability window) to allow in-progress
+// tasks to complete and enqueue follow-up tasks.
 func waitForTasks(ctx context.Context, t *testing.T, client *kodit.Client, timeout time.Duration) {
 	t.Helper()
 
+	const (
+		pollInterval   = 500 * time.Millisecond
+		stableRequired = 6 // 6 × 500ms = 3s stability window
+	)
+
 	deadline := time.Now().Add(timeout)
 	lastCount := -1
+	stableCount := 0
+
 	for time.Now().Before(deadline) {
 		tasks, err := client.Tasks.List(ctx, nil)
 		require.NoError(t, err)
 
 		if len(tasks) == 0 {
-			// Wait a bit more to ensure task completion propagates
-			time.Sleep(200 * time.Millisecond)
-			return
+			stableCount++
+			if stableCount >= stableRequired {
+				return
+			}
+		} else {
+			stableCount = 0
+			if len(tasks) != lastCount {
+				t.Logf("waiting for %d tasks to complete...", len(tasks))
+				lastCount = len(tasks)
+			}
 		}
 
-		// Only log when count changes to reduce noise
-		if len(tasks) != lastCount {
-			t.Logf("waiting for %d tasks to complete...", len(tasks))
-			lastCount = len(tasks)
-		}
-		// Give the worker more time to process
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(pollInterval)
 	}
 
 	tasks, _ := client.Tasks.List(ctx, nil)
@@ -150,7 +169,7 @@ func TestIntegration_IndexRepository_QueuesCloneTask(t *testing.T) {
 	ctx := context.Background()
 
 	// Clone the local repository
-	repo, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{URL: "file://" + repoPath})
+	repo, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{URL: fileURI(repoPath)})
 	require.NoError(t, err)
 	assert.Greater(t, repo.ID(), int64(0), "repository should have an ID")
 
@@ -185,7 +204,7 @@ func TestIntegration_FullIndexingWorkflow(t *testing.T) {
 	ctx := context.Background()
 
 	// Clone the local repository
-	repo, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{URL: "file://" + repoPath})
+	repo, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{URL: fileURI(repoPath)})
 	require.NoError(t, err)
 	t.Logf("created repository with ID %d", repo.ID())
 
@@ -237,7 +256,7 @@ func TestIntegration_SearchAfterIndexing(t *testing.T) {
 	ctx := context.Background()
 
 	// Clone the repository
-	_, err = client.Repositories.Add(ctx, &service.RepositoryAddParams{URL: "file://" + repoPath})
+	_, err = client.Repositories.Add(ctx, &service.RepositoryAddParams{URL: fileURI(repoPath)})
 	require.NoError(t, err)
 
 	// Wait for indexing to complete
@@ -279,7 +298,7 @@ func TestIntegration_DeleteRepository(t *testing.T) {
 	ctx := context.Background()
 
 	// Clone the repository
-	repo, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{URL: "file://" + repoPath})
+	repo, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{URL: fileURI(repoPath)})
 	require.NoError(t, err)
 
 	// Wait for initial tasks
@@ -324,10 +343,10 @@ func TestIntegration_MultipleRepositories(t *testing.T) {
 	ctx := context.Background()
 
 	// Clone both repositories
-	repo1, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{URL: "file://" + repoPath1})
+	repo1, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{URL: fileURI(repoPath1)})
 	require.NoError(t, err)
 
-	repo2, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{URL: "file://" + repoPath2})
+	repo2, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{URL: fileURI(repoPath2)})
 	require.NoError(t, err)
 
 	// Wait for all tasks (longer timeout for multiple repos)
