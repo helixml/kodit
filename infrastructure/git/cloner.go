@@ -2,6 +2,8 @@ package git
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"os"
@@ -192,8 +194,6 @@ func (c *RepositoryCloner) Ensure(ctx context.Context, remoteURI string) (string
 }
 
 func sanitizeURIForPath(uri string) string {
-	// Simple sanitization - replace problematic characters
-	// A more robust implementation would parse the URL properly
 	result := make([]byte, 0, len(uri))
 
 	for _, b := range []byte(uri) {
@@ -212,6 +212,17 @@ func sanitizeURIForPath(uri string) string {
 			s = s[len(prefix):]
 			break
 		}
+	}
+
+	// Windows MAX_PATH is 260 chars. Keep the directory name short enough
+	// that the full clone path (cloneDir + sanitized + .git/objects/...)
+	// stays under the limit. 80 chars leaves room for the parent path
+	// and git internals.
+	const maxLen = 80
+	if len(s) > maxLen {
+		hash := sha256.Sum256([]byte(uri))
+		suffix := hex.EncodeToString(hash[:8])
+		s = s[:maxLen-len(suffix)-1] + "-" + suffix
 	}
 
 	return s
