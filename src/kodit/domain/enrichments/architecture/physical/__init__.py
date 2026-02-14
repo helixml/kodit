@@ -1,1 +1,0 @@
-"""Physical architecture enrichment package."""

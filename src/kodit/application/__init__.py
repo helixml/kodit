@@ -1,1 +1,0 @@
-"""Application layer for Kodit."""

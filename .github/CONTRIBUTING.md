@@ -40,7 +40,7 @@ Examples:
 
 ### Code Quality
 
-- Ensure your code is properly formatted using `ruff`
+- Ensure your code is properly formatted using `gofmt` and passes `golangci-lint`
 - Include tests for new features and bug fixes
 - Update documentation as needed
 - Keep PRs focused and manageable in size
