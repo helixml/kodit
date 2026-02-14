@@ -1,6 +1,7 @@
 package config
 
 import (
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -360,11 +361,13 @@ func TestAppConfig_APIKeys_Copy(t *testing.T) {
 func TestAppConfig_Directories(t *testing.T) {
 	cfg := NewAppConfigWithOptions(WithDataDir("/data"))
 
-	if cfg.CloneDir() != "/data/repos" {
-		t.Errorf("CloneDir() = %v, want '/data/repos'", cfg.CloneDir())
+	wantClone := filepath.Join("/data", "repos")
+	if cfg.CloneDir() != wantClone {
+		t.Errorf("CloneDir() = %v, want %v", cfg.CloneDir(), wantClone)
 	}
-	if cfg.LiteLLMCacheDir() != "/data/litellm_cache" {
-		t.Errorf("LiteLLMCacheDir() = %v, want '/data/litellm_cache'", cfg.LiteLLMCacheDir())
+	wantCache := filepath.Join("/data", "litellm_cache")
+	if cfg.LiteLLMCacheDir() != wantCache {
+		t.Errorf("LiteLLMCacheDir() = %v, want %v", cfg.LiteLLMCacheDir(), wantCache)
 	}
 }
 
@@ -372,7 +375,7 @@ func TestAppConfig_DataDirUpdatesDBURL(t *testing.T) {
 	cfg := NewAppConfigWithOptions(WithDataDir("/custom"))
 
 	// DB URL should be updated when only data dir is set
-	expected := "sqlite:////custom/kodit.db"
+	expected := "sqlite:///" + filepath.Join("/custom", "kodit.db")
 	if cfg.DBURL() != expected {
 		t.Errorf("DBURL() = %v, want %v", cfg.DBURL(), expected)
 	}
