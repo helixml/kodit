@@ -16,6 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testPollPeriod = 50 * time.Millisecond
+
 // fileURI converts an absolute filesystem path to a file:// URI.
 // On Unix:    /tmp/repo  → file:///tmp/repo
 // On Windows: C:\Users\x → file:///C:/Users/x
@@ -114,8 +116,8 @@ func waitForTasks(ctx context.Context, t *testing.T, client *kodit.Client, timeo
 	t.Helper()
 
 	const (
-		pollInterval   = 500 * time.Millisecond
-		stableRequired = 6 // 6 × 500ms = 3s stability window
+		pollInterval   = 100 * time.Millisecond
+		stableRequired = 4 // 4 × 100ms = 400ms stability window
 	)
 
 	deadline := time.Now().Add(timeout)
@@ -150,6 +152,7 @@ func TestIntegration_IndexRepository_QueuesCloneTask(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
+	t.Parallel()
 
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
@@ -162,6 +165,7 @@ func TestIntegration_IndexRepository_QueuesCloneTask(t *testing.T) {
 		kodit.WithSQLite(dbPath),
 		kodit.WithDataDir(dataDir),
 		kodit.WithSkipProviderValidation(),
+		kodit.WithWorkerPollPeriod(testPollPeriod),
 	)
 	require.NoError(t, err)
 	defer func() { _ = client.Close() }()
@@ -183,6 +187,7 @@ func TestIntegration_FullIndexingWorkflow(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
+	t.Parallel()
 
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
@@ -197,6 +202,7 @@ func TestIntegration_FullIndexingWorkflow(t *testing.T) {
 		kodit.WithDataDir(dataDir),
 		kodit.WithCloneDir(cloneDir),
 		kodit.WithSkipProviderValidation(),
+		kodit.WithWorkerPollPeriod(testPollPeriod),
 	)
 	require.NoError(t, err)
 	defer func() { _ = client.Close() }()
@@ -235,6 +241,7 @@ func TestIntegration_SearchAfterIndexing(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
+	t.Parallel()
 
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
@@ -249,6 +256,7 @@ func TestIntegration_SearchAfterIndexing(t *testing.T) {
 		kodit.WithDataDir(dataDir),
 		kodit.WithCloneDir(cloneDir),
 		kodit.WithSkipProviderValidation(),
+		kodit.WithWorkerPollPeriod(testPollPeriod),
 	)
 	require.NoError(t, err)
 	defer func() { _ = client.Close() }()
@@ -277,6 +285,7 @@ func TestIntegration_DeleteRepository(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
+	t.Parallel()
 
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
@@ -291,6 +300,7 @@ func TestIntegration_DeleteRepository(t *testing.T) {
 		kodit.WithDataDir(dataDir),
 		kodit.WithCloneDir(cloneDir),
 		kodit.WithSkipProviderValidation(),
+		kodit.WithWorkerPollPeriod(testPollPeriod),
 	)
 	require.NoError(t, err)
 	defer func() { _ = client.Close() }()
@@ -321,6 +331,7 @@ func TestIntegration_MultipleRepositories(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
+	t.Parallel()
 
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
@@ -336,6 +347,7 @@ func TestIntegration_MultipleRepositories(t *testing.T) {
 		kodit.WithDataDir(dataDir),
 		kodit.WithCloneDir(cloneDir),
 		kodit.WithSkipProviderValidation(),
+		kodit.WithWorkerPollPeriod(testPollPeriod),
 	)
 	require.NoError(t, err)
 	defer func() { _ = client.Close() }()

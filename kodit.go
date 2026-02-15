@@ -280,6 +280,9 @@ func New(opts ...Option) (*Client, error) {
 		logger:    logger,
 	}
 	worker := service.NewWorker(taskStore, registry, &workerTrackerAdapter{trackerFactory}, logger)
+	if cfg.workerPollPeriod > 0 {
+		worker.WithPollPeriod(cfg.workerPollPeriod)
+	}
 	periodicSync := service.NewPeriodicSync(cfg.periodicSync, repoStore, queue, logger)
 
 	// Create enricher infrastructure (only if text provider is configured)

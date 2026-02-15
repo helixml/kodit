@@ -2,6 +2,7 @@ package kodit
 
 import (
 	"log/slog"
+	"time"
 
 	"github.com/helixml/kodit/infrastructure/provider"
 	"github.com/helixml/kodit/internal/config"
@@ -32,6 +33,7 @@ type clientConfig struct {
 	logger                 *slog.Logger
 	apiKeys                []string
 	workerCount            int
+	workerPollPeriod       time.Duration
 	skipProviderValidation bool
 	periodicSync           config.PeriodicSyncConfig
 }
@@ -169,6 +171,15 @@ func WithWorkerCount(n int) Option {
 		if n > 0 {
 			c.workerCount = n
 		}
+	}
+}
+
+// WithWorkerPollPeriod sets how often the background worker checks for new tasks.
+// Defaults to 1 second. Lower values speed up task processing at the cost of
+// more frequent polling — useful in tests.
+func WithWorkerPollPeriod(d time.Duration) Option {
+	return func(c *clientConfig) {
+		c.workerPollPeriod = d
 	}
 }
 

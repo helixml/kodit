@@ -5,12 +5,15 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/helixml/kodit"
 	"github.com/helixml/kodit/application/service"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+const unitTestPollPeriod = 50 * time.Millisecond
 
 func TestNew_RequiresDatabase(t *testing.T) {
 	_, err := kodit.New()
@@ -24,6 +27,7 @@ func TestNew_WithSQLite(t *testing.T) {
 	client, err := kodit.New(
 		kodit.WithSQLite(dbPath),
 		kodit.WithSkipProviderValidation(),
+		kodit.WithWorkerPollPeriod(unitTestPollPeriod),
 	)
 	require.NoError(t, err)
 	defer func() {
@@ -43,6 +47,7 @@ func TestClient_Close_Idempotent(t *testing.T) {
 	client, err := kodit.New(
 		kodit.WithSQLite(dbPath),
 		kodit.WithSkipProviderValidation(),
+		kodit.WithWorkerPollPeriod(unitTestPollPeriod),
 	)
 	require.NoError(t, err)
 
@@ -62,6 +67,7 @@ func TestClient_Repositories_List_Empty(t *testing.T) {
 	client, err := kodit.New(
 		kodit.WithSQLite(dbPath),
 		kodit.WithSkipProviderValidation(),
+		kodit.WithWorkerPollPeriod(unitTestPollPeriod),
 	)
 	require.NoError(t, err)
 	defer func() { _ = client.Close() }()
@@ -79,6 +85,7 @@ func TestClient_Tasks_List_Empty(t *testing.T) {
 	client, err := kodit.New(
 		kodit.WithSQLite(dbPath),
 		kodit.WithSkipProviderValidation(),
+		kodit.WithWorkerPollPeriod(unitTestPollPeriod),
 	)
 	require.NoError(t, err)
 	defer func() { _ = client.Close() }()
@@ -96,6 +103,7 @@ func TestClient_Search_ReturnsEmpty(t *testing.T) {
 	client, err := kodit.New(
 		kodit.WithSQLite(dbPath),
 		kodit.WithSkipProviderValidation(),
+		kodit.WithWorkerPollPeriod(unitTestPollPeriod),
 	)
 	require.NoError(t, err)
 	defer func() { _ = client.Close() }()
@@ -116,6 +124,7 @@ func TestClient_Search_AfterClose_ReturnsError(t *testing.T) {
 	client, err := kodit.New(
 		kodit.WithSQLite(dbPath),
 		kodit.WithSkipProviderValidation(),
+		kodit.WithWorkerPollPeriod(unitTestPollPeriod),
 	)
 	require.NoError(t, err)
 
@@ -136,6 +145,7 @@ func TestWithDataDir_CreatesDirectory(t *testing.T) {
 		kodit.WithSQLite(dbPath),
 		kodit.WithDataDir(dataDir),
 		kodit.WithSkipProviderValidation(),
+		kodit.WithWorkerPollPeriod(unitTestPollPeriod),
 	)
 	require.NoError(t, err)
 	defer func() { _ = client.Close() }()
