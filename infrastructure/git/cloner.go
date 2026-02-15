@@ -84,8 +84,8 @@ func (c *RepositoryCloner) Update(ctx context.Context, repo repository.Repositor
 
 	clonePath := repo.WorkingCopy().Path()
 
-	// Check if the path exists
-	if _, err := os.Stat(clonePath); os.IsNotExist(err) {
+	// Check if the path exists and is accessible
+	if _, err := os.Stat(clonePath); err != nil {
 		// Re-clone if directory doesn't exist
 		c.logger.Info("re-cloning missing repository",
 			slog.Int64("repo_id", repo.ID()),
