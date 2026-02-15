@@ -1,6 +1,11 @@
-## New Features
+## To Test
 
-- [x] Bundle a built-in embedding model in the binary. Bundle a "built-in" embedding mode. Default to this if no embedding provider is configured.
+- [ ] MCP
+
+## Verification
+
+- [ ] BM25 search results gone
+- [ ] Code search results gone
 
 ## Bugs
 

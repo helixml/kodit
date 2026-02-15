@@ -107,7 +107,7 @@ func (r *RepositoriesRouter) List(w http.ResponseWriter, req *http.Request) {
 //	@Accept			json
 //	@Produce		json
 //	@Param			id	path		int	true	"Repository ID"
-//	@Success		200	{object}	dto.RepositoryResponse
+//	@Success		200	{object}	dto.RepositoryDetailsResponse
 //	@Failure		404	{object}	map[string]string
 //	@Failure		500	{object}	map[string]string
 //	@Security		APIKeyAuth
@@ -128,7 +128,41 @@ func (r *RepositoriesRouter) Get(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	middleware.WriteJSON(w, http.StatusOK, dto.RepositoryResponse{Data: repoToDTO(repo)})
+	branches, err := r.client.Repositories.BranchesForRepository(ctx, id)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	commits, err := r.client.Commits.Find(ctx, repository.WithRepoID(id), repository.WithLimit(10))
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	branchData := make([]dto.RepositoryBranchData, 0, len(branches))
+	for _, b := range branches {
+		branchData = append(branchData, dto.RepositoryBranchData{
+			Name:      b.Name(),
+			IsDefault: b.IsDefault(),
+		})
+	}
+
+	commitData := make([]dto.RepositoryCommitData, 0, len(commits))
+	for _, c := range commits {
+		commitData = append(commitData, dto.RepositoryCommitData{
+			SHA:       c.SHA(),
+			Message:   c.Message(),
+			Author:    c.Author().Name(),
+			Timestamp: c.CommittedAt(),
+		})
+	}
+
+	middleware.WriteJSON(w, http.StatusOK, dto.RepositoryDetailsResponse{
+		Data:          repoToDTO(repo),
+		Branches:      branchData,
+		RecentCommits: commitData,
+	})
 }
 
 // Add handles POST /api/v1/repositories.
@@ -138,7 +172,7 @@ func (r *RepositoriesRouter) Get(w http.ResponseWriter, req *http.Request) {
 //	@Tags			repositories
 //	@Accept			json
 //	@Produce		json
-//	@Param			body	body		dto.RepositoryRequest	true	"Repository request"
+//	@Param			body	body		dto.RepositoryCreateRequest	true	"Repository request"
 //	@Success		201		{object}	dto.RepositoryResponse
 //	@Failure		400		{object}	map[string]string
 //	@Failure		500		{object}	map[string]string
@@ -147,24 +181,21 @@ func (r *RepositoriesRouter) Get(w http.ResponseWriter, req *http.Request) {
 func (r *RepositoriesRouter) Add(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
-	var body dto.RepositoryRequest
+	var body dto.RepositoryCreateRequest
 	if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
 
-	if body.RemoteURL == "" {
+	if body.Data.Attributes.RemoteURI == "" {
 		middleware.WriteJSON(w, http.StatusBadRequest, map[string]string{
-			"error": "remote_url is required",
+			"error": "remote_uri is required",
 		})
 		return
 	}
 
 	source, err := r.client.Repositories.Add(ctx, &service.RepositoryAddParams{
-		URL:    body.RemoteURL,
-		Branch: body.Branch,
-		Tag:    body.Tag,
-		Commit: body.Commit,
+		URL: body.Data.Attributes.RemoteURI,
 	})
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
@@ -955,6 +986,17 @@ func (r *RepositoriesRouter) ListCommitSnippets(w http.ResponseWriter, req *http
 
 // ListCommitEmbeddingsDeprecated handles GET /api/v1/repositories/{id}/commits/{commit_sha}/embeddings.
 // This endpoint is deprecated. Embeddings are an internal implementation detail of snippets and enrichments.
+//
+//	@Summary		List commit embeddings (deprecated)
+//	@Description	This endpoint has been removed. Embeddings are an internal detail of snippets and enrichments.
+//	@Tags			repositories
+//	@Produce		json
+//	@Param			id			path		int		true	"Repository ID"
+//	@Param			commit_sha	path		string	true	"Commit SHA"
+//	@Success		410			{object}	map[string]string
+//	@Security		APIKeyAuth
+//	@Deprecated
+//	@Router			/repositories/{id}/commits/{commit_sha}/embeddings [get]
 func (r *RepositoriesRouter) ListCommitEmbeddingsDeprecated(w http.ResponseWriter, _ *http.Request) {
 	middleware.WriteJSON(w, http.StatusGone, map[string]string{
 		"error":   "this endpoint has been removed",

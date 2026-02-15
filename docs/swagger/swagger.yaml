@@ -170,6 +170,43 @@ definitions:
       updated_at:
         type: string
     type: object
+  dto.RepositoryBranchData:
+    properties:
+      commit_count:
+        type: integer
+      is_default:
+        type: boolean
+      name:
+        type: string
+    type: object
+  dto.RepositoryCommitData:
+    properties:
+      author:
+        type: string
+      message:
+        type: string
+      sha:
+        type: string
+      timestamp:
+        type: string
+    type: object
+  dto.RepositoryCreateAttributes:
+    properties:
+      remote_uri:
+        type: string
+    type: object
+  dto.RepositoryCreateData:
+    properties:
+      attributes:
+        $ref: '#/definitions/dto.RepositoryCreateAttributes'
+      type:
+        type: string
+    type: object
+  dto.RepositoryCreateRequest:
+    properties:
+      data:
+        $ref: '#/definitions/dto.RepositoryCreateData'
+    type: object
   dto.RepositoryData:
     properties:
       attributes:
@@ -178,6 +215,19 @@ definitions:
         type: string
       type:
         type: string
+    type: object
+  dto.RepositoryDetailsResponse:
+    properties:
+      branches:
+        items:
+          $ref: '#/definitions/dto.RepositoryBranchData'
+        type: array
+      data:
+        $ref: '#/definitions/dto.RepositoryData'
+      recent_commits:
+        items:
+          $ref: '#/definitions/dto.RepositoryCommitData'
+        type: array
     type: object
   dto.RepositoryListResponse:
     properties:
@@ -189,17 +239,6 @@ definitions:
         $ref: '#/definitions/jsonapi.Links'
       meta:
         $ref: '#/definitions/jsonapi.Meta'
-    type: object
-  dto.RepositoryRequest:
-    properties:
-      branch:
-        type: string
-      commit:
-        type: string
-      remote_url:
-        type: string
-      tag:
-        type: string
     type: object
   dto.RepositoryResponse:
     properties:
@@ -787,7 +826,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/dto.RepositoryRequest'
+          $ref: '#/definitions/dto.RepositoryCreateRequest'
       produces:
       - application/json
       responses:
@@ -861,7 +900,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.RepositoryResponse'
+            $ref: '#/definitions/dto.RepositoryDetailsResponse'
         "404":
           description: Not Found
           schema:
@@ -960,6 +999,36 @@ paths:
       security:
       - APIKeyAuth: []
       summary: Get commit
+      tags:
+      - repositories
+  /repositories/{id}/commits/{commit_sha}/embeddings:
+    get:
+      deprecated: true
+      description: This endpoint has been removed. Embeddings are an internal detail
+        of snippets and enrichments.
+      parameters:
+      - description: Repository ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Commit SHA
+        in: path
+        name: commit_sha
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "410":
+          description: Gone
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - APIKeyAuth: []
+      summary: List commit embeddings (deprecated)
       tags:
       - repositories
   /repositories/{id}/commits/{commit_sha}/enrichments:

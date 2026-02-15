@@ -172,9 +172,13 @@ func TestSmoke(t *testing.T) {
 	}
 	t.Log("verified repository list is empty initially")
 
-	// Create repository (using legacy format that Go API accepts)
 	createPayload := repositoryCreateRequest{
-		RemoteURL: targetURI,
+		Data: repositoryCreateData{
+			Type: "repository",
+			Attributes: repositoryCreateAttributes{
+				RemoteURI: targetURI,
+			},
+		},
 	}
 	resp = doRequest(t, client, "POST", baseURL+"/api/v1/repositories", createPayload)
 	assertStatus(t, resp, http.StatusCreated)
@@ -900,8 +904,17 @@ type healthResponse struct {
 	Status string `json:"status"`
 }
 
+type repositoryCreateAttributes struct {
+	RemoteURI string `json:"remote_uri"`
+}
+
+type repositoryCreateData struct {
+	Type       string                     `json:"type"`
+	Attributes repositoryCreateAttributes `json:"attributes"`
+}
+
 type repositoryCreateRequest struct {
-	RemoteURL string `json:"remote_url"`
+	Data repositoryCreateData `json:"data"`
 }
 
 type repositoryAttributes struct {

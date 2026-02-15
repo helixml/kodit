@@ -62,8 +62,13 @@ func TestRepositories_List_WithData(t *testing.T) {
 func TestRepositories_Create(t *testing.T) {
 	ts := NewTestServer(t)
 
-	body := dto.RepositoryRequest{
-		RemoteURL: "https://github.com/test/new-repo.git",
+	body := dto.RepositoryCreateRequest{
+		Data: dto.RepositoryCreateData{
+			Type: "repository",
+			Attributes: dto.RepositoryCreateAttributes{
+				RemoteURI: "https://github.com/test/new-repo.git",
+			},
+		},
 	}
 
 	resp := ts.POST("/api/v1/repositories", body)
@@ -89,9 +94,13 @@ func TestRepositories_Create(t *testing.T) {
 func TestRepositories_Create_WithTracking(t *testing.T) {
 	ts := NewTestServer(t)
 
-	body := dto.RepositoryRequest{
-		RemoteURL: "https://github.com/test/tracked-repo.git",
-		Branch:    "main",
+	body := dto.RepositoryCreateRequest{
+		Data: dto.RepositoryCreateData{
+			Type: "repository",
+			Attributes: dto.RepositoryCreateAttributes{
+				RemoteURI: "https://github.com/test/tracked-repo.git",
+			},
+		},
 	}
 
 	resp := ts.POST("/api/v1/repositories", body)
@@ -106,20 +115,24 @@ func TestRepositories_Create_WithTracking(t *testing.T) {
 	var result dto.RepositoryResponse
 	ts.DecodeJSON(resp, &result)
 
-	if result.Data.Attributes.TrackingBranch == nil || *result.Data.Attributes.TrackingBranch != "main" {
-		var actual string
-		if result.Data.Attributes.TrackingBranch != nil {
-			actual = *result.Data.Attributes.TrackingBranch
-		}
-		t.Errorf("tracking_branch = %q, want %q", actual, "main")
+	if result.Data.ID == "" {
+		t.Error("ID should not be empty")
+	}
+	if result.Data.Attributes.RemoteURI != "https://github.com/test/tracked-repo.git" {
+		t.Errorf("remote_uri = %q, want %q", result.Data.Attributes.RemoteURI, "https://github.com/test/tracked-repo.git")
 	}
 }
 
 func TestRepositories_Create_MissingURL(t *testing.T) {
 	ts := NewTestServer(t)
 
-	body := dto.RepositoryRequest{
-		RemoteURL: "",
+	body := dto.RepositoryCreateRequest{
+		Data: dto.RepositoryCreateData{
+			Type: "repository",
+			Attributes: dto.RepositoryCreateAttributes{
+				RemoteURI: "",
+			},
+		},
 	}
 
 	resp := ts.POST("/api/v1/repositories", body)
@@ -147,7 +160,7 @@ func TestRepositories_Get(t *testing.T) {
 		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusOK)
 	}
 
-	var result dto.RepositoryResponse
+	var result dto.RepositoryDetailsResponse
 	ts.DecodeJSON(resp, &result)
 
 	if result.Data.ID != fmt.Sprintf("%d", repo.ID()) {
@@ -155,6 +168,12 @@ func TestRepositories_Get(t *testing.T) {
 	}
 	if result.Data.Attributes.RemoteURI != "https://github.com/test/get-repo.git" {
 		t.Errorf("remote_uri = %q, want %q", result.Data.Attributes.RemoteURI, "https://github.com/test/get-repo.git")
+	}
+	if result.Branches == nil {
+		t.Error("branches should not be nil")
+	}
+	if result.RecentCommits == nil {
+		t.Error("recent_commits should not be nil")
 	}
 }
 

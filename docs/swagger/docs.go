@@ -431,7 +431,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/dto.RepositoryRequest"
+                            "$ref": "#/definitions/dto.RepositoryCreateRequest"
                         }
                     }
                 ],
@@ -494,7 +494,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/dto.RepositoryResponse"
+                            "$ref": "#/definitions/dto.RepositoryDetailsResponse"
                         }
                     },
                     "404": {
@@ -687,6 +687,51 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/repositories/{id}/commits/{commit_sha}/embeddings": {
+            "get": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "This endpoint has been removed. Embeddings are an internal detail of snippets and enrichments.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "repositories"
+                ],
+                "summary": "List commit embeddings (deprecated)",
+                "deprecated": true,
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Repository ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Commit SHA",
+                        "name": "commit_sha",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "410": {
+                        "description": "Gone",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -2016,6 +2061,64 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.RepositoryBranchData": {
+            "type": "object",
+            "properties": {
+                "commit_count": {
+                    "type": "integer"
+                },
+                "is_default": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.RepositoryCommitData": {
+            "type": "object",
+            "properties": {
+                "author": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "sha": {
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.RepositoryCreateAttributes": {
+            "type": "object",
+            "properties": {
+                "remote_uri": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.RepositoryCreateData": {
+            "type": "object",
+            "properties": {
+                "attributes": {
+                    "$ref": "#/definitions/dto.RepositoryCreateAttributes"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.RepositoryCreateRequest": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/dto.RepositoryCreateData"
+                }
+            }
+        },
         "dto.RepositoryData": {
             "type": "object",
             "properties": {
@@ -2027,6 +2130,26 @@ const docTemplate = `{
                 },
                 "type": {
                     "type": "string"
+                }
+            }
+        },
+        "dto.RepositoryDetailsResponse": {
+            "type": "object",
+            "properties": {
+                "branches": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.RepositoryBranchData"
+                    }
+                },
+                "data": {
+                    "$ref": "#/definitions/dto.RepositoryData"
+                },
+                "recent_commits": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.RepositoryCommitData"
+                    }
                 }
             }
         },
@@ -2044,23 +2167,6 @@ const docTemplate = `{
                 },
                 "meta": {
                     "$ref": "#/definitions/jsonapi.Meta"
-                }
-            }
-        },
-        "dto.RepositoryRequest": {
-            "type": "object",
-            "properties": {
-                "branch": {
-                    "type": "string"
-                },
-                "commit": {
-                    "type": "string"
-                },
-                "remote_url": {
-                    "type": "string"
-                },
-                "tag": {
-                    "type": "string"
                 }
             }
         },
