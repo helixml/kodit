@@ -7,6 +7,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/knights-analytics/hugot"
 )
@@ -26,7 +27,20 @@ func main() {
 
 	opts := hugot.NewDownloadOptions()
 	opts.OnnxFilePath = "onnx/model.onnx"
-	modelPath, err := hugot.DownloadModel("jinaai/jina-embeddings-v2-base-code", dest, opts)
+
+	var modelPath string
+	var err error
+	delay := 2 * time.Second
+	for i := 0; i < 4; i++ {
+		if i > 0 {
+			fmt.Fprintf(os.Stderr, "retry in %s: %v\n", delay, err)
+			time.Sleep(delay)
+			delay *= 2
+		}
+		if modelPath, err = hugot.DownloadModel("jinaai/jina-embeddings-v2-base-code", dest, opts); err == nil {
+			break
+		}
+	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "download model: %v\n", err)
 		os.Exit(1)

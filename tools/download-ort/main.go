@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 )
 
 func main() {
@@ -138,6 +139,22 @@ func tokenizersPlatform() (string, error) {
 }
 
 func fetchAndExtract(url, destDir, filename string) error {
+	delay := 2 * time.Second
+	var err error
+	for i := 0; i < 4; i++ {
+		if i > 0 {
+			fmt.Fprintf(os.Stderr, "retry in %s: %v\n", delay, err)
+			time.Sleep(delay)
+			delay *= 2
+		}
+		if err = tryFetchAndExtract(url, destDir, filename); err == nil {
+			return nil
+		}
+	}
+	return err
+}
+
+func tryFetchAndExtract(url, destDir, filename string) error {
 	resp, err := http.Get(url) //nolint:gosec
 	if err != nil {
 		return fmt.Errorf("fetch %s: %w", url, err)
