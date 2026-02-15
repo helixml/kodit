@@ -10,10 +10,14 @@
 
 # Build artifacts
 build/
+lib/
 *.exe
 *.dll
 *.so
 *.dylib
+
+# Downloaded models (615MB+, downloaded inside Docker build)
+infrastructure/provider/models/
 
 # Test files
 *_test.go

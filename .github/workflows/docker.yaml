@@ -20,9 +20,6 @@ jobs:
             runner: ubuntu-24.04-arm
             output: type=cacheonly
     steps:
-      - name: Free up disk space
-        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet || true
-
       - name: Check out the repo
         uses: actions/checkout@v4
         with:

@@ -4,11 +4,10 @@
 # Build stage — Debian-based for glibc (required by libtokenizers.a and libonnxruntime)
 FROM golang:1.25-bookworm AS builder
 
-# Install build dependencies for CGo (tree-sitter) and make
+# Install build dependencies for CGo (tree-sitter)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     git \
-    make \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -20,19 +19,27 @@ COPY go.mod go.sum ./
 # Download dependencies
 RUN go mod download
 
+# Download ORT and tokenizers libraries (cached unless ORT_VERSION or tool source changes)
+ARG ORT_VERSION=1.23.2
+COPY tools/download-ort/ ./tools/download-ort/
+RUN ORT_VERSION=${ORT_VERSION} go run ./tools/download-ort
+
+# Download embedding model (cached unless go.mod or tool source changes)
+COPY tools/download-model/ ./tools/download-model/
+RUN go run ./tools/download-model
+
 # Copy source code
 COPY . .
 
-# Build the application (downloads model, embeds it)
+# Build the application
 ARG VERSION=dev
 ARG COMMIT=unknown
 ARG BUILD_TIME=unknown
-ARG ORT_VERSION=1.23.2
 
-# Download ORT and tokenizers libraries
-RUN ORT_VERSION=${ORT_VERSION} go run ./tools/download-ort
-
-RUN make build VERSION=${VERSION} COMMIT=${COMMIT} BUILD_TIME=${BUILD_TIME}
+RUN CGO_ENABLED=1 CGO_LDFLAGS="-L./lib" ORT_LIB_DIR="./lib" \
+    go build -tags "fts5 ORT embed_model" \
+    -ldflags "-X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.BuildTime=${BUILD_TIME}" \
+    -o ./build/kodit ./cmd/kodit
 
 # Final stage — Debian slim for native glibc support
 FROM debian:bookworm-slim
