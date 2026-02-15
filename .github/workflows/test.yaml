@@ -41,16 +41,10 @@ jobs:
         include:
           - name: linux-amd64
             runner: ubuntu-latest
-            use_ort: true
           - name: linux-arm64
             runner: ubuntu-24.04-arm
-            use_ort: true
           - name: macos-arm64
             runner: macos-latest
-            use_ort: true
-          - name: windows-amd64
-            runner: windows-latest
-            use_ort: false
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -64,30 +58,16 @@ jobs:
           go-version-file: go.mod
 
       - name: Download model
-        if: matrix.use_ort
         run: go run ./tools/download-model
 
       - name: Download ORT libraries
-        if: matrix.use_ort
         run: make download-ort
 
-      - name: Run unit tests (ORT)
-        if: matrix.use_ort
+      - name: Run unit tests
         run: make test
 
-      - name: Run unit tests (Go backend)
-        if: ${{ !matrix.use_ort }}
-        shell: bash
-        run: go test -tags "fts5" -v $(go list ./... | grep -v /test/smoke)
-
-      - name: Run e2e tests (ORT)
-        if: matrix.use_ort
+      - name: Run e2e tests
         run: make test-e2e
-
-      - name: Run e2e tests (Go backend)
-        if: ${{ !matrix.use_ort }}
-        shell: bash
-        run: go test -tags "fts5" -v ./test/e2e/...
 
   build:
     name: build (${{ matrix.name }})
@@ -99,16 +79,8 @@ jobs:
         include:
           - name: linux-amd64
             runner: ubuntu-latest
-            use_ort: true
-            ext: ""
           - name: macos-arm64
             runner: macos-latest
-            use_ort: true
-            ext: ""
-          - name: windows-amd64
-            runner: windows-latest
-            use_ort: false
-            ext: ".exe"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -121,18 +93,11 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Build (ORT)
-        if: matrix.use_ort
+      - name: Build
         run: make build
 
-      - name: Build (Go backend)
-        if: ${{ !matrix.use_ort }}
-        shell: bash
-        run: CGO_ENABLED=1 go build -tags "fts5" -o build/kodit${{ matrix.ext }} ./cmd/kodit
-
       - name: Verify binary runs
-        shell: bash
-        run: ./build/kodit${{ matrix.ext }} version
+        run: ./build/kodit version
 
       - name: Upload binary
         if: matrix.name == 'linux-amd64'

@@ -10,7 +10,6 @@ package main
 
 import (
 	"archive/tar"
-	"archive/zip"
 	"compress/gzip"
 	"fmt"
 	"io"
@@ -22,11 +21,6 @@ import (
 )
 
 func main() {
-	if runtime.GOOS == "windows" {
-		fmt.Println("Skipping: ORT backend not available on Windows (Go backend will be used)")
-		return
-	}
-
 	ortVersion := os.Getenv("ORT_VERSION")
 	if ortVersion == "" {
 		fmt.Fprintln(os.Stderr, "ORT_VERSION env var is required")
@@ -122,8 +116,6 @@ func ortPlatform(version string) (archive string, library string, err error) {
 		return fmt.Sprintf("onnxruntime-osx-arm64-%s.tgz", version), "libonnxruntime.dylib", nil
 	case "darwin/amd64":
 		return fmt.Sprintf("onnxruntime-osx-x86_64-%s.tgz", version), "libonnxruntime.dylib", nil
-	case "windows/amd64":
-		return fmt.Sprintf("onnxruntime-win-x64-%s.zip", version), "onnxruntime.dll", nil
 	default:
 		return "", "", fmt.Errorf("no ORT archive for %s", key)
 	}
@@ -156,9 +148,6 @@ func fetchAndExtract(url, destDir, filename string) error {
 		return fmt.Errorf("HTTP %d for %s", resp.StatusCode, url)
 	}
 
-	if strings.HasSuffix(url, ".zip") {
-		return extractZip(resp.Body, destDir, filename)
-	}
 	return extractTgz(resp.Body, destDir, filename)
 }
 
@@ -193,45 +182,6 @@ func extractTgz(body io.Reader, destDir, filename string) error {
 		}
 
 		return writeFile(filepath.Join(destDir, filename), tr)
-	}
-
-	return fmt.Errorf("%s not found in archive", filename)
-}
-
-func extractZip(body io.Reader, destDir, filename string) error {
-	tmp, err := os.CreateTemp("", "ort-*.zip")
-	if err != nil {
-		return fmt.Errorf("create temp: %w", err)
-	}
-	defer os.Remove(tmp.Name()) //nolint:errcheck
-	defer tmp.Close()           //nolint:errcheck
-
-	if _, err := io.Copy(tmp, body); err != nil {
-		return fmt.Errorf("download to temp: %w", err)
-	}
-
-	info, err := tmp.Stat()
-	if err != nil {
-		return fmt.Errorf("stat temp: %w", err)
-	}
-
-	zr, err := zip.NewReader(tmp, info.Size())
-	if err != nil {
-		return fmt.Errorf("zip reader: %w", err)
-	}
-
-	for _, f := range zr.File {
-		if filepath.Base(f.Name) != filename {
-			continue
-		}
-
-		rc, err := f.Open()
-		if err != nil {
-			return fmt.Errorf("open zip entry: %w", err)
-		}
-		defer rc.Close() //nolint:errcheck
-
-		return writeFile(filepath.Join(destDir, filename), rc)
 	}
 
 	return fmt.Errorf("%s not found in archive", filename)

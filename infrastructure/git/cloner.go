@@ -214,10 +214,8 @@ func sanitizeURIForPath(uri string) string {
 		}
 	}
 
-	// Windows MAX_PATH is 260 chars. Keep the directory name short enough
-	// that the full clone path (cloneDir + sanitized + .git/objects/...)
-	// stays under the limit. 80 chars leaves room for the parent path
-	// and git internals.
+	// Keep the directory name short enough that the full clone path
+	// (cloneDir + sanitized + .git/objects/...) stays reasonable.
 	const maxLen = 80
 	if len(s) > maxLen {
 		hash := sha256.Sum256([]byte(uri))

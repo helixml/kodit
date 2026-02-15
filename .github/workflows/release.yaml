@@ -18,29 +18,19 @@ jobs:
           - goos: linux
             goarch: amd64
             runner: ubuntu-22.04
-            ext: ""
             lib_name: libonnxruntime.so
           - goos: linux
             goarch: arm64
             runner: ubuntu-22.04-arm
-            ext: ""
             lib_name: libonnxruntime.so
           - goos: darwin
             goarch: amd64
             runner: macos-15-intel
-            ext: ""
             lib_name: libonnxruntime.dylib
           - goos: darwin
             goarch: arm64
             runner: macos-latest
-            ext: ""
             lib_name: libonnxruntime.dylib
-          - goos: windows
-            goarch: amd64
-            runner: windows-latest
-            ext: .exe
-            lib_name: ""
-            tags: fts5
     steps:
       - uses: actions/checkout@v4
         with:
@@ -52,46 +42,27 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Build binary (ORT)
-        if: matrix.lib_name != ''
+      - name: Build binary
         run: make build VERSION=${{ github.event.release.tag_name }}
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-
-      - name: Build binary (Go backend)
-        if: matrix.lib_name == ''
-        shell: bash
-        run: |
-          go run ./tools/download-model
-          VERSION=${{ github.event.release.tag_name }}
-          COMMIT=$(git rev-parse --short HEAD)
-          BUILD_TIME=$(date -u '+%Y-%m-%d_%H:%M:%S')
-          CGO_ENABLED=1 go build -tags "fts5 embed_model" \
-            -ldflags "-X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.BuildTime=${BUILD_TIME}" \
-            -o build/kodit${{ matrix.ext }} ./cmd/kodit
 
       - name: Package release archive
         shell: bash
         run: |
           STAGE="kodit-${{ matrix.goos }}-${{ matrix.goarch }}"
           mkdir -p "${STAGE}"
-          cp build/kodit${{ matrix.ext }} "${STAGE}/kodit${{ matrix.ext }}"
-          if [ -n "${{ matrix.lib_name }}" ]; then
-            mkdir -p "${STAGE}/lib"
-            cp lib/${{ matrix.lib_name }} "${STAGE}/lib/"
-          fi
-          if [ "${{ matrix.goos }}" = "windows" ]; then
-            zip -r "${STAGE}.zip" "${STAGE}"
-          else
-            tar czf "${STAGE}.tar.gz" "${STAGE}"
-          fi
+          cp build/kodit "${STAGE}/kodit"
+          mkdir -p "${STAGE}/lib"
+          cp lib/${{ matrix.lib_name }} "${STAGE}/lib/"
+          tar czf "${STAGE}.tar.gz" "${STAGE}"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: kodit-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: kodit-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.zip' || '.tar.gz' }}
+          path: kodit-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz
           if-no-files-found: error
           retention-days: 1
 
