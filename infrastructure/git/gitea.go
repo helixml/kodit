@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -33,6 +34,10 @@ var giteaInitErr error
 func NewGiteaAdapter(logger *slog.Logger) (*GiteaAdapter, error) {
 	if logger == nil {
 		logger = slog.Default()
+	}
+
+	if _, err := exec.LookPath("git"); err != nil {
+		return nil, fmt.Errorf("git is not installed or not in PATH: install git and try again")
 	}
 
 	giteaInitOnce.Do(func() {
