@@ -8,6 +8,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/helixml/kodit"
 	v1 "github.com/helixml/kodit/infrastructure/api/v1"
+	mcpinternal "github.com/helixml/kodit/internal/mcp"
+	"github.com/mark3labs/mcp-go/server"
 )
 
 // APIServer provides an HTTP API backed by a kodit Client.
@@ -64,6 +66,11 @@ func (a *APIServer) mountRoutes(router chi.Router) {
 		r.Mount("/enrichments", enrichmentsRouter.Routes())
 		r.Mount("/search", searchRouter.Routes())
 	})
+
+	// MCP (Model Context Protocol) endpoint for AI assistant integration
+	mcpSrv := mcpinternal.NewServer(c.Search, c.Enrichments, a.logger)
+	httpHandler := server.NewStreamableHTTPServer(mcpSrv.MCPServer())
+	router.Mount("/mcp", httpHandler)
 }
 
 // DocsRouter returns a router for Swagger UI and OpenAPI spec.
