@@ -6,10 +6,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strconv"
 
 	"github.com/helixml/kodit/application/service"
+	"github.com/helixml/kodit/domain/enrichment"
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
-	"github.com/helixml/kodit/domain/snippet"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -19,28 +21,28 @@ type Searcher interface {
 	Search(ctx context.Context, request search.MultiRequest) (service.MultiSearchResult, error)
 }
 
-// SnippetLookup provides snippet retrieval by SHA for MCP tools.
-type SnippetLookup interface {
-	BySHA(ctx context.Context, sha string) (snippet.Snippet, error)
+// EnrichmentLookup provides enrichment retrieval by ID for MCP tools.
+type EnrichmentLookup interface {
+	Get(ctx context.Context, options ...repository.Option) (enrichment.Enrichment, error)
 }
 
 // Server wraps the MCP server with kodit-specific tools.
 type Server struct {
 	mcpServer     *server.MCPServer
 	searchService Searcher
-	snippets      SnippetLookup
+	enrichments   EnrichmentLookup
 	logger        *slog.Logger
 }
 
 // NewServer creates a new MCP server with the given dependencies.
-func NewServer(searchService Searcher, snippets SnippetLookup, logger *slog.Logger) *Server {
+func NewServer(searchService Searcher, enrichments EnrichmentLookup, logger *slog.Logger) *Server {
 	if logger == nil {
 		logger = slog.Default()
 	}
 
 	s := &Server{
 		searchService: searchService,
-		snippets:      snippets,
+		enrichments:   enrichments,
 		logger:        logger,
 	}
 
@@ -79,10 +81,10 @@ func (s *Server) registerTools(mcpServer *server.MCPServer) {
 
 	// Get snippet tool
 	getSnippetTool := mcp.NewTool("get_snippet",
-		mcp.WithDescription("Get a code snippet by its SHA"),
-		mcp.WithString("sha",
+		mcp.WithDescription("Get a code snippet by its ID"),
+		mcp.WithString("id",
 			mcp.Required(),
-			mcp.Description("The SHA256 hash of the snippet"),
+			mcp.Description("The numeric ID of the snippet enrichment"),
 		),
 	)
 
@@ -116,23 +118,24 @@ func (s *Server) handleSearch(ctx context.Context, request mcp.CallToolRequest) 
 	}
 
 	// Format results
-	snippets := result.Snippets()
+	enrichments := result.Enrichments()
 	scores := result.FusedScores()
 
 	type searchResult struct {
-		SHA      string  `json:"sha"`
+		ID       string  `json:"id"`
 		Content  string  `json:"content"`
 		Language string  `json:"language"`
 		Score    float64 `json:"score"`
 	}
 
-	results := make([]searchResult, len(snippets))
-	for i, snip := range snippets {
+	results := make([]searchResult, len(enrichments))
+	for i, e := range enrichments {
+		idStr := strconv.FormatInt(e.ID(), 10)
 		results[i] = searchResult{
-			SHA:      snip.SHA(),
-			Content:  snip.Content(),
-			Language: snip.Extension(),
-			Score:    scores[snip.SHA()],
+			ID:       idStr,
+			Content:  e.Content(),
+			Language: e.Language(),
+			Score:    scores[idStr],
 		}
 	}
 
@@ -146,36 +149,36 @@ func (s *Server) handleSearch(ctx context.Context, request mcp.CallToolRequest) 
 
 // handleGetSnippet handles the get_snippet tool invocation.
 func (s *Server) handleGetSnippet(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	sha, err := request.RequireString("sha")
+	idStr, err := request.RequireString("id")
 	if err != nil {
-		return mcp.NewToolResultError("sha is required"), nil
+		return mcp.NewToolResultError("id is required"), nil
 	}
 
-	if s.snippets == nil {
-		return mcp.NewToolResultError("snippet lookup not configured"), nil
+	if s.enrichments == nil {
+		return mcp.NewToolResultError("enrichment lookup not configured"), nil
 	}
 
-	snip, err := s.snippets.BySHA(ctx, sha)
+	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		s.logger.Error("failed to get snippet", slog.String("sha", sha), slog.Any("error", err))
+		return mcp.NewToolResultError(fmt.Sprintf("invalid id: %s", idStr)), nil
+	}
+
+	e, err := s.enrichments.Get(ctx, repository.WithID(id))
+	if err != nil {
+		s.logger.Error("failed to get enrichment", slog.String("id", idStr), slog.Any("error", err))
 		return mcp.NewToolResultError(fmt.Sprintf("failed to get snippet: %v", err)), nil
 	}
 
-	// Check if snippet was found (empty SHA means not found)
-	if snip.SHA() == "" {
-		return mcp.NewToolResultError(fmt.Sprintf("snippet not found: %s", sha)), nil
-	}
-
 	type snippetResult struct {
-		SHA       string `json:"sha"`
-		Content   string `json:"content"`
-		Extension string `json:"extension"`
+		ID       string `json:"id"`
+		Content  string `json:"content"`
+		Language string `json:"language"`
 	}
 
 	result := snippetResult{
-		SHA:       snip.SHA(),
-		Content:   snip.Content(),
-		Extension: snip.Extension(),
+		ID:       strconv.FormatInt(e.ID(), 10),
+		Content:  e.Content(),
+		Language: e.Language(),
 	}
 
 	jsonBytes, err := json.Marshal(result)

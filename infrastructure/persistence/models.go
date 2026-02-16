@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/helixml/kodit/domain/snippet"
+	"github.com/helixml/kodit/domain/search"
 )
 
 // RepositoryModel represents a Git repository in the database.
@@ -96,46 +96,6 @@ func (FileModel) TableName() string {
 	return "git_commit_files"
 }
 
-// SnippetModel represents a code snippet in the database.
-type SnippetModel struct {
-	SHA       string    `gorm:"column:sha;primaryKey"`
-	Content   string    `gorm:"column:content;type:text"`
-	Extension string    `gorm:"column:extension"`
-	CreatedAt time.Time `gorm:"column:created_at;not null"`
-	UpdatedAt time.Time `gorm:"column:updated_at;not null"`
-}
-
-// TableName returns the table name.
-func (SnippetModel) TableName() string {
-	return "snippets"
-}
-
-// SnippetCommitAssociationModel links snippets to commits.
-type SnippetCommitAssociationModel struct {
-	ID         int64     `gorm:"column:id;primaryKey;autoIncrement"`
-	SnippetSHA string    `gorm:"column:snippet_sha;index"`
-	CommitSHA  string    `gorm:"column:commit_sha;index"`
-	CreatedAt  time.Time `gorm:"column:created_at;not null"`
-}
-
-// TableName returns the table name.
-func (SnippetCommitAssociationModel) TableName() string {
-	return "snippet_commit_associations"
-}
-
-// SnippetFileDerivationModel links snippets to source files.
-type SnippetFileDerivationModel struct {
-	ID         int64     `gorm:"column:id;primaryKey;autoIncrement"`
-	SnippetSHA string    `gorm:"column:snippet_sha;index"`
-	FileID     int64     `gorm:"column:file_id;index"`
-	CreatedAt  time.Time `gorm:"column:created_at;not null"`
-}
-
-// TableName returns the table name.
-func (SnippetFileDerivationModel) TableName() string {
-	return "snippet_file_derivations"
-}
-
 // CommitIndexModel represents the commit indexing status.
 type CommitIndexModel struct {
 	CommitSHA             string         `gorm:"column:commit_sha;primaryKey"`
@@ -159,6 +119,7 @@ type EnrichmentModel struct {
 	Type      string    `gorm:"column:type;not null;index"`
 	Subtype   string    `gorm:"column:subtype;not null;index"`
 	Content   string    `gorm:"column:content;type:text;not null"`
+	Language  string    `gorm:"column:language;size:50"`
 	CreatedAt time.Time `gorm:"column:created_at;not null"`
 	UpdatedAt time.Time `gorm:"column:updated_at;not null"`
 }
@@ -187,7 +148,7 @@ func (EnrichmentAssociationModel) TableName() string {
 type EmbeddingModel struct {
 	ID        int64     `gorm:"column:id;primaryKey;autoIncrement"`
 	SnippetID string    `gorm:"column:snippet_id;index"`
-	Type      snippet.EmbeddingType `gorm:"column:type;index"`
+	Type      search.EmbeddingType `gorm:"column:type;index"`
 	Embedding []float64 `gorm:"column:embedding;type:json"`
 	CreatedAt time.Time `gorm:"column:created_at;not null"`
 	UpdatedAt time.Time `gorm:"column:updated_at;not null"`

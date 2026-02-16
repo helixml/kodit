@@ -3,34 +3,35 @@ package indexing
 import (
 	"context"
 	"log/slog"
+	"strconv"
 
 	"github.com/helixml/kodit/application/handler"
+	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/search"
 	domainservice "github.com/helixml/kodit/domain/service"
-	"github.com/helixml/kodit/domain/snippet"
 	"github.com/helixml/kodit/domain/task"
 )
 
 // CreateBM25Index creates BM25 keyword index for commit snippets.
 type CreateBM25Index struct {
-	bm25Service    *domainservice.BM25
-	snippetStore   snippet.SnippetStore
-	trackerFactory handler.TrackerFactory
-	logger         *slog.Logger
+	bm25Service     *domainservice.BM25
+	enrichmentStore enrichment.EnrichmentStore
+	trackerFactory  handler.TrackerFactory
+	logger          *slog.Logger
 }
 
 // NewCreateBM25Index creates a new CreateBM25Index handler.
 func NewCreateBM25Index(
 	bm25Service *domainservice.BM25,
-	snippetStore snippet.SnippetStore,
+	enrichmentStore enrichment.EnrichmentStore,
 	trackerFactory handler.TrackerFactory,
 	logger *slog.Logger,
 ) *CreateBM25Index {
 	return &CreateBM25Index{
-		bm25Service:    bm25Service,
-		snippetStore:   snippetStore,
-		trackerFactory: trackerFactory,
-		logger:         logger,
+		bm25Service:     bm25Service,
+		enrichmentStore: enrichmentStore,
+		trackerFactory:  trackerFactory,
+		logger:          logger,
 	}
 }
 
@@ -52,27 +53,27 @@ func (h *CreateBM25Index) Execute(ctx context.Context, payload map[string]any) e
 		repoID,
 	)
 
-	snippets, err := h.snippetStore.SnippetsForCommit(ctx, commitSHA)
+	enrichments, err := h.enrichmentStore.FindByCommitSHA(ctx, commitSHA, enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeSnippet))
 	if err != nil {
-		h.logger.Error("failed to get snippets for commit", slog.String("error", err.Error()))
+		h.logger.Error("failed to get snippet enrichments for commit", slog.String("error", err.Error()))
 		return err
 	}
 
-	if len(snippets) == 0 {
+	if len(enrichments) == 0 {
 		if skipErr := tracker.Skip(ctx, "No snippets to index"); skipErr != nil {
 			h.logger.Warn("failed to mark tracker as skipped", slog.String("error", skipErr.Error()))
 		}
 		return nil
 	}
 
-	if setTotalErr := tracker.SetTotal(ctx, len(snippets)); setTotalErr != nil {
+	if setTotalErr := tracker.SetTotal(ctx, len(enrichments)); setTotalErr != nil {
 		h.logger.Warn("failed to set tracker total", slog.String("error", setTotalErr.Error()))
 	}
 
-	documents := make([]search.Document, 0, len(snippets))
-	for _, s := range snippets {
-		if s.SHA() != "" && s.Content() != "" {
-			doc := search.NewDocument(s.SHA(), s.Content())
+	documents := make([]search.Document, 0, len(enrichments))
+	for _, e := range enrichments {
+		if e.Content() != "" {
+			doc := search.NewDocument(strconv.FormatInt(e.ID(), 10), e.Content())
 			documents = append(documents, doc)
 		}
 	}
@@ -93,7 +94,7 @@ func (h *CreateBM25Index) Execute(ctx context.Context, payload map[string]any) e
 		return err
 	}
 
-	if currentErr := tracker.SetCurrent(ctx, len(snippets), "BM25 index created for commit"); currentErr != nil {
+	if currentErr := tracker.SetCurrent(ctx, len(enrichments), "BM25 index created for commit"); currentErr != nil {
 		h.logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
 	}
 

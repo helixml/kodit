@@ -4,25 +4,26 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strconv"
 
 	"github.com/helixml/kodit/application/handler"
+	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/search"
-	"github.com/helixml/kodit/domain/snippet"
 	"github.com/helixml/kodit/domain/task"
 )
 
 // CreateCodeEmbeddings creates vector embeddings for commit snippets.
 type CreateCodeEmbeddings struct {
-	codeIndex      handler.VectorIndex
-	snippetStore   snippet.SnippetStore
-	trackerFactory handler.TrackerFactory
-	logger         *slog.Logger
+	codeIndex       handler.VectorIndex
+	enrichmentStore enrichment.EnrichmentStore
+	trackerFactory  handler.TrackerFactory
+	logger          *slog.Logger
 }
 
 // NewCreateCodeEmbeddings creates a new CreateCodeEmbeddings handler.
 func NewCreateCodeEmbeddings(
 	codeIndex handler.VectorIndex,
-	snippetStore snippet.SnippetStore,
+	enrichmentStore enrichment.EnrichmentStore,
 	trackerFactory handler.TrackerFactory,
 	logger *slog.Logger,
 ) (*CreateCodeEmbeddings, error) {
@@ -32,17 +33,17 @@ func NewCreateCodeEmbeddings(
 	if codeIndex.Store == nil {
 		return nil, fmt.Errorf("NewCreateCodeEmbeddings: nil Store")
 	}
-	if snippetStore == nil {
-		return nil, fmt.Errorf("NewCreateCodeEmbeddings: nil snippetStore")
+	if enrichmentStore == nil {
+		return nil, fmt.Errorf("NewCreateCodeEmbeddings: nil enrichmentStore")
 	}
 	if trackerFactory == nil {
 		return nil, fmt.Errorf("NewCreateCodeEmbeddings: nil trackerFactory")
 	}
 	return &CreateCodeEmbeddings{
-		codeIndex:      codeIndex,
-		snippetStore:   snippetStore,
-		trackerFactory: trackerFactory,
-		logger:         logger,
+		codeIndex:       codeIndex,
+		enrichmentStore: enrichmentStore,
+		trackerFactory:  trackerFactory,
+		logger:          logger,
 	}, nil
 }
 
@@ -64,40 +65,40 @@ func (h *CreateCodeEmbeddings) Execute(ctx context.Context, payload map[string]a
 		repoID,
 	)
 
-	snippets, err := h.snippetStore.SnippetsForCommit(ctx, commitSHA)
+	enrichments, err := h.enrichmentStore.FindByCommitSHA(ctx, commitSHA, enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeSnippet))
 	if err != nil {
-		h.logger.Error("failed to get snippets for commit", slog.String("error", err.Error()))
+		h.logger.Error("failed to get snippet enrichments for commit", slog.String("error", err.Error()))
 		return err
 	}
 
-	if len(snippets) == 0 {
+	if len(enrichments) == 0 {
 		if skipErr := tracker.Skip(ctx, "No snippets to create embeddings for"); skipErr != nil {
 			h.logger.Warn("failed to mark tracker as skipped", slog.String("error", skipErr.Error()))
 		}
 		return nil
 	}
 
-	newSnippets, err := h.filterNewSnippets(ctx, snippets)
+	newEnrichments, err := h.filterNew(ctx, enrichments)
 	if err != nil {
-		h.logger.Error("failed to filter new snippets", slog.String("error", err.Error()))
+		h.logger.Error("failed to filter new enrichments", slog.String("error", err.Error()))
 		return err
 	}
 
-	if len(newSnippets) == 0 {
+	if len(newEnrichments) == 0 {
 		if skipErr := tracker.Skip(ctx, "All snippets already have code embeddings"); skipErr != nil {
 			h.logger.Warn("failed to mark tracker as skipped", slog.String("error", skipErr.Error()))
 		}
 		return nil
 	}
 
-	if setTotalErr := tracker.SetTotal(ctx, len(newSnippets)); setTotalErr != nil {
+	if setTotalErr := tracker.SetTotal(ctx, len(newEnrichments)); setTotalErr != nil {
 		h.logger.Warn("failed to set tracker total", slog.String("error", setTotalErr.Error()))
 	}
 
-	documents := make([]search.Document, 0, len(newSnippets))
-	for _, s := range newSnippets {
-		if s.SHA() != "" && s.Content() != "" {
-			doc := search.NewDocument(s.SHA(), s.Content())
+	documents := make([]search.Document, 0, len(newEnrichments))
+	for _, e := range newEnrichments {
+		if e.Content() != "" {
+			doc := search.NewDocument(strconv.FormatInt(e.ID(), 10), e.Content())
 			documents = append(documents, doc)
 		}
 	}
@@ -118,7 +119,7 @@ func (h *CreateCodeEmbeddings) Execute(ctx context.Context, payload map[string]a
 		return err
 	}
 
-	if currentErr := tracker.SetCurrent(ctx, len(newSnippets), "Creating code embeddings for commit"); currentErr != nil {
+	if currentErr := tracker.SetCurrent(ctx, len(newEnrichments), "Creating code embeddings for commit"); currentErr != nil {
 		h.logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
 	}
 
@@ -134,19 +135,20 @@ func (h *CreateCodeEmbeddings) Execute(ctx context.Context, payload map[string]a
 	return nil
 }
 
-func (h *CreateCodeEmbeddings) filterNewSnippets(ctx context.Context, snippets []snippet.Snippet) ([]snippet.Snippet, error) {
-	newSnippets := make([]snippet.Snippet, 0, len(snippets))
+func (h *CreateCodeEmbeddings) filterNew(ctx context.Context, enrichments []enrichment.Enrichment) ([]enrichment.Enrichment, error) {
+	result := make([]enrichment.Enrichment, 0, len(enrichments))
 
-	for _, s := range snippets {
-		hasEmbedding, err := h.codeIndex.Store.HasEmbedding(ctx, s.SHA(), snippet.EmbeddingTypeCode)
+	for _, e := range enrichments {
+		docID := strconv.FormatInt(e.ID(), 10)
+		hasEmbedding, err := h.codeIndex.Store.HasEmbedding(ctx, docID, search.EmbeddingTypeCode)
 		if err != nil {
 			return nil, err
 		}
 
 		if !hasEmbedding {
-			newSnippets = append(newSnippets, s)
+			result = append(result, e)
 		}
 	}
 
-	return newSnippets, nil
+	return result, nil
 }

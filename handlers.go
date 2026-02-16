@@ -25,28 +25,28 @@ func (c *Client) registerHandlers() error {
 		c.repoStores.Repositories, c.repoStores.Branches, c.gitInfra.Cloner, c.gitInfra.Scanner, c.queue, c.enrichCtx.Tracker, c.logger,
 	))
 	c.registry.Register(task.OperationDeleteRepository, repohandler.NewDelete(
-		c.repoStores, c.snippetStore, c.enrichCtx.Tracker, c.logger,
+		c.repoStores, c.enrichCtx.Enrichments, c.enrichCtx.Associations, c.enrichCtx.Tracker, c.logger,
 	))
 	c.registry.Register(task.OperationScanCommit, commithandler.NewScan(
 		c.repoStores.Repositories, c.repoStores.Commits, c.repoStores.Files, c.gitInfra.Scanner, c.enrichCtx.Tracker, c.logger,
 	))
 	c.registry.Register(task.OperationRescanCommit, commithandler.NewRescan(
-		c.snippetStore, c.enrichCtx.Associations, c.enrichCtx.Tracker, c.logger,
+		c.enrichCtx.Enrichments, c.enrichCtx.Associations, c.enrichCtx.Tracker, c.logger,
 	))
 
 	// Indexing handlers (always registered for snippet extraction)
 	c.registry.Register(task.OperationExtractSnippetsForCommit, indexinghandler.NewExtractSnippets(
-		c.repoStores.Repositories, c.snippetStore, c.repoStores.Files, c.slicer, c.enrichCtx.Tracker, c.logger,
+		c.repoStores.Repositories, c.enrichCtx.Enrichments, c.enrichCtx.Associations, c.repoStores.Files, c.slicer, c.enrichCtx.Tracker, c.logger,
 	))
 
 	// BM25 index handler
 	c.registry.Register(task.OperationCreateBM25IndexForCommit, indexinghandler.NewCreateBM25Index(
-		c.bm25Service, c.snippetStore, c.enrichCtx.Tracker, c.logger,
+		c.bm25Service, c.enrichCtx.Enrichments, c.enrichCtx.Tracker, c.logger,
 	))
 
 	// Code embedding handlers — only if embedding provider configured
 	if c.codeIndex.Store != nil {
-		h, err := indexinghandler.NewCreateCodeEmbeddings(c.codeIndex, c.snippetStore, c.enrichCtx.Tracker, c.logger)
+		h, err := indexinghandler.NewCreateCodeEmbeddings(c.codeIndex, c.enrichCtx.Enrichments, c.enrichCtx.Tracker, c.logger)
 		if err != nil {
 			return fmt.Errorf("create code embeddings handler: %w", err)
 		}
@@ -76,7 +76,7 @@ func (c *Client) registerHandlers() error {
 
 	// Enrichment handlers that call Enricher — only if text provider configured
 	if c.enrichCtx.Enricher != nil {
-		h, err := enrichmenthandler.NewCreateSummary(c.snippetStore, c.enrichCtx)
+		h, err := enrichmenthandler.NewCreateSummary(c.enrichCtx)
 		if err != nil {
 			return fmt.Errorf("create summary handler: %w", err)
 		}

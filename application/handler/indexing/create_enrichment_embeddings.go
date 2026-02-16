@@ -9,7 +9,6 @@ import (
 	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/search"
-	"github.com/helixml/kodit/domain/snippet"
 	"github.com/helixml/kodit/domain/task"
 )
 
@@ -172,7 +171,7 @@ func (h *CreateSummaryEmbeddings) filterNewEnrichments(ctx context.Context, enri
 			continue
 		}
 
-		hasEmbedding, err := h.textIndex.Store.HasEmbedding(ctx, snippetSHA, snippet.EmbeddingTypeSummary)
+		hasEmbedding, err := h.textIndex.Store.HasEmbedding(ctx, snippetSHA, search.EmbeddingTypeSummary)
 		if err != nil {
 			return nil, err
 		}
@@ -334,7 +333,7 @@ func (h *CreateExampleCodeEmbeddings) filterNewExamples(ctx context.Context, exa
 	result := make([]enrichment.Enrichment, 0, len(examples))
 
 	for _, e := range examples {
-		hasEmbedding, err := h.codeIndex.Store.HasEmbedding(ctx, enrichmentDocID(e.ID()), snippet.EmbeddingTypeCode)
+		hasEmbedding, err := h.codeIndex.Store.HasEmbedding(ctx, enrichmentDocID(e.ID()), search.EmbeddingTypeCode)
 		if err != nil {
 			return nil, err
 		}
@@ -480,7 +479,7 @@ func (h *CreateExampleSummaryEmbeddings) filterNewEnrichments(ctx context.Contex
 	result := make([]enrichment.Enrichment, 0, len(enrichments))
 
 	for _, e := range enrichments {
-		hasEmbedding, err := h.textIndex.Store.HasEmbedding(ctx, enrichmentDocID(e.ID()), snippet.EmbeddingTypeSummary)
+		hasEmbedding, err := h.textIndex.Store.HasEmbedding(ctx, enrichmentDocID(e.ID()), search.EmbeddingTypeSummary)
 		if err != nil {
 			return nil, err
 		}

@@ -13,7 +13,6 @@ import (
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	domainservice "github.com/helixml/kodit/domain/service"
-	"github.com/helixml/kodit/domain/snippet"
 	"github.com/helixml/kodit/domain/task"
 	infraGit "github.com/helixml/kodit/infrastructure/git"
 	"github.com/stretchr/testify/assert"
@@ -78,11 +77,11 @@ func (f *fakeEnrichmentStore) Find(_ context.Context, options ...repository.Opti
 					match = false
 				}
 			case "type":
-				if t, ok := c.Value().(enrichment.Type); ok && e.Type() != t {
+				if t, ok := c.Value().(string); ok && string(e.Type()) != t {
 					match = false
 				}
 			case "subtype":
-				if s, ok := c.Value().(enrichment.Subtype); ok && e.Subtype() != s {
+				if s, ok := c.Value().(string); ok && string(e.Subtype()) != s {
 					match = false
 				}
 			}
@@ -163,11 +162,11 @@ func (f *fakeEnrichmentStore) FindByCommitSHA(_ context.Context, commitSHA strin
 				for _, c := range q.Conditions() {
 					switch c.Field() {
 					case "type":
-						if t, ok := c.Value().(enrichment.Type); ok && e.Type() != t {
+						if t, ok := c.Value().(string); ok && string(e.Type()) != t {
 							match = false
 						}
 					case "subtype":
-						if s, ok := c.Value().(enrichment.Subtype); ok && e.Subtype() != s {
+						if s, ok := c.Value().(string); ok && string(e.Subtype()) != s {
 							match = false
 						}
 					}
@@ -286,49 +285,6 @@ func (f *fakeAssociationStore) Delete(_ context.Context, a enrichment.Associatio
 
 func (f *fakeAssociationStore) Count(_ context.Context, _ ...repository.Option) (int64, error) {
 	return int64(len(f.associations)), nil
-}
-
-type fakeSnippetStore struct {
-	snippets map[string][]snippet.Snippet
-}
-
-func newFakeSnippetStore() *fakeSnippetStore {
-	return &fakeSnippetStore{
-		snippets: make(map[string][]snippet.Snippet),
-	}
-}
-
-func (f *fakeSnippetStore) SnippetsForCommit(_ context.Context, commitSHA string, _ ...repository.Option) ([]snippet.Snippet, error) {
-	return f.snippets[commitSHA], nil
-}
-
-func (f *fakeSnippetStore) CountForCommit(_ context.Context, commitSHA string) (int64, error) {
-	return int64(len(f.snippets[commitSHA])), nil
-}
-
-func (f *fakeSnippetStore) Save(_ context.Context, commitSHA string, snippets []snippet.Snippet) error {
-	f.snippets[commitSHA] = snippets
-	return nil
-}
-
-func (f *fakeSnippetStore) DeleteForCommit(_ context.Context, commitSHA string) error {
-	delete(f.snippets, commitSHA)
-	return nil
-}
-
-func (f *fakeSnippetStore) ByIDs(_ context.Context, _ []string) ([]snippet.Snippet, error) {
-	return nil, nil
-}
-
-func (f *fakeSnippetStore) BySHA(_ context.Context, sha string) (snippet.Snippet, error) {
-	for _, snippets := range f.snippets {
-		for _, s := range snippets {
-			if s.SHA() == sha {
-				return s, nil
-			}
-		}
-	}
-	return snippet.Snippet{}, errors.New("not found")
 }
 
 type fakeGitAdapter struct {
@@ -560,21 +516,24 @@ func TestCreateSummaryHandler(t *testing.T) {
 	ctx := context.Background()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	snippetStore := newFakeSnippetStore()
 	enrichmentStore := newFakeEnrichmentStore()
 	associationStore := newFakeAssociationStore()
 	enricher := &fakeEnricher{}
 
 	enrichCtx := newFakeEnrichmentContext(enrichmentStore, associationStore, enricher, logger)
 
-	snippets := []snippet.Snippet{
-		snippet.NewSnippet("func main() {}", ".go", nil),
-		snippet.NewSnippet("def main():", ".py", nil),
-	}
-	snippetStore.snippets["abc123"] = snippets
+	// Seed snippet enrichments for commit "abc123"
+	snip1 := enrichment.NewSnippetEnrichmentWithLanguage("func main() {}", "go")
+	saved1, _ := enrichmentStore.Save(ctx, snip1)
+	assoc1 := enrichment.CommitAssociation(saved1.ID(), "abc123")
+	_, _ = associationStore.Save(ctx, assoc1)
+
+	snip2 := enrichment.NewSnippetEnrichmentWithLanguage("def main():", "py")
+	saved2, _ := enrichmentStore.Save(ctx, snip2)
+	assoc2 := enrichment.CommitAssociation(saved2.ID(), "abc123")
+	_, _ = associationStore.Save(ctx, assoc2)
 
 	h, err := NewCreateSummary(
-		snippetStore,
 		enrichCtx,
 	)
 	require.NoError(t, err)
@@ -588,23 +547,24 @@ func TestCreateSummaryHandler(t *testing.T) {
 		err := h.Execute(ctx, payload)
 		require.NoError(t, err)
 
-		assert.Len(t, enrichmentStore.enrichments, 2)
-
+		// 2 snippet enrichments + 2 summary enrichments = 4 total
+		summaryCount := 0
 		for _, e := range enrichmentStore.enrichments {
-			assert.Equal(t, enrichment.TypeDevelopment, e.Type())
-			assert.Equal(t, enrichment.SubtypeSnippetSummary, e.Subtype())
+			if e.Subtype() == enrichment.SubtypeSnippetSummary {
+				summaryCount++
+				assert.Equal(t, enrichment.TypeDevelopment, e.Type())
+			}
 		}
+		assert.Equal(t, 2, summaryCount)
 	})
 
 	t.Run("skips when no snippets", func(t *testing.T) {
 		enrichmentStore2 := newFakeEnrichmentStore()
 		associationStore2 := newFakeAssociationStore()
-		snippetStore2 := newFakeSnippetStore()
 
 		enrichCtx2 := newFakeEnrichmentContext(enrichmentStore2, associationStore2, enricher, logger)
 
 		handler2, err2 := NewCreateSummary(
-			snippetStore2,
 			enrichCtx2,
 		)
 		require.NoError(t, err2)

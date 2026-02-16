@@ -298,34 +298,6 @@ func (m FileMapper) ToModel(f repository.File) FileModel {
 	}
 }
 
-// SnippetMapper maps between domain Snippet and persistence SnippetModel.
-type SnippetMapper struct{}
-
-// ToDomain converts a SnippetModel to a domain Snippet.
-// Note: derivesFrom and enrichments are loaded separately as they come from different tables.
-func (m SnippetMapper) ToDomain(e SnippetModel) snippet.Snippet {
-	return snippet.ReconstructSnippet(
-		e.SHA,
-		e.Content,
-		e.Extension,
-		nil, // derivesFrom - loaded separately via joins
-		nil, // enrichments - loaded separately via joins
-		e.CreatedAt,
-		e.UpdatedAt,
-	)
-}
-
-// ToModel converts a domain Snippet to a SnippetModel.
-func (m SnippetMapper) ToModel(s snippet.Snippet) SnippetModel {
-	return SnippetModel{
-		SHA:       s.SHA(),
-		Content:   s.Content(),
-		Extension: s.Extension(),
-		CreatedAt: s.CreatedAt(),
-		UpdatedAt: s.UpdatedAt(),
-	}
-}
-
 // CommitIndexMapper maps between domain CommitIndex and persistence CommitIndexModel.
 type CommitIndexMapper struct{}
 
@@ -385,7 +357,7 @@ func (m EnrichmentMapper) ToDomain(e EnrichmentModel) enrichment.Enrichment {
 		enrichment.Subtype(e.Subtype),
 		enrichment.EntityTypeCommit, // Default - actual entity type comes from associations
 		e.Content,
-		"", // Language not stored in DB
+		e.Language,
 		e.CreatedAt,
 		e.UpdatedAt,
 	)
@@ -398,6 +370,7 @@ func (m EnrichmentMapper) ToModel(e enrichment.Enrichment) EnrichmentModel {
 		Type:      string(e.Type()),
 		Subtype:   string(e.Subtype()),
 		Content:   e.Content(),
+		Language:  e.Language(),
 		CreatedAt: e.CreatedAt(),
 		UpdatedAt: e.UpdatedAt(),
 	}

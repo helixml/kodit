@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/helixml/kodit/domain/search"
-	"github.com/helixml/kodit/domain/snippet"
 	"github.com/helixml/kodit/infrastructure/provider"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -277,7 +276,7 @@ func TestSQLiteVectorStore_HasEmbedding(t *testing.T) {
 	ctx := context.Background()
 
 	// Initially no embedding
-	has, err := store.HasEmbedding(ctx, "snippet1", snippet.EmbeddingTypeCode)
+	has, err := store.HasEmbedding(ctx, "snippet1", search.EmbeddingTypeCode)
 	require.NoError(t, err)
 	assert.False(t, has)
 
@@ -289,7 +288,7 @@ func TestSQLiteVectorStore_HasEmbedding(t *testing.T) {
 	require.NoError(t, err)
 
 	// Now should have embedding
-	has, err = store.HasEmbedding(ctx, "snippet1", snippet.EmbeddingTypeCode)
+	has, err = store.HasEmbedding(ctx, "snippet1", search.EmbeddingTypeCode)
 	require.NoError(t, err)
 	assert.True(t, has)
 }
@@ -313,12 +312,12 @@ func TestSQLiteVectorStore_Delete(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify deletion
-	has, err := store.HasEmbedding(ctx, "snippet1", snippet.EmbeddingTypeCode)
+	has, err := store.HasEmbedding(ctx, "snippet1", search.EmbeddingTypeCode)
 	require.NoError(t, err)
 	assert.False(t, has)
 
 	// Other document should still exist
-	has, err = store.HasEmbedding(ctx, "snippet2", snippet.EmbeddingTypeCode)
+	has, err = store.HasEmbedding(ctx, "snippet2", search.EmbeddingTypeCode)
 	require.NoError(t, err)
 	assert.True(t, has)
 }

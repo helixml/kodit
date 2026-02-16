@@ -6,7 +6,6 @@ import (
 
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
-	"github.com/helixml/kodit/domain/snippet"
 	"github.com/helixml/kodit/domain/task"
 	"github.com/helixml/kodit/domain/tracking"
 )
@@ -389,46 +388,26 @@ func (s *Serializer) TrackingConfigResource(repoID int64, tc repository.Tracking
 	return NewResource("tracking-config", fmt.Sprintf("%d", repoID), attrs)
 }
 
-// SnippetResource converts a snippet with enrichments to a JSON:API resource for search results.
-func (s *Serializer) SnippetResource(
-	snip snippet.Snippet,
-	enrichments []enrichment.Enrichment,
-	files []repository.File,
+// SnippetResourceFromEnrichment converts an enrichment to a JSON:API resource for search results.
+func (s *Serializer) SnippetResourceFromEnrichment(
+	e enrichment.Enrichment,
 	scores []float64,
 ) *Resource {
-	createdAt := snip.CreatedAt()
-	updatedAt := snip.UpdatedAt()
-
-	derivesFrom := make([]GitFileSchema, len(files))
-	for i, f := range files {
-		derivesFrom[i] = GitFileSchema{
-			BlobSHA:  f.BlobSHA(),
-			Path:     f.Path(),
-			MimeType: f.MimeType(),
-			Size:     f.Size(),
-		}
-	}
-
-	enrichmentSchemas := make([]EnrichmentSchema, len(enrichments))
-	for i, e := range enrichments {
-		enrichmentSchemas[i] = EnrichmentSchema{
-			Type:    string(e.Type()),
-			Content: e.Content(),
-		}
-	}
+	createdAt := e.CreatedAt()
+	updatedAt := e.UpdatedAt()
 
 	attrs := &SnippetAttributes{
 		CreatedAt:   &createdAt,
 		UpdatedAt:   &updatedAt,
-		DerivesFrom: derivesFrom,
+		DerivesFrom: []GitFileSchema{},
 		Content: SnippetContentSchema{
-			Value:    snip.Content(),
-			Language: snip.Extension(),
+			Value:    e.Content(),
+			Language: e.Language(),
 		},
-		Enrichments:    enrichmentSchemas,
+		Enrichments:    []EnrichmentSchema{},
 		OriginalScores: scores,
 	}
-	return NewResource("snippet", snip.SHA(), attrs)
+	return NewResource("snippet", fmt.Sprintf("%d", e.ID()), attrs)
 }
 
 // isVersionTag checks if a tag name looks like a version tag.

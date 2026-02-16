@@ -3,13 +3,15 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"maps"
+	"strconv"
 	"sync/atomic"
 
 	"github.com/helixml/kodit/domain/enrichment"
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
-	"github.com/helixml/kodit/domain/snippet"
 	"github.com/helixml/kodit/internal/config"
 )
 
@@ -109,26 +111,18 @@ func WithDocuments(include bool) SearchOption {
 
 // SearchResult represents the result of a hybrid search.
 type SearchResult struct {
-	snippets    []snippet.Snippet
 	enrichments []enrichment.Enrichment
 	scores      map[string]float64
 }
 
-// Snippets returns the matched code snippets.
-func (r SearchResult) Snippets() []snippet.Snippet {
-	result := make([]snippet.Snippet, len(r.snippets))
-	copy(result, r.snippets)
-	return result
-}
-
-// Enrichments returns the enrichments associated with matched snippets.
+// Enrichments returns the matched enrichments.
 func (r SearchResult) Enrichments() []enrichment.Enrichment {
 	result := make([]enrichment.Enrichment, len(r.enrichments))
 	copy(result, r.enrichments)
 	return result
 }
 
-// Scores returns a map of snippet SHA to fused search score.
+// Scores returns a map of enrichment ID string to fused search score.
 func (r SearchResult) Scores() map[string]float64 {
 	result := make(map[string]float64, len(r.scores))
 	for k, v := range r.scores {
@@ -137,27 +131,22 @@ func (r SearchResult) Scores() map[string]float64 {
 	return result
 }
 
-// Count returns the number of snippets in the result.
+// Count returns the number of enrichments in the result.
 func (r SearchResult) Count() int {
-	return len(r.snippets)
+	return len(r.enrichments)
 }
 
 // MultiSearchResult represents the result of a multi-modal search.
 type MultiSearchResult struct {
-	snippets    []snippet.Snippet
 	enrichments []enrichment.Enrichment
 	fusedScores map[string]float64
 }
 
 // NewMultiSearchResult creates a new MultiSearchResult.
 func NewMultiSearchResult(
-	snippets []snippet.Snippet,
 	enrichments []enrichment.Enrichment,
 	fusedScores map[string]float64,
 ) MultiSearchResult {
-	snips := make([]snippet.Snippet, len(snippets))
-	copy(snips, snippets)
-
 	enrich := make([]enrichment.Enrichment, len(enrichments))
 	copy(enrich, enrichments)
 
@@ -165,36 +154,28 @@ func NewMultiSearchResult(
 	maps.Copy(scores, fusedScores)
 
 	return MultiSearchResult{
-		snippets:    snips,
 		enrichments: enrich,
 		fusedScores: scores,
 	}
 }
 
-// Snippets returns the matched snippets.
-func (r MultiSearchResult) Snippets() []snippet.Snippet {
-	result := make([]snippet.Snippet, len(r.snippets))
-	copy(result, r.snippets)
-	return result
-}
-
-// Enrichments returns the enrichments associated with matched snippets.
+// Enrichments returns the matched enrichments.
 func (r MultiSearchResult) Enrichments() []enrichment.Enrichment {
 	result := make([]enrichment.Enrichment, len(r.enrichments))
 	copy(result, r.enrichments)
 	return result
 }
 
-// FusedScores returns a map of snippet SHA to fused score.
+// FusedScores returns a map of enrichment ID string to fused score.
 func (r MultiSearchResult) FusedScores() map[string]float64 {
 	result := make(map[string]float64, len(r.fusedScores))
 	maps.Copy(result, r.fusedScores)
 	return result
 }
 
-// Count returns the number of snippets in the result.
+// Count returns the number of enrichments in the result.
 func (r MultiSearchResult) Count() int {
-	return len(r.snippets)
+	return len(r.enrichments)
 }
 
 // Search orchestrates hybrid code search across text and code vector indexes.
@@ -202,7 +183,6 @@ type Search struct {
 	textVectorStore search.VectorStore
 	codeVectorStore search.VectorStore
 	bm25Store       search.BM25Store
-	snippetStore    snippet.SnippetStore
 	enrichmentStore enrichment.EnrichmentStore
 	fusion          search.Fusion
 	closed          *atomic.Bool
@@ -214,7 +194,6 @@ func NewSearch(
 	textVectorStore search.VectorStore,
 	codeVectorStore search.VectorStore,
 	bm25Store search.BM25Store,
-	snippetStore snippet.SnippetStore,
 	enrichmentStore enrichment.EnrichmentStore,
 	closed *atomic.Bool,
 	logger *slog.Logger,
@@ -226,7 +205,6 @@ func NewSearch(
 		textVectorStore: textVectorStore,
 		codeVectorStore: codeVectorStore,
 		bm25Store:       bm25Store,
-		snippetStore:    snippetStore,
 		enrichmentStore: enrichmentStore,
 		fusion:          search.NewFusion(),
 		closed:          closed,
@@ -264,7 +242,6 @@ func (s Search) Query(ctx context.Context, query string, opts ...SearchOption) (
 	}
 
 	return SearchResult{
-		snippets:    result.Snippets(),
 		enrichments: result.Enrichments(),
 		scores:      result.FusedScores(),
 	}, nil
@@ -323,45 +300,43 @@ func (s Search) Search(ctx context.Context, request search.MultiRequest) (MultiS
 	}
 
 	if len(fusionLists) == 0 {
-		return NewMultiSearchResult(nil, nil, nil), nil
+		return NewMultiSearchResult(nil, nil), nil
 	}
 
 	// Fuse all result lists together
 	fusedResults := s.fusion.FuseTopK(topK, fusionLists...)
 
-	// Extract snippet IDs from fused results
-	snippetIDs := make([]string, len(fusedResults))
+	// Extract enrichment IDs from fused results
 	fusedScores := make(map[string]float64, len(fusedResults))
-	for i, result := range fusedResults {
-		snippetIDs[i] = result.ID()
+	ids := make([]int64, 0, len(fusedResults))
+	for _, result := range fusedResults {
 		fusedScores[result.ID()] = result.Score()
+		id, err := strconv.ParseInt(result.ID(), 10, 64)
+		if err != nil {
+			s.logger.Warn("failed to parse enrichment ID", "id", result.ID(), "error", err)
+			continue
+		}
+		ids = append(ids, id)
 	}
 
-	if len(snippetIDs) == 0 {
-		return NewMultiSearchResult(nil, nil, nil), nil
+	if len(ids) == 0 {
+		return NewMultiSearchResult(nil, nil), nil
 	}
 
-	// Fetch full snippets
-	snippets, err := s.snippetStore.ByIDs(ctx, snippetIDs)
+	// Fetch full enrichments
+	enrichments, err := s.enrichmentStore.Find(ctx, repository.WithIDIn(ids))
 	if err != nil {
-		return MultiSearchResult{}, err
+		return MultiSearchResult{}, fmt.Errorf("fetch enrichments: %w", err)
 	}
 
-	// Order snippets by fused score
-	orderedSnippets := orderByScore(snippets, fusedScores)
+	// Order enrichments by fused score
+	ordered := orderByScore(enrichments, fusedScores)
 
-	// Fetch associated enrichments
-	enrichments, err := s.fetchEnrichments(ctx, snippetIDs)
-	if err != nil {
-		s.logger.Warn("failed to fetch enrichments", "error", err)
-		enrichments = nil
-	}
-
-	return NewMultiSearchResult(orderedSnippets, enrichments, fusedScores), nil
+	return NewMultiSearchResult(ordered, fusedScores), nil
 }
 
 // SearchText performs text vector search against enrichment summaries.
-func (s Search) SearchText(ctx context.Context, query string, topK int) ([]snippet.Snippet, error) {
+func (s Search) SearchText(ctx context.Context, query string, topK int) ([]enrichment.Enrichment, error) {
 	if s.textVectorStore == nil {
 		return nil, nil
 	}
@@ -376,16 +351,20 @@ func (s Search) SearchText(ctx context.Context, query string, topK int) ([]snipp
 		return nil, err
 	}
 
-	snippetIDs := make([]string, len(results))
-	for i, r := range results {
-		snippetIDs[i] = r.SnippetID()
+	ids := make([]int64, 0, len(results))
+	for _, r := range results {
+		id, err := strconv.ParseInt(r.SnippetID(), 10, 64)
+		if err != nil {
+			continue
+		}
+		ids = append(ids, id)
 	}
 
-	return s.snippetStore.ByIDs(ctx, snippetIDs)
+	return s.enrichmentStore.Find(ctx, repository.WithIDIn(ids))
 }
 
 // SearchCode performs code vector search against code snippet embeddings.
-func (s Search) SearchCode(ctx context.Context, query string, topK int) ([]snippet.Snippet, error) {
+func (s Search) SearchCode(ctx context.Context, query string, topK int) ([]enrichment.Enrichment, error) {
 	if s.codeVectorStore == nil {
 		return nil, nil
 	}
@@ -400,17 +379,16 @@ func (s Search) SearchCode(ctx context.Context, query string, topK int) ([]snipp
 		return nil, err
 	}
 
-	snippetIDs := make([]string, len(results))
-	for i, r := range results {
-		snippetIDs[i] = r.SnippetID()
+	ids := make([]int64, 0, len(results))
+	for _, r := range results {
+		id, err := strconv.ParseInt(r.SnippetID(), 10, 64)
+		if err != nil {
+			continue
+		}
+		ids = append(ids, id)
 	}
 
-	return s.snippetStore.ByIDs(ctx, snippetIDs)
-}
-
-// fetchEnrichments retrieves enrichments for the given snippet IDs.
-func (s Search) fetchEnrichments(_ context.Context, _ []string) ([]enrichment.Enrichment, error) {
-	return nil, nil
+	return s.enrichmentStore.Find(ctx, repository.WithIDIn(ids))
 }
 
 // toFusionRequests converts search results to fusion requests.
@@ -422,31 +400,32 @@ func toFusionRequests(results []search.Result) []search.FusionRequest {
 	return requests
 }
 
-// orderByScore orders snippets by their fused scores.
-func orderByScore(snippets []snippet.Snippet, scores map[string]float64) []snippet.Snippet {
+// orderByScore orders enrichments by their fused scores.
+func orderByScore(enrichments []enrichment.Enrichment, scores map[string]float64) []enrichment.Enrichment {
 	type scored struct {
-		snippet snippet.Snippet
-		score   float64
+		enrichment enrichment.Enrichment
+		score      float64
 	}
 
-	scoredSnippets := make([]scored, 0, len(snippets))
-	for _, s := range snippets {
-		score := scores[s.SHA()]
-		scoredSnippets = append(scoredSnippets, scored{snippet: s, score: score})
+	scoredItems := make([]scored, 0, len(enrichments))
+	for _, e := range enrichments {
+		key := strconv.FormatInt(e.ID(), 10)
+		score := scores[key]
+		scoredItems = append(scoredItems, scored{enrichment: e, score: score})
 	}
 
 	// Sort by score descending
-	for i := 0; i < len(scoredSnippets)-1; i++ {
-		for j := i + 1; j < len(scoredSnippets); j++ {
-			if scoredSnippets[j].score > scoredSnippets[i].score {
-				scoredSnippets[i], scoredSnippets[j] = scoredSnippets[j], scoredSnippets[i]
+	for i := 0; i < len(scoredItems)-1; i++ {
+		for j := i + 1; j < len(scoredItems); j++ {
+			if scoredItems[j].score > scoredItems[i].score {
+				scoredItems[i], scoredItems[j] = scoredItems[j], scoredItems[i]
 			}
 		}
 	}
 
-	result := make([]snippet.Snippet, len(scoredSnippets))
-	for i, s := range scoredSnippets {
-		result[i] = s.snippet
+	result := make([]enrichment.Enrichment, len(scoredItems))
+	for i, s := range scoredItems {
+		result[i] = s.enrichment
 	}
 
 	return result

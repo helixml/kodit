@@ -7,14 +7,14 @@ import (
 
 	"github.com/helixml/kodit/application/handler"
 	"github.com/helixml/kodit/domain/enrichment"
-	"github.com/helixml/kodit/domain/snippet"
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/task"
 )
 
 // Rescan handles the RESCAN_COMMIT task operation.
 // It clears existing indexed data for a commit to prepare for re-indexing.
 type Rescan struct {
-	snippetStore     snippet.SnippetStore
+	enrichmentStore  enrichment.EnrichmentStore
 	associationStore enrichment.AssociationStore
 	trackerFactory   handler.TrackerFactory
 	logger           *slog.Logger
@@ -22,13 +22,13 @@ type Rescan struct {
 
 // NewRescan creates a new Rescan handler.
 func NewRescan(
-	snippetStore snippet.SnippetStore,
+	enrichmentStore enrichment.EnrichmentStore,
 	associationStore enrichment.AssociationStore,
 	trackerFactory handler.TrackerFactory,
 	logger *slog.Logger,
 ) *Rescan {
 	return &Rescan{
-		snippetStore:     snippetStore,
+		enrichmentStore:  enrichmentStore,
 		associationStore: associationStore,
 		trackerFactory:   trackerFactory,
 		logger:           logger,
@@ -57,15 +57,30 @@ func (h *Rescan) Execute(ctx context.Context, payload map[string]any) error {
 		h.logger.Warn("failed to set tracker total", slog.String("error", setTotalErr.Error()))
 	}
 
-	if currentErr := tracker.SetCurrent(ctx, 0, "Deleting snippet associations"); currentErr != nil {
+	if currentErr := tracker.SetCurrent(ctx, 0, "Deleting enrichments for commit"); currentErr != nil {
 		h.logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
 	}
 
-	if err := h.snippetStore.DeleteForCommit(ctx, commitSHA); err != nil {
+	// Find associations for this commit, collect enrichment IDs, delete enrichments, then associations
+	associations, err := h.associationStore.Find(ctx, enrichment.WithEntityType(enrichment.EntityTypeCommit), enrichment.WithEntityID(commitSHA))
+	if err != nil {
 		if failErr := tracker.Fail(ctx, err.Error()); failErr != nil {
 			h.logger.Warn("failed to mark tracker as failed", slog.String("error", failErr.Error()))
 		}
-		return fmt.Errorf("delete snippet associations: %w", err)
+		return fmt.Errorf("find associations for commit: %w", err)
+	}
+
+	if len(associations) > 0 {
+		ids := make([]int64, len(associations))
+		for i, a := range associations {
+			ids[i] = a.EnrichmentID()
+		}
+		if err := h.enrichmentStore.DeleteBy(ctx, repository.WithIDIn(ids)); err != nil {
+			if failErr := tracker.Fail(ctx, err.Error()); failErr != nil {
+				h.logger.Warn("failed to mark tracker as failed", slog.String("error", failErr.Error()))
+			}
+			return fmt.Errorf("delete enrichments: %w", err)
+		}
 	}
 
 	if currentErr := tracker.SetCurrent(ctx, 1, "Deleting enrichment associations"); currentErr != nil {

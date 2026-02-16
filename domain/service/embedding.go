@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/helixml/kodit/domain/search"
-	"github.com/helixml/kodit/domain/snippet"
 )
 
 // Embedding provides domain logic for embedding operations.
@@ -18,7 +17,7 @@ type Embedding interface {
 	Search(ctx context.Context, request search.Request) ([]search.Result, error)
 
 	// HasEmbedding checks if a snippet has an embedding using domain business rules.
-	HasEmbedding(ctx context.Context, snippetID string, embeddingType snippet.EmbeddingType) (bool, error)
+	HasEmbedding(ctx context.Context, snippetID string, embeddingType search.EmbeddingType) (bool, error)
 }
 
 // EmbeddingService implements domain logic for embedding operations.
@@ -78,7 +77,7 @@ func (s *EmbeddingService) Search(ctx context.Context, request search.Request) (
 }
 
 // HasEmbedding checks if a snippet has an embedding using domain business rules.
-func (s *EmbeddingService) HasEmbedding(ctx context.Context, snippetID string, embeddingType snippet.EmbeddingType) (bool, error) {
+func (s *EmbeddingService) HasEmbedding(ctx context.Context, snippetID string, embeddingType search.EmbeddingType) (bool, error) {
 	if snippetID == "" {
 		return false, nil
 	}

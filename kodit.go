@@ -43,7 +43,6 @@ import (
 	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/search"
 	domainservice "github.com/helixml/kodit/domain/service"
-	"github.com/helixml/kodit/domain/snippet"
 	"github.com/helixml/kodit/infrastructure/enricher"
 	"github.com/helixml/kodit/infrastructure/enricher/example"
 	"github.com/helixml/kodit/infrastructure/git"
@@ -71,7 +70,6 @@ type Client struct {
 	Commits      *service.Commit
 	Tags         *service.Tag
 	Files        *service.File
-	Snippets     *service.Snippet
 	Enrichments  *service.Enrichment
 	Tasks        *service.Queue
 	Tracking     *service.Tracking
@@ -81,9 +79,8 @@ type Client struct {
 	repoStores RepositoryStores
 
 	// Stores not grouped into aggregates
-	snippetStore snippet.SnippetStore
-	taskStore    persistence.TaskStore
-	statusStore  persistence.StatusStore
+	taskStore   persistence.TaskStore
+	statusStore persistence.StatusStore
 
 	// Aggregate dependencies
 	enrichCtx EnrichmentContext
@@ -196,7 +193,6 @@ func New(opts ...Option) (*Client, error) {
 	branchStore := persistence.NewBranchStore(db)
 	tagStore := persistence.NewTagStore(db)
 	fileStore := persistence.NewFileStore(db)
-	snippetStore := persistence.NewSnippetStore(db)
 	enrichmentStore := persistence.NewEnrichmentStore(db)
 	associationStore := persistence.NewAssociationStore(db)
 	taskStore := persistence.NewTaskStore(db)
@@ -311,7 +307,6 @@ func New(opts ...Option) (*Client, error) {
 	client := &Client{
 		db:                db,
 		repoStores:        repoStores,
-		snippetStore:      snippetStore,
 		taskStore:         taskStore,
 		statusStore:       statusStore,
 		enrichCtx:         enrichCtx,
@@ -341,11 +336,10 @@ func New(opts ...Option) (*Client, error) {
 	client.Commits = service.NewCommit(commitStore)
 	client.Tags = service.NewTag(tagStore)
 	client.Files = service.NewFile(fileStore)
-	client.Snippets = service.NewSnippet(snippetStore)
 	client.Enrichments = enrichQSvc
 	client.Tasks = queue
 	client.Tracking = trackingSvc
-	client.Search = service.NewSearch(textVectorStore, codeVectorStore, bm25Store, snippetStore, enrichmentStore, &client.closed, logger)
+	client.Search = service.NewSearch(textVectorStore, codeVectorStore, bm25Store, enrichmentStore, &client.closed, logger)
 
 	// Register task handlers
 	if err := client.registerHandlers(); err != nil {

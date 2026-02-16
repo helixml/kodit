@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/helixml/kodit/application/handler"
+	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/snippet"
 	"github.com/helixml/kodit/domain/task"
@@ -15,30 +16,33 @@ import (
 
 // ExtractSnippets extracts code snippets from commit files using AST parsing.
 type ExtractSnippets struct {
-	repoStore      repository.RepositoryStore
-	snippetStore   snippet.SnippetStore
-	fileStore      repository.FileStore
-	slicer         *slicing.Slicer
-	trackerFactory handler.TrackerFactory
-	logger         *slog.Logger
+	repoStore        repository.RepositoryStore
+	enrichmentStore  enrichment.EnrichmentStore
+	associationStore enrichment.AssociationStore
+	fileStore        repository.FileStore
+	slicer           *slicing.Slicer
+	trackerFactory   handler.TrackerFactory
+	logger           *slog.Logger
 }
 
 // NewExtractSnippets creates a new ExtractSnippets handler.
 func NewExtractSnippets(
 	repoStore repository.RepositoryStore,
-	snippetStore snippet.SnippetStore,
+	enrichmentStore enrichment.EnrichmentStore,
+	associationStore enrichment.AssociationStore,
 	fileStore repository.FileStore,
 	slicerInstance *slicing.Slicer,
 	trackerFactory handler.TrackerFactory,
 	logger *slog.Logger,
 ) *ExtractSnippets {
 	return &ExtractSnippets{
-		repoStore:      repoStore,
-		snippetStore:   snippetStore,
-		fileStore:      fileStore,
-		slicer:         slicerInstance,
-		trackerFactory: trackerFactory,
-		logger:         logger,
+		repoStore:        repoStore,
+		enrichmentStore:  enrichmentStore,
+		associationStore: associationStore,
+		fileStore:        fileStore,
+		slicer:           slicerInstance,
+		trackerFactory:   trackerFactory,
+		logger:           logger,
 	}
 }
 
@@ -60,7 +64,7 @@ func (h *ExtractSnippets) Execute(ctx context.Context, payload map[string]any) e
 		repoID,
 	)
 
-	existing, err := h.snippetStore.SnippetsForCommit(ctx, commitSHA)
+	existing, err := h.enrichmentStore.FindByCommitSHA(ctx, commitSHA, enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeSnippet))
 	if err != nil {
 		h.logger.Error("failed to check existing snippets", slog.String("error", err.Error()))
 		return err
@@ -137,8 +141,17 @@ func (h *ExtractSnippets) Execute(ctx context.Context, payload map[string]any) e
 		slog.String("commit", handler.ShortSHA(commitSHA)),
 	)
 
-	if err := h.snippetStore.Save(ctx, commitSHA, uniqueSnippets); err != nil {
-		return fmt.Errorf("save snippets: %w", err)
+	for _, s := range uniqueSnippets {
+		e := enrichment.NewSnippetEnrichmentWithLanguage(s.Content(), s.Extension())
+		saved, err := h.enrichmentStore.Save(ctx, e)
+		if err != nil {
+			return fmt.Errorf("save snippet enrichment: %w", err)
+		}
+
+		assoc := enrichment.CommitAssociation(saved.ID(), commitSHA)
+		if _, err := h.associationStore.Save(ctx, assoc); err != nil {
+			return fmt.Errorf("save commit association: %w", err)
+		}
 	}
 
 	if completeErr := tracker.Complete(ctx); completeErr != nil {

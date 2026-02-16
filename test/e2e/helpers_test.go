@@ -15,7 +15,6 @@ import (
 	"github.com/helixml/kodit"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
-	"github.com/helixml/kodit/domain/snippet"
 	"github.com/helixml/kodit/domain/task"
 	"github.com/helixml/kodit/infrastructure/api"
 	apimiddleware "github.com/helixml/kodit/infrastructure/api/middleware"
@@ -37,7 +36,6 @@ type TestServer struct {
 	branchStore      persistence.BranchStore
 	tagStore         persistence.TagStore
 	fileStore        persistence.FileStore
-	snippetStore     persistence.SnippetStore
 	taskStore        persistence.TaskStore
 	taskStatusStore  persistence.StatusStore
 	enrichmentStore  persistence.EnrichmentStore
@@ -79,8 +77,6 @@ func NewTestServer(t *testing.T) *TestServer {
 	taskStatusStore := persistence.NewStatusStore(db)
 	enrichmentStore := persistence.NewEnrichmentStore(db)
 	associationStore := persistence.NewAssociationStore(db)
-	snippetStore := persistence.NewSnippetStore(db)
-
 	// Create API server using the client
 	logger := client.Logger()
 	server := api.NewServer(":0", logger)
@@ -117,7 +113,6 @@ func NewTestServer(t *testing.T) *TestServer {
 		branchStore:      branchStore,
 		tagStore:         tagStore,
 		fileStore:        fileStore,
-		snippetStore:     snippetStore,
 		taskStore:        taskStore,
 		taskStatusStore:  taskStatusStore,
 		enrichmentStore:  enrichmentStore,
@@ -275,16 +270,21 @@ func (ts *TestServer) CreateFile(commitSHA, path, blobSHA, mimeType, extension s
 	return saved
 }
 
-// CreateSnippetForCommit creates a snippet and associates it with a commit.
-func (ts *TestServer) CreateSnippetForCommit(commitSHA, content, extension string) snippet.Snippet {
+// CreateSnippetEnrichmentForCommit creates a snippet enrichment and associates it with a commit.
+func (ts *TestServer) CreateSnippetEnrichmentForCommit(commitSHA, content, language string) enrichment.Enrichment {
 	ts.t.Helper()
 	ctx := context.Background()
 
-	snip := snippet.NewSnippet(content, extension, nil)
-	if err := ts.snippetStore.Save(ctx, commitSHA, []snippet.Snippet{snip}); err != nil {
-		ts.t.Fatalf("save snippet: %v", err)
+	e := enrichment.NewSnippetEnrichmentWithLanguage(content, language)
+	saved, err := ts.enrichmentStore.Save(ctx, e)
+	if err != nil {
+		ts.t.Fatalf("save snippet enrichment: %v", err)
 	}
-	return snip
+	assoc := enrichment.CommitAssociation(saved.ID(), commitSHA)
+	if _, err := ts.associationStore.Save(ctx, assoc); err != nil {
+		ts.t.Fatalf("save snippet association: %v", err)
+	}
+	return saved
 }
 
 // CreateRepositoryWithWorkingCopy creates a repository with a working copy in the database directly.

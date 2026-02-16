@@ -6,6 +6,12 @@ func NewSnippetEnrichment(content string) Enrichment {
 	return NewEnrichment(TypeDevelopment, SubtypeSnippet, EntityTypeCommit, content)
 }
 
+// NewSnippetEnrichmentWithLanguage creates a snippet enrichment with language metadata.
+// The language field preserves the file extension so search results can report it.
+func NewSnippetEnrichmentWithLanguage(content, language string) Enrichment {
+	return NewEnrichmentWithLanguage(TypeDevelopment, SubtypeSnippet, EntityTypeCommit, content, language)
+}
+
 // NewSnippetSummary creates a snippet summary enrichment for a commit.
 // Snippet summaries provide AI-generated descriptions of code snippets.
 func NewSnippetSummary(content string) Enrichment {

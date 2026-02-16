@@ -876,7 +876,7 @@ func (r *RepositoriesRouter) DeleteCommitEnrichment(w http.ResponseWriter, req *
 // ListCommitSnippets handles GET /api/v1/repositories/{id}/commits/{commit_sha}/snippets.
 //
 //	@Summary		List commit snippets
-//	@Description	List code snippets for a commit
+//	@Description	List code snippets for a commit (backed by enrichments)
 //	@Tags			repositories
 //	@Accept			json
 //	@Produce		json
@@ -917,61 +917,45 @@ func (r *RepositoriesRouter) ListCommitSnippets(w http.ResponseWriter, req *http
 		return
 	}
 
-	snippetParams := &service.SnippetListParams{
+	typDev := enrichment.TypeDevelopment
+	subSnippet := enrichment.SubtypeSnippet
+	params := &service.EnrichmentListParams{
 		CommitSHA: commitSHA,
+		Type:      &typDev,
+		Subtype:   &subSnippet,
 		Limit:     pagination.Limit(),
 		Offset:    pagination.Offset(),
 	}
 
-	snippets, err := r.client.Snippets.List(ctx, snippetParams)
+	enrichments, err := r.client.Enrichments.List(ctx, params)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
 
-	total, err := r.client.Snippets.Count(ctx, snippetParams)
+	total, err := r.client.Enrichments.Count(ctx, params)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
 
-	data := make([]dto.SnippetData, 0, len(snippets))
-	for _, s := range snippets {
-		createdAt := s.CreatedAt()
-		updatedAt := s.UpdatedAt()
-
-		// Convert files to GitFileSchema
-		derivesFrom := make([]dto.GitFileSchema, 0, len(s.DerivesFrom()))
-		for _, f := range s.DerivesFrom() {
-			derivesFrom = append(derivesFrom, dto.GitFileSchema{
-				BlobSHA:  f.BlobSHA(),
-				Path:     f.Path(),
-				MimeType: f.MimeType(),
-				Size:     f.Size(),
-			})
-		}
-
-		// Convert enrichments
-		enrichments := make([]dto.EnrichmentSchema, 0, len(s.Enrichments()))
-		for _, e := range s.Enrichments() {
-			enrichments = append(enrichments, dto.EnrichmentSchema{
-				Type:    e.Type(),
-				Content: e.Content(),
-			})
-		}
+	data := make([]dto.SnippetData, 0, len(enrichments))
+	for _, e := range enrichments {
+		createdAt := e.CreatedAt()
+		updatedAt := e.UpdatedAt()
 
 		data = append(data, dto.SnippetData{
 			Type: "snippet",
-			ID:   s.SHA(),
+			ID:   fmt.Sprintf("%d", e.ID()),
 			Attributes: dto.SnippetAttributes{
 				CreatedAt:   &createdAt,
 				UpdatedAt:   &updatedAt,
-				DerivesFrom: derivesFrom,
+				DerivesFrom: []dto.GitFileSchema{},
 				Content: dto.SnippetContentSchema{
-					Value:    s.Content(),
-					Language: s.Extension(),
+					Value:    e.Content(),
+					Language: e.Language(),
 				},
-				Enrichments:    enrichments,
+				Enrichments:    []dto.EnrichmentSchema{},
 				OriginalScores: []float64{},
 			},
 		})

@@ -4,12 +4,13 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/helixml/kodit"
 	"github.com/helixml/kodit/application/service"
+	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/search"
-	"github.com/helixml/kodit/domain/snippet"
 	"github.com/helixml/kodit/infrastructure/api/middleware"
 	"github.com/helixml/kodit/infrastructure/api/v1/dto"
 )
@@ -127,12 +128,12 @@ func buildSearchRequest(body dto.SearchRequest) search.MultiRequest {
 }
 
 func buildSearchResponse(result service.MultiSearchResult) dto.SearchResponse {
-	snippets := result.Snippets()
+	enrichments := result.Enrichments()
 	scores := result.FusedScores()
 
-	data := make([]dto.SnippetData, len(snippets))
-	for i, s := range snippets {
-		data[i] = snippetToSearchResult(s, scores[s.SHA()])
+	data := make([]dto.SnippetData, len(enrichments))
+	for i, e := range enrichments {
+		data[i] = enrichmentToSearchResult(e, scores[strconv.FormatInt(e.ID(), 10)])
 	}
 
 	return dto.SearchResponse{
@@ -140,43 +141,22 @@ func buildSearchResponse(result service.MultiSearchResult) dto.SearchResponse {
 	}
 }
 
-func snippetToSearchResult(s snippet.Snippet, score float64) dto.SnippetData {
-	derivesFrom := s.DerivesFrom()
-	derivesFromSchemas := make([]dto.GitFileSchema, len(derivesFrom))
-	for i, f := range derivesFrom {
-		derivesFromSchemas[i] = dto.GitFileSchema{
-			BlobSHA:  f.BlobSHA(),
-			Path:     f.Path(),
-			MimeType: f.MimeType(),
-			Size:     f.Size(),
-		}
-	}
-
-	// Convert enrichments from snippet
-	enrichments := s.Enrichments()
-	enrichmentSchemas := make([]dto.EnrichmentSchema, len(enrichments))
-	for i, e := range enrichments {
-		enrichmentSchemas[i] = dto.EnrichmentSchema{
-			Type:    e.Type(),
-			Content: e.Content(),
-		}
-	}
-
-	createdAt := s.CreatedAt()
-	updatedAt := s.UpdatedAt()
+func enrichmentToSearchResult(e enrichment.Enrichment, score float64) dto.SnippetData {
+	createdAt := e.CreatedAt()
+	updatedAt := e.UpdatedAt()
 
 	return dto.SnippetData{
 		Type: "snippet",
-		ID:   s.SHA(),
+		ID:   strconv.FormatInt(e.ID(), 10),
 		Attributes: dto.SnippetAttributes{
 			CreatedAt:   &createdAt,
 			UpdatedAt:   &updatedAt,
-			DerivesFrom: derivesFromSchemas,
+			DerivesFrom: []dto.GitFileSchema{},
 			Content: dto.SnippetContentSchema{
-				Value:    s.Content(),
-				Language: s.Extension(),
+				Value:    e.Content(),
+				Language: e.Language(),
 			},
-			Enrichments:    enrichmentSchemas,
+			Enrichments:    []dto.EnrichmentSchema{},
 			OriginalScores: []float64{score},
 		},
 	}

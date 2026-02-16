@@ -8,7 +8,6 @@ import (
 	"sync"
 
 	"github.com/helixml/kodit/domain/search"
-	"github.com/helixml/kodit/domain/snippet"
 	"github.com/helixml/kodit/infrastructure/provider"
 	"gorm.io/gorm"
 )
@@ -295,7 +294,7 @@ func (s *PgvectorStore) Search(ctx context.Context, request search.Request) ([]s
 }
 
 // HasEmbedding checks if a snippet has an embedding of the given type.
-func (s *PgvectorStore) HasEmbedding(ctx context.Context, snippetID string, embeddingType snippet.EmbeddingType) (bool, error) {
+func (s *PgvectorStore) HasEmbedding(ctx context.Context, snippetID string, embeddingType search.EmbeddingType) (bool, error) {
 	if err := s.initialize(ctx); err != nil {
 		return false, err
 	}

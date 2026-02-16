@@ -478,8 +478,8 @@ func TestRepositories_RescanCommit(t *testing.T) {
 	repo := ts.CreateRepositoryWithWorkingCopy("https://github.com/test/rescan-repo.git")
 	commit := ts.CreateCommit(repo, "rescan123abc", "Test commit for rescan")
 
-	// Create some snippets for this commit
-	ts.CreateSnippetForCommit(commit.SHA(), `func TestFunction() {}`, ".go")
+	// Create some snippet enrichments for this commit
+	ts.CreateSnippetEnrichmentForCommit(commit.SHA(), `func TestFunction() {}`, "go")
 
 	// Create an enrichment and associate it with the commit
 	e := ts.CreateEnrichment(enrichment.TypeDevelopment, enrichment.SubtypeSnippetSummary, "Test summary")
@@ -571,11 +571,11 @@ func TestRepositories_ListCommitSnippets(t *testing.T) {
 	repo := ts.CreateRepository("https://github.com/test/snippets-repo.git")
 	commit := ts.CreateCommit(repo, "snippet123", "Test commit")
 
-	// Create a snippet with content for this commit
+	// Create a snippet enrichment for this commit
 	snippetContent := `func Hello() string {
 	return "Hello, World!"
 }`
-	snip := ts.CreateSnippetForCommit(commit.SHA(), snippetContent, ".go")
+	saved := ts.CreateSnippetEnrichmentForCommit(commit.SHA(), snippetContent, "go")
 
 	resp := ts.GET(fmt.Sprintf("/api/v1/repositories/%d/commits/%s/snippets", repo.ID(), commit.SHA()))
 	defer func() {
@@ -605,7 +605,7 @@ func TestRepositories_ListCommitSnippets(t *testing.T) {
 		return
 	}
 
-	// Verify snippet has content (the bug was snippets having empty content)
+	// Verify snippet has content
 	snippetData := result.Data[0]
 	if snippetData.Attributes.Content.Value == "" {
 		t.Error("snippet content.value should not be empty")
@@ -613,7 +613,7 @@ func TestRepositories_ListCommitSnippets(t *testing.T) {
 	if snippetData.Attributes.Content.Value != snippetContent {
 		t.Errorf("snippet content.value = %q, want %q", snippetData.Attributes.Content.Value, snippetContent)
 	}
-	if snippetData.ID != snip.SHA() {
-		t.Errorf("snippet ID = %q, want %q", snippetData.ID, snip.SHA())
+	if snippetData.ID != fmt.Sprintf("%d", saved.ID()) {
+		t.Errorf("snippet ID = %q, want %q", snippetData.ID, fmt.Sprintf("%d", saved.ID()))
 	}
 }

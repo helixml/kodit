@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strconv"
 
 	"github.com/helixml/kodit/application/handler"
 	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/enrichment"
 	domainservice "github.com/helixml/kodit/domain/service"
-	"github.com/helixml/kodit/domain/snippet"
 	"github.com/helixml/kodit/domain/task"
 )
 
@@ -20,24 +20,18 @@ Please provide a concise explanation of the code.
 
 // CreateSummary handles the CREATE_SUMMARY_ENRICHMENT_FOR_COMMIT operation.
 type CreateSummary struct {
-	snippetStore snippet.SnippetStore
-	enrichCtx    handler.EnrichmentContext
+	enrichCtx handler.EnrichmentContext
 }
 
 // NewCreateSummary creates a new CreateSummary handler.
 func NewCreateSummary(
-	snippetStore snippet.SnippetStore,
 	enrichCtx handler.EnrichmentContext,
 ) (*CreateSummary, error) {
-	if snippetStore == nil {
-		return nil, fmt.Errorf("NewCreateSummary: nil snippetStore")
-	}
 	if enrichCtx.Enricher == nil {
 		return nil, fmt.Errorf("NewCreateSummary: nil Enricher")
 	}
 	return &CreateSummary{
-		snippetStore: snippetStore,
-		enrichCtx:    enrichCtx,
+		enrichCtx: enrichCtx,
 	}, nil
 }
 
@@ -72,29 +66,31 @@ func (h *CreateSummary) Execute(ctx context.Context, payload map[string]any) err
 		return nil
 	}
 
-	snippets, err := h.snippetStore.SnippetsForCommit(ctx, commitSHA)
+	typDev := enrichment.TypeDevelopment
+	subSnippet := enrichment.SubtypeSnippet
+	snippetEnrichments, err := h.enrichCtx.Query.List(ctx, &service.EnrichmentListParams{CommitSHA: commitSHA, Type: &typDev, Subtype: &subSnippet})
 	if err != nil {
-		return fmt.Errorf("get snippets: %w", err)
+		return fmt.Errorf("get snippet enrichments: %w", err)
 	}
 
-	if len(snippets) == 0 {
+	if len(snippetEnrichments) == 0 {
 		if skipErr := tracker.Skip(ctx, "No snippets to enrich"); skipErr != nil {
 			h.enrichCtx.Logger.Warn("failed to mark tracker as skipped", slog.String("error", skipErr.Error()))
 		}
 		return nil
 	}
 
-	if setTotalErr := tracker.SetTotal(ctx, len(snippets)); setTotalErr != nil {
+	if setTotalErr := tracker.SetTotal(ctx, len(snippetEnrichments)); setTotalErr != nil {
 		h.enrichCtx.Logger.Warn("failed to set tracker total", slog.String("error", setTotalErr.Error()))
 	}
 
-	snippetMap := make(map[string]snippet.Snippet, len(snippets))
-	requests := make([]domainservice.EnrichmentRequest, 0, len(snippets))
+	enrichmentMap := make(map[string]enrichment.Enrichment, len(snippetEnrichments))
+	requests := make([]domainservice.EnrichmentRequest, 0, len(snippetEnrichments))
 
-	for _, s := range snippets {
-		id := s.SHA()
-		snippetMap[id] = s
-		requests = append(requests, domainservice.NewEnrichmentRequest(id, s.Content(), summarizationSystemPrompt))
+	for _, e := range snippetEnrichments {
+		id := strconv.FormatInt(e.ID(), 10)
+		enrichmentMap[id] = e
+		requests = append(requests, domainservice.NewEnrichmentRequest(id, e.Content(), summarizationSystemPrompt))
 	}
 
 	responses, err := h.enrichCtx.Enricher.Enrich(ctx, requests)
@@ -107,7 +103,7 @@ func (h *CreateSummary) Execute(ctx context.Context, payload map[string]any) err
 			h.enrichCtx.Logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
 		}
 
-		s, ok := snippetMap[resp.ID()]
+		snippetEnrichment, ok := enrichmentMap[resp.ID()]
 		if !ok {
 			continue
 		}
@@ -115,7 +111,7 @@ func (h *CreateSummary) Execute(ctx context.Context, payload map[string]any) err
 		summaryEnrichment := enrichment.NewEnrichment(
 			enrichment.TypeDevelopment,
 			enrichment.SubtypeSnippetSummary,
-			enrichment.EntityTypeSnippet,
+			enrichment.EntityTypeCommit,
 			resp.Text(),
 		)
 		saved, err := h.enrichCtx.Enrichments.Save(ctx, summaryEnrichment)
@@ -123,7 +119,7 @@ func (h *CreateSummary) Execute(ctx context.Context, payload map[string]any) err
 			return fmt.Errorf("save summary enrichment: %w", err)
 		}
 
-		snippetAssoc := enrichment.SnippetAssociation(saved.ID(), s.SHA())
+		snippetAssoc := enrichment.SnippetAssociation(saved.ID(), strconv.FormatInt(snippetEnrichment.ID(), 10))
 		if _, err := h.enrichCtx.Associations.Save(ctx, snippetAssoc); err != nil {
 			return fmt.Errorf("save snippet association: %w", err)
 		}

@@ -7,32 +7,35 @@ import (
 	"os"
 
 	"github.com/helixml/kodit/application/handler"
+	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
-	"github.com/helixml/kodit/domain/snippet"
 	"github.com/helixml/kodit/domain/task"
 )
 
 // Delete handles the DELETE_REPOSITORY task operation.
 // It removes a repository and all its associated data from the system.
 type Delete struct {
-	repoStores     handler.RepositoryStores
-	snippetStore   snippet.SnippetStore
-	trackerFactory handler.TrackerFactory
-	logger         *slog.Logger
+	repoStores       handler.RepositoryStores
+	enrichmentStore  enrichment.EnrichmentStore
+	associationStore enrichment.AssociationStore
+	trackerFactory   handler.TrackerFactory
+	logger           *slog.Logger
 }
 
 // NewDelete creates a new Delete handler.
 func NewDelete(
 	repoStores handler.RepositoryStores,
-	snippetStore snippet.SnippetStore,
+	enrichmentStore enrichment.EnrichmentStore,
+	associationStore enrichment.AssociationStore,
 	trackerFactory handler.TrackerFactory,
 	logger *slog.Logger,
 ) *Delete {
 	return &Delete{
-		repoStores:     repoStores,
-		snippetStore:   snippetStore,
-		trackerFactory: trackerFactory,
-		logger:         logger,
+		repoStores:       repoStores,
+		enrichmentStore:  enrichmentStore,
+		associationStore: associationStore,
+		trackerFactory:   trackerFactory,
+		logger:           logger,
 	}
 }
 
@@ -143,8 +146,24 @@ func (h *Delete) deleteCommitData(ctx context.Context, commitSHA string) error {
 		return fmt.Errorf("delete files: %w", err)
 	}
 
-	if err := h.snippetStore.DeleteForCommit(ctx, commitSHA); err != nil {
-		return fmt.Errorf("delete snippets: %w", err)
+	// Find associations for this commit, collect enrichment IDs, delete enrichments, then associations
+	associations, err := h.associationStore.Find(ctx, enrichment.WithEntityType(enrichment.EntityTypeCommit), enrichment.WithEntityID(commitSHA))
+	if err != nil {
+		return fmt.Errorf("find associations for commit: %w", err)
+	}
+
+	if len(associations) > 0 {
+		ids := make([]int64, len(associations))
+		for i, a := range associations {
+			ids[i] = a.EnrichmentID()
+		}
+		if err := h.enrichmentStore.DeleteBy(ctx, repository.WithIDIn(ids)); err != nil {
+			return fmt.Errorf("delete enrichments: %w", err)
+		}
+	}
+
+	if err := h.associationStore.DeleteBy(ctx, enrichment.WithEntityID(commitSHA)); err != nil {
+		return fmt.Errorf("delete enrichment associations: %w", err)
 	}
 
 	return nil
