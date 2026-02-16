@@ -42,6 +42,9 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
       - name: Build binary
         run: make build VERSION=${{ github.event.release.tag_name }}
         env:
