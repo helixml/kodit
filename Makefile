@@ -104,6 +104,30 @@ test-e2e: download-model download-ort ## Run end-to-end tests only
 smoke: download-model download-ort ## Run smoke tests (starts server, tests API endpoints)
 	SMOKE_BUILD_TAGS="$(BUILD_TAGS)" $(GOENV) $(GOCMD) test -tags "$(BUILD_TAGS)" -v -timeout 15m -count 1 ./test/smoke/...
 
+.PHONY: smoke-postgres
+smoke-postgres: download-model download-ort ## Run smoke tests against a Python-era PostgreSQL dump (migration test)
+	docker compose -f test/smoke/docker-compose.yml up -d vectorchord
+	@echo "Waiting for VectorChord to load dump..."
+	@for i in $$(seq 1 30); do \
+		if docker compose -f test/smoke/docker-compose.yml exec -T vectorchord pg_isready -U postgres -d kodit >/dev/null 2>&1; then \
+			echo "  VectorChord is ready."; \
+			break; \
+		fi; \
+		if [ "$$i" -eq 30 ]; then \
+			echo "ERROR: VectorChord did not become ready in time." >&2; \
+			docker compose -f test/smoke/docker-compose.yml down vectorchord; \
+			exit 1; \
+		fi; \
+		sleep 1; \
+	done
+	SMOKE_DB_URL="postgresql://postgres:mysecretpassword@localhost:5433/kodit" \
+	ENRICHMENT_ENDPOINT_API_KEY="$${ENRICHMENT_ENDPOINT_API_KEY:-unused}" \
+	SMOKE_BUILD_TAGS="$(BUILD_TAGS)" \
+	$(GOENV) $(GOCMD) test -tags "$(BUILD_TAGS)" -v -timeout 15m -count 1 -run TestSmoke_MigrationFromDump ./test/smoke/... ; \
+	EXIT_CODE=$$?; \
+	docker compose -f test/smoke/docker-compose.yml down vectorchord; \
+	exit $$EXIT_CODE
+
 ##@ Code Quality
 
 .PHONY: lint

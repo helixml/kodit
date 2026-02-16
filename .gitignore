@@ -5,3 +5,4 @@ lib/
 *.env
 infrastructure/provider/models/
 *.sql
+!test/smoke/testdata/kodit_dump.sql

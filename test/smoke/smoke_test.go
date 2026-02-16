@@ -1178,3 +1178,104 @@ type queueTaskResponse struct {
 type queueListResponse struct {
 	Data []queueTaskData `json:"data"`
 }
+
+// TestSmoke_MigrationFromDump verifies that kodit can start against a
+// Python-era PostgreSQL database dump. This proves AutoMigrate handles
+// the schema transition without errors.
+//
+// Requires SMOKE_DB_URL pointing to a VectorChord instance pre-loaded with
+// testdata/kodit_dump.sql (see: make smoke-postgres).
+func TestSmoke_MigrationFromDump(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping smoke test in short mode")
+	}
+
+	smokeDBURL := os.Getenv("SMOKE_DB_URL")
+	if smokeDBURL == "" {
+		t.Skip("SMOKE_DB_URL not set — run 'make smoke-postgres' to execute this test")
+	}
+
+	if !portAvailable(baseHost, basePort) {
+		t.Fatalf("port %d is already in use", basePort)
+	}
+
+	// Create temp env file
+	tmpEnv, err := os.CreateTemp("", "smoke-migration-env-*")
+	if err != nil {
+		t.Fatalf("create temp env: %v", err)
+	}
+	tmpEnvPath := tmpEnv.Name()
+	_ = tmpEnv.Close()
+	defer func() { _ = os.Remove(tmpEnvPath) }()
+
+	cmdDir := findCmdDir(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	buildTags := os.Getenv("SMOKE_BUILD_TAGS")
+	if buildTags == "" {
+		buildTags = "fts5 ORT embed_model"
+	}
+	cmd := exec.CommandContext(ctx, "go", "run", "-tags="+buildTags, cmdDir,
+		"serve",
+		"--host", baseHost,
+		"--port", strconv.Itoa(basePort),
+		"--env-file", tmpEnvPath,
+	)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Env = append(os.Environ(),
+		"DISABLE_TELEMETRY=true",
+		"DB_URL="+smokeDBURL,
+		"SKIP_PROVIDER_VALIDATION=true",
+	)
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("start server: %v", err)
+	}
+	defer func() {
+		cancel()
+		if cmd.Process != nil {
+			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		}
+		_ = cmd.Wait()
+		if t.Failed() {
+			t.Logf("server stdout:\n%s", stdout.String())
+			t.Logf("server stderr:\n%s", stderr.String())
+		}
+	}()
+
+	client := &http.Client{Timeout: 30 * time.Second}
+
+	// Wait for server — if migration fails the process exits and the port
+	// never opens, so this correctly times out.
+	t.Log("waiting for server to start (migration + startup)...")
+	started := waitForCondition(t, 60*time.Second, time.Second, func() bool {
+		return !portAvailable(baseHost, basePort)
+	})
+	if !started {
+		t.Fatal("server failed to start — migration likely failed (check stderr above)")
+	}
+
+	// Health check proves migration succeeded and server is running.
+	t.Log("verifying health endpoint...")
+	resp := doRequest(t, client, "GET", baseURL+"/healthz", nil)
+	assertStatus(t, resp, http.StatusOK)
+	health := decodeJSON[healthResponse](t, resp.Body)
+	if health.Status != "healthy" {
+		t.Fatalf("expected healthy, got %s", health.Status)
+	}
+
+	// Verify migrated data is accessible.
+	t.Log("verifying repositories from dump are accessible...")
+	resp = doRequest(t, client, "GET", baseURL+"/api/v1/repositories", nil)
+	assertStatus(t, resp, http.StatusOK)
+	repos := decodeJSON[repositoryListResponse](t, resp.Body)
+	if len(repos.Data) == 0 {
+		t.Fatal("expected at least one repository from the dump")
+	}
+	t.Logf("migration smoke test passed: %d repositories accessible", len(repos.Data))
+}

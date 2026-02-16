@@ -86,7 +86,7 @@ func (TagModel) TableName() string {
 type FileModel struct {
 	ID        int64       `gorm:"column:id;autoIncrement"`
 	CommitSHA string      `gorm:"column:commit_sha;primaryKey;uniqueIndex:idx_commit_path;size:64"`
-	Commit    CommitModel `gorm:"foreignKey:CommitSHA;references:CommitSHA;constraint:OnDelete:CASCADE"`
+	Commit    CommitModel `gorm:"foreignKey:CommitSHA;references:CommitSHA;constraint:-"`
 	Path      string      `gorm:"column:path;primaryKey;uniqueIndex:idx_commit_path;size:1024"`
 	BlobSHA   string      `gorm:"column:blob_sha;index;size:64"`
 	MimeType  string      `gorm:"column:mime_type;index;size:255"`
@@ -103,7 +103,7 @@ func (FileModel) TableName() string {
 // CommitIndexModel represents the commit indexing status.
 type CommitIndexModel struct {
 	CommitSHA             string         `gorm:"column:commit_sha;primaryKey"`
-	Commit                CommitModel    `gorm:"foreignKey:CommitSHA;references:CommitSHA;constraint:OnDelete:CASCADE"`
+	Commit                CommitModel    `gorm:"foreignKey:CommitSHA;references:CommitSHA;constraint:-"`
 	Status                string         `gorm:"column:status;index"`
 	IndexedAt             sql.NullTime   `gorm:"column:indexed_at"`
 	ErrorMessage          sql.NullString `gorm:"column:error_message"`
