@@ -6,7 +6,6 @@ import (
 	"log/slog"
 
 	"github.com/helixml/kodit/application/handler"
-	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/enrichment"
 	domainservice "github.com/helixml/kodit/domain/service"
 	"github.com/helixml/kodit/domain/task"
@@ -36,12 +35,7 @@ func NewExampleSummary(
 
 // Execute processes the CREATE_EXAMPLE_SUMMARY_FOR_COMMIT task.
 func (h *ExampleSummary) Execute(ctx context.Context, payload map[string]any) error {
-	repoID, err := handler.ExtractInt64(payload, "repository_id")
-	if err != nil {
-		return err
-	}
-
-	commitSHA, err := handler.ExtractString(payload, "commit_sha")
+	cp, err := handler.ExtractCommitPayload(payload)
 	if err != nil {
 		return err
 	}
@@ -49,39 +43,31 @@ func (h *ExampleSummary) Execute(ctx context.Context, payload map[string]any) er
 	tracker := h.enrichCtx.Tracker.ForOperation(
 		task.OperationCreateExampleSummaryForCommit,
 		task.TrackableTypeRepository,
-		repoID,
+		cp.RepoID(),
 	)
 
-	hasSummaries, err := h.enrichCtx.Query.Exists(ctx, &service.EnrichmentExistsParams{CommitSHA: commitSHA, Type: enrichment.TypeDevelopment, Subtype: enrichment.SubtypeExampleSummary})
+	count, err := h.enrichCtx.Enrichments.CountByCommitSHA(ctx, cp.CommitSHA(), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeExampleSummary))
 	if err != nil {
 		h.enrichCtx.Logger.Error("failed to check existing example summaries", slog.String("error", err.Error()))
 		return err
 	}
 
-	if hasSummaries {
-		if skipErr := tracker.Skip(ctx, "Example summaries already exist for commit"); skipErr != nil {
-			h.enrichCtx.Logger.Warn("failed to mark tracker as skipped", slog.String("error", skipErr.Error()))
-		}
+	if count > 0 {
+		tracker.Skip(ctx, "Example summaries already exist for commit")
 		return nil
 	}
 
-	typ := enrichment.TypeDevelopment
-	sub := enrichment.SubtypeExample
-	examples, err := h.enrichCtx.Query.List(ctx, &service.EnrichmentListParams{CommitSHA: commitSHA, Type: &typ, Subtype: &sub})
+	examples, err := h.enrichCtx.Enrichments.FindByCommitSHA(ctx, cp.CommitSHA(), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeExample))
 	if err != nil {
 		return fmt.Errorf("get examples: %w", err)
 	}
 
 	if len(examples) == 0 {
-		if skipErr := tracker.Skip(ctx, "No examples to enrich"); skipErr != nil {
-			h.enrichCtx.Logger.Warn("failed to mark tracker as skipped", slog.String("error", skipErr.Error()))
-		}
+		tracker.Skip(ctx, "No examples to enrich")
 		return nil
 	}
 
-	if setTotalErr := tracker.SetTotal(ctx, len(examples)); setTotalErr != nil {
-		h.enrichCtx.Logger.Warn("failed to set tracker total", slog.String("error", setTotalErr.Error()))
-	}
+	tracker.SetTotal(ctx, len(examples))
 
 	exampleMap := make(map[string]enrichment.Enrichment, len(examples))
 	requests := make([]domainservice.EnrichmentRequest, 0, len(examples))
@@ -98,9 +84,7 @@ func (h *ExampleSummary) Execute(ctx context.Context, payload map[string]any) er
 	}
 
 	for i, resp := range responses {
-		if currentErr := tracker.SetCurrent(ctx, i, "Enriching examples for commit"); currentErr != nil {
-			h.enrichCtx.Logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
-		}
+		tracker.SetCurrent(ctx, i, "Enriching examples for commit")
 
 		example, ok := exampleMap[resp.ID()]
 		if !ok {
@@ -118,14 +102,10 @@ func (h *ExampleSummary) Execute(ctx context.Context, payload map[string]any) er
 			return fmt.Errorf("save example association: %w", err)
 		}
 
-		commitAssoc := enrichment.CommitAssociation(saved.ID(), commitSHA)
+		commitAssoc := enrichment.CommitAssociation(saved.ID(), cp.CommitSHA())
 		if _, err := h.enrichCtx.Associations.Save(ctx, commitAssoc); err != nil {
 			return fmt.Errorf("save commit association: %w", err)
 		}
-	}
-
-	if completeErr := tracker.Complete(ctx); completeErr != nil {
-		h.enrichCtx.Logger.Warn("failed to mark tracker as complete", slog.String("error", completeErr.Error()))
 	}
 
 	return nil

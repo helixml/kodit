@@ -334,6 +334,29 @@ func (s *VectorChordVectorStore) HasEmbedding(ctx context.Context, snippetID str
 	return exists, nil
 }
 
+// HasEmbeddings checks which snippet IDs have embeddings of the given type.
+func (s *VectorChordVectorStore) HasEmbeddings(ctx context.Context, snippetIDs []string, embeddingType search.EmbeddingType) (map[string]bool, error) {
+	if len(snippetIDs) == 0 {
+		return map[string]bool{}, nil
+	}
+
+	// Note: embeddingType is not used here because VectorChord uses separate tables per task
+	_ = embeddingType
+
+	var found []string
+	query := fmt.Sprintf(vcCheckExistingIDsTemplate, s.tableName)
+	err := s.db.WithContext(ctx).Raw(query, snippetIDs).Scan(&found).Error
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]bool, len(found))
+	for _, id := range found {
+		result[id] = true
+	}
+	return result, nil
+}
+
 // Delete removes documents from the vector index.
 func (s *VectorChordVectorStore) Delete(ctx context.Context, request search.DeleteRequest) error {
 	ids := request.SnippetIDs()

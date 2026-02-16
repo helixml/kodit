@@ -10,9 +10,10 @@ import (
 	"github.com/helixml/kodit/domain/task"
 )
 
-// WorkerTracker marks a task status as failed.
+// WorkerTracker marks a task status as failed or complete.
 type WorkerTracker interface {
-	Fail(ctx context.Context, message string) error
+	Fail(ctx context.Context, message string)
+	Complete(ctx context.Context)
 }
 
 // WorkerTrackerFactory creates trackers for task status updates.
@@ -200,6 +201,8 @@ func (w *Worker) processTask(ctx context.Context, t task.Task) error {
 		return w.store.Delete(ctx, t)
 	}
 
+	w.markStatusComplete(ctx, t)
+
 	duration := time.Since(start)
 	w.logger.Info("task completed",
 		slog.Int64("task_id", t.ID()),
@@ -232,12 +235,23 @@ func (w *Worker) markStatusFailed(ctx context.Context, t task.Task, err error) {
 	}
 
 	tracker := w.trackerFactory.ForOperation(t.Operation(), task.TrackableTypeRepository, repoID)
-	if failErr := tracker.Fail(ctx, err.Error()); failErr != nil {
-		w.logger.Warn("failed to mark status as failed",
-			slog.String("operation", t.Operation().String()),
-			slog.String("error", failErr.Error()),
-		)
+	tracker.Fail(ctx, err.Error())
+}
+
+// markStatusComplete updates the tracking status to complete for a task that succeeded.
+func (w *Worker) markStatusComplete(ctx context.Context, t task.Task) {
+	if w.trackerFactory == nil {
+		return
 	}
+
+	payload := t.Payload()
+	repoID, _ := extractInt64(payload, "repository_id")
+	if repoID == 0 {
+		return
+	}
+
+	tracker := w.trackerFactory.ForOperation(t.Operation(), task.TrackableTypeRepository, repoID)
+	tracker.Complete(ctx)
 }
 
 func extractInt64(payload map[string]any, key string) (int64, bool) {

@@ -15,11 +15,11 @@ var ErrNoHandler = errors.New("no handler registered")
 
 // Tracker provides progress tracking for task execution.
 type Tracker interface {
-	SetTotal(ctx context.Context, total int) error
-	SetCurrent(ctx context.Context, current int, message string) error
-	Skip(ctx context.Context, message string) error
-	Fail(ctx context.Context, message string) error
-	Complete(ctx context.Context) error
+	SetTotal(ctx context.Context, total int)
+	SetCurrent(ctx context.Context, current int, message string)
+	Skip(ctx context.Context, message string)
+	Fail(ctx context.Context, message string)
+	Complete(ctx context.Context)
 }
 
 // TrackerFactory creates trackers for progress reporting.
@@ -118,6 +118,35 @@ func ExtractString(payload map[string]any, key string) (string, error) {
 	}
 
 	return s, nil
+}
+
+// CommitPayload holds the common repository_id and commit_sha fields
+// extracted from task payloads.
+type CommitPayload struct {
+	repoID    int64
+	commitSHA string
+}
+
+// RepoID returns the repository ID.
+func (p CommitPayload) RepoID() int64 { return p.repoID }
+
+// CommitSHA returns the commit SHA.
+func (p CommitPayload) CommitSHA() string { return p.commitSHA }
+
+// ExtractCommitPayload extracts the common repository_id and commit_sha
+// fields from a task payload.
+func ExtractCommitPayload(payload map[string]any) (CommitPayload, error) {
+	repoID, err := ExtractInt64(payload, "repository_id")
+	if err != nil {
+		return CommitPayload{}, err
+	}
+
+	commitSHA, err := ExtractString(payload, "commit_sha")
+	if err != nil {
+		return CommitPayload{}, err
+	}
+
+	return CommitPayload{repoID: repoID, commitSHA: commitSHA}, nil
 }
 
 // ShortSHA returns the first 8 characters of a SHA for display purposes.

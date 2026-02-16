@@ -67,10 +67,6 @@ build-all: download-model ## Build for all platforms (linux/amd64, linux/arm64, 
 run: ## Run the HTTP server (downloads model on first use if needed)
 	$(GORUN) $(CMD_DIR) serve
 
-.PHONY: run-stdio
-run-stdio: ## Run the MCP server on stdio
-	$(GORUN) $(CMD_DIR) stdio
-
 .PHONY: clean
 clean: ## Remove build artifacts
 	rm -rf $(BUILD_DIR)
@@ -106,7 +102,7 @@ test-e2e: ## Run end-to-end tests only
 
 .PHONY: smoke
 smoke: download-model download-ort ## Run smoke tests (starts server, tests API endpoints)
-	$(GOENV) $(GOCMD) test -tags "$(BUILD_TAGS)" -v -timeout 15m -count 1 ./test/smoke/...
+	SMOKE_BUILD_TAGS="$(BUILD_TAGS)" $(GOENV) $(GOCMD) test -tags "$(BUILD_TAGS)" -v -timeout 15m -count 1 ./test/smoke/...
 
 ##@ Code Quality
 
@@ -223,7 +219,7 @@ release: ## Create a GitHub release (VERSION required, e.g. make release VERSION
 ##@ Docker
 
 .PHONY: docker-build
-docker-build: ## Build Docker image
+docker-build: download-model ## Build Docker image (downloads model first, then copies into image)
 	docker build -t kodit:$(VERSION) .
 
 .PHONY: docker-build-multi

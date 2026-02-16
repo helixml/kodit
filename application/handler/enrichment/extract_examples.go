@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/helixml/kodit/application/handler"
-	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/snippet"
@@ -51,12 +50,7 @@ func NewExtractExamples(
 
 // Execute processes the EXTRACT_EXAMPLES_FOR_COMMIT task.
 func (h *ExtractExamples) Execute(ctx context.Context, payload map[string]any) error {
-	repoID, err := handler.ExtractInt64(payload, "repository_id")
-	if err != nil {
-		return err
-	}
-
-	commitSHA, err := handler.ExtractString(payload, "commit_sha")
+	cp, err := handler.ExtractCommitPayload(payload)
 	if err != nil {
 		return err
 	}
@@ -64,33 +58,31 @@ func (h *ExtractExamples) Execute(ctx context.Context, payload map[string]any) e
 	tracker := h.enrichCtx.Tracker.ForOperation(
 		task.OperationExtractExamplesForCommit,
 		task.TrackableTypeRepository,
-		repoID,
+		cp.RepoID(),
 	)
 
-	hasExamples, err := h.enrichCtx.Query.Exists(ctx, &service.EnrichmentExistsParams{CommitSHA: commitSHA, Type: enrichment.TypeDevelopment, Subtype: enrichment.SubtypeExample})
+	count, err := h.enrichCtx.Enrichments.CountByCommitSHA(ctx, cp.CommitSHA(), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeExample))
 	if err != nil {
 		h.enrichCtx.Logger.Error("failed to check existing examples", slog.String("error", err.Error()))
 		return err
 	}
 
-	if hasExamples {
-		if skipErr := tracker.Skip(ctx, "Examples already extracted for commit"); skipErr != nil {
-			h.enrichCtx.Logger.Warn("failed to mark tracker as skipped", slog.String("error", skipErr.Error()))
-		}
+	if count > 0 {
+		tracker.Skip(ctx, "Examples already extracted for commit")
 		return nil
 	}
 
-	repo, err := h.repoStore.FindOne(ctx, repository.WithID(repoID))
+	repo, err := h.repoStore.FindOne(ctx, repository.WithID(cp.RepoID()))
 	if err != nil {
 		return fmt.Errorf("get repository: %w", err)
 	}
 
 	clonedPath := repo.WorkingCopy().Path()
 	if clonedPath == "" {
-		return fmt.Errorf("repository %d has never been cloned", repoID)
+		return fmt.Errorf("repository %d has never been cloned", cp.RepoID())
 	}
 
-	files, err := h.adapter.CommitFiles(ctx, clonedPath, commitSHA)
+	files, err := h.adapter.CommitFiles(ctx, clonedPath, cp.CommitSHA())
 	if err != nil {
 		return fmt.Errorf("get commit files: %w", err)
 	}
@@ -103,9 +95,7 @@ func (h *ExtractExamples) Execute(ctx context.Context, payload map[string]any) e
 		}
 	}
 
-	if setTotalErr := tracker.SetTotal(ctx, len(candidates)); setTotalErr != nil {
-		h.enrichCtx.Logger.Warn("failed to set tracker total", slog.String("error", setTotalErr.Error()))
-	}
+	tracker.SetTotal(ctx, len(candidates))
 
 	var examples []string
 
@@ -113,9 +103,7 @@ func (h *ExtractExamples) Execute(ctx context.Context, payload map[string]any) e
 		fullPath := filepath.Join(clonedPath, file.Path)
 		fileName := filepath.Base(file.Path)
 
-		if currentErr := tracker.SetCurrent(ctx, i, fmt.Sprintf("Processing %s", fileName)); currentErr != nil {
-			h.enrichCtx.Logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
-		}
+		tracker.SetCurrent(ctx, i, fmt.Sprintf("Processing %s", fileName))
 
 		if h.discoverer.IsDocumentationFile(fullPath) {
 			example := h.extractFromDocumentation(fullPath)
@@ -135,7 +123,7 @@ func (h *ExtractExamples) Execute(ctx context.Context, payload map[string]any) e
 	h.enrichCtx.Logger.Info("extracted examples",
 		slog.Int("total", len(examples)),
 		slog.Int("unique", len(uniqueExamples)),
-		slog.String("commit", handler.ShortSHA(commitSHA)),
+		slog.String("commit", handler.ShortSHA(cp.CommitSHA())),
 	)
 
 	for _, content := range uniqueExamples {
@@ -152,14 +140,10 @@ func (h *ExtractExamples) Execute(ctx context.Context, payload map[string]any) e
 			return fmt.Errorf("save example enrichment: %w", err)
 		}
 
-		commitAssoc := enrichment.CommitAssociation(saved.ID(), commitSHA)
+		commitAssoc := enrichment.CommitAssociation(saved.ID(), cp.CommitSHA())
 		if _, err := h.enrichCtx.Associations.Save(ctx, commitAssoc); err != nil {
 			return fmt.Errorf("save commit association: %w", err)
 		}
-	}
-
-	if completeErr := tracker.Complete(ctx); completeErr != nil {
-		h.enrichCtx.Logger.Warn("failed to mark tracker as complete", slog.String("error", completeErr.Error()))
 	}
 
 	return nil

@@ -49,12 +49,7 @@ func NewExtractSnippets(
 
 // Execute processes the EXTRACT_SNIPPETS_FOR_COMMIT task.
 func (h *ExtractSnippets) Execute(ctx context.Context, payload map[string]any) error {
-	repoID, err := handler.ExtractInt64(payload, "repository_id")
-	if err != nil {
-		return err
-	}
-
-	commitSHA, err := handler.ExtractString(payload, "commit_sha")
+	cp, err := handler.ExtractCommitPayload(payload)
 	if err != nil {
 		return err
 	}
@@ -62,53 +57,47 @@ func (h *ExtractSnippets) Execute(ctx context.Context, payload map[string]any) e
 	tracker := h.trackerFactory.ForOperation(
 		task.OperationExtractSnippetsForCommit,
 		task.TrackableTypeRepository,
-		repoID,
+		cp.RepoID(),
 	)
 
-	existing, err := h.enrichmentStore.FindByCommitSHA(ctx, commitSHA, enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeSnippet))
+	existing, err := h.enrichmentStore.FindByCommitSHA(ctx, cp.CommitSHA(), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeSnippet))
 	if err != nil {
 		h.logger.Error("failed to check existing snippets", slog.String("error", err.Error()))
 		return err
 	}
 
 	if len(existing) > 0 {
-		if skipErr := tracker.Skip(ctx, "Snippets already extracted for commit"); skipErr != nil {
-			h.logger.Warn("failed to mark tracker as skipped", slog.String("error", skipErr.Error()))
-		}
+		tracker.Skip(ctx, "Snippets already extracted for commit")
 		return nil
 	}
 
-	repo, err := h.repoStore.FindOne(ctx, repository.WithID(repoID))
+	repo, err := h.repoStore.FindOne(ctx, repository.WithID(cp.RepoID()))
 	if err != nil {
 		return fmt.Errorf("get repository: %w", err)
 	}
 
 	clonedPath := repo.WorkingCopy().Path()
 	if clonedPath == "" {
-		return fmt.Errorf("repository %d has never been cloned", repoID)
+		return fmt.Errorf("repository %d has never been cloned", cp.RepoID())
 	}
 
 	// Load files from database (which have IDs from SCAN_COMMIT step)
-	files, err := h.fileStore.Find(ctx, repository.WithCommitSHA(commitSHA))
+	files, err := h.fileStore.Find(ctx, repository.WithCommitSHA(cp.CommitSHA()))
 	if err != nil {
 		return fmt.Errorf("get commit files from database: %w", err)
 	}
 
 	if len(files) == 0 {
 		h.logger.Info("no files found for commit, skipping",
-			slog.String("commit", handler.ShortSHA(commitSHA)),
+			slog.String("commit", handler.ShortSHA(cp.CommitSHA())),
 		)
-		if skipErr := tracker.Skip(ctx, "No files found for commit"); skipErr != nil {
-			h.logger.Warn("failed to mark tracker as skipped", slog.String("error", skipErr.Error()))
-		}
+		tracker.Skip(ctx, "No files found for commit")
 		return nil
 	}
 
 	langFiles := h.groupFilesByExtension(files)
 
-	if setTotalErr := tracker.SetTotal(ctx, len(langFiles)); setTotalErr != nil {
-		h.logger.Warn("failed to set tracker total", slog.String("error", setTotalErr.Error()))
-	}
+	tracker.SetTotal(ctx, len(langFiles))
 
 	cfg := slicing.DefaultSliceConfig()
 	var allSnippets []snippet.Snippet
@@ -116,9 +105,7 @@ func (h *ExtractSnippets) Execute(ctx context.Context, payload map[string]any) e
 	processed := 0
 	for ext, extFiles := range langFiles {
 		message := fmt.Sprintf("Extracting snippets for %s", ext)
-		if currentErr := tracker.SetCurrent(ctx, processed, message); currentErr != nil {
-			h.logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
-		}
+		tracker.SetCurrent(ctx, processed, message)
 
 		result, sliceErr := h.slicer.Slice(ctx, extFiles, clonedPath, cfg)
 		if sliceErr != nil {
@@ -139,7 +126,7 @@ func (h *ExtractSnippets) Execute(ctx context.Context, payload map[string]any) e
 	h.logger.Info("extracted snippets",
 		slog.Int("total", len(allSnippets)),
 		slog.Int("unique", len(uniqueSnippets)),
-		slog.String("commit", handler.ShortSHA(commitSHA)),
+		slog.String("commit", handler.ShortSHA(cp.CommitSHA())),
 	)
 
 	for _, s := range uniqueSnippets {
@@ -149,7 +136,7 @@ func (h *ExtractSnippets) Execute(ctx context.Context, payload map[string]any) e
 			return fmt.Errorf("save snippet enrichment: %w", err)
 		}
 
-		assoc := enrichment.CommitAssociation(saved.ID(), commitSHA)
+		assoc := enrichment.CommitAssociation(saved.ID(), cp.CommitSHA())
 		if _, err := h.associationStore.Save(ctx, assoc); err != nil {
 			return fmt.Errorf("save commit association: %w", err)
 		}
@@ -163,10 +150,6 @@ func (h *ExtractSnippets) Execute(ctx context.Context, payload map[string]any) e
 				return fmt.Errorf("save file association: %w", err)
 			}
 		}
-	}
-
-	if completeErr := tracker.Complete(ctx); completeErr != nil {
-		h.logger.Warn("failed to mark tracker as complete", slog.String("error", completeErr.Error()))
 	}
 
 	return nil

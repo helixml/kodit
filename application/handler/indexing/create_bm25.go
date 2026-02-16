@@ -37,12 +37,7 @@ func NewCreateBM25Index(
 
 // Execute processes the CREATE_BM25_INDEX_FOR_COMMIT task.
 func (h *CreateBM25Index) Execute(ctx context.Context, payload map[string]any) error {
-	repoID, err := handler.ExtractInt64(payload, "repository_id")
-	if err != nil {
-		return err
-	}
-
-	commitSHA, err := handler.ExtractString(payload, "commit_sha")
+	cp, err := handler.ExtractCommitPayload(payload)
 	if err != nil {
 		return err
 	}
@@ -50,25 +45,21 @@ func (h *CreateBM25Index) Execute(ctx context.Context, payload map[string]any) e
 	tracker := h.trackerFactory.ForOperation(
 		task.OperationCreateBM25IndexForCommit,
 		task.TrackableTypeRepository,
-		repoID,
+		cp.RepoID(),
 	)
 
-	enrichments, err := h.enrichmentStore.FindByCommitSHA(ctx, commitSHA, enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeSnippet))
+	enrichments, err := h.enrichmentStore.FindByCommitSHA(ctx, cp.CommitSHA(), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeSnippet))
 	if err != nil {
 		h.logger.Error("failed to get snippet enrichments for commit", slog.String("error", err.Error()))
 		return err
 	}
 
 	if len(enrichments) == 0 {
-		if skipErr := tracker.Skip(ctx, "No snippets to index"); skipErr != nil {
-			h.logger.Warn("failed to mark tracker as skipped", slog.String("error", skipErr.Error()))
-		}
+		tracker.Skip(ctx, "No snippets to index")
 		return nil
 	}
 
-	if setTotalErr := tracker.SetTotal(ctx, len(enrichments)); setTotalErr != nil {
-		h.logger.Warn("failed to set tracker total", slog.String("error", setTotalErr.Error()))
-	}
+	tracker.SetTotal(ctx, len(enrichments))
 
 	documents := make([]search.Document, 0, len(enrichments))
 	for _, e := range enrichments {
@@ -79,32 +70,22 @@ func (h *CreateBM25Index) Execute(ctx context.Context, payload map[string]any) e
 	}
 
 	if len(documents) == 0 {
-		if skipErr := tracker.Skip(ctx, "No valid documents to index"); skipErr != nil {
-			h.logger.Warn("failed to mark tracker as skipped", slog.String("error", skipErr.Error()))
-		}
+		tracker.Skip(ctx, "No valid documents to index")
 		return nil
 	}
 
 	request := search.NewIndexRequest(documents)
 	if err := h.bm25Service.Index(ctx, request); err != nil {
 		h.logger.Error("failed to index documents", slog.String("error", err.Error()))
-		if failErr := tracker.Fail(ctx, err.Error()); failErr != nil {
-			h.logger.Warn("failed to mark tracker as failed", slog.String("error", failErr.Error()))
-		}
+		tracker.Fail(ctx, err.Error())
 		return err
 	}
 
-	if currentErr := tracker.SetCurrent(ctx, len(enrichments), "BM25 index created for commit"); currentErr != nil {
-		h.logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
-	}
-
-	if completeErr := tracker.Complete(ctx); completeErr != nil {
-		h.logger.Warn("failed to mark tracker as complete", slog.String("error", completeErr.Error()))
-	}
+	tracker.SetCurrent(ctx, len(enrichments), "BM25 index created for commit")
 
 	h.logger.Info("BM25 index created",
 		slog.Int("documents", len(documents)),
-		slog.String("commit", handler.ShortSHA(commitSHA)),
+		slog.String("commit", handler.ShortSHA(cp.CommitSHA())),
 	)
 
 	return nil

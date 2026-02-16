@@ -74,6 +74,9 @@ func (p *PeriodicSync) Stop() {
 }
 
 func (p *PeriodicSync) run(ctx context.Context) {
+	// Sync immediately on startup
+	p.sync(ctx)
+
 	ticker := time.NewTicker(p.interval)
 	defer ticker.Stop()
 

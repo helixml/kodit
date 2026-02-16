@@ -52,53 +52,53 @@ func (t *Tracker) Subscribe(reporter Reporter) {
 }
 
 // SetTotal sets the total count for progress tracking.
-func (t *Tracker) SetTotal(ctx context.Context, total int) error {
+func (t *Tracker) SetTotal(ctx context.Context, total int) {
 	t.mu.Lock()
 	t.status = t.status.SetTotal(total)
 	status := t.status
 	t.mu.Unlock()
 
-	return t.notifySubscribers(ctx, status)
+	t.notifySubscribers(ctx, status)
 }
 
 // SetCurrent updates the current progress count and optionally a message.
-func (t *Tracker) SetCurrent(ctx context.Context, current int, message string) error {
+func (t *Tracker) SetCurrent(ctx context.Context, current int, message string) {
 	t.mu.Lock()
 	t.status = t.status.SetCurrent(current, message)
 	status := t.status
 	t.mu.Unlock()
 
-	return t.notifySubscribers(ctx, status)
+	t.notifySubscribers(ctx, status)
 }
 
 // Skip marks the task as skipped with a reason.
-func (t *Tracker) Skip(ctx context.Context, reason string) error {
+func (t *Tracker) Skip(ctx context.Context, reason string) {
 	t.mu.Lock()
 	t.status = t.status.Skip(reason)
 	status := t.status
 	t.mu.Unlock()
 
-	return t.notifySubscribers(ctx, status)
+	t.notifySubscribers(ctx, status)
 }
 
 // Fail marks the task as failed with an error message.
-func (t *Tracker) Fail(ctx context.Context, errMsg string) error {
+func (t *Tracker) Fail(ctx context.Context, errMsg string) {
 	t.mu.Lock()
 	t.status = t.status.Fail(errMsg)
 	status := t.status
 	t.mu.Unlock()
 
-	return t.notifySubscribers(ctx, status)
+	t.notifySubscribers(ctx, status)
 }
 
 // Complete marks the task as completed.
-func (t *Tracker) Complete(ctx context.Context) error {
+func (t *Tracker) Complete(ctx context.Context) {
 	t.mu.Lock()
 	t.status = t.status.Complete()
 	status := t.status
 	t.mu.Unlock()
 
-	return t.notifySubscribers(ctx, status)
+	t.notifySubscribers(ctx, status)
 }
 
 // Child creates a child tracker for a sub-operation.
@@ -127,7 +127,7 @@ func (t *Tracker) Child(operation task.Operation) *Tracker {
 }
 
 // notifySubscribers sends the status update to all registered reporters.
-func (t *Tracker) notifySubscribers(ctx context.Context, status task.Status) error {
+func (t *Tracker) notifySubscribers(ctx context.Context, status task.Status) {
 	t.mu.RLock()
 	subscribers := make([]Reporter, len(t.subscribers))
 	copy(subscribers, t.subscribers)
@@ -142,15 +142,14 @@ func (t *Tracker) notifySubscribers(ctx context.Context, status task.Status) err
 			// Continue notifying other subscribers even if one fails
 		}
 	}
-	return nil
 }
 
 // Notify explicitly notifies all subscribers of the current status.
 // Use this after initial setup to announce the tracker's existence.
-func (t *Tracker) Notify(ctx context.Context) error {
+func (t *Tracker) Notify(ctx context.Context) {
 	t.mu.RLock()
 	status := t.status
 	t.mu.RUnlock()
 
-	return t.notifySubscribers(ctx, status)
+	t.notifySubscribers(ctx, status)
 }

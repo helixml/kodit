@@ -61,51 +61,38 @@ func (h *Sync) Execute(ctx context.Context, payload map[string]any) error {
 
 	repo, err := h.repoStore.FindOne(ctx, repository.WithID(repoID))
 	if err != nil {
-		if failErr := tracker.Fail(ctx, err.Error()); failErr != nil {
-			h.logger.Warn("failed to mark tracker as failed", slog.String("error", failErr.Error()))
-		}
+		tracker.Fail(ctx, err.Error())
 		return fmt.Errorf("get repository: %w", err)
 	}
 
 	if !repo.HasWorkingCopy() {
-		if failErr := tracker.Fail(ctx, "Repository not cloned"); failErr != nil {
-			h.logger.Warn("failed to mark tracker as failed", slog.String("error", failErr.Error()))
-		}
+		tracker.Fail(ctx, "Repository not cloned")
 		return fmt.Errorf("repository %d has not been cloned", repoID)
 	}
 
-	if setTotalErr := tracker.SetTotal(ctx, 3); setTotalErr != nil {
-		h.logger.Warn("failed to set tracker total", slog.String("error", setTotalErr.Error()))
-	}
-
-	if currentErr := tracker.SetCurrent(ctx, 0, "Fetching latest changes"); currentErr != nil {
-		h.logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
-	}
+	tracker.SetTotal(ctx, 3)
+	tracker.SetCurrent(ctx, 0, "Fetching latest changes")
 
 	if err := h.cloner.Update(ctx, repo); err != nil {
-		if failErr := tracker.Fail(ctx, err.Error()); failErr != nil {
-			h.logger.Warn("failed to mark tracker as failed", slog.String("error", failErr.Error()))
-		}
+		tracker.Fail(ctx, err.Error())
 		return fmt.Errorf("update repository: %w", err)
 	}
 
-	if currentErr := tracker.SetCurrent(ctx, 1, "Scanning branches"); currentErr != nil {
-		h.logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
-	}
+	tracker.SetCurrent(ctx, 1, "Scanning branches")
 
 	clonedPath := repo.WorkingCopy().Path()
 	branches, err := h.scanner.ScanAllBranches(ctx, clonedPath, repoID)
 	if err != nil {
 		h.logger.Warn("failed to scan branches", slog.String("error", err.Error()))
-	} else {
+	}
+
+	if err == nil {
 		if _, err := h.branchStore.SaveAll(ctx, branches); err != nil {
 			h.logger.Warn("failed to save branches", slog.String("error", err.Error()))
 		}
 	}
 
-	if currentErr := tracker.SetCurrent(ctx, 2, "Queueing commit scans"); currentErr != nil {
-		h.logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
-	}
+	tracker.SetCurrent(ctx, 2, "Queueing commit scans")
 
 	if err := h.enqueueCommitScans(ctx, repo, branches); err != nil {
 		h.logger.Warn("failed to enqueue commit scans", slog.String("error", err.Error()))
@@ -115,10 +102,6 @@ func (h *Sync) Execute(ctx context.Context, payload map[string]any) error {
 		slog.Int64("repo_id", repoID),
 		slog.Int("branches", len(branches)),
 	)
-
-	if completeErr := tracker.Complete(ctx); completeErr != nil {
-		h.logger.Warn("failed to mark tracker as complete", slog.String("error", completeErr.Error()))
-	}
 
 	return nil
 }

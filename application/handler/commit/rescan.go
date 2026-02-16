@@ -37,12 +37,7 @@ func NewRescan(
 
 // Execute processes the RESCAN_COMMIT task.
 func (h *Rescan) Execute(ctx context.Context, payload map[string]any) error {
-	repoID, err := handler.ExtractInt64(payload, "repository_id")
-	if err != nil {
-		return err
-	}
-
-	commitSHA, err := handler.ExtractString(payload, "commit_sha")
+	cp, err := handler.ExtractCommitPayload(payload)
 	if err != nil {
 		return err
 	}
@@ -50,23 +45,17 @@ func (h *Rescan) Execute(ctx context.Context, payload map[string]any) error {
 	tracker := h.trackerFactory.ForOperation(
 		task.OperationRescanCommit,
 		task.TrackableTypeRepository,
-		repoID,
+		cp.RepoID(),
 	)
 
-	if setTotalErr := tracker.SetTotal(ctx, 2); setTotalErr != nil {
-		h.logger.Warn("failed to set tracker total", slog.String("error", setTotalErr.Error()))
-	}
+	tracker.SetTotal(ctx, 2)
+	tracker.SetCurrent(ctx, 0, "Deleting enrichments for commit")
 
-	if currentErr := tracker.SetCurrent(ctx, 0, "Deleting enrichments for commit"); currentErr != nil {
-		h.logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
-	}
-
-	// Find associations for this commit, collect enrichment IDs, delete enrichments, then associations
-	associations, err := h.associationStore.Find(ctx, enrichment.WithEntityType(enrichment.EntityTypeCommit), enrichment.WithEntityID(commitSHA))
+	// Clear enrichments and associations for this commit to prepare for re-indexing.
+	// The commit record itself is preserved — only derived data is removed.
+	associations, err := h.associationStore.Find(ctx, enrichment.WithEntityType(enrichment.EntityTypeCommit), enrichment.WithEntityID(cp.CommitSHA()))
 	if err != nil {
-		if failErr := tracker.Fail(ctx, err.Error()); failErr != nil {
-			h.logger.Warn("failed to mark tracker as failed", slog.String("error", failErr.Error()))
-		}
+		tracker.Fail(ctx, err.Error())
 		return fmt.Errorf("find associations for commit: %w", err)
 	}
 
@@ -76,32 +65,22 @@ func (h *Rescan) Execute(ctx context.Context, payload map[string]any) error {
 			ids[i] = a.EnrichmentID()
 		}
 		if err := h.enrichmentStore.DeleteBy(ctx, repository.WithIDIn(ids)); err != nil {
-			if failErr := tracker.Fail(ctx, err.Error()); failErr != nil {
-				h.logger.Warn("failed to mark tracker as failed", slog.String("error", failErr.Error()))
-			}
+			tracker.Fail(ctx, err.Error())
 			return fmt.Errorf("delete enrichments: %w", err)
 		}
 	}
 
-	if currentErr := tracker.SetCurrent(ctx, 1, "Deleting enrichment associations"); currentErr != nil {
-		h.logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
-	}
+	tracker.SetCurrent(ctx, 1, "Deleting enrichment associations")
 
-	if err := h.associationStore.DeleteBy(ctx, enrichment.WithEntityID(commitSHA)); err != nil {
-		if failErr := tracker.Fail(ctx, err.Error()); failErr != nil {
-			h.logger.Warn("failed to mark tracker as failed", slog.String("error", failErr.Error()))
-		}
+	if err := h.associationStore.DeleteBy(ctx, enrichment.WithEntityID(cp.CommitSHA())); err != nil {
+		tracker.Fail(ctx, err.Error())
 		return fmt.Errorf("delete enrichment associations: %w", err)
 	}
 
 	h.logger.Info("commit data cleared for rescan",
-		slog.Int64("repo_id", repoID),
-		slog.String("commit", handler.ShortSHA(commitSHA)),
+		slog.Int64("repo_id", cp.RepoID()),
+		slog.String("commit", handler.ShortSHA(cp.CommitSHA())),
 	)
-
-	if completeErr := tracker.Complete(ctx); completeErr != nil {
-		h.logger.Warn("failed to mark tracker as complete", slog.String("error", completeErr.Error()))
-	}
 
 	return nil
 }

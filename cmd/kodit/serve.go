@@ -71,8 +71,10 @@ Environment variables:
 	}
 
 	cmd.Flags().StringVar(&envFile, "env-file", "", "Path to .env file (default: .env in current directory)")
-	cmd.Flags().StringVar(&host, "host", "", "Server host to bind to (default: 0.0.0.0)")
-	cmd.Flags().IntVar(&port, "port", 0, "Server port to listen on (default: 8080)")
+	cmd.Flags().StringVar(&host, "host", "", "Deprecated: use HOST environment variable instead")
+	cmd.Flags().IntVar(&port, "port", 0, "Deprecated: use PORT environment variable instead")
+	_ = cmd.Flags().MarkDeprecated("host", "use the HOST environment variable instead")
+	_ = cmd.Flags().MarkDeprecated("port", "use the PORT environment variable instead")
 
 	return cmd
 }

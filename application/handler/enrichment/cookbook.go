@@ -6,7 +6,6 @@ import (
 	"log/slog"
 
 	"github.com/helixml/kodit/application/handler"
-	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	domainservice "github.com/helixml/kodit/domain/service"
@@ -76,12 +75,7 @@ func NewCookbook(
 
 // Execute processes the CREATE_COOKBOOK_FOR_COMMIT task.
 func (h *Cookbook) Execute(ctx context.Context, payload map[string]any) error {
-	repoID, err := handler.ExtractInt64(payload, "repository_id")
-	if err != nil {
-		return err
-	}
-
-	commitSHA, err := handler.ExtractString(payload, "commit_sha")
+	cp, err := handler.ExtractCommitPayload(payload)
 	if err != nil {
 		return err
 	}
@@ -89,67 +83,51 @@ func (h *Cookbook) Execute(ctx context.Context, payload map[string]any) error {
 	tracker := h.enrichCtx.Tracker.ForOperation(
 		task.OperationCreateCookbookForCommit,
 		task.TrackableTypeRepository,
-		repoID,
+		cp.RepoID(),
 	)
 
-	hasCookbook, err := h.enrichCtx.Query.Exists(ctx, &service.EnrichmentExistsParams{CommitSHA: commitSHA, Type: enrichment.TypeUsage, Subtype: enrichment.SubtypeCookbook})
+	count, err := h.enrichCtx.Enrichments.CountByCommitSHA(ctx, cp.CommitSHA(), enrichment.WithType(enrichment.TypeUsage), enrichment.WithSubtype(enrichment.SubtypeCookbook))
 	if err != nil {
 		h.enrichCtx.Logger.Error("failed to check existing cookbook", slog.String("error", err.Error()))
 		return err
 	}
 
-	if hasCookbook {
-		if skipErr := tracker.Skip(ctx, "Cookbook already exists for commit"); skipErr != nil {
-			h.enrichCtx.Logger.Warn("failed to mark tracker as skipped", slog.String("error", skipErr.Error()))
-		}
+	if count > 0 {
+		tracker.Skip(ctx, "Cookbook already exists for commit")
 		return nil
 	}
 
-	repo, err := h.repoStore.FindOne(ctx, repository.WithID(repoID))
+	repo, err := h.repoStore.FindOne(ctx, repository.WithID(cp.RepoID()))
 	if err != nil {
 		return fmt.Errorf("get repository: %w", err)
 	}
 
 	clonedPath := repo.WorkingCopy().Path()
 	if clonedPath == "" {
-		return fmt.Errorf("repository %d has never been cloned", repoID)
+		return fmt.Errorf("repository %d has never been cloned", cp.RepoID())
 	}
 
-	if setTotalErr := tracker.SetTotal(ctx, 4); setTotalErr != nil {
-		h.enrichCtx.Logger.Warn("failed to set tracker total", slog.String("error", setTotalErr.Error()))
-	}
+	tracker.SetTotal(ctx, 4)
+	tracker.SetCurrent(ctx, 1, "Getting files for cookbook generation")
 
-	if currentErr := tracker.SetCurrent(ctx, 1, "Getting files for cookbook generation"); currentErr != nil {
-		h.enrichCtx.Logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
-	}
-
-	files, err := h.fileStore.Find(ctx, repository.WithCommitSHA(commitSHA))
+	files, err := h.fileStore.Find(ctx, repository.WithCommitSHA(cp.CommitSHA()))
 	if err != nil {
 		return fmt.Errorf("get files: %w", err)
 	}
 
 	if len(files) == 0 {
-		if skipErr := tracker.Skip(ctx, "No files to generate cookbook from"); skipErr != nil {
-			h.enrichCtx.Logger.Warn("failed to mark tracker as skipped", slog.String("error", skipErr.Error()))
-		}
+		tracker.Skip(ctx, "No files to generate cookbook from")
 		return nil
 	}
 
 	primaryLang := determinePrimaryLanguage(files)
 	if primaryLang == "" {
-		if skipErr := tracker.Skip(ctx, "No supported languages found for cookbook"); skipErr != nil {
-			h.enrichCtx.Logger.Warn("failed to mark tracker as skipped", slog.String("error", skipErr.Error()))
-		}
+		tracker.Skip(ctx, "No supported languages found for cookbook")
 		return nil
 	}
 
-	if currentErr := tracker.SetCurrent(ctx, 2, fmt.Sprintf("Parsing %s code with AST", primaryLang)); currentErr != nil {
-		h.enrichCtx.Logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
-	}
-
-	if currentErr := tracker.SetCurrent(ctx, 3, "Gathering repository context for cookbook"); currentErr != nil {
-		h.enrichCtx.Logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
-	}
+	tracker.SetCurrent(ctx, 2, fmt.Sprintf("Parsing %s code with AST", primaryLang))
+	tracker.SetCurrent(ctx, 3, "Gathering repository context for cookbook")
 
 	repoContext, err := h.contextGatherer.Gather(ctx, clonedPath, primaryLang)
 	if err != nil {
@@ -157,13 +135,11 @@ func (h *Cookbook) Execute(ctx context.Context, payload map[string]any) error {
 		repoContext = fmt.Sprintf("Repository at %s with primary language %s", clonedPath, primaryLang)
 	}
 
-	if currentErr := tracker.SetCurrent(ctx, 4, "Generating cookbook examples with LLM"); currentErr != nil {
-		h.enrichCtx.Logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
-	}
+	tracker.SetCurrent(ctx, 4, "Generating cookbook examples with LLM")
 
 	taskPrompt := fmt.Sprintf(cookbookTaskPrompt, repoContext)
 	requests := []domainservice.EnrichmentRequest{
-		domainservice.NewEnrichmentRequest(commitSHA, taskPrompt, cookbookSystemPrompt),
+		domainservice.NewEnrichmentRequest(cp.CommitSHA(), taskPrompt, cookbookSystemPrompt),
 	}
 
 	responses, err := h.enrichCtx.Enricher.Enrich(ctx, requests)
@@ -172,7 +148,7 @@ func (h *Cookbook) Execute(ctx context.Context, payload map[string]any) error {
 	}
 
 	if len(responses) == 0 {
-		return fmt.Errorf("no enrichment response for commit %s", commitSHA)
+		return fmt.Errorf("no enrichment response for commit %s", cp.CommitSHA())
 	}
 
 	cookbookEnrichment := enrichment.NewEnrichment(
@@ -186,13 +162,9 @@ func (h *Cookbook) Execute(ctx context.Context, payload map[string]any) error {
 		return fmt.Errorf("save cookbook enrichment: %w", err)
 	}
 
-	commitAssoc := enrichment.CommitAssociation(saved.ID(), commitSHA)
+	commitAssoc := enrichment.CommitAssociation(saved.ID(), cp.CommitSHA())
 	if _, err := h.enrichCtx.Associations.Save(ctx, commitAssoc); err != nil {
 		return fmt.Errorf("save commit association: %w", err)
-	}
-
-	if completeErr := tracker.Complete(ctx); completeErr != nil {
-		h.enrichCtx.Logger.Warn("failed to mark tracker as complete", slog.String("error", completeErr.Error()))
 	}
 
 	return nil

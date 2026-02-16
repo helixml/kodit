@@ -76,7 +76,11 @@ func TestSmoke(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "go", "run", "-tags=fts5", cmdDir,
+	buildTags := os.Getenv("SMOKE_BUILD_TAGS")
+	if buildTags == "" {
+		buildTags = "fts5 ORT embed_model"
+	}
+	cmd := exec.CommandContext(ctx, "go", "run", "-tags="+buildTags, cmdDir,
 		"serve",
 		"--host", baseHost,
 		"--port", strconv.Itoa(basePort),

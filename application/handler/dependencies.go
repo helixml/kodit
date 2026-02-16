@@ -3,7 +3,6 @@ package handler
 import (
 	"log/slog"
 
-	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
@@ -15,7 +14,6 @@ import (
 type EnrichmentContext struct {
 	Enrichments  enrichment.EnrichmentStore
 	Associations enrichment.AssociationStore
-	Query        *service.Enrichment
 	Enricher     domainservice.Enricher
 	Tracker      TrackerFactory
 	Logger       *slog.Logger

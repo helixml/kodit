@@ -25,7 +25,7 @@ func (c *Client) registerHandlers() error {
 		c.repoStores.Repositories, c.repoStores.Branches, c.gitInfra.Cloner, c.gitInfra.Scanner, c.queue, c.enrichCtx.Tracker, c.logger,
 	))
 	c.registry.Register(task.OperationDeleteRepository, repohandler.NewDelete(
-		c.repoStores, c.enrichCtx.Enrichments, c.enrichCtx.Associations, c.enrichCtx.Tracker, c.logger,
+		c.repoStores, c.enrichCtx.Enrichments, c.enrichCtx.Tracker, c.logger,
 	))
 	c.registry.Register(task.OperationScanCommit, commithandler.NewScan(
 		c.repoStores.Repositories, c.repoStores.Commits, c.repoStores.Files, c.gitInfra.Scanner, c.enrichCtx.Tracker, c.logger,
@@ -52,7 +52,7 @@ func (c *Client) registerHandlers() error {
 		}
 		c.registry.Register(task.OperationCreateCodeEmbeddingsForCommit, h)
 
-		h2, err := indexinghandler.NewCreateExampleCodeEmbeddings(c.codeIndex, c.enrichCtx.Query, c.enrichCtx.Tracker, c.logger)
+		h2, err := indexinghandler.NewCreateExampleCodeEmbeddings(c.codeIndex, c.enrichCtx.Enrichments, c.enrichCtx.Tracker, c.logger)
 		if err != nil {
 			return fmt.Errorf("create example code embeddings handler: %w", err)
 		}
@@ -61,13 +61,13 @@ func (c *Client) registerHandlers() error {
 
 	// Text embedding handlers — only if text embedding provider configured
 	if c.textIndex.Store != nil {
-		h, err := indexinghandler.NewCreateSummaryEmbeddings(c.textIndex, c.enrichCtx.Query, c.enrichCtx.Associations, c.enrichCtx.Tracker, c.logger)
+		h, err := indexinghandler.NewCreateSummaryEmbeddings(c.textIndex, c.enrichCtx.Enrichments, c.enrichCtx.Associations, c.enrichCtx.Tracker, c.logger)
 		if err != nil {
 			return fmt.Errorf("create summary embeddings handler: %w", err)
 		}
 		c.registry.Register(task.OperationCreateSummaryEmbeddingsForCommit, h)
 
-		h2, err := indexinghandler.NewCreateExampleSummaryEmbeddings(c.textIndex, c.enrichCtx.Query, c.enrichCtx.Tracker, c.logger)
+		h2, err := indexinghandler.NewCreateExampleSummaryEmbeddings(c.textIndex, c.enrichCtx.Enrichments, c.enrichCtx.Tracker, c.logger)
 		if err != nil {
 			return fmt.Errorf("create example summary embeddings handler: %w", err)
 		}
@@ -115,7 +115,7 @@ func (c *Client) registerHandlers() error {
 
 	// API docs enrichment (AST-based, no LLM dependency)
 	c.registry.Register(task.OperationCreatePublicAPIDocsForCommit, enrichmenthandler.NewAPIDocs(
-		c.repoStores.Repositories, c.repoStores.Files, c.enrichCtx, c.apiDocService,
+		c.repoStores.Files, c.enrichCtx, c.apiDocService,
 	))
 
 	// Example extraction handler (no LLM dependency)

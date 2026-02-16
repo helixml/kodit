@@ -2,30 +2,31 @@ package enrichment
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/helixml/kodit/application/handler"
-	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	domainservice "github.com/helixml/kodit/domain/service"
 	"github.com/helixml/kodit/domain/task"
 	infraGit "github.com/helixml/kodit/infrastructure/git"
+	"github.com/helixml/kodit/infrastructure/persistence"
+	"github.com/helixml/kodit/internal/database"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type fakeTracker struct{}
 
-func (f *fakeTracker) SetTotal(_ context.Context, _ int) error              { return nil }
-func (f *fakeTracker) SetCurrent(_ context.Context, _ int, _ string) error  { return nil }
-func (f *fakeTracker) Skip(_ context.Context, _ string) error               { return nil }
-func (f *fakeTracker) Fail(_ context.Context, _ string) error               { return nil }
-func (f *fakeTracker) Complete(_ context.Context) error                     { return nil }
+func (f *fakeTracker) SetTotal(_ context.Context, _ int)             {}
+func (f *fakeTracker) SetCurrent(_ context.Context, _ int, _ string) {}
+func (f *fakeTracker) Skip(_ context.Context, _ string)              {}
+func (f *fakeTracker) Fail(_ context.Context, _ string)              {}
+func (f *fakeTracker) Complete(_ context.Context)                    {}
 
 type fakeTrackerFactory struct{}
 
@@ -52,239 +53,15 @@ func (f *fakeEnricher) Enrich(_ context.Context, requests []domainservice.Enrich
 	return responses, nil
 }
 
-type fakeEnrichmentStore struct {
-	enrichments  map[int64]enrichment.Enrichment
-	nextID       int64
-	associations *fakeAssociationStore
-}
-
-func newFakeEnrichmentStore() *fakeEnrichmentStore {
-	return &fakeEnrichmentStore{
-		enrichments: make(map[int64]enrichment.Enrichment),
-		nextID:      1,
-	}
-}
-
-func (f *fakeEnrichmentStore) Find(_ context.Context, options ...repository.Option) ([]enrichment.Enrichment, error) {
-	q := repository.Build(options...)
-	var result []enrichment.Enrichment
-	for _, e := range f.enrichments {
-		match := true
-		for _, c := range q.Conditions() {
-			switch c.Field() {
-			case "id":
-				if id, ok := c.Value().(int64); ok && e.ID() != id {
-					match = false
-				}
-			case "type":
-				if t, ok := c.Value().(string); ok && string(e.Type()) != t {
-					match = false
-				}
-			case "subtype":
-				if s, ok := c.Value().(string); ok && string(e.Subtype()) != s {
-					match = false
-				}
-			}
-		}
-		if match {
-			result = append(result, e)
-		}
-	}
-	return result, nil
-}
-
-func (f *fakeEnrichmentStore) FindOne(ctx context.Context, options ...repository.Option) (enrichment.Enrichment, error) {
-	results, err := f.Find(ctx, options...)
-	if err != nil {
-		return enrichment.Enrichment{}, err
-	}
-	if len(results) == 0 {
-		return enrichment.Enrichment{}, errors.New("not found")
-	}
-	return results[0], nil
-}
-
-func (f *fakeEnrichmentStore) DeleteBy(_ context.Context, options ...repository.Option) error {
-	q := repository.Build(options...)
-	for id, e := range f.enrichments {
-		match := true
-		for _, c := range q.Conditions() {
-			if c.Field() == "id" {
-				if cid, ok := c.Value().(int64); ok && e.ID() != cid {
-					match = false
-				}
-			}
-		}
-		if match {
-			delete(f.enrichments, id)
-		}
-	}
-	return nil
-}
-
-func (f *fakeEnrichmentStore) Save(_ context.Context, e enrichment.Enrichment) (enrichment.Enrichment, error) {
-	id := f.nextID
-	f.nextID++
-	saved := e.WithID(id)
-	f.enrichments[id] = saved
-	return saved, nil
-}
-
-func (f *fakeEnrichmentStore) Delete(_ context.Context, e enrichment.Enrichment) error {
-	delete(f.enrichments, e.ID())
-	return nil
-}
-
-func (f *fakeEnrichmentStore) Count(_ context.Context, _ ...repository.Option) (int64, error) {
-	return int64(len(f.enrichments)), nil
-}
-
-func (f *fakeEnrichmentStore) FindByEntityKey(_ context.Context, key enrichment.EntityTypeKey) ([]enrichment.Enrichment, error) {
-	var result []enrichment.Enrichment
-	for _, e := range f.enrichments {
-		if e.EntityTypeKey() == key {
-			result = append(result, e)
-		}
-	}
-	return result, nil
-}
-
-func (f *fakeEnrichmentStore) FindByCommitSHA(_ context.Context, commitSHA string, options ...repository.Option) ([]enrichment.Enrichment, error) {
-	if f.associations == nil {
-		return nil, nil
-	}
-	q := repository.Build(options...)
-	var result []enrichment.Enrichment
-	for _, a := range f.associations.associations {
-		if a.EntityID() == commitSHA && a.EntityType() == enrichment.EntityTypeCommit {
-			if e, ok := f.enrichments[a.EnrichmentID()]; ok {
-				match := true
-				for _, c := range q.Conditions() {
-					switch c.Field() {
-					case "type":
-						if t, ok := c.Value().(string); ok && string(e.Type()) != t {
-							match = false
-						}
-					case "subtype":
-						if s, ok := c.Value().(string); ok && string(e.Subtype()) != s {
-							match = false
-						}
-					}
-				}
-				if match {
-					result = append(result, e)
-				}
-			}
-		}
-	}
-	return result, nil
-}
-
-func (f *fakeEnrichmentStore) CountByCommitSHA(_ context.Context, _ string, _ ...repository.Option) (int64, error) {
-	return 0, nil
-}
-
-func (f *fakeEnrichmentStore) FindByCommitSHAs(_ context.Context, _ []string, _ ...repository.Option) ([]enrichment.Enrichment, error) {
-	return nil, nil
-}
-
-func (f *fakeEnrichmentStore) CountByCommitSHAs(_ context.Context, _ []string, _ ...repository.Option) (int64, error) {
-	return 0, nil
-}
-
-type fakeAssociationStore struct {
-	associations map[int64]enrichment.Association
-	nextID       int64
-}
-
-func newFakeAssociationStore() *fakeAssociationStore {
-	return &fakeAssociationStore{
-		associations: make(map[int64]enrichment.Association),
-		nextID:       1,
-	}
-}
-
-func (f *fakeAssociationStore) Find(_ context.Context, options ...repository.Option) ([]enrichment.Association, error) {
-	q := repository.Build(options...)
-	var result []enrichment.Association
-	for _, a := range f.associations {
-		match := true
-		for _, c := range q.Conditions() {
-			switch c.Field() {
-			case "id":
-				if id, ok := c.Value().(int64); ok && a.ID() != id {
-					match = false
-				}
-			case "enrichment_id":
-				if eid, ok := c.Value().(int64); ok && a.EnrichmentID() != eid {
-					match = false
-				}
-			case "entity_id":
-				if entityID, ok := c.Value().(string); ok && a.EntityID() != entityID {
-					match = false
-				}
-			case "entity_type":
-				if entityType, ok := c.Value().(enrichment.EntityTypeKey); ok && a.EntityType() != entityType {
-					match = false
-				}
-			}
-		}
-		if match {
-			result = append(result, a)
-		}
-	}
-	return result, nil
-}
-
-func (f *fakeAssociationStore) FindOne(ctx context.Context, options ...repository.Option) (enrichment.Association, error) {
-	results, err := f.Find(ctx, options...)
-	if err != nil {
-		return enrichment.Association{}, err
-	}
-	if len(results) == 0 {
-		return enrichment.Association{}, errors.New("not found")
-	}
-	return results[0], nil
-}
-
-func (f *fakeAssociationStore) DeleteBy(_ context.Context, options ...repository.Option) error {
-	q := repository.Build(options...)
-	for id, a := range f.associations {
-		match := true
-		for _, c := range q.Conditions() {
-			switch c.Field() {
-			case "enrichment_id":
-				if eid, ok := c.Value().(int64); ok && a.EnrichmentID() != eid {
-					match = false
-				}
-			case "entity_id":
-				if entityID, ok := c.Value().(string); ok && a.EntityID() != entityID {
-					match = false
-				}
-			}
-		}
-		if match {
-			delete(f.associations, id)
-		}
-	}
-	return nil
-}
-
-func (f *fakeAssociationStore) Save(_ context.Context, a enrichment.Association) (enrichment.Association, error) {
-	id := f.nextID
-	f.nextID++
-	saved := a.WithID(id)
-	f.associations[id] = saved
-	return saved, nil
-}
-
-func (f *fakeAssociationStore) Delete(_ context.Context, a enrichment.Association) error {
-	delete(f.associations, a.ID())
-	return nil
-}
-
-func (f *fakeAssociationStore) Count(_ context.Context, _ ...repository.Option) (int64, error) {
-	return int64(len(f.associations)), nil
+func openTestDB(t *testing.T) database.Database {
+	t.Helper()
+	dbPath := filepath.Join(t.TempDir(), "test.db")
+	ctx := context.Background()
+	db, err := database.NewDatabase(ctx, "sqlite:///"+dbPath)
+	require.NoError(t, err)
+	require.NoError(t, persistence.AutoMigrate(db))
+	t.Cleanup(func() { _ = db.Close() })
+	return db
 }
 
 type fakeGitAdapter struct {
@@ -375,77 +152,15 @@ func (f *fakeGitAdapter) CommitDiff(_ context.Context, _, _ string) (string, err
 	return f.diff, nil
 }
 
-type fakeRepoStore struct {
-	repos map[int64]repository.Repository
-}
-
-func newFakeRepoStore() *fakeRepoStore {
-	return &fakeRepoStore{
-		repos: make(map[int64]repository.Repository),
-	}
-}
-
-func (f *fakeRepoStore) Find(_ context.Context, options ...repository.Option) ([]repository.Repository, error) {
-	q := repository.Build(options...)
-	var result []repository.Repository
-	for _, r := range f.repos {
-		match := true
-		for _, c := range q.Conditions() {
-			if c.Field() == "id" {
-				if id, ok := c.Value().(int64); ok && r.ID() != id {
-					match = false
-				}
-			}
-		}
-		if match {
-			result = append(result, r)
-		}
-	}
-	return result, nil
-}
-
-func (f *fakeRepoStore) FindOne(ctx context.Context, options ...repository.Option) (repository.Repository, error) {
-	results, err := f.Find(ctx, options...)
-	if err != nil {
-		return repository.Repository{}, err
-	}
-	if len(results) == 0 {
-		return repository.Repository{}, errors.New("not found")
-	}
-	return results[0], nil
-}
-
-func (f *fakeRepoStore) Exists(ctx context.Context, options ...repository.Option) (bool, error) {
-	results, err := f.Find(ctx, options...)
-	if err != nil {
-		return false, err
-	}
-	return len(results) > 0, nil
-}
-
-func (f *fakeRepoStore) Save(_ context.Context, r repository.Repository) (repository.Repository, error) {
-	return r, nil
-}
-
-func (f *fakeRepoStore) Delete(_ context.Context, _ repository.Repository) error {
-	return nil
-}
-
-func (f *fakeRepoStore) Count(_ context.Context, _ ...repository.Option) (int64, error) {
-	return int64(len(f.repos)), nil
-}
-
-func newFakeEnrichmentContext(
-	enrichmentStore *fakeEnrichmentStore,
-	associationStore *fakeAssociationStore,
+func newEnrichmentContext(
+	enrichmentStore enrichment.EnrichmentStore,
+	associationStore enrichment.AssociationStore,
 	enricher domainservice.Enricher,
 	logger *slog.Logger,
 ) handler.EnrichmentContext {
-	enrichmentStore.associations = associationStore
 	return handler.EnrichmentContext{
 		Enrichments:  enrichmentStore,
 		Associations: associationStore,
-		Query:        service.NewEnrichment(enrichmentStore, associationStore),
 		Enricher:     enricher,
 		Tracker:      &fakeTrackerFactory{},
 		Logger:       logger,
@@ -456,21 +171,22 @@ func TestCommitDescriptionHandler(t *testing.T) {
 	ctx := context.Background()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	repoStore := newFakeRepoStore()
-	enrichmentStore := newFakeEnrichmentStore()
-	associationStore := newFakeAssociationStore()
+	db := openTestDB(t)
+	repoStore := persistence.NewRepositoryStore(db)
+	enrichmentStore := persistence.NewEnrichmentStore(db)
+	associationStore := persistence.NewAssociationStore(db)
 	adapter := &fakeGitAdapter{diff: "diff --git a/file.go"}
 	enricher := &fakeEnricher{}
 
-	enrichCtx := newFakeEnrichmentContext(enrichmentStore, associationStore, enricher, logger)
+	enrichCtx := newEnrichmentContext(enrichmentStore, associationStore, enricher, logger)
 
-	testRepo := repository.ReconstructRepository(
-		1, "https://github.com/test/repo",
-		repository.NewWorkingCopy("/tmp/repo", "https://github.com/test/repo"),
-		repository.NewTrackingConfig("main", "", ""),
-		time.Now(), time.Now(),
-	)
-	repoStore.repos[1] = testRepo
+	repo, err := repository.NewRepository("https://github.com/test/repo")
+	require.NoError(t, err)
+	repo = repo.
+		WithWorkingCopy(repository.NewWorkingCopy("/tmp/repo", "https://github.com/test/repo")).
+		WithTrackingConfig(repository.NewTrackingConfig("main", "", ""))
+	savedRepo, err := repoStore.Save(ctx, repo)
+	require.NoError(t, err)
 
 	h, err := NewCommitDescription(
 		repoStore,
@@ -481,103 +197,106 @@ func TestCommitDescriptionHandler(t *testing.T) {
 
 	t.Run("creates commit description", func(t *testing.T) {
 		payload := map[string]any{
-			"repository_id": int64(1),
+			"repository_id": savedRepo.ID(),
 			"commit_sha":    "abc123def456",
 		}
 
 		err := h.Execute(ctx, payload)
 		require.NoError(t, err)
 
-		assert.Len(t, enrichmentStore.enrichments, 1)
-		assert.Len(t, associationStore.associations, 1)
-
-		for _, e := range enrichmentStore.enrichments {
-			assert.Equal(t, enrichment.TypeHistory, e.Type())
-			assert.Equal(t, enrichment.SubtypeCommitDescription, e.Subtype())
-		}
+		descriptions, err := enrichmentStore.FindByCommitSHA(ctx, "abc123def456",
+			enrichment.WithType(enrichment.TypeHistory),
+			enrichment.WithSubtype(enrichment.SubtypeCommitDescription))
+		require.NoError(t, err)
+		assert.Len(t, descriptions, 1)
+		assert.Equal(t, enrichment.TypeHistory, descriptions[0].Type())
+		assert.Equal(t, enrichment.SubtypeCommitDescription, descriptions[0].Subtype())
 	})
 
 	t.Run("skips when description exists", func(t *testing.T) {
-		countBefore := len(enrichmentStore.enrichments)
+		countBefore, err := enrichmentStore.Count(ctx)
+		require.NoError(t, err)
 
 		payload := map[string]any{
-			"repository_id": int64(1),
+			"repository_id": savedRepo.ID(),
 			"commit_sha":    "abc123def456",
 		}
 
-		err := h.Execute(ctx, payload)
+		err = h.Execute(ctx, payload)
 		require.NoError(t, err)
 
-		assert.Equal(t, countBefore, len(enrichmentStore.enrichments))
+		countAfter, err := enrichmentStore.Count(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, countBefore, countAfter)
 	})
 }
 
 func TestCreateSummaryHandler(t *testing.T) {
 	ctx := context.Background()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-
-	enrichmentStore := newFakeEnrichmentStore()
-	associationStore := newFakeAssociationStore()
 	enricher := &fakeEnricher{}
 
-	enrichCtx := newFakeEnrichmentContext(enrichmentStore, associationStore, enricher, logger)
-
-	// Seed snippet enrichments for commit "abc123"
-	snip1 := enrichment.NewSnippetEnrichmentWithLanguage("func main() {}", "go")
-	saved1, _ := enrichmentStore.Save(ctx, snip1)
-	assoc1 := enrichment.CommitAssociation(saved1.ID(), "abc123")
-	_, _ = associationStore.Save(ctx, assoc1)
-
-	snip2 := enrichment.NewSnippetEnrichmentWithLanguage("def main():", "py")
-	saved2, _ := enrichmentStore.Save(ctx, snip2)
-	assoc2 := enrichment.CommitAssociation(saved2.ID(), "abc123")
-	_, _ = associationStore.Save(ctx, assoc2)
-
-	h, err := NewCreateSummary(
-		enrichCtx,
-	)
-	require.NoError(t, err)
-
 	t.Run("creates summaries for snippets", func(t *testing.T) {
+		db := openTestDB(t)
+		enrichmentStore := persistence.NewEnrichmentStore(db)
+		associationStore := persistence.NewAssociationStore(db)
+
+		enrichCtx := newEnrichmentContext(enrichmentStore, associationStore, enricher, logger)
+
+		// Seed snippet enrichments for commit "abc123"
+		snip1 := enrichment.NewSnippetEnrichmentWithLanguage("func main() {}", "go")
+		saved1, err := enrichmentStore.Save(ctx, snip1)
+		require.NoError(t, err)
+		_, err = associationStore.Save(ctx, enrichment.CommitAssociation(saved1.ID(), "abc123"))
+		require.NoError(t, err)
+
+		snip2 := enrichment.NewSnippetEnrichmentWithLanguage("def main():", "py")
+		saved2, err := enrichmentStore.Save(ctx, snip2)
+		require.NoError(t, err)
+		_, err = associationStore.Save(ctx, enrichment.CommitAssociation(saved2.ID(), "abc123"))
+		require.NoError(t, err)
+
+		h, err := NewCreateSummary(enrichCtx)
+		require.NoError(t, err)
+
 		payload := map[string]any{
 			"repository_id": int64(1),
 			"commit_sha":    "abc123",
 		}
 
-		err := h.Execute(ctx, payload)
+		err = h.Execute(ctx, payload)
 		require.NoError(t, err)
 
-		// 2 snippet enrichments + 2 summary enrichments = 4 total
-		summaryCount := 0
-		for _, e := range enrichmentStore.enrichments {
-			if e.Subtype() == enrichment.SubtypeSnippetSummary {
-				summaryCount++
-				assert.Equal(t, enrichment.TypeDevelopment, e.Type())
-			}
+		summaries, err := enrichmentStore.FindByCommitSHA(ctx, "abc123",
+			enrichment.WithSubtype(enrichment.SubtypeSnippetSummary))
+		require.NoError(t, err)
+		assert.Len(t, summaries, 2)
+		for _, s := range summaries {
+			assert.Equal(t, enrichment.TypeDevelopment, s.Type())
 		}
-		assert.Equal(t, 2, summaryCount)
 	})
 
 	t.Run("skips when no snippets", func(t *testing.T) {
-		enrichmentStore2 := newFakeEnrichmentStore()
-		associationStore2 := newFakeAssociationStore()
+		db := openTestDB(t)
+		enrichmentStore := persistence.NewEnrichmentStore(db)
+		associationStore := persistence.NewAssociationStore(db)
 
-		enrichCtx2 := newFakeEnrichmentContext(enrichmentStore2, associationStore2, enricher, logger)
+		enrichCtx := newEnrichmentContext(enrichmentStore, associationStore, enricher, logger)
 
-		handler2, err2 := NewCreateSummary(
-			enrichCtx2,
-		)
-		require.NoError(t, err2)
+		h, err := NewCreateSummary(enrichCtx)
+		require.NoError(t, err)
 
 		payload := map[string]any{
 			"repository_id": int64(1),
 			"commit_sha":    "empty123",
 		}
 
-		err2 = handler2.Execute(ctx, payload)
-		require.NoError(t, err2)
+		err = h.Execute(ctx, payload)
+		require.NoError(t, err)
 
-		assert.Len(t, enrichmentStore2.enrichments, 0)
+		count, err := enrichmentStore.Count(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), count)
 	})
 }
 

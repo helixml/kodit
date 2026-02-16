@@ -43,12 +43,7 @@ func NewScan(
 
 // Execute processes the SCAN_COMMIT task.
 func (h *Scan) Execute(ctx context.Context, payload map[string]any) error {
-	repoID, err := handler.ExtractInt64(payload, "repository_id")
-	if err != nil {
-		return err
-	}
-
-	commitSHA, err := handler.ExtractString(payload, "commit_sha")
+	cp, err := handler.ExtractCommitPayload(payload)
 	if err != nil {
 		return err
 	}
@@ -56,67 +51,50 @@ func (h *Scan) Execute(ctx context.Context, payload map[string]any) error {
 	tracker := h.trackerFactory.ForOperation(
 		task.OperationScanCommit,
 		task.TrackableTypeRepository,
-		repoID,
+		cp.RepoID(),
 	)
 
-	existing, err := h.commitStore.Exists(ctx, repository.WithRepoID(repoID), repository.WithSHA(commitSHA))
+	existing, err := h.commitStore.Exists(ctx, repository.WithRepoID(cp.RepoID()), repository.WithSHA(cp.CommitSHA()))
 	if err != nil {
 		h.logger.Warn("failed to check existing commit", slog.String("error", err.Error()))
 	}
 
 	if existing {
 		h.logger.Info("commit already scanned",
-			slog.Int64("repo_id", repoID),
-			slog.String("commit", handler.ShortSHA(commitSHA)),
+			slog.Int64("repo_id", cp.RepoID()),
+			slog.String("commit", handler.ShortSHA(cp.CommitSHA())),
 		)
-		if skipErr := tracker.Skip(ctx, "Commit already scanned"); skipErr != nil {
-			h.logger.Warn("failed to mark tracker as skipped", slog.String("error", skipErr.Error()))
-		}
+		tracker.Skip(ctx, "Commit already scanned")
 		return nil
 	}
 
-	repo, err := h.repoStore.FindOne(ctx, repository.WithID(repoID))
+	repo, err := h.repoStore.FindOne(ctx, repository.WithID(cp.RepoID()))
 	if err != nil {
-		if failErr := tracker.Fail(ctx, err.Error()); failErr != nil {
-			h.logger.Warn("failed to mark tracker as failed", slog.String("error", failErr.Error()))
-		}
+		tracker.Fail(ctx, err.Error())
 		return fmt.Errorf("get repository: %w", err)
 	}
 
 	if !repo.HasWorkingCopy() {
-		if failErr := tracker.Fail(ctx, "Repository not cloned"); failErr != nil {
-			h.logger.Warn("failed to mark tracker as failed", slog.String("error", failErr.Error()))
-		}
-		return fmt.Errorf("repository %d has not been cloned", repoID)
+		tracker.Fail(ctx, "Repository not cloned")
+		return fmt.Errorf("repository %d has not been cloned", cp.RepoID())
 	}
 
-	if setTotalErr := tracker.SetTotal(ctx, 2); setTotalErr != nil {
-		h.logger.Warn("failed to set tracker total", slog.String("error", setTotalErr.Error()))
-	}
-
-	if currentErr := tracker.SetCurrent(ctx, 0, "Scanning commit"); currentErr != nil {
-		h.logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
-	}
+	tracker.SetTotal(ctx, 2)
+	tracker.SetCurrent(ctx, 0, "Scanning commit")
 
 	clonedPath := repo.WorkingCopy().Path()
-	result, err := h.scanner.ScanCommit(ctx, clonedPath, commitSHA, repoID)
+	result, err := h.scanner.ScanCommit(ctx, clonedPath, cp.CommitSHA(), cp.RepoID())
 	if err != nil {
-		if failErr := tracker.Fail(ctx, err.Error()); failErr != nil {
-			h.logger.Warn("failed to mark tracker as failed", slog.String("error", failErr.Error()))
-		}
+		tracker.Fail(ctx, err.Error())
 		return fmt.Errorf("scan commit: %w", err)
 	}
 
-	if currentErr := tracker.SetCurrent(ctx, 1, "Saving commit data"); currentErr != nil {
-		h.logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
-	}
+	tracker.SetCurrent(ctx, 1, "Saving commit data")
 
 	commit := result.Commit()
 	savedCommit, err := h.commitStore.Save(ctx, commit)
 	if err != nil {
-		if failErr := tracker.Fail(ctx, err.Error()); failErr != nil {
-			h.logger.Warn("failed to mark tracker as failed", slog.String("error", failErr.Error()))
-		}
+		tracker.Fail(ctx, err.Error())
 		return fmt.Errorf("save commit: %w", err)
 	}
 
@@ -124,22 +102,18 @@ func (h *Scan) Execute(ctx context.Context, payload map[string]any) error {
 	if len(files) > 0 {
 		if _, err := h.fileStore.SaveAll(ctx, files); err != nil {
 			h.logger.Warn("failed to save files",
-				slog.String("commit", handler.ShortSHA(commitSHA)),
+				slog.String("commit", handler.ShortSHA(cp.CommitSHA())),
 				slog.String("error", err.Error()),
 			)
 		}
 	}
 
 	h.logger.Info("commit scanned successfully",
-		slog.Int64("repo_id", repoID),
-		slog.String("commit", handler.ShortSHA(commitSHA)),
+		slog.Int64("repo_id", cp.RepoID()),
+		slog.String("commit", handler.ShortSHA(cp.CommitSHA())),
 		slog.Int64("commit_id", savedCommit.ID()),
 		slog.Int("files", len(files)),
 	)
-
-	if completeErr := tracker.Complete(ctx); completeErr != nil {
-		h.logger.Warn("failed to mark tracker as complete", slog.String("error", completeErr.Error()))
-	}
 
 	return nil
 }

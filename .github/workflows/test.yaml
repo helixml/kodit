@@ -59,12 +59,11 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
 
-      - name: Download model
-        run: go run ./tools/download-model
-
-      - name: Download ORT libraries
-        run: make download-ort
+      - name: Download model and ORT libraries
+        run: make download-model download-ort
 
       - name: Run unit tests
         run: make test

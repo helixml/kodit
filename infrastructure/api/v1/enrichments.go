@@ -195,9 +195,13 @@ func (r *EnrichmentsRouter) Update(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	saved, err := r.client.Enrichments.Update(ctx, id, &service.EnrichmentUpdateParams{
-		Content: body.Data.Attributes.Content,
-	})
+	existing, err := r.client.Enrichments.Get(ctx, repository.WithID(id))
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	saved, err := r.client.Enrichments.Save(ctx, existing.WithContent(body.Data.Attributes.Content))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -231,7 +235,7 @@ func (r *EnrichmentsRouter) Delete(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if err := r.client.Enrichments.Delete(ctx, &service.EnrichmentDeleteParams{ID: &id}); err != nil {
+	if err := r.client.Enrichments.DeleteBy(ctx, repository.WithID(id)); err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}

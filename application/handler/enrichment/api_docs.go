@@ -6,7 +6,6 @@ import (
 	"log/slog"
 
 	"github.com/helixml/kodit/application/handler"
-	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/task"
@@ -19,7 +18,6 @@ type APIDocExtractor interface {
 
 // APIDocs handles the CREATE_PUBLIC_API_DOCS_FOR_COMMIT operation.
 type APIDocs struct {
-	repoStore repository.RepositoryStore
 	fileStore repository.FileStore
 	enrichCtx handler.EnrichmentContext
 	extractor APIDocExtractor
@@ -27,13 +25,11 @@ type APIDocs struct {
 
 // NewAPIDocs creates a new APIDocs handler.
 func NewAPIDocs(
-	repoStore repository.RepositoryStore,
 	fileStore repository.FileStore,
 	enrichCtx handler.EnrichmentContext,
 	extractor APIDocExtractor,
 ) *APIDocs {
 	return &APIDocs{
-		repoStore: repoStore,
 		fileStore: fileStore,
 		enrichCtx: enrichCtx,
 		extractor: extractor,
@@ -42,12 +38,7 @@ func NewAPIDocs(
 
 // Execute processes the CREATE_PUBLIC_API_DOCS_FOR_COMMIT task.
 func (h *APIDocs) Execute(ctx context.Context, payload map[string]any) error {
-	repoID, err := handler.ExtractInt64(payload, "repository_id")
-	if err != nil {
-		return err
-	}
-
-	commitSHA, err := handler.ExtractString(payload, "commit_sha")
+	cp, err := handler.ExtractCommitPayload(payload)
 	if err != nil {
 		return err
 	}
@@ -55,52 +46,39 @@ func (h *APIDocs) Execute(ctx context.Context, payload map[string]any) error {
 	tracker := h.enrichCtx.Tracker.ForOperation(
 		task.OperationCreatePublicAPIDocsForCommit,
 		task.TrackableTypeRepository,
-		repoID,
+		cp.RepoID(),
 	)
 
-	hasAPIDocs, err := h.enrichCtx.Query.Exists(ctx, &service.EnrichmentExistsParams{CommitSHA: commitSHA, Type: enrichment.TypeUsage, Subtype: enrichment.SubtypeAPIDocs})
+	count, err := h.enrichCtx.Enrichments.CountByCommitSHA(ctx, cp.CommitSHA(), enrichment.WithType(enrichment.TypeUsage), enrichment.WithSubtype(enrichment.SubtypeAPIDocs))
 	if err != nil {
 		h.enrichCtx.Logger.Error("failed to check existing API docs", slog.String("error", err.Error()))
 		return err
 	}
 
-	if hasAPIDocs {
-		if skipErr := tracker.Skip(ctx, "API docs already exist for commit"); skipErr != nil {
-			h.enrichCtx.Logger.Warn("failed to mark tracker as skipped", slog.String("error", skipErr.Error()))
-		}
+	if count > 0 {
+		tracker.Skip(ctx, "API docs already exist for commit")
 		return nil
 	}
 
-	_, err = h.repoStore.FindOne(ctx, repository.WithID(repoID))
-	if err != nil {
-		return fmt.Errorf("get repository: %w", err)
-	}
-
-	files, err := h.fileStore.Find(ctx, repository.WithCommitSHA(commitSHA))
+	files, err := h.fileStore.Find(ctx, repository.WithCommitSHA(cp.CommitSHA()))
 	if err != nil {
 		return fmt.Errorf("get files: %w", err)
 	}
 
 	if len(files) == 0 {
-		if skipErr := tracker.Skip(ctx, "No files to extract API docs from"); skipErr != nil {
-			h.enrichCtx.Logger.Warn("failed to mark tracker as skipped", slog.String("error", skipErr.Error()))
-		}
+		tracker.Skip(ctx, "No files to extract API docs from")
 		return nil
 	}
 
 	langFiles := groupFilesByLanguage(files)
 
-	if setTotalErr := tracker.SetTotal(ctx, len(langFiles)); setTotalErr != nil {
-		h.enrichCtx.Logger.Warn("failed to set tracker total", slog.String("error", setTotalErr.Error()))
-	}
+	tracker.SetTotal(ctx, len(langFiles))
 
 	var allEnrichments []enrichment.Enrichment
 
 	i := 0
 	for lang, langFileList := range langFiles {
-		if currentErr := tracker.SetCurrent(ctx, i, fmt.Sprintf("Extracting API docs for %s", lang)); currentErr != nil {
-			h.enrichCtx.Logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
-		}
+		tracker.SetCurrent(ctx, i, fmt.Sprintf("Extracting API docs for %s", lang))
 
 		enrichments, err := h.extractor.Extract(ctx, langFileList, lang, false)
 		if err != nil {
@@ -122,14 +100,10 @@ func (h *APIDocs) Execute(ctx context.Context, payload map[string]any) error {
 			return fmt.Errorf("save API docs enrichment: %w", err)
 		}
 
-		commitAssoc := enrichment.CommitAssociation(saved.ID(), commitSHA)
+		commitAssoc := enrichment.CommitAssociation(saved.ID(), cp.CommitSHA())
 		if _, err := h.enrichCtx.Associations.Save(ctx, commitAssoc); err != nil {
 			return fmt.Errorf("save commit association: %w", err)
 		}
-	}
-
-	if completeErr := tracker.Complete(ctx); completeErr != nil {
-		h.enrichCtx.Logger.Warn("failed to mark tracker as complete", slog.String("error", completeErr.Error()))
 	}
 
 	return nil

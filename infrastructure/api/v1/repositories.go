@@ -754,9 +754,21 @@ func (r *RepositoriesRouter) DeleteCommitEnrichments(w http.ResponseWriter, req 
 		return
 	}
 
-	if err := r.client.Enrichments.Delete(ctx, &service.EnrichmentDeleteParams{CommitSHA: commitSHA}); err != nil {
+	enrichments, err := r.client.Enrichments.List(ctx, &service.EnrichmentListParams{CommitSHA: commitSHA})
+	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
+	}
+
+	if len(enrichments) > 0 {
+		ids := make([]int64, len(enrichments))
+		for i, e := range enrichments {
+			ids[i] = e.ID()
+		}
+		if err := r.client.Enrichments.DeleteBy(ctx, repository.WithIDIn(ids)); err != nil {
+			middleware.WriteError(w, req, err, r.logger)
+			return
+		}
 	}
 
 	w.WriteHeader(http.StatusNoContent)
@@ -801,7 +813,7 @@ func (r *RepositoriesRouter) DeleteCommitEnrichment(w http.ResponseWriter, req *
 		return
 	}
 
-	if err := r.client.Enrichments.Delete(ctx, &service.EnrichmentDeleteParams{ID: &enrichmentID}); err != nil {
+	if err := r.client.Enrichments.DeleteBy(ctx, repository.WithID(enrichmentID)); err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}

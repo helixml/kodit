@@ -19,27 +19,8 @@ type EnrichmentListParams struct {
 	Offset     int
 }
 
-// EnrichmentExistsParams specifies which enrichments to check for existence.
-type EnrichmentExistsParams struct {
-	CommitSHA string
-	Type      enrichment.Type
-	Subtype   enrichment.Subtype
-}
-
-// EnrichmentUpdateParams configures enrichment content updates.
-type EnrichmentUpdateParams struct {
-	Content string
-}
-
-// EnrichmentDeleteParams configures enrichment deletion.
-// Set ID to delete a single enrichment, or CommitSHA to delete all enrichments for a commit.
-type EnrichmentDeleteParams struct {
-	ID        *int64
-	CommitSHA string
-}
-
 // Enrichment provides queries for enrichments and their associations.
-// Embeds Collection for Find/Get; bespoke methods handle writes and complex queries.
+// Embeds Collection for Find/Get/Count; bespoke methods handle complex queries.
 type Enrichment struct {
 	repository.Collection[enrichment.Enrichment]
 	enrichmentStore  enrichment.EnrichmentStore
@@ -120,60 +101,16 @@ func (s *Enrichment) paginationOptions(params *EnrichmentListParams) []repositor
 	return nil
 }
 
-// Update replaces the content of an enrichment and returns the saved result.
-func (s *Enrichment) Update(ctx context.Context, id int64, params *EnrichmentUpdateParams) (enrichment.Enrichment, error) {
-	existing, err := s.enrichmentStore.FindOne(ctx, repository.WithID(id))
-	if err != nil {
-		return enrichment.Enrichment{}, err
-	}
-	updated := existing.WithContent(params.Content)
-	return s.enrichmentStore.Save(ctx, updated)
+// Save persists an enrichment (create or update).
+// Associations cascade-delete via GORM constraints when an enrichment is removed.
+func (s *Enrichment) Save(ctx context.Context, e enrichment.Enrichment) (enrichment.Enrichment, error) {
+	return s.enrichmentStore.Save(ctx, e)
 }
 
-// Exists checks whether any enrichments match the given params.
-func (s *Enrichment) Exists(ctx context.Context, params *EnrichmentExistsParams) (bool, error) {
-	typ := params.Type
-	sub := params.Subtype
-	enrichments, err := s.List(ctx, &EnrichmentListParams{
-		CommitSHA: params.CommitSHA,
-		Type:      &typ,
-		Subtype:   &sub,
-	})
-	if err != nil {
-		return false, err
-	}
-	return len(enrichments) > 0, nil
-}
-
-// Delete removes enrichments and their associations.
-// When ID is set, deletes a single enrichment.
-// When CommitSHA is set, batch-deletes all enrichments for that commit.
-func (s *Enrichment) Delete(ctx context.Context, params *EnrichmentDeleteParams) error {
-	if params.ID != nil {
-		_ = s.associationStore.DeleteBy(ctx, enrichment.WithEnrichmentID(*params.ID))
-		return s.enrichmentStore.DeleteBy(ctx, repository.WithID(*params.ID))
-	}
-
-	if params.CommitSHA != "" {
-		associations, err := s.associationStore.Find(ctx, enrichment.WithEntityType(enrichment.EntityTypeCommit), enrichment.WithEntityID(params.CommitSHA))
-		if err != nil {
-			return fmt.Errorf("find associations for commit: %w", err)
-		}
-
-		if len(associations) > 0 {
-			ids := make([]int64, len(associations))
-			for i, a := range associations {
-				ids[i] = a.EnrichmentID()
-			}
-			if err := s.enrichmentStore.DeleteBy(ctx, repository.WithIDIn(ids)); err != nil {
-				return fmt.Errorf("delete enrichments: %w", err)
-			}
-		}
-
-		return s.associationStore.DeleteBy(ctx, enrichment.WithEntityID(params.CommitSHA))
-	}
-
-	return nil
+// DeleteBy removes enrichments matching the given options.
+// Associations cascade-delete via the GORM OnDelete:CASCADE constraint on EnrichmentAssociationModel.
+func (s *Enrichment) DeleteBy(ctx context.Context, opts ...repository.Option) error {
+	return s.enrichmentStore.DeleteBy(ctx, opts...)
 }
 
 // RelatedEnrichments returns enrichments that reference the given enrichment IDs
@@ -263,4 +200,3 @@ func (s *Enrichment) SourceFiles(ctx context.Context, enrichmentIDs []int64) (ma
 
 	return result, nil
 }
-

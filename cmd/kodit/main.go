@@ -40,7 +40,6 @@ func rootCmd() *cobra.Command {
 	}
 
 	cmd.AddCommand(serveCmd())
-	cmd.AddCommand(stdioCmd())
 	cmd.AddCommand(versionCmd())
 
 	return cmd

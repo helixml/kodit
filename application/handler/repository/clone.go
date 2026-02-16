@@ -54,9 +54,7 @@ func (h *Clone) Execute(ctx context.Context, payload map[string]any) error {
 
 	repo, err := h.repoStore.FindOne(ctx, repository.WithID(repoID))
 	if err != nil {
-		if failErr := tracker.Fail(ctx, err.Error()); failErr != nil {
-			h.logger.Warn("failed to mark tracker as failed", slog.String("error", failErr.Error()))
-		}
+		tracker.Fail(ctx, err.Error())
 		return fmt.Errorf("get repository: %w", err)
 	}
 
@@ -65,25 +63,16 @@ func (h *Clone) Execute(ctx context.Context, payload map[string]any) error {
 			slog.Int64("repo_id", repoID),
 			slog.String("path", repo.WorkingCopy().Path()),
 		)
-		if skipErr := tracker.Skip(ctx, "Repository already cloned"); skipErr != nil {
-			h.logger.Warn("failed to mark tracker as skipped", slog.String("error", skipErr.Error()))
-		}
+		tracker.Skip(ctx, "Repository already cloned")
 		return nil
 	}
 
-	if setTotalErr := tracker.SetTotal(ctx, 1); setTotalErr != nil {
-		h.logger.Warn("failed to set tracker total", slog.String("error", setTotalErr.Error()))
-	}
-
-	if currentErr := tracker.SetCurrent(ctx, 0, "Cloning repository"); currentErr != nil {
-		h.logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
-	}
+	tracker.SetTotal(ctx, 1)
+	tracker.SetCurrent(ctx, 0, "Cloning repository")
 
 	clonedPath, err := h.cloner.Clone(ctx, repo.RemoteURL())
 	if err != nil {
-		if failErr := tracker.Fail(ctx, err.Error()); failErr != nil {
-			h.logger.Warn("failed to mark tracker as failed", slog.String("error", failErr.Error()))
-		}
+		tracker.Fail(ctx, err.Error())
 		return fmt.Errorf("clone repository: %w", err)
 	}
 
@@ -91,9 +80,7 @@ func (h *Clone) Execute(ctx context.Context, payload map[string]any) error {
 	updatedRepo := repo.WithWorkingCopy(wc)
 
 	if _, err := h.repoStore.Save(ctx, updatedRepo); err != nil {
-		if failErr := tracker.Fail(ctx, err.Error()); failErr != nil {
-			h.logger.Warn("failed to mark tracker as failed", slog.String("error", failErr.Error()))
-		}
+		tracker.Fail(ctx, err.Error())
 		return fmt.Errorf("save repository: %w", err)
 	}
 
@@ -104,10 +91,6 @@ func (h *Clone) Execute(ctx context.Context, payload map[string]any) error {
 
 	if err := h.enqueueFollowUpTasks(ctx, repoID); err != nil {
 		h.logger.Warn("failed to enqueue follow-up tasks", slog.String("error", err.Error()))
-	}
-
-	if completeErr := tracker.Complete(ctx); completeErr != nil {
-		h.logger.Warn("failed to mark tracker as complete", slog.String("error", completeErr.Error()))
 	}
 
 	return nil

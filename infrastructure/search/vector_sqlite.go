@@ -315,6 +315,33 @@ func (s *SQLiteVectorStore) HasEmbedding(ctx context.Context, snippetID string, 
 	return count > 0, nil
 }
 
+// HasEmbeddings checks which snippet IDs have embeddings of the given type.
+func (s *SQLiteVectorStore) HasEmbeddings(ctx context.Context, snippetIDs []string, embeddingType search.EmbeddingType) (map[string]bool, error) {
+	if len(snippetIDs) == 0 {
+		return map[string]bool{}, nil
+	}
+
+	if err := s.initialize(ctx); err != nil {
+		return nil, err
+	}
+
+	// Note: embeddingType is not used here because SQLite uses separate tables per task
+	_ = embeddingType
+
+	var found []string
+	query := fmt.Sprintf("SELECT snippet_id FROM %s WHERE snippet_id IN ?", s.tableName)
+	err := s.db.WithContext(ctx).Raw(query, snippetIDs).Scan(&found).Error
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]bool, len(found))
+	for _, id := range found {
+		result[id] = true
+	}
+	return result, nil
+}
+
 // Delete removes documents from the vector store.
 func (s *SQLiteVectorStore) Delete(ctx context.Context, request search.DeleteRequest) error {
 	if err := s.initialize(ctx); err != nil {

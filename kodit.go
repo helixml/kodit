@@ -40,6 +40,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/helixml/kodit/application/handler"
 	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/search"
 	domainservice "github.com/helixml/kodit/domain/service"
@@ -76,17 +77,17 @@ type Client struct {
 	Search       *service.Search
 
 	db         database.Database
-	repoStores RepositoryStores
+	repoStores handler.RepositoryStores
 
 	// Stores not grouped into aggregates
 	taskStore   persistence.TaskStore
 	statusStore persistence.StatusStore
 
 	// Aggregate dependencies
-	enrichCtx EnrichmentContext
-	codeIndex VectorIndex
-	textIndex VectorIndex
-	gitInfra  GitInfrastructure
+	enrichCtx handler.EnrichmentContext
+	codeIndex handler.VectorIndex
+	textIndex handler.VectorIndex
+	gitInfra  handler.GitInfrastructure
 
 	// Application services (internal only)
 	bm25Service  *domainservice.BM25
@@ -158,7 +159,7 @@ func New(opts ...Option) (*Client, error) {
 			cfg.embeddingProvider = hugotEmbedding
 			logger.Info("built-in embedding provider enabled", slog.String("model_dir", modelDir))
 		} else {
-			logger.Info("built-in embedding provider not available (no model found)", slog.String("model_dir", modelDir))
+			return nil, fmt.Errorf("no embedding model found in %s — run 'make download-model' or configure an external embedding provider", modelDir)
 		}
 	}
 
@@ -199,7 +200,7 @@ func New(opts ...Option) (*Client, error) {
 	statusStore := persistence.NewStatusStore(db)
 
 	// Group repository stores
-	repoStores := RepositoryStores{
+	repoStores := handler.RepositoryStores{
 		Repositories: repoStore,
 		Commits:      commitStore,
 		Branches:     branchStore,
@@ -215,24 +216,24 @@ func New(opts ...Option) (*Client, error) {
 	}
 
 	// Create vector indices (pairing embedding services with their stores)
-	var codeIndex VectorIndex
+	var codeIndex handler.VectorIndex
 	if codeVectorStore != nil {
 		embSvc, err := domainservice.NewEmbedding(codeVectorStore)
 		if err != nil {
 			return nil, fmt.Errorf("create code embedding service: %w", err)
 		}
-		codeIndex = VectorIndex{
+		codeIndex = handler.VectorIndex{
 			Embedding: embSvc,
 			Store:     codeVectorStore,
 		}
 	}
-	var textIndex VectorIndex
+	var textIndex handler.VectorIndex
 	if textVectorStore != nil {
 		embSvc, err := domainservice.NewEmbedding(textVectorStore)
 		if err != nil {
 			return nil, fmt.Errorf("create text embedding service: %w", err)
 		}
-		textIndex = VectorIndex{
+		textIndex = handler.VectorIndex{
 			Embedding: embSvc,
 			Store:     textVectorStore,
 		}
@@ -259,7 +260,7 @@ func New(opts ...Option) (*Client, error) {
 	clonerSvc := git.NewRepositoryCloner(gitAdapter, cloneDir, logger)
 	scannerSvc := git.NewRepositoryScanner(gitAdapter, logger)
 
-	gitInfra := GitInfrastructure{
+	gitInfra := handler.GitInfrastructure{
 		Adapter: gitAdapter,
 		Cloner:  clonerSvc,
 		Scanner: scannerSvc,
@@ -292,10 +293,9 @@ func New(opts ...Option) (*Client, error) {
 	}
 
 	// Build enrichment context
-	enrichCtx := EnrichmentContext{
+	enrichCtx := handler.EnrichmentContext{
 		Enrichments:  enrichmentStore,
 		Associations: associationStore,
-		Query:        enrichQSvc,
 		Enricher:     enricherImpl,
 		Tracker:      trackerFactory,
 		Logger:       logger,

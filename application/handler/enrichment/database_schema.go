@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/helixml/kodit/application/handler"
-	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	domainservice "github.com/helixml/kodit/domain/service"
@@ -112,12 +111,7 @@ func NewDatabaseSchema(
 
 // Execute processes the CREATE_DATABASE_SCHEMA_FOR_COMMIT task.
 func (h *DatabaseSchema) Execute(ctx context.Context, payload map[string]any) error {
-	repoID, err := handler.ExtractInt64(payload, "repository_id")
-	if err != nil {
-		return err
-	}
-
-	commitSHA, err := handler.ExtractString(payload, "commit_sha")
+	cp, err := handler.ExtractCommitPayload(payload)
 	if err != nil {
 		return err
 	}
@@ -125,39 +119,32 @@ func (h *DatabaseSchema) Execute(ctx context.Context, payload map[string]any) er
 	tracker := h.enrichCtx.Tracker.ForOperation(
 		task.OperationCreateDatabaseSchemaForCommit,
 		task.TrackableTypeRepository,
-		repoID,
+		cp.RepoID(),
 	)
 
-	hasSchema, err := h.enrichCtx.Query.Exists(ctx, &service.EnrichmentExistsParams{CommitSHA: commitSHA, Type: enrichment.TypeArchitecture, Subtype: enrichment.SubtypeDatabaseSchema})
+	count, err := h.enrichCtx.Enrichments.CountByCommitSHA(ctx, cp.CommitSHA(), enrichment.WithType(enrichment.TypeArchitecture), enrichment.WithSubtype(enrichment.SubtypeDatabaseSchema))
 	if err != nil {
 		h.enrichCtx.Logger.Error("failed to check existing database schema", slog.String("error", err.Error()))
 		return err
 	}
 
-	if hasSchema {
-		if skipErr := tracker.Skip(ctx, "Database schema already exists for commit"); skipErr != nil {
-			h.enrichCtx.Logger.Warn("failed to mark tracker as skipped", slog.String("error", skipErr.Error()))
-		}
+	if count > 0 {
+		tracker.Skip(ctx, "Database schema already exists for commit")
 		return nil
 	}
 
-	repo, err := h.repoStore.FindOne(ctx, repository.WithID(repoID))
+	repo, err := h.repoStore.FindOne(ctx, repository.WithID(cp.RepoID()))
 	if err != nil {
 		return fmt.Errorf("get repository: %w", err)
 	}
 
 	clonedPath := repo.WorkingCopy().Path()
 	if clonedPath == "" {
-		return fmt.Errorf("repository %d has never been cloned", repoID)
+		return fmt.Errorf("repository %d has never been cloned", cp.RepoID())
 	}
 
-	if setTotalErr := tracker.SetTotal(ctx, 3); setTotalErr != nil {
-		h.enrichCtx.Logger.Warn("failed to set tracker total", slog.String("error", setTotalErr.Error()))
-	}
-
-	if currentErr := tracker.SetCurrent(ctx, 1, "Discovering database schemas"); currentErr != nil {
-		h.enrichCtx.Logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
-	}
+	tracker.SetTotal(ctx, 3)
+	tracker.SetCurrent(ctx, 1, "Discovering database schemas")
 
 	schemaReport, err := h.discoverer.Discover(ctx, clonedPath)
 	if err != nil {
@@ -165,19 +152,15 @@ func (h *DatabaseSchema) Execute(ctx context.Context, payload map[string]any) er
 	}
 
 	if strings.Contains(schemaReport, "No database schemas detected") {
-		if skipErr := tracker.Skip(ctx, "No database schemas found in repository"); skipErr != nil {
-			h.enrichCtx.Logger.Warn("failed to mark tracker as skipped", slog.String("error", skipErr.Error()))
-		}
+		tracker.Skip(ctx, "No database schemas found in repository")
 		return nil
 	}
 
-	if currentErr := tracker.SetCurrent(ctx, 2, "Enriching schema documentation with LLM"); currentErr != nil {
-		h.enrichCtx.Logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
-	}
+	tracker.SetCurrent(ctx, 2, "Enriching schema documentation with LLM")
 
 	taskPrompt := fmt.Sprintf(databaseSchemaTaskPrompt, schemaReport)
 	requests := []domainservice.EnrichmentRequest{
-		domainservice.NewEnrichmentRequest(commitSHA, taskPrompt, databaseSchemaSystemPrompt),
+		domainservice.NewEnrichmentRequest(cp.CommitSHA(), taskPrompt, databaseSchemaSystemPrompt),
 	}
 
 	responses, err := h.enrichCtx.Enricher.Enrich(ctx, requests)
@@ -186,7 +169,7 @@ func (h *DatabaseSchema) Execute(ctx context.Context, payload map[string]any) er
 	}
 
 	if len(responses) == 0 {
-		return fmt.Errorf("no enrichment response for commit %s", commitSHA)
+		return fmt.Errorf("no enrichment response for commit %s", cp.CommitSHA())
 	}
 
 	schemaEnrichment := enrichment.NewEnrichment(
@@ -200,18 +183,12 @@ func (h *DatabaseSchema) Execute(ctx context.Context, payload map[string]any) er
 		return fmt.Errorf("save database schema enrichment: %w", err)
 	}
 
-	commitAssoc := enrichment.CommitAssociation(saved.ID(), commitSHA)
+	commitAssoc := enrichment.CommitAssociation(saved.ID(), cp.CommitSHA())
 	if _, err := h.enrichCtx.Associations.Save(ctx, commitAssoc); err != nil {
 		return fmt.Errorf("save commit association: %w", err)
 	}
 
-	if currentErr := tracker.SetCurrent(ctx, 3, "Database schema enrichment completed"); currentErr != nil {
-		h.enrichCtx.Logger.Warn("failed to set tracker current", slog.String("error", currentErr.Error()))
-	}
-
-	if completeErr := tracker.Complete(ctx); completeErr != nil {
-		h.enrichCtx.Logger.Warn("failed to mark tracker as complete", slog.String("error", completeErr.Error()))
-	}
+	tracker.SetCurrent(ctx, 3, "Database schema enrichment completed")
 
 	return nil
 }
