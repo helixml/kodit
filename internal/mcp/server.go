@@ -334,7 +334,7 @@ func (s *Server) handleListRepositories(ctx context.Context, _ mcp.CallToolReque
 
 		commits, commitErr := s.commits.Find(ctx,
 			repository.WithRepoID(repo.ID()),
-			repository.WithOrderDesc("committed_at"),
+			repository.WithOrderDesc("date"),
 			repository.WithLimit(1),
 		)
 		if commitErr == nil && len(commits) > 0 {
@@ -402,7 +402,7 @@ func (s *Server) handleEnrichmentDocs(
 	if commitSHA == "" {
 		commits, commitErr := s.commits.Find(ctx,
 			repository.WithRepoID(repos[0].ID()),
-			repository.WithOrderDesc("committed_at"),
+			repository.WithOrderDesc("date"),
 			repository.WithLimit(1),
 		)
 		if commitErr != nil {

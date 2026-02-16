@@ -27,11 +27,13 @@ func NewServer(addr string, logger *slog.Logger) Server {
 
 	router := chi.NewRouter()
 
-	// Apply standard middleware
+	// Apply standard middleware.
+	// Note: Timeout is NOT applied here because streaming endpoints (e.g. MCP)
+	// are incompatible with chi's Timeout middleware which wraps the ResponseWriter.
+	// Request-level timeouts are applied per route group in mountRoutes.
 	router.Use(chimiddleware.RequestID)
 	router.Use(chimiddleware.RealIP)
 	router.Use(chimiddleware.Recoverer)
-	router.Use(chimiddleware.Timeout(60 * time.Second))
 
 	return Server{
 		router: router,

@@ -4,8 +4,10 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/helixml/kodit"
 	v1 "github.com/helixml/kodit/infrastructure/api/v1"
 	mcpinternal "github.com/helixml/kodit/internal/mcp"
@@ -61,13 +63,17 @@ func (a *APIServer) mountRoutes(router chi.Router) {
 	searchRouter := v1.NewSearchRouter(c)
 
 	router.Route("/api/v1", func(r chi.Router) {
+		r.Use(chimiddleware.Timeout(60 * time.Second))
 		r.Mount("/repositories", reposRouter.Routes())
 		r.Mount("/queue", queueRouter.Routes())
 		r.Mount("/enrichments", enrichmentsRouter.Routes())
 		r.Mount("/search", searchRouter.Routes())
 	})
 
-	// MCP (Model Context Protocol) endpoint for AI assistant integration
+	// MCP (Model Context Protocol) endpoint — no timeout middleware.
+	// MCP uses streaming responses and manages its own session state via
+	// response headers, which is incompatible with chi's Timeout middleware
+	// that wraps the ResponseWriter.
 	mcpSrv := mcpinternal.NewServer(c.Search, c.Repositories, c.Commits, c.Enrichments, "0.1.0", a.logger)
 	httpHandler := server.NewStreamableHTTPServer(mcpSrv.MCPServer())
 	router.Mount("/mcp", httpHandler)
