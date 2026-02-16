@@ -42,10 +42,10 @@ func NewGiteaAdapter(logger *slog.Logger) (*GiteaAdapter, error) {
 
 	giteaInitOnce.Do(func() {
 		// Gitea's git module requires a HomePath for its git environment.
-		// Use a temporary directory so git config is isolated.
-		home, err := os.MkdirTemp("", "kodit-git-home-*")
+		// Use the real user home so git inherits credential helpers and SSH keys.
+		home, err := os.UserHomeDir()
 		if err != nil {
-			giteaInitErr = fmt.Errorf("create git home directory: %w", err)
+			giteaInitErr = fmt.Errorf("get user home directory: %w", err)
 			return
 		}
 		setting.Git.HomePath = home
