@@ -82,7 +82,7 @@ func (r *SearchRouter) Search(w http.ResponseWriter, req *http.Request) {
 		related = map[string][]enrichment.Enrichment{}
 	}
 
-	fileMap, err := r.sourceFileMap(ctx, ids)
+	fileMap, err := sourceFileMap(ctx, r.client, ids)
 	if err != nil {
 		r.logger.Warn("failed to fetch source files", "error", err)
 		fileMap = map[string][]repository.File{}
@@ -320,40 +320,3 @@ func snippetLinks(files []repository.File, commits map[string]repository.Commit,
 	}
 }
 
-// sourceFileMap returns source files grouped by enrichment ID string.
-func (r *SearchRouter) sourceFileMap(ctx context.Context, enrichmentIDs []int64) (map[string][]repository.File, error) {
-	fileIDsByEnrichment, err := r.client.Enrichments.SourceFiles(ctx, enrichmentIDs)
-	if err != nil {
-		return nil, err
-	}
-
-	var allFileIDs []int64
-	for _, ids := range fileIDsByEnrichment {
-		allFileIDs = append(allFileIDs, ids...)
-	}
-
-	if len(allFileIDs) == 0 {
-		return map[string][]repository.File{}, nil
-	}
-
-	files, err := r.client.Files.Find(ctx, repository.WithIDIn(allFileIDs))
-	if err != nil {
-		return nil, err
-	}
-
-	byID := make(map[int64]repository.File, len(files))
-	for _, f := range files {
-		byID[f.ID()] = f
-	}
-
-	result := make(map[string][]repository.File, len(fileIDsByEnrichment))
-	for enrichmentID, fileIDs := range fileIDsByEnrichment {
-		for _, fid := range fileIDs {
-			if f, ok := byID[fid]; ok {
-				result[enrichmentID] = append(result[enrichmentID], f)
-			}
-		}
-	}
-
-	return result, nil
-}

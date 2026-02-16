@@ -5,7 +5,6 @@ import (
 	"log/slog"
 
 	"github.com/helixml/kodit"
-	"github.com/helixml/kodit/infrastructure/provider"
 	"github.com/helixml/kodit/internal/log"
 	"github.com/helixml/kodit/internal/mcp"
 	"github.com/spf13/cobra"
@@ -52,32 +51,12 @@ func runStdio(envFile string) error {
 		slog.String("data_dir", cfg.DataDir()),
 	)
 
-	// Build kodit client options
-	opts := []kodit.Option{
+	// Build kodit client options from shared config (database, embedding, text)
+	opts := clientOptions(cfg)
+	opts = append(opts,
 		kodit.WithDataDir(cfg.DataDir()),
 		kodit.WithLogger(slogger),
-	}
-
-	// Configure storage based on database URL
-	if cfg.DBURL() != "" {
-		// Assume VectorChord for PostgreSQL databases (default for kodit)
-		opts = append(opts, kodit.WithPostgresVectorchord(cfg.DBURL()))
-	} else {
-		// Fall back to SQLite
-		opts = append(opts, kodit.WithSQLite(cfg.DataDir()+"/kodit.db"))
-	}
-
-	// Configure embedding provider if available
-	embEndpoint := cfg.EmbeddingEndpoint()
-	if embEndpoint != nil && embEndpoint.BaseURL() != "" && embEndpoint.APIKey() != "" {
-		opts = append(opts, kodit.WithOpenAIConfig(provider.OpenAIConfig{
-			APIKey:         embEndpoint.APIKey(),
-			BaseURL:        embEndpoint.BaseURL(),
-			EmbeddingModel: embEndpoint.Model(),
-			Timeout:        embEndpoint.Timeout(),
-			MaxRetries:     embEndpoint.MaxRetries(),
-		}))
-	}
+	)
 
 	// Create kodit client
 	client, err := kodit.New(opts...)

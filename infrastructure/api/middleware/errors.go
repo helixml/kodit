@@ -13,9 +13,6 @@ var (
 	// ErrAuthentication indicates authentication failure.
 	ErrAuthentication = errors.New("authentication failed")
 
-	// ErrConnection indicates connection failure to the API server.
-	ErrConnection = errors.New("connection failed")
-
 	// ErrServer indicates the server returned an error response.
 	ErrServer = errors.New("server error")
 
@@ -83,38 +80,6 @@ func (e *AuthenticationError) Error() string {
 // Unwrap returns the base authentication error for errors.Is compatibility.
 func (e *AuthenticationError) Unwrap() error {
 	return ErrAuthentication
-}
-
-// ConnectionError represents a connection failure.
-type ConnectionError struct {
-	host  string
-	cause error
-}
-
-// NewConnectionError creates a new ConnectionError.
-func NewConnectionError(host string, cause error) *ConnectionError {
-	return &ConnectionError{
-		host:  host,
-		cause: cause,
-	}
-}
-
-// Error implements the error interface.
-func (e *ConnectionError) Error() string {
-	if e.cause != nil {
-		return fmt.Sprintf("connection to %s failed: %v", e.host, e.cause)
-	}
-	return fmt.Sprintf("connection to %s failed", e.host)
-}
-
-// Unwrap returns the underlying cause.
-func (e *ConnectionError) Unwrap() error {
-	return errors.Join(ErrConnection, e.cause)
-}
-
-// Host returns the host that failed to connect.
-func (e *ConnectionError) Host() string {
-	return e.host
 }
 
 // ServerError represents a server-side error.

@@ -22,27 +22,11 @@ type JSONAPIErrorResponse struct {
 	Errors []JSONAPIError `json:"errors"`
 }
 
-// ErrorHandler returns middleware that provides centralized error handling.
-func ErrorHandler(logger *slog.Logger) func(http.Handler) http.Handler {
-	log := logger
-	if log == nil {
-		log = slog.Default()
-	}
-
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Capture logger for potential panic recovery
-			_ = log
-			next.ServeHTTP(w, r)
-		})
-	}
-}
-
 // WriteError writes a JSON:API formatted error response.
 func WriteError(w http.ResponseWriter, r *http.Request, err error, logger *slog.Logger) {
 	status := http.StatusInternalServerError
 	title := "Internal Server Error"
-	detail := err.Error()
+	detail := ""
 
 	// Determine status code based on error type
 	var apiErr *APIError
@@ -68,9 +52,12 @@ func WriteError(w http.ResponseWriter, r *http.Request, err error, logger *slog.
 	case errors.Is(err, ErrValidation):
 		status = http.StatusBadRequest
 		title = "Validation Error"
+		detail = err.Error()
 	case errors.Is(err, ErrConflict):
 		status = http.StatusConflict
 		title = "Conflict"
+	default:
+		detail = "an unexpected error occurred"
 	}
 
 	correlationID := GetCorrelationID(r.Context())

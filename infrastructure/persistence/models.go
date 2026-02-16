@@ -31,14 +31,15 @@ func (RepositoryModel) TableName() string {
 
 // CommitModel represents a Git commit in the database.
 type CommitModel struct {
-	CommitSHA       string    `gorm:"column:commit_sha;primaryKey;size:64"`
-	RepoID          int64     `gorm:"column:repo_id;index"`
-	Date            time.Time `gorm:"column:date"`
-	Message         string    `gorm:"column:message;type:text"`
-	ParentCommitSHA *string   `gorm:"column:parent_commit_sha;index;size:64"`
-	Author          string    `gorm:"column:author;index;size:255"`
-	CreatedAt       time.Time `gorm:"column:created_at"`
-	UpdatedAt       time.Time `gorm:"column:updated_at"`
+	CommitSHA       string          `gorm:"column:commit_sha;primaryKey;size:64"`
+	RepoID          int64           `gorm:"column:repo_id;index"`
+	Repo            RepositoryModel `gorm:"foreignKey:RepoID;references:ID;constraint:OnDelete:CASCADE"`
+	Date            time.Time       `gorm:"column:date"`
+	Message         string          `gorm:"column:message;type:text"`
+	ParentCommitSHA *string         `gorm:"column:parent_commit_sha;index;size:64"`
+	Author          string          `gorm:"column:author;index;size:255"`
+	CreatedAt       time.Time       `gorm:"column:created_at"`
+	UpdatedAt       time.Time       `gorm:"column:updated_at"`
 }
 
 // TableName returns the table name.
@@ -48,12 +49,13 @@ func (CommitModel) TableName() string {
 
 // BranchModel represents a Git branch in the database.
 type BranchModel struct {
-	RepoID        int64     `gorm:"column:repo_id;primaryKey;index"`
-	Name          string    `gorm:"column:name;primaryKey;index;size:255"`
-	HeadCommitSHA string    `gorm:"column:head_commit_sha;index;size:64"`
-	IsDefault     bool      `gorm:"column:is_default;default:false"`
-	CreatedAt     time.Time `gorm:"column:created_at"`
-	UpdatedAt     time.Time `gorm:"column:updated_at"`
+	RepoID        int64           `gorm:"column:repo_id;primaryKey;index"`
+	Repo          RepositoryModel `gorm:"foreignKey:RepoID;references:ID;constraint:OnDelete:CASCADE"`
+	Name          string          `gorm:"column:name;primaryKey;index;size:255"`
+	HeadCommitSHA string          `gorm:"column:head_commit_sha;index;size:64"`
+	IsDefault     bool            `gorm:"column:is_default;default:false"`
+	CreatedAt     time.Time       `gorm:"column:created_at"`
+	UpdatedAt     time.Time       `gorm:"column:updated_at"`
 }
 
 // TableName returns the table name.
@@ -63,15 +65,16 @@ func (BranchModel) TableName() string {
 
 // TagModel represents a Git tag in the database.
 type TagModel struct {
-	RepoID          int64      `gorm:"column:repo_id;primaryKey;index"`
-	Name            string     `gorm:"column:name;primaryKey;index;size:255"`
-	TargetCommitSHA string     `gorm:"column:target_commit_sha;index;size:64"`
-	Message         *string    `gorm:"column:message;type:text"`
-	TaggerName      *string    `gorm:"column:tagger_name;size:255"`
-	TaggerEmail     *string    `gorm:"column:tagger_email;size:255"`
-	TaggedAt        *time.Time `gorm:"column:tagged_at"`
-	CreatedAt       time.Time  `gorm:"column:created_at"`
-	UpdatedAt       time.Time  `gorm:"column:updated_at"`
+	RepoID          int64           `gorm:"column:repo_id;primaryKey;index"`
+	Repo            RepositoryModel `gorm:"foreignKey:RepoID;references:ID;constraint:OnDelete:CASCADE"`
+	Name            string          `gorm:"column:name;primaryKey;index;size:255"`
+	TargetCommitSHA string          `gorm:"column:target_commit_sha;index;size:64"`
+	Message         *string         `gorm:"column:message;type:text"`
+	TaggerName      *string         `gorm:"column:tagger_name;size:255"`
+	TaggerEmail     *string         `gorm:"column:tagger_email;size:255"`
+	TaggedAt        *time.Time      `gorm:"column:tagged_at"`
+	CreatedAt       time.Time       `gorm:"column:created_at"`
+	UpdatedAt       time.Time       `gorm:"column:updated_at"`
 }
 
 // TableName returns the table name.
@@ -81,14 +84,15 @@ func (TagModel) TableName() string {
 
 // FileModel represents a Git file in the database.
 type FileModel struct {
-	ID        int64     `gorm:"column:id;autoIncrement"`
-	CommitSHA string    `gorm:"column:commit_sha;primaryKey;uniqueIndex:idx_commit_path;size:64"`
-	Path      string    `gorm:"column:path;primaryKey;uniqueIndex:idx_commit_path;size:1024"`
-	BlobSHA   string    `gorm:"column:blob_sha;index;size:64"`
-	MimeType  string    `gorm:"column:mime_type;index;size:255"`
-	Extension string    `gorm:"column:extension;index;size:255"`
-	Size      int64     `gorm:"column:size"`
-	CreatedAt time.Time `gorm:"column:created_at"`
+	ID        int64       `gorm:"column:id;autoIncrement"`
+	CommitSHA string      `gorm:"column:commit_sha;primaryKey;uniqueIndex:idx_commit_path;size:64"`
+	Commit    CommitModel `gorm:"foreignKey:CommitSHA;references:CommitSHA;constraint:OnDelete:CASCADE"`
+	Path      string      `gorm:"column:path;primaryKey;uniqueIndex:idx_commit_path;size:1024"`
+	BlobSHA   string      `gorm:"column:blob_sha;index;size:64"`
+	MimeType  string      `gorm:"column:mime_type;index;size:255"`
+	Extension string      `gorm:"column:extension;index;size:255"`
+	Size      int64       `gorm:"column:size"`
+	CreatedAt time.Time   `gorm:"column:created_at"`
 }
 
 // TableName returns the table name.
@@ -99,6 +103,7 @@ func (FileModel) TableName() string {
 // CommitIndexModel represents the commit indexing status.
 type CommitIndexModel struct {
 	CommitSHA             string         `gorm:"column:commit_sha;primaryKey"`
+	Commit                CommitModel    `gorm:"foreignKey:CommitSHA;references:CommitSHA;constraint:OnDelete:CASCADE"`
 	Status                string         `gorm:"column:status;index"`
 	IndexedAt             sql.NullTime   `gorm:"column:indexed_at"`
 	ErrorMessage          sql.NullString `gorm:"column:error_message"`
@@ -131,12 +136,13 @@ func (EnrichmentModel) TableName() string {
 
 // EnrichmentAssociationModel links enrichments to entities.
 type EnrichmentAssociationModel struct {
-	ID           int64     `gorm:"column:id;primaryKey;autoIncrement"`
-	EnrichmentID int64     `gorm:"column:enrichment_id;not null;index"`
-	EntityType   string    `gorm:"column:entity_type;size:50;not null;index"`
-	EntityID     string    `gorm:"column:entity_id;size:255;not null;index"`
-	CreatedAt    time.Time `gorm:"column:created_at;not null"`
-	UpdatedAt    time.Time `gorm:"column:updated_at;not null"`
+	ID           int64           `gorm:"column:id;primaryKey;autoIncrement"`
+	EnrichmentID int64           `gorm:"column:enrichment_id;not null;index;uniqueIndex:idx_enrichment_assoc"`
+	Enrichment   EnrichmentModel `gorm:"foreignKey:EnrichmentID;references:ID;constraint:OnDelete:CASCADE"`
+	EntityType   string          `gorm:"column:entity_type;size:50;not null;index:idx_enrichment_entity;uniqueIndex:idx_enrichment_assoc"`
+	EntityID     string          `gorm:"column:entity_id;size:255;not null;index:idx_enrichment_entity;uniqueIndex:idx_enrichment_assoc"`
+	CreatedAt    time.Time       `gorm:"column:created_at;not null"`
+	UpdatedAt    time.Time       `gorm:"column:updated_at;not null"`
 }
 
 // TableName returns the table name.
@@ -181,8 +187,8 @@ type TaskStatusModel struct {
 	CreatedAt     time.Time `gorm:"column:created_at;not null"`
 	UpdatedAt     time.Time `gorm:"column:updated_at;not null"`
 	Operation     string    `gorm:"column:operation;type:varchar(255);index;not null"`
-	TrackableID   *int64    `gorm:"column:trackable_id;index"`
-	TrackableType *string   `gorm:"column:trackable_type;type:varchar(255);index"`
+	TrackableID   *int64  `gorm:"column:trackable_id;index:idx_trackable"`
+	TrackableType *string `gorm:"column:trackable_type;type:varchar(255);index:idx_trackable"`
 	ParentID      *string   `gorm:"column:parent;type:varchar(255);index"`
 	Message       string    `gorm:"column:message;type:text;default:''"`
 	State         string    `gorm:"column:state;type:varchar(255);default:''"`

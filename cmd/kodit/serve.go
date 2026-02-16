@@ -8,11 +8,11 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/helixml/kodit"
 	"github.com/helixml/kodit/infrastructure/api"
 	apimiddleware "github.com/helixml/kodit/infrastructure/api/middleware"
-	"github.com/helixml/kodit/infrastructure/provider"
 	"github.com/helixml/kodit/internal/config"
 	"github.com/helixml/kodit/internal/log"
 	"github.com/spf13/cobra"
@@ -58,7 +58,7 @@ Environment variables:
     (same fields as EMBEDDING_ENDPOINT)
 
   DEFAULT_SEARCH_PROVIDER      Search backend: sqlite, vectorchord (default: sqlite)
-  GIT_PROVIDER                 Git library: dulwich, pygit2, gitpython (default: dulwich)
+  GIT_PROVIDER                 Git library: go-git (default: go-git)
 
   PERIODIC_SYNC_ENABLED        Enable periodic sync (default: true)
   PERIODIC_SYNC_INTERVAL_SECONDS  Sync interval (default: 1800)
@@ -101,51 +101,13 @@ func runServe(envFile, host string, port int) error {
 	logger := log.NewLogger(cfg)
 	slogger := logger.Slog()
 
-	// Build kodit client options
-	opts := []kodit.Option{
+	// Build kodit client options from shared config (database, embedding, text)
+	opts := clientOptions(cfg)
+	opts = append(opts,
 		kodit.WithDataDir(cfg.DataDir()),
 		kodit.WithCloneDir(cfg.CloneDir()),
 		kodit.WithLogger(slogger),
-	}
-
-	// Configure storage based on database URL
-	dbURLStr := cfg.DBURL()
-	if dbURLStr != "" && !isSQLite(dbURLStr) {
-		// Assume VectorChord for PostgreSQL databases
-		opts = append(opts, kodit.WithPostgresVectorchord(dbURLStr))
-	} else {
-		// Default to SQLite
-		dbPath := cfg.DataDir() + "/kodit.db"
-		if dbURLStr != "" && isSQLite(dbURLStr) {
-			// Extract path from sqlite URL
-			dbPath = dbURLStr[10:] // Remove "sqlite:///" prefix
-		}
-		opts = append(opts, kodit.WithSQLite(dbPath))
-	}
-
-	// Configure embedding provider if available
-	embEndpoint := cfg.EmbeddingEndpoint()
-	if embEndpoint != nil && embEndpoint.BaseURL() != "" && embEndpoint.APIKey() != "" {
-		opts = append(opts, kodit.WithEmbeddingProvider(provider.NewOpenAIProviderFromConfig(provider.OpenAIConfig{
-			APIKey:         embEndpoint.APIKey(),
-			BaseURL:        embEndpoint.BaseURL(),
-			EmbeddingModel: embEndpoint.Model(),
-			Timeout:        embEndpoint.Timeout(),
-			MaxRetries:     embEndpoint.MaxRetries(),
-		})))
-	}
-
-	// Configure text generation provider if available
-	enrichEndpoint := cfg.EnrichmentEndpoint()
-	if enrichEndpoint != nil && enrichEndpoint.BaseURL() != "" && enrichEndpoint.APIKey() != "" {
-		opts = append(opts, kodit.WithTextProvider(provider.NewOpenAIProviderFromConfig(provider.OpenAIConfig{
-			APIKey:     enrichEndpoint.APIKey(),
-			BaseURL:    enrichEndpoint.BaseURL(),
-			ChatModel:  enrichEndpoint.Model(),
-			Timeout:    enrichEndpoint.Timeout(),
-			MaxRetries: enrichEndpoint.MaxRetries(),
-		})))
-	}
+	)
 
 	// Configure API keys
 	if keys := cfg.APIKeys(); len(keys) > 0 {
@@ -186,6 +148,7 @@ func runServe(envFile, host string, port int) error {
 	// Apply custom middleware (MUST be done before MountRoutes)
 	router.Use(apimiddleware.Logging(slogger))
 	router.Use(apimiddleware.CorrelationID)
+	router.Use(apimiddleware.APIKeyAuth(cfg.APIKeys()))
 
 	// Mount API routes after middleware is configured
 	apiServer.MountRoutes()
@@ -206,7 +169,7 @@ func runServe(envFile, host string, port int) error {
 	router.Mount("/docs", docsRouter.Routes())
 
 	// Setup graceful shutdown
-	ctx, cancel := context.WithCancel(context.Background())
+	_, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	sigChan := make(chan os.Signal, 1)
@@ -219,8 +182,11 @@ func runServe(envFile, host string, port int) error {
 	go func() {
 		<-sigChan
 		slogger.Info("shutting down server")
+		signal.Stop(sigChan)
 		cancel()
-		if err := server.Shutdown(ctx); err != nil {
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer shutdownCancel()
+		if err := server.Shutdown(shutdownCtx); err != nil {
 			slogger.Error("shutdown error", slog.Any("error", err))
 		}
 	}()
@@ -231,11 +197,6 @@ func runServe(envFile, host string, port int) error {
 	}
 
 	return nil
-}
-
-// isSQLite checks if the database URL is for SQLite.
-func isSQLite(url string) bool {
-	return len(url) >= 7 && url[:7] == "sqlite:"
 }
 
 func healthHandler(w http.ResponseWriter, _ *http.Request) {

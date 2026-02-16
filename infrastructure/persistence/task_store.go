@@ -36,7 +36,11 @@ func (s TaskStore) Get(ctx context.Context, id int64) (task.Task, error) {
 		}
 		return task.Task{}, fmt.Errorf("get task: %w", result.Error)
 	}
-	return s.mapper.ToDomain(model), nil
+	t, err := s.mapper.ToDomain(model)
+	if err != nil {
+		return task.Task{}, fmt.Errorf("get task: %w", err)
+	}
+	return t, nil
 }
 
 // FindAll retrieves all tasks.
@@ -49,7 +53,11 @@ func (s TaskStore) FindAll(ctx context.Context) ([]task.Task, error) {
 
 	tasks := make([]task.Task, len(models))
 	for i, model := range models {
-		tasks[i] = s.mapper.ToDomain(model)
+		t, err := s.mapper.ToDomain(model)
+		if err != nil {
+			return nil, fmt.Errorf("find all tasks: %w", err)
+		}
+		tasks[i] = t
 	}
 	return tasks, nil
 }
@@ -66,7 +74,11 @@ func (s TaskStore) FindPending(ctx context.Context, options ...repository.Option
 
 	tasks := make([]task.Task, len(models))
 	for i, model := range models {
-		tasks[i] = s.mapper.ToDomain(model)
+		t, err := s.mapper.ToDomain(model)
+		if err != nil {
+			return nil, fmt.Errorf("find pending tasks: %w", err)
+		}
+		tasks[i] = t
 	}
 	return tasks, nil
 }
@@ -74,7 +86,10 @@ func (s TaskStore) FindPending(ctx context.Context, options ...repository.Option
 // Save creates a new task or updates an existing one.
 // Uses dedup_key for conflict resolution.
 func (s TaskStore) Save(ctx context.Context, t task.Task) (task.Task, error) {
-	model := s.mapper.ToModel(t)
+	model, err := s.mapper.ToModel(t)
+	if err != nil {
+		return task.Task{}, fmt.Errorf("save task: %w", err)
+	}
 
 	result := s.db.Session(ctx).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "dedup_key"}},
@@ -85,7 +100,11 @@ func (s TaskStore) Save(ctx context.Context, t task.Task) (task.Task, error) {
 		return task.Task{}, fmt.Errorf("save task: %w", result.Error)
 	}
 
-	return s.mapper.ToDomain(model), nil
+	saved, err := s.mapper.ToDomain(model)
+	if err != nil {
+		return task.Task{}, fmt.Errorf("save task: %w", err)
+	}
+	return saved, nil
 }
 
 // SaveBulk creates or updates multiple tasks.
@@ -96,7 +115,11 @@ func (s TaskStore) SaveBulk(ctx context.Context, tasks []task.Task) ([]task.Task
 
 	models := make([]TaskModel, len(tasks))
 	for i, t := range tasks {
-		models[i] = s.mapper.ToModel(t)
+		m, err := s.mapper.ToModel(t)
+		if err != nil {
+			return nil, fmt.Errorf("save tasks bulk: %w", err)
+		}
+		models[i] = m
 	}
 
 	result := s.db.Session(ctx).Clauses(clause.OnConflict{
@@ -110,7 +133,11 @@ func (s TaskStore) SaveBulk(ctx context.Context, tasks []task.Task) ([]task.Task
 
 	saved := make([]task.Task, len(models))
 	for i, model := range models {
-		saved[i] = s.mapper.ToDomain(model)
+		t, err := s.mapper.ToDomain(model)
+		if err != nil {
+			return nil, fmt.Errorf("save tasks bulk: %w", err)
+		}
+		saved[i] = t
 	}
 	return saved, nil
 }
@@ -182,7 +209,11 @@ func (s TaskStore) Dequeue(ctx context.Context) (task.Task, bool, error) {
 		return task.Task{}, false, nil
 	}
 
-	return s.mapper.ToDomain(model), true, nil
+	t, err := s.mapper.ToDomain(model)
+	if err != nil {
+		return task.Task{}, false, fmt.Errorf("dequeue task: %w", err)
+	}
+	return t, true, nil
 }
 
 // DequeueByOperation retrieves and removes the highest priority task of a specific operation type.
@@ -215,7 +246,11 @@ func (s TaskStore) DequeueByOperation(ctx context.Context, operation task.Operat
 		return task.Task{}, false, nil
 	}
 
-	return s.mapper.ToDomain(model), true, nil
+	t, err := s.mapper.ToDomain(model)
+	if err != nil {
+		return task.Task{}, false, fmt.Errorf("dequeue task by operation: %w", err)
+	}
+	return t, true, nil
 }
 
 // StatusStore implements task.StatusStore using GORM.

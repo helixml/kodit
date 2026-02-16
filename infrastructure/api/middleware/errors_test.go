@@ -50,34 +50,6 @@ func TestAuthenticationError(t *testing.T) {
 	}
 }
 
-func TestConnectionError(t *testing.T) {
-	cause := errors.New("timeout")
-	err := NewConnectionError("api.example.com", cause)
-
-	if err.Host() != "api.example.com" {
-		t.Errorf("Host() = %v, want 'api.example.com'", err.Host())
-	}
-
-	expected := "connection to api.example.com failed: timeout"
-	if err.Error() != expected {
-		t.Errorf("Error() = %v, want %v", err.Error(), expected)
-	}
-
-	// Should be matchable with errors.Is
-	if !errors.Is(err, ErrConnection) {
-		t.Error("ConnectionError should match ErrConnection with errors.Is")
-	}
-}
-
-func TestConnectionError_NoCause(t *testing.T) {
-	err := NewConnectionError("api.example.com", nil)
-
-	expected := "connection to api.example.com failed"
-	if err.Error() != expected {
-		t.Errorf("Error() = %v, want %v", err.Error(), expected)
-	}
-}
-
 func TestServerError(t *testing.T) {
 	err := NewServerError(503, "service unavailable")
 

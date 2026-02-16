@@ -2,7 +2,6 @@
 package v1
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -60,6 +59,22 @@ func (r *RepositoriesRouter) Routes() chi.Router {
 	router.Put("/{id}/tracking-config", r.UpdateTrackingConfig)
 
 	return router
+}
+
+// repositoryID parses the "id" URL parameter and verifies the repository exists.
+func (r *RepositoriesRouter) repositoryID(req *http.Request) (int64, error) {
+	idStr := chi.URLParam(req, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		return 0, err
+	}
+
+	_, err = r.client.Repositories.Get(req.Context(), repository.WithID(id))
+	if err != nil {
+		return 0, err
+	}
+
+	return id, nil
 }
 
 // List handles GET /api/v1/repositories.
@@ -253,15 +268,7 @@ func (r *RepositoriesRouter) Delete(w http.ResponseWriter, req *http.Request) {
 func (r *RepositoriesRouter) GetStatus(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
-	idStr := chi.URLParam(req, "id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		middleware.WriteError(w, req, err, r.logger)
-		return
-	}
-
-	// Check repository exists
-	_, err = r.client.Repositories.Get(ctx, repository.WithID(id))
+	id, err := r.repositoryID(req)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -313,15 +320,7 @@ func (r *RepositoriesRouter) GetStatus(w http.ResponseWriter, req *http.Request)
 func (r *RepositoriesRouter) GetStatusSummary(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
-	idStr := chi.URLParam(req, "id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		middleware.WriteError(w, req, err, r.logger)
-		return
-	}
-
-	// Check repository exists
-	_, err = r.client.Repositories.Get(ctx, repository.WithID(id))
+	id, err := r.repositoryID(req)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -365,15 +364,7 @@ func (r *RepositoriesRouter) ListCommits(w http.ResponseWriter, req *http.Reques
 	ctx := req.Context()
 	pagination := ParsePagination(req)
 
-	idStr := chi.URLParam(req, "id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		middleware.WriteError(w, req, err, r.logger)
-		return
-	}
-
-	// Check repository exists
-	_, err = r.client.Repositories.Get(ctx, repository.WithID(id))
+	id, err := r.repositoryID(req)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -431,21 +422,13 @@ func (r *RepositoriesRouter) ListCommits(w http.ResponseWriter, req *http.Reques
 func (r *RepositoriesRouter) GetCommit(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
-	idStr := chi.URLParam(req, "id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := r.repositoryID(req)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
 
 	commitSHA := chi.URLParam(req, "commit_sha")
-
-	// Check repository exists
-	_, err = r.client.Repositories.Get(ctx, repository.WithID(id))
-	if err != nil {
-		middleware.WriteError(w, req, err, r.logger)
-		return
-	}
 
 	commit, err := r.client.Commits.Get(ctx, repository.WithRepoID(id), repository.WithSHA(commitSHA))
 	if err != nil {
@@ -488,21 +471,13 @@ func (r *RepositoriesRouter) ListCommitFiles(w http.ResponseWriter, req *http.Re
 	ctx := req.Context()
 	pagination := ParsePagination(req)
 
-	idStr := chi.URLParam(req, "id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := r.repositoryID(req)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
 
 	commitSHA := chi.URLParam(req, "commit_sha")
-
-	// Check repository exists
-	_, err = r.client.Repositories.Get(ctx, repository.WithID(id))
-	if err != nil {
-		middleware.WriteError(w, req, err, r.logger)
-		return
-	}
 
 	// Check commit exists and belongs to this repo
 	_, err = r.client.Commits.Get(ctx, repository.WithRepoID(id), repository.WithSHA(commitSHA))
@@ -564,8 +539,7 @@ func (r *RepositoriesRouter) ListCommitFiles(w http.ResponseWriter, req *http.Re
 func (r *RepositoriesRouter) GetCommitFile(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
-	idStr := chi.URLParam(req, "id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := r.repositoryID(req)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -573,13 +547,6 @@ func (r *RepositoriesRouter) GetCommitFile(w http.ResponseWriter, req *http.Requ
 
 	commitSHA := chi.URLParam(req, "commit_sha")
 	blobSHA := chi.URLParam(req, "blob_sha")
-
-	// Check repository exists
-	_, err = r.client.Repositories.Get(ctx, repository.WithID(id))
-	if err != nil {
-		middleware.WriteError(w, req, err, r.logger)
-		return
-	}
 
 	// Check commit exists and belongs to this repo
 	_, err = r.client.Commits.Get(ctx, repository.WithRepoID(id), repository.WithSHA(commitSHA))
@@ -631,21 +598,13 @@ func (r *RepositoriesRouter) ListCommitEnrichments(w http.ResponseWriter, req *h
 	ctx := req.Context()
 	pagination := ParsePagination(req)
 
-	idStr := chi.URLParam(req, "id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := r.repositoryID(req)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
 
 	commitSHA := chi.URLParam(req, "commit_sha")
-
-	// Check repository exists
-	_, err = r.client.Repositories.Get(ctx, repository.WithID(id))
-	if err != nil {
-		middleware.WriteError(w, req, err, r.logger)
-		return
-	}
 
 	// Check commit exists and belongs to this repo
 	_, err = r.client.Commits.Get(ctx, repository.WithRepoID(id), repository.WithSHA(commitSHA))
@@ -721,8 +680,7 @@ func (r *RepositoriesRouter) ListCommitEnrichments(w http.ResponseWriter, req *h
 func (r *RepositoriesRouter) GetCommitEnrichment(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
-	idStr := chi.URLParam(req, "id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := r.repositoryID(req)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -731,13 +689,6 @@ func (r *RepositoriesRouter) GetCommitEnrichment(w http.ResponseWriter, req *htt
 	commitSHA := chi.URLParam(req, "commit_sha")
 	enrichmentIDStr := chi.URLParam(req, "enrichment_id")
 	enrichmentID, err := strconv.ParseInt(enrichmentIDStr, 10, 64)
-	if err != nil {
-		middleware.WriteError(w, req, err, r.logger)
-		return
-	}
-
-	// Check repository exists
-	_, err = r.client.Repositories.Get(ctx, repository.WithID(id))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -788,21 +739,13 @@ func (r *RepositoriesRouter) GetCommitEnrichment(w http.ResponseWriter, req *htt
 func (r *RepositoriesRouter) DeleteCommitEnrichments(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
-	idStr := chi.URLParam(req, "id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := r.repositoryID(req)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
 
 	commitSHA := chi.URLParam(req, "commit_sha")
-
-	// Check repository exists
-	_, err = r.client.Repositories.Get(ctx, repository.WithID(id))
-	if err != nil {
-		middleware.WriteError(w, req, err, r.logger)
-		return
-	}
 
 	// Check commit exists and belongs to this repo
 	_, err = r.client.Commits.Get(ctx, repository.WithRepoID(id), repository.WithSHA(commitSHA))
@@ -837,8 +780,7 @@ func (r *RepositoriesRouter) DeleteCommitEnrichments(w http.ResponseWriter, req 
 func (r *RepositoriesRouter) DeleteCommitEnrichment(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
-	idStr := chi.URLParam(req, "id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := r.repositoryID(req)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -847,13 +789,6 @@ func (r *RepositoriesRouter) DeleteCommitEnrichment(w http.ResponseWriter, req *
 	commitSHA := chi.URLParam(req, "commit_sha")
 	enrichmentIDStr := chi.URLParam(req, "enrichment_id")
 	enrichmentID, err := strconv.ParseInt(enrichmentIDStr, 10, 64)
-	if err != nil {
-		middleware.WriteError(w, req, err, r.logger)
-		return
-	}
-
-	// Check repository exists
-	_, err = r.client.Repositories.Get(ctx, repository.WithID(id))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -895,21 +830,13 @@ func (r *RepositoriesRouter) ListCommitSnippets(w http.ResponseWriter, req *http
 	ctx := req.Context()
 	pagination := ParsePagination(req)
 
-	idStr := chi.URLParam(req, "id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := r.repositoryID(req)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
 
 	commitSHA := chi.URLParam(req, "commit_sha")
-
-	// Check repository exists
-	_, err = r.client.Repositories.Get(ctx, repository.WithID(id))
-	if err != nil {
-		middleware.WriteError(w, req, err, r.logger)
-		return
-	}
 
 	// Check commit exists and belongs to this repo
 	_, err = r.client.Commits.Get(ctx, repository.WithRepoID(id), repository.WithSHA(commitSHA))
@@ -951,7 +878,7 @@ func (r *RepositoriesRouter) ListCommitSnippets(w http.ResponseWriter, req *http
 		related = map[string][]enrichment.Enrichment{}
 	}
 
-	fileMap, err := r.sourceFileMap(ctx, ids)
+	fileMap, err := sourceFileMap(ctx, r.client, ids)
 	if err != nil {
 		r.logger.Warn("failed to fetch source files", "error", err)
 		fileMap = map[string][]repository.File{}
@@ -1042,21 +969,13 @@ func (r *RepositoriesRouter) ListCommitEmbeddingsDeprecated(w http.ResponseWrite
 func (r *RepositoriesRouter) RescanCommit(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
-	idStr := chi.URLParam(req, "id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := r.repositoryID(req)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
 
 	commitSHA := chi.URLParam(req, "commit_sha")
-
-	// Check repository exists
-	_, err = r.client.Repositories.Get(ctx, repository.WithID(id))
-	if err != nil {
-		middleware.WriteError(w, req, err, r.logger)
-		return
-	}
 
 	// Check commit exists and belongs to this repo
 	_, err = r.client.Commits.Get(ctx, repository.WithRepoID(id), repository.WithSHA(commitSHA))
@@ -1095,15 +1014,7 @@ func (r *RepositoriesRouter) ListRepositoryEnrichments(w http.ResponseWriter, re
 	ctx := req.Context()
 	pagination := ParsePagination(req)
 
-	idStr := chi.URLParam(req, "id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		middleware.WriteError(w, req, err, r.logger)
-		return
-	}
-
-	// Check repository exists
-	_, err = r.client.Repositories.Get(ctx, repository.WithID(id))
+	id, err := r.repositoryID(req)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -1198,15 +1109,7 @@ func (r *RepositoriesRouter) ListTags(w http.ResponseWriter, req *http.Request) 
 	ctx := req.Context()
 	pagination := ParsePagination(req)
 
-	idStr := chi.URLParam(req, "id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		middleware.WriteError(w, req, err, r.logger)
-		return
-	}
-
-	// Check repository exists
-	_, err = r.client.Repositories.Get(ctx, repository.WithID(id))
+	id, err := r.repositoryID(req)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -1262,8 +1165,7 @@ func (r *RepositoriesRouter) ListTags(w http.ResponseWriter, req *http.Request) 
 func (r *RepositoriesRouter) GetTag(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
-	idStr := chi.URLParam(req, "id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := r.repositoryID(req)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -1271,13 +1173,6 @@ func (r *RepositoriesRouter) GetTag(w http.ResponseWriter, req *http.Request) {
 
 	tagIDStr := chi.URLParam(req, "tag_id")
 	tagID, err := strconv.ParseInt(tagIDStr, 10, 64)
-	if err != nil {
-		middleware.WriteError(w, req, err, r.logger)
-		return
-	}
-
-	// Check repository exists
-	_, err = r.client.Repositories.Get(ctx, repository.WithID(id))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -1430,44 +1325,6 @@ func trackingConfigToResponse(tc repository.TrackingConfig) dto.TrackingConfigRe
 			},
 		},
 	}
-}
-
-// sourceFileMap returns source files grouped by enrichment ID string.
-func (r *RepositoriesRouter) sourceFileMap(ctx context.Context, enrichmentIDs []int64) (map[string][]repository.File, error) {
-	fileIDsByEnrichment, err := r.client.Enrichments.SourceFiles(ctx, enrichmentIDs)
-	if err != nil {
-		return nil, err
-	}
-
-	var allFileIDs []int64
-	for _, ids := range fileIDsByEnrichment {
-		allFileIDs = append(allFileIDs, ids...)
-	}
-
-	if len(allFileIDs) == 0 {
-		return map[string][]repository.File{}, nil
-	}
-
-	files, err := r.client.Files.Find(ctx, repository.WithIDIn(allFileIDs))
-	if err != nil {
-		return nil, err
-	}
-
-	byID := make(map[int64]repository.File, len(files))
-	for _, f := range files {
-		byID[f.ID()] = f
-	}
-
-	result := make(map[string][]repository.File, len(fileIDsByEnrichment))
-	for enrichmentID, fileIDs := range fileIDsByEnrichment {
-		for _, fid := range fileIDs {
-			if f, ok := byID[fid]; ok {
-				result[enrichmentID] = append(result[enrichmentID], f)
-			}
-		}
-	}
-
-	return result, nil
 }
 
 func reposToDTO(repos []repository.Repository) []dto.RepositoryData {
