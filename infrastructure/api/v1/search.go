@@ -3,6 +3,7 @@ package v1
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -87,7 +88,19 @@ func (r *SearchRouter) Search(w http.ResponseWriter, req *http.Request) {
 		fileMap = map[string][]repository.File{}
 	}
 
-	response := buildSearchResponse(result, related, fileMap)
+	commits, err := r.commitMap(ctx, fileMap)
+	if err != nil {
+		r.logger.Warn("failed to fetch commits", "error", err)
+		commits = map[string]repository.Commit{}
+	}
+
+	repos, err := r.repositoryMap(ctx, commits)
+	if err != nil {
+		r.logger.Warn("failed to fetch repositories", "error", err)
+		repos = map[int64]repository.Repository{}
+	}
+
+	response := buildSearchResponse(result, related, fileMap, commits, repos)
 	middleware.WriteJSON(w, http.StatusOK, response)
 }
 
@@ -147,14 +160,20 @@ func buildSearchRequest(body dto.SearchRequest) search.MultiRequest {
 	return search.NewMultiRequest(topK, textQuery, codeQuery, attrs.Keywords, filters)
 }
 
-func buildSearchResponse(result service.MultiSearchResult, related map[string][]enrichment.Enrichment, fileMap map[string][]repository.File) dto.SearchResponse {
+func buildSearchResponse(
+	result service.MultiSearchResult,
+	related map[string][]enrichment.Enrichment,
+	fileMap map[string][]repository.File,
+	commits map[string]repository.Commit,
+	repos map[int64]repository.Repository,
+) dto.SearchResponse {
 	enrichments := result.Enrichments()
 	scores := result.FusedScores()
 
 	data := make([]dto.SnippetData, len(enrichments))
 	for i, e := range enrichments {
 		idStr := strconv.FormatInt(e.ID(), 10)
-		data[i] = enrichmentToSearchResult(e, scores[idStr], related[idStr], fileMap[idStr])
+		data[i] = enrichmentToSearchResult(e, scores[idStr], related[idStr], fileMap[idStr], commits, repos)
 	}
 
 	return dto.SearchResponse{
@@ -162,7 +181,14 @@ func buildSearchResponse(result service.MultiSearchResult, related map[string][]
 	}
 }
 
-func enrichmentToSearchResult(e enrichment.Enrichment, score float64, related []enrichment.Enrichment, files []repository.File) dto.SnippetData {
+func enrichmentToSearchResult(
+	e enrichment.Enrichment,
+	score float64,
+	related []enrichment.Enrichment,
+	files []repository.File,
+	commits map[string]repository.Commit,
+	repos map[int64]repository.Repository,
+) dto.SnippetData {
 	createdAt := e.CreatedAt()
 	updatedAt := e.UpdatedAt()
 
@@ -184,6 +210,8 @@ func enrichmentToSearchResult(e enrichment.Enrichment, score float64, related []
 		}
 	}
 
+	links := snippetLinks(files, commits, repos)
+
 	return dto.SnippetData{
 		Type: string(e.Subtype()),
 		ID:   strconv.FormatInt(e.ID(), 10),
@@ -198,6 +226,97 @@ func enrichmentToSearchResult(e enrichment.Enrichment, score float64, related []
 			Enrichments:    enrichmentSchemas,
 			OriginalScores: []float64{score},
 		},
+		Links: links,
+	}
+}
+
+// commitMap returns commits keyed by SHA for the given file map.
+func (r *SearchRouter) commitMap(ctx context.Context, fileMap map[string][]repository.File) (map[string]repository.Commit, error) {
+	shas := uniqueCommitSHAs(fileMap)
+	if len(shas) == 0 {
+		return map[string]repository.Commit{}, nil
+	}
+
+	commits, err := r.client.Commits.Find(ctx, repository.WithCommitSHAIn(shas))
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]repository.Commit, len(commits))
+	for _, c := range commits {
+		result[c.SHA()] = c
+	}
+	return result, nil
+}
+
+// repositoryMap returns repositories keyed by ID for the given commit map.
+func (r *SearchRouter) repositoryMap(ctx context.Context, commits map[string]repository.Commit) (map[int64]repository.Repository, error) {
+	ids := uniqueRepoIDs(commits)
+	if len(ids) == 0 {
+		return map[int64]repository.Repository{}, nil
+	}
+
+	repos, err := r.client.Repositories.Find(ctx, repository.WithIDIn(ids))
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[int64]repository.Repository, len(repos))
+	for _, repo := range repos {
+		result[repo.ID()] = repo
+	}
+	return result, nil
+}
+
+func uniqueCommitSHAs(fileMap map[string][]repository.File) []string {
+	seen := map[string]struct{}{}
+	for _, files := range fileMap {
+		for _, f := range files {
+			seen[f.CommitSHA()] = struct{}{}
+		}
+	}
+
+	shas := make([]string, 0, len(seen))
+	for sha := range seen {
+		shas = append(shas, sha)
+	}
+	return shas
+}
+
+func uniqueRepoIDs(commits map[string]repository.Commit) []int64 {
+	seen := map[int64]struct{}{}
+	for _, c := range commits {
+		seen[c.RepoID()] = struct{}{}
+	}
+
+	ids := make([]int64, 0, len(seen))
+	for id := range seen {
+		ids = append(ids, id)
+	}
+	return ids
+}
+
+func snippetLinks(files []repository.File, commits map[string]repository.Commit, repos map[int64]repository.Repository) *dto.SnippetLinks {
+	if len(files) == 0 {
+		return nil
+	}
+
+	file := files[0]
+	commit, ok := commits[file.CommitSHA()]
+	if !ok {
+		return nil
+	}
+
+	repo, ok := repos[commit.RepoID()]
+	if !ok {
+		return nil
+	}
+
+	repoID := strconv.FormatInt(repo.ID(), 10)
+	return &dto.SnippetLinks{
+		Repository: fmt.Sprintf("/api/v1/repositories/%s", repoID),
+		Commit:     fmt.Sprintf("/api/v1/repositories/%s/commits/%s", repoID, commit.SHA()),
+		File:       fmt.Sprintf("/api/v1/repositories/%s/commits/%s/files/%s", repoID, commit.SHA(), file.BlobSHA()),
 	}
 }
 

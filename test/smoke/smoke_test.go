@@ -893,8 +893,21 @@ func validateSearchResults(t *testing.T, results []searchResultData, mode string
 		if result.Attributes.Content.Language == "" {
 			t.Fatalf("%s search result %d: expected content language to be set", mode, i)
 		}
-		t.Logf("%s search result %d: id=%s, derives_from=%d files, enrichments=%d, language=%s",
-			mode, i, result.ID, len(result.Attributes.DerivesFrom), len(result.Attributes.Enrichments), result.Attributes.Content.Language)
+		// Validate links
+		if result.Links == nil {
+			t.Fatalf("%s search result %d: expected links to be present", mode, i)
+		}
+		if !strings.HasPrefix(result.Links.Repository, "/api/v1/repositories/") {
+			t.Fatalf("%s search result %d: expected repository link to start with /api/v1/repositories/, got %s", mode, i, result.Links.Repository)
+		}
+		if !strings.Contains(result.Links.Commit, "/commits/") {
+			t.Fatalf("%s search result %d: expected commit link to contain /commits/, got %s", mode, i, result.Links.Commit)
+		}
+		if !strings.Contains(result.Links.File, "/files/") {
+			t.Fatalf("%s search result %d: expected file link to contain /files/, got %s", mode, i, result.Links.File)
+		}
+		t.Logf("%s search result %d: id=%s, derives_from=%d files, enrichments=%d, language=%s, links=%+v",
+			mode, i, result.ID, len(result.Attributes.DerivesFrom), len(result.Attributes.Enrichments), result.Attributes.Content.Language, result.Links)
 	}
 }
 
@@ -1124,10 +1137,17 @@ type searchResultAttributes struct {
 	OriginalScores []float64                `json:"original_scores"`
 }
 
+type searchResultLinks struct {
+	Repository string `json:"repository"`
+	Commit     string `json:"commit"`
+	File       string `json:"file"`
+}
+
 type searchResultData struct {
 	Type       string                 `json:"type"`
 	ID         string                 `json:"id"`
 	Attributes searchResultAttributes `json:"attributes"`
+	Links      *searchResultLinks     `json:"links,omitempty"`
 }
 
 type searchResponse struct {

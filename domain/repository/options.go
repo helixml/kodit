@@ -25,6 +25,11 @@ func WithCommitSHA(sha string) Option {
 	return WithCondition("commit_sha", sha)
 }
 
+// WithCommitSHAIn filters by the "commit_sha" column using IN.
+func WithCommitSHAIn(shas []string) Option {
+	return WithConditionIn("commit_sha", shas)
+}
+
 // WithBlobSHA filters by the "blob_sha" column.
 func WithBlobSHA(sha string) Option {
 	return WithCondition("blob_sha", sha)

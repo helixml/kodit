@@ -69,11 +69,19 @@ type SnippetAttributes struct {
 	OriginalScores []float64            `json:"original_scores"`
 }
 
+// SnippetLinks holds API path links for a search result snippet.
+type SnippetLinks struct {
+	Repository string `json:"repository,omitempty"`
+	Commit     string `json:"commit,omitempty"`
+	File       string `json:"file,omitempty"`
+}
+
 // SnippetData represents snippet data in JSON:API format.
 type SnippetData struct {
 	Type       string            `json:"type"`
 	ID         string            `json:"id"`
 	Attributes SnippetAttributes `json:"attributes"`
+	Links      *SnippetLinks     `json:"links,omitempty"`
 }
 
 // SearchResponse represents a search API response in JSON:API format.
