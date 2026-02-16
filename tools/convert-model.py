@@ -1,10 +1,10 @@
 #!/usr/bin/env -S uv run --script
 # /// script
-# requires-python = ">=3.10"
+# requires-python = ">=3.10,<3.13"
 # dependencies = [
-#     "optimum[onnxruntime]",
-#     "transformers",
-#     "torch",
+#     "optimum[onnxruntime]>=1.17,<2",
+#     "transformers>=4.35,<5",
+#     "torch>=2.0,<3",
 # ]
 # ///
 """Convert st-codesearch-distilroberta-base to ONNX format for hugot."""
