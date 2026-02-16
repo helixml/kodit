@@ -48,7 +48,7 @@ func (s *RepositoryScanner) ScanCommit(ctx context.Context, clonedPath string, c
 		return service.ScanCommitResult{}, fmt.Errorf("get commit files: %w", err)
 	}
 
-	files := s.filesFromInfo(clonedPath, filesInfo, commitSHA)
+	files := s.filesFromInfo(filesInfo, commitSHA)
 
 	s.logger.Info("scanned commit",
 		slog.String("sha", shortSHA(commitSHA)),
@@ -143,7 +143,7 @@ func (s *RepositoryScanner) FilesForCommitsBatch(ctx context.Context, clonedPath
 		if err != nil {
 			return nil, fmt.Errorf("get commit files for %s: %w", shortSHA(sha), err)
 		}
-		files = append(files, s.filesFromInfo(clonedPath, filesInfo, sha)...)
+		files = append(files, s.filesFromInfo(filesInfo, sha)...)
 	}
 
 	s.logger.Info("processed files for commit batch",
@@ -181,12 +181,11 @@ func (s *RepositoryScanner) tagFromInfo(info TagInfo, repoID int64) repository.T
 	return repository.NewTag(repoID, info.Name, info.TargetCommitSHA)
 }
 
-func (s *RepositoryScanner) filesFromInfo(clonedPath string, infos []FileInfo, commitSHA string) []repository.File {
+func (s *RepositoryScanner) filesFromInfo(infos []FileInfo, commitSHA string) []repository.File {
 	now := time.Now()
 	files := make([]repository.File, 0, len(infos))
 
 	for _, info := range infos {
-		fullPath := filepath.Join(clonedPath, info.Path)
 		language := languageFromPath(info.Path)
 		extension := extensionFromPath(info.Path)
 		mimeType := mimeTypeFromExtension(extension)
@@ -194,7 +193,7 @@ func (s *RepositoryScanner) filesFromInfo(clonedPath string, infos []FileInfo, c
 		file := repository.ReconstructFile(
 			0, // ID assigned on save
 			commitSHA,
-			fullPath,
+			info.Path,
 			info.BlobSHA,
 			mimeType,
 			extension,

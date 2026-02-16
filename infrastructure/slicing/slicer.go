@@ -170,13 +170,7 @@ func (s *Slicer) Slice(ctx context.Context, files []repository.File, basePath st
 }
 
 func (s *Slicer) parseFile(file repository.File, basePath string) (ParsedFile, error) {
-	// If file.Path() already includes basePath (stored as full path), use directly
-	var fullPath string
-	if strings.HasPrefix(file.Path(), basePath) {
-		fullPath = file.Path()
-	} else {
-		fullPath = filepath.Join(basePath, file.Path())
-	}
+	fullPath := filepath.Join(basePath, file.Path())
 	ext := filepath.Ext(file.Path())
 
 	lang, ok := s.config.ByExtension(ext)
@@ -388,11 +382,7 @@ func (s *Slicer) resolveCallee(name, modulePath string, state *State) string {
 func (s *Slicer) buildSnippet(name string, funcDef FunctionDefinition, state *State, cfg SliceConfig, basePath string) snippet.Snippet {
 	var contentParts []string
 
-	// Resolve file path - if already includes basePath, use directly
-	filePath := funcDef.FilePath()
-	if !strings.HasPrefix(filePath, basePath) {
-		filePath = filepath.Join(basePath, filePath)
-	}
+	filePath := filepath.Join(basePath, funcDef.FilePath())
 
 	source, err := os.ReadFile(filePath)
 	if err == nil {
@@ -410,11 +400,7 @@ func (s *Slicer) buildSnippet(name string, funcDef FunctionDefinition, state *St
 			continue
 		}
 
-		// Resolve dependency file path
-		depFilePath := depDef.FilePath()
-		if !strings.HasPrefix(depFilePath, basePath) {
-			depFilePath = filepath.Join(basePath, depFilePath)
-		}
+		depFilePath := filepath.Join(basePath, depDef.FilePath())
 
 		depSource, err := os.ReadFile(depFilePath)
 		if err != nil {
@@ -442,11 +428,7 @@ func (s *Slicer) buildSnippet(name string, funcDef FunctionDefinition, state *St
 			continue
 		}
 
-		// Resolve caller file path
-		callerFilePath := callerDef.FilePath()
-		if !strings.HasPrefix(callerFilePath, basePath) {
-			callerFilePath = filepath.Join(basePath, callerFilePath)
-		}
+		callerFilePath := filepath.Join(basePath, callerDef.FilePath())
 
 		callerSource, err := os.ReadFile(callerFilePath)
 		if err != nil {
@@ -487,10 +469,7 @@ func isPublicName(name string) bool {
 }
 
 func (s *Slicer) buildTypeSnippet(typeDef TypeDefinition, state *State, basePath string) snippet.Snippet {
-	filePath := typeDef.FilePath()
-	if !strings.HasPrefix(filePath, basePath) {
-		filePath = filepath.Join(basePath, filePath)
-	}
+	filePath := filepath.Join(basePath, typeDef.FilePath())
 
 	var content string
 	source, err := os.ReadFile(filePath)
