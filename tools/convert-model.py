@@ -4,7 +4,7 @@
 # dependencies = [
 #     "optimum[onnxruntime]>=1.17,<2",
 #     "transformers>=4.35,<5",
-#     "torch>=2.0,<3",
+#     "torch>=2.0,<2.6",
 # ]
 # ///
 """Convert st-codesearch-distilroberta-base to ONNX format for hugot."""

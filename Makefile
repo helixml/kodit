@@ -201,6 +201,25 @@ openapi-convert: ## Convert existing swagger.json to OpenAPI 3.0 (skip swag gene
 .PHONY: docs
 docs: openapi ## Generate all documentation (OpenAPI 3.0)
 
+##@ Release
+
+.PHONY: release
+release: ## Create a GitHub release (VERSION required, e.g. make release VERSION=1.0.0)
+	@if [ "$(VERSION)" = "0.1.0" ]; then \
+		echo "ERROR: VERSION is required. Usage: make release VERSION=1.0.0"; \
+		exit 1; \
+	fi
+	@BRANCH=$$(git rev-parse --abbrev-ref HEAD); \
+	if [ "$$BRANCH" = "main" ]; then \
+		TAG="v$(VERSION)"; \
+		echo "Creating release $$TAG on main..."; \
+		gh release create "$$TAG" --title "$$TAG" --generate-notes; \
+	else \
+		TAG="v$(VERSION)-rc.$(COMMIT)"; \
+		echo "Creating pre-release $$TAG on branch $$BRANCH..."; \
+		gh release create "$$TAG" --title "$$TAG" --generate-notes --prerelease --target "$$BRANCH"; \
+	fi
+
 ##@ Docker
 
 .PHONY: docker-build
