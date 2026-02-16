@@ -2,9 +2,11 @@
 # /// script
 # requires-python = ">=3.10,<3.13"
 # dependencies = [
-#     "optimum[onnxruntime]>=1.17,<2",
-#     "transformers>=4.35,<5",
-#     "torch>=2.0,<2.6",
+#     "optimum>=2.0",
+#     "optimum-onnx>=0.1.0",
+#     "onnxruntime>=1.17",
+#     "transformers>=4.49",
+#     "torch>=2.6",
 # ]
 # ///
 """Convert st-codesearch-distilroberta-base to ONNX format for hugot."""
