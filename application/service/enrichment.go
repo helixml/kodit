@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
@@ -173,5 +174,65 @@ func (s *Enrichment) Delete(ctx context.Context, params *EnrichmentDeleteParams)
 	}
 
 	return nil
+}
+
+// RelatedEnrichments returns enrichments that reference the given enrichment IDs
+// through the association store (e.g., snippet_summary enrichments pointing to snippet enrichments).
+// Returns a map of parent enrichment ID (as string) to its related enrichments.
+func (s *Enrichment) RelatedEnrichments(ctx context.Context, enrichmentIDs []int64) (map[string][]enrichment.Enrichment, error) {
+	if len(enrichmentIDs) == 0 {
+		return map[string][]enrichment.Enrichment{}, nil
+	}
+
+	// Convert enrichment IDs to entity ID strings (associations store entity_id as string)
+	entityIDs := make([]string, len(enrichmentIDs))
+	for i, id := range enrichmentIDs {
+		entityIDs[i] = strconv.FormatInt(id, 10)
+	}
+
+	// Find associations where entity_id is one of our enrichment IDs and entity_type is "snippets"
+	associations, err := s.associationStore.Find(ctx,
+		enrichment.WithEntityIDIn(entityIDs),
+		enrichment.WithEntityType(enrichment.EntityTypeSnippet),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("find related associations: %w", err)
+	}
+
+	if len(associations) == 0 {
+		return map[string][]enrichment.Enrichment{}, nil
+	}
+
+	// Group association enrichment IDs by entity ID, and collect all enrichment IDs to fetch
+	entityToEnrichmentIDs := make(map[string][]int64)
+	var allIDs []int64
+	for _, a := range associations {
+		entityToEnrichmentIDs[a.EntityID()] = append(entityToEnrichmentIDs[a.EntityID()], a.EnrichmentID())
+		allIDs = append(allIDs, a.EnrichmentID())
+	}
+
+	// Fetch the actual enrichment objects
+	related, err := s.enrichmentStore.Find(ctx, repository.WithIDIn(allIDs))
+	if err != nil {
+		return nil, fmt.Errorf("fetch related enrichments: %w", err)
+	}
+
+	// Index by ID for lookup
+	byID := make(map[int64]enrichment.Enrichment, len(related))
+	for _, e := range related {
+		byID[e.ID()] = e
+	}
+
+	// Build the result map: parent entity ID -> related enrichments
+	result := make(map[string][]enrichment.Enrichment, len(entityToEnrichmentIDs))
+	for entityID, ids := range entityToEnrichmentIDs {
+		for _, id := range ids {
+			if e, ok := byID[id]; ok {
+				result[entityID] = append(result[entityID], e)
+			}
+		}
+	}
+
+	return result, nil
 }
 

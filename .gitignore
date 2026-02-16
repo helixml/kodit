@@ -4,3 +4,4 @@ build/
 lib/
 *.env
 infrastructure/provider/models/
+*.sql

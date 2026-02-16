@@ -39,8 +39,7 @@ func (f Fusion) Fuse(lists ...[]FusionRequest) []FusionResult {
 			id := req.ID()
 
 			// RRF formula: 1 / (k + rank)
-			// rank is 0-indexed, but RRF uses 1-indexed ranks
-			rrfScore := 1.0 / (f.k + float64(rank+1))
+			rrfScore := 1.0 / (f.k + float64(rank))
 			scores[id] += rrfScore
 
 			// Track original scores for this document

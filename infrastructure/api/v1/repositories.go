@@ -939,14 +939,34 @@ func (r *RepositoriesRouter) ListCommitSnippets(w http.ResponseWriter, req *http
 		return
 	}
 
+	// Fetch related enrichments (e.g., summaries) for the snippets
+	ids := make([]int64, len(enrichments))
+	for i, e := range enrichments {
+		ids[i] = e.ID()
+	}
+	related, err := r.client.Enrichments.RelatedEnrichments(ctx, ids)
+	if err != nil {
+		r.logger.Warn("failed to fetch related enrichments", "error", err)
+		related = map[string][]enrichment.Enrichment{}
+	}
+
 	data := make([]dto.SnippetData, 0, len(enrichments))
 	for _, e := range enrichments {
 		createdAt := e.CreatedAt()
 		updatedAt := e.UpdatedAt()
+		idStr := fmt.Sprintf("%d", e.ID())
+
+		enrichmentSchemas := make([]dto.EnrichmentSchema, 0)
+		for _, rel := range related[idStr] {
+			enrichmentSchemas = append(enrichmentSchemas, dto.EnrichmentSchema{
+				Type:    string(rel.Subtype()),
+				Content: rel.Content(),
+			})
+		}
 
 		data = append(data, dto.SnippetData{
-			Type: "snippet",
-			ID:   fmt.Sprintf("%d", e.ID()),
+			Type: string(e.Subtype()),
+			ID:   idStr,
 			Attributes: dto.SnippetAttributes{
 				CreatedAt:   &createdAt,
 				UpdatedAt:   &updatedAt,
@@ -955,7 +975,7 @@ func (r *RepositoriesRouter) ListCommitSnippets(w http.ResponseWriter, req *http
 					Value:    e.Content(),
 					Language: e.Language(),
 				},
-				Enrichments:    []dto.EnrichmentSchema{},
+				Enrichments:    enrichmentSchemas,
 				OriginalScores: []float64{},
 			},
 		})

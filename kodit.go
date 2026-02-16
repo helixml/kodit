@@ -208,7 +208,11 @@ func New(opts ...Option) (*Client, error) {
 	}
 
 	// Create search stores based on storage type
-	textVectorStore, codeVectorStore, bm25Store := buildSearchStores(cfg, db, logger)
+	textVectorStore, codeVectorStore, bm25Store, err := buildSearchStores(ctx, cfg, db, logger)
+	if err != nil {
+		errClose := db.Close()
+		return nil, errors.Join(fmt.Errorf("search stores: %w", err), errClose)
+	}
 
 	// Create vector indices (pairing embedding services with their stores)
 	var codeIndex VectorIndex
@@ -397,7 +401,7 @@ func (c *Client) Logger() *slog.Logger {
 }
 
 // buildSearchStores creates the search stores based on config.
-func buildSearchStores(cfg *clientConfig, db database.Database, logger *slog.Logger) (textVectorStore, codeVectorStore search.VectorStore, bm25Store search.BM25Store) {
+func buildSearchStores(ctx context.Context, cfg *clientConfig, db database.Database, logger *slog.Logger) (textVectorStore, codeVectorStore search.VectorStore, bm25Store search.BM25Store, err error) {
 	switch cfg.database {
 	case databaseSQLite:
 		bm25Store = infraSearch.NewSQLiteBM25Store(db.GORM(), logger)
@@ -416,8 +420,14 @@ func buildSearchStores(cfg *clientConfig, db database.Database, logger *slog.Log
 	case databasePostgresVectorchord:
 		bm25Store = infraSearch.NewVectorChordBM25Store(db.GORM(), logger)
 		if cfg.embeddingProvider != nil {
-			textVectorStore = infraSearch.NewVectorChordVectorStore(db.GORM(), infraSearch.TaskNameText, cfg.embeddingProvider, logger)
-			codeVectorStore = infraSearch.NewVectorChordVectorStore(db.GORM(), infraSearch.TaskNameCode, cfg.embeddingProvider, logger)
+			textVectorStore, err = infraSearch.NewVectorChordVectorStore(ctx, db.GORM(), infraSearch.TaskNameText, cfg.embeddingProvider, logger)
+			if err != nil {
+				return nil, nil, nil, fmt.Errorf("text vector store: %w", err)
+			}
+			codeVectorStore, err = infraSearch.NewVectorChordVectorStore(ctx, db.GORM(), infraSearch.TaskNameCode, cfg.embeddingProvider, logger)
+			if err != nil {
+				return nil, nil, nil, fmt.Errorf("code vector store: %w", err)
+			}
 		}
 	}
 	return

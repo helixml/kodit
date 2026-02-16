@@ -7,6 +7,11 @@ KODIT_API="http://localhost:8080/api/v1"
 POLL_INTERVAL=5
 DB_DUMP_FILE="kodit_dump.sql"
 
+if [ -z "${ENRICHMENT_ENDPOINT_API_KEY:-}" ]; then
+  echo "ERROR: ENRICHMENT_ENDPOINT_API_KEY environment variable must be set." >&2
+  exit 1
+fi
+
 # ── 1. Start VectorChord Postgres ──────────────────────────────────────────────
 
 echo "==> Starting VectorChord Postgres container..."
@@ -36,10 +41,10 @@ done
 KODIT_ENV=$(mktemp)
 trap 'rm -f "$KODIT_ENV"' EXIT
 
-cat > "$KODIT_ENV" <<'EOF'
+cat > "$KODIT_ENV" <<EOF
 ENRICHMENT_ENDPOINT_BASE_URL=https://openrouter.ai/api/v1
 ENRICHMENT_ENDPOINT_MODEL=openrouter/mistralai/ministral-8b-2512
-ENRICHMENT_ENDPOINT_API_KEY=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
+ENRICHMENT_ENDPOINT_API_KEY=${ENRICHMENT_ENDPOINT_API_KEY}
 DEFAULT_SEARCH_PROVIDER=vectorchord
 DB_URL=postgresql+asyncpg://postgres:mysecretpassword@host.docker.internal:5432/kodit
 EOF
@@ -79,7 +84,7 @@ for i in $(seq 1 60); do
   if [ "$i" -eq 60 ]; then
     echo "ERROR: Kodit API did not become ready in time." >&2
     echo "       Logs:" >&2
-    docker logs --tail 30 kodit >&2
+    docker logs --tail 100 kodit >&2
     exit 1
   fi
   sleep 1

@@ -26,3 +26,8 @@ func WithEntityID(entityID string) repository.Option {
 func WithEntityType(entityType EntityTypeKey) repository.Option {
 	return repository.WithCondition("entity_type", string(entityType))
 }
+
+// WithEntityIDIn filters by multiple entity IDs.
+func WithEntityIDIn(entityIDs []string) repository.Option {
+	return repository.WithConditionIn("entity_id", entityIDs)
+}

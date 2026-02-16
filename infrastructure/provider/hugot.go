@@ -17,31 +17,26 @@ const hugotBatchMax = 32
 // HugotEmbedding provides local embedding generation using the st-codesearch-distilroberta-base
 // model via the hugot Go backend.
 //
-// When built with -tags embed_model, the model is statically compiled into the
-// binary and extracted to modelDir on first use. Otherwise, the model must already
-// exist on disk (via 'kodit download-model' or WithModelDir).
+// The model is statically compiled into the binary (build tag embed_model)
+// and extracted to cacheDir on first use.
 type HugotEmbedding struct {
-	modelDir string
+	cacheDir string
 	session  *hugot.Session
 	pipeline *pipelines.FeatureExtractionPipeline
 	mu       sync.Mutex
 	ready    bool
 }
 
-// NewHugotEmbedding creates a HugotEmbedding that stores model files in modelDir.
-func NewHugotEmbedding(modelDir string) *HugotEmbedding {
+// NewHugotEmbedding creates a HugotEmbedding that caches extracted model files in cacheDir.
+func NewHugotEmbedding(cacheDir string) *HugotEmbedding {
 	return &HugotEmbedding{
-		modelDir: modelDir,
+		cacheDir: cacheDir,
 	}
 }
 
-// Available reports whether a model is present (on disk or embedded).
+// Available reports whether the embedded model was compiled in.
 func (h *HugotEmbedding) Available() bool {
-	if hasEmbeddedModel {
-		return true
-	}
-	_, err := findModelOnDisk(h.modelDir)
-	return err == nil
+	return hasEmbeddedModel
 }
 
 func (h *HugotEmbedding) initialize() error {
@@ -82,42 +77,17 @@ func (h *HugotEmbedding) initialize() error {
 	return nil
 }
 
-// resolveModelPath finds or extracts the model to disk.
-// Priority: existing files on disk > embedded model > error.
+// resolveModelPath extracts the embedded model to disk and returns its path.
 func (h *HugotEmbedding) resolveModelPath() (string, error) {
-	if err := os.MkdirAll(h.modelDir, 0o755); err != nil {
-		return "", fmt.Errorf("create model directory: %w", err)
+	if !hasEmbeddedModel {
+		return "", fmt.Errorf("no embedded model: build with -tags embed_model")
 	}
 
-	// Check if model already exists on disk
-	if path, err := findModelOnDisk(h.modelDir); err == nil {
-		return path, nil
+	if err := os.MkdirAll(h.cacheDir, 0o755); err != nil {
+		return "", fmt.Errorf("create cache directory: %w", err)
 	}
 
-	// Extract from embedded model if available
-	if hasEmbeddedModel {
-		return extractEmbeddedModel(embeddedModelFS, h.modelDir)
-	}
-
-	return "", fmt.Errorf("no model found at %q: run 'kodit download-model --dest %s' or build with -tags embed_model", h.modelDir, h.modelDir)
-}
-
-// findModelOnDisk looks for a model subdirectory containing tokenizer.json.
-func findModelOnDisk(dir string) (string, error) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return "", err
-	}
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		candidate := filepath.Join(dir, entry.Name())
-		if _, statErr := os.Stat(filepath.Join(candidate, "tokenizer.json")); statErr == nil {
-			return candidate, nil
-		}
-	}
-	return "", fmt.Errorf("no model directory found in %s", dir)
+	return extractEmbeddedModel(embeddedModelFS, h.cacheDir)
 }
 
 // extractEmbeddedModel writes the statically embedded model files to targetDir

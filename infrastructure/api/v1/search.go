@@ -67,7 +67,19 @@ func (r *SearchRouter) Search(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	response := buildSearchResponse(result)
+	// Fetch related enrichments (e.g., summaries) for the search results
+	enrichments := result.Enrichments()
+	ids := make([]int64, len(enrichments))
+	for i, e := range enrichments {
+		ids[i] = e.ID()
+	}
+	related, err := r.client.Enrichments.RelatedEnrichments(ctx, ids)
+	if err != nil {
+		r.logger.Warn("failed to fetch related enrichments", "error", err)
+		related = map[string][]enrichment.Enrichment{}
+	}
+
+	response := buildSearchResponse(result, related)
 	middleware.WriteJSON(w, http.StatusOK, response)
 }
 
@@ -127,13 +139,14 @@ func buildSearchRequest(body dto.SearchRequest) search.MultiRequest {
 	return search.NewMultiRequest(topK, textQuery, codeQuery, attrs.Keywords, filters)
 }
 
-func buildSearchResponse(result service.MultiSearchResult) dto.SearchResponse {
+func buildSearchResponse(result service.MultiSearchResult, related map[string][]enrichment.Enrichment) dto.SearchResponse {
 	enrichments := result.Enrichments()
 	scores := result.FusedScores()
 
 	data := make([]dto.SnippetData, len(enrichments))
 	for i, e := range enrichments {
-		data[i] = enrichmentToSearchResult(e, scores[strconv.FormatInt(e.ID(), 10)])
+		idStr := strconv.FormatInt(e.ID(), 10)
+		data[i] = enrichmentToSearchResult(e, scores[idStr], related[idStr])
 	}
 
 	return dto.SearchResponse{
@@ -141,12 +154,20 @@ func buildSearchResponse(result service.MultiSearchResult) dto.SearchResponse {
 	}
 }
 
-func enrichmentToSearchResult(e enrichment.Enrichment, score float64) dto.SnippetData {
+func enrichmentToSearchResult(e enrichment.Enrichment, score float64, related []enrichment.Enrichment) dto.SnippetData {
 	createdAt := e.CreatedAt()
 	updatedAt := e.UpdatedAt()
 
+	enrichmentSchemas := make([]dto.EnrichmentSchema, len(related))
+	for i, r := range related {
+		enrichmentSchemas[i] = dto.EnrichmentSchema{
+			Type:    string(r.Subtype()),
+			Content: r.Content(),
+		}
+	}
+
 	return dto.SnippetData{
-		Type: "snippet",
+		Type: string(e.Subtype()),
 		ID:   strconv.FormatInt(e.ID(), 10),
 		Attributes: dto.SnippetAttributes{
 			CreatedAt:   &createdAt,
@@ -156,7 +177,7 @@ func enrichmentToSearchResult(e enrichment.Enrichment, score float64) dto.Snippe
 				Value:    e.Content(),
 				Language: e.Language(),
 			},
-			Enrichments:    []dto.EnrichmentSchema{},
+			Enrichments:    enrichmentSchemas,
 			OriginalScores: []float64{score},
 		},
 	}
