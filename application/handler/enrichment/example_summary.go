@@ -107,12 +107,7 @@ func (h *ExampleSummary) Execute(ctx context.Context, payload map[string]any) er
 			continue
 		}
 
-		summaryEnrichment := enrichment.NewEnrichment(
-			enrichment.TypeDevelopment,
-			enrichment.SubtypeExampleSummary,
-			enrichment.EntityTypeSnippet,
-			resp.Text(),
-		)
+		summaryEnrichment := enrichment.NewExampleSummary(resp.Text())
 		saved, err := h.enrichCtx.Enrichments.Save(ctx, summaryEnrichment)
 		if err != nil {
 			return fmt.Errorf("save example summary enrichment: %w", err)

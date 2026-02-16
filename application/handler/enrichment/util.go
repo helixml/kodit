@@ -7,7 +7,8 @@ func TruncateDiff(diff string, maxLength int) string {
 		return diff
 	}
 	truncationNotice := "\n\n[diff truncated due to size]"
-	return diff[:maxLength-len(truncationNotice)] + truncationNotice
+	cutoff := max(maxLength-len(truncationNotice), 0)
+	return diff[:cutoff] + truncationNotice
 }
 
 // MaxDiffLength is the maximum characters for a commit diff (~25k tokens).
