@@ -25,6 +25,8 @@ COPY tools/download-ort/ ./tools/download-ort/
 RUN ORT_VERSION=${ORT_VERSION} go run ./tools/download-ort
 
 # Download embedding model (cached unless go.mod or tool source changes)
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+COPY tools/convert-model.py ./tools/convert-model.py
 COPY tools/download-model/ ./tools/download-model/
 RUN go run ./tools/download-model
 
