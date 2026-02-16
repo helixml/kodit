@@ -50,7 +50,8 @@ type EntityTypeKey string
 // Entity type key constants.
 const (
 	EntityTypeCommit  EntityTypeKey = "git_commits"
-	EntityTypeSnippet EntityTypeKey = "snippets"
+	EntityTypeSnippet EntityTypeKey = "enrichments_v2"
+	EntityTypeFile    EntityTypeKey = "git_commit_files"
 )
 
 // Enrichment represents AI-generated semantic metadata that can be attached to entities.

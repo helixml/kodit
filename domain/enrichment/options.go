@@ -31,3 +31,8 @@ func WithEntityType(entityType EntityTypeKey) repository.Option {
 func WithEntityIDIn(entityIDs []string) repository.Option {
 	return repository.WithConditionIn("entity_id", entityIDs)
 }
+
+// WithEnrichmentIDIn filters by multiple enrichment IDs.
+func WithEnrichmentIDIn(ids []int64) repository.Option {
+	return repository.WithConditionIn("enrichment_id", ids)
+}

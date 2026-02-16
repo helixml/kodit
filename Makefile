@@ -9,6 +9,10 @@ BUILD_TAGS=$(TAGS) embed_model
 CGO_ENABLED?=1
 ORT_LIB_DIR?=$(CURDIR)/lib
 CGO_LDFLAGS?=-L$(ORT_LIB_DIR)
+# Suppress "ignoring duplicate libraries" warning on macOS (multiple deps request -ldl/-lm)
+ifeq ($(shell uname),Darwin)
+CGO_LDFLAGS+= -Wl,-no_warn_duplicate_libraries
+endif
 GOENV=CGO_LDFLAGS="$(CGO_LDFLAGS)" ORT_LIB_DIR="$(ORT_LIB_DIR)"
 GOBUILD=CGO_ENABLED=$(CGO_ENABLED) $(GOENV) $(GOCMD) build -tags "$(BUILD_TAGS)"
 GOTEST=$(GOENV) $(GOCMD) test -tags "$(BUILD_TAGS)"

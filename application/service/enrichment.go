@@ -236,3 +236,31 @@ func (s *Enrichment) RelatedEnrichments(ctx context.Context, enrichmentIDs []int
 	return result, nil
 }
 
+// SourceFiles returns file IDs grouped by enrichment ID string.
+// It queries associations where enrichment_id IN (ids) and entity_type = "git_commit_files".
+func (s *Enrichment) SourceFiles(ctx context.Context, enrichmentIDs []int64) (map[string][]int64, error) {
+	if len(enrichmentIDs) == 0 {
+		return map[string][]int64{}, nil
+	}
+
+	associations, err := s.associationStore.Find(ctx,
+		enrichment.WithEnrichmentIDIn(enrichmentIDs),
+		enrichment.WithEntityType(enrichment.EntityTypeFile),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("find file associations: %w", err)
+	}
+
+	result := make(map[string][]int64)
+	for _, a := range associations {
+		key := strconv.FormatInt(a.EnrichmentID(), 10)
+		fileID, err := strconv.ParseInt(a.EntityID(), 10, 64)
+		if err != nil {
+			continue
+		}
+		result[key] = append(result[key], fileID)
+	}
+
+	return result, nil
+}
+

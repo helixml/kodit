@@ -2,6 +2,7 @@
 package v1
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -950,6 +951,12 @@ func (r *RepositoriesRouter) ListCommitSnippets(w http.ResponseWriter, req *http
 		related = map[string][]enrichment.Enrichment{}
 	}
 
+	fileMap, err := r.sourceFileMap(ctx, ids)
+	if err != nil {
+		r.logger.Warn("failed to fetch source files", "error", err)
+		fileMap = map[string][]repository.File{}
+	}
+
 	data := make([]dto.SnippetData, 0, len(enrichments))
 	for _, e := range enrichments {
 		createdAt := e.CreatedAt()
@@ -964,13 +971,23 @@ func (r *RepositoriesRouter) ListCommitSnippets(w http.ResponseWriter, req *http
 			})
 		}
 
+		derivesFrom := make([]dto.GitFileSchema, 0)
+		for _, f := range fileMap[idStr] {
+			derivesFrom = append(derivesFrom, dto.GitFileSchema{
+				BlobSHA:  f.BlobSHA(),
+				Path:     f.Path(),
+				MimeType: f.MimeType(),
+				Size:     f.Size(),
+			})
+		}
+
 		data = append(data, dto.SnippetData{
 			Type: string(e.Subtype()),
 			ID:   idStr,
 			Attributes: dto.SnippetAttributes{
 				CreatedAt:   &createdAt,
 				UpdatedAt:   &updatedAt,
-				DerivesFrom: []dto.GitFileSchema{},
+				DerivesFrom: derivesFrom,
 				Content: dto.SnippetContentSchema{
 					Value:    e.Content(),
 					Language: e.Language(),
@@ -1413,6 +1430,44 @@ func trackingConfigToResponse(tc repository.TrackingConfig) dto.TrackingConfigRe
 			},
 		},
 	}
+}
+
+// sourceFileMap returns source files grouped by enrichment ID string.
+func (r *RepositoriesRouter) sourceFileMap(ctx context.Context, enrichmentIDs []int64) (map[string][]repository.File, error) {
+	fileIDsByEnrichment, err := r.client.Enrichments.SourceFiles(ctx, enrichmentIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	var allFileIDs []int64
+	for _, ids := range fileIDsByEnrichment {
+		allFileIDs = append(allFileIDs, ids...)
+	}
+
+	if len(allFileIDs) == 0 {
+		return map[string][]repository.File{}, nil
+	}
+
+	files, err := r.client.Files.Find(ctx, repository.WithIDIn(allFileIDs))
+	if err != nil {
+		return nil, err
+	}
+
+	byID := make(map[int64]repository.File, len(files))
+	for _, f := range files {
+		byID[f.ID()] = f
+	}
+
+	result := make(map[string][]repository.File, len(fileIDsByEnrichment))
+	for enrichmentID, fileIDs := range fileIDsByEnrichment {
+		for _, fid := range fileIDs {
+			if f, ok := byID[fid]; ok {
+				result[enrichmentID] = append(result[enrichmentID], f)
+			}
+		}
+	}
+
+	return result, nil
 }
 
 func reposToDTO(repos []repository.Repository) []dto.RepositoryData {

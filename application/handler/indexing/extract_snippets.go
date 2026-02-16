@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"strconv"
 
 	"github.com/helixml/kodit/application/handler"
 	"github.com/helixml/kodit/domain/enrichment"
@@ -151,6 +152,16 @@ func (h *ExtractSnippets) Execute(ctx context.Context, payload map[string]any) e
 		assoc := enrichment.CommitAssociation(saved.ID(), commitSHA)
 		if _, err := h.associationStore.Save(ctx, assoc); err != nil {
 			return fmt.Errorf("save commit association: %w", err)
+		}
+
+		for _, f := range s.DerivesFrom() {
+			if f.ID() == 0 {
+				continue
+			}
+			fileAssoc := enrichment.FileAssociation(saved.ID(), strconv.FormatInt(f.ID(), 10))
+			if _, err := h.associationStore.Save(ctx, fileAssoc); err != nil {
+				return fmt.Errorf("save file association: %w", err)
+			}
 		}
 	}
 
