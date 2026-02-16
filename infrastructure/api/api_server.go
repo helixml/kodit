@@ -68,7 +68,7 @@ func (a *APIServer) mountRoutes(router chi.Router) {
 	})
 
 	// MCP (Model Context Protocol) endpoint for AI assistant integration
-	mcpSrv := mcpinternal.NewServer(c.Search, c.Enrichments, a.logger)
+	mcpSrv := mcpinternal.NewServer(c.Search, c.Repositories, c.Commits, c.Enrichments, "0.1.0", a.logger)
 	httpHandler := server.NewStreamableHTTPServer(mcpSrv.MCPServer())
 	router.Mount("/mcp", httpHandler)
 }

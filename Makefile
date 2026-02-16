@@ -201,18 +201,6 @@ openapi-convert: ## Convert existing swagger.json to OpenAPI 3.0 (skip swag gene
 .PHONY: docs
 docs: openapi ## Generate all documentation (OpenAPI 3.0)
 
-##@ Database
-
-.PHONY: migrate-up
-migrate-up: ## Run database migrations up
-	@echo "Database migrations are handled by GORM AutoMigrate"
-	@echo "Run the server to apply migrations automatically"
-
-.PHONY: migrate-down
-migrate-down: ## Run database migrations down (not implemented)
-	@echo "Rollback migrations are not implemented"
-	@echo "GORM AutoMigrate only creates/updates, does not delete"
-
 ##@ Docker
 
 .PHONY: docker-build
@@ -226,22 +214,3 @@ docker-build-multi: ## Build multi-platform Docker image
 .PHONY: docker-run
 docker-run: ## Run Docker container
 	docker run -p 8080:8080 kodit:$(VERSION)
-
-##@ Release
-
-.PHONY: release-dry
-release-dry: ## Dry run release (show what would be built)
-	@echo "Version: $(VERSION)"
-	@echo "Commit: $(COMMIT)"
-	@echo "Build Time: $(BUILD_TIME)"
-	@echo ""
-	@echo "Would build:"
-	@echo "  - $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64"
-	@echo "  - $(BUILD_DIR)/$(BINARY_NAME)-linux-arm64"
-	@echo "  - $(BUILD_DIR)/$(BINARY_NAME)-darwin-amd64"
-	@echo "  - $(BUILD_DIR)/$(BINARY_NAME)-darwin-arm64"
-
-.PHONY: release
-release: clean build-all ## Build release binaries for all platforms
-	@echo "Release binaries built in $(BUILD_DIR)/"
-	@ls -la $(BUILD_DIR)/

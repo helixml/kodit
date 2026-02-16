@@ -97,7 +97,7 @@ func runStdio(envFile string) error {
 	}
 
 	// Create MCP server
-	mcpServer := mcp.NewServer(client.Search, client.Enrichments, slogger)
+	mcpServer := mcp.NewServer(client.Search, client.Repositories, client.Commits, client.Enrichments, version, slogger)
 
 	// Run on stdio
 	return mcpServer.ServeStdio()

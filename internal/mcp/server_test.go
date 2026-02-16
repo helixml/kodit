@@ -3,7 +3,6 @@ package mcp
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"testing"
 	"time"
 
@@ -24,27 +23,49 @@ func (f *fakeSearch) Search(_ context.Context, _ search.MultiRequest) (service.M
 	return service.NewMultiSearchResult(f.enrichments, f.scores), nil
 }
 
-// fakeEnrichmentLookup implements EnrichmentLookup backed by a map.
-type fakeEnrichmentLookup struct {
-	items map[int64]enrichment.Enrichment
+// fakeRepositoryLister implements RepositoryLister with canned repos.
+type fakeRepositoryLister struct {
+	repos []repository.Repository
 }
 
-func (f *fakeEnrichmentLookup) Get(_ context.Context, options ...repository.Option) (enrichment.Enrichment, error) {
+func (f *fakeRepositoryLister) Find(_ context.Context, options ...repository.Option) ([]repository.Repository, error) {
+	if len(options) == 0 {
+		return f.repos, nil
+	}
 	q := repository.Build(options...)
 	for _, c := range q.Conditions() {
-		if c.Field() == "id" {
-			id, ok := c.Value().(int64)
+		if c.Field() == "sanitized_remote_uri" {
+			url, ok := c.Value().(string)
 			if !ok {
-				return enrichment.Enrichment{}, fmt.Errorf("unexpected id type")
+				continue
 			}
-			e, found := f.items[id]
-			if !found {
-				return enrichment.Enrichment{}, fmt.Errorf("enrichment %d not found", id)
+			for _, r := range f.repos {
+				if r.RemoteURL() == url {
+					return []repository.Repository{r}, nil
+				}
 			}
-			return e, nil
+			return nil, nil
 		}
 	}
-	return enrichment.Enrichment{}, fmt.Errorf("no id condition")
+	return f.repos, nil
+}
+
+// fakeCommitFinder implements CommitFinder with canned commits.
+type fakeCommitFinder struct {
+	commits []repository.Commit
+}
+
+func (f *fakeCommitFinder) Find(_ context.Context, _ ...repository.Option) ([]repository.Commit, error) {
+	return f.commits, nil
+}
+
+// fakeEnrichmentQuery implements EnrichmentQuery with canned enrichments.
+type fakeEnrichmentQuery struct {
+	enrichments []enrichment.Enrichment
+}
+
+func (f *fakeEnrichmentQuery) List(_ context.Context, _ *service.EnrichmentListParams) ([]enrichment.Enrichment, error) {
+	return f.enrichments, nil
 }
 
 // sendMessage marshals a JSON-RPC request, sends it through HandleMessage,
@@ -101,6 +122,45 @@ func testEnrichment() enrichment.Enrichment {
 	)
 }
 
+func testArchEnrichment() enrichment.Enrichment {
+	return enrichment.ReconstructEnrichment(
+		100,
+		enrichment.TypeArchitecture,
+		enrichment.SubtypePhysical,
+		enrichment.EntityTypeCommit,
+		"# Architecture\nThis is the architecture doc.",
+		"",
+		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+	)
+}
+
+func testRepo() repository.Repository {
+	return repository.ReconstructRepository(
+		1,
+		"https://github.com/example/repo",
+		repository.WorkingCopy{},
+		repository.NewTrackingConfigForBranch("main"),
+		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+	)
+}
+
+func testCommit() repository.Commit {
+	return repository.ReconstructCommit(
+		1,
+		"abc1234567890",
+		1,
+		"initial commit",
+		repository.NewAuthor("Test", "test@example.com"),
+		repository.NewAuthor("Test", "test@example.com"),
+		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		"",
+	)
+}
+
 func testServer() *Server {
 	e := testEnrichment()
 	return NewServer(
@@ -108,9 +168,10 @@ func testServer() *Server {
 			enrichments: []enrichment.Enrichment{e},
 			scores:      map[string]float64{"42": 0.95},
 		},
-		&fakeEnrichmentLookup{
-			items: map[int64]enrichment.Enrichment{42: e},
-		},
+		&fakeRepositoryLister{repos: []repository.Repository{testRepo()}},
+		&fakeCommitFinder{commits: []repository.Commit{testCommit()}},
+		&fakeEnrichmentQuery{enrichments: []enrichment.Enrichment{testArchEnrichment()}},
+		"0.1.0-test",
 		nil,
 	)
 }
@@ -147,7 +208,6 @@ func TestServer_Initialize(t *testing.T) {
 func TestServer_ListTools(t *testing.T) {
 	srv := testServer()
 
-	// Must initialize first so that tools/list works.
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/list", 2, nil)
@@ -155,8 +215,8 @@ func TestServer_ListTools(t *testing.T) {
 	var result mcp.ListToolsResult
 	resultJSON(t, resp, &result)
 
-	if len(result.Tools) != 2 {
-		t.Fatalf("expected 2 tools, got %d", len(result.Tools))
+	if len(result.Tools) != 8 {
+		t.Fatalf("expected 8 tools, got %d", len(result.Tools))
 	}
 
 	tools := map[string]mcp.Tool{}
@@ -164,43 +224,38 @@ func TestServer_ListTools(t *testing.T) {
 		tools[tool.Name] = tool
 	}
 
-	// Verify search tool
-	searchTool, ok := tools["search"]
-	if !ok {
-		t.Fatal("search tool not found")
+	expected := []string{
+		"search",
+		"get_version",
+		"list_repositories",
+		"get_architecture_docs",
+		"get_api_docs",
+		"get_commit_description",
+		"get_database_schema",
+		"get_cookbook",
 	}
+	for _, name := range expected {
+		if _, ok := tools[name]; !ok {
+			t.Errorf("missing tool: %s", name)
+		}
+	}
+
+	// Verify search tool parameters
+	searchTool := tools["search"]
 	props := searchTool.InputSchema.Properties
 	if props == nil {
 		t.Fatal("search tool has no properties")
 	}
-	if _, ok := props["query"]; !ok {
-		t.Error("search tool missing query parameter")
+	for _, param := range []string{"user_intent", "keywords", "related_file_paths", "related_file_contents"} {
+		if _, ok := props[param]; !ok {
+			t.Errorf("search tool missing %s parameter", param)
+		}
 	}
-	if _, ok := props["top_k"]; !ok {
-		t.Error("search tool missing top_k parameter")
+	if !contains(searchTool.InputSchema.Required, "user_intent") {
+		t.Error("user_intent should be required")
 	}
-	if _, ok := props["language"]; !ok {
-		t.Error("search tool missing language parameter")
-	}
-	required := searchTool.InputSchema.Required
-	if !contains(required, "query") {
-		t.Error("query should be required")
-	}
-
-	// Verify get_snippet tool
-	snippetTool, ok := tools["get_snippet"]
-	if !ok {
-		t.Fatal("get_snippet tool not found")
-	}
-	snippetProps := snippetTool.InputSchema.Properties
-	if snippetProps == nil {
-		t.Fatal("get_snippet tool has no properties")
-	}
-	if _, ok := snippetProps["id"]; !ok {
-		t.Error("get_snippet tool missing id parameter")
-	}
-	if !contains(snippetTool.InputSchema.Required, "id") {
-		t.Error("id should be required")
+	if !contains(searchTool.InputSchema.Required, "keywords") {
+		t.Error("keywords should be required")
 	}
 }
 
@@ -209,15 +264,20 @@ func TestServer_Search(t *testing.T) {
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name":      "search",
-		"arguments": map[string]any{"query": "hello"},
+		"name": "search",
+		"arguments": map[string]any{
+			"user_intent":          "hello",
+			"keywords":             []string{"hello"},
+			"related_file_paths":   []string{},
+			"related_file_contents": []string{},
+		},
 	})
 
 	var result mcp.CallToolResult
 	resultJSON(t, resp, &result)
 
 	if result.IsError {
-		t.Fatalf("expected success, got error")
+		t.Fatalf("expected success, got error: %s", textFromContent(t, result))
 	}
 	if len(result.Content) == 0 {
 		t.Fatal("expected content in response")
@@ -248,7 +308,7 @@ func TestServer_Search(t *testing.T) {
 	}
 }
 
-func TestServer_SearchMissingQuery(t *testing.T) {
+func TestServer_SearchMissingUserIntent(t *testing.T) {
 	srv := testServer()
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
@@ -265,18 +325,18 @@ func TestServer_SearchMissingQuery(t *testing.T) {
 	}
 
 	text := textFromContent(t, result)
-	if text == "" || !containsStr(text, "query is required") {
-		t.Errorf("expected error text containing 'query is required', got: %s", text)
+	if text == "" || !containsStr(text, "user_intent is required") {
+		t.Errorf("expected error text containing 'user_intent is required', got: %s", text)
 	}
 }
 
-func TestServer_GetSnippet(t *testing.T) {
+func TestServer_GetVersion(t *testing.T) {
 	srv := testServer()
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name":      "get_snippet",
-		"arguments": map[string]any{"id": "42"},
+		"name":      "get_version",
+		"arguments": map[string]any{},
 	})
 
 	var result mcp.CallToolResult
@@ -287,59 +347,84 @@ func TestServer_GetSnippet(t *testing.T) {
 	}
 
 	text := textFromContent(t, result)
-
-	var snippet struct {
-		ID       string `json:"id"`
-		Content  string `json:"content"`
-		Language string `json:"language"`
-	}
-	if err := json.Unmarshal([]byte(text), &snippet); err != nil {
-		t.Fatalf("unmarshal snippet: %v", err)
-	}
-	if snippet.ID != "42" {
-		t.Errorf("expected id 42, got %s", snippet.ID)
-	}
-	if snippet.Language != "go" {
-		t.Errorf("expected language go, got %s", snippet.Language)
+	if text != "0.1.0-test" {
+		t.Errorf("expected version 0.1.0-test, got %s", text)
 	}
 }
 
-func TestServer_GetSnippetNotFound(t *testing.T) {
+func TestServer_ListRepositories(t *testing.T) {
 	srv := testServer()
 	sendMessage(t, srv, "initialize", 1, initializeParams())
 
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name":      "get_snippet",
-		"arguments": map[string]any{"id": "999"},
+		"name":      "list_repositories",
+		"arguments": map[string]any{},
 	})
 
 	var result mcp.CallToolResult
 	resultJSON(t, resp, &result)
 
-	if !result.IsError {
-		t.Fatal("expected error response for unknown id")
-	}
-}
-
-func TestServer_GetSnippetInvalidID(t *testing.T) {
-	srv := testServer()
-	sendMessage(t, srv, "initialize", 1, initializeParams())
-
-	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
-		"name":      "get_snippet",
-		"arguments": map[string]any{"id": "abc"},
-	})
-
-	var result mcp.CallToolResult
-	resultJSON(t, resp, &result)
-
-	if !result.IsError {
-		t.Fatal("expected error response for non-numeric id")
+	if result.IsError {
+		t.Fatalf("expected success, got error")
 	}
 
 	text := textFromContent(t, result)
-	if !containsStr(text, "invalid id") {
-		t.Errorf("expected error text containing 'invalid id', got: %s", text)
+	if !containsStr(text, "https://github.com/example/repo") {
+		t.Errorf("expected repo URL in output, got: %s", text)
+	}
+	if !containsStr(text, "tracking branch: main") {
+		t.Errorf("expected tracking info in output, got: %s", text)
+	}
+	if !containsStr(text, "abc1234") {
+		t.Errorf("expected short SHA in output, got: %s", text)
+	}
+}
+
+func TestServer_GetArchitectureDocs(t *testing.T) {
+	srv := testServer()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "get_architecture_docs",
+		"arguments": map[string]any{
+			"repo_url": "https://github.com/example/repo",
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if result.IsError {
+		t.Fatalf("expected success, got error: %s", textFromContent(t, result))
+	}
+
+	text := textFromContent(t, result)
+	if !containsStr(text, "Architecture") {
+		t.Errorf("expected architecture content, got: %s", text)
+	}
+}
+
+func TestServer_GetArchitectureDocsRepoNotFound(t *testing.T) {
+	srv := testServer()
+	sendMessage(t, srv, "initialize", 1, initializeParams())
+
+	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
+		"name": "get_architecture_docs",
+		"arguments": map[string]any{
+			"repo_url": "https://github.com/nonexistent/repo",
+		},
+	})
+
+	var result mcp.CallToolResult
+	resultJSON(t, resp, &result)
+
+	if !result.IsError {
+		t.Fatal("expected error for unknown repo")
+	}
+
+	text := textFromContent(t, result)
+	if !containsStr(text, "repository not found") {
+		t.Errorf("expected 'repository not found' error, got: %s", text)
 	}
 }
 
@@ -385,3 +470,11 @@ func searchStr(s, sub string) bool {
 	}
 	return false
 }
+
+// Ensure fakes satisfy interfaces at compile time.
+var (
+	_ Searcher         = (*fakeSearch)(nil)
+	_ RepositoryLister = (*fakeRepositoryLister)(nil)
+	_ CommitFinder     = (*fakeCommitFinder)(nil)
+	_ EnrichmentQuery  = (*fakeEnrichmentQuery)(nil)
+)

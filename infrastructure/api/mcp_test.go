@@ -143,14 +143,23 @@ func TestMCPEndpoint_ListTools(t *testing.T) {
 		names[tool.Name] = true
 	}
 
-	if !names["search"] {
-		t.Error("missing search tool")
+	expected := []string{
+		"search",
+		"get_version",
+		"list_repositories",
+		"get_architecture_docs",
+		"get_api_docs",
+		"get_commit_description",
+		"get_database_schema",
+		"get_cookbook",
 	}
-	if !names["get_snippet"] {
-		t.Error("missing get_snippet tool")
+	for _, name := range expected {
+		if !names[name] {
+			t.Errorf("missing %s tool", name)
+		}
 	}
-	if len(resp.Result.Tools) != 2 {
-		t.Errorf("expected 2 tools, got %d", len(resp.Result.Tools))
+	if len(resp.Result.Tools) != 8 {
+		t.Errorf("expected 8 tools, got %d", len(resp.Result.Tools))
 	}
 }
 
