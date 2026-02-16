@@ -4,8 +4,7 @@
 
 ## Verification
 
-- [ ] BM25 search results gone
-- [ ] Code search results gone
+- [ ] BM25 search results gone.Code search results gone. Claude was reporting: "this particular DB instance never created those tables"
 
 ## Bugs
 
