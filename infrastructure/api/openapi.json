@@ -1394,7 +1394,7 @@
                         "APIKeyAuth": []
                     }
                 ],
-                "description": "List code snippets for a commit",
+                "description": "List code snippets for a commit (backed by enrichments)",
                 "tags": [
                     "repositories"
                 ],
@@ -2648,7 +2648,24 @@
                     "id": {
                         "type": "string"
                     },
+                    "links": {
+                        "$ref": "#/components/schemas/dto.SnippetLinks"
+                    },
                     "type": {
+                        "type": "string"
+                    }
+                }
+            },
+            "dto.SnippetLinks": {
+                "type": "object",
+                "properties": {
+                    "commit": {
+                        "type": "string"
+                    },
+                    "file": {
+                        "type": "string"
+                    },
+                    "repository": {
                         "type": "string"
                     }
                 }

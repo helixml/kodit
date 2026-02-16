@@ -1227,7 +1227,7 @@ const docTemplate = `{
                         "APIKeyAuth": []
                     }
                 ],
-                "description": "List code snippets for a commit",
+                "description": "List code snippets for a commit (backed by enrichments)",
                 "consumes": [
                     "application/json"
                 ],
@@ -2372,7 +2372,24 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
+                "links": {
+                    "$ref": "#/definitions/dto.SnippetLinks"
+                },
                 "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.SnippetLinks": {
+            "type": "object",
+            "properties": {
+                "commit": {
+                    "type": "string"
+                },
+                "file": {
+                    "type": "string"
+                },
+                "repository": {
                     "type": "string"
                 }
             }

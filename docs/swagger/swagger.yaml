@@ -371,7 +371,18 @@ definitions:
         $ref: '#/definitions/dto.SnippetAttributes'
       id:
         type: string
+      links:
+        $ref: '#/definitions/dto.SnippetLinks'
       type:
+        type: string
+    type: object
+  dto.SnippetLinks:
+    properties:
+      commit:
+        type: string
+      file:
+        type: string
+      repository:
         type: string
     type: object
   dto.SnippetListResponse:
@@ -1346,7 +1357,7 @@ paths:
     get:
       consumes:
       - application/json
-      description: List code snippets for a commit
+      description: List code snippets for a commit (backed by enrichments)
       parameters:
       - description: Repository ID
         in: path
