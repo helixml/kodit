@@ -24,7 +24,7 @@ jobs:
           go-version-file: go.mod
 
       - name: Run go vet
-        run: go vet -tags fts5 ./...
+        run: make vet
 
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v7
@@ -113,7 +113,4 @@ jobs:
 
       - name: API doc check
         if: matrix.name == 'linux-amd64' && !startsWith(github.ref, 'refs/tags/')
-        run: |
-          go install github.com/swaggo/swag/cmd/swag@latest
-          swag init -g ./cmd/kodit/main.go -o ./docs/swagger --parseInternal -d ./,./infrastructure/api/v1/dto
-          git diff --exit-code docs/swagger/
+        run: make swag-check

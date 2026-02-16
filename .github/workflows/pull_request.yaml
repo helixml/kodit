@@ -24,12 +24,6 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v5
 
-      - name: Download model
-        run: go run ./tools/download-model
-
-      - name: Download ORT libraries
-        run: make download-ort
-
       - name: Run tests with coverage
         run: make test-cover
 

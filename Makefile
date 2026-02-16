@@ -76,19 +76,19 @@ clean: ## Remove build artifacts
 ##@ Testing
 
 .PHONY: test
-test: ## Run all tests (excludes smoke tests)
+test: download-model download-ort ## Run all tests (excludes smoke tests)
 	$(GOTEST) -v $$(go list ./... | grep -v /test/smoke)
 
 .PHONY: test-short
-test-short: ## Run tests with short flag (skip long-running tests)
+test-short: download-model download-ort ## Run tests with short flag (skip long-running tests)
 	$(GOTEST) -v -short ./...
 
 .PHONY: test-race
-test-race: ## Run tests with race detector
+test-race: download-model download-ort ## Run tests with race detector
 	$(GOTEST) -v -race ./...
 
 .PHONY: test-cover
-test-cover: ## Run tests with coverage (excludes smoke tests)
+test-cover: download-model download-ort ## Run tests with coverage (excludes smoke tests)
 	$(GOTEST) -v -coverprofile=$(COVERAGE_FILE) -covermode=atomic $$(go list ./... | grep -v /test/smoke)
 	$(GOCMD) tool cover -func=$(COVERAGE_FILE)
 
@@ -97,7 +97,7 @@ test-cover-html: test-cover ## Run tests with coverage and open HTML report
 	$(GOCMD) tool cover -html=$(COVERAGE_FILE)
 
 .PHONY: test-e2e
-test-e2e: ## Run end-to-end tests only
+test-e2e: download-model download-ort ## Run end-to-end tests only
 	$(GOTEST) -v ./test/e2e/...
 
 .PHONY: smoke
@@ -127,7 +127,7 @@ format: fmt imports ## Format code (gofmt + goimports)
 
 .PHONY: vet
 vet: ## Run go vet
-	$(GOCMD) vet ./...
+	$(GOCMD) vet -tags fts5 ./...
 
 .PHONY: check
 check: fmt vet lint test ## Run all checks (format, vet, lint, test)
@@ -181,6 +181,12 @@ swag: ## Generate Swagger 2.0 spec from annotations
 swag-fmt: ## Format swag comments
 	swag fmt
 
+.PHONY: swag-check
+swag-check: ## Check swagger docs are up to date (fails if stale)
+	$(GOCMD) install github.com/swaggo/swag/cmd/swag@latest
+	swag init -g ./cmd/kodit/main.go -o $(SWAGGER_DIR) --parseInternal -d ./,./infrastructure/api/v1/dto
+	git diff --exit-code $(SWAGGER_DIR)/
+
 .PHONY: openapi
 openapi: swag ## Generate Swagger 2.0 and convert to OpenAPI 3.0
 	@echo "Converting Swagger 2.0 to OpenAPI 3.0..."
@@ -223,7 +229,7 @@ docker-build: download-model ## Build Docker image (downloads model first, then 
 	docker build -t kodit:$(VERSION) .
 
 .PHONY: docker-build-multi
-docker-build-multi: ## Build multi-platform Docker image
+docker-build-multi: download-model ## Build multi-platform Docker image
 	docker buildx build --platform linux/amd64,linux/arm64 -t kodit:$(VERSION) .
 
 .PHONY: docker-run

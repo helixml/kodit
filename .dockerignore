@@ -16,8 +16,7 @@ lib/
 *.so
 *.dylib
 
-# Downloaded models (615MB+, downloaded inside Docker build)
-infrastructure/provider/models/
+# Models are pre-downloaded by 'make download-model' and copied into the image
 
 # Test files
 *_test.go
