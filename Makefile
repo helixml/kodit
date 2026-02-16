@@ -135,7 +135,7 @@ check: fmt vet lint test ## Run all checks (format, vet, lint, test)
 ##@ Models
 
 .PHONY: download-model
-download-model: ## Download the built-in embedding model for binary embedding
+download-model: ## Convert and prepare the built-in embedding model (requires uv + Python)
 	$(GOCMD) run ./tools/download-model
 
 .PHONY: download-ort

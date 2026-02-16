@@ -14,7 +14,7 @@ import (
 
 const hugotBatchMax = 32
 
-// HugotEmbedding provides local embedding generation using the jina-embeddings-v2-base-code
+// HugotEmbedding provides local embedding generation using the st-codesearch-distilroberta-base
 // model via the hugot Go backend.
 //
 // When built with -tags embed_model, the model is statically compiled into the

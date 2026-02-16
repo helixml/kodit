@@ -27,7 +27,7 @@ func TestHugotEmbedding_Embed(t *testing.T) {
 
 	embeddings := resp.Embeddings()
 	require.Len(t, embeddings, 1)
-	require.Equal(t, 768, len(embeddings[0]), "jina-embeddings-v2-base-code produces 768 dimensions")
+	require.Equal(t, 768, len(embeddings[0]), "st-codesearch-distilroberta-base produces 768 dimensions")
 }
 
 func TestHugotEmbedding_EmbedBatch(t *testing.T) {
