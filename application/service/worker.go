@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/helixml/kodit/domain/task"
@@ -82,9 +83,10 @@ type Worker struct {
 	logger         *slog.Logger
 	pollPeriod     time.Duration
 
-	cancel context.CancelFunc
-	wg     sync.WaitGroup
-	mu     sync.Mutex
+	inFlight atomic.Int64
+	cancel   context.CancelFunc
+	wg       sync.WaitGroup
+	mu       sync.Mutex
 }
 
 // NewWorker creates a new queue worker.
@@ -160,15 +162,25 @@ func (w *Worker) run(ctx context.Context) {
 	}
 }
 
+// Busy reports whether the worker is currently processing a task.
+func (w *Worker) Busy() bool {
+	return w.inFlight.Load() > 0
+}
+
 func (w *Worker) processNext(ctx context.Context) error {
+	w.inFlight.Add(1)
+
 	t, found, err := w.store.Dequeue(ctx)
 	if err != nil {
+		w.inFlight.Add(-1)
 		return err
 	}
 	if !found {
-		return nil // No tasks to process
+		w.inFlight.Add(-1)
+		return nil
 	}
 
+	defer w.inFlight.Add(-1)
 	return w.processTask(ctx, t)
 }
 

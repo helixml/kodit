@@ -128,7 +128,7 @@ func waitForTasks(ctx context.Context, t *testing.T, client *kodit.Client, timeo
 		tasks, err := client.Tasks.List(ctx, nil)
 		require.NoError(t, err)
 
-		if len(tasks) == 0 {
+		if len(tasks) == 0 && client.WorkerIdle() {
 			stableCount++
 			if stableCount >= stableRequired {
 				return

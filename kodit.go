@@ -395,6 +395,11 @@ func (c *Client) Close() error {
 	return nil
 }
 
+// WorkerIdle reports whether the background worker has no in-flight tasks.
+func (c *Client) WorkerIdle() bool {
+	return !c.worker.Busy()
+}
+
 // Logger returns the client's logger.
 func (c *Client) Logger() *slog.Logger {
 	return c.logger
