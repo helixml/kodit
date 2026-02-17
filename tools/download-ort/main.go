@@ -131,8 +131,6 @@ func ortPlatform(version string) (archive string, library string, err error) {
 		return fmt.Sprintf("onnxruntime-linux-aarch64-%s.tgz", version), "libonnxruntime.so", nil
 	case "darwin/arm64":
 		return fmt.Sprintf("onnxruntime-osx-arm64-%s.tgz", version), "libonnxruntime.dylib", nil
-	case "darwin/amd64":
-		return fmt.Sprintf("onnxruntime-osx-x86_64-%s.tgz", version), "libonnxruntime.dylib", nil
 	default:
 		return "", "", fmt.Errorf("no ORT archive for %s", key)
 	}
@@ -147,8 +145,6 @@ func tokenizersPlatform() (string, error) {
 		return "libtokenizers.linux-arm64.tar.gz", nil
 	case "darwin/arm64":
 		return "libtokenizers.darwin-arm64.tar.gz", nil
-	case "darwin/amd64":
-		return "libtokenizers.darwin-x86_64.tar.gz", nil
 	default:
 		return "", fmt.Errorf("no tokenizers archive for %s", key)
 	}

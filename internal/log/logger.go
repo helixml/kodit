@@ -37,7 +37,7 @@ func NewLogger(cfg config.AppConfig) *Logger {
 			Level: level,
 		})
 	default:
-		handler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		handler = newTerminalHandler(os.Stdout, &slog.HandlerOptions{
 			Level: level,
 		})
 	}
@@ -57,7 +57,7 @@ func NewLoggerWithWriter(w io.Writer, format config.LogFormat, level string) *Lo
 	case config.LogFormatJSON:
 		handler = slog.NewJSONHandler(w, &slog.HandlerOptions{Level: lvl})
 	default:
-		handler = slog.NewTextHandler(w, &slog.HandlerOptions{Level: lvl})
+		handler = newTerminalHandler(w, &slog.HandlerOptions{Level: lvl})
 	}
 
 	return &Logger{
@@ -187,8 +187,8 @@ func (l *Logger) SetDefault() {
 
 // defaultLogger is the package-level default logger.
 var defaultLogger = &Logger{
-	handler: slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}),
-	logger:  slog.Default(),
+	handler: newTerminalHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}),
+	logger:  slog.New(newTerminalHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})),
 }
 
 // Default returns the default logger.

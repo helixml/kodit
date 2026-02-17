@@ -253,4 +253,4 @@ docker-run: ## Run Docker container
 
 .PHONY: docker-clean
 docker-clean:
-	docker compose -f docker-compose.dev.yaml $(ALL_PROFILES) down -v --wait
+	docker compose -f docker-compose.dev.yaml $(ALL_PROFILES) down -v

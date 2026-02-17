@@ -52,10 +52,6 @@ jobs:
             runner: ubuntu-22.04-arm
             lib_name: libonnxruntime.so
           - goos: darwin
-            goarch: amd64
-            runner: macos-15-intel
-            lib_name: libonnxruntime.dylib
-          - goos: darwin
             goarch: arm64
             runner: macos-latest
             lib_name: libonnxruntime.dylib

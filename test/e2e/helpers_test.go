@@ -325,3 +325,27 @@ func (ts *TestServer) CreateEnrichmentAssociation(e enrichment.Enrichment, entit
 	}
 	return saved
 }
+
+// SeedBM25 inserts a document into the SQLite FTS5 BM25 index.
+func (ts *TestServer) SeedBM25(snippetID, passage string) {
+	ts.t.Helper()
+	gormDB := ts.db.GORM()
+
+	// Ensure the FTS5 table exists
+	err := gormDB.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS kodit_bm25_documents USING fts5(
+		snippet_id UNINDEXED,
+		passage,
+		tokenize='porter ascii'
+	)`).Error
+	if err != nil {
+		ts.t.Fatalf("create bm25 table: %v", err)
+	}
+
+	err = gormDB.Exec(
+		`INSERT INTO kodit_bm25_documents (snippet_id, passage) VALUES (?, ?)`,
+		snippetID, passage,
+	).Error
+	if err != nil {
+		ts.t.Fatalf("seed bm25: %v", err)
+	}
+}
