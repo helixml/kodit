@@ -476,8 +476,18 @@
                     "required": true
                 },
                 "responses": {
+                    "200": {
+                        "description": "Repository already exists",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.RepositoryResponse"
+                                }
+                            }
+                        }
+                    },
                     "201": {
-                        "description": "Created",
+                        "description": "Repository created",
                         "content": {
                             "application/json": {
                                 "schema": {

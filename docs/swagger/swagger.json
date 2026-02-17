@@ -430,8 +430,14 @@
                     }
                 ],
                 "responses": {
+                    "200": {
+                        "description": "Repository already exists",
+                        "schema": {
+                            "$ref": "#/definitions/dto.RepositoryResponse"
+                        }
+                    },
                     "201": {
-                        "description": "Created",
+                        "description": "Repository created",
                         "schema": {
                             "$ref": "#/definitions/dto.RepositoryResponse"
                         }

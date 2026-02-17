@@ -220,7 +220,11 @@ Add a new Git repository to track
 
 #### Responses
 
-- 201: Created
+- 200: Repository already exists
+
+[dto.RepositoryResponse](#dto.repositoryresponse)
+
+- 201: Repository created
 
 [dto.RepositoryResponse](#dto.repositoryresponse)
 
