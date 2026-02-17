@@ -1,0 +1,26 @@
+{
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+        "source.organizeImports": "explicit",
+        "source.fixAll": "explicit",
+    },
+    "ruff.enable": true,
+    "ruff.fixAll": true,
+    "ruff.lint.enable": true,
+    "rewrap.autoWrap.enabled": true,
+    "editor.wordWrap": "off",
+    "editor.wordWrapColumn": 88,
+    "python.testing.pytestEnabled": true,
+    "python.testing.unittestEnabled": false,
+    "python.testing.cwd": "",
+    "python.testing.pytestArgs": [
+        ".",
+        "--cov=src",
+        "--cov-report=term-missing",
+        "--cov-report=html",
+        "--cov-report=xml"
+    ],
+    "cursorpyright.analysis.autoImportCompletions": true,
+    "cursorpyright.analysis.inlayHints.functionReturnTypes": true,
+    "cursorpyright.analysis.typeCheckingMode": "standard",
+}
