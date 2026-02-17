@@ -11,16 +11,10 @@ Kodit provides an MCP (Model Context Protocol) server that enables AI coding ass
 to search and retrieve relevant code snippets from your indexed codebases. This allows
 AI assistants to provide more accurate and contextually relevant code suggestions.
 
-## MCP Server Connection Methods
+## MCP Server Connection
 
-Kodit supports three different ways to run the MCP server, depending on your integration
-needs. Each method exposes the same code search capabilities, but differs in how the
-connection is established and which assistants/tools it is compatible with.
-
-### HTTP Streaming (Recommended)
-
-This is the default and recommended method for most users. Kodit runs an HTTP server
-that streams responses to connected AI coding assistants over the `/mcp` endpoint.
+Kodit runs an HTTP server that streams responses to connected AI coding assistants over
+the `/mcp` endpoint.
 
 - **How it works:** Kodit starts a local web server and listens for HTTP requests from
   your AI assistant. Responses are streamed for low-latency, real-time results.
@@ -35,42 +29,6 @@ that streams responses to connected AI coding assistants over the `/mcp` endpoin
   The server will listen on `http://localhost:8080/mcp` by default. If you're using the
   Kodit container, `kodit serve` is the default command.
 
-### STDIO
-
-Kodit can run as an MCP server over standard input/output (STDIO) for direct integration
-with local AI coding assistants that support MCP stdio transport. No network port is
-opened.
-
-- **How it works:** Kodit communicates with your AI assistant via standard input and
-  output streams, making it ideal for local, low-latency, and networkless setups.
-- **When to use:** Use this mode if your coding assistant supports MCP stdio (for
-  example, some local LLM tools or advanced IDE integrations), or if you want to avoid
-  network configuration entirely.
-- **How to start:**
-
-  Configure your AI assistant to run the following command:
-  
-  ```sh
-  kodit stdio
-  ```
-
-### SSE (Server-Sent Events) [Deprecated]
-
-Kodit also supports the older SSE protocol on the `/sse` endpoint. This is provided for
-backward compatibility with tools that require SSE.
-
-- **How it works:** Kodit starts a local web server and streams results using the SSE
-  protocol, which is less efficient and less widely supported than HTTP streaming.
-- **When to use:** Only if your assistant specifically requires SSE and does not support
-  HTTP streaming.
-- **How to start:**
-
-  ```sh
-  kodit serve
-  ```
-
-  The server will listen on `http://localhost:8080/sse`.
-
 ## Integration with AI Assistants
 
 You need to connect your AI coding assistant to take advantage of Kodit. The
@@ -83,12 +41,6 @@ comprehensive instructions for all popular coding assistants.
 
 ```sh
 claude mcp add --transport http kodit https://kodit.helix.ml/mcp
-```
-
-#### Claude Code STDIO Mode
-
-```sh
-claude mcp add kodit -- kodit stdio
 ```
 
 ### Integration With Cursor
@@ -114,23 +66,6 @@ Add the following to `$HOME/.cursor/mcp.json`:
 - `https://kodit.helix.ml` is the URL of the hosted Kodit instance. You can replace this
  with <http://localhost:8080> if you are running locally.
 
-#### Cursor STDIO
-
-![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)
-{class="h-8 inline-block" href="cursor://anysphere.cursor-deeplink/mcp/install?name=kodit&config=eyJjb21tYW5kIjoicGlweCBydW4ga29kaXQgc3RkaW8ifQ%3D%3D"}
-
-Add the following to `$HOME/.cursor/mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "kodit": {
-      "command": "kodit stdio"
-    }
-  }
-}
-```
-
 ### Integration With Cline
 
 1. Open Cline from the side menu
@@ -152,23 +87,6 @@ Add the following configuration:
       "timeout": 60,
       "type": "streamableHttp",
       "url": "https://kodit.helix.ml/mcp"
-    }
-  }
-}
-```
-
-#### Cline STDIO Mode
-
-For STDIO mode, please use:
-
-```json
-{
-  "mcpServers": {
-    "kodit": {
-      "autoApprove": [],
-      "command": "kodit",
-      "args": ["stdio"],
-      "disabled": false,
     }
   }
 }
@@ -239,30 +157,47 @@ Alternatively, you can browse to the Cursor settings and set this prompt globall
 1. Go to `Settings` -> `API Configuration`
 2. At the bottom there is a `Custom Instructions` section.
 
-## Search Tool
+## MCP Tools
 
-<!--Future: move this to a dedicated reference page-->
+The Kodit MCP server exposes the following tools to AI coding assistants:
 
-The primary tool exposed by the Kodit MCP server is the `search` function, which provides comprehensive code search capabilities.
+### Discovery Tools
 
-### Search Parameters
+| Tool | Description |
+|------|-------------|
+| `list_repositories` | List all indexed repositories. Call this first to discover available repos. |
+| `get_version` | Get the Kodit server version. |
 
-The search tool accepts the following parameters:
+### Repository Knowledge Tools
+
+| Tool | Description |
+|------|-------------|
+| `get_architecture_docs` | Get high-level architecture documentation for a repository. |
+| `get_api_docs` | Get API/interface documentation for a repository. |
+| `get_database_schema` | Get database schema documentation for a repository. |
+| `get_cookbook` | Get usage examples and cookbook entries for a repository. |
+| `get_commit_description` | Get the description of a specific commit. |
+
+### Search Tool
+
+The `search` tool provides comprehensive code search capabilities.
+
+#### Search Parameters
 
 | Parameter | Type | Description | Example |
 |-----------|------|-------------|---------|
 | `user_intent` | string | Description of what the user wants to achieve | "Create a REST API endpoint for user authentication" |
-| `related_file_paths` | list[Path] | Absolute paths to relevant files | `["/path/to/auth.py"]` |
-| `related_file_contents` | list[string] | Contents of relevant files | `["def authenticate(): ..."]` |
+| `related_file_paths` | list[string] | Absolute paths to relevant files | `["/path/to/auth.go"]` |
+| `related_file_contents` | list[string] | Contents of relevant files | `["func authenticate() ..."]` |
 | `keywords` | list[string] | Relevant keywords for the search | `["authentication", "jwt", "login"]` |
-| `language` | string \| None | Filter by programming language (20+ supported) | `"python"`, `"go"`, `"javascript"`, `"html"`, `"css"` |
-| `author` | string \| None | Filter by author name | `"john.doe"` |
-| `created_after` | string \| None | Filter by creation date (YYYY-MM-DD) | `"2023-01-01"` |
-| `created_before` | string \| None | Filter by creation date (YYYY-MM-DD) | `"2023-12-31"` |
-| `source_repo` | string \| None | Filter by source repository | `"github.com/example/repo"` |
-| `file_path` | string \| None | Filter by file path pattern | `"src/"`, `"*.test.py"` |
+| `language` | string \| null | Filter by programming language (20+ supported) | `"python"`, `"go"`, `"javascript"`, `"html"`, `"css"` |
+| `author` | string \| null | Filter by author name | `"john.doe"` |
+| `created_after` | string \| null | Filter by creation date (YYYY-MM-DD) | `"2023-01-01"` |
+| `created_before` | string \| null | Filter by creation date (YYYY-MM-DD) | `"2023-12-31"` |
+| `source_repo` | string \| null | Filter by source repository | `"github.com/example/repo"` |
+| `enrichment_subtypes` | list[string] \| null | Filter by enrichment subtypes | `["snippet", "example"]` |
 
-### Advanced Search Functionality
+#### Advanced Search Functionality
 
 The search tool combines multiple search strategies with sophisticated ranking:
 
@@ -282,7 +217,7 @@ The search tool combines multiple search strategies with sophisticated ranking:
 
 ## Filtering Capabilities
 
-Kodit's MCP server supports comprehensive filtering to help AI assistants find the most relevant code examples. These filters work the same way as the CLI search filters.
+Kodit's MCP server supports comprehensive filtering to help AI assistants find the most relevant code examples.
 
 ### Language Filtering
 
@@ -365,8 +300,8 @@ for your intent.
 If you're working with existing files, mention them in your prompt:
 
 **Example prompts:**
-> "I'm working on the authentication function in auth.py. Can you search for similar error handling patterns and show me how to improve the error handling in my existing code?"
-> "I have a database connection setup in database.py. Please search for connection pooling patterns and show me how to optimize my current implementation."
+> "I'm working on the authentication function in auth.go. Can you search for similar error handling patterns and show me how to improve the error handling in my existing code?"
+> "I have a database connection setup in database.go. Please search for connection pooling patterns and show me how to optimize my current implementation."
 
 ### 4. Use Language Filtering
 

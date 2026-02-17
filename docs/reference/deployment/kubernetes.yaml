@@ -58,7 +58,7 @@ spec:
           args: ["serve", "--host", "0.0.0.0", "--port", "8080"]
           env:
             - name: DB_URL
-              value: "postgresql+asyncpg://postgres:mysecretpassword@vectorchord:5432/kodit"
+              value: "postgresql://postgres:mysecretpassword@vectorchord:5432/kodit"
             - name: DEFAULT_SEARCH_PROVIDER
               value: "vectorchord"
             # Please see the documentation for provider configuration

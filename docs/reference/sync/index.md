@@ -24,13 +24,13 @@ Configure the sync scheduler using these environment variables:
 
 ```bash
 # Enable/disable periodic sync (default: true)
-SYNC_PERIODIC_ENABLED=true
+PERIODIC_SYNC_ENABLED=true
 
 # Sync interval in seconds (default: 1800 = 30 minutes)
-SYNC_PERIODIC_INTERVAL_SECONDS=1800
+PERIODIC_SYNC_INTERVAL_SECONDS=1800
 
 # Number of retry attempts for failed syncs (default: 3)
-SYNC_PERIODIC_RETRY_ATTEMPTS=3
+PERIODIC_SYNC_RETRY_ATTEMPTS=3
 ```
 
 ### Common Configuration Examples
@@ -40,9 +40,9 @@ SYNC_PERIODIC_RETRY_ATTEMPTS=3
 For rapid development with frequent changes:
 
 ```bash
-SYNC_PERIODIC_ENABLED=true
-SYNC_PERIODIC_INTERVAL_SECONDS=300  # 5 minutes
-SYNC_PERIODIC_RETRY_ATTEMPTS=1
+PERIODIC_SYNC_ENABLED=true
+PERIODIC_SYNC_INTERVAL_SECONDS=300  # 5 minutes
+PERIODIC_SYNC_RETRY_ATTEMPTS=1
 ```
 
 #### Production Server Setup
@@ -50,9 +50,9 @@ SYNC_PERIODIC_RETRY_ATTEMPTS=1
 For production deployments with stable codebases:
 
 ```bash
-SYNC_PERIODIC_ENABLED=true
-SYNC_PERIODIC_INTERVAL_SECONDS=3600  # 1 hour
-SYNC_PERIODIC_RETRY_ATTEMPTS=3
+PERIODIC_SYNC_ENABLED=true
+PERIODIC_SYNC_INTERVAL_SECONDS=3600  # 1 hour
+PERIODIC_SYNC_RETRY_ATTEMPTS=3
 ```
 
 #### Disable Sync
@@ -60,7 +60,7 @@ SYNC_PERIODIC_RETRY_ATTEMPTS=3
 If you prefer to sync manually:
 
 ```bash
-SYNC_PERIODIC_ENABLED=false
+PERIODIC_SYNC_ENABLED=false
 ```
 
 ## Limitations

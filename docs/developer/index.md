@@ -6,16 +6,31 @@ weight: 99
 
 ## Database
 
-All database operations are handled by SQLAlchemy and Alembic.
+All database operations are handled by GORM with AutoMigrate. There are no SQL migration
+files -- schema changes are applied automatically when the server starts.
 
-### Creating a Database Migration
+### Making Schema Changes
 
-1. Make changes to your models
-2. Ensure the model is referenced in [alembic's env.py](https://github.com/helixml/kodit/blob/main/src/kodit/migrations/env.py)
-3. Remove the temporary DB if it exists from a previous migration: `rm -f .kodit.db`
-4. Run `alembic upgrade head` to create a temporary DB to compute the upgrade
-5. Run `alembic revision --autogenerate -m "your message"`
-6. The new migration will be applied when you next run a kodit command
+1. Update the GORM model structs in the `infrastructure/persistence/` package
+2. GORM AutoMigrate will apply the changes on the next server start
+3. For destructive changes (dropping columns, renaming tables), you may need to handle
+   the migration manually via a one-off script
+
+## Building
+
+```bash
+# Build the binary (downloads model + ORT library, builds with CGo)
+make build
+
+# Run tests
+make test
+
+# Run the smoke tests (requires Docker)
+make smoke
+
+# Run the server locally
+make run
+```
 
 ## Releasing
 
@@ -28,4 +43,4 @@ improve the CI to help performing an automated release, please do so.
    overhauls.
 3. Generate the release notes. <- this could be improved, because we use a strict
    pr/commit naming structure.
-4. Wait for all jobs to succeed, then you should be able to brew install, pipx install, etc.
+4. Wait for all jobs to succeed, then the Docker image will be published.

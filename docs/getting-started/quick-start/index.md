@@ -8,7 +8,7 @@ This guide assumes you have already installed Kodit and have verified it is runn
 
 ## 1. View the API Docs
 
-Open: <http://localhost:8000/docs> (replace with your own server URL)
+Open: <http://localhost:8080/docs> (replace with your own server URL)
 
 ## 2. Index a Repository
 
@@ -23,7 +23,7 @@ curl http://localhost:8080/api/v1/repositories \
   "data": {
     "type": "repository",
     "attributes": {
-      "url": "https://gist.github.com/philwinder/7aa38185e20433c04c533f2b28f4e217.git"
+      "remote_uri": "https://gist.github.com/philwinder/7aa38185e20433c04c533f2b28f4e217.git"
     }
   }
 }'
@@ -54,7 +54,7 @@ curl http://localhost:8080/api/v1/search \
         "orders"
       ],
       "code": "func (s *OrderService) GetAllOrders() []Order {",
-      "text": "code to get all orders",
+      "text": "code to get all orders"
     }
   }
 }'

@@ -11,8 +11,8 @@ look at the [hosted version](https://kodit.helix.ml/docs).
 
 This is the REST API for the Kodit server. Please refer to the
 [Kodit documentation](https://docs.helix.ml/kodit/) for more information.
-    
-Current version: 0.5.23
+
+Current version: 1.0
 
 ## Authentication
 
@@ -26,16 +26,30 @@ Current version: 0.5.23
 
 ## APIs
 
-### GET /healthz
+### GET /health
 
 Return a health check for the kodit API.
-
 
 #### Responses
 
 - 200: Successful Response
 
 - 500: Internal server error
+
+### GET /healthz
+
+Return a health check for the kodit API (alias for `/health`).
+
+#### Responses
+
+- 200: Successful Response
+
+- 500: Internal server error
+
+### POST /mcp
+
+MCP (Model Context Protocol) streaming HTTP endpoint for AI coding assistants.
+See the [MCP documentation](../mcp/index.md) for details.
 
 ### GET /api/v1/queue
 
@@ -244,9 +258,9 @@ List all snippets in a specific commit.
 
 - 404: Repository or commit not found
 
-### GET /api/v1/repositories/{repo_id}/commits/{commit_sha}/embeddings
+### GET /api/v1/repositories/{repo_id}/commits/{commit_sha}/embeddings [Deprecated]
 
-List all embeddings for snippets in a specific commit.
+**This endpoint is deprecated and returns HTTP 410 Gone.**
 
 
 #### Parameters
