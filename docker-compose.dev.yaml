@@ -43,5 +43,37 @@ services:
     profiles:
       - vectorchord
 
+  ollama-pull:
+    image: ollama/ollama:latest
+    entrypoint: ["ollama", "pull", "qwen3:0.6b"]
+    environment:
+      - OLLAMA_HOST=http://host.docker.internal:11434
+    profiles:
+      - ollama
+      - kodit
+
+  kodit:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      ollama-pull:
+        condition: service_completed_successfully
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/healthz"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    environment:
+      - DISABLE_TELEMETRY=true
+      - DB_URL=postgresql://postgres:mysecretpassword@host.docker.internal:5432/kodit
+      - ENRICHMENT_ENDPOINT_BASE_URL=http://host.docker.internal:11434/v1
+      - ENRICHMENT_ENDPOINT_MODEL=qwen3:0.6b
+      - ENRICHMENT_ENDPOINT_API_KEY=ollama
+    profiles:
+      - kodit
+
 volumes:
   ollama-models:

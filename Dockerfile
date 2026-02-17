@@ -19,10 +19,10 @@ COPY go.mod go.sum ./
 # Download dependencies
 RUN go mod download
 
-# Download ORT and tokenizers libraries (cached unless ORT_VERSION or tool source changes)
-ARG ORT_VERSION=1.23.2
+# Download ORT and tokenizers libraries (cached unless .ort-version or tool source changes)
+COPY .ort-version ./
 COPY tools/download-ort/ ./tools/download-ort/
-RUN ORT_VERSION=${ORT_VERSION} go run ./tools/download-ort
+RUN ORT_VERSION=$(cat .ort-version) go run ./tools/download-ort
 
 # Copy pre-built embedding model (run 'make download-model' before building the image)
 COPY infrastructure/provider/models/ ./infrastructure/provider/models/

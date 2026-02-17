@@ -1275,7 +1275,7 @@ CREATE INDEX ix_task_status_trackable_type ON public.task_status USING btree (tr
 -- Name: ix_tasks_dedup_key; Type: INDEX; Schema: public; Owner: postgres
 --
 
-CREATE INDEX ix_tasks_dedup_key ON public.tasks USING btree (dedup_key);
+CREATE UNIQUE INDEX ix_tasks_dedup_key ON public.tasks USING btree (dedup_key);
 
 
 --

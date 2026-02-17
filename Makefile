@@ -4,7 +4,7 @@
 # Go parameters
 GOCMD=go
 TAGS=fts5 ORT
-ORT_VERSION?=1.24.1
+ORT_VERSION?=$(shell cat .ort-version)
 BUILD_TAGS=$(TAGS) embed_model
 CGO_ENABLED?=1
 ORT_LIB_DIR?=$(CURDIR)/lib
@@ -66,6 +66,7 @@ run: download-model download-ort docker-dev ## Run the HTTP server (downloads mo
 clean: docker-clean ## Remove build artifacts
 	rm -rf $(BUILD_DIR)
 	rm -rf lib/
+	rm -rf infrastructure/provider/models/
 	rm -f $(COVERAGE_FILE)
 
 ##@ Testing
@@ -82,6 +83,10 @@ test-cover: download-model download-ort ## Run tests with coverage (excludes smo
 .PHONY: test-e2e
 test-e2e: download-model download-ort ## Run end-to-end tests only
 	$(GOTEST) -v ./test/e2e/...
+
+.PHONY: test-smoke
+test-smoke: docker-reset-db ## Run smoke tests (resets database for idempotency)
+	go test -v -count=1 ./test/smoke/...
 
 ##@ Code Quality
 
@@ -220,13 +225,20 @@ ifeq ($(shell lsof -i :5432 -sTCP:LISTEN >/dev/null 2>&1 && echo yes),)
   PROFILES += --profile vectorchord
 endif
 
+
 .PHONY: docker-dev
-docker-dev: ## Start Docker development environment (VectorChord + Ollama)
+docker-dev: ## Start Docker development environment (idempotent, non-destructive)
 ifeq ($(PROFILES),)
 	@echo "All services already running locally, skipping docker-dev"
 else
 	docker compose -f docker-compose.dev.yaml $(PROFILES) up -d --wait
 endif
+
+.PHONY: docker-reset-db
+docker-reset-db: ## Reset vectorchord DB (nuke volume, reload SQL dump, run migrations)
+	docker compose -f docker-compose.dev.yaml --profile vectorchord down -v
+	docker compose -f docker-compose.dev.yaml --profile vectorchord up -d --wait
+	DB_URL=$(DB_URL) $(GOCMD) run ./tools/migrate
 
 .PHONY: docker-build
 docker-build: download-model ## Build Docker image (downloads model first, then copies into image)
@@ -242,4 +254,4 @@ docker-run: ## Run Docker container
 
 .PHONY: docker-clean
 docker-clean:
-	docker compose -f docker-compose.dev.yaml $(ALL_PROFILES) down -v
+	docker compose -f docker-compose.dev.yaml $(ALL_PROFILES) down -v --wait
