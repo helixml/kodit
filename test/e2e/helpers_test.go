@@ -20,6 +20,7 @@ import (
 	apimiddleware "github.com/helixml/kodit/infrastructure/api/middleware"
 	v1 "github.com/helixml/kodit/infrastructure/api/v1"
 	"github.com/helixml/kodit/infrastructure/persistence"
+	"github.com/helixml/kodit/internal/config"
 	"github.com/helixml/kodit/internal/database"
 )
 
@@ -51,11 +52,15 @@ func NewTestServer(t *testing.T) *TestServer {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
 
-	// Create the kodit client first
+	// Create the kodit client first.
+	// Disable periodic sync so the initial sync goroutine does not
+	// race with tests that assert on repository status.
+	syncCfg := config.NewPeriodicSyncConfig().WithEnabled(false)
 	client, err := kodit.New(
 		kodit.WithSQLite(dbPath),
 		kodit.WithDataDir(tmpDir),
 		kodit.WithSkipProviderValidation(),
+		kodit.WithPeriodicSyncConfig(syncCfg),
 	)
 	if err != nil {
 		t.Fatalf("create kodit client: %v", err)
