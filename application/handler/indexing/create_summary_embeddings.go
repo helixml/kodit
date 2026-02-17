@@ -119,7 +119,6 @@ func (h *CreateSummaryEmbeddings) Execute(ctx context.Context, payload map[strin
 	request := search.NewIndexRequest(documents)
 	if err := h.textIndex.Embedding.Index(ctx, request); err != nil {
 		h.logger.Error("failed to create summary embeddings", slog.String("error", err.Error()))
-		tracker.Fail(ctx, err.Error())
 		return err
 	}
 

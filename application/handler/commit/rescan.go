@@ -63,7 +63,6 @@ func (h *Rescan) Execute(ctx context.Context, payload map[string]any) error {
 	// The commit record itself is preserved — only derived data is removed.
 	associations, err := h.associationStore.Find(ctx, enrichment.WithEntityType(enrichment.EntityTypeCommit), enrichment.WithEntityID(cp.CommitSHA()))
 	if err != nil {
-		tracker.Fail(ctx, err.Error())
 		return fmt.Errorf("find associations for commit: %w", err)
 	}
 
@@ -73,7 +72,6 @@ func (h *Rescan) Execute(ctx context.Context, payload map[string]any) error {
 			ids[i] = a.EnrichmentID()
 		}
 		if err := h.enrichmentStore.DeleteBy(ctx, repository.WithIDIn(ids)); err != nil {
-			tracker.Fail(ctx, err.Error())
 			return fmt.Errorf("delete enrichments: %w", err)
 		}
 	}
@@ -81,7 +79,6 @@ func (h *Rescan) Execute(ctx context.Context, payload map[string]any) error {
 	tracker.SetCurrent(ctx, 1, "Deleting enrichment associations")
 
 	if err := h.associationStore.DeleteBy(ctx, enrichment.WithEntityID(cp.CommitSHA())); err != nil {
-		tracker.Fail(ctx, err.Error())
 		return fmt.Errorf("delete enrichment associations: %w", err)
 	}
 

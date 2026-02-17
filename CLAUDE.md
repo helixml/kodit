@@ -62,6 +62,23 @@ Stylistic requirements:
 - **NO TYPE ALIASES**: Always update references when moving or renaming types.
 - **NO PANICS**: Never panic. If something goes wrong, return an error. If you can't return an error, rewrite the method so that it can error. In general, write all possible code with an error return variable, even if it's not used.
 
+## Testing
+
+Use the `internal/testdb` package for test databases. Do not create ad-hoc SQLite connections in tests.
+
+```go
+// Migrated in-memory database (most tests):
+db := testdb.New(t)
+
+// Plain in-memory database without migrations (custom schema):
+db := testdb.NewPlain(t)
+
+// Plain database with custom schema statements:
+db := testdb.WithSchema(t, "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)")
+```
+
+The `internal/database` package tests cannot use `testdb` (import cycle) and must create their own connections.
+
 ## Database Access
 
 The Kodit database is PostgreSQL running in the `kodit-vectorchord` container:

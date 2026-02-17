@@ -54,7 +54,6 @@ func (h *Clone) Execute(ctx context.Context, payload map[string]any) error {
 
 	repo, err := h.repoStore.FindOne(ctx, repository.WithID(repoID))
 	if err != nil {
-		tracker.Fail(ctx, err.Error())
 		return fmt.Errorf("get repository: %w", err)
 	}
 
@@ -72,7 +71,6 @@ func (h *Clone) Execute(ctx context.Context, payload map[string]any) error {
 
 	clonedPath, err := h.cloner.Clone(ctx, repo.RemoteURL())
 	if err != nil {
-		tracker.Fail(ctx, err.Error())
 		return fmt.Errorf("clone repository: %w", err)
 	}
 
@@ -80,7 +78,6 @@ func (h *Clone) Execute(ctx context.Context, payload map[string]any) error {
 	updatedRepo := repo.WithWorkingCopy(wc)
 
 	if _, err := h.repoStore.Save(ctx, updatedRepo); err != nil {
-		tracker.Fail(ctx, err.Error())
 		return fmt.Errorf("save repository: %w", err)
 	}
 

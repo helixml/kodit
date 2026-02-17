@@ -70,12 +70,10 @@ func (h *Scan) Execute(ctx context.Context, payload map[string]any) error {
 
 	repo, err := h.repoStore.FindOne(ctx, repository.WithID(cp.RepoID()))
 	if err != nil {
-		tracker.Fail(ctx, err.Error())
 		return fmt.Errorf("get repository: %w", err)
 	}
 
 	if !repo.HasWorkingCopy() {
-		tracker.Fail(ctx, "Repository not cloned")
 		return fmt.Errorf("repository %d has not been cloned", cp.RepoID())
 	}
 
@@ -85,7 +83,6 @@ func (h *Scan) Execute(ctx context.Context, payload map[string]any) error {
 	clonedPath := repo.WorkingCopy().Path()
 	result, err := h.scanner.ScanCommit(ctx, clonedPath, cp.CommitSHA(), cp.RepoID())
 	if err != nil {
-		tracker.Fail(ctx, err.Error())
 		return fmt.Errorf("scan commit: %w", err)
 	}
 
@@ -94,7 +91,6 @@ func (h *Scan) Execute(ctx context.Context, payload map[string]any) error {
 	commit := result.Commit()
 	savedCommit, err := h.commitStore.Save(ctx, commit)
 	if err != nil {
-		tracker.Fail(ctx, err.Error())
 		return fmt.Errorf("save commit: %w", err)
 	}
 

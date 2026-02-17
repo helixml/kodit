@@ -61,12 +61,10 @@ func (h *Sync) Execute(ctx context.Context, payload map[string]any) error {
 
 	repo, err := h.repoStore.FindOne(ctx, repository.WithID(repoID))
 	if err != nil {
-		tracker.Fail(ctx, err.Error())
 		return fmt.Errorf("get repository: %w", err)
 	}
 
 	if !repo.HasWorkingCopy() {
-		tracker.Fail(ctx, "Repository not cloned")
 		return fmt.Errorf("repository %d has not been cloned", repoID)
 	}
 
@@ -74,7 +72,6 @@ func (h *Sync) Execute(ctx context.Context, payload map[string]any) error {
 	tracker.SetCurrent(ctx, 0, "Fetching latest changes")
 
 	if err := h.cloner.Update(ctx, repo); err != nil {
-		tracker.Fail(ctx, err.Error())
 		return fmt.Errorf("update repository: %w", err)
 	}
 

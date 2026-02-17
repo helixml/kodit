@@ -4,13 +4,12 @@ import (
 	"context"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/helixml/kodit/application/handler"
 	"github.com/helixml/kodit/domain/task"
 	"github.com/helixml/kodit/infrastructure/persistence"
-	"github.com/helixml/kodit/internal/database"
+	"github.com/helixml/kodit/internal/testdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -29,22 +28,11 @@ func (f *fakeTrackerFactory) ForOperation(_ task.Operation, _ task.TrackableType
 	return &fakeTracker{}
 }
 
-func openTestDB(t *testing.T) database.Database {
-	t.Helper()
-	dbPath := filepath.Join(t.TempDir(), "test.db")
-	ctx := context.Background()
-	db, err := database.NewDatabase(ctx, "sqlite:///"+dbPath)
-	require.NoError(t, err)
-	require.NoError(t, persistence.AutoMigrate(db))
-	t.Cleanup(func() { _ = db.Close() })
-	return db
-}
-
 func TestRescan_DeletesOldStatuses(t *testing.T) {
 	ctx := context.Background()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	db := openTestDB(t)
+	db := testdb.New(t)
 	enrichmentStore := persistence.NewEnrichmentStore(db)
 	associationStore := persistence.NewAssociationStore(db)
 	statusStore := persistence.NewStatusStore(db)

@@ -100,7 +100,6 @@ func (h *CreateCodeEmbeddings) Execute(ctx context.Context, payload map[string]a
 	request := search.NewIndexRequest(documents)
 	if err := h.codeIndex.Embedding.Index(ctx, request); err != nil {
 		h.logger.Error("failed to create embeddings", slog.String("error", err.Error()))
-		tracker.Fail(ctx, err.Error())
 		return err
 	}
 

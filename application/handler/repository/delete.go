@@ -51,7 +51,6 @@ func (h *Delete) Execute(ctx context.Context, payload map[string]any) error {
 
 	repo, err := h.repoStores.Repositories.FindOne(ctx, repository.WithID(repoID))
 	if err != nil {
-		tracker.Fail(ctx, err.Error())
 		return fmt.Errorf("get repository: %w", err)
 	}
 
@@ -91,7 +90,6 @@ func (h *Delete) Execute(ctx context.Context, payload map[string]any) error {
 	tracker.SetCurrent(ctx, 2, "Deleting repository record")
 
 	if err := h.repoStores.Repositories.Delete(ctx, repo); err != nil {
-		tracker.Fail(ctx, err.Error())
 		return fmt.Errorf("delete repository: %w", err)
 	}
 

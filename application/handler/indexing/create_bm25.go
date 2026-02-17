@@ -77,7 +77,6 @@ func (h *CreateBM25Index) Execute(ctx context.Context, payload map[string]any) e
 	request := search.NewIndexRequest(documents)
 	if err := h.bm25Service.Index(ctx, request); err != nil {
 		h.logger.Error("failed to index documents", slog.String("error", err.Error()))
-		tracker.Fail(ctx, err.Error())
 		return err
 	}
 

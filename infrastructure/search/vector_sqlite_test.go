@@ -6,11 +6,10 @@ import (
 
 	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/infrastructure/provider"
+	"github.com/helixml/kodit/internal/testdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 // fakeEmbedder implements provider.Embedder for testing.
@@ -38,11 +37,7 @@ func (f *fakeEmbedder) Embed(_ context.Context, req provider.EmbeddingRequest) (
 
 func testDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Silent),
-	})
-	require.NoError(t, err)
-	return db
+	return testdb.NewPlain(t).GORM()
 }
 
 func TestCosineSimilarity(t *testing.T) {

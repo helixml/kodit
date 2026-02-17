@@ -100,7 +100,6 @@ func (h *CreateExampleSummaryEmbeddings) Execute(ctx context.Context, payload ma
 	request := search.NewIndexRequest(documents)
 	if err := h.textIndex.Embedding.Index(ctx, request); err != nil {
 		h.logger.Error("failed to create example summary embeddings", slog.String("error", err.Error()))
-		tracker.Fail(ctx, err.Error())
 		return err
 	}
 
