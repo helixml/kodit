@@ -52,7 +52,7 @@ List enrichments with optional filters
 
 - 500: Internal Server Error
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 ### GET /enrichments/{id}
 
@@ -74,11 +74,11 @@ Get an enrichment by ID
 
 - 404: Not Found
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 - 500: Internal Server Error
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 ### DELETE /enrichments/{id}
 
@@ -98,11 +98,11 @@ Delete an enrichment by ID
 
 - 404: Not Found
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 - 500: Internal Server Error
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 ### PATCH /enrichments/{id}
 
@@ -129,11 +129,11 @@ Update an enrichment's content
 
 - 404: Not Found
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 - 500: Internal Server Error
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 ### GET /queue
 
@@ -157,7 +157,7 @@ List tasks in the queue
 
 - 500: Internal Server Error
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 ### GET /queue/{task_id}
 
@@ -179,11 +179,11 @@ Get a task by ID
 
 - 404: Not Found
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 - 500: Internal Server Error
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 ### GET /repositories
 
@@ -206,7 +206,7 @@ Get all tracked Git repositories
 
 - 500: Internal Server Error
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 ### POST /repositories
 
@@ -230,11 +230,11 @@ Add a new Git repository to track
 
 - 400: Bad Request
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 - 500: Internal Server Error
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 ### GET /repositories/{id}
 
@@ -256,11 +256,11 @@ Get a repository by ID
 
 - 404: Not Found
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 - 500: Internal Server Error
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 ### DELETE /repositories/{id}
 
@@ -280,11 +280,11 @@ Delete a repository by ID
 
 - 404: Not Found
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 - 500: Internal Server Error
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 ### GET /repositories/{id}/commits
 
@@ -308,11 +308,11 @@ List commits for a repository
 
 - 404: Not Found
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 - 500: Internal Server Error
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 ### GET /repositories/{id}/commits/{commit_sha}
 
@@ -335,11 +335,11 @@ Get a commit by SHA
 
 - 404: Not Found
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 - 500: Internal Server Error
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 ### GET /repositories/{id}/commits/{commit_sha}/embeddings
 
@@ -358,7 +358,7 @@ This endpoint has been removed. Embeddings are an internal detail of snippets an
 
 - 410: Gone
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 ### GET /repositories/{id}/commits/{commit_sha}/enrichments
 
@@ -385,11 +385,11 @@ List enrichments for a commit
 
 - 404: Not Found
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 - 500: Internal Server Error
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 ### DELETE /repositories/{id}/commits/{commit_sha}/enrichments
 
@@ -410,11 +410,11 @@ Delete all enrichments for a commit
 
 - 404: Not Found
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 - 500: Internal Server Error
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 ### GET /repositories/{id}/commits/{commit_sha}/enrichments/{enrichment_id}
 
@@ -438,11 +438,11 @@ Get an enrichment by ID within commit context
 
 - 404: Not Found
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 - 500: Internal Server Error
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 ### DELETE /repositories/{id}/commits/{commit_sha}/enrichments/{enrichment_id}
 
@@ -464,11 +464,11 @@ Delete a specific enrichment from a commit
 
 - 404: Not Found
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 - 500: Internal Server Error
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 ### GET /repositories/{id}/commits/{commit_sha}/files
 
@@ -493,11 +493,11 @@ List files for a commit
 
 - 404: Not Found
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 - 500: Internal Server Error
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 ### GET /repositories/{id}/commits/{commit_sha}/files/{blob_sha}
 
@@ -521,11 +521,11 @@ Get a file by blob SHA
 
 - 404: Not Found
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 - 500: Internal Server Error
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 ### POST /repositories/{id}/commits/{commit_sha}/rescan
 
@@ -546,11 +546,11 @@ Trigger a rescan of a specific commit
 
 - 404: Not Found
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 - 500: Internal Server Error
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 ### GET /repositories/{id}/commits/{commit_sha}/snippets
 
@@ -575,15 +575,15 @@ List code snippets for a commit (backed by enrichments)
 
 - 401: Unauthorized
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 - 404: Not Found
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 - 500: Internal Server Error
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 ### GET /repositories/{id}/enrichments
 
@@ -609,11 +609,11 @@ List recent enrichments across commits for a repository
 
 - 404: Not Found
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 - 500: Internal Server Error
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 ### GET /repositories/{id}/status
 
@@ -635,11 +635,11 @@ Get indexing task status for a repository
 
 - 404: Not Found
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 - 500: Internal Server Error
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 ### GET /repositories/{id}/status/summary
 
@@ -661,11 +661,11 @@ Get aggregated indexing status summary for a repository
 
 - 404: Not Found
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 - 500: Internal Server Error
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 ### GET /repositories/{id}/tags
 
@@ -689,11 +689,11 @@ List tags for a repository
 
 - 404: Not Found
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 - 500: Internal Server Error
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 ### GET /repositories/{id}/tags/{tag_id}
 
@@ -716,11 +716,11 @@ Get a tag by ID
 
 - 404: Not Found
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 - 500: Internal Server Error
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 ### GET /repositories/{id}/tracking-config
 
@@ -742,11 +742,11 @@ Get current tracking configuration for a repository
 
 - 404: Not Found
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 - 500: Internal Server Error
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 ### PUT /repositories/{id}/tracking-config
 
@@ -773,11 +773,11 @@ Update tracking configuration for a repository
 
 - 404: Not Found
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 - 500: Internal Server Error
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 ### POST /search
 
@@ -797,11 +797,11 @@ Hybrid search across code snippets and enrichments
 
 - 400: Bad Request
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 - 500: Internal Server Error
 
-object
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
 ## Components
 
@@ -1452,3 +1452,24 @@ object
 
 
 
+
+
+### middleware.JSONAPIError
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| detail | string |  |
+| id | string |  |
+| status | string |  |
+| title | string |  |
+
+
+### middleware.JSONAPIErrorResponse
+
+
+
+| Field | Type | Description |
+|-------|------|-------------|
+| errors | array |  |

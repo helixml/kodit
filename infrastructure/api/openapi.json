@@ -69,10 +69,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -119,10 +116,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -132,10 +126,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -173,10 +164,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -186,10 +174,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -245,10 +230,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -258,10 +240,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -323,10 +302,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -373,10 +349,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -386,10 +359,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -443,10 +413,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -501,10 +468,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -514,10 +478,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -564,10 +525,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -577,10 +535,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -618,10 +573,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -631,10 +583,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -697,10 +646,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -710,10 +656,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -769,10 +712,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -782,10 +722,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -832,10 +769,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -923,10 +857,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -936,10 +867,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -986,10 +914,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -999,10 +924,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -1067,10 +989,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -1080,10 +999,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -1139,10 +1055,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -1152,10 +1065,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -1227,10 +1137,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -1240,10 +1147,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -1308,10 +1212,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -1321,10 +1222,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -1373,10 +1271,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -1386,10 +1281,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -1461,10 +1353,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -1474,10 +1363,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -1487,10 +1373,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -1569,10 +1452,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -1582,10 +1462,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -1632,10 +1509,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -1645,10 +1519,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -1695,10 +1566,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -1708,10 +1576,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -1774,10 +1639,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -1787,10 +1649,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -1846,10 +1705,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -1859,10 +1715,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -1909,10 +1762,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -1922,10 +1772,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -1981,10 +1828,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -1994,10 +1838,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -2044,10 +1885,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -2057,10 +1895,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "string"
-                                    }
+                                    "$ref": "#/components/schemas/middleware.JSONAPIErrorResponse"
                                 }
                             }
                         }
@@ -2964,6 +2799,34 @@
             "jsonapi.Meta": {
                 "type": "object",
                 "additionalProperties": {}
+            },
+            "middleware.JSONAPIError": {
+                "type": "object",
+                "properties": {
+                    "detail": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
+                    }
+                }
+            },
+            "middleware.JSONAPIErrorResponse": {
+                "type": "object",
+                "properties": {
+                    "errors": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/middleware.JSONAPIError"
+                        }
+                    }
+                }
             }
         }
     }

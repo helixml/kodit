@@ -85,7 +85,7 @@ test-e2e: download-model download-ort ## Run end-to-end tests only
 	$(GOTEST) -v ./test/e2e/...
 
 .PHONY: test-smoke
-test-smoke: docker-reset-db ## Run smoke tests (resets database for idempotency)
+test-smoke: docker-reset-db docker-reset-kodit ## Run smoke tests (resets database for idempotency)
 	go test -v -count=1 ./test/smoke/...
 
 ##@ Code Quality
@@ -238,6 +238,11 @@ endif
 docker-reset-db: ## Reset vectorchord DB (nuke volume, reload SQL dump, run migrations)
 	docker compose -f docker-compose.dev.yaml --profile vectorchord down -v
 	docker compose -f docker-compose.dev.yaml --profile vectorchord up -d --wait
+
+.PHONY: docker-reset-kodit
+docker-reset-kodit: ## Reset kodit DB (nuke volume, reload SQL dump, run migrations)
+	docker compose -f docker-compose.dev.yaml --profile kodit down -v
+	docker compose -f docker-compose.dev.yaml --profile kodit up -d --wait
 
 .PHONY: docker-build
 docker-build: download-model ## Build Docker image (downloads model first, then copies into image)

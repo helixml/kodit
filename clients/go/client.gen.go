@@ -2279,7 +2279,7 @@ type GetEnrichmentsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *DtoEnrichmentJSONAPIListResponse
-	JSON500      *map[string]string
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -2301,8 +2301,8 @@ func (r GetEnrichmentsResponse) StatusCode() int {
 type DeleteEnrichmentsIdResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON404      *map[string]string
-	JSON500      *map[string]string
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -2325,8 +2325,8 @@ type GetEnrichmentsIdResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *DtoEnrichmentJSONAPIResponse
-	JSON404      *map[string]string
-	JSON500      *map[string]string
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -2349,8 +2349,8 @@ type PatchEnrichmentsIdResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *DtoEnrichmentJSONAPIResponse
-	JSON404      *map[string]string
-	JSON500      *map[string]string
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -2373,7 +2373,7 @@ type GetQueueResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *DtoTaskListResponse
-	JSON500      *map[string]string
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -2396,8 +2396,8 @@ type GetQueueTaskIdResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *DtoTaskResponse
-	JSON404      *map[string]string
-	JSON500      *map[string]string
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -2420,7 +2420,7 @@ type GetRepositoriesResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *DtoRepositoryListResponse
-	JSON500      *map[string]string
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -2444,8 +2444,8 @@ type PostRepositoriesResponse struct {
 	HTTPResponse *http.Response
 	JSON200      *DtoRepositoryResponse
 	JSON201      *DtoRepositoryResponse
-	JSON400      *map[string]string
-	JSON500      *map[string]string
+	JSON400      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -2467,8 +2467,8 @@ func (r PostRepositoriesResponse) StatusCode() int {
 type DeleteRepositoriesIdResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON404      *map[string]string
-	JSON500      *map[string]string
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -2491,8 +2491,8 @@ type GetRepositoriesIdResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *DtoRepositoryDetailsResponse
-	JSON404      *map[string]string
-	JSON500      *map[string]string
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -2515,8 +2515,8 @@ type GetRepositoriesIdCommitsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *DtoCommitJSONAPIListResponse
-	JSON404      *map[string]string
-	JSON500      *map[string]string
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -2539,8 +2539,8 @@ type GetRepositoriesIdCommitsCommitShaResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *DtoCommitJSONAPIResponse
-	JSON404      *map[string]string
-	JSON500      *map[string]string
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -2562,7 +2562,7 @@ func (r GetRepositoriesIdCommitsCommitShaResponse) StatusCode() int {
 type GetRepositoriesIdCommitsCommitShaEmbeddingsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON410      *map[string]string
+	JSON410      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -2584,8 +2584,8 @@ func (r GetRepositoriesIdCommitsCommitShaEmbeddingsResponse) StatusCode() int {
 type DeleteRepositoriesIdCommitsCommitShaEnrichmentsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON404      *map[string]string
-	JSON500      *map[string]string
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -2608,8 +2608,8 @@ type GetRepositoriesIdCommitsCommitShaEnrichmentsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *DtoEnrichmentJSONAPIListResponse
-	JSON404      *map[string]string
-	JSON500      *map[string]string
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -2631,8 +2631,8 @@ func (r GetRepositoriesIdCommitsCommitShaEnrichmentsResponse) StatusCode() int {
 type DeleteRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON404      *map[string]string
-	JSON500      *map[string]string
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -2655,8 +2655,8 @@ type GetRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *DtoEnrichmentJSONAPIResponse
-	JSON404      *map[string]string
-	JSON500      *map[string]string
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -2679,8 +2679,8 @@ type GetRepositoriesIdCommitsCommitShaFilesResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *DtoFileJSONAPIListResponse
-	JSON404      *map[string]string
-	JSON500      *map[string]string
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -2703,8 +2703,8 @@ type GetRepositoriesIdCommitsCommitShaFilesBlobShaResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *DtoFileJSONAPIResponse
-	JSON404      *map[string]string
-	JSON500      *map[string]string
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -2726,8 +2726,8 @@ func (r GetRepositoriesIdCommitsCommitShaFilesBlobShaResponse) StatusCode() int 
 type PostRepositoriesIdCommitsCommitShaRescanResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON404      *map[string]string
-	JSON500      *map[string]string
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -2750,9 +2750,9 @@ type GetRepositoriesIdCommitsCommitShaSnippetsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *DtoSnippetListResponse
-	JSON401      *map[string]string
-	JSON404      *map[string]string
-	JSON500      *map[string]string
+	JSON401      *MiddlewareJSONAPIErrorResponse
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -2775,8 +2775,8 @@ type GetRepositoriesIdEnrichmentsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *DtoEnrichmentJSONAPIListResponse
-	JSON404      *map[string]string
-	JSON500      *map[string]string
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -2799,8 +2799,8 @@ type GetRepositoriesIdStatusResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *DtoTaskStatusListResponse
-	JSON404      *map[string]string
-	JSON500      *map[string]string
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -2823,8 +2823,8 @@ type GetRepositoriesIdStatusSummaryResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *DtoRepositoryStatusSummaryResponse
-	JSON404      *map[string]string
-	JSON500      *map[string]string
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -2847,8 +2847,8 @@ type GetRepositoriesIdTagsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *DtoTagJSONAPIListResponse
-	JSON404      *map[string]string
-	JSON500      *map[string]string
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -2871,8 +2871,8 @@ type GetRepositoriesIdTagsTagIdResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *DtoTagJSONAPIResponse
-	JSON404      *map[string]string
-	JSON500      *map[string]string
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -2895,8 +2895,8 @@ type GetRepositoriesIdTrackingConfigResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *DtoTrackingConfigResponse
-	JSON404      *map[string]string
-	JSON500      *map[string]string
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -2919,8 +2919,8 @@ type PutRepositoriesIdTrackingConfigResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *DtoTrackingConfigResponse
-	JSON404      *map[string]string
-	JSON500      *map[string]string
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -2943,8 +2943,8 @@ type PostSearchResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *DtoSearchResponse
-	JSON400      *map[string]string
-	JSON500      *map[string]string
+	JSON400      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -3278,7 +3278,7 @@ func ParseGetEnrichmentsResponse(rsp *http.Response) (*GetEnrichmentsResponse, e
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3304,14 +3304,14 @@ func ParseDeleteEnrichmentsIdResponse(rsp *http.Response) (*DeleteEnrichmentsIdR
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3344,14 +3344,14 @@ func ParseGetEnrichmentsIdResponse(rsp *http.Response) (*GetEnrichmentsIdRespons
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3384,14 +3384,14 @@ func ParsePatchEnrichmentsIdResponse(rsp *http.Response) (*PatchEnrichmentsIdRes
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3424,7 +3424,7 @@ func ParseGetQueueResponse(rsp *http.Response) (*GetQueueResponse, error) {
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3457,14 +3457,14 @@ func ParseGetQueueTaskIdResponse(rsp *http.Response) (*GetQueueTaskIdResponse, e
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3497,7 +3497,7 @@ func ParseGetRepositoriesResponse(rsp *http.Response) (*GetRepositoriesResponse,
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3537,14 +3537,14 @@ func ParsePostRepositoriesResponse(rsp *http.Response) (*PostRepositoriesRespons
 		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3570,14 +3570,14 @@ func ParseDeleteRepositoriesIdResponse(rsp *http.Response) (*DeleteRepositoriesI
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3610,14 +3610,14 @@ func ParseGetRepositoriesIdResponse(rsp *http.Response) (*GetRepositoriesIdRespo
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3650,14 +3650,14 @@ func ParseGetRepositoriesIdCommitsResponse(rsp *http.Response) (*GetRepositories
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3690,14 +3690,14 @@ func ParseGetRepositoriesIdCommitsCommitShaResponse(rsp *http.Response) (*GetRep
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3723,7 +3723,7 @@ func ParseGetRepositoriesIdCommitsCommitShaEmbeddingsResponse(rsp *http.Response
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3749,14 +3749,14 @@ func ParseDeleteRepositoriesIdCommitsCommitShaEnrichmentsResponse(rsp *http.Resp
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3789,14 +3789,14 @@ func ParseGetRepositoriesIdCommitsCommitShaEnrichmentsResponse(rsp *http.Respons
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3822,14 +3822,14 @@ func ParseDeleteRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdResponse(rs
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3862,14 +3862,14 @@ func ParseGetRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdResponse(rsp *
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3902,14 +3902,14 @@ func ParseGetRepositoriesIdCommitsCommitShaFilesResponse(rsp *http.Response) (*G
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3942,14 +3942,14 @@ func ParseGetRepositoriesIdCommitsCommitShaFilesBlobShaResponse(rsp *http.Respon
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3975,14 +3975,14 @@ func ParsePostRepositoriesIdCommitsCommitShaRescanResponse(rsp *http.Response) (
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4015,21 +4015,21 @@ func ParseGetRepositoriesIdCommitsCommitShaSnippetsResponse(rsp *http.Response) 
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4062,14 +4062,14 @@ func ParseGetRepositoriesIdEnrichmentsResponse(rsp *http.Response) (*GetReposito
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4102,14 +4102,14 @@ func ParseGetRepositoriesIdStatusResponse(rsp *http.Response) (*GetRepositoriesI
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4142,14 +4142,14 @@ func ParseGetRepositoriesIdStatusSummaryResponse(rsp *http.Response) (*GetReposi
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4182,14 +4182,14 @@ func ParseGetRepositoriesIdTagsResponse(rsp *http.Response) (*GetRepositoriesIdT
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4222,14 +4222,14 @@ func ParseGetRepositoriesIdTagsTagIdResponse(rsp *http.Response) (*GetRepositori
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4262,14 +4262,14 @@ func ParseGetRepositoriesIdTrackingConfigResponse(rsp *http.Response) (*GetRepos
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4302,14 +4302,14 @@ func ParsePutRepositoriesIdTrackingConfigResponse(rsp *http.Response) (*PutRepos
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4342,14 +4342,14 @@ func ParsePostSearchResponse(rsp *http.Response) (*PostSearchResponse, error) {
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest map[string]string
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

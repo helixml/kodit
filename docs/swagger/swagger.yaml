@@ -570,6 +570,24 @@ definitions:
   jsonapi.Meta:
     additionalProperties: {}
     type: object
+  middleware.JSONAPIError:
+    properties:
+      detail:
+        type: string
+      id:
+        type: string
+      status:
+        type: string
+      title:
+        type: string
+    type: object
+  middleware.JSONAPIErrorResponse:
+    properties:
+      errors:
+        items:
+          $ref: '#/definitions/middleware.JSONAPIError'
+        type: array
+    type: object
 host: localhost:8080
 info:
   contact: {}
@@ -609,9 +627,7 @@ paths:
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
       security:
       - APIKeyAuth: []
       summary: List enrichments
@@ -636,15 +652,11 @@ paths:
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
       security:
       - APIKeyAuth: []
       summary: Delete enrichment
@@ -670,15 +682,11 @@ paths:
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
       security:
       - APIKeyAuth: []
       summary: Get enrichment
@@ -710,15 +718,11 @@ paths:
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
       security:
       - APIKeyAuth: []
       summary: Update enrichment
@@ -752,9 +756,7 @@ paths:
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
       security:
       - APIKeyAuth: []
       summary: List tasks
@@ -781,15 +783,11 @@ paths:
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
       security:
       - APIKeyAuth: []
       summary: Get task
@@ -819,9 +817,7 @@ paths:
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
       security:
       - APIKeyAuth: []
       summary: List repositories
@@ -852,15 +848,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
       security:
       - APIKeyAuth: []
       summary: Add repository
@@ -885,15 +877,11 @@ paths:
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
       security:
       - APIKeyAuth: []
       summary: Delete repository
@@ -919,15 +907,11 @@ paths:
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
       security:
       - APIKeyAuth: []
       summary: Get repository
@@ -962,15 +946,11 @@ paths:
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
       security:
       - APIKeyAuth: []
       summary: List commits
@@ -1002,15 +982,11 @@ paths:
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
       security:
       - APIKeyAuth: []
       summary: Get commit
@@ -1038,9 +1014,7 @@ paths:
         "410":
           description: Gone
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
       security:
       - APIKeyAuth: []
       summary: List commit embeddings (deprecated)
@@ -1070,15 +1044,11 @@ paths:
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
       security:
       - APIKeyAuth: []
       summary: Delete commit enrichments
@@ -1125,15 +1095,11 @@ paths:
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
       security:
       - APIKeyAuth: []
       summary: List commit enrichments
@@ -1168,15 +1134,11 @@ paths:
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
       security:
       - APIKeyAuth: []
       summary: Delete commit enrichment
@@ -1212,15 +1174,11 @@ paths:
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
       security:
       - APIKeyAuth: []
       summary: Get commit enrichment
@@ -1260,15 +1218,11 @@ paths:
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
       security:
       - APIKeyAuth: []
       summary: List commit files
@@ -1305,15 +1259,11 @@ paths:
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
       security:
       - APIKeyAuth: []
       summary: Get commit file
@@ -1343,15 +1293,11 @@ paths:
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
       security:
       - APIKeyAuth: []
       summary: Rescan commit
@@ -1391,21 +1337,15 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
       security:
       - APIKeyAuth: []
       summary: List commit snippets
@@ -1448,15 +1388,11 @@ paths:
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
       security:
       - APIKeyAuth: []
       summary: List repository enrichments
@@ -1483,15 +1419,11 @@ paths:
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
       security:
       - APIKeyAuth: []
       summary: Get repository status
@@ -1518,15 +1450,11 @@ paths:
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
       security:
       - APIKeyAuth: []
       summary: Get repository status summary
@@ -1561,15 +1489,11 @@ paths:
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
       security:
       - APIKeyAuth: []
       summary: List tags
@@ -1601,15 +1525,11 @@ paths:
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
       security:
       - APIKeyAuth: []
       summary: Get tag
@@ -1636,15 +1556,11 @@ paths:
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
       security:
       - APIKeyAuth: []
       summary: Get tracking config
@@ -1676,15 +1592,11 @@ paths:
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
       security:
       - APIKeyAuth: []
       summary: Update tracking config
@@ -1712,15 +1624,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
       security:
       - APIKeyAuth: []
       summary: Search code

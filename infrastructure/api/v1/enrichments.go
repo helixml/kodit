@@ -55,7 +55,7 @@ func (r *EnrichmentsRouter) Routes() chi.Router {
 //	@Param			page				query		int		false	"Page number (default: 1)"
 //	@Param			page_size			query		int		false	"Results per page (default: 20, max: 100)"
 //	@Success		200					{object}	dto.EnrichmentJSONAPIListResponse
-//	@Failure		500					{object}	map[string]string
+//	@Failure		500					{object}	middleware.JSONAPIErrorResponse
 //	@Security		APIKeyAuth
 //	@Router			/enrichments [get]
 func (r *EnrichmentsRouter) List(w http.ResponseWriter, req *http.Request) {
@@ -118,8 +118,8 @@ func (r *EnrichmentsRouter) List(w http.ResponseWriter, req *http.Request) {
 //	@Produce		json
 //	@Param			id	path		int	true	"Enrichment ID"
 //	@Success		200	{object}	dto.EnrichmentJSONAPIResponse
-//	@Failure		404	{object}	map[string]string
-//	@Failure		500	{object}	map[string]string
+//	@Failure		404	{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500	{object}	middleware.JSONAPIErrorResponse
 //	@Security		APIKeyAuth
 //	@Router			/enrichments/{id} [get]
 func (r *EnrichmentsRouter) Get(w http.ResponseWriter, req *http.Request) {
@@ -175,8 +175,8 @@ func enrichmentToJSONAPIDTO(e enrichment.Enrichment) dto.EnrichmentData {
 //	@Param			id		path		int							true	"Enrichment ID"
 //	@Param			body	body		dto.EnrichmentUpdateRequest	true	"Update request"
 //	@Success		200		{object}	dto.EnrichmentJSONAPIResponse
-//	@Failure		404		{object}	map[string]string
-//	@Failure		500		{object}	map[string]string
+//	@Failure		404		{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500		{object}	middleware.JSONAPIErrorResponse
 //	@Security		APIKeyAuth
 //	@Router			/enrichments/{id} [patch]
 func (r *EnrichmentsRouter) Update(w http.ResponseWriter, req *http.Request) {
@@ -221,8 +221,8 @@ func (r *EnrichmentsRouter) Update(w http.ResponseWriter, req *http.Request) {
 //	@Produce		json
 //	@Param			id	path	int	true	"Enrichment ID"
 //	@Success		204
-//	@Failure		404	{object}	map[string]string
-//	@Failure		500	{object}	map[string]string
+//	@Failure		404	{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500	{object}	middleware.JSONAPIErrorResponse
 //	@Security		APIKeyAuth
 //	@Router			/enrichments/{id} [delete]
 func (r *EnrichmentsRouter) Delete(w http.ResponseWriter, req *http.Request) {

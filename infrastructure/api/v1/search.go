@@ -50,8 +50,8 @@ func (r *SearchRouter) Routes() chi.Router {
 //	@Produce		json
 //	@Param			body	body		dto.SearchRequest	true	"Search request"
 //	@Success		200		{object}	dto.SearchResponse
-//	@Failure		400		{object}	map[string]string
-//	@Failure		500		{object}	map[string]string
+//	@Failure		400		{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500		{object}	middleware.JSONAPIErrorResponse
 //	@Security		APIKeyAuth
 //	@Router			/search [post]
 func (r *SearchRouter) Search(w http.ResponseWriter, req *http.Request) {

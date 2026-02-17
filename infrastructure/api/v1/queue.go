@@ -50,7 +50,7 @@ func (r *QueueRouter) Routes() chi.Router {
 //	@Param			page_size	query		int		false	"Results per page (default: 20, max: 100)"
 //	@Param			task_type	query		string	false	"Filter by task type"
 //	@Success		200			{object}	dto.TaskListResponse
-//	@Failure		500			{object}	map[string]string
+//	@Failure		500			{object}	middleware.JSONAPIErrorResponse
 //	@Security		APIKeyAuth
 //	@Router			/queue [get]
 func (r *QueueRouter) ListTasks(w http.ResponseWriter, req *http.Request) {
@@ -97,8 +97,8 @@ func (r *QueueRouter) ListTasks(w http.ResponseWriter, req *http.Request) {
 //	@Produce		json
 //	@Param			task_id	path		int	true	"Task ID"
 //	@Success		200		{object}	dto.TaskResponse
-//	@Failure		404		{object}	map[string]string
-//	@Failure		500		{object}	map[string]string
+//	@Failure		404		{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500		{object}	middleware.JSONAPIErrorResponse
 //	@Security		APIKeyAuth
 //	@Router			/queue/{task_id} [get]
 func (r *QueueRouter) GetTask(w http.ResponseWriter, req *http.Request) {

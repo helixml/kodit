@@ -87,7 +87,7 @@ func (r *RepositoriesRouter) repositoryID(req *http.Request) (int64, error) {
 //	@Param			page		query	int	false	"Page number (default: 1)"
 //	@Param			page_size	query	int	false	"Results per page (default: 20, max: 100)"
 //	@Success		200	{object}	dto.RepositoryListResponse
-//	@Failure		500	{object}	map[string]string
+//	@Failure		500	{object}	middleware.JSONAPIErrorResponse
 //	@Security		APIKeyAuth
 //	@Router			/repositories [get]
 func (r *RepositoriesRouter) List(w http.ResponseWriter, req *http.Request) {
@@ -124,8 +124,8 @@ func (r *RepositoriesRouter) List(w http.ResponseWriter, req *http.Request) {
 //	@Produce		json
 //	@Param			id	path		int	true	"Repository ID"
 //	@Success		200	{object}	dto.RepositoryDetailsResponse
-//	@Failure		404	{object}	map[string]string
-//	@Failure		500	{object}	map[string]string
+//	@Failure		404	{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500	{object}	middleware.JSONAPIErrorResponse
 //	@Security		APIKeyAuth
 //	@Router			/repositories/{id} [get]
 func (r *RepositoriesRouter) Get(w http.ResponseWriter, req *http.Request) {
@@ -191,8 +191,8 @@ func (r *RepositoriesRouter) Get(w http.ResponseWriter, req *http.Request) {
 //	@Param			body	body		dto.RepositoryCreateRequest	true	"Repository request"
 //	@Success		200		{object}	dto.RepositoryResponse	"Repository already exists"
 //	@Success		201		{object}	dto.RepositoryResponse	"Repository created"
-//	@Failure		400		{object}	map[string]string
-//	@Failure		500		{object}	map[string]string
+//	@Failure		400		{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500		{object}	middleware.JSONAPIErrorResponse
 //	@Security		APIKeyAuth
 //	@Router			/repositories [post]
 func (r *RepositoriesRouter) Add(w http.ResponseWriter, req *http.Request) {
@@ -236,8 +236,8 @@ func (r *RepositoriesRouter) Add(w http.ResponseWriter, req *http.Request) {
 //	@Produce		json
 //	@Param			id	path	int	true	"Repository ID"
 //	@Success		204
-//	@Failure		404	{object}	map[string]string
-//	@Failure		500	{object}	map[string]string
+//	@Failure		404	{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500	{object}	middleware.JSONAPIErrorResponse
 //	@Security		APIKeyAuth
 //	@Router			/repositories/{id} [delete]
 func (r *RepositoriesRouter) Delete(w http.ResponseWriter, req *http.Request) {
@@ -267,8 +267,8 @@ func (r *RepositoriesRouter) Delete(w http.ResponseWriter, req *http.Request) {
 //	@Produce		json
 //	@Param			id	path		int	true	"Repository ID"
 //	@Success		200	{object}	dto.TaskStatusListResponse
-//	@Failure		404	{object}	map[string]string
-//	@Failure		500	{object}	map[string]string
+//	@Failure		404	{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500	{object}	middleware.JSONAPIErrorResponse
 //	@Security		APIKeyAuth
 //	@Router			/repositories/{id}/status [get]
 func (r *RepositoriesRouter) GetStatus(w http.ResponseWriter, req *http.Request) {
@@ -319,8 +319,8 @@ func (r *RepositoriesRouter) GetStatus(w http.ResponseWriter, req *http.Request)
 //	@Produce		json
 //	@Param			id	path		int	true	"Repository ID"
 //	@Success		200	{object}	dto.RepositoryStatusSummaryResponse
-//	@Failure		404	{object}	map[string]string
-//	@Failure		500	{object}	map[string]string
+//	@Failure		404	{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500	{object}	middleware.JSONAPIErrorResponse
 //	@Security		APIKeyAuth
 //	@Router			/repositories/{id}/status/summary [get]
 func (r *RepositoriesRouter) GetStatusSummary(w http.ResponseWriter, req *http.Request) {
@@ -362,8 +362,8 @@ func (r *RepositoriesRouter) GetStatusSummary(w http.ResponseWriter, req *http.R
 //	@Param			page		query		int	false	"Page number (default: 1)"
 //	@Param			page_size	query		int	false	"Results per page (default: 20, max: 100)"
 //	@Success		200	{object}	dto.CommitJSONAPIListResponse
-//	@Failure		404	{object}	map[string]string
-//	@Failure		500	{object}	map[string]string
+//	@Failure		404	{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500	{object}	middleware.JSONAPIErrorResponse
 //	@Security		APIKeyAuth
 //	@Router			/repositories/{id}/commits [get]
 func (r *RepositoriesRouter) ListCommits(w http.ResponseWriter, req *http.Request) {
@@ -421,8 +421,8 @@ func (r *RepositoriesRouter) ListCommits(w http.ResponseWriter, req *http.Reques
 //	@Param			id			path		int		true	"Repository ID"
 //	@Param			commit_sha	path		string	true	"Commit SHA"
 //	@Success		200			{object}	dto.CommitJSONAPIResponse
-//	@Failure		404			{object}	map[string]string
-//	@Failure		500			{object}	map[string]string
+//	@Failure		404			{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500			{object}	middleware.JSONAPIErrorResponse
 //	@Security		APIKeyAuth
 //	@Router			/repositories/{id}/commits/{commit_sha} [get]
 func (r *RepositoriesRouter) GetCommit(w http.ResponseWriter, req *http.Request) {
@@ -469,8 +469,8 @@ func (r *RepositoriesRouter) GetCommit(w http.ResponseWriter, req *http.Request)
 //	@Param			page		query		int		false	"Page number (default: 1)"
 //	@Param			page_size	query		int		false	"Results per page (default: 20, max: 100)"
 //	@Success		200			{object}	dto.FileJSONAPIListResponse
-//	@Failure		404			{object}	map[string]string
-//	@Failure		500			{object}	map[string]string
+//	@Failure		404			{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500			{object}	middleware.JSONAPIErrorResponse
 //	@Security		APIKeyAuth
 //	@Router			/repositories/{id}/commits/{commit_sha}/files [get]
 func (r *RepositoriesRouter) ListCommitFiles(w http.ResponseWriter, req *http.Request) {
@@ -538,8 +538,8 @@ func (r *RepositoriesRouter) ListCommitFiles(w http.ResponseWriter, req *http.Re
 //	@Param			commit_sha	path		string	true	"Commit SHA"
 //	@Param			blob_sha	path		string	true	"Blob SHA"
 //	@Success		200			{object}	dto.FileJSONAPIResponse
-//	@Failure		404			{object}	map[string]string
-//	@Failure		500			{object}	map[string]string
+//	@Failure		404			{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500			{object}	middleware.JSONAPIErrorResponse
 //	@Security		APIKeyAuth
 //	@Router			/repositories/{id}/commits/{commit_sha}/files/{blob_sha} [get]
 func (r *RepositoriesRouter) GetCommitFile(w http.ResponseWriter, req *http.Request) {
@@ -596,8 +596,8 @@ func (r *RepositoriesRouter) GetCommitFile(w http.ResponseWriter, req *http.Requ
 //	@Param			page				query		int		false	"Page number (default: 1)"
 //	@Param			page_size			query		int		false	"Results per page (default: 20, max: 100)"
 //	@Success		200					{object}	dto.EnrichmentJSONAPIListResponse
-//	@Failure		404					{object}	map[string]string
-//	@Failure		500					{object}	map[string]string
+//	@Failure		404					{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500					{object}	middleware.JSONAPIErrorResponse
 //	@Security		APIKeyAuth
 //	@Router			/repositories/{id}/commits/{commit_sha}/enrichments [get]
 func (r *RepositoriesRouter) ListCommitEnrichments(w http.ResponseWriter, req *http.Request) {
@@ -679,8 +679,8 @@ func (r *RepositoriesRouter) ListCommitEnrichments(w http.ResponseWriter, req *h
 //	@Param			commit_sha		path		string	true	"Commit SHA"
 //	@Param			enrichment_id	path		int		true	"Enrichment ID"
 //	@Success		200				{object}	dto.EnrichmentJSONAPIResponse
-//	@Failure		404				{object}	map[string]string
-//	@Failure		500				{object}	map[string]string
+//	@Failure		404				{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500				{object}	middleware.JSONAPIErrorResponse
 //	@Security		APIKeyAuth
 //	@Router			/repositories/{id}/commits/{commit_sha}/enrichments/{enrichment_id} [get]
 func (r *RepositoriesRouter) GetCommitEnrichment(w http.ResponseWriter, req *http.Request) {
@@ -738,8 +738,8 @@ func (r *RepositoriesRouter) GetCommitEnrichment(w http.ResponseWriter, req *htt
 //	@Param			id			path	int		true	"Repository ID"
 //	@Param			commit_sha	path	string	true	"Commit SHA"
 //	@Success		204
-//	@Failure		404	{object}	map[string]string
-//	@Failure		500	{object}	map[string]string
+//	@Failure		404	{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500	{object}	middleware.JSONAPIErrorResponse
 //	@Security		APIKeyAuth
 //	@Router			/repositories/{id}/commits/{commit_sha}/enrichments [delete]
 func (r *RepositoriesRouter) DeleteCommitEnrichments(w http.ResponseWriter, req *http.Request) {
@@ -791,8 +791,8 @@ func (r *RepositoriesRouter) DeleteCommitEnrichments(w http.ResponseWriter, req 
 //	@Param			commit_sha		path	string	true	"Commit SHA"
 //	@Param			enrichment_id	path	int		true	"Enrichment ID"
 //	@Success		204
-//	@Failure		404	{object}	map[string]string
-//	@Failure		500	{object}	map[string]string
+//	@Failure		404	{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500	{object}	middleware.JSONAPIErrorResponse
 //	@Security		APIKeyAuth
 //	@Router			/repositories/{id}/commits/{commit_sha}/enrichments/{enrichment_id} [delete]
 func (r *RepositoriesRouter) DeleteCommitEnrichment(w http.ResponseWriter, req *http.Request) {
@@ -839,9 +839,9 @@ func (r *RepositoriesRouter) DeleteCommitEnrichment(w http.ResponseWriter, req *
 //	@Param			page		query		int		false	"Page number (default: 1)"
 //	@Param			page_size	query		int		false	"Results per page (default: 20, max: 100)"
 //	@Success		200			{object}	dto.SnippetListResponse
-//	@Failure		401			{object}	map[string]string
-//	@Failure		404			{object}	map[string]string
-//	@Failure		500			{object}	map[string]string
+//	@Failure		401			{object}	middleware.JSONAPIErrorResponse
+//	@Failure		404			{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500			{object}	middleware.JSONAPIErrorResponse
 //	@Security		APIKeyAuth
 //	@Router			/repositories/{id}/commits/{commit_sha}/snippets [get]
 func (r *RepositoriesRouter) ListCommitSnippets(w http.ResponseWriter, req *http.Request) {
@@ -959,7 +959,7 @@ func (r *RepositoriesRouter) ListCommitSnippets(w http.ResponseWriter, req *http
 //	@Produce		json
 //	@Param			id			path		int		true	"Repository ID"
 //	@Param			commit_sha	path		string	true	"Commit SHA"
-//	@Success		410			{object}	map[string]string
+//	@Success		410			{object}	middleware.JSONAPIErrorResponse
 //	@Security		APIKeyAuth
 //	@Deprecated
 //	@Router			/repositories/{id}/commits/{commit_sha}/embeddings [get]
@@ -980,8 +980,8 @@ func (r *RepositoriesRouter) ListCommitEmbeddingsDeprecated(w http.ResponseWrite
 //	@Param			id			path	int		true	"Repository ID"
 //	@Param			commit_sha	path	string	true	"Commit SHA"
 //	@Success		202
-//	@Failure		404	{object}	map[string]string
-//	@Failure		500	{object}	map[string]string
+//	@Failure		404	{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500	{object}	middleware.JSONAPIErrorResponse
 //	@Security		APIKeyAuth
 //	@Router			/repositories/{id}/commits/{commit_sha}/rescan [post]
 func (r *RepositoriesRouter) RescanCommit(w http.ResponseWriter, req *http.Request) {
@@ -1024,8 +1024,8 @@ func (r *RepositoriesRouter) RescanCommit(w http.ResponseWriter, req *http.Reque
 //	@Param			page				query		int		false	"Page number (default: 1)"
 //	@Param			page_size			query		int		false	"Results per page (default: 20, max: 100)"
 //	@Success		200					{object}	dto.EnrichmentJSONAPIListResponse
-//	@Failure		404					{object}	map[string]string
-//	@Failure		500					{object}	map[string]string
+//	@Failure		404					{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500					{object}	middleware.JSONAPIErrorResponse
 //	@Security		APIKeyAuth
 //	@Router			/repositories/{id}/enrichments [get]
 func (r *RepositoriesRouter) ListRepositoryEnrichments(w http.ResponseWriter, req *http.Request) {
@@ -1119,8 +1119,8 @@ func (r *RepositoriesRouter) ListRepositoryEnrichments(w http.ResponseWriter, re
 //	@Param			page		query		int	false	"Page number (default: 1)"
 //	@Param			page_size	query		int	false	"Results per page (default: 20, max: 100)"
 //	@Success		200			{object}	dto.TagJSONAPIListResponse
-//	@Failure		404	{object}	map[string]string
-//	@Failure		500	{object}	map[string]string
+//	@Failure		404	{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500	{object}	middleware.JSONAPIErrorResponse
 //	@Security		APIKeyAuth
 //	@Router			/repositories/{id}/tags [get]
 func (r *RepositoriesRouter) ListTags(w http.ResponseWriter, req *http.Request) {
@@ -1176,8 +1176,8 @@ func (r *RepositoriesRouter) ListTags(w http.ResponseWriter, req *http.Request) 
 //	@Param			id		path		int	true	"Repository ID"
 //	@Param			tag_id	path		int	true	"Tag ID"
 //	@Success		200		{object}	dto.TagJSONAPIResponse
-//	@Failure		404		{object}	map[string]string
-//	@Failure		500		{object}	map[string]string
+//	@Failure		404		{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500		{object}	middleware.JSONAPIErrorResponse
 //	@Security		APIKeyAuth
 //	@Router			/repositories/{id}/tags/{tag_id} [get]
 func (r *RepositoriesRouter) GetTag(w http.ResponseWriter, req *http.Request) {
@@ -1241,8 +1241,8 @@ func isVersionTag(name string) bool {
 //	@Produce		json
 //	@Param			id	path		int	true	"Repository ID"
 //	@Success		200	{object}	dto.TrackingConfigResponse
-//	@Failure		404	{object}	map[string]string
-//	@Failure		500	{object}	map[string]string
+//	@Failure		404	{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500	{object}	middleware.JSONAPIErrorResponse
 //	@Security		APIKeyAuth
 //	@Router			/repositories/{id}/tracking-config [get]
 func (r *RepositoriesRouter) GetTrackingConfig(w http.ResponseWriter, req *http.Request) {
@@ -1275,8 +1275,8 @@ func (r *RepositoriesRouter) GetTrackingConfig(w http.ResponseWriter, req *http.
 //	@Param			id		path		int									true	"Repository ID"
 //	@Param			body	body		dto.TrackingConfigUpdateRequest		true	"Tracking config"
 //	@Success		200		{object}	dto.TrackingConfigResponse
-//	@Failure		404		{object}	map[string]string
-//	@Failure		500		{object}	map[string]string
+//	@Failure		404		{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500		{object}	middleware.JSONAPIErrorResponse
 //	@Security		APIKeyAuth
 //	@Router			/repositories/{id}/tracking-config [put]
 func (r *RepositoriesRouter) UpdateTrackingConfig(w http.ResponseWriter, req *http.Request) {

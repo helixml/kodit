@@ -422,6 +422,19 @@ type JsonapiLinks struct {
 // JsonapiMeta defines model for jsonapi.Meta.
 type JsonapiMeta map[string]interface{}
 
+// MiddlewareJSONAPIError defines model for middleware.JSONAPIError.
+type MiddlewareJSONAPIError struct {
+	Detail *string `json:"detail,omitempty"`
+	Id     *string `json:"id,omitempty"`
+	Status *string `json:"status,omitempty"`
+	Title  *string `json:"title,omitempty"`
+}
+
+// MiddlewareJSONAPIErrorResponse defines model for middleware.JSONAPIErrorResponse.
+type MiddlewareJSONAPIErrorResponse struct {
+	Errors *[]MiddlewareJSONAPIError `json:"errors,omitempty"`
+}
+
 // GetEnrichmentsParams defines parameters for GetEnrichments.
 type GetEnrichmentsParams struct {
 	// EnrichmentType Filter by enrichment type
