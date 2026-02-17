@@ -1,0 +1,96 @@
+---
+title: Configuration Reference
+description: Kodit Configuration Reference
+weight: 29
+---
+
+This document contains the complete configuration reference for Kodit. All configuration is done through environment variables.
+
+{% for model_name, model_info in models.items() %}
+{%- if model_name != "BaseSettings" and model_info.env_vars %}
+
+## {{ model_name }}
+
+{{ model_info.description }}
+
+| Environment Variable | Type | Default | Description |
+|---------------------|------|---------|-------------|
+{%- for env_var in model_info.env_vars %}
+| `{{ env_var.name }}` | {{ env_var.type }} | `{{ env_var.default }}` | {{ env_var.description }} |
+{%- endfor %}
+
+{% endif %}
+{% endfor %}
+
+## Applying Configuration
+
+There are two ways to apply configuration to Kodit:
+
+1. A local `.env` file (e.g. `kodit --env-file .env serve`)
+2. Environment variables (e.g. `DATA_DIR=/path/to/kodit/data kodit serve`)
+
+How you specify environment variables is dependent on your deployment mechanism.
+
+### Docker Compose 
+
+For example, in docker compose you can use the `environment` key:
+
+```yaml
+services:
+  kodit:
+    environment:
+      - DATA_DIR=/path/to/kodit/data
+```
+
+### Kubernetes
+
+For example, in Kubernetes you can use the `env` key:
+
+```yaml
+env:
+  - name: DATA_DIR
+    value: /path/to/kodit/data
+```
+
+## Example Configurations
+
+### Enrichment Endpoints
+
+Enrichment is typically the slowest part of the indexing process because it requires
+calling a remote LLM provider. Ideally you want to maximise the number of parallel tasks
+but all services have rate limits. Start low and increase over time.
+
+See the [configuration reference](/kodit/reference/configuration/index.md) for
+full details. The following is a selection of examples.
+
+#### Helix.ml Enrichment Endpoint
+
+Get your free API key from [Helix.ml](https://app.helix.ml/account).
+
+```sh
+ENRICHMENT_ENDPOINT_BASE_URL=https://app.helix.ml/v1
+ENRICHMENT_ENDPOINT_MODEL=hosted_vllm/Qwen/Qwen3-8B
+ENRICHMENT_ENDPOINT_NUM_PARALLEL_TASKS=1
+ENRICHMENT_ENDPOINT_TIMEOUT=300
+ENRICHMENT_ENDPOINT_API_KEY=hl-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+```
+
+#### Local Ollama Enrichment Endpoint
+
+```sh
+ENRICHMENT_ENDPOINT_BASE_URL=http://localhost:11434
+ENRICHMENT_ENDPOINT_MODEL=ollama_chat/qwen3:1.7b
+ENRICHMENT_ENDPOINT_NUM_PARALLEL_TASKS=1
+ENRICHMENT_ENDPOINT_EXTRA_PARAMS='{"think": false}'
+ENRICHMENT_ENDPOINT_TIMEOUT=300
+```
+
+#### Azure OpenAI Enrichment Endpoint
+
+```sh
+ENRICHMENT_ENDPOINT_BASE_URL=https://winderai-openai-test.openai.azure.com/
+ENRICHMENT_ENDPOINT_MODEL=azure/gpt-4.1-nano # Must be in the format "azure/azure_deployment_name"
+ENRICHMENT_ENDPOINT_API_KEY=XXXX
+ENRICHMENT_ENDPOINT_NUM_PARALLEL_TASKS=5 # Azure defaults to 100K TPM
+ENRICHMENT_ENDPOINT_EXTRA_PARAMS={"api_version": "2024-12-01-preview"}
+```

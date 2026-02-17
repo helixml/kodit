@@ -1,0 +1,7 @@
+{% if schema.properties -%}
+| Field | Type | Description |
+|-------|------|-------------|
+{% for property_name, property in schema.properties.items() -%}
+| {{ property_name }} | {{ property.type }} | {{ property.description if property.description else '' }} |
+{% endfor -%}
+{% endif -%}

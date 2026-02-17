@@ -1,0 +1,74 @@
+version: "3.9"
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    restart: always
+  ollamasetup:
+    image: ollama/ollama:latest
+    depends_on:
+      - ollama
+    restart: "no"
+    environment:
+      - OLLAMA_HOST=ollama:11434
+    entrypoint: [ "bash", "-c", "ollama pull qwen3:1.7b && ollama pull granite-embedding:278m"]
+    
+  kodit:
+    image: registry.helix.ml/helix/kodit:latest # Replace with a version
+    ports:
+      - "8080:8080" # You may wish to pick a less common port
+    # Start the Kodit MCP server and bind to all interfaces
+    command: ["serve", "--host", "0.0.0.0", "--port", "8080"]
+    restart: unless-stopped
+    depends_on:
+      - vectorchord # Wait for VectorChord to start before Kodit
+    
+    # Configure Kodit
+    environment:
+      # Configure data storage
+      DATA_DIR: /data
+      DB_URL: postgresql+asyncpg://postgres:mysecretpassword@vectorchord:5432/kodit
+      DEFAULT_SEARCH_PROVIDER: vectorchord
+
+      # External enrichment provider
+      ## This is an Ollama example, please replace with your own
+      ENRICHMENT_ENDPOINT_BASE_URL: http://ollama:11434
+      ENRICHMENT_ENDPOINT_MODEL: ollama/qwen3:1.7b
+      ENRICHMENT_ENDPOINT_NUM_PARALLEL_TASKS: 3
+      ENRICHMENT_ENDPOINT_TIMEOUT: 300
+      ENRICHMENT_ENDPOINT_EXTRA_PARAMS: "{\"extra_body\": {\"think\": false, \"options\": {\"num_predict\": 200, \"temperature\": 0.7}}}"
+
+      # External embedding provider
+      ## This is an OpenAI example, please replace with your own
+      EMBEDDING_ENDPOINT_API_KEY: sk-proj-xxxx
+      EMBEDDING_ENDPOINT_MODEL: openai/text-embedding-3-small
+
+      # Sync configuration
+      SYNC_PERIODIC_ENABLED: true
+      SYNC_PERIODIC_INTERVAL_SECONDS: 1800  # 30 minutes
+      SYNC_PERIODIC_RETRY_ATTEMPTS: 3
+
+      # Logging configuration
+      LOG_LEVEL: INFO # Set to DEBUG for more detailed logging
+      LOG_FORMAT: json
+
+      # API Key Configuration
+      API_KEYS: ${KODIT_API_KEYS:-}
+
+    volumes:
+      - ${KODIT_DATA:-kodit-data}:/data
+
+  vectorchord:
+    image: tensorchord/vchord-suite:pg17-20250601
+    environment:
+      - POSTGRES_DB=kodit
+      - POSTGRES_PASSWORD=mysecretpassword
+    volumes:
+      - ${VECTORCHORD_DATA:-kodit-vectorchord}:/var/lib/postgresql/data
+    ports:
+      - "5432"
+    restart: unless-stopped
+
+volumes:
+  kodit-data:
+  kodit-vectorchord:
