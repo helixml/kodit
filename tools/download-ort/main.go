@@ -61,10 +61,14 @@ func downloadORT(version, destDir string) error {
 	}
 
 	destPath := filepath.Join(destDir, libraryName)
-	if _, statErr := os.Stat(destPath); statErr == nil {
-		fmt.Printf("ORT library already exists at %s, skipping\n", destPath)
+	stamp := filepath.Join(destDir, ".ort-version")
+	if cached, readErr := os.ReadFile(stamp); readErr == nil && string(cached) == version {
+		fmt.Printf("ORT %s already exists at %s, skipping\n", version, destPath)
 		return nil
 	}
+
+	// Remove stale library from a previous version or corrupt download.
+	_ = os.Remove(destPath)
 
 	url := fmt.Sprintf(
 		"https://github.com/microsoft/onnxruntime/releases/download/v%s/%s",
@@ -76,16 +80,24 @@ func downloadORT(version, destDir string) error {
 		return err
 	}
 
+	if err := os.WriteFile(stamp, []byte(version), 0o644); err != nil {
+		return fmt.Errorf("write version stamp: %w", err)
+	}
+
 	fmt.Printf("ORT library installed to %s\n", destPath)
 	return nil
 }
 
 func downloadTokenizers(version, destDir string) error {
 	destPath := filepath.Join(destDir, "libtokenizers.a")
-	if _, statErr := os.Stat(destPath); statErr == nil {
-		fmt.Printf("tokenizers library already exists at %s, skipping\n", destPath)
+	stamp := filepath.Join(destDir, ".tokenizers-version")
+	if cached, readErr := os.ReadFile(stamp); readErr == nil && string(cached) == version {
+		fmt.Printf("tokenizers %s already exists at %s, skipping\n", version, destPath)
 		return nil
 	}
+
+	// Remove stale library from a previous version or corrupt download.
+	_ = os.Remove(destPath)
 
 	archiveName, err := tokenizersPlatform()
 	if err != nil {
@@ -100,6 +112,10 @@ func downloadTokenizers(version, destDir string) error {
 	fmt.Printf("Downloading tokenizers %s from %s\n", version, url)
 	if err := fetchAndExtract(url, destDir, "libtokenizers.a"); err != nil {
 		return err
+	}
+
+	if err := os.WriteFile(stamp, []byte(version), 0o644); err != nil {
+		return fmt.Errorf("write version stamp: %w", err)
 	}
 
 	fmt.Printf("tokenizers library installed to %s\n", destPath)
@@ -205,15 +221,28 @@ func extractTgz(body io.Reader, destDir, filename string) error {
 }
 
 func writeFile(path string, src io.Reader) error {
-	out, err := os.Create(path)
+	dir := filepath.Dir(path)
+	tmp, err := os.CreateTemp(dir, ".download-*")
 	if err != nil {
-		return fmt.Errorf("create %s: %w", path, err)
+		return fmt.Errorf("create temp file in %s: %w", dir, err)
 	}
+	tmpPath := tmp.Name()
 
-	if _, err := io.Copy(out, src); err != nil {
-		_ = out.Close()
+	if _, err := io.Copy(tmp, src); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("write %s: %w", path, err)
 	}
 
-	return out.Close()
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("close %s: %w", path, err)
+	}
+
+	if err := os.Rename(tmpPath, path); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("rename to %s: %w", path, err)
+	}
+
+	return nil
 }
