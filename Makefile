@@ -243,8 +243,13 @@ openapi-convert: ## Convert existing swagger.json to OpenAPI 3.0 (skip swag gene
 	npx swagger2openapi $(SWAGGER_DIR)/swagger.json -o $(OPENAPI_EMBED) --patch
 	@echo "OpenAPI 3.0 spec generated at $(OPENAPI_EMBED)"
 
+generate-go-client: openapi
+	./scripts/generate-go-client.sh
+
+generate-clients: generate-go-client
+
 .PHONY: docs
-docs: openapi ## Generate all documentation (OpenAPI 3.0 + markdown reference)
+docs: openapi generate-clients
 	uv run --script tools/dump-openapi.py
 	uv run --script tools/dump-config.py
 
