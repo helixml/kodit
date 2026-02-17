@@ -231,7 +231,7 @@ func TestMCPEndpoint_ToolCallResolvesLatestCommit(t *testing.T) {
 	ctx := context.Background()
 
 	// Add a repository so the tool can find it by URL.
-	_, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{
+	_, _, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{
 		URL:    "https://github.com/test/commit-column-test",
 		Branch: "main",
 	})

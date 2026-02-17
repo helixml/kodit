@@ -63,18 +63,24 @@ func NewRepository(
 }
 
 // Add creates a new repository and queues it for indexing.
-func (s *Repository) Add(ctx context.Context, params *RepositoryAddParams) (repository.Source, error) {
+// Returns the source, whether it was newly created, and any error.
+// If the repository already exists, it returns the existing one with created=false.
+func (s *Repository) Add(ctx context.Context, params *RepositoryAddParams) (repository.Source, bool, error) {
 	existing, err := s.repoStore.Exists(ctx, repository.WithRemoteURL(params.URL))
 	if err != nil {
-		return repository.Source{}, fmt.Errorf("check existing: %w", err)
+		return repository.Source{}, false, fmt.Errorf("check existing: %w", err)
 	}
 	if existing {
-		return repository.Source{}, fmt.Errorf("repository already exists: %s", params.URL)
+		repo, err := s.repoStore.FindOne(ctx, repository.WithRemoteURL(params.URL))
+		if err != nil {
+			return repository.Source{}, false, fmt.Errorf("find existing repository: %w", err)
+		}
+		return repository.NewSource(repo), false, nil
 	}
 
 	repo, err := repository.NewRepository(params.URL)
 	if err != nil {
-		return repository.Source{}, fmt.Errorf("create repository: %w", err)
+		return repository.Source{}, false, fmt.Errorf("create repository: %w", err)
 	}
 	if params.Branch != "" || params.Tag != "" || params.Commit != "" {
 		repo = repo.WithTrackingConfig(
@@ -84,7 +90,7 @@ func (s *Repository) Add(ctx context.Context, params *RepositoryAddParams) (repo
 
 	savedRepo, err := s.repoStore.Save(ctx, repo)
 	if err != nil {
-		return repository.Source{}, fmt.Errorf("save repository: %w", err)
+		return repository.Source{}, false, fmt.Errorf("save repository: %w", err)
 	}
 
 	payload := map[string]any{"repository_id": savedRepo.ID()}
@@ -104,7 +110,7 @@ func (s *Repository) Add(ctx context.Context, params *RepositoryAddParams) (repo
 		slog.String("local_path", savedRepo.WorkingCopy().Path()),
 	)
 
-	return repository.NewSource(savedRepo), nil
+	return repository.NewSource(savedRepo), true, nil
 }
 
 // Delete removes a repository and all associated data.

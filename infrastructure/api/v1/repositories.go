@@ -189,7 +189,8 @@ func (r *RepositoriesRouter) Get(w http.ResponseWriter, req *http.Request) {
 //	@Accept			json
 //	@Produce		json
 //	@Param			body	body		dto.RepositoryCreateRequest	true	"Repository request"
-//	@Success		201		{object}	dto.RepositoryResponse
+//	@Success		200		{object}	dto.RepositoryResponse	"Repository already exists"
+//	@Success		201		{object}	dto.RepositoryResponse	"Repository created"
 //	@Failure		400		{object}	map[string]string
 //	@Failure		500		{object}	map[string]string
 //	@Security		APIKeyAuth
@@ -210,7 +211,7 @@ func (r *RepositoriesRouter) Add(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	source, err := r.client.Repositories.Add(ctx, &service.RepositoryAddParams{
+	source, created, err := r.client.Repositories.Add(ctx, &service.RepositoryAddParams{
 		URL: body.Data.Attributes.RemoteURI,
 	})
 	if err != nil {
@@ -218,7 +219,12 @@ func (r *RepositoriesRouter) Add(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	middleware.WriteJSON(w, http.StatusCreated, dto.RepositoryResponse{Data: repoToDTO(source.Repo())})
+	status := http.StatusOK
+	if created {
+		status = http.StatusCreated
+	}
+
+	middleware.WriteJSON(w, status, dto.RepositoryResponse{Data: repoToDTO(source.Repo())})
 }
 
 // Delete handles DELETE /api/v1/repositories/{id}.

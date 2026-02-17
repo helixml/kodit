@@ -173,7 +173,7 @@ func TestIntegration_IndexRepository_QueuesCloneTask(t *testing.T) {
 	ctx := context.Background()
 
 	// Clone the local repository
-	repo, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{URL: fileURI(repoPath)})
+	repo, _, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{URL: fileURI(repoPath)})
 	require.NoError(t, err)
 	assert.Greater(t, repo.ID(), int64(0), "repository should have an ID")
 
@@ -210,7 +210,7 @@ func TestIntegration_FullIndexingWorkflow(t *testing.T) {
 	ctx := context.Background()
 
 	// Clone the local repository
-	repo, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{URL: fileURI(repoPath)})
+	repo, _, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{URL: fileURI(repoPath)})
 	require.NoError(t, err)
 	t.Logf("created repository with ID %d", repo.ID())
 
@@ -264,7 +264,7 @@ func TestIntegration_SearchAfterIndexing(t *testing.T) {
 	ctx := context.Background()
 
 	// Clone the repository
-	_, err = client.Repositories.Add(ctx, &service.RepositoryAddParams{URL: fileURI(repoPath)})
+	_, _, err = client.Repositories.Add(ctx, &service.RepositoryAddParams{URL: fileURI(repoPath)})
 	require.NoError(t, err)
 
 	// Wait for indexing to complete
@@ -308,7 +308,7 @@ func TestIntegration_DeleteRepository(t *testing.T) {
 	ctx := context.Background()
 
 	// Clone the repository
-	repo, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{URL: fileURI(repoPath)})
+	repo, _, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{URL: fileURI(repoPath)})
 	require.NoError(t, err)
 
 	// Wait for initial tasks
@@ -355,10 +355,10 @@ func TestIntegration_MultipleRepositories(t *testing.T) {
 	ctx := context.Background()
 
 	// Clone both repositories
-	repo1, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{URL: fileURI(repoPath1)})
+	repo1, _, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{URL: fileURI(repoPath1)})
 	require.NoError(t, err)
 
-	repo2, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{URL: fileURI(repoPath2)})
+	repo2, _, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{URL: fileURI(repoPath2)})
 	require.NoError(t, err)
 
 	// Wait for all tasks (longer timeout for multiple repos)

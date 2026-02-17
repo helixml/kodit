@@ -44,7 +44,7 @@ Strive to develop in an object oriented way using the following guidelines:
 - Decoupling: Use interfaces where possible. (2.3) Keep interfaces small (2.9)
 - Globals: Don't use public constants or enums, use classes instead. (2.5)
 - Immutability: Make all classes immutable. (2.6) Avoid type introspection and reflection. (3.7, 6.4)
-- Testing: Don't mock, use fakes. (2.8)
+- Testing: Don't mock, use real objects where possible. If not possible, use fakes. (2.8)
 - Design: Think in objects, not algorithms. (5.10) Design methods by telling them what you want, don't ask for data. (5.3)
 
 Stylistic requirements:
