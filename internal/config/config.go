@@ -40,25 +40,6 @@ const (
 	LogFormatJSON   LogFormat = "json"
 )
 
-// SearchProvider represents the search backend provider.
-type SearchProvider string
-
-// SearchProvider values.
-const (
-	SearchProviderSQLite      SearchProvider = "sqlite"
-	SearchProviderVectorChord SearchProvider = "vectorchord"
-)
-
-// GitProvider represents the Git library to use.
-type GitProvider string
-
-// GitProvider values.
-const (
-	GitProviderPygit2    GitProvider = "pygit2"
-	GitProviderGitPython GitProvider = "gitpython"
-	GitProviderDulwich   GitProvider = "dulwich"
-)
-
 // ReportingConfig configures progress reporting.
 type ReportingConfig struct {
 	logTimeInterval time.Duration
@@ -253,52 +234,6 @@ func NewEndpointWithOptions(opts ...EndpointOption) Endpoint {
 	return e
 }
 
-// SearchConfig configures search behavior.
-type SearchConfig struct {
-	provider SearchProvider
-}
-
-// NewSearchConfig creates a new SearchConfig with defaults.
-func NewSearchConfig() SearchConfig {
-	return SearchConfig{
-		provider: SearchProviderSQLite,
-	}
-}
-
-// Provider returns the search provider.
-func (s SearchConfig) Provider() SearchProvider {
-	return s.provider
-}
-
-// WithProvider returns a new config with the specified provider.
-func (s SearchConfig) WithProvider(p SearchProvider) SearchConfig {
-	s.provider = p
-	return s
-}
-
-// GitConfig configures Git operations.
-type GitConfig struct {
-	provider GitProvider
-}
-
-// NewGitConfig creates a new GitConfig with defaults.
-func NewGitConfig() GitConfig {
-	return GitConfig{
-		provider: GitProviderDulwich,
-	}
-}
-
-// Provider returns the Git provider.
-func (g GitConfig) Provider() GitProvider {
-	return g.provider
-}
-
-// WithProvider returns a new config with the specified provider.
-func (g GitConfig) WithProvider(p GitProvider) GitConfig {
-	g.provider = p
-	return g
-}
-
 // PeriodicSyncConfig configures periodic repository syncing.
 type PeriodicSyncConfig struct {
 	enabled         bool
@@ -431,8 +366,6 @@ type AppConfig struct {
 	skipProviderValidation bool
 	embeddingEndpoint      *Endpoint
 	enrichmentEndpoint     *Endpoint
-	search                 SearchConfig
-	git                    GitConfig
 	periodicSync           PeriodicSyncConfig
 	apiKeys                []string
 	remote                 RemoteConfig
@@ -491,8 +424,6 @@ func NewAppConfig() AppConfig {
 		logLevel:          DefaultLogLevel,
 		logFormat:         LogFormatPretty,
 		disableTelemetry: false,
-		search:           NewSearchConfig(),
-		git:              NewGitConfig(),
 		periodicSync:     NewPeriodicSyncConfig(),
 		apiKeys:          []string{},
 		remote:           NewRemoteConfig(),
@@ -538,12 +469,6 @@ func (c AppConfig) EmbeddingEndpoint() *Endpoint { return c.embeddingEndpoint }
 
 // EnrichmentEndpoint returns the enrichment endpoint config.
 func (c AppConfig) EnrichmentEndpoint() *Endpoint { return c.enrichmentEndpoint }
-
-// Search returns the search config.
-func (c AppConfig) Search() SearchConfig { return c.search }
-
-// Git returns the Git config.
-func (c AppConfig) Git() GitConfig { return c.git }
 
 // PeriodicSync returns the periodic sync config.
 func (c AppConfig) PeriodicSync() PeriodicSyncConfig { return c.periodicSync }
@@ -658,16 +583,6 @@ func WithEmbeddingEndpoint(e Endpoint) AppConfigOption {
 // WithEnrichmentEndpoint sets the enrichment endpoint.
 func WithEnrichmentEndpoint(e Endpoint) AppConfigOption {
 	return func(c *AppConfig) { c.enrichmentEndpoint = &e }
-}
-
-// WithSearchConfig sets the search config.
-func WithSearchConfig(s SearchConfig) AppConfigOption {
-	return func(c *AppConfig) { c.search = s }
-}
-
-// WithGitConfig sets the Git config.
-func WithGitConfig(g GitConfig) AppConfigOption {
-	return func(c *AppConfig) { c.git = g }
 }
 
 // WithPeriodicSyncConfig sets the periodic sync config.

@@ -30,8 +30,6 @@ func TestLoadFromEnv_Defaults(t *testing.T) {
 	assert.Equal(t, 10, cfg.SearchLimit)
 
 	// Nested struct defaults
-	assert.Equal(t, "sqlite", cfg.Search.Provider)
-	assert.Equal(t, "dulwich", cfg.Git.Provider)
 	assert.True(t, cfg.PeriodicSync.Enabled)
 	assert.Equal(t, 1800.0, cfg.PeriodicSync.IntervalSeconds)
 	assert.Equal(t, 3, cfg.PeriodicSync.RetryAttempts)
@@ -186,28 +184,6 @@ func TestLoadFromEnv_Remote(t *testing.T) {
 	assert.False(t, cfg.Remote.VerifySSL)
 }
 
-func TestLoadFromEnv_Search(t *testing.T) {
-	clearEnvVars(t)
-
-	t.Setenv("DEFAULT_SEARCH_PROVIDER", "vectorchord")
-
-	cfg, err := LoadFromEnv()
-	require.NoError(t, err)
-
-	assert.Equal(t, "vectorchord", cfg.Search.Provider)
-}
-
-func TestLoadFromEnv_Git(t *testing.T) {
-	clearEnvVars(t)
-
-	t.Setenv("GIT_PROVIDER", "pygit2")
-
-	cfg, err := LoadFromEnv()
-	require.NoError(t, err)
-
-	assert.Equal(t, "pygit2", cfg.Git.Provider)
-}
-
 func TestLoadFromEnv_Reporting(t *testing.T) {
 	clearEnvVars(t)
 
@@ -254,7 +230,6 @@ func TestEnvConfig_ToAppConfig(t *testing.T) {
 	t.Setenv("API_KEYS", "key1,key2")
 	t.Setenv("EMBEDDING_ENDPOINT_MODEL", "text-embedding-3-small")
 	t.Setenv("ENRICHMENT_ENDPOINT_MODEL", "gpt-4")
-	t.Setenv("DEFAULT_SEARCH_PROVIDER", "vectorchord")
 	t.Setenv("PERIODIC_SYNC_ENABLED", "false")
 	t.Setenv("REMOTE_SERVER_URL", "https://remote.example.com")
 
@@ -273,7 +248,6 @@ func TestEnvConfig_ToAppConfig(t *testing.T) {
 	assert.Equal(t, "text-embedding-3-small", cfg.EmbeddingEndpoint().Model())
 	assert.NotNil(t, cfg.EnrichmentEndpoint())
 	assert.Equal(t, "gpt-4", cfg.EnrichmentEndpoint().Model())
-	assert.Equal(t, SearchProviderVectorChord, cfg.Search().Provider())
 	assert.False(t, cfg.PeriodicSync().Enabled())
 	assert.True(t, cfg.Remote().IsConfigured())
 	assert.Equal(t, "https://remote.example.com", cfg.Remote().ServerURL())
@@ -506,8 +480,6 @@ func clearEnvVars(t *testing.T) {
 		"ENRICHMENT_ENDPOINT_BACKOFF_FACTOR",
 		"ENRICHMENT_ENDPOINT_EXTRA_PARAMS",
 		"ENRICHMENT_ENDPOINT_MAX_TOKENS",
-		"DEFAULT_SEARCH_PROVIDER",
-		"GIT_PROVIDER",
 		"PERIODIC_SYNC_ENABLED",
 		"PERIODIC_SYNC_INTERVAL_SECONDS",
 		"PERIODIC_SYNC_RETRY_ATTEMPTS",

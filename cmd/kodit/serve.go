@@ -57,9 +57,6 @@ Environment variables:
   ENRICHMENT_ENDPOINT_*        Enrichment AI service configuration
     (same fields as EMBEDDING_ENDPOINT)
 
-  DEFAULT_SEARCH_PROVIDER      Search backend: sqlite, vectorchord (default: sqlite)
-  GIT_PROVIDER                 Git library: go-git (default: go-git)
-
   PERIODIC_SYNC_ENABLED        Enable periodic sync (default: true)
   PERIODIC_SYNC_INTERVAL_SECONDS  Sync interval (default: 1800)
 

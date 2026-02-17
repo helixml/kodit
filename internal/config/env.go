@@ -22,11 +22,13 @@ type EnvConfig struct {
 	Port int `envconfig:"PORT" default:"8080"`
 
 	// DataDir is the data directory path.
-	// Env: DATA_DIR (default: .kodit)
+	// Env: DATA_DIR
+	// Default: ~/.kodit
 	DataDir string `envconfig:"DATA_DIR"`
 
 	// DBURL is the database connection URL.
-	// Env: DB_URL (default: sqlite:///{data_dir}/kodit.db)
+	// Env: DB_URL
+	// Default: sqlite:///{data_dir}/kodit.db
 	DBURL string `envconfig:"DB_URL"`
 
 	// LogLevel is the log verbosity level.
@@ -55,12 +57,6 @@ type EnvConfig struct {
 
 	// EnrichmentEndpoint configures the enrichment AI service.
 	EnrichmentEndpoint EndpointEnv `envconfig:"ENRICHMENT_ENDPOINT"`
-
-	// Search configures the search backend.
-	Search SearchEnv `envconfig:"DEFAULT_SEARCH"`
-
-	// Git configures the Git provider.
-	Git GitEnv `envconfig:"GIT"`
 
 	// PeriodicSync configures periodic repository syncing.
 	PeriodicSync PeriodicSyncEnv `envconfig:"PERIODIC_SYNC"`
@@ -128,20 +124,6 @@ type EndpointEnv struct {
 	// MaxTokens is the maximum token limit.
 	// Env: *_MAX_TOKENS (default: 4000)
 	MaxTokens int `envconfig:"MAX_TOKENS" default:"4000"`
-}
-
-// SearchEnv holds environment configuration for search.
-type SearchEnv struct {
-	// Provider is the search provider (sqlite or vectorchord).
-	// Env: DEFAULT_SEARCH_PROVIDER (default: sqlite)
-	Provider string `envconfig:"PROVIDER" default:"sqlite"`
-}
-
-// GitEnv holds environment configuration for Git.
-type GitEnv struct {
-	// Provider is the Git provider (pygit2, gitpython, or dulwich).
-	// Env: GIT_PROVIDER (default: dulwich)
-	Provider string `envconfig:"PROVIDER" default:"dulwich"`
 }
 
 // PeriodicSyncEnv holds environment configuration for periodic sync.
@@ -256,12 +238,6 @@ func (e EnvConfig) ToAppConfig() AppConfig {
 		cfg = applyOption(cfg, WithEnrichmentEndpoint(e.EnrichmentEndpoint.ToEndpoint()))
 	}
 
-	// Search config
-	cfg = applyOption(cfg, WithSearchConfig(e.Search.ToSearchConfig()))
-
-	// Git config
-	cfg = applyOption(cfg, WithGitConfig(e.Git.ToGitConfig()))
-
 	// Periodic sync config
 	cfg = applyOption(cfg, WithPeriodicSyncConfig(e.PeriodicSync.ToPeriodicSyncConfig()))
 
@@ -329,30 +305,6 @@ func (e EndpointEnv) ToEndpoint() Endpoint {
 	}
 
 	return NewEndpointWithOptions(opts...)
-}
-
-// ToSearchConfig converts SearchEnv to SearchConfig.
-func (s SearchEnv) ToSearchConfig() SearchConfig {
-	cfg := NewSearchConfig()
-	switch strings.ToLower(s.Provider) {
-	case "vectorchord":
-		return cfg.WithProvider(SearchProviderVectorChord)
-	default:
-		return cfg.WithProvider(SearchProviderSQLite)
-	}
-}
-
-// ToGitConfig converts GitEnv to GitConfig.
-func (g GitEnv) ToGitConfig() GitConfig {
-	cfg := NewGitConfig()
-	switch strings.ToLower(g.Provider) {
-	case "pygit2":
-		return cfg.WithProvider(GitProviderPygit2)
-	case "gitpython":
-		return cfg.WithProvider(GitProviderGitPython)
-	default:
-		return cfg.WithProvider(GitProviderDulwich)
-	}
 }
 
 // ToPeriodicSyncConfig converts PeriodicSyncEnv to PeriodicSyncConfig.

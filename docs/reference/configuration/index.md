@@ -6,101 +6,53 @@ weight: 29
 
 This document contains the complete configuration reference for Kodit. All configuration is done through environment variables.
 
-## Core Settings
+## Environment Variables
 
 | Environment Variable | Type | Default | Description |
 |---------------------|------|---------|-------------|
-| `HOST` | string | `0.0.0.0` | Server host to bind to |
-| `PORT` | int | `8080` | Server port to listen on |
-| `DATA_DIR` | string | `~/.kodit` | Data directory for indexes and cloned repos |
-| `DB_URL` | string | `sqlite:///{data_dir}/kodit.db` | Database connection URL |
-| `LOG_LEVEL` | string | `INFO` | Log level: DEBUG, INFO, WARN, ERROR |
-| `LOG_FORMAT` | string | `pretty` | Log format: `pretty` or `json` |
-| `DISABLE_TELEMETRY` | bool | `false` | Disable anonymous telemetry |
-| `API_KEYS` | string | _(empty)_ | Comma-separated list of valid API keys (e.g. `key1,key2`) |
-| `WORKER_COUNT` | int | `1` | Number of background workers |
-| `SEARCH_LIMIT` | int | `10` | Default search result limit |
-
-## Embedding Endpoint
-
-Configuration for the embedding AI service used for semantic search.
-
-| Environment Variable | Type | Default | Description |
-|---------------------|------|---------|-------------|
-| `EMBEDDING_ENDPOINT_BASE_URL` | string | _(empty)_ | Base URL for the endpoint (e.g. `https://app.helix.ml/v1`) |
-| `EMBEDDING_ENDPOINT_MODEL` | string | _(empty)_ | Model identifier (e.g. `openai/text-embedding-3-small`) |
-| `EMBEDDING_ENDPOINT_API_KEY` | string | _(empty)_ | API key for the endpoint |
-| `EMBEDDING_ENDPOINT_NUM_PARALLEL_TASKS` | int | `10` | Number of parallel tasks |
-| `EMBEDDING_ENDPOINT_SOCKET_PATH` | string | _(empty)_ | Unix socket path for local communication |
-| `EMBEDDING_ENDPOINT_TIMEOUT` | float | `60` | Request timeout in seconds |
-| `EMBEDDING_ENDPOINT_MAX_RETRIES` | int | `5` | Maximum number of retries |
-| `EMBEDDING_ENDPOINT_INITIAL_DELAY` | float | `2.0` | Initial retry delay in seconds |
-| `EMBEDDING_ENDPOINT_BACKOFF_FACTOR` | float | `2.0` | Backoff factor for retries |
-| `EMBEDDING_ENDPOINT_EXTRA_PARAMS` | string | _(empty)_ | JSON-encoded extra parameters |
-| `EMBEDDING_ENDPOINT_MAX_TOKENS` | int | `4000` | Maximum token limit for the embedding model |
-
-If no external embedding endpoint is configured, Kodit uses a built-in local embedding
-model (jina-embeddings-v2-base-code via ONNX Runtime).
-
-## Enrichment Endpoint
-
-Configuration for the enrichment AI service used for generating summaries and documentation.
-
-| Environment Variable | Type | Default | Description |
-|---------------------|------|---------|-------------|
-| `ENRICHMENT_ENDPOINT_BASE_URL` | string | _(empty)_ | Base URL for the endpoint (e.g. `https://app.helix.ml/v1`) |
-| `ENRICHMENT_ENDPOINT_MODEL` | string | _(empty)_ | Model identifier (e.g. `openai/gpt-4.1-nano`) |
-| `ENRICHMENT_ENDPOINT_API_KEY` | string | _(empty)_ | API key for the endpoint |
-| `ENRICHMENT_ENDPOINT_NUM_PARALLEL_TASKS` | int | `10` | Number of parallel tasks |
-| `ENRICHMENT_ENDPOINT_SOCKET_PATH` | string | _(empty)_ | Unix socket path for local communication |
-| `ENRICHMENT_ENDPOINT_TIMEOUT` | float | `60` | Request timeout in seconds |
-| `ENRICHMENT_ENDPOINT_MAX_RETRIES` | int | `5` | Maximum number of retries |
-| `ENRICHMENT_ENDPOINT_INITIAL_DELAY` | float | `2.0` | Initial retry delay in seconds |
-| `ENRICHMENT_ENDPOINT_BACKOFF_FACTOR` | float | `2.0` | Backoff factor for retries |
-| `ENRICHMENT_ENDPOINT_EXTRA_PARAMS` | string | _(empty)_ | JSON-encoded extra parameters |
-| `ENRICHMENT_ENDPOINT_MAX_TOKENS` | int | `4000` | Maximum token limit for the enrichment model |
-
-## Search
-
-| Environment Variable | Type | Default | Description |
-|---------------------|------|---------|-------------|
-| `DEFAULT_SEARCH_PROVIDER` | string | `sqlite` | Search backend: `sqlite` or `vectorchord` |
-
-## Git
-
-| Environment Variable | Type | Default | Description |
-|---------------------|------|---------|-------------|
-| `GIT_PROVIDER` | string | `dulwich` | Git provider identifier (used internally) |
-
-## Periodic Sync
-
-| Environment Variable | Type | Default | Description |
-|---------------------|------|---------|-------------|
-| `PERIODIC_SYNC_ENABLED` | bool | `true` | Enable periodic sync |
-| `PERIODIC_SYNC_INTERVAL_SECONDS` | float | `1800` | Interval between periodic syncs in seconds |
-| `PERIODIC_SYNC_RETRY_ATTEMPTS` | int | `3` | Number of retry attempts for failed syncs |
-
-## Remote Server
-
-| Environment Variable | Type | Default | Description |
-|---------------------|------|---------|-------------|
-| `REMOTE_SERVER_URL` | string | _(empty)_ | Remote Kodit server URL |
-| `REMOTE_API_KEY` | string | _(empty)_ | API key for authentication |
-| `REMOTE_TIMEOUT` | float | `30` | Request timeout in seconds |
-| `REMOTE_MAX_RETRIES` | int | `3` | Maximum retry attempts |
-| `REMOTE_VERIFY_SSL` | bool | `true` | Verify SSL certificates |
-
-## Reporting
-
-| Environment Variable | Type | Default | Description |
-|---------------------|------|---------|-------------|
-| `REPORTING_LOG_TIME_INTERVAL` | float | `5` | Progress log interval in seconds |
-
-## LLM Cache
-
-| Environment Variable | Type | Default | Description |
-|---------------------|------|---------|-------------|
-| `LITELLM_CACHE_ENABLED` | bool | `true` | Enable LLM response caching |
+| `HOST` | string | `0.0.0.0` | The server host to bind to. |
+| `PORT` | int | `8080` | The server port to listen on. |
+| `DATA_DIR` | string | `~/.kodit` | The data directory path. |
+| `DB_URL` | string | `sqlite:///{data_dir}/kodit.db` | The database connection URL. |
+| `LOG_LEVEL` | string | `INFO` | The log verbosity level. |
+| `LOG_FORMAT` | string | `pretty` | The log output format (pretty or json). |
+| `DISABLE_TELEMETRY` | bool | `false` | Telemetry collection. |
+| `SKIP_PROVIDER_VALIDATION` | bool | `false` | Provider requirement validation at startup. |
+| `API_KEYS` | string | _(empty)_ | A comma-separated list of valid API keys. |
+| `EMBEDDING_ENDPOINT_BASE_URL` | string | _(empty)_ | The base URL for the endpoint. |
+| `EMBEDDING_ENDPOINT_MODEL` | string | _(empty)_ | The model identifier (e.g., openai/text-embedding-3-small). |
+| `EMBEDDING_ENDPOINT_API_KEY` | string | _(empty)_ | The API key for authentication. |
+| `EMBEDDING_ENDPOINT_NUM_PARALLEL_TASKS` | int | `10` | The number of parallel tasks. |
+| `EMBEDDING_ENDPOINT_SOCKET_PATH` | string | _(empty)_ | The Unix socket path for local communication. |
+| `EMBEDDING_ENDPOINT_TIMEOUT` | float | `60` | The request timeout in seconds. |
+| `EMBEDDING_ENDPOINT_MAX_RETRIES` | int | `5` | The maximum number of retries. |
+| `EMBEDDING_ENDPOINT_INITIAL_DELAY` | float | `2.0` | The initial retry delay in seconds. |
+| `EMBEDDING_ENDPOINT_BACKOFF_FACTOR` | float | `2.0` | The retry backoff multiplier. |
+| `EMBEDDING_ENDPOINT_EXTRA_PARAMS` | string | _(empty)_ | A JSON-encoded map of extra parameters. |
+| `EMBEDDING_ENDPOINT_MAX_TOKENS` | int | `4000` | The maximum token limit. |
+| `ENRICHMENT_ENDPOINT_BASE_URL` | string | _(empty)_ | The base URL for the endpoint. |
+| `ENRICHMENT_ENDPOINT_MODEL` | string | _(empty)_ | The model identifier (e.g., openai/text-embedding-3-small). |
+| `ENRICHMENT_ENDPOINT_API_KEY` | string | _(empty)_ | The API key for authentication. |
+| `ENRICHMENT_ENDPOINT_NUM_PARALLEL_TASKS` | int | `10` | The number of parallel tasks. |
+| `ENRICHMENT_ENDPOINT_SOCKET_PATH` | string | _(empty)_ | The Unix socket path for local communication. |
+| `ENRICHMENT_ENDPOINT_TIMEOUT` | float | `60` | The request timeout in seconds. |
+| `ENRICHMENT_ENDPOINT_MAX_RETRIES` | int | `5` | The maximum number of retries. |
+| `ENRICHMENT_ENDPOINT_INITIAL_DELAY` | float | `2.0` | The initial retry delay in seconds. |
+| `ENRICHMENT_ENDPOINT_BACKOFF_FACTOR` | float | `2.0` | The retry backoff multiplier. |
+| `ENRICHMENT_ENDPOINT_EXTRA_PARAMS` | string | _(empty)_ | A JSON-encoded map of extra parameters. |
+| `ENRICHMENT_ENDPOINT_MAX_TOKENS` | int | `4000` | The maximum token limit. |
+| `PERIODIC_SYNC_ENABLED` | bool | `true` | Whether periodic sync is enabled. |
+| `PERIODIC_SYNC_INTERVAL_SECONDS` | float | `1800` | The sync interval in seconds. |
+| `PERIODIC_SYNC_RETRY_ATTEMPTS` | int | `3` | The number of retry attempts. |
+| `REMOTE_SERVER_URL` | string | _(empty)_ | The remote server URL. |
+| `REMOTE_API_KEY` | string | _(empty)_ | The API key for authentication. |
+| `REMOTE_TIMEOUT` | float | `30` | The request timeout in seconds. |
+| `REMOTE_MAX_RETRIES` | int | `3` | The maximum retry attempts. |
+| `REMOTE_VERIFY_SSL` | bool | `true` | SSL certificate verification. |
+| `REPORTING_LOG_TIME_INTERVAL` | float | `5` | The logging interval in seconds. |
+| `LITELLM_CACHE_ENABLED` | bool | `true` | Whether caching is enabled. |
+| `WORKER_COUNT` | int | `1` | The number of background workers. |
+| `SEARCH_LIMIT` | int | `10` | The default search result limit. |
 
 ## Applying Configuration
 
@@ -149,7 +101,7 @@ Get your free API key from [Helix.ml](https://app.helix.ml/account).
 
 ```sh
 ENRICHMENT_ENDPOINT_BASE_URL=https://app.helix.ml/v1
-ENRICHMENT_ENDPOINT_MODEL=hosted_vllm/Qwen/Qwen3-8B
+ENRICHMENT_ENDPOINT_MODEL=Qwen/Qwen3-8B
 ENRICHMENT_ENDPOINT_NUM_PARALLEL_TASKS=1
 ENRICHMENT_ENDPOINT_TIMEOUT=300
 ENRICHMENT_ENDPOINT_API_KEY=hl-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
@@ -159,18 +111,8 @@ ENRICHMENT_ENDPOINT_API_KEY=hl-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 
 ```sh
 ENRICHMENT_ENDPOINT_BASE_URL=http://localhost:11434
-ENRICHMENT_ENDPOINT_MODEL=ollama_chat/qwen3:1.7b
+ENRICHMENT_ENDPOINT_MODEL=qwen3:1.7b
 ENRICHMENT_ENDPOINT_NUM_PARALLEL_TASKS=1
 ENRICHMENT_ENDPOINT_EXTRA_PARAMS='{"think": false}'
 ENRICHMENT_ENDPOINT_TIMEOUT=300
-```
-
-#### Azure OpenAI Enrichment Endpoint
-
-```sh
-ENRICHMENT_ENDPOINT_BASE_URL=https://winderai-openai-test.openai.azure.com/
-ENRICHMENT_ENDPOINT_MODEL=azure/gpt-4.1-nano # Must be in the format "azure/azure_deployment_name"
-ENRICHMENT_ENDPOINT_API_KEY=XXXX
-ENRICHMENT_ENDPOINT_NUM_PARALLEL_TASKS=5 # Azure defaults to 100K TPM
-ENRICHMENT_ENDPOINT_EXTRA_PARAMS={"api_version": "2024-12-01-preview"}
 ```

@@ -168,32 +168,6 @@ func TestEndpoint_ExtraParams_Nil(t *testing.T) {
 	}
 }
 
-func TestSearchConfig(t *testing.T) {
-	cfg := NewSearchConfig()
-
-	if cfg.Provider() != SearchProviderSQLite {
-		t.Errorf("Provider() = %v, want sqlite", cfg.Provider())
-	}
-
-	cfg = cfg.WithProvider(SearchProviderVectorChord)
-	if cfg.Provider() != SearchProviderVectorChord {
-		t.Errorf("Provider() = %v, want vectorchord", cfg.Provider())
-	}
-}
-
-func TestGitConfig(t *testing.T) {
-	cfg := NewGitConfig()
-
-	if cfg.Provider() != GitProviderDulwich {
-		t.Errorf("Provider() = %v, want dulwich", cfg.Provider())
-	}
-
-	cfg = cfg.WithProvider(GitProviderPygit2)
-	if cfg.Provider() != GitProviderPygit2 {
-		t.Errorf("Provider() = %v, want pygit2", cfg.Provider())
-	}
-}
-
 func TestPeriodicSyncConfig(t *testing.T) {
 	cfg := NewPeriodicSyncConfig()
 

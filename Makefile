@@ -225,7 +225,9 @@ openapi-convert: ## Convert existing swagger.json to OpenAPI 3.0 (skip swag gene
 	@echo "OpenAPI 3.0 spec generated at $(OPENAPI_EMBED)"
 
 .PHONY: docs
-docs: openapi ## Generate all documentation (OpenAPI 3.0)
+docs: openapi ## Generate all documentation (OpenAPI 3.0 + markdown reference)
+	uv run --script tools/dump-openapi.py
+	uv run --script tools/dump-config.py
 
 ##@ Release
 
