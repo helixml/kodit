@@ -4,8 +4,10 @@ package persistence
 import (
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/helixml/kodit/internal/database"
+	"gorm.io/gorm"
 )
 
 // PreMigrate handles one-time schema conversions from the Python-era database.
@@ -36,6 +38,59 @@ func PreMigrate(db database.Database) error {
 			return err
 		}
 		slog.Info("one-time database migration complete")
+	}
+
+	// Add auto-increment id column to git_commit_files if missing.
+	// Old dumps predate this column; without it existing rows get id=0
+	// and enrichment associations are never created.
+	var hasIDColumn bool
+	err = gdb.Raw(`
+		SELECT EXISTS(
+			SELECT 1 FROM information_schema.columns
+			WHERE table_name = 'git_commit_files' AND column_name = 'id'
+		)
+	`).Scan(&hasIDColumn).Error
+	if err != nil {
+		return err
+	}
+	if !hasIDColumn {
+		slog.Warn("one-time database migration: adding id column to git_commit_files")
+		stmts := []string{
+			`CREATE SEQUENCE IF NOT EXISTS git_commit_files_id_seq`,
+			`ALTER TABLE git_commit_files ADD COLUMN id BIGINT NOT NULL DEFAULT nextval('git_commit_files_id_seq')`,
+			`ALTER SEQUENCE git_commit_files_id_seq OWNED BY git_commit_files.id`,
+		}
+		for _, stmt := range stmts {
+			if err := gdb.Exec(stmt).Error; err != nil {
+				return fmt.Errorf("git_commit_files id migration: %w", err)
+			}
+		}
+		slog.Info("one-time database migration complete: git_commit_files.id added")
+	}
+
+	// Replace non-unique ix_tasks_dedup_key with the unique index GORM expects.
+	var hasOldDedupIndex bool
+	err = gdb.Raw(`
+		SELECT EXISTS(
+			SELECT 1 FROM pg_indexes
+			WHERE indexname = 'ix_tasks_dedup_key'
+		)
+	`).Scan(&hasOldDedupIndex).Error
+	if err != nil {
+		return err
+	}
+	if hasOldDedupIndex {
+		slog.Warn("one-time database migration: replacing non-unique ix_tasks_dedup_key with unique index")
+		stmts := []string{
+			`DROP INDEX IF EXISTS ix_tasks_dedup_key`,
+			`CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_dedup_key ON tasks (dedup_key)`,
+		}
+		for _, stmt := range stmts {
+			if err := gdb.Exec(stmt).Error; err != nil {
+				return fmt.Errorf("tasks dedup_key index migration: %w", err)
+			}
+		}
+		slog.Info("one-time database migration complete: tasks.dedup_key unique index created")
 	}
 
 	return nil
@@ -135,5 +190,61 @@ func postMigrate(db database.Database) error {
 		}
 	}
 
+	return nil
+}
+
+// allModels returns every GORM model that AutoMigrate manages.
+func allModels() []interface{} {
+	return []interface{}{
+		&RepositoryModel{},
+		&CommitModel{},
+		&BranchModel{},
+		&TagModel{},
+		&FileModel{},
+		&CommitIndexModel{},
+		&EnrichmentModel{},
+		&EnrichmentAssociationModel{},
+		&EmbeddingModel{},
+		&TaskModel{},
+		&TaskStatusModel{},
+	}
+}
+
+// ValidateSchema verifies every GORM model field has a corresponding column
+// in the database. Returns an error listing any missing columns.
+func ValidateSchema(db database.Database) error {
+	gdb := db.GORM()
+	migrator := gdb.Migrator()
+
+	var missing []string
+	for _, model := range allModels() {
+		stmt := &gorm.Statement{DB: gdb}
+		if err := stmt.Parse(model); err != nil {
+			return fmt.Errorf("parse model schema: %w", err)
+		}
+
+		columnTypes, err := migrator.ColumnTypes(model)
+		if err != nil {
+			return fmt.Errorf("get column types for %s: %w", stmt.Table, err)
+		}
+
+		actual := make(map[string]bool, len(columnTypes))
+		for _, ct := range columnTypes {
+			actual[ct.Name()] = true
+		}
+
+		for _, field := range stmt.Schema.Fields {
+			if field.DBName == "" || field.DBName == "-" {
+				continue
+			}
+			if !actual[field.DBName] {
+				missing = append(missing, stmt.Table+"."+field.DBName)
+			}
+		}
+	}
+
+	if len(missing) > 0 {
+		return fmt.Errorf("schema validation failed — missing columns: %s", strings.Join(missing, ", "))
+	}
 	return nil
 }

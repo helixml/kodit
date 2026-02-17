@@ -188,6 +188,12 @@ func New(opts ...Option) (*Client, error) {
 		return nil, errors.Join(fmt.Errorf("auto migrate: %w", err), errClose)
 	}
 
+	// Validate schema matches GORM models
+	if err := persistence.ValidateSchema(db); err != nil {
+		errClose := db.Close()
+		return nil, errors.Join(fmt.Errorf("validate schema: %w", err), errClose)
+	}
+
 	// Create stores
 	repoStore := persistence.NewRepositoryStore(db)
 	commitStore := persistence.NewCommitStore(db)
