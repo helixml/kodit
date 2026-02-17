@@ -101,11 +101,7 @@ test-e2e: download-model download-ort ## Run end-to-end tests only
 	$(GOTEST) -v ./test/e2e/...
 
 .PHONY: smoke
-smoke: download-model download-ort ## Run smoke tests (starts server, tests API endpoints)
-	SMOKE_BUILD_TAGS="$(BUILD_TAGS)" $(GOENV) $(GOCMD) test -tags "$(BUILD_TAGS)" -v -timeout 15m -count 1 ./test/smoke/...
-
-.PHONY: smoke-postgres
-smoke-postgres: download-model download-ort ## Run smoke tests against a Python-era PostgreSQL dump (migration test)
+smoke: download-model download-ort ## Run smoke tests against a Python-era PostgreSQL dump (migration test)
 	docker compose -f test/smoke/docker-compose.yml up -d vectorchord
 	@echo "Waiting for VectorChord to load dump..."
 	@for i in $$(seq 1 30); do \

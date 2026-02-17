@@ -1184,7 +1184,7 @@ type queueListResponse struct {
 // the schema transition without errors.
 //
 // Requires SMOKE_DB_URL pointing to a VectorChord instance pre-loaded with
-// testdata/kodit_dump.sql (see: make smoke-postgres).
+// testdata/kodit_dump.sql (see: make smoke).
 func TestSmoke_MigrationFromDump(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping smoke test in short mode")
@@ -1192,7 +1192,7 @@ func TestSmoke_MigrationFromDump(t *testing.T) {
 
 	smokeDBURL := os.Getenv("SMOKE_DB_URL")
 	if smokeDBURL == "" {
-		t.Skip("SMOKE_DB_URL not set — run 'make smoke-postgres' to execute this test")
+		t.Skip("SMOKE_DB_URL not set — run 'make smoke' to execute this test")
 	}
 
 	if !portAvailable(baseHost, basePort) {
