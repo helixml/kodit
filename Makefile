@@ -59,11 +59,11 @@ build: download-model download-ort ## Build the application binary (with embedde
 DB_URL ?= postgresql://postgres:mysecretpassword@localhost:5432/kodit
 
 .PHONY: run
-run: docker-dev ## Run the HTTP server (downloads model on first use if needed)
+run: download-model download-ort docker-dev ## Run the HTTP server (downloads model on first use if needed)
 	DB_URL=$(DB_URL) $(GORUN) $(CMD_DIR) serve
 
 .PHONY: clean
-clean: ## Remove build artifacts
+clean: docker-clean ## Remove build artifacts
 	rm -rf $(BUILD_DIR)
 	rm -rf lib/
 	rm -f $(COVERAGE_FILE)
@@ -209,6 +209,7 @@ release: ## Create a GitHub release (VERSION required, e.g. make release VERSION
 	fi
 
 ##@ Docker
+ALL_PROFILES := $(shell docker compose -f docker-compose.dev.yaml config --profiles | xargs -I{} echo --profile {})
 PROFILES :=
 
 ifeq ($(shell lsof -i :11434 -sTCP:LISTEN >/dev/null 2>&1 && echo yes),)
@@ -238,3 +239,7 @@ docker-build-multi: download-model ## Build multi-platform Docker image
 .PHONY: docker-run
 docker-run: ## Run Docker container
 	docker run -p 8080:8080 kodit:$(VERSION)
+
+.PHONY: docker-clean
+docker-clean:
+	docker compose -f docker-compose.dev.yaml $(ALL_PROFILES) down -v

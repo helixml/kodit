@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strconv"
 
 	"github.com/helixml/kodit/application/handler"
 	"github.com/helixml/kodit/domain/enrichment"
@@ -87,7 +88,7 @@ func (h *CreateExampleSummaryEmbeddings) Execute(ctx context.Context, payload ma
 	for _, e := range newEnrichments {
 		content := e.Content()
 		if content != "" {
-			doc := search.NewDocument(enrichmentDocID(e.ID()), content)
+			doc := search.NewDocument(strconv.FormatInt(e.ID(), 10), content)
 			documents = append(documents, doc)
 		}
 	}
@@ -116,7 +117,7 @@ func (h *CreateExampleSummaryEmbeddings) Execute(ctx context.Context, payload ma
 func (h *CreateExampleSummaryEmbeddings) filterNewEnrichments(ctx context.Context, enrichments []enrichment.Enrichment) ([]enrichment.Enrichment, error) {
 	ids := make([]string, len(enrichments))
 	for i, e := range enrichments {
-		ids[i] = enrichmentDocID(e.ID())
+		ids[i] = strconv.FormatInt(e.ID(), 10)
 	}
 
 	existing, err := h.textIndex.Store.HasEmbeddings(ctx, ids, search.EmbeddingTypeSummary)
@@ -136,28 +137,3 @@ func (h *CreateExampleSummaryEmbeddings) filterNewEnrichments(ctx context.Contex
 
 // Ensure CreateExampleSummaryEmbeddings implements handler.Handler.
 var _ handler.Handler = (*CreateExampleSummaryEmbeddings)(nil)
-
-// enrichmentDocID converts an enrichment ID to a document ID string.
-// This ensures enrichment embeddings use a consistent ID format that can be
-// differentiated from snippet SHA IDs.
-func enrichmentDocID(enrichmentID int64) string {
-	return fmt.Sprintf("enrichment:%d", enrichmentID)
-}
-
-// ParseEnrichmentDocID extracts the enrichment ID from a document ID string.
-// Returns 0 and false if the document ID is not an enrichment ID.
-func ParseEnrichmentDocID(docID string) (int64, bool) {
-	var id int64
-	if _, err := fmt.Sscanf(docID, "enrichment:%d", &id); err != nil {
-		return 0, false
-	}
-	return id, true
-}
-
-// IsEnrichmentDocID checks if a document ID is an enrichment document ID.
-func IsEnrichmentDocID(docID string) bool {
-	if len(docID) < 11 {
-		return false
-	}
-	return docID[:11] == "enrichment:"
-}

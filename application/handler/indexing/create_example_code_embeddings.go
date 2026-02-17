@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strconv"
 
 	"github.com/helixml/kodit/application/handler"
 	"github.com/helixml/kodit/domain/enrichment"
@@ -87,7 +88,7 @@ func (h *CreateExampleCodeEmbeddings) Execute(ctx context.Context, payload map[s
 	for _, e := range newExamples {
 		content := e.Content()
 		if content != "" {
-			doc := search.NewDocument(enrichmentDocID(e.ID()), content)
+			doc := search.NewDocument(strconv.FormatInt(e.ID(), 10), content)
 			documents = append(documents, doc)
 		}
 	}
@@ -116,7 +117,7 @@ func (h *CreateExampleCodeEmbeddings) Execute(ctx context.Context, payload map[s
 func (h *CreateExampleCodeEmbeddings) filterNewExamples(ctx context.Context, examples []enrichment.Enrichment) ([]enrichment.Enrichment, error) {
 	ids := make([]string, len(examples))
 	for i, e := range examples {
-		ids[i] = enrichmentDocID(e.ID())
+		ids[i] = strconv.FormatInt(e.ID(), 10)
 	}
 
 	existing, err := h.codeIndex.Store.HasEmbeddings(ctx, ids, search.EmbeddingTypeCode)
