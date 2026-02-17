@@ -191,8 +191,8 @@ func extractTgz(body io.Reader, destDir, filename string) error {
 	}
 	defer gz.Close() //nolint:errcheck
 
-	// Strip extension to match versioned variants like libonnxruntime.1.23.2.dylib
-	nameWithoutExt := strings.TrimSuffix(filename, filepath.Ext(filename))
+	ext := filepath.Ext(filename)
+	nameWithoutExt := strings.TrimSuffix(filename, ext)
 
 	tr := tar.NewReader(gz)
 	for {
@@ -204,17 +204,22 @@ func extractTgz(body io.Reader, destDir, filename string) error {
 			return fmt.Errorf("tar read: %w", err)
 		}
 
-		// Skip symlinks and directories — we want the real file
+		// Skip symlinks and directories — we want the real file.
 		if header.Typeflag != tar.TypeReg {
 			continue
 		}
 
 		base := filepath.Base(header.Name)
-		if base != filename && !strings.HasPrefix(base, nameWithoutExt+".") {
-			continue
+		if base == filename {
+			return writeFile(filepath.Join(destDir, filename), tr)
 		}
 
-		return writeFile(filepath.Join(destDir, filename), tr)
+		// Match versioned variants like libonnxruntime.so.1.24.1 or
+		// libonnxruntime.1.24.1.dylib, but reject unrelated files
+		// like libonnxruntime.pc that share the same prefix.
+		if strings.HasPrefix(base, nameWithoutExt+".") && strings.Contains(base, ext) {
+			return writeFile(filepath.Join(destDir, filename), tr)
+		}
 	}
 
 	return fmt.Errorf("%s not found in archive", filename)
