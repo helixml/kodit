@@ -18,7 +18,9 @@ type Cloner interface {
 	CloneToPath(ctx context.Context, remoteURI string, clonePath string) error
 
 	// Update updates a repository based on its tracking configuration.
-	Update(ctx context.Context, repo repository.Repository) error
+	// Returns the actual clone path used, which may differ from the stored
+	// path if the repository was relocated (e.g. after migration).
+	Update(ctx context.Context, repo repository.Repository) (string, error)
 
 	// Ensure clones the repository if it doesn't exist, otherwise pulls latest changes.
 	Ensure(ctx context.Context, remoteURI string) (string, error)

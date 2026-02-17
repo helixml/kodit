@@ -77,41 +77,53 @@ func (c *RepositoryCloner) CloneToPath(ctx context.Context, remoteURI string, cl
 }
 
 // Update updates a repository based on its tracking configuration.
-func (c *RepositoryCloner) Update(ctx context.Context, repo repository.Repository) error {
+// Returns the actual clone path used, which may differ from the stored
+// path if the repository was relocated (e.g. after migration).
+func (c *RepositoryCloner) Update(ctx context.Context, repo repository.Repository) (string, error) {
 	if !repo.HasWorkingCopy() {
-		return fmt.Errorf("repository %d has never been cloned", repo.ID())
+		return "", fmt.Errorf("repository %d has never been cloned", repo.ID())
 	}
 
 	clonePath := repo.WorkingCopy().Path()
 
 	// Check if the path exists and is accessible
 	if _, err := os.Stat(clonePath); err != nil {
-		// Re-clone if directory doesn't exist
-		c.logger.Info("re-cloning missing repository",
+		// The stored path is stale (e.g. from a previous container).
+		// Clone to the correct location for the current environment.
+		clonePath = c.ClonePathFromURI(repo.RemoteURL())
+
+		c.logger.Info("relocating repository clone",
 			slog.Int64("repo_id", repo.ID()),
-			slog.String("path", clonePath),
+			slog.String("old_path", repo.WorkingCopy().Path()),
+			slog.String("new_path", clonePath),
 		)
-		return c.adapter.CloneRepository(ctx, repo.RemoteURL(), clonePath)
+
+		if err := c.adapter.CloneRepository(ctx, repo.RemoteURL(), clonePath); err != nil {
+			_ = os.RemoveAll(clonePath)
+			return "", fmt.Errorf("clone repository: %w", err)
+		}
+
+		return clonePath, nil
 	}
 
 	if !repo.HasTrackingConfig() {
 		c.logger.Debug("repository has no tracking config",
 			slog.Int64("repo_id", repo.ID()),
 		)
-		return nil
+		return clonePath, nil
 	}
 
 	tc := repo.TrackingConfig()
 
 	if tc.IsBranch() {
-		return c.updateBranch(ctx, clonePath, tc.Branch())
+		return clonePath, c.updateBranch(ctx, clonePath, tc.Branch())
 	}
 
 	if tc.IsTag() {
-		return c.updateTag(ctx, clonePath)
+		return clonePath, c.updateTag(ctx, clonePath)
 	}
 
-	return fmt.Errorf("invalid tracking type for repository %d", repo.ID())
+	return "", fmt.Errorf("invalid tracking type for repository %d", repo.ID())
 }
 
 func (c *RepositoryCloner) updateBranch(ctx context.Context, clonePath string, branchName string) error {

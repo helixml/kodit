@@ -71,13 +71,26 @@ func (h *Sync) Execute(ctx context.Context, payload map[string]any) error {
 	tracker.SetTotal(ctx, 3)
 	tracker.SetCurrent(ctx, 0, "Fetching latest changes")
 
-	if err := h.cloner.Update(ctx, repo); err != nil {
+	clonedPath, err := h.cloner.Update(ctx, repo)
+	if err != nil {
 		return fmt.Errorf("update repository: %w", err)
 	}
 
-	tracker.SetCurrent(ctx, 1, "Scanning branches")
+	// The clone may have been relocated (e.g. stale path from a previous
+	// container). Persist the new working copy so future syncs use it.
+	if clonedPath != repo.WorkingCopy().Path() {
+		h.logger.Info("repository clone path changed",
+			slog.Int64("repo_id", repoID),
+			slog.String("old_path", repo.WorkingCopy().Path()),
+			slog.String("new_path", clonedPath),
+		)
+		repo = repo.WithWorkingCopy(repository.NewWorkingCopy(clonedPath, repo.RemoteURL()))
+		if _, err := h.repoStore.Save(ctx, repo); err != nil {
+			return fmt.Errorf("save relocated repository: %w", err)
+		}
+	}
 
-	clonedPath := repo.WorkingCopy().Path()
+	tracker.SetCurrent(ctx, 1, "Scanning branches")
 	branches, err := h.scanner.ScanAllBranches(ctx, clonedPath, repoID)
 	if err != nil {
 		h.logger.Warn("failed to scan branches", slog.String("error", err.Error()))

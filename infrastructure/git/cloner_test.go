@@ -72,18 +72,20 @@ func (f *fakeAdapter) CommitDiff(_ context.Context, _ string, _ string) (string,
 
 func TestUpdate_MissingDirectory(t *testing.T) {
 	fake := &fakeAdapter{}
-	cloner := NewRepositoryCloner(fake, t.TempDir(), slog.Default())
+	cloneDir := t.TempDir()
+	cloner := NewRepositoryCloner(fake, cloneDir, slog.Default())
 
 	missingPath := filepath.Join(t.TempDir(), "does-not-exist")
+	remoteURI := "https://github.com/example/repo.git"
 	repo := repository.ReconstructRepository(
 		1,
-		"https://github.com/example/repo.git",
-		repository.NewWorkingCopy(missingPath, "https://github.com/example/repo.git"),
+		remoteURI,
+		repository.NewWorkingCopy(missingPath, remoteURI),
 		repository.NewTrackingConfigForBranch("main"),
 		time.Now(), time.Now(),
 	)
 
-	err := cloner.Update(context.Background(), repo)
+	newPath, err := cloner.Update(context.Background(), repo)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -93,6 +95,12 @@ func TestUpdate_MissingDirectory(t *testing.T) {
 	}
 	if fake.fetched {
 		t.Fatal("expected FetchRepository NOT to be called for missing directory")
+	}
+
+	// The returned path should be the correct clone directory, not the old stale one.
+	expectedPath := cloner.ClonePathFromURI(remoteURI)
+	if newPath != expectedPath {
+		t.Fatalf("expected relocated path %q, got %q", expectedPath, newPath)
 	}
 }
 
@@ -130,7 +138,7 @@ func TestUpdate_InaccessibleDirectory(t *testing.T) {
 		time.Now(), time.Now(),
 	)
 
-	err := cloner.Update(context.Background(), repo)
+	newPath, err := cloner.Update(context.Background(), repo)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -140,5 +148,10 @@ func TestUpdate_InaccessibleDirectory(t *testing.T) {
 	}
 	if fake.fetched {
 		t.Fatal("expected FetchRepository NOT to be called for inaccessible directory")
+	}
+
+	expectedPath := cloner.ClonePathFromURI("https://github.com/example/repo.git")
+	if newPath != expectedPath {
+		t.Fatalf("expected relocated path %q, got %q", expectedPath, newPath)
 	}
 }
