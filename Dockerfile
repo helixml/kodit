@@ -59,7 +59,7 @@ RUN mkdir -p /data && chown kodit:kodit /data
 
 # Copy binary and ORT library from builder
 COPY --from=builder /app/build/kodit /usr/local/bin/kodit
-COPY --from=builder /app/lib/libonnxruntime.so /usr/lib/
+COPY --from=builder --chmod=644 /app/lib/libonnxruntime.so /usr/lib/
 
 # Switch to non-root user
 USER kodit
