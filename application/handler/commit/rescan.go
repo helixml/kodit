@@ -16,6 +16,7 @@ import (
 type Rescan struct {
 	enrichmentStore  enrichment.EnrichmentStore
 	associationStore enrichment.AssociationStore
+	statusStore      task.StatusStore
 	trackerFactory   handler.TrackerFactory
 	logger           *slog.Logger
 }
@@ -24,12 +25,14 @@ type Rescan struct {
 func NewRescan(
 	enrichmentStore enrichment.EnrichmentStore,
 	associationStore enrichment.AssociationStore,
+	statusStore task.StatusStore,
 	trackerFactory handler.TrackerFactory,
 	logger *slog.Logger,
 ) *Rescan {
 	return &Rescan{
 		enrichmentStore:  enrichmentStore,
 		associationStore: associationStore,
+		statusStore:      statusStore,
 		trackerFactory:   trackerFactory,
 		logger:           logger,
 	}
@@ -40,6 +43,11 @@ func (h *Rescan) Execute(ctx context.Context, payload map[string]any) error {
 	cp, err := handler.ExtractCommitPayload(payload)
 	if err != nil {
 		return err
+	}
+
+	// Delete old task statuses so previous errors no longer appear.
+	if err := h.statusStore.DeleteByTrackable(ctx, task.TrackableTypeRepository, cp.RepoID()); err != nil {
+		return fmt.Errorf("delete old task statuses: %w", err)
 	}
 
 	tracker := h.trackerFactory.ForOperation(
