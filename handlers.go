@@ -3,6 +3,7 @@ package kodit
 import (
 	"fmt"
 	"log/slog"
+	"net/url"
 	"strings"
 
 	"github.com/helixml/kodit/application/handler"
@@ -150,11 +151,34 @@ func buildDatabaseURL(cfg *clientConfig) (string, error) {
 	switch cfg.database {
 	case databaseSQLite:
 		return "sqlite:///" + cfg.dbPath, nil
-	case databasePostgres, databasePostgresPgvector, databasePostgresVectorchord:
+	case databasePostgres, databasePostgresPgvector:
 		return cfg.dbDSN, nil
+	case databasePostgresVectorchord:
+		return vectorchordDSN(cfg.dbDSN)
 	default:
 		return "", ErrNoDatabase
 	}
+}
+
+// vectorchordDSN appends the VectorChord-required search_path to a
+// PostgreSQL DSN when the caller has not already set one. The schemas
+// bm25_catalog and tokenizer_catalog are created by the vchord_bm25
+// and pg_tokenizer extensions and must be on the search_path for
+// functions like tokenize() and to_bm25query() to resolve.
+func vectorchordDSN(dsn string) (string, error) {
+	if strings.Contains(dsn, "search_path") {
+		return dsn, nil
+	}
+
+	u, err := url.Parse(dsn)
+	if err != nil {
+		return "", fmt.Errorf("parse vectorchord dsn: %w", err)
+	}
+
+	q := u.Query()
+	q.Set("search_path", "public,bm25_catalog,tokenizer_catalog")
+	u.RawQuery = q.Encode()
+	return u.String(), nil
 }
 
 // trackerFactoryImpl implements handler.TrackerFactory for progress reporting.

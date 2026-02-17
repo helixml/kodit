@@ -16,7 +16,6 @@ const (
 	createVChordExtension = `CREATE EXTENSION IF NOT EXISTS vchord CASCADE`
 	createPGTokenizer     = `CREATE EXTENSION IF NOT EXISTS pg_tokenizer CASCADE`
 	createVChordBM25      = `CREATE EXTENSION IF NOT EXISTS vchord_bm25 CASCADE`
-	setSearchPath         = `SET search_path TO "$user", public, bm25_catalog, pg_catalog, information_schema, tokenizer_catalog`
 
 	createBM25Table = `
 CREATE TABLE IF NOT EXISTS vectorchord_bm25_documents (
@@ -138,9 +137,6 @@ func (s *VectorChordBM25Store) createExtensions(ctx context.Context) error {
 		return err
 	}
 	if err := db.Exec(createVChordBM25).Error; err != nil {
-		return err
-	}
-	if err := db.Exec(setSearchPath).Error; err != nil {
 		return err
 	}
 	return nil

@@ -16,7 +16,7 @@ services:
         condition: service_healthy
     environment:
       - DISABLE_TELEMETRY=true
-      - "DB_URL=sqlite:///:memory:"
+      - "DB_URL=postgresql://postgres:mysecretpassword@vectorchord:5432/kodit"
       # Embeddings use the built-in jina-embeddings-v2-base-code model (no external API needed)
       - ENRICHMENT_ENDPOINT_BASE_URL=http://ollama:11434/v1
       - ENRICHMENT_ENDPOINT_MODEL=qwen2.5:0.5b
@@ -25,7 +25,15 @@ services:
     ports:
       - "8080:8080"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/healthz"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:8080/healthz",
+        ]
       interval: 5s
       timeout: 3s
       start_period: 10s
@@ -38,10 +46,42 @@ services:
     environment:
       - POSTGRES_DB=kodit
       - POSTGRES_PASSWORD=mysecretpassword
+    command: >
+      postgres
+      -c shared_preload_libraries=vchord,vchord_bm25,vector,pg_tokenizer
+      -c shared_buffers=32MB
+      -c work_mem=2MB
+      -c max_connections=50
+      -c max_worker_processes=2
+      -c maintenance_work_mem=32MB
+      -c effective_cache_size=256MB
     volumes:
       - ./testdata/kodit_dump.sql:/docker-entrypoint-initdb.d/01-dump.sql:ro
     ports:
       - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d kodit"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  # Fresh VectorChord for full smoke tests (no pre-loaded data).
+  vectorchord-clean:
+    image: tensorchord/vchord-suite:pg17-20250601
+    environment:
+      - POSTGRES_DB=kodit
+      - POSTGRES_PASSWORD=mysecretpassword
+    command: >
+      postgres
+      -c shared_preload_libraries=vchord,vchord_bm25,vector,pg_tokenizer
+      -c shared_buffers=32MB
+      -c work_mem=2MB
+      -c max_connections=50
+      -c max_worker_processes=2
+      -c maintenance_work_mem=32MB
+      -c effective_cache_size=256MB
+    ports:
+      - "5434:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d kodit"]
       interval: 3s

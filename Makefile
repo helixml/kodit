@@ -128,6 +128,29 @@ smoke-postgres: download-model download-ort ## Run smoke tests against a Python-
 	docker compose -f test/smoke/docker-compose.yml down vectorchord; \
 	exit $$EXIT_CODE
 
+.PHONY: smoke-vectorchord
+smoke-vectorchord: download-model download-ort ## Run full smoke tests against a fresh VectorChord instance
+	docker compose -f test/smoke/docker-compose.yml up -d vectorchord-clean
+	@echo "Waiting for VectorChord to be ready..."
+	@for i in $$(seq 1 30); do \
+		if docker compose -f test/smoke/docker-compose.yml exec -T vectorchord-clean pg_isready -U postgres -d kodit >/dev/null 2>&1; then \
+			echo "  VectorChord is ready."; \
+			break; \
+		fi; \
+		if [ "$$i" -eq 30 ]; then \
+			echo "ERROR: VectorChord did not become ready in time." >&2; \
+			docker compose -f test/smoke/docker-compose.yml down vectorchord-clean; \
+			exit 1; \
+		fi; \
+		sleep 1; \
+	done
+	SMOKE_DB_URL="postgresql://postgres:mysecretpassword@localhost:5434/kodit" \
+	SMOKE_BUILD_TAGS="$(BUILD_TAGS)" \
+	$(GOENV) $(GOCMD) test -tags "$(BUILD_TAGS)" -v -timeout 15m -count 1 -run 'TestSmoke$$' ./test/smoke/... ; \
+	EXIT_CODE=$$?; \
+	docker compose -f test/smoke/docker-compose.yml down vectorchord-clean; \
+	exit $$EXIT_CODE
+
 ##@ Code Quality
 
 .PHONY: lint
