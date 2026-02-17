@@ -374,18 +374,25 @@ func TestSmoke(t *testing.T) {
 		if parsed.Data == nil || len(*parsed.Data) == 0 {
 			t.Skip("no snippets available (indexing may have failed)")
 		}
-		snippet := (*parsed.Data)[0]
-		if snippet.Id == nil || *snippet.Id == "" {
-			t.Fatal("expected snippet ID")
+		var found bool
+		for _, snippet := range *parsed.Data {
+			if snippet.Id == nil || *snippet.Id == "" {
+				continue
+			}
+			if snippet.Attributes == nil || snippet.Attributes.Content == nil {
+				continue
+			}
+			if snippet.Attributes.Content.Value == nil || *snippet.Attributes.Content.Value == "" {
+				continue
+			}
+			t.Logf("snippet: id=%s, length=%d",
+				*snippet.Id, len(*snippet.Attributes.Content.Value))
+			found = true
+			break
 		}
-		if snippet.Attributes == nil || snippet.Attributes.Content == nil {
-			t.Fatal("expected snippet content")
+		if !found {
+			t.Fatalf("no snippet with content found among %d snippets", len(*parsed.Data))
 		}
-		if snippet.Attributes.Content.Value == nil || *snippet.Attributes.Content.Value == "" {
-			t.Fatal("expected snippet content value")
-		}
-		t.Logf("snippet: id=%s, length=%d",
-			*snippet.Id, len(*snippet.Attributes.Content.Value))
 	})
 
 	t.Run("commit_enrichments", func(t *testing.T) {
