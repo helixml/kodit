@@ -238,7 +238,6 @@ endif
 docker-reset-db: ## Reset vectorchord DB (nuke volume, reload SQL dump, run migrations)
 	docker compose -f docker-compose.dev.yaml --profile vectorchord down -v
 	docker compose -f docker-compose.dev.yaml --profile vectorchord up -d --wait
-	DB_URL=$(DB_URL) $(GOCMD) run ./tools/migrate
 
 .PHONY: docker-build
 docker-build: download-model ## Build Docker image (downloads model first, then copies into image)
