@@ -4,7 +4,7 @@
 # Go parameters
 GOCMD=go
 TAGS=fts5 ORT
-ORT_VERSION?=1.23.2
+ORT_VERSION?=1.24.1
 BUILD_TAGS=$(TAGS) embed_model
 CGO_ENABLED?=1
 ORT_LIB_DIR?=$(CURDIR)/lib
@@ -56,16 +56,11 @@ help: ## Display this help
 build: download-model download-ort ## Build the application binary (with embedded model)
 	$(GOBUILD) $(LDFLAGS) -o $(BINARY_OUTPUT) $(CMD_DIR)
 
-.PHONY: build-all
-build-all: download-model ## Build for all platforms (linux/amd64, linux/arm64, darwin/amd64, darwin/arm64)
-	GOOS=linux GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64 $(CMD_DIR)
-	GOOS=linux GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-arm64 $(CMD_DIR)
-	GOOS=darwin GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-amd64 $(CMD_DIR)
-	GOOS=darwin GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-arm64 $(CMD_DIR)
+DB_URL ?= postgresql://postgres:mysecretpassword@localhost:5432/kodit
 
 .PHONY: run
-run: ## Run the HTTP server (downloads model on first use if needed)
-	$(GORUN) $(CMD_DIR) serve
+run: docker-dev ## Run the HTTP server (downloads model on first use if needed)
+	DB_URL=$(DB_URL) $(GORUN) $(CMD_DIR) serve
 
 .PHONY: clean
 clean: ## Remove build artifacts
@@ -79,73 +74,14 @@ clean: ## Remove build artifacts
 test: download-model download-ort ## Run all tests (excludes smoke tests)
 	$(GOTEST) -v $$(go list ./... | grep -v /test/smoke)
 
-.PHONY: test-short
-test-short: download-model download-ort ## Run tests with short flag (skip long-running tests)
-	$(GOTEST) -v -short ./...
-
-.PHONY: test-race
-test-race: download-model download-ort ## Run tests with race detector
-	$(GOTEST) -v -race ./...
-
 .PHONY: test-cover
 test-cover: download-model download-ort ## Run tests with coverage (excludes smoke tests)
 	$(GOTEST) -v -coverprofile=$(COVERAGE_FILE) -covermode=atomic $$(go list ./... | grep -v /test/smoke)
 	$(GOCMD) tool cover -func=$(COVERAGE_FILE)
 
-.PHONY: test-cover-html
-test-cover-html: test-cover ## Run tests with coverage and open HTML report
-	$(GOCMD) tool cover -html=$(COVERAGE_FILE)
-
 .PHONY: test-e2e
 test-e2e: download-model download-ort ## Run end-to-end tests only
 	$(GOTEST) -v ./test/e2e/...
-
-.PHONY: smoke
-smoke: download-model download-ort ## Run smoke tests against a Python-era PostgreSQL dump (migration test)
-	docker compose -f test/smoke/docker-compose.yml up -d vectorchord
-	@echo "Waiting for VectorChord to load dump..."
-	@for i in $$(seq 1 30); do \
-		if docker compose -f test/smoke/docker-compose.yml exec -T vectorchord pg_isready -U postgres -d kodit >/dev/null 2>&1; then \
-			echo "  VectorChord is ready."; \
-			break; \
-		fi; \
-		if [ "$$i" -eq 30 ]; then \
-			echo "ERROR: VectorChord did not become ready in time." >&2; \
-			docker compose -f test/smoke/docker-compose.yml down vectorchord; \
-			exit 1; \
-		fi; \
-		sleep 1; \
-	done
-	SMOKE_DB_URL="postgresql://postgres:mysecretpassword@localhost:5433/kodit" \
-	ENRICHMENT_ENDPOINT_API_KEY="$${ENRICHMENT_ENDPOINT_API_KEY:-unused}" \
-	SMOKE_BUILD_TAGS="$(BUILD_TAGS)" \
-	$(GOENV) $(GOCMD) test -tags "$(BUILD_TAGS)" -v -timeout 15m -count 1 -run TestSmoke_MigrationFromDump ./test/smoke/... ; \
-	EXIT_CODE=$$?; \
-	docker compose -f test/smoke/docker-compose.yml down vectorchord; \
-	exit $$EXIT_CODE
-
-.PHONY: smoke-vectorchord
-smoke-vectorchord: download-model download-ort ## Run full smoke tests against a fresh VectorChord instance
-	docker compose -f test/smoke/docker-compose.yml up -d vectorchord-clean
-	@echo "Waiting for VectorChord to be ready..."
-	@for i in $$(seq 1 30); do \
-		if docker compose -f test/smoke/docker-compose.yml exec -T vectorchord-clean pg_isready -U postgres -d kodit >/dev/null 2>&1; then \
-			echo "  VectorChord is ready."; \
-			break; \
-		fi; \
-		if [ "$$i" -eq 30 ]; then \
-			echo "ERROR: VectorChord did not become ready in time." >&2; \
-			docker compose -f test/smoke/docker-compose.yml down vectorchord-clean; \
-			exit 1; \
-		fi; \
-		sleep 1; \
-	done
-	SMOKE_DB_URL="postgresql://postgres:mysecretpassword@localhost:5434/kodit" \
-	SMOKE_BUILD_TAGS="$(BUILD_TAGS)" \
-	$(GOENV) $(GOCMD) test -tags "$(BUILD_TAGS)" -v -timeout 15m -count 1 -run 'TestSmoke$$' ./test/smoke/... ; \
-	EXIT_CODE=$$?; \
-	docker compose -f test/smoke/docker-compose.yml down vectorchord-clean; \
-	exit $$EXIT_CODE
 
 ##@ Code Quality
 
@@ -273,6 +209,23 @@ release: ## Create a GitHub release (VERSION required, e.g. make release VERSION
 	fi
 
 ##@ Docker
+PROFILES :=
+
+ifeq ($(shell lsof -i :11434 -sTCP:LISTEN >/dev/null 2>&1 && echo yes),)
+  PROFILES += --profile ollama
+endif
+
+ifeq ($(shell lsof -i :5432 -sTCP:LISTEN >/dev/null 2>&1 && echo yes),)
+  PROFILES += --profile vectorchord
+endif
+
+.PHONY: docker-dev
+docker-dev: ## Start Docker development environment (VectorChord + Ollama)
+ifeq ($(PROFILES),)
+	@echo "All services already running locally, skipping docker-dev"
+else
+	docker compose -f docker-compose.dev.yaml $(PROFILES) up -d --wait
+endif
 
 .PHONY: docker-build
 docker-build: download-model ## Build Docker image (downloads model first, then copies into image)
