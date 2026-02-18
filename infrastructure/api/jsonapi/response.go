@@ -9,11 +9,11 @@ import (
 // Document represents a JSON:API top-level document.
 // See: https://jsonapi.org/format/#document-structure
 type Document struct {
-	Data     any      `json:"data"`
-	Meta     *Meta    `json:"meta,omitempty"`
-	Links    *Links   `json:"links,omitempty"`
-	Included []any    `json:"included,omitempty"`
-	Errors   []Error  `json:"errors,omitempty"`
+	Data     any     `json:"data"`
+	Meta     *Meta   `json:"meta,omitempty"`
+	Links    *Links  `json:"links,omitempty"`
+	Included []any   `json:"included,omitempty"`
+	Errors   []Error `json:"errors,omitempty"`
 }
 
 // Meta holds non-standard meta-information about a document.
@@ -44,9 +44,9 @@ type Relationships map[string]*Relationship
 
 // Relationship represents a JSON:API relationship.
 type Relationship struct {
-	Links *Links             `json:"links,omitempty"`
-	Data  any                `json:"data,omitempty"` // Can be ResourceIdentifier, []ResourceIdentifier, or nil
-	Meta  *Meta              `json:"meta,omitempty"`
+	Links *Links `json:"links,omitempty"`
+	Data  any    `json:"data,omitempty"` // Can be ResourceIdentifier, []ResourceIdentifier, or nil
+	Meta  *Meta  `json:"meta,omitempty"`
 }
 
 // ResourceIdentifier identifies a resource without full attributes.

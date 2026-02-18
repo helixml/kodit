@@ -152,7 +152,7 @@ func (EnrichmentAssociationModel) TableName() string {
 type EmbeddingModel struct {
 	ID        int64     `gorm:"column:id;primaryKey;autoIncrement"`
 	SnippetID string    `gorm:"column:snippet_id;index"`
-	Type      string `gorm:"column:type;index"`
+	Type      string    `gorm:"column:type;index"`
 	Embedding []float64 `gorm:"column:embedding;type:json"`
 	CreatedAt time.Time `gorm:"column:created_at;not null"`
 	UpdatedAt time.Time `gorm:"column:updated_at;not null"`
@@ -185,8 +185,8 @@ type TaskStatusModel struct {
 	CreatedAt     time.Time `gorm:"column:created_at;not null"`
 	UpdatedAt     time.Time `gorm:"column:updated_at;not null"`
 	Operation     string    `gorm:"column:operation;type:varchar(255);index;not null"`
-	TrackableID   *int64  `gorm:"column:trackable_id;index:idx_trackable"`
-	TrackableType *string `gorm:"column:trackable_type;type:varchar(255);index:idx_trackable"`
+	TrackableID   *int64    `gorm:"column:trackable_id;index:idx_trackable"`
+	TrackableType *string   `gorm:"column:trackable_type;type:varchar(255);index:idx_trackable"`
 	ParentID      *string   `gorm:"column:parent;type:varchar(255);index"`
 	Message       string    `gorm:"column:message;type:text;default:''"`
 	State         string    `gorm:"column:state;type:varchar(255);default:''"`

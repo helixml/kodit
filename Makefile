@@ -119,7 +119,7 @@ lint: ## Run golangci-lint
 	golangci-lint run
 
 .PHONY: lint-fix
-lint-fix: ## Run golangci-lint with auto-fix
+lint-fix: format ## Run golangci-lint with auto-fix
 	golangci-lint run --fix
 
 .PHONY: fmt
@@ -173,6 +173,7 @@ tools: ## Install development tools
 	$(GOCMD) install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 	$(GOCMD) install golang.org/x/tools/cmd/goimports@latest
 	$(GOCMD) install github.com/swaggo/swag/cmd/swag@latest
+	$(GOCMD) install golang.org/x/tools/cmd/goimports@latest
 
 ##@ Documentation
 

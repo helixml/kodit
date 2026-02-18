@@ -239,10 +239,10 @@ func (s *Server) handleSearch(ctx context.Context, request mcp.CallToolRequest) 
 
 	var opts []search.FiltersOption
 	if lang := request.GetString("language", ""); lang != "" {
-		opts = append(opts, search.WithLanguage(lang))
+		opts = append(opts, search.WithLanguages([]string{lang}))
 	}
 	if author := request.GetString("author", ""); author != "" {
-		opts = append(opts, search.WithAuthor(author))
+		opts = append(opts, search.WithAuthors([]string{author}))
 	}
 	if after := request.GetString("created_after", ""); after != "" {
 		if t, parseErr := time.Parse(time.RFC3339, after); parseErr == nil {
@@ -259,7 +259,7 @@ func (s *Server) handleSearch(ctx context.Context, request mcp.CallToolRequest) 
 		if parseErr != nil {
 			return nil, fmt.Errorf("invalid source_repo %q: %w", repo, parseErr)
 		}
-		opts = append(opts, search.WithSourceRepo(repoID))
+		opts = append(opts, search.WithSourceRepos([]int64{repoID}))
 	}
 	if subtypes := request.GetStringSlice("enrichment_subtypes", nil); len(subtypes) > 0 {
 		opts = append(opts, search.WithEnrichmentSubtypes(subtypes))

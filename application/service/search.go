@@ -253,8 +253,8 @@ func (s Search) Query(ctx context.Context, query string, opts ...SearchOption) (
 	}
 
 	var filterOpts []search.FiltersOption
-	if len(searchCfg.languages) > 0 && len(searchCfg.languages) == 1 {
-		filterOpts = append(filterOpts, search.WithLanguage(searchCfg.languages[0]))
+	if len(searchCfg.languages) > 0 {
+		filterOpts = append(filterOpts, search.WithLanguages(searchCfg.languages))
 	}
 	filters := search.NewFilters(filterOpts...)
 

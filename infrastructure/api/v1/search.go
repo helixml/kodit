@@ -131,10 +131,10 @@ func buildSearchRequest(body dto.SearchRequest) (search.MultiRequest, error) {
 	if attrs.Filters != nil {
 		f := attrs.Filters
 		if len(f.Languages) > 0 {
-			opts = append(opts, search.WithLanguage(f.Languages[0]))
+			opts = append(opts, search.WithLanguages(f.Languages))
 		}
 		if len(f.Authors) > 0 {
-			opts = append(opts, search.WithAuthor(f.Authors[0]))
+			opts = append(opts, search.WithAuthors(f.Authors))
 		}
 		if f.StartDate != nil {
 			opts = append(opts, search.WithCreatedAfter(*f.StartDate))
@@ -143,14 +143,18 @@ func buildSearchRequest(body dto.SearchRequest) (search.MultiRequest, error) {
 			opts = append(opts, search.WithCreatedBefore(*f.EndDate))
 		}
 		if len(f.Sources) > 0 {
-			repoID, err := strconv.ParseInt(f.Sources[0], 10, 64)
-			if err != nil {
-				return search.MultiRequest{}, fmt.Errorf("invalid source repository ID %q: %w", f.Sources[0], err)
+			ids := make([]int64, 0, len(f.Sources))
+			for _, s := range f.Sources {
+				id, err := strconv.ParseInt(s, 10, 64)
+				if err != nil {
+					return search.MultiRequest{}, fmt.Errorf("invalid source repository ID %q: %w", s, err)
+				}
+				ids = append(ids, id)
 			}
-			opts = append(opts, search.WithSourceRepo(repoID))
+			opts = append(opts, search.WithSourceRepos(ids))
 		}
 		if len(f.FilePatterns) > 0 {
-			opts = append(opts, search.WithFilePath(f.FilePatterns[0]))
+			opts = append(opts, search.WithFilePaths(f.FilePatterns))
 		}
 		if len(f.EnrichmentTypes) > 0 {
 			opts = append(opts, search.WithEnrichmentTypes(f.EnrichmentTypes))
@@ -327,4 +331,3 @@ func snippetLinks(files []repository.File, commits map[string]repository.Commit,
 		File:       fmt.Sprintf("/api/v1/repositories/%s/commits/%s/files/%s", repoID, commit.SHA(), file.BlobSHA()),
 	}
 }
-

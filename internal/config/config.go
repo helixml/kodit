@@ -417,12 +417,12 @@ func PrepareCloneDir(cloneDir, dataDir string) (string, error) {
 func NewAppConfig() AppConfig {
 	dataDir := DefaultDataDir()
 	return AppConfig{
-		host:              DefaultHost,
-		port:              DefaultPort,
-		dataDir:           dataDir,
-		dbURL:             "sqlite:///" + filepath.Join(dataDir, "kodit.db"),
-		logLevel:          DefaultLogLevel,
-		logFormat:         LogFormatPretty,
+		host:             DefaultHost,
+		port:             DefaultPort,
+		dataDir:          dataDir,
+		dbURL:            "sqlite:///" + filepath.Join(dataDir, "kodit.db"),
+		logLevel:         DefaultLogLevel,
+		logFormat:        LogFormatPretty,
 		disableTelemetry: false,
 		periodicSync:     NewPeriodicSyncConfig(),
 		apiKeys:          []string{},

@@ -109,4 +109,3 @@ func (i IndexRequest) Documents() []Document {
 	copy(docs, i.documents)
 	return docs
 }
-

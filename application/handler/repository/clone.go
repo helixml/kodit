@@ -103,4 +103,3 @@ func (h *Clone) enqueueFollowUpTasks(ctx context.Context, repoID int64) error {
 		payload,
 	)
 }
-

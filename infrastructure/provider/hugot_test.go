@@ -87,9 +87,9 @@ func TestHugotEmbedding_Close(t *testing.T) {
 func TestExtractEmbeddedModel(t *testing.T) {
 	// Build a fake embedded FS with the expected structure
 	fakeFS := fstest.MapFS{
-		"models/test-model/tokenizer.json":     {Data: []byte(`{"test": true}`)},
-		"models/test-model/config.json":         {Data: []byte(`{"hidden_size": 768}`)},
-		"models/test-model/onnx/model.onnx":     {Data: []byte("fake-onnx-data")},
+		"models/test-model/tokenizer.json":  {Data: []byte(`{"test": true}`)},
+		"models/test-model/config.json":     {Data: []byte(`{"hidden_size": 768}`)},
+		"models/test-model/onnx/model.onnx": {Data: []byte("fake-onnx-data")},
 	}
 
 	targetDir := t.TempDir()

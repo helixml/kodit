@@ -101,16 +101,16 @@ type SnippetListResponse struct {
 // LegacySearchRequest represents a legacy search API request (flat format).
 // Deprecated: Use SearchRequest for JSON:API compliance.
 type LegacySearchRequest struct {
-	Query        string   `json:"query"`
-	TextQuery    string   `json:"text_query,omitempty"`
-	CodeQuery    string   `json:"code_query,omitempty"`
-	Keywords     []string `json:"keywords,omitempty"`
-	TopK         int      `json:"top_k,omitempty"`
-	Language     string   `json:"language,omitempty"`
-	Author       string   `json:"author,omitempty"`
-	SourceRepo   string   `json:"source_repo,omitempty"`
-	FilePath     string   `json:"file_path,omitempty"`
-	CommitSHAs   []string `json:"commit_shas,omitempty"`
+	Query      string   `json:"query"`
+	TextQuery  string   `json:"text_query,omitempty"`
+	CodeQuery  string   `json:"code_query,omitempty"`
+	Keywords   []string `json:"keywords,omitempty"`
+	TopK       int      `json:"top_k,omitempty"`
+	Language   string   `json:"language,omitempty"`
+	Author     string   `json:"author,omitempty"`
+	SourceRepo string   `json:"source_repo,omitempty"`
+	FilePath   string   `json:"file_path,omitempty"`
+	CommitSHAs []string `json:"commit_shas,omitempty"`
 }
 
 // LegacySearchResultResponse represents a legacy single search result.

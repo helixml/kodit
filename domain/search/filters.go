@@ -4,12 +4,12 @@ import "time"
 
 // Filters represents filters for snippet search.
 type Filters struct {
-	language           string
-	author             string
+	languages          []string
+	authors            []string
 	createdAfter       time.Time
 	createdBefore      time.Time
-	sourceRepo         int64
-	filePath           string
+	sourceRepos        []int64
+	filePaths          []string
 	enrichmentTypes    []string
 	enrichmentSubtypes []string
 	commitSHAs         []string
@@ -18,17 +18,23 @@ type Filters struct {
 // FiltersOption is a functional option for Filters.
 type FiltersOption func(*Filters)
 
-// WithLanguage sets the language filter.
-func WithLanguage(language string) FiltersOption {
+// WithLanguages sets the language filter.
+func WithLanguages(languages []string) FiltersOption {
 	return func(f *Filters) {
-		f.language = language
+		if languages != nil {
+			f.languages = make([]string, len(languages))
+			copy(f.languages, languages)
+		}
 	}
 }
 
-// WithAuthor sets the author filter.
-func WithAuthor(author string) FiltersOption {
+// WithAuthors sets the author filter.
+func WithAuthors(authors []string) FiltersOption {
 	return func(f *Filters) {
-		f.author = author
+		if authors != nil {
+			f.authors = make([]string, len(authors))
+			copy(f.authors, authors)
+		}
 	}
 }
 
@@ -46,17 +52,23 @@ func WithCreatedBefore(t time.Time) FiltersOption {
 	}
 }
 
-// WithSourceRepo sets the source repository filter.
-func WithSourceRepo(repo int64) FiltersOption {
+// WithSourceRepos sets the source repository filter.
+func WithSourceRepos(repos []int64) FiltersOption {
 	return func(f *Filters) {
-		f.sourceRepo = repo
+		if repos != nil {
+			f.sourceRepos = make([]int64, len(repos))
+			copy(f.sourceRepos, repos)
+		}
 	}
 }
 
-// WithFilePath sets the file path filter.
-func WithFilePath(path string) FiltersOption {
+// WithFilePaths sets the file path filter.
+func WithFilePaths(paths []string) FiltersOption {
 	return func(f *Filters) {
-		f.filePath = path
+		if paths != nil {
+			f.filePaths = make([]string, len(paths))
+			copy(f.filePaths, paths)
+		}
 	}
 }
 
@@ -99,11 +111,25 @@ func NewFilters(opts ...FiltersOption) Filters {
 	return f
 }
 
-// Language returns the language filter.
-func (f Filters) Language() string { return f.language }
+// Languages returns the language filter.
+func (f Filters) Languages() []string {
+	if f.languages == nil {
+		return nil
+	}
+	result := make([]string, len(f.languages))
+	copy(result, f.languages)
+	return result
+}
 
-// Author returns the author filter.
-func (f Filters) Author() string { return f.author }
+// Authors returns the author filter.
+func (f Filters) Authors() []string {
+	if f.authors == nil {
+		return nil
+	}
+	result := make([]string, len(f.authors))
+	copy(result, f.authors)
+	return result
+}
 
 // CreatedAfter returns the created after filter.
 func (f Filters) CreatedAfter() time.Time { return f.createdAfter }
@@ -111,11 +137,25 @@ func (f Filters) CreatedAfter() time.Time { return f.createdAfter }
 // CreatedBefore returns the created before filter.
 func (f Filters) CreatedBefore() time.Time { return f.createdBefore }
 
-// SourceRepo returns the source repository filter.
-func (f Filters) SourceRepo() int64 { return f.sourceRepo }
+// SourceRepos returns the source repository filter.
+func (f Filters) SourceRepos() []int64 {
+	if f.sourceRepos == nil {
+		return nil
+	}
+	result := make([]int64, len(f.sourceRepos))
+	copy(result, f.sourceRepos)
+	return result
+}
 
-// FilePath returns the file path filter.
-func (f Filters) FilePath() string { return f.filePath }
+// FilePaths returns the file path filter.
+func (f Filters) FilePaths() []string {
+	if f.filePaths == nil {
+		return nil
+	}
+	result := make([]string, len(f.filePaths))
+	copy(result, f.filePaths)
+	return result
+}
 
 // EnrichmentTypes returns the enrichment types filter.
 func (f Filters) EnrichmentTypes() []string {
@@ -149,12 +189,12 @@ func (f Filters) CommitSHAs() []string {
 
 // IsEmpty returns true if no filters are set.
 func (f Filters) IsEmpty() bool {
-	return f.language == "" &&
-		f.author == "" &&
+	return len(f.languages) == 0 &&
+		len(f.authors) == 0 &&
 		f.createdAfter.IsZero() &&
 		f.createdBefore.IsZero() &&
-		f.sourceRepo == 0 &&
-		f.filePath == "" &&
+		len(f.sourceRepos) == 0 &&
+		len(f.filePaths) == 0 &&
 		len(f.enrichmentTypes) == 0 &&
 		len(f.enrichmentSubtypes) == 0 &&
 		len(f.commitSHAs) == 0

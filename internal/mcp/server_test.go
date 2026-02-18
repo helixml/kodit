@@ -268,9 +268,9 @@ func TestServer_Search(t *testing.T) {
 	resp := sendMessage(t, srv, "tools/call", 2, map[string]any{
 		"name": "search",
 		"arguments": map[string]any{
-			"user_intent":          "hello",
-			"keywords":             []string{"hello"},
-			"related_file_paths":   []string{},
+			"user_intent":           "hello",
+			"keywords":              []string{"hello"},
+			"related_file_paths":    []string{},
 			"related_file_contents": []string{},
 		},
 	})

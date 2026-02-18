@@ -30,7 +30,7 @@ func (f *fakeAdapter) FetchRepository(_ context.Context, _ string) error {
 
 func (f *fakeAdapter) CheckoutCommit(_ context.Context, _ string, _ string) error { return nil }
 func (f *fakeAdapter) CheckoutBranch(_ context.Context, _ string, _ string) error { return nil }
-func (f *fakeAdapter) PullRepository(_ context.Context, _ string) error             { return nil }
+func (f *fakeAdapter) PullRepository(_ context.Context, _ string) error           { return nil }
 func (f *fakeAdapter) AllBranches(_ context.Context, _ string) ([]BranchInfo, error) {
 	return nil, nil
 }

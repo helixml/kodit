@@ -193,13 +193,13 @@ func (s *Serializer) RepositoryResource(source repository.Source) *Resource {
 	clonedPath := repo.WorkingCopy().Path()
 
 	attrs := &RepositoryAttributes{
-		RemoteURI:     repo.RemoteURL(),
-		CreatedAt:     &createdAt,
-		UpdatedAt:     &updatedAt,
-		ClonedPath:    &clonedPath,
-		NumCommits:    0, // These would need separate queries
-		NumBranches:   0,
-		NumTags:       0,
+		RemoteURI:   repo.RemoteURL(),
+		CreatedAt:   &createdAt,
+		UpdatedAt:   &updatedAt,
+		ClonedPath:  &clonedPath,
+		NumCommits:  0, // These would need separate queries
+		NumBranches: 0,
+		NumTags:     0,
 	}
 
 	tc := repo.TrackingConfig()

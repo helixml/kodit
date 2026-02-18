@@ -19,10 +19,13 @@ Kodit (outer container)
 # 1. Build Kodit
 make build
 
-# 2. Test Kodit
+# 2. Lint, format, and vet Kodit
+make lint-fix
+
+# 3. Test Kodit
 make test
 
-# 3. Run the smoke tests
+# 4. Run the smoke tests
 make smoke
 ```
 
