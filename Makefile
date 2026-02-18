@@ -110,7 +110,7 @@ test-e2e: download-model download-ort ## Run end-to-end tests only
 
 .PHONY: test-smoke
 test-smoke: docker-reset-db docker-reset-kodit ## Run smoke tests (resets database for idempotency)
-	go test -v -count=1 ./test/smoke/...
+	$(GOTEST) -v -count=1 ./test/smoke/...
 
 ##@ Code Quality
 
@@ -135,7 +135,7 @@ format: fmt imports ## Format code (gofmt + goimports)
 
 .PHONY: vet
 vet: ## Run go vet
-	$(GOCMD) vet -tags fts5 ./...
+	$(GOCMD) vet -tags "$(BUILD_TAGS)" ./...
 
 .PHONY: check
 check: fmt vet lint test ## Run all checks (format, vet, lint, test)

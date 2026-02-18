@@ -10,7 +10,7 @@
 
 ```
 Kodit (outer container)
-└── Database (VectorChord, PostgreSQL with pgvector, or SQLite)
+└── Database (VectorChord or SQLite)
 ```
 
 ### Build Instructions

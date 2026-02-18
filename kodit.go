@@ -218,7 +218,7 @@ func New(opts ...Option) (*Client, error) {
 	// no dimension up front).
 	var dimension int
 	needsDimensionProbe := cfg.embeddingProvider != nil &&
-		(cfg.database == databasePostgresPgvector || cfg.database == databasePostgresVectorchord)
+		cfg.database == databasePostgresVectorchord
 	if needsDimensionProbe {
 		resp, err := cfg.embeddingProvider.Embed(ctx, provider.NewEmbeddingRequest([]string{"dimension probe"}))
 		if err != nil {
@@ -468,26 +468,6 @@ func buildSearchStores(ctx context.Context, cfg *clientConfig, db database.Datab
 				return nil, nil, nil, fmt.Errorf("code embedding store: %w", codeErr)
 			}
 			codeEmbeddingStore = codeStore
-		}
-	case databasePostgres:
-		bm25Store, err = persistence.NewPostgresBM25Store(db, logger)
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("bm25 store: %w", err)
-		}
-	case databasePostgresPgvector:
-		bm25Store, err = persistence.NewPostgresBM25Store(db, logger)
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("bm25 store: %w", err)
-		}
-		if cfg.embeddingProvider != nil {
-			textEmbeddingStore, err = persistence.NewPgvectorEmbeddingStore(ctx, db, persistence.TaskNameText, dimension, logger)
-			if err != nil {
-				return nil, nil, nil, fmt.Errorf("text embedding store: %w", err)
-			}
-			codeEmbeddingStore, err = persistence.NewPgvectorEmbeddingStore(ctx, db, persistence.TaskNameCode, dimension, logger)
-			if err != nil {
-				return nil, nil, nil, fmt.Errorf("code embedding store: %w", err)
-			}
 		}
 	case databasePostgresVectorchord:
 		bm25Store, err = persistence.NewVectorChordBM25Store(db, logger)

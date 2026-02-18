@@ -151,8 +151,6 @@ func buildDatabaseURL(cfg *clientConfig) (string, error) {
 	switch cfg.database {
 	case databaseSQLite:
 		return "sqlite:///" + cfg.dbPath, nil
-	case databasePostgres, databasePostgresPgvector:
-		return cfg.dbDSN, nil
 	case databasePostgresVectorchord:
 		return vectorchordDSN(cfg.dbDSN)
 	default:

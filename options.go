@@ -14,8 +14,6 @@ type databaseType int
 const (
 	databaseUnset databaseType = iota
 	databaseSQLite
-	databasePostgres
-	databasePostgresPgvector
 	databasePostgresVectorchord
 )
 
@@ -57,23 +55,6 @@ func WithSQLite(path string) Option {
 	return func(c *clientConfig) {
 		c.database = databaseSQLite
 		c.dbPath = path
-	}
-}
-
-// WithPostgres configures PostgreSQL as the database.
-// Uses native PostgreSQL full-text search for BM25.
-func WithPostgres(dsn string) Option {
-	return func(c *clientConfig) {
-		c.database = databasePostgres
-		c.dbDSN = dsn
-	}
-}
-
-// WithPostgresPgvector configures PostgreSQL with pgvector extension.
-func WithPostgresPgvector(dsn string) Option {
-	return func(c *clientConfig) {
-		c.database = databasePostgresPgvector
-		c.dbDSN = dsn
 	}
 }
 
