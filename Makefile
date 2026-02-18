@@ -5,7 +5,8 @@
 GOCMD=go
 TAGS=fts5 ORT
 ORT_VERSION?=$(shell cat .ort-version)
-BUILD_TAGS=$(TAGS) embed_model
+BUILD_TAGS=$(TAGS)
+EMBED_TAGS=$(TAGS) embed_model
 CGO_ENABLED?=1
 ORT_LIB_DIR?=$(CURDIR)/lib
 CGO_LDFLAGS?=-L$(ORT_LIB_DIR)
@@ -84,7 +85,7 @@ docker-clean:
 
 .PHONY: build
 build: download-model download-ort ## Build the application binary (with embedded model)
-	$(GOBUILD) $(LDFLAGS) -o $(BINARY_OUTPUT) $(CMD_DIR)
+	CGO_ENABLED=$(CGO_ENABLED) $(GOENV) $(GOCMD) build -tags "$(EMBED_TAGS)" $(LDFLAGS) -o $(BINARY_OUTPUT) $(CMD_DIR)
 
 .PHONY: clean
 clean: docker-clean ## Remove build artifacts
@@ -97,16 +98,16 @@ clean: docker-clean ## Remove build artifacts
 
 .PHONY: test
 test: download-model download-ort ## Run all tests (excludes smoke tests)
-	$(GOTEST) -v $$(go list ./... | grep -v /test/smoke)
+	$(GOENV) $(GOCMD) test -tags "$(EMBED_TAGS)" -v $$(go list ./... | grep -v /test/smoke)
 
 .PHONY: test-cover
 test-cover: download-model download-ort ## Run tests with coverage (excludes smoke tests)
-	$(GOTEST) -v -coverprofile=$(COVERAGE_FILE) -covermode=atomic $$(go list ./... | grep -v /test/smoke)
+	$(GOENV) $(GOCMD) test -tags "$(EMBED_TAGS)" -v -coverprofile=$(COVERAGE_FILE) -covermode=atomic $$(go list ./... | grep -v /test/smoke)
 	$(GOCMD) tool cover -func=$(COVERAGE_FILE)
 
 .PHONY: test-e2e
 test-e2e: download-model download-ort ## Run end-to-end tests only
-	$(GOTEST) -v ./test/e2e/...
+	$(GOENV) $(GOCMD) test -tags "$(EMBED_TAGS)" -v ./test/e2e/...
 
 .PHONY: test-smoke
 test-smoke: docker-reset-db docker-reset-kodit ## Run smoke tests (resets database for idempotency)
