@@ -7,13 +7,14 @@ import (
 	"log/slog"
 	"sync"
 
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/infrastructure/provider"
+	"github.com/helixml/kodit/internal/database"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
-// SQL queries that must stay as raw SQL (extensions, indexes, catalog, similarity).
+// SQL queries specific to pgvector (extensions, indexes, catalog).
 const (
 	pgvCreateExtension = `CREATE EXTENSION IF NOT EXISTS vector`
 
@@ -22,19 +23,6 @@ CREATE INDEX IF NOT EXISTS %s_idx
 ON %s
 USING ivfflat (embedding vector_cosine_ops)
 WITH (lists = 100)`
-
-	pgvSearchQueryTemplate = `
-SELECT snippet_id, embedding <=> ? as score
-FROM %s
-ORDER BY score ASC
-LIMIT ?`
-
-	pgvSearchQueryWithFilterTemplate = `
-SELECT snippet_id, embedding <=> ? as score
-FROM %s
-WHERE snippet_id IN ?
-ORDER BY score ASC
-LIMIT ?`
 
 	pgvCheckDimensionTemplate = `
 SELECT a.atttypmod as dimension
@@ -49,24 +37,23 @@ var ErrPgvectorInitializationFailed = errors.New("failed to initialize pgvector 
 
 // PgvectorStore implements search.VectorStore using PostgreSQL pgvector extension.
 type PgvectorStore struct {
-	db          *gorm.DB
+	repo        database.Repository[PgEmbeddingEntity, PgEmbeddingEntity]
 	embedder    provider.Embedder
 	logger      *slog.Logger
-	tableName   string
 	initialized bool
 	mu          sync.Mutex
 }
 
 // NewPgvectorStore creates a new PgvectorStore.
-func NewPgvectorStore(db *gorm.DB, taskName TaskName, embedder provider.Embedder, logger *slog.Logger) *PgvectorStore {
+func NewPgvectorStore(db database.Database, taskName TaskName, embedder provider.Embedder, logger *slog.Logger) *PgvectorStore {
 	if logger == nil {
 		logger = slog.Default()
 	}
+	tableName := fmt.Sprintf("pgvector_%s_embeddings", taskName)
 	return &PgvectorStore{
-		db:        db,
-		embedder:  embedder,
-		logger:    logger,
-		tableName: fmt.Sprintf("pgvector_%s_embeddings", taskName),
+		repo:     newPgEmbeddingRepository(db, tableName),
+		embedder: embedder,
+		logger:   logger,
 	}
 }
 
@@ -91,10 +78,13 @@ func (s *PgvectorStore) initialize(ctx context.Context) error {
 }
 
 func (s *PgvectorStore) createExtension(ctx context.Context) error {
-	return s.db.WithContext(ctx).Exec(pgvCreateExtension).Error
+	return s.repo.DB(ctx).Exec(pgvCreateExtension).Error
 }
 
 func (s *PgvectorStore) createTable(ctx context.Context) error {
+	tableName := s.repo.Table()
+	db := s.repo.DB(ctx)
+
 	// Get embedding dimension from provider
 	resp, err := s.embedder.Embed(ctx, provider.NewEmbeddingRequest([]string{"dimension probe"}))
 	if err != nil {
@@ -114,21 +104,21 @@ CREATE TABLE IF NOT EXISTS %s (
     id SERIAL PRIMARY KEY,
     snippet_id VARCHAR(255) NOT NULL UNIQUE,
     embedding VECTOR(%d) NOT NULL
-)`, s.tableName, dimension)
-	if err := s.db.WithContext(ctx).Exec(createTableSQL).Error; err != nil {
+)`, tableName, dimension)
+	if err := db.Exec(createTableSQL).Error; err != nil {
 		return err
 	}
 
 	// Create index (ignore errors if index already exists with different parameters)
-	indexSQL := fmt.Sprintf(pgvCreateIndexTemplate, s.tableName, s.tableName)
-	if err := s.db.WithContext(ctx).Exec(indexSQL).Error; err != nil {
+	indexSQL := fmt.Sprintf(pgvCreateIndexTemplate, tableName, tableName)
+	if err := db.Exec(indexSQL).Error; err != nil {
 		s.logger.Warn("failed to create index (may already exist)", "error", err)
 	}
 
 	// Verify dimension matches
 	var dbDimension int
-	checkDimensionSQL := fmt.Sprintf(pgvCheckDimensionTemplate, s.tableName)
-	result := s.db.WithContext(ctx).Raw(checkDimensionSQL).Scan(&dbDimension)
+	checkDimensionSQL := fmt.Sprintf(pgvCheckDimensionTemplate, tableName)
+	result := db.Raw(checkDimensionSQL).Scan(&dbDimension)
 	if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
 		return result.Error
 	}
@@ -140,88 +130,12 @@ CREATE TABLE IF NOT EXISTS %s (
 	return nil
 }
 
-func (s *PgvectorStore) existingIDs(ctx context.Context, ids []string) (map[string]struct{}, error) {
-	if len(ids) == 0 {
-		return map[string]struct{}{}, nil
-	}
-
-	var found []string
-	err := s.db.WithContext(ctx).Table(s.tableName).Where("snippet_id IN ?", ids).Pluck("snippet_id", &found).Error
-	if err != nil {
-		return nil, err
-	}
-
-	result := make(map[string]struct{}, len(found))
-	for _, id := range found {
-		result[id] = struct{}{}
-	}
-	return result, nil
-}
-
 // Index adds documents to the vector index with embeddings.
 func (s *PgvectorStore) Index(ctx context.Context, request search.IndexRequest) error {
 	if err := s.initialize(ctx); err != nil {
 		return err
 	}
-
-	documents := request.Documents()
-	if len(documents) == 0 {
-		return nil
-	}
-
-	// Filter out already indexed documents
-	ids := make([]string, len(documents))
-	for i, doc := range documents {
-		ids[i] = doc.SnippetID()
-	}
-
-	existing, err := s.existingIDs(ctx, ids)
-	if err != nil {
-		return err
-	}
-
-	var toIndex []search.Document
-	for _, doc := range documents {
-		if _, exists := existing[doc.SnippetID()]; !exists {
-			toIndex = append(toIndex, doc)
-		}
-	}
-
-	if len(toIndex) == 0 {
-		s.logger.Info("no new documents to index")
-		return nil
-	}
-
-	// Get embeddings for documents
-	texts := make([]string, len(toIndex))
-	for i, doc := range toIndex {
-		texts[i] = doc.Text()
-	}
-
-	embResp, err := s.embedder.Embed(ctx, provider.NewEmbeddingRequest(texts))
-	if err != nil {
-		return fmt.Errorf("generate embeddings: %w", err)
-	}
-
-	embeddings := embResp.Embeddings()
-	if len(embeddings) != len(toIndex) {
-		return fmt.Errorf("embedding count mismatch: got %d, expected %d", len(embeddings), len(toIndex))
-	}
-
-	// Upsert documents with embeddings
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		for i, doc := range toIndex {
-			entity := newPgEmbeddingEntity(doc.SnippetID(), NewPgVector(embeddings[i]))
-			err := tx.Table(s.tableName).Clauses(clause.OnConflict{
-				Columns:   []clause.Column{{Name: "snippet_id"}},
-				DoUpdates: clause.AssignmentColumns([]string{"embedding"}),
-			}).Create(&entity).Error
-			if err != nil {
-				return err
-			}
-		}
-		return nil
-	})
+	return indexDocuments(ctx, &s.repo, s.embedder, s.logger, request, pgEntityFactory)
 }
 
 // Search performs vector similarity search.
@@ -229,57 +143,7 @@ func (s *PgvectorStore) Search(ctx context.Context, request search.Request) ([]s
 	if err := s.initialize(ctx); err != nil {
 		return nil, err
 	}
-
-	query := request.Query()
-	if query == "" {
-		return []search.Result{}, nil
-	}
-
-	topK := request.TopK()
-	if topK <= 0 {
-		topK = 10
-	}
-
-	// Get embedding for query
-	embResp, err := s.embedder.Embed(ctx, provider.NewEmbeddingRequest([]string{query}))
-	if err != nil {
-		return nil, fmt.Errorf("generate query embedding: %w", err)
-	}
-
-	embeddings := embResp.Embeddings()
-	if len(embeddings) == 0 {
-		return []search.Result{}, nil
-	}
-
-	queryEmbedding := NewPgVector(embeddings[0]).String()
-
-	var rows []struct {
-		SnippetID string  `gorm:"column:snippet_id"`
-		Score     float64 `gorm:"column:score"`
-	}
-
-	snippetIDs := request.SnippetIDs()
-	if len(snippetIDs) > 0 {
-		searchSQL := fmt.Sprintf(pgvSearchQueryWithFilterTemplate, s.tableName)
-		err = s.db.WithContext(ctx).Raw(searchSQL, queryEmbedding, snippetIDs, topK).Scan(&rows).Error
-	} else {
-		searchSQL := fmt.Sprintf(pgvSearchQueryTemplate, s.tableName)
-		err = s.db.WithContext(ctx).Raw(searchSQL, queryEmbedding, topK).Scan(&rows).Error
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	results := make([]search.Result, len(rows))
-	for i, row := range rows {
-		// pgvector <=> returns cosine distance (0 = identical, 2 = opposite)
-		// Convert to similarity score (1 - distance/2 for 0-1 range)
-		similarity := 1.0 - row.Score/2.0
-		results[i] = search.NewResult(row.SnippetID, similarity)
-	}
-
-	return results, nil
+	return cosineSearch(ctx, s.repo.DB(ctx), s.repo.Table(), s.embedder, request)
 }
 
 // HasEmbedding checks if a snippet has an embedding of the given type.
@@ -287,17 +151,8 @@ func (s *PgvectorStore) HasEmbedding(ctx context.Context, snippetID string, embe
 	if err := s.initialize(ctx); err != nil {
 		return false, err
 	}
-
-	// Note: embeddingType is not used here because pgvector uses separate tables per task
 	_ = embeddingType
-
-	var count int64
-	err := s.db.WithContext(ctx).Table(s.tableName).Where("snippet_id = ?", snippetID).Count(&count).Error
-	if err != nil {
-		return false, err
-	}
-
-	return count > 0, nil
+	return s.repo.Exists(ctx, repository.WithCondition("snippet_id", snippetID))
 }
 
 // HasEmbeddings checks which snippet IDs have embeddings of the given type.
@@ -309,12 +164,10 @@ func (s *PgvectorStore) HasEmbeddings(ctx context.Context, snippetIDs []string, 
 	if err := s.initialize(ctx); err != nil {
 		return nil, err
 	}
-
-	// Note: embeddingType is not used here because pgvector uses separate tables per task
 	_ = embeddingType
 
 	var found []string
-	err := s.db.WithContext(ctx).Table(s.tableName).Where("snippet_id IN ?", snippetIDs).Pluck("snippet_id", &found).Error
+	err := s.repo.DB(ctx).Where("snippet_id IN ?", snippetIDs).Pluck("snippet_id", &found).Error
 	if err != nil {
 		return nil, err
 	}
@@ -331,11 +184,9 @@ func (s *PgvectorStore) Delete(ctx context.Context, request search.DeleteRequest
 	if err := s.initialize(ctx); err != nil {
 		return err
 	}
-
 	ids := request.SnippetIDs()
 	if len(ids) == 0 {
 		return nil
 	}
-
-	return s.db.WithContext(ctx).Table(s.tableName).Where("snippet_id IN ?", ids).Delete(&PgEmbeddingEntity{}).Error
+	return s.repo.DeleteBy(ctx, repository.WithConditionIn("snippet_id", ids))
 }

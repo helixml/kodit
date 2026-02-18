@@ -6,22 +6,14 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/infrastructure/provider"
+	"github.com/helixml/kodit/internal/database"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
-// TaskName represents the type of embeddings (code or text).
-type TaskName string
-
-// TaskName values.
-const (
-	TaskNameCode TaskName = "code"
-	TaskNameText TaskName = "text"
-)
-
-// SQL queries that must stay as raw SQL (extensions, indexes, catalog, similarity).
+// SQL queries that must stay as raw SQL (extensions, indexes, catalog).
 const (
 	vcCreateVChordExtension = `CREATE EXTENSION IF NOT EXISTS vchord CASCADE`
 
@@ -33,19 +25,6 @@ residual_quantization = true
 [build.internal]
 lists = []
 $$)`
-
-	vcSearchQueryTemplate = `
-SELECT snippet_id, embedding <=> ? as score
-FROM %s
-ORDER BY score ASC
-LIMIT ?`
-
-	vcSearchQueryWithFilterTemplate = `
-SELECT snippet_id, embedding <=> ? as score
-FROM %s
-WHERE snippet_id IN ?
-ORDER BY score ASC
-LIMIT ?`
 
 	vcCheckDimensionTemplate = `
 SELECT a.atttypmod as dimension
@@ -61,6 +40,15 @@ JOIN pg_class c ON c.oid = i.indexrelid
 WHERE c.relname = '%s_idx'`
 )
 
+// TaskName represents the type of embeddings (code or text).
+type TaskName string
+
+// TaskName values.
+const (
+	TaskNameCode TaskName = "code"
+	TaskNameText TaskName = "text"
+)
+
 // ErrVectorInitializationFailed indicates VectorChord vector initialization failed.
 var ErrVectorInitializationFailed = errors.New("failed to initialize VectorChord vector repository")
 
@@ -69,27 +57,28 @@ var ErrDimensionMismatch = errors.New("embedding dimension mismatch")
 
 // VectorChordVectorStore implements search.VectorStore using VectorChord PostgreSQL extension.
 type VectorChordVectorStore struct {
-	db        *gorm.DB
-	embedder  provider.Embedder
-	logger    *slog.Logger
-	tableName string
+	repo     database.Repository[PgEmbeddingEntity, PgEmbeddingEntity]
+	embedder provider.Embedder
+	logger   *slog.Logger
 }
 
 // NewVectorChordVectorStore creates a new VectorChordVectorStore, eagerly
 // initializing the extension, table, index, and verifying the dimension.
-func NewVectorChordVectorStore(ctx context.Context, db *gorm.DB, taskName TaskName, embedder provider.Embedder, logger *slog.Logger) (*VectorChordVectorStore, error) {
+func NewVectorChordVectorStore(ctx context.Context, db database.Database, taskName TaskName, embedder provider.Embedder, logger *slog.Logger) (*VectorChordVectorStore, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
+	tableName := fmt.Sprintf("vectorchord_%s_embeddings", taskName)
 	s := &VectorChordVectorStore{
-		db:        db,
-		embedder:  embedder,
-		logger:    logger,
-		tableName: fmt.Sprintf("vectorchord_%s_embeddings", taskName),
+		repo:     newPgEmbeddingRepository(db, tableName),
+		embedder: embedder,
+		logger:   logger,
 	}
 
+	rawDB := db.Session(ctx)
+
 	// Create extension
-	if err := db.WithContext(ctx).Exec(vcCreateVChordExtension).Error; err != nil {
+	if err := rawDB.Exec(vcCreateVChordExtension).Error; err != nil {
 		return nil, errors.Join(ErrVectorInitializationFailed, fmt.Errorf("create extension: %w", err))
 	}
 
@@ -110,8 +99,8 @@ CREATE TABLE IF NOT EXISTS %s (
     id SERIAL PRIMARY KEY,
     snippet_id VARCHAR(255) NOT NULL UNIQUE,
     embedding VECTOR(%d) NOT NULL
-)`, s.tableName, dimension)
-	if err := db.WithContext(ctx).Exec(createTableSQL).Error; err != nil {
+)`, tableName, dimension)
+	if err := rawDB.Exec(createTableSQL).Error; err != nil {
 		return nil, errors.Join(ErrVectorInitializationFailed, fmt.Errorf("create table: %w", err))
 	}
 
@@ -121,15 +110,15 @@ CREATE TABLE IF NOT EXISTS %s (
 	}
 
 	// Create index (uses vector_cosine_ops)
-	indexSQL := fmt.Sprintf(vcCreateVChordIndexTemplate, s.tableName, s.tableName)
-	if err := db.WithContext(ctx).Exec(indexSQL).Error; err != nil {
+	indexSQL := fmt.Sprintf(vcCreateVChordIndexTemplate, tableName, tableName)
+	if err := rawDB.Exec(indexSQL).Error; err != nil {
 		return nil, errors.Join(ErrVectorInitializationFailed, fmt.Errorf("create index: %w", err))
 	}
 
 	// Verify dimension matches
 	var dbDimension int
-	checkDimensionSQL := fmt.Sprintf(vcCheckDimensionTemplate, s.tableName)
-	result := db.WithContext(ctx).Raw(checkDimensionSQL).Scan(&dbDimension)
+	checkDimensionSQL := fmt.Sprintf(vcCheckDimensionTemplate, tableName)
+	result := rawDB.Raw(checkDimensionSQL).Scan(&dbDimension)
 	if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
 		return nil, errors.Join(ErrVectorInitializationFailed, fmt.Errorf("check dimension: %w", result.Error))
 	}
@@ -144,9 +133,12 @@ CREATE TABLE IF NOT EXISTS %s (
 // operator class (e.g. vector_l2_ops instead of vector_cosine_ops). The
 // embedding data is preserved — only the index is rebuilt.
 func (s *VectorChordVectorStore) migrateIndex(ctx context.Context) error {
+	tableName := s.repo.Table()
+	db := s.repo.DB(ctx)
+
 	var opclass string
-	query := fmt.Sprintf(vcCheckIndexOpClassTemplate, s.tableName)
-	result := s.db.WithContext(ctx).Raw(query).Scan(&opclass)
+	query := fmt.Sprintf(vcCheckIndexOpClassTemplate, tableName)
+	result := db.Raw(query).Scan(&opclass)
 	if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
 		return fmt.Errorf("check index opclass: %w", result.Error)
 	}
@@ -158,168 +150,36 @@ func (s *VectorChordVectorStore) migrateIndex(ctx context.Context) error {
 	}
 
 	s.logger.Warn("VectorChord index uses wrong operator class, dropping index for recreation",
-		slog.String("table", s.tableName),
+		slog.String("table", tableName),
 		slog.String("old_opclass", opclass),
 		slog.String("new_opclass", "vector_cosine_ops"),
 	)
 
-	dropSQL := fmt.Sprintf("DROP INDEX IF EXISTS %s_idx", s.tableName)
-	if err := s.db.WithContext(ctx).Exec(dropSQL).Error; err != nil {
+	dropSQL := fmt.Sprintf("DROP INDEX IF EXISTS %s_idx", tableName)
+	if err := db.Exec(dropSQL).Error; err != nil {
 		return fmt.Errorf("drop old index: %w", err)
 	}
 
 	s.logger.Info("VectorChord index migrated — index will be recreated with vector_cosine_ops",
-		slog.String("table", s.tableName),
+		slog.String("table", tableName),
 	)
 	return nil
 }
 
-func (s *VectorChordVectorStore) existingIDs(ctx context.Context, ids []string) (map[string]struct{}, error) {
-	if len(ids) == 0 {
-		return map[string]struct{}{}, nil
-	}
-
-	var found []string
-	err := s.db.WithContext(ctx).Table(s.tableName).Where("snippet_id IN ?", ids).Pluck("snippet_id", &found).Error
-	if err != nil {
-		return nil, err
-	}
-
-	result := make(map[string]struct{}, len(found))
-	for _, id := range found {
-		result[id] = struct{}{}
-	}
-	return result, nil
-}
-
 // Index adds documents to the vector index with embeddings.
 func (s *VectorChordVectorStore) Index(ctx context.Context, request search.IndexRequest) error {
-	documents := request.Documents()
-	if len(documents) == 0 {
-		return nil
-	}
-
-	// Filter out already indexed documents
-	ids := make([]string, len(documents))
-	for i, doc := range documents {
-		ids[i] = doc.SnippetID()
-	}
-
-	existing, err := s.existingIDs(ctx, ids)
-	if err != nil {
-		return err
-	}
-
-	var toIndex []search.Document
-	for _, doc := range documents {
-		if _, exists := existing[doc.SnippetID()]; !exists {
-			toIndex = append(toIndex, doc)
-		}
-	}
-
-	if len(toIndex) == 0 {
-		s.logger.Info("no new documents to index")
-		return nil
-	}
-
-	// Get embeddings for documents
-	texts := make([]string, len(toIndex))
-	for i, doc := range toIndex {
-		texts[i] = doc.Text()
-	}
-
-	embResp, err := s.embedder.Embed(ctx, provider.NewEmbeddingRequest(texts))
-	if err != nil {
-		return fmt.Errorf("generate embeddings: %w", err)
-	}
-
-	embeddings := embResp.Embeddings()
-	if len(embeddings) != len(toIndex) {
-		return fmt.Errorf("embedding count mismatch: got %d, expected %d", len(embeddings), len(toIndex))
-	}
-
-	// Upsert documents with embeddings
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		for i, doc := range toIndex {
-			entity := newPgEmbeddingEntity(doc.SnippetID(), NewPgVector(embeddings[i]))
-			err := tx.Table(s.tableName).Clauses(clause.OnConflict{
-				Columns:   []clause.Column{{Name: "snippet_id"}},
-				DoUpdates: clause.AssignmentColumns([]string{"embedding"}),
-			}).Create(&entity).Error
-			if err != nil {
-				return err
-			}
-		}
-		return nil
-	})
+	return indexDocuments(ctx, &s.repo, s.embedder, s.logger, request, pgEntityFactory)
 }
 
 // Search performs vector similarity search.
 func (s *VectorChordVectorStore) Search(ctx context.Context, request search.Request) ([]search.Result, error) {
-	query := request.Query()
-	if query == "" {
-		return []search.Result{}, nil
-	}
-
-	topK := request.TopK()
-	if topK <= 0 {
-		topK = 10
-	}
-
-	// Get embedding for query
-	embResp, err := s.embedder.Embed(ctx, provider.NewEmbeddingRequest([]string{query}))
-	if err != nil {
-		return nil, fmt.Errorf("generate query embedding: %w", err)
-	}
-
-	embeddings := embResp.Embeddings()
-	if len(embeddings) == 0 {
-		return []search.Result{}, nil
-	}
-
-	queryEmbedding := NewPgVector(embeddings[0]).String()
-
-	var rows []struct {
-		SnippetID string  `gorm:"column:snippet_id"`
-		Score     float64 `gorm:"column:score"`
-	}
-
-	snippetIDs := request.SnippetIDs()
-	if len(snippetIDs) > 0 {
-		searchSQL := fmt.Sprintf(vcSearchQueryWithFilterTemplate, s.tableName)
-		err = s.db.WithContext(ctx).Raw(searchSQL, queryEmbedding, snippetIDs, topK).Scan(&rows).Error
-	} else {
-		searchSQL := fmt.Sprintf(vcSearchQueryTemplate, s.tableName)
-		err = s.db.WithContext(ctx).Raw(searchSQL, queryEmbedding, topK).Scan(&rows).Error
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	results := make([]search.Result, len(rows))
-	for i, row := range rows {
-		// VectorChord returns cosine distance (0 = identical, 2 = opposite)
-		// Convert to similarity score (1 - distance/2 for 0-1 range)
-		similarity := 1.0 - row.Score/2.0
-		results[i] = search.NewResult(row.SnippetID, similarity)
-	}
-
-	return results, nil
+	return cosineSearch(ctx, s.repo.DB(ctx), s.repo.Table(), s.embedder, request)
 }
 
 // HasEmbedding checks if a snippet has an embedding of the given type.
 func (s *VectorChordVectorStore) HasEmbedding(ctx context.Context, snippetID string, embeddingType search.EmbeddingType) (bool, error) {
-	// Note: embeddingType is not used here because VectorChord uses separate tables per task
 	_ = embeddingType
-
-	var count int64
-	err := s.db.WithContext(ctx).Table(s.tableName).Where("snippet_id = ?", snippetID).Count(&count).Error
-	if err != nil {
-		return false, err
-	}
-
-	return count > 0, nil
+	return s.repo.Exists(ctx, repository.WithCondition("snippet_id", snippetID))
 }
 
 // HasEmbeddings checks which snippet IDs have embeddings of the given type.
@@ -327,12 +187,10 @@ func (s *VectorChordVectorStore) HasEmbeddings(ctx context.Context, snippetIDs [
 	if len(snippetIDs) == 0 {
 		return map[string]bool{}, nil
 	}
-
-	// Note: embeddingType is not used here because VectorChord uses separate tables per task
 	_ = embeddingType
 
 	var found []string
-	err := s.db.WithContext(ctx).Table(s.tableName).Where("snippet_id IN ?", snippetIDs).Pluck("snippet_id", &found).Error
+	err := s.repo.DB(ctx).Where("snippet_id IN ?", snippetIDs).Pluck("snippet_id", &found).Error
 	if err != nil {
 		return nil, err
 	}
@@ -350,6 +208,5 @@ func (s *VectorChordVectorStore) Delete(ctx context.Context, request search.Dele
 	if len(ids) == 0 {
 		return nil
 	}
-
-	return s.db.WithContext(ctx).Table(s.tableName).Where("snippet_id IN ?", ids).Delete(&PgEmbeddingEntity{}).Error
+	return s.repo.DeleteBy(ctx, repository.WithConditionIn("snippet_id", ids))
 }

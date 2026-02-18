@@ -6,10 +6,10 @@ import (
 
 	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/infrastructure/provider"
+	"github.com/helixml/kodit/internal/database"
 	"github.com/helixml/kodit/internal/testdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gorm.io/gorm"
 )
 
 // fakeEmbedder implements provider.Embedder for testing.
@@ -35,9 +35,9 @@ func (f *fakeEmbedder) Embed(_ context.Context, req provider.EmbeddingRequest) (
 	return provider.NewEmbeddingResponse(embeddings, provider.NewUsage(len(texts), 0, len(texts))), nil
 }
 
-func testDB(t *testing.T) *gorm.DB {
+func testDB(t *testing.T) database.Database {
 	t.Helper()
-	return testdb.NewPlain(t).GORM()
+	return testdb.NewPlain(t)
 }
 
 func TestCosineSimilarity(t *testing.T) {
@@ -174,7 +174,7 @@ func TestNewSQLiteVectorStore(t *testing.T) {
 	assert.NotNil(t, store)
 	assert.NotNil(t, store.logger)
 	assert.False(t, store.initialized)
-	assert.Equal(t, "kodit_code_embeddings", store.tableName)
+	assert.Equal(t, "kodit_code_embeddings", store.repo.Table())
 }
 
 func TestNewSQLiteVectorStore_TextTask(t *testing.T) {
@@ -182,7 +182,7 @@ func TestNewSQLiteVectorStore_TextTask(t *testing.T) {
 	embedder := newFakeEmbedder(384)
 	store := NewSQLiteVectorStore(db, TaskNameText, embedder, nil)
 
-	assert.Equal(t, "kodit_text_embeddings", store.tableName)
+	assert.Equal(t, "kodit_text_embeddings", store.repo.Table())
 }
 
 func TestSQLiteVectorStore_Index_EmptyDocuments(t *testing.T) {

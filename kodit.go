@@ -417,25 +417,25 @@ func buildSearchStores(ctx context.Context, cfg *clientConfig, db database.Datab
 	case databaseSQLite:
 		bm25Store = infraSearch.NewSQLiteBM25Store(db.GORM(), logger)
 		if cfg.embeddingProvider != nil {
-			textVectorStore = infraSearch.NewSQLiteVectorStore(db.GORM(), infraSearch.TaskNameText, cfg.embeddingProvider, logger)
-			codeVectorStore = infraSearch.NewSQLiteVectorStore(db.GORM(), infraSearch.TaskNameCode, cfg.embeddingProvider, logger)
+			textVectorStore = infraSearch.NewSQLiteVectorStore(db, infraSearch.TaskNameText, cfg.embeddingProvider, logger)
+			codeVectorStore = infraSearch.NewSQLiteVectorStore(db, infraSearch.TaskNameCode, cfg.embeddingProvider, logger)
 		}
 	case databasePostgres:
 		bm25Store = infraSearch.NewPostgresBM25Store(db.GORM(), logger)
 	case databasePostgresPgvector:
 		bm25Store = infraSearch.NewPostgresBM25Store(db.GORM(), logger)
 		if cfg.embeddingProvider != nil {
-			textVectorStore = infraSearch.NewPgvectorStore(db.GORM(), infraSearch.TaskNameText, cfg.embeddingProvider, logger)
-			codeVectorStore = infraSearch.NewPgvectorStore(db.GORM(), infraSearch.TaskNameCode, cfg.embeddingProvider, logger)
+			textVectorStore = infraSearch.NewPgvectorStore(db, infraSearch.TaskNameText, cfg.embeddingProvider, logger)
+			codeVectorStore = infraSearch.NewPgvectorStore(db, infraSearch.TaskNameCode, cfg.embeddingProvider, logger)
 		}
 	case databasePostgresVectorchord:
 		bm25Store = infraSearch.NewVectorChordBM25Store(db.GORM(), logger)
 		if cfg.embeddingProvider != nil {
-			textVectorStore, err = infraSearch.NewVectorChordVectorStore(ctx, db.GORM(), infraSearch.TaskNameText, cfg.embeddingProvider, logger)
+			textVectorStore, err = infraSearch.NewVectorChordVectorStore(ctx, db, infraSearch.TaskNameText, cfg.embeddingProvider, logger)
 			if err != nil {
 				return nil, nil, nil, fmt.Errorf("text vector store: %w", err)
 			}
-			codeVectorStore, err = infraSearch.NewVectorChordVectorStore(ctx, db.GORM(), infraSearch.TaskNameCode, cfg.embeddingProvider, logger)
+			codeVectorStore, err = infraSearch.NewVectorChordVectorStore(ctx, db, infraSearch.TaskNameCode, cfg.embeddingProvider, logger)
 			if err != nil {
 				return nil, nil, nil, fmt.Errorf("code vector store: %w", err)
 			}
