@@ -66,10 +66,6 @@ func (e *ProviderEnricher) Enrich(ctx context.Context, requests []domainservice.
 
 		response, err := e.processRequest(ctx, req)
 		if err != nil {
-			e.log.Error("enrichment failed",
-				"request_id", req.ID(),
-				"error", err,
-			)
 			return responses, fmt.Errorf("enrich request %s: %w", req.ID(), err)
 		}
 

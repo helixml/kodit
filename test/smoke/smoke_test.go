@@ -229,11 +229,8 @@ func TestSmoke(t *testing.T) {
 		t.Logf("tags: count=%d", len(tags))
 
 		if len(tags) > 0 {
-			tagID, err := strconv.Atoi(*tags[0].Id)
-			if err != nil {
-				t.Fatalf("failed to parse tag ID: %v", err)
-			}
-			tagResp, err := client.GetRepositoriesIdTagsTagIdWithResponse(ctx, repoID, tagID)
+			tagName := *tags[0].Attributes.Name
+			tagResp, err := client.GetRepositoriesIdTagsTagNameWithResponse(ctx, repoID, tagName)
 			if err != nil {
 				t.Fatalf("get tag request failed: %v", err)
 			}

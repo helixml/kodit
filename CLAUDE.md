@@ -61,6 +61,7 @@ Stylistic requirements:
 - **NO FALLBACKS**: Pick one approach that works and stick to it. Fallback code paths are rarely tested and add complexity. If something doesn't work, fix it properly instead of adding a fallback.
 - **NO TYPE ALIASES**: Always update references when moving or renaming types.
 - **NO PANICS**: Never panic. If something goes wrong, return an error. If you can't return an error, rewrite the method so that it can error. In general, write all possible code with an error return variable, even if it's not used.
+- **Log errors once at the top level**: Infrastructure and domain code should return errors, not log them. Only the outermost application service (e.g., worker, API handler) should log errors. This prevents duplicate error output.
 
 ## Repositories and Database Stores
 

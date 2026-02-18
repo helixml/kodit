@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
@@ -290,6 +291,12 @@ func (p *OpenAIProvider) withRetry(ctx context.Context, fn func() error) error {
 
 // isRetryable determines if an error should be retried.
 func (p *OpenAIProvider) isRetryable(err error) bool {
+	// HTTP client timeouts are retryable
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return true
+	}
+
 	var apiErr *openai.APIError
 	if errors.As(err, &apiErr) {
 		switch apiErr.HTTPStatusCode {

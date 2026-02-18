@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"time"
 )
@@ -344,6 +346,14 @@ func (p *AnthropicProvider) isRetryable(err error) bool {
 		http.StatusServiceUnavailable,
 		http.StatusGatewayTimeout:
 		return true
+	}
+
+	// Check if the underlying cause is a timeout (e.g., Client.Timeout exceeded)
+	if provErr.cause != nil {
+		var netErr net.Error
+		if errors.As(provErr.cause, &netErr) && netErr.Timeout() {
+			return true
+		}
 	}
 
 	return false

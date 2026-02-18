@@ -24,7 +24,7 @@ func (r *LoggingReporter) OnChange(_ context.Context, status task.Status) error 
 	state := status.State()
 
 	if state == task.ReportingStateFailed {
-		r.logger.Error(status.Operation().String(),
+		r.logger.Debug(status.Operation().String(),
 			slog.String("state", string(state)),
 			slog.Float64("completion_percent", status.CompletionPercent()),
 			slog.String("error", status.Error()),
