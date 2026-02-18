@@ -26,7 +26,7 @@ func (c *Client) registerHandlers() error {
 		c.repoStores.Repositories, c.repoStores.Branches, c.gitInfra.Cloner, c.gitInfra.Scanner, c.queue, c.enrichCtx.Tracker, c.logger,
 	))
 	c.registry.Register(task.OperationDeleteRepository, repohandler.NewDelete(
-		c.repoStores, c.enrichCtx.Enrichments, c.enrichCtx.Tracker, c.logger,
+		c.repoStores, c.Enrichments, c.queue, c.enrichCtx.Tracker, c.logger,
 	))
 	c.registry.Register(task.OperationScanCommit, commithandler.NewScan(
 		c.repoStores.Repositories, c.repoStores.Commits, c.repoStores.Files, c.gitInfra.Scanner, c.enrichCtx.Tracker, c.logger,

@@ -18,6 +18,7 @@ const (
 	PriorityBackground    Priority = 1000
 	PriorityNormal        Priority = 2000
 	PriorityUserInitiated Priority = 5000
+	PriorityCritical      Priority = 10000
 )
 
 // Task represents an item in the queue waiting to be processed.

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	"github.com/helixml/kodit/domain/repository"
@@ -100,4 +101,44 @@ func (s *Queue) Count(ctx context.Context) (int64, error) {
 // Get retrieves a task by ID.
 func (s *Queue) Get(ctx context.Context, id int64) (task.Task, error) {
 	return s.store.Get(ctx, id)
+}
+
+// DrainForRepository removes all pending tasks whose payload contains
+// the given repository_id. This prevents stale enrichment/indexing tasks
+// from blocking a repository deletion.
+func (s *Queue) DrainForRepository(ctx context.Context, repoID int64) (int, error) {
+	tasks, err := s.store.FindAll(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("find pending tasks: %w", err)
+	}
+
+	removed := 0
+	for _, t := range tasks {
+		payload := t.Payload()
+		if payloadRepoID(payload) != repoID {
+			continue
+		}
+		if err := s.store.Delete(ctx, t); err != nil {
+			return removed, fmt.Errorf("delete task %d: %w", t.ID(), err)
+		}
+		removed++
+	}
+	return removed, nil
+}
+
+func payloadRepoID(payload map[string]any) int64 {
+	val, ok := payload["repository_id"]
+	if !ok {
+		return 0
+	}
+	switch v := val.(type) {
+	case int64:
+		return v
+	case int:
+		return int64(v)
+	case float64:
+		return int64(v)
+	default:
+		return 0
+	}
 }

@@ -121,7 +121,7 @@ func (s *Repository) Delete(ctx context.Context, id int64) error {
 	}
 
 	payload := map[string]any{"repository_id": id}
-	t := task.NewTask(task.OperationDeleteRepository, int(task.PriorityUserInitiated), payload)
+	t := task.NewTask(task.OperationDeleteRepository, int(task.PriorityCritical), payload)
 
 	if err := s.queue.Enqueue(ctx, t); err != nil {
 		return fmt.Errorf("enqueue delete: %w", err)
