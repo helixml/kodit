@@ -50,17 +50,41 @@ LDFLAGS=-ldflags "-X main.Version=$(VERSION) -X main.Commit=$(COMMIT) -X main.Bu
 help: ## Display this help
 	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
+
 ##@ Development
+
+ALL_PROFILES := $(shell docker compose -f docker-compose.dev.yaml config --profiles | xargs -I{} echo --profile {})
+PROFILES := --profile kodit
+
+ifeq ($(shell lsof -i :11434 -sTCP:LISTEN >/dev/null 2>&1 && echo yes),)
+  PROFILES += --profile ollama
+endif
+
+ifeq ($(shell lsof -i :5432 -sTCP:LISTEN >/dev/null 2>&1 && echo yes),)
+  PROFILES += --profile vectorchord
+endif
+
+.PHONY: dev
+dev: docker-dev ## Start Docker development environment (idempotent, non-destructive)
+	docker compose -f docker-compose.dev.yaml logs -f kodit
+
+.PHONY: docker-dev
+docker-dev: download-model download-ort 
+	docker compose -f docker-compose.dev.yaml $(PROFILES) up -d --wait
+	docker compose -f docker-compose.dev.yaml logs -f kodit
+
+.PHONY: docker-reset-db
+docker-reset-db: ## Reset vectorchord DB (nuke volume, reload SQL dump, run migrations)
+	docker compose -f docker-compose.dev.yaml --profile vectorchord down -v
+	docker compose -f docker-compose.dev.yaml --profile vectorchord up -d --wait
+
+.PHONY: docker-clean
+docker-clean:
+	docker compose -f docker-compose.dev.yaml $(ALL_PROFILES) down -v
 
 .PHONY: build
 build: download-model download-ort ## Build the application binary (with embedded model)
 	$(GOBUILD) $(LDFLAGS) -o $(BINARY_OUTPUT) $(CMD_DIR)
-
-DB_URL ?= postgresql://postgres:mysecretpassword@localhost:5432/kodit
-
-.PHONY: run
-run: download-model download-ort docker-dev ## Run the HTTP server (downloads model on first use if needed)
-	DB_URL=$(DB_URL) $(GORUN) $(CMD_DIR) serve
 
 .PHONY: clean
 clean: docker-clean ## Remove build artifacts
@@ -212,50 +236,3 @@ release: ## Create a GitHub release (VERSION required, e.g. make release VERSION
 		echo "Creating pre-release $$TAG on branch $$BRANCH..."; \
 		gh release create "$$TAG" --title "$$TAG" --generate-notes --prerelease --target "$$BRANCH"; \
 	fi
-
-##@ Docker
-ALL_PROFILES := $(shell docker compose -f docker-compose.dev.yaml config --profiles | xargs -I{} echo --profile {})
-PROFILES :=
-
-ifeq ($(shell lsof -i :11434 -sTCP:LISTEN >/dev/null 2>&1 && echo yes),)
-  PROFILES += --profile ollama
-endif
-
-ifeq ($(shell lsof -i :5432 -sTCP:LISTEN >/dev/null 2>&1 && echo yes),)
-  PROFILES += --profile vectorchord
-endif
-
-
-.PHONY: docker-dev
-docker-dev: ## Start Docker development environment (idempotent, non-destructive)
-ifeq ($(PROFILES),)
-	@echo "All services already running locally, skipping docker-dev"
-else
-	docker compose -f docker-compose.dev.yaml $(PROFILES) up -d --wait
-endif
-
-.PHONY: docker-reset-db
-docker-reset-db: ## Reset vectorchord DB (nuke volume, reload SQL dump, run migrations)
-	docker compose -f docker-compose.dev.yaml --profile vectorchord down -v
-	docker compose -f docker-compose.dev.yaml --profile vectorchord up -d --wait
-
-.PHONY: docker-reset-kodit
-docker-reset-kodit: ## Reset kodit DB (nuke volume, reload SQL dump, run migrations)
-	docker compose -f docker-compose.dev.yaml --profile kodit down -v
-	docker compose -f docker-compose.dev.yaml --profile kodit up -d --wait
-
-.PHONY: docker-build
-docker-build: download-model ## Build Docker image (downloads model first, then copies into image)
-	docker build -t kodit:$(VERSION) .
-
-.PHONY: docker-build-multi
-docker-build-multi: download-model ## Build multi-platform Docker image
-	docker buildx build --platform linux/amd64,linux/arm64 -t kodit:$(VERSION) .
-
-.PHONY: docker-run
-docker-run: ## Run Docker container
-	docker run -p 8080:8080 kodit:$(VERSION)
-
-.PHONY: docker-clean
-docker-clean:
-	docker compose -f docker-compose.dev.yaml $(ALL_PROFILES) down -v

@@ -56,18 +56,31 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: dev
     depends_on:
       ollama-pull:
         condition: service_completed_successfully
     ports:
       - "8080:8080"
+    volumes:
+      - .:/app
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/healthz"]
-      interval: 3s
-      timeout: 3s
-      retries: 10
+      test:
+        [
+          "CMD",
+          "wget",
+          "-q",
+          "-O",
+          "/dev/null",
+          "http://localhost:8080/healthz",
+        ]
+      interval: 6s
+      timeout: 0.5s
+      retries: 20
     environment:
       - DISABLE_TELEMETRY=true
+      # Use host.docker.internal for everything just in case the user has it running
+      # locally (e.g. ollama desktop)
       - DB_URL=postgresql://postgres:mysecretpassword@host.docker.internal:5432/kodit
       - ENRICHMENT_ENDPOINT_BASE_URL=http://host.docker.internal:11434/v1
       - ENRICHMENT_ENDPOINT_MODEL=qwen3:0.6b

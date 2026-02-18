@@ -24,9 +24,6 @@ make test
 
 # 3. Run the smoke tests
 make smoke
-
-# 4. Run Kodit
-make run
 ```
 
 ## Code Patterns

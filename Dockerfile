@@ -1,6 +1,41 @@
 # Kodit Go Dockerfile
 # Multi-stage build with tree-sitter CGo dependencies
 
+# Development stage — hot-reload with Air
+FROM golang:1.25-bookworm AS dev
+
+# Install build dependencies for CGo (tree-sitter)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Air for hot-reloading
+RUN go install github.com/air-verse/air@latest
+
+WORKDIR /app
+
+# Copy go.mod and go.sum for dependency caching
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Download ORT and tokenizers to /usr/lib so they survive the volume mount
+COPY .ort-version ./
+COPY tools/download-ort/ ./tools/download-ort/
+RUN ORT_VERSION=$(cat .ort-version) go run ./tools/download-ort \
+    && cp ./lib/libonnxruntime.so /usr/lib/ \
+    && cp ./lib/libtokenizers.a /usr/lib/ \
+    && ldconfig \
+    && rm -rf ./lib ./tools .ort-version
+
+ENV CGO_ENABLED=1
+ENV CGO_LDFLAGS="-L/usr/lib"
+ENV ORT_LIB_DIR="/usr/lib"
+
+EXPOSE 8080
+
+CMD ["air", "-c", ".air.toml"]
+
 # Build stage — Debian-based for glibc (required by libtokenizers.a and libonnxruntime)
 FROM golang:1.25-bookworm AS builder
 
