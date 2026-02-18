@@ -490,11 +490,13 @@ func TestSmoke(t *testing.T) {
 		}
 	})
 
+	repoIDStr := strconv.Itoa(repoID)
+
 	t.Run("search_keywords", func(t *testing.T) {
 		searchType := "search"
 		keywords := []string{"orders", "GET", "json"}
 		limit := 10
-		sources := []string{targetURI}
+		sources := []string{repoIDStr}
 		resp, err := client.PostSearchWithResponse(ctx, kodit.DtoSearchRequest{
 			Data: &kodit.DtoSearchData{
 				Type: &searchType,
@@ -521,7 +523,7 @@ func TestSmoke(t *testing.T) {
 		searchType := "search"
 		code := "BaseHTTPServer json orders"
 		limit := 10
-		sources := []string{targetURI}
+		sources := []string{repoIDStr}
 		resp, err := client.PostSearchWithResponse(ctx, kodit.DtoSearchRequest{
 			Data: &kodit.DtoSearchData{
 				Type: &searchType,
@@ -549,7 +551,7 @@ func TestSmoke(t *testing.T) {
 		keywords := []string{"orders", "json"}
 		code := "def do_GET"
 		limit := 10
-		sources := []string{targetURI}
+		sources := []string{repoIDStr}
 		resp, err := client.PostSearchWithResponse(ctx, kodit.DtoSearchRequest{
 			Data: &kodit.DtoSearchData{
 				Type: &searchType,

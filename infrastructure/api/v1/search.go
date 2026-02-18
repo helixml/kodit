@@ -147,7 +147,7 @@ func buildSearchRequest(body dto.SearchRequest) (search.MultiRequest, error) {
 			for _, s := range f.Sources {
 				id, err := strconv.ParseInt(s, 10, 64)
 				if err != nil {
-					return search.MultiRequest{}, fmt.Errorf("invalid source repository ID %q: %w", s, err)
+					return search.MultiRequest{}, fmt.Errorf("invalid source repository ID %q: %w", s, middleware.ErrValidation)
 				}
 				ids = append(ids, id)
 			}

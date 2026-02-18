@@ -72,7 +72,6 @@ dev: docker-dev ## Start Docker development environment (idempotent, non-destruc
 .PHONY: docker-dev
 docker-dev: download-model download-ort 
 	docker compose -f docker-compose.dev.yaml $(PROFILES) up -d --wait
-	docker compose -f docker-compose.dev.yaml logs -f kodit
 
 .PHONY: docker-clean
 docker-clean:
@@ -105,7 +104,7 @@ test-e2e: download-model download-ort ## Run end-to-end tests only
 	$(GOENV) $(GOCMD) test -tags "$(EMBED_TAGS)" -v ./test/e2e/...
 
 .PHONY: test-smoke
-test-smoke: docker-reset-db docker-reset-kodit ## Run smoke tests (resets database for idempotency)
+test-smoke: ## Run smoke tests (resets database for idempotency)
 	$(GOTEST) -v -count=1 ./test/smoke/...
 
 ##@ Code Quality
