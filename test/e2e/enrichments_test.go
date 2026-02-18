@@ -69,7 +69,7 @@ func TestEnrichments_List_NoFilter(t *testing.T) {
 	// Create an enrichment
 	ts.CreateEnrichment(enrichment.TypeDevelopment, enrichment.SubtypeSnippet, "test content")
 
-	// Without type filter, should return empty list
+	// Without type filter, should return all enrichments with pagination
 	resp := ts.GET("/api/v1/enrichments")
 	defer func() {
 		_ = resp.Body.Close()
@@ -82,8 +82,12 @@ func TestEnrichments_List_NoFilter(t *testing.T) {
 	var result dto.EnrichmentJSONAPIListResponse
 	ts.DecodeJSON(resp, &result)
 
-	if len(result.Data) != 0 {
-		t.Errorf("len(data) = %d, want 0 (no filter specified)", len(result.Data))
+	if len(result.Data) != 1 {
+		t.Errorf("len(data) = %d, want 1", len(result.Data))
+	}
+
+	if result.Meta == nil {
+		t.Error("meta should be present for pagination")
 	}
 }
 

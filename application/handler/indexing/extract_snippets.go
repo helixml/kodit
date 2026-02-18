@@ -130,6 +130,9 @@ func (h *ExtractSnippets) Execute(ctx context.Context, payload map[string]any) e
 	)
 
 	for _, s := range uniqueSnippets {
+		if s.Content() == "" {
+			continue
+		}
 		e := enrichment.NewSnippetEnrichmentWithLanguage(s.Content(), s.Extension())
 		saved, err := h.enrichmentStore.Save(ctx, e)
 		if err != nil {

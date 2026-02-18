@@ -65,14 +65,6 @@ func (r *EnrichmentsRouter) List(w http.ResponseWriter, req *http.Request) {
 	typeParam := req.URL.Query().Get("enrichment_type")
 	subtypeParam := req.URL.Query().Get("enrichment_subtype")
 
-	// If no filters provided, require at least one filter
-	if typeParam == "" && subtypeParam == "" {
-		middleware.WriteJSON(w, http.StatusOK, dto.EnrichmentJSONAPIListResponse{
-			Data: []dto.EnrichmentData{},
-		})
-		return
-	}
-
 	// Build list params
 	params := &service.EnrichmentListParams{}
 	if typeParam != "" {

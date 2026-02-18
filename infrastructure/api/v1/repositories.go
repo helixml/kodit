@@ -53,7 +53,7 @@ func (r *RepositoriesRouter) Routes() chi.Router {
 	router.Get("/{id}/commits/{commit_sha}/embeddings", r.ListCommitEmbeddingsDeprecated)
 	router.Post("/{id}/commits/{commit_sha}/rescan", r.RescanCommit)
 	router.Get("/{id}/tags", r.ListTags)
-	router.Get("/{id}/tags/{tag_id}", r.GetTag)
+	router.Get("/{id}/tags/{tag_name}", r.GetTag)
 	router.Get("/{id}/enrichments", r.ListRepositoryEnrichments)
 	router.Get("/{id}/tracking-config", r.GetTrackingConfig)
 	router.Put("/{id}/tracking-config", r.UpdateTrackingConfig)
@@ -106,8 +106,17 @@ func (r *RepositoriesRouter) List(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	data := make([]dto.RepositoryData, 0, len(repos))
+	for _, repo := range repos {
+		repoID := repo.ID()
+		numCommits, _ := r.client.Commits.Count(ctx, repository.WithRepoID(repoID))
+		branches, _ := r.client.Repositories.BranchesForRepository(ctx, repoID)
+		numTags, _ := r.client.Tags.Count(ctx, repository.WithRepoID(repoID))
+		data = append(data, repoToDTO(repo, numCommits, int64(len(branches)), numTags))
+	}
+
 	response := dto.RepositoryListResponse{
-		Data:  reposToDTO(repos),
+		Data:  data,
 		Meta:  PaginationMeta(pagination, total),
 		Links: PaginationLinks(req, pagination, total),
 	}
@@ -174,8 +183,19 @@ func (r *RepositoriesRouter) Get(w http.ResponseWriter, req *http.Request) {
 		})
 	}
 
+	numCommits, err := r.client.Commits.Count(ctx, repository.WithRepoID(id))
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+	numTags, err := r.client.Tags.Count(ctx, repository.WithRepoID(id))
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
 	middleware.WriteJSON(w, http.StatusOK, dto.RepositoryDetailsResponse{
-		Data:          repoToDTO(repo),
+		Data:          repoToDTO(repo, numCommits, int64(len(branches)), numTags),
 		Branches:      branchData,
 		RecentCommits: commitData,
 	})
@@ -205,9 +225,7 @@ func (r *RepositoriesRouter) Add(w http.ResponseWriter, req *http.Request) {
 	}
 
 	if body.Data.Attributes.RemoteURI == "" {
-		middleware.WriteJSON(w, http.StatusBadRequest, map[string]string{
-			"error": "remote_uri is required",
-		})
+		middleware.WriteError(w, req, fmt.Errorf("remote_uri is required: %w", middleware.ErrValidation), r.logger)
 		return
 	}
 
@@ -224,7 +242,7 @@ func (r *RepositoriesRouter) Add(w http.ResponseWriter, req *http.Request) {
 		status = http.StatusCreated
 	}
 
-	middleware.WriteJSON(w, status, dto.RepositoryResponse{Data: repoToDTO(source.Repo())})
+	middleware.WriteJSON(w, status, dto.RepositoryResponse{Data: repoToDTO(source.Repo(), 0, 0, 0)})
 }
 
 // Delete handles DELETE /api/v1/repositories/{id}.
@@ -963,11 +981,12 @@ func (r *RepositoriesRouter) ListCommitSnippets(w http.ResponseWriter, req *http
 //	@Security		APIKeyAuth
 //	@Deprecated
 //	@Router			/repositories/{id}/commits/{commit_sha}/embeddings [get]
-func (r *RepositoriesRouter) ListCommitEmbeddingsDeprecated(w http.ResponseWriter, _ *http.Request) {
-	middleware.WriteJSON(w, http.StatusGone, map[string]string{
-		"error":   "this endpoint has been removed",
-		"message": "embeddings are an internal detail of snippets and enrichments, not a commit-level resource",
-	})
+func (r *RepositoriesRouter) ListCommitEmbeddingsDeprecated(w http.ResponseWriter, req *http.Request) {
+	middleware.WriteError(w, req, middleware.NewAPIError(
+		http.StatusGone,
+		"this endpoint has been removed — embeddings are an internal detail of snippets and enrichments",
+		nil,
+	), r.logger)
 }
 
 // RescanCommit handles POST /api/v1/repositories/{id}/commits/{commit_sha}/rescan.
@@ -1150,7 +1169,7 @@ func (r *RepositoriesRouter) ListTags(w http.ResponseWriter, req *http.Request) 
 	for _, tag := range tags {
 		data = append(data, dto.TagData{
 			Type: "tag",
-			ID:   fmt.Sprintf("%d", tag.ID()),
+			ID:   tag.Name(),
 			Attributes: dto.TagAttributes{
 				Name:            tag.Name(),
 				TargetCommitSHA: tag.CommitSHA(),
@@ -1166,20 +1185,20 @@ func (r *RepositoriesRouter) ListTags(w http.ResponseWriter, req *http.Request) 
 	})
 }
 
-// GetTag handles GET /api/v1/repositories/{id}/tags/{tag_id}.
+// GetTag handles GET /api/v1/repositories/{id}/tags/{tag_name}.
 //
 //	@Summary		Get tag
-//	@Description	Get a tag by ID
+//	@Description	Get a tag by name
 //	@Tags			repositories
 //	@Accept			json
 //	@Produce		json
-//	@Param			id		path		int	true	"Repository ID"
-//	@Param			tag_id	path		int	true	"Tag ID"
-//	@Success		200		{object}	dto.TagJSONAPIResponse
-//	@Failure		404		{object}	middleware.JSONAPIErrorResponse
-//	@Failure		500		{object}	middleware.JSONAPIErrorResponse
+//	@Param			id			path		int		true	"Repository ID"
+//	@Param			tag_name	path		string	true	"Tag name"
+//	@Success		200			{object}	dto.TagJSONAPIResponse
+//	@Failure		404			{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500			{object}	middleware.JSONAPIErrorResponse
 //	@Security		APIKeyAuth
-//	@Router			/repositories/{id}/tags/{tag_id} [get]
+//	@Router			/repositories/{id}/tags/{tag_name} [get]
 func (r *RepositoriesRouter) GetTag(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
@@ -1189,14 +1208,9 @@ func (r *RepositoriesRouter) GetTag(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	tagIDStr := chi.URLParam(req, "tag_id")
-	tagID, err := strconv.ParseInt(tagIDStr, 10, 64)
-	if err != nil {
-		middleware.WriteError(w, req, err, r.logger)
-		return
-	}
+	tagName := chi.URLParam(req, "tag_name")
 
-	tag, err := r.client.Tags.Get(ctx, repository.WithID(tagID), repository.WithRepoID(id))
+	tag, err := r.client.Tags.Get(ctx, repository.WithName(tagName), repository.WithRepoID(id))
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
@@ -1205,7 +1219,7 @@ func (r *RepositoriesRouter) GetTag(w http.ResponseWriter, req *http.Request) {
 	middleware.WriteJSON(w, http.StatusOK, dto.TagJSONAPIResponse{
 		Data: dto.TagData{
 			Type: "tag",
-			ID:   fmt.Sprintf("%d", tag.ID()),
+			ID:   tag.Name(),
 			Attributes: dto.TagAttributes{
 				Name:            tag.Name(),
 				TargetCommitSHA: tag.CommitSHA(),
@@ -1345,15 +1359,7 @@ func trackingConfigToResponse(tc repository.TrackingConfig) dto.TrackingConfigRe
 	}
 }
 
-func reposToDTO(repos []repository.Repository) []dto.RepositoryData {
-	result := make([]dto.RepositoryData, len(repos))
-	for i, repo := range repos {
-		result[i] = repoToDTO(repo)
-	}
-	return result
-}
-
-func repoToDTO(repo repository.Repository) dto.RepositoryData {
+func repoToDTO(repo repository.Repository, numCommits, numBranches, numTags int64) dto.RepositoryData {
 	createdAt := repo.CreatedAt()
 	updatedAt := repo.UpdatedAt()
 	clonedPath := repo.WorkingCopy().Path()
@@ -1363,9 +1369,9 @@ func repoToDTO(repo repository.Repository) dto.RepositoryData {
 		CreatedAt:   &createdAt,
 		UpdatedAt:   &updatedAt,
 		ClonedPath:  &clonedPath,
-		NumCommits:  0,
-		NumBranches: 0,
-		NumTags:     0,
+		NumCommits:  int(numCommits),
+		NumBranches: int(numBranches),
+		NumTags:     int(numTags),
 	}
 
 	if tc := repo.TrackingConfig(); tc.Branch() != "" {

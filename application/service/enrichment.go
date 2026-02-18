@@ -7,6 +7,7 @@ import (
 
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
+	"github.com/helixml/kodit/domain/search"
 )
 
 // EnrichmentListParams configures enrichment listing.
@@ -23,19 +24,28 @@ type EnrichmentListParams struct {
 // Embeds Collection for Find/Get/Count; bespoke methods handle complex queries.
 type Enrichment struct {
 	repository.Collection[enrichment.Enrichment]
-	enrichmentStore  enrichment.EnrichmentStore
-	associationStore enrichment.AssociationStore
+	enrichmentStore    enrichment.EnrichmentStore
+	associationStore   enrichment.AssociationStore
+	bm25Store          search.BM25Store
+	codeEmbeddingStore search.EmbeddingStore
+	textEmbeddingStore search.EmbeddingStore
 }
 
 // NewEnrichment creates a new Enrichment service.
 func NewEnrichment(
 	enrichmentStore enrichment.EnrichmentStore,
 	associationStore enrichment.AssociationStore,
+	bm25Store search.BM25Store,
+	codeEmbeddingStore search.EmbeddingStore,
+	textEmbeddingStore search.EmbeddingStore,
 ) *Enrichment {
 	return &Enrichment{
-		Collection:       repository.NewCollection[enrichment.Enrichment](enrichmentStore),
-		enrichmentStore:  enrichmentStore,
-		associationStore: associationStore,
+		Collection:         repository.NewCollection[enrichment.Enrichment](enrichmentStore),
+		enrichmentStore:    enrichmentStore,
+		associationStore:   associationStore,
+		bm25Store:          bm25Store,
+		codeEmbeddingStore: codeEmbeddingStore,
+		textEmbeddingStore: textEmbeddingStore,
 	}
 }
 
@@ -99,8 +109,39 @@ func (s *Enrichment) Save(ctx context.Context, e enrichment.Enrichment) (enrichm
 }
 
 // DeleteBy removes enrichments matching the given options.
+// Also cleans up associated search indexes (BM25, code embeddings, text embeddings).
 // Associations cascade-delete via the GORM OnDelete:CASCADE constraint on EnrichmentAssociationModel.
 func (s *Enrichment) DeleteBy(ctx context.Context, opts ...repository.Option) error {
+	// Find enrichments to be deleted so we can clean up search indexes
+	enrichments, err := s.enrichmentStore.Find(ctx, opts...)
+	if err != nil {
+		return fmt.Errorf("find enrichments for deletion: %w", err)
+	}
+
+	if len(enrichments) > 0 {
+		snippetIDs := make([]string, len(enrichments))
+		for i, e := range enrichments {
+			snippetIDs[i] = strconv.FormatInt(e.ID(), 10)
+		}
+		searchOpts := []repository.Option{search.WithSnippetIDs(snippetIDs)}
+
+		if s.bm25Store != nil {
+			if err := s.bm25Store.DeleteBy(ctx, searchOpts...); err != nil {
+				return fmt.Errorf("delete bm25 indexes: %w", err)
+			}
+		}
+		if s.codeEmbeddingStore != nil {
+			if err := s.codeEmbeddingStore.DeleteBy(ctx, searchOpts...); err != nil {
+				return fmt.Errorf("delete code embeddings: %w", err)
+			}
+		}
+		if s.textEmbeddingStore != nil {
+			if err := s.textEmbeddingStore.DeleteBy(ctx, searchOpts...); err != nil {
+				return fmt.Errorf("delete text embeddings: %w", err)
+			}
+		}
+	}
+
 	return s.enrichmentStore.DeleteBy(ctx, opts...)
 }
 
