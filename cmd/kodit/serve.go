@@ -96,8 +96,9 @@ func runServe(envFile, host string, port int) error {
 		return fmt.Errorf("create clone directory: %w", err)
 	}
 
-	// Setup logger
+	// Setup logger and set as global default so slog.Debug() etc. respect LOG_LEVEL
 	logger := log.NewLogger(cfg)
+	log.SetDefaultLogger(logger)
 	slogger := logger.Slog()
 
 	// Build kodit client options from shared config (database, embedding, text)

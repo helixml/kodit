@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
 )
 
@@ -13,25 +14,30 @@ type Embedding interface {
 	// Index indexes documents using domain business rules.
 	Index(ctx context.Context, request search.IndexRequest) error
 
-	// Search searches documents using domain business rules.
-	Search(ctx context.Context, request search.Request) ([]search.Result, error)
+	// Find embeds the query text and performs vector similarity search.
+	Find(ctx context.Context, query string, options ...repository.Option) ([]search.Result, error)
 
-	// HasEmbedding checks if a snippet has an embedding using domain business rules.
-	HasEmbedding(ctx context.Context, snippetID string, embeddingType search.EmbeddingType) (bool, error)
+	// Exists checks whether any row matches the given options.
+	Exists(ctx context.Context, options ...repository.Option) (bool, error)
+
+	// SnippetIDs returns snippet IDs matching the given options.
+	SnippetIDs(ctx context.Context, options ...repository.Option) ([]string, error)
 }
 
 // EmbeddingService implements domain logic for embedding operations.
 type EmbeddingService struct {
-	store search.VectorStore
+	store    search.VectorStore
+	embedder search.Embedder
 }
 
 // NewEmbedding creates a new embedding service.
-func NewEmbedding(store search.VectorStore) (*EmbeddingService, error) {
+func NewEmbedding(store search.VectorStore, embedder search.Embedder) (*EmbeddingService, error) {
 	if store == nil {
 		return nil, fmt.Errorf("NewEmbedding: nil store")
 	}
 	return &EmbeddingService{
-		store: store,
+		store:    store,
+		embedder: embedder,
 	}, nil
 }
 
@@ -60,26 +66,39 @@ func (s *EmbeddingService) Index(ctx context.Context, request search.IndexReques
 	return s.store.Index(ctx, validRequest)
 }
 
-// Search searches documents using domain business rules.
-func (s *EmbeddingService) Search(ctx context.Context, request search.Request) ([]search.Result, error) {
-	query := strings.TrimSpace(request.Query())
+// Find embeds the query text and performs vector similarity search.
+func (s *EmbeddingService) Find(ctx context.Context, query string, options ...repository.Option) ([]search.Result, error) {
+	query = strings.TrimSpace(query)
 	if query == "" {
 		return nil, ErrEmptyQuery
 	}
 
-	if request.TopK() <= 0 {
-		return nil, ErrInvalidTopK
+	if s.embedder == nil {
+		return nil, fmt.Errorf("Find: nil embedder")
 	}
 
-	// Create normalized request
-	normalizedRequest := search.NewRequest(query, request.TopK(), request.SnippetIDs())
-	return s.store.Search(ctx, normalizedRequest)
+	embeddings, err := s.embedder.Embed(ctx, []string{query})
+	if err != nil {
+		return nil, fmt.Errorf("embed query: %w", err)
+	}
+
+	if len(embeddings) == 0 || len(embeddings[0]) == 0 {
+		return []search.Result{}, nil
+	}
+
+	combined := make([]repository.Option, 0, len(options)+1)
+	combined = append(combined, search.WithEmbedding(embeddings[0]))
+	combined = append(combined, options...)
+
+	return s.store.Find(ctx, combined...)
 }
 
-// HasEmbedding checks if a snippet has an embedding using domain business rules.
-func (s *EmbeddingService) HasEmbedding(ctx context.Context, snippetID string, embeddingType search.EmbeddingType) (bool, error) {
-	if snippetID == "" {
-		return false, nil
-	}
-	return s.store.HasEmbedding(ctx, snippetID, embeddingType)
+// Exists checks whether any row matches the given options.
+func (s *EmbeddingService) Exists(ctx context.Context, options ...repository.Option) (bool, error) {
+	return s.store.Exists(ctx, options...)
+}
+
+// SnippetIDs returns snippet IDs matching the given options.
+func (s *EmbeddingService) SnippetIDs(ctx context.Context, options ...repository.Option) ([]string, error) {
+	return s.store.SnippetIDs(ctx, options...)
 }

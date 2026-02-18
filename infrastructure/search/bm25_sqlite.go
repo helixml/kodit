@@ -2,11 +2,11 @@ package search
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"log/slog"
 	"sync"
 
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
 	"gorm.io/gorm"
 )
@@ -23,20 +23,6 @@ CREATE VIRTUAL TABLE IF NOT EXISTS kodit_bm25_documents USING fts5(
 	sqliteInsertQuery = `
 INSERT INTO kodit_bm25_documents (rowid, snippet_id, passage)
 VALUES (?, ?, ?)`
-
-	sqliteSearchQuery = `
-SELECT snippet_id, bm25(kodit_bm25_documents) as score
-FROM kodit_bm25_documents
-WHERE kodit_bm25_documents MATCH ?
-ORDER BY score
-LIMIT ?`
-
-	sqliteSearchQueryWithFilter = `
-SELECT snippet_id, bm25(kodit_bm25_documents) as score
-FROM kodit_bm25_documents
-WHERE kodit_bm25_documents MATCH ? AND snippet_id IN ?
-ORDER BY score
-LIMIT ?`
 
 	sqliteDeleteQuery = `DELETE FROM kodit_bm25_documents WHERE snippet_id IN ?`
 
@@ -94,7 +80,6 @@ func (s *SQLiteBM25Store) initialize(ctx context.Context) error {
 func (s *SQLiteBM25Store) createTable(ctx context.Context) error {
 	return s.db.WithContext(ctx).Exec(sqliteCreateFTS5Table).Error
 }
-
 
 func (s *SQLiteBM25Store) existingIDs(ctx context.Context, ids []string) (map[string]struct{}, error) {
 	if len(ids) == 0 {
@@ -171,36 +156,41 @@ func (s *SQLiteBM25Store) Index(ctx context.Context, request search.IndexRequest
 	})
 }
 
-// Search performs BM25 keyword search.
-func (s *SQLiteBM25Store) Search(ctx context.Context, request search.Request) ([]search.Result, error) {
+// Find performs BM25 keyword search using options.
+func (s *SQLiteBM25Store) Find(ctx context.Context, options ...repository.Option) ([]search.Result, error) {
 	if err := s.initialize(ctx); err != nil {
 		return nil, err
 	}
 
-	query := request.Query()
-	if query == "" {
+	q := repository.Build(options...)
+	query, ok := search.QueryFrom(q)
+	if !ok || query == "" {
 		return []search.Result{}, nil
 	}
 
-	topK := request.TopK()
-	if topK <= 0 {
-		topK = 10
+	limit := q.LimitValue()
+	if limit <= 0 {
+		limit = 10
 	}
 
-	// Escape special FTS5 characters and format query
 	ftsQuery := escapeF5Query(query)
 
-	var err error
-	snippetIDs := request.SnippetIDs()
+	tx := s.db.WithContext(ctx).
+		Table("kodit_bm25_documents").
+		Select("snippet_id, bm25(kodit_bm25_documents) as score").
+		Where("kodit_bm25_documents MATCH ?", ftsQuery)
 
-	// Use manual row scanning to ensure FTS5 UNINDEXED columns are read correctly
-	var sqlRows *sql.Rows
-	if len(snippetIDs) > 0 {
-		sqlRows, err = s.db.WithContext(ctx).Raw(sqliteSearchQueryWithFilter, ftsQuery, snippetIDs, topK).Rows()
-	} else {
-		sqlRows, err = s.db.WithContext(ctx).Raw(sqliteSearchQuery, ftsQuery, topK).Rows()
+	if snippetIDs := search.SnippetIDsFrom(q); len(snippetIDs) > 0 {
+		tx = tx.Where("snippet_id IN ?", snippetIDs)
+	}
+	if filters, ok := search.FiltersFrom(q); ok {
+		tx = applySearchFilters(tx, filters)
 	}
 
+	tx = tx.Order("score").Limit(limit)
+
+	// Use manual row scanning to ensure FTS5 UNINDEXED columns are read correctly
+	sqlRows, err := tx.Rows()
 	if err != nil {
 		return nil, err
 	}
@@ -225,13 +215,14 @@ func (s *SQLiteBM25Store) Search(ctx context.Context, request search.Request) ([
 	return results, nil
 }
 
-// Delete removes documents from the BM25 index.
-func (s *SQLiteBM25Store) Delete(ctx context.Context, request search.DeleteRequest) error {
+// DeleteBy removes documents matching the given options.
+func (s *SQLiteBM25Store) DeleteBy(ctx context.Context, options ...repository.Option) error {
 	if err := s.initialize(ctx); err != nil {
 		return err
 	}
 
-	ids := request.SnippetIDs()
+	q := repository.Build(options...)
+	ids := search.SnippetIDsFrom(q)
 	if len(ids) == 0 {
 		return nil
 	}

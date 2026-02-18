@@ -85,6 +85,7 @@ services:
       - ENRICHMENT_ENDPOINT_BASE_URL=http://host.docker.internal:11434/v1
       - ENRICHMENT_ENDPOINT_MODEL=qwen3:0.6b
       - ENRICHMENT_ENDPOINT_API_KEY=ollama
+      - LOG_LEVEL=DEBUG
     profiles:
       - kodit
 

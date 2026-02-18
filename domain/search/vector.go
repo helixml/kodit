@@ -2,6 +2,8 @@ package search
 
 import (
 	"context"
+
+	"github.com/helixml/kodit/domain/repository"
 )
 
 // VectorStore defines operations for vector similarity search.
@@ -9,16 +11,16 @@ type VectorStore interface {
 	// Index adds documents to the vector index with embeddings.
 	Index(ctx context.Context, request IndexRequest) error
 
-	// Search performs vector similarity search.
-	Search(ctx context.Context, request Request) ([]Result, error)
+	// Find performs vector similarity search using options.
+	// Embedding must be passed via WithEmbedding.
+	Find(ctx context.Context, options ...repository.Option) ([]Result, error)
 
-	// HasEmbedding checks if a document has an embedding of the given type.
-	HasEmbedding(ctx context.Context, snippetID string, embeddingType EmbeddingType) (bool, error)
+	// Exists checks whether any row matches the given options.
+	Exists(ctx context.Context, options ...repository.Option) (bool, error)
 
-	// HasEmbeddings checks which snippet IDs already have embeddings of the given type.
-	// Returns a set of snippet IDs that have embeddings.
-	HasEmbeddings(ctx context.Context, snippetIDs []string, embeddingType EmbeddingType) (map[string]bool, error)
+	// SnippetIDs returns snippet IDs matching the given options.
+	SnippetIDs(ctx context.Context, options ...repository.Option) ([]string, error)
 
-	// Delete removes documents from the vector index.
-	Delete(ctx context.Context, request DeleteRequest) error
+	// DeleteBy removes documents matching the given options.
+	DeleteBy(ctx context.Context, options ...repository.Option) error
 }

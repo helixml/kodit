@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
 )
 
@@ -55,43 +56,21 @@ func (s *BM25) Index(ctx context.Context, request search.IndexRequest) error {
 	return s.store.Index(ctx, validRequest)
 }
 
-// Search searches documents using domain business rules.
-func (s *BM25) Search(ctx context.Context, request search.Request) ([]search.Result, error) {
-	query := strings.TrimSpace(request.Query())
+// Find performs BM25 keyword search.
+func (s *BM25) Find(ctx context.Context, query string, options ...repository.Option) ([]search.Result, error) {
+	query = strings.TrimSpace(query)
 	if query == "" {
 		return nil, ErrEmptyQuery
 	}
 
-	if request.TopK() <= 0 {
-		return nil, ErrInvalidTopK
-	}
+	combined := make([]repository.Option, 0, len(options)+1)
+	combined = append(combined, search.WithQuery(query))
+	combined = append(combined, options...)
 
-	// Create normalized request
-	normalizedRequest := search.NewRequest(query, request.TopK(), request.SnippetIDs())
-	return s.store.Search(ctx, normalizedRequest)
+	return s.store.Find(ctx, combined...)
 }
 
-// Delete deletes documents using domain business rules.
-func (s *BM25) Delete(ctx context.Context, request search.DeleteRequest) error {
-	ids := request.SnippetIDs()
-
-	// Skip if empty
-	if len(ids) == 0 {
-		return nil
-	}
-
-	// Filter out invalid IDs
-	valid := make([]string, 0, len(ids))
-	for _, id := range ids {
-		if id != "" && id != "0" && !strings.HasPrefix(id, "-") {
-			valid = append(valid, id)
-		}
-	}
-
-	if len(valid) == 0 {
-		return nil
-	}
-
-	validRequest := search.NewDeleteRequest(valid)
-	return s.store.Delete(ctx, validRequest)
+// DeleteBy removes documents matching the given options.
+func (s *BM25) DeleteBy(ctx context.Context, options ...repository.Option) error {
+	return s.store.DeleteBy(ctx, options...)
 }

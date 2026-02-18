@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
 	"gorm.io/gorm"
 )
@@ -53,20 +54,6 @@ INSERT INTO postgres_bm25_documents (snippet_id, passage)
 VALUES (?, ?)
 ON CONFLICT (snippet_id) DO UPDATE
 SET passage = EXCLUDED.passage`
-
-	pgSearchQuery = `
-SELECT snippet_id, ts_rank_cd(tsv, plainto_tsquery('english', ?)) as score
-FROM postgres_bm25_documents
-WHERE tsv @@ plainto_tsquery('english', ?)
-ORDER BY score DESC
-LIMIT ?`
-
-	pgSearchQueryWithFilter = `
-SELECT snippet_id, ts_rank_cd(tsv, plainto_tsquery('english', ?)) as score
-FROM postgres_bm25_documents
-WHERE tsv @@ plainto_tsquery('english', ?) AND snippet_id IN ?
-ORDER BY score DESC
-LIMIT ?`
 
 	pgDeleteQuery = `DELETE FROM postgres_bm25_documents WHERE snippet_id IN ?`
 
@@ -212,58 +199,63 @@ func (s *PostgresBM25Store) Index(ctx context.Context, request search.IndexReque
 	})
 }
 
-// Search performs BM25-style keyword search using PostgreSQL ts_rank_cd.
-func (s *PostgresBM25Store) Search(ctx context.Context, request search.Request) ([]search.Result, error) {
+// Find performs BM25-style keyword search using PostgreSQL ts_rank_cd.
+func (s *PostgresBM25Store) Find(ctx context.Context, options ...repository.Option) ([]search.Result, error) {
 	if err := s.initialize(ctx); err != nil {
 		return nil, err
 	}
 
-	query := request.Query()
-	if query == "" {
+	q := repository.Build(options...)
+	query, ok := search.QueryFrom(q)
+	if !ok || query == "" {
 		return []search.Result{}, nil
 	}
 
-	topK := request.TopK()
-	if topK <= 0 {
-		topK = 10
+	limit := q.LimitValue()
+	if limit <= 0 {
+		limit = 10
 	}
 
-	// Sanitize query - remove special characters that could break the query
 	sanitizedQuery := sanitizePostgresQuery(query)
+
+	tx := s.db.WithContext(ctx).
+		Table("postgres_bm25_documents").
+		Select("snippet_id, ts_rank_cd(tsv, plainto_tsquery('english', ?)) as score", sanitizedQuery).
+		Where("tsv @@ plainto_tsquery('english', ?)", sanitizedQuery)
+
+	if snippetIDs := search.SnippetIDsFrom(q); len(snippetIDs) > 0 {
+		tx = tx.Where("snippet_id IN ?", snippetIDs)
+	}
+	if filters, ok := search.FiltersFrom(q); ok {
+		tx = applySearchFilters(tx, filters)
+	}
+
+	tx = tx.Order("score DESC").Limit(limit)
 
 	var rows []struct {
 		SnippetID string  `gorm:"column:snippet_id"`
 		Score     float64 `gorm:"column:score"`
 	}
-
-	var err error
-	snippetIDs := request.SnippetIDs()
-	if len(snippetIDs) > 0 {
-		err = s.db.WithContext(ctx).Raw(pgSearchQueryWithFilter, sanitizedQuery, sanitizedQuery, snippetIDs, topK).Scan(&rows).Error
-	} else {
-		err = s.db.WithContext(ctx).Raw(pgSearchQuery, sanitizedQuery, sanitizedQuery, topK).Scan(&rows).Error
-	}
-
-	if err != nil {
+	if err := tx.Scan(&rows).Error; err != nil {
 		return nil, err
 	}
 
 	results := make([]search.Result, len(rows))
 	for i, row := range rows {
-		// PostgreSQL ts_rank_cd returns positive scores (higher is better)
 		results[i] = search.NewResult(row.SnippetID, row.Score)
 	}
 
 	return results, nil
 }
 
-// Delete removes documents from the BM25 index.
-func (s *PostgresBM25Store) Delete(ctx context.Context, request search.DeleteRequest) error {
+// DeleteBy removes documents matching the given options.
+func (s *PostgresBM25Store) DeleteBy(ctx context.Context, options ...repository.Option) error {
 	if err := s.initialize(ctx); err != nil {
 		return err
 	}
 
-	ids := request.SnippetIDs()
+	q := repository.Build(options...)
+	ids := search.SnippetIDsFrom(q)
 	if len(ids) == 0 {
 		return nil
 	}

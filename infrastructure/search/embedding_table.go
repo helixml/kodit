@@ -5,28 +5,12 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/infrastructure/provider"
 	"github.com/helixml/kodit/internal/database"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
-)
-
-// Shared SQL templates for cosine-distance search. VectorChord and pgvector
-// use the identical <=> operator so the queries are the same.
-const (
-	pgCosineSearchTemplate = `
-SELECT snippet_id, embedding <=> ? as score
-FROM %s
-ORDER BY score ASC
-LIMIT ?`
-
-	pgCosineSearchWithFilterTemplate = `
-SELECT snippet_id, embedding <=> ? as score
-FROM %s
-WHERE snippet_id IN ?
-ORDER BY score ASC
-LIMIT ?`
 )
 
 // identityMapper is an EntityMapper where D = E (entity IS the domain type).
@@ -155,51 +139,41 @@ func existingSnippetIDs(db *gorm.DB, ids []string) (map[string]struct{}, error) 
 
 // cosineSearch performs a cosine-distance similarity search against a PG vector
 // table and returns results sorted by similarity (highest first). Used by both
-// VectorChord and pgvector stores.
+// VectorChord and pgvector stores. Embedding is passed via options.
 func cosineSearch(
 	ctx context.Context,
 	db *gorm.DB,
 	tableName string,
-	embedder provider.Embedder,
-	request search.Request,
+	options ...repository.Option,
 ) ([]search.Result, error) {
-	query := request.Query()
-	if query == "" {
+	q := repository.Build(options...)
+	embedding, ok := search.EmbeddingFrom(q)
+	if !ok || len(embedding) == 0 {
 		return []search.Result{}, nil
 	}
 
-	topK := request.TopK()
-	if topK <= 0 {
-		topK = 10
+	limit := q.LimitValue()
+	if limit <= 0 {
+		limit = 10
 	}
 
-	embResp, err := embedder.Embed(ctx, provider.NewEmbeddingRequest([]string{query}))
-	if err != nil {
-		return nil, fmt.Errorf("generate query embedding: %w", err)
+	queryEmbedding := NewPgVector(embedding).String()
+
+	tx := db.Table(tableName).
+		Select("snippet_id, embedding <=> ? as score", queryEmbedding)
+	tx = database.ApplyConditions(tx, options...)
+
+	if filters, ok := search.FiltersFrom(q); ok {
+		tx = applySearchFilters(tx, filters)
 	}
 
-	embeddings := embResp.Embeddings()
-	if len(embeddings) == 0 {
-		return []search.Result{}, nil
-	}
-
-	queryEmbedding := NewPgVector(embeddings[0]).String()
+	tx = tx.Order("score ASC").Limit(limit)
 
 	var rows []struct {
 		SnippetID string  `gorm:"column:snippet_id"`
 		Score     float64 `gorm:"column:score"`
 	}
-
-	snippetIDs := request.SnippetIDs()
-	if len(snippetIDs) > 0 {
-		sql := fmt.Sprintf(pgCosineSearchWithFilterTemplate, tableName)
-		err = db.Raw(sql, queryEmbedding, snippetIDs, topK).Scan(&rows).Error
-	} else {
-		sql := fmt.Sprintf(pgCosineSearchTemplate, tableName)
-		err = db.Raw(sql, queryEmbedding, topK).Scan(&rows).Error
-	}
-
-	if err != nil {
+	if err := tx.Scan(&rows).Error; err != nil {
 		return nil, err
 	}
 

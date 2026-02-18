@@ -4,8 +4,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"time"
-
-	"github.com/helixml/kodit/domain/search"
 )
 
 // RepositoryModel represents a Git repository in the database.
@@ -154,7 +152,7 @@ func (EnrichmentAssociationModel) TableName() string {
 type EmbeddingModel struct {
 	ID        int64     `gorm:"column:id;primaryKey;autoIncrement"`
 	SnippetID string    `gorm:"column:snippet_id;index"`
-	Type      search.EmbeddingType `gorm:"column:type;index"`
+	Type      string `gorm:"column:type;index"`
 	Embedding []float64 `gorm:"column:embedding;type:json"`
 	CreatedAt time.Time `gorm:"column:created_at;not null"`
 	UpdatedAt time.Time `gorm:"column:updated_at;not null"`

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"sync"
 
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
 	"gorm.io/gorm"
 )
@@ -58,23 +59,6 @@ SET passage = EXCLUDED.passage`
 	bm25UpdateEmbeddingsQuery = `
 UPDATE vectorchord_bm25_documents
 SET embedding = tokenize(passage, 'bert')`
-
-	bm25SearchQuery = `
-SELECT
-    snippet_id,
-    embedding <&> to_bm25query('vectorchord_bm25_documents_idx', tokenize(?, 'bert')) AS bm25_score
-FROM vectorchord_bm25_documents
-ORDER BY bm25_score
-LIMIT ?`
-
-	bm25SearchQueryWithFilter = `
-SELECT
-    snippet_id,
-    embedding <&> to_bm25query('vectorchord_bm25_documents_idx', tokenize(?, 'bert')) AS bm25_score
-FROM vectorchord_bm25_documents
-WHERE snippet_id IN ?
-ORDER BY bm25_score
-LIMIT ?`
 
 	bm25DeleteQuery = `DELETE FROM vectorchord_bm25_documents WHERE snippet_id IN ?`
 
@@ -252,36 +236,41 @@ func (s *VectorChordBM25Store) Index(ctx context.Context, request search.IndexRe
 	})
 }
 
-// Search performs BM25 keyword search.
-func (s *VectorChordBM25Store) Search(ctx context.Context, request search.Request) ([]search.Result, error) {
+// Find performs BM25 keyword search using options.
+func (s *VectorChordBM25Store) Find(ctx context.Context, options ...repository.Option) ([]search.Result, error) {
 	if err := s.initialize(ctx); err != nil {
 		return nil, err
 	}
 
-	query := request.Query()
-	if query == "" {
+	q := repository.Build(options...)
+	query, ok := search.QueryFrom(q)
+	if !ok || query == "" {
 		return []search.Result{}, nil
 	}
 
-	topK := request.TopK()
-	if topK <= 0 {
-		topK = 10
+	limit := q.LimitValue()
+	if limit <= 0 {
+		limit = 10
 	}
+
+	tx := s.db.WithContext(ctx).
+		Table("vectorchord_bm25_documents").
+		Select("snippet_id, embedding <&> to_bm25query('vectorchord_bm25_documents_idx', tokenize(?, 'bert')) AS bm25_score", query)
+
+	if snippetIDs := search.SnippetIDsFrom(q); len(snippetIDs) > 0 {
+		tx = tx.Where("snippet_id IN ?", snippetIDs)
+	}
+	if filters, ok := search.FiltersFrom(q); ok {
+		tx = applySearchFilters(tx, filters)
+	}
+
+	tx = tx.Order("bm25_score").Limit(limit)
 
 	var rows []struct {
 		SnippetID string  `gorm:"column:snippet_id"`
 		BM25Score float64 `gorm:"column:bm25_score"`
 	}
-
-	var err error
-	snippetIDs := request.SnippetIDs()
-	if len(snippetIDs) > 0 {
-		err = s.db.WithContext(ctx).Raw(bm25SearchQueryWithFilter, query, snippetIDs, topK).Scan(&rows).Error
-	} else {
-		err = s.db.WithContext(ctx).Raw(bm25SearchQuery, query, topK).Scan(&rows).Error
-	}
-
-	if err != nil {
+	if err := tx.Scan(&rows).Error; err != nil {
 		return nil, err
 	}
 
@@ -295,13 +284,14 @@ func (s *VectorChordBM25Store) Search(ctx context.Context, request search.Reques
 	return results, nil
 }
 
-// Delete removes documents from the BM25 index.
-func (s *VectorChordBM25Store) Delete(ctx context.Context, request search.DeleteRequest) error {
+// DeleteBy removes documents matching the given options.
+func (s *VectorChordBM25Store) DeleteBy(ctx context.Context, options ...repository.Option) error {
 	if err := s.initialize(ctx); err != nil {
 		return err
 	}
 
-	ids := request.SnippetIDs()
+	q := repository.Build(options...)
+	ids := search.SnippetIDsFrom(q)
 	if len(ids) == 0 {
 		return nil
 	}

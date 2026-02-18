@@ -138,55 +138,40 @@ func (s *PgvectorStore) Index(ctx context.Context, request search.IndexRequest) 
 	return indexDocuments(ctx, &s.repo, s.embedder, s.logger, request, pgEntityFactory)
 }
 
-// Search performs vector similarity search.
-func (s *PgvectorStore) Search(ctx context.Context, request search.Request) ([]search.Result, error) {
+// Find performs vector similarity search.
+func (s *PgvectorStore) Find(ctx context.Context, options ...repository.Option) ([]search.Result, error) {
 	if err := s.initialize(ctx); err != nil {
 		return nil, err
 	}
-	return cosineSearch(ctx, s.repo.DB(ctx), s.repo.Table(), s.embedder, request)
+	return cosineSearch(ctx, s.repo.DB(ctx), s.repo.Table(), options...)
 }
 
-// HasEmbedding checks if a snippet has an embedding of the given type.
-func (s *PgvectorStore) HasEmbedding(ctx context.Context, snippetID string, embeddingType search.EmbeddingType) (bool, error) {
+// Exists checks if a snippet matching the options exists.
+func (s *PgvectorStore) Exists(ctx context.Context, options ...repository.Option) (bool, error) {
 	if err := s.initialize(ctx); err != nil {
 		return false, err
 	}
-	_ = embeddingType
-	return s.repo.Exists(ctx, repository.WithCondition("snippet_id", snippetID))
+	return s.repo.Exists(ctx, options...)
 }
 
-// HasEmbeddings checks which snippet IDs have embeddings of the given type.
-func (s *PgvectorStore) HasEmbeddings(ctx context.Context, snippetIDs []string, embeddingType search.EmbeddingType) (map[string]bool, error) {
-	if len(snippetIDs) == 0 {
-		return map[string]bool{}, nil
-	}
-
+// SnippetIDs returns snippet IDs matching the given options.
+func (s *PgvectorStore) SnippetIDs(ctx context.Context, options ...repository.Option) ([]string, error) {
 	if err := s.initialize(ctx); err != nil {
 		return nil, err
 	}
-	_ = embeddingType
-
 	var found []string
-	err := s.repo.DB(ctx).Where("snippet_id IN ?", snippetIDs).Pluck("snippet_id", &found).Error
+	db := database.ApplyOptions(s.repo.DB(ctx), options...)
+	err := db.Pluck("snippet_id", &found).Error
 	if err != nil {
 		return nil, err
 	}
-
-	result := make(map[string]bool, len(found))
-	for _, id := range found {
-		result[id] = true
-	}
-	return result, nil
+	return found, nil
 }
 
-// Delete removes documents from the vector index.
-func (s *PgvectorStore) Delete(ctx context.Context, request search.DeleteRequest) error {
+// DeleteBy removes documents matching the given options.
+func (s *PgvectorStore) DeleteBy(ctx context.Context, options ...repository.Option) error {
 	if err := s.initialize(ctx); err != nil {
 		return err
 	}
-	ids := request.SnippetIDs()
-	if len(ids) == 0 {
-		return nil
-	}
-	return s.repo.DeleteBy(ctx, repository.WithConditionIn("snippet_id", ids))
+	return s.repo.DeleteBy(ctx, options...)
 }

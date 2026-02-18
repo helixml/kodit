@@ -11,6 +11,7 @@ type Query struct {
 	orders     []Order
 	limit      int
 	offset     int
+	params     map[string]any
 }
 
 // Build creates a Query from a set of options.
@@ -151,4 +152,25 @@ func WithOrderDesc(field string) Option {
 // WithPagination returns limit and offset options for a page.
 func WithPagination(limit, offset int) []Option {
 	return []Option{WithLimit(limit), WithOffset(offset)}
+}
+
+// WithParam stores an arbitrary key-value pair on the query.
+// Domain packages define typed option builders on top of this.
+func WithParam(key string, value any) Option {
+	return func(q Query) Query {
+		if q.params == nil {
+			q.params = make(map[string]any)
+		}
+		q.params[key] = value
+		return q
+	}
+}
+
+// Param retrieves a parameter by key.
+func (q Query) Param(key string) (any, bool) {
+	if q.params == nil {
+		return nil, false
+	}
+	v, ok := q.params[key]
+	return v, ok
 }

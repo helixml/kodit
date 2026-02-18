@@ -130,37 +130,25 @@ func (s *SQLiteVectorStore) Index(ctx context.Context, request search.IndexReque
 	return indexDocuments(ctx, &s.repo, s.embedder, s.logger, request, sqliteEntityFactory)
 }
 
-// Search performs vector similarity search.
-func (s *SQLiteVectorStore) Search(ctx context.Context, request search.Request) ([]search.Result, error) {
+// Find performs vector similarity search using pre-computed embedding from options.
+func (s *SQLiteVectorStore) Find(ctx context.Context, options ...repository.Option) ([]search.Result, error) {
 	if err := s.initialize(ctx); err != nil {
 		return nil, err
 	}
 
-	query := request.Query()
-	if query == "" {
+	q := repository.Build(options...)
+	queryEmbedding, ok := search.EmbeddingFrom(q)
+	if !ok || len(queryEmbedding) == 0 {
 		return []search.Result{}, nil
 	}
 
-	topK := request.TopK()
-	if topK <= 0 {
-		topK = 10
+	limit := q.LimitValue()
+	if limit <= 0 {
+		limit = 10
 	}
 
-	// Get embedding for query
-	embResp, err := s.embedder.Embed(ctx, provider.NewEmbeddingRequest([]string{query}))
-	if err != nil {
-		return nil, fmt.Errorf("generate query embedding: %w", err)
-	}
-
-	embeddings := embResp.Embeddings()
-	if len(embeddings) == 0 {
-		return []search.Result{}, nil
-	}
-
-	queryEmbedding := embeddings[0]
-
-	// Load all embeddings from database
-	vectors, err := s.loadVectors(ctx, request.SnippetIDs())
+	// Load all embeddings from database, applying condition filters
+	vectors, err := s.loadVectors(ctx, options...)
 	if err != nil {
 		return nil, err
 	}
@@ -170,16 +158,16 @@ func (s *SQLiteVectorStore) Search(ctx context.Context, request search.Request) 
 	}
 
 	// Compute similarities and find top-k
+	snippetIDs := search.SnippetIDsFrom(q)
 	var matches []SimilarityMatch
-	snippetFilter := request.SnippetIDs()
-	if len(snippetFilter) > 0 {
-		filterSet := make(map[string]struct{}, len(snippetFilter))
-		for _, id := range snippetFilter {
+	if len(snippetIDs) > 0 {
+		filterSet := make(map[string]struct{}, len(snippetIDs))
+		for _, id := range snippetIDs {
 			filterSet[id] = struct{}{}
 		}
-		matches = TopKSimilarFiltered(queryEmbedding, vectors, topK, filterSet)
+		matches = TopKSimilarFiltered(queryEmbedding, vectors, limit, filterSet)
 	} else {
-		matches = TopKSimilar(queryEmbedding, vectors, topK)
+		matches = TopKSimilar(queryEmbedding, vectors, limit)
 	}
 
 	// Convert to search results
@@ -192,15 +180,18 @@ func (s *SQLiteVectorStore) Search(ctx context.Context, request search.Request) 
 }
 
 // loadVectors loads embedding vectors from the database using GORM.
-// If snippetIDs is provided, only loads those specific vectors.
-func (s *SQLiteVectorStore) loadVectors(ctx context.Context, snippetIDs []string) ([]StoredVector, error) {
+// Condition options (e.g. snippet_id IN) are applied as WHERE filters.
+func (s *SQLiteVectorStore) loadVectors(ctx context.Context, options ...repository.Option) ([]StoredVector, error) {
 	var entities []SQLiteEmbeddingEntity
 
-	q := s.repo.DB(ctx)
-	if len(snippetIDs) > 0 {
-		q = q.Where("snippet_id IN ?", snippetIDs)
+	q := repository.Build(options...)
+	db := database.ApplyConditions(s.repo.DB(ctx), options...)
+
+	if filters, ok := search.FiltersFrom(q); ok {
+		db = applySearchFilters(db, filters)
 	}
-	if err := q.Find(&entities).Error; err != nil {
+
+	if err := db.Find(&entities).Error; err != nil {
 		return nil, err
 	}
 
@@ -216,47 +207,32 @@ func (s *SQLiteVectorStore) loadVectors(ctx context.Context, snippetIDs []string
 	return vectors, nil
 }
 
-// HasEmbedding checks if a snippet has an embedding of the given type.
-func (s *SQLiteVectorStore) HasEmbedding(ctx context.Context, snippetID string, embeddingType search.EmbeddingType) (bool, error) {
+// Exists checks if a snippet matching the options exists.
+func (s *SQLiteVectorStore) Exists(ctx context.Context, options ...repository.Option) (bool, error) {
 	if err := s.initialize(ctx); err != nil {
 		return false, err
 	}
-	_ = embeddingType
-	return s.repo.Exists(ctx, repository.WithCondition("snippet_id", snippetID))
+	return s.repo.Exists(ctx, options...)
 }
 
-// HasEmbeddings checks which snippet IDs have embeddings of the given type.
-func (s *SQLiteVectorStore) HasEmbeddings(ctx context.Context, snippetIDs []string, embeddingType search.EmbeddingType) (map[string]bool, error) {
-	if len(snippetIDs) == 0 {
-		return map[string]bool{}, nil
-	}
-
+// SnippetIDs returns snippet IDs matching the given options.
+func (s *SQLiteVectorStore) SnippetIDs(ctx context.Context, options ...repository.Option) ([]string, error) {
 	if err := s.initialize(ctx); err != nil {
 		return nil, err
 	}
-	_ = embeddingType
-
 	var found []string
-	err := s.repo.DB(ctx).Where("snippet_id IN ?", snippetIDs).Pluck("snippet_id", &found).Error
+	db := database.ApplyOptions(s.repo.DB(ctx), options...)
+	err := db.Pluck("snippet_id", &found).Error
 	if err != nil {
 		return nil, err
 	}
-
-	result := make(map[string]bool, len(found))
-	for _, id := range found {
-		result[id] = true
-	}
-	return result, nil
+	return found, nil
 }
 
-// Delete removes documents from the vector store.
-func (s *SQLiteVectorStore) Delete(ctx context.Context, request search.DeleteRequest) error {
+// DeleteBy removes documents matching the given options.
+func (s *SQLiteVectorStore) DeleteBy(ctx context.Context, options ...repository.Option) error {
 	if err := s.initialize(ctx); err != nil {
 		return err
 	}
-	ids := request.SnippetIDs()
-	if len(ids) == 0 {
-		return nil
-	}
-	return s.repo.DeleteBy(ctx, repository.WithConditionIn("snippet_id", ids))
+	return s.repo.DeleteBy(ctx, options...)
 }

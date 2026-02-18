@@ -110,21 +110,3 @@ func (i IndexRequest) Documents() []Document {
 	return docs
 }
 
-// DeleteRequest represents a generic deletion request.
-type DeleteRequest struct {
-	snippetIDs []string
-}
-
-// NewDeleteRequest creates a new DeleteRequest.
-func NewDeleteRequest(snippetIDs []string) DeleteRequest {
-	ids := make([]string, len(snippetIDs))
-	copy(ids, snippetIDs)
-	return DeleteRequest{snippetIDs: ids}
-}
-
-// SnippetIDs returns the snippet IDs to delete.
-func (d DeleteRequest) SnippetIDs() []string {
-	ids := make([]string, len(d.snippetIDs))
-	copy(ids, d.snippetIDs)
-	return ids
-}

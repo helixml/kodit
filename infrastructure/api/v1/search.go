@@ -63,7 +63,11 @@ func (r *SearchRouter) Search(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	searchReq := buildSearchRequest(body)
+	searchReq, err := buildSearchRequest(body)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
 	result, err := r.client.Search.Search(ctx, searchReq)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
@@ -104,7 +108,7 @@ func (r *SearchRouter) Search(w http.ResponseWriter, req *http.Request) {
 	middleware.WriteJSON(w, http.StatusOK, response)
 }
 
-func buildSearchRequest(body dto.SearchRequest) search.MultiRequest {
+func buildSearchRequest(body dto.SearchRequest) (search.MultiRequest, error) {
 	attrs := body.Data.Attributes
 
 	// Determine limit (default 10)
@@ -139,7 +143,11 @@ func buildSearchRequest(body dto.SearchRequest) search.MultiRequest {
 			opts = append(opts, search.WithCreatedBefore(*f.EndDate))
 		}
 		if len(f.Sources) > 0 {
-			opts = append(opts, search.WithSourceRepo(f.Sources[0]))
+			repoID, err := strconv.ParseInt(f.Sources[0], 10, 64)
+			if err != nil {
+				return search.MultiRequest{}, fmt.Errorf("invalid source repository ID %q: %w", f.Sources[0], err)
+			}
+			opts = append(opts, search.WithSourceRepo(repoID))
 		}
 		if len(f.FilePatterns) > 0 {
 			opts = append(opts, search.WithFilePath(f.FilePatterns[0]))
@@ -157,7 +165,7 @@ func buildSearchRequest(body dto.SearchRequest) search.MultiRequest {
 
 	filters := search.NewFilters(opts...)
 
-	return search.NewMultiRequest(topK, textQuery, codeQuery, attrs.Keywords, filters)
+	return search.NewMultiRequest(topK, textQuery, codeQuery, attrs.Keywords, filters), nil
 }
 
 func buildSearchResponse(

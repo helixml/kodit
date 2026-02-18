@@ -221,10 +221,16 @@ func New(opts ...Option) (*Client, error) {
 		return nil, errors.Join(fmt.Errorf("search stores: %w", err), errClose)
 	}
 
+	// Create domain embedder from infrastructure provider
+	var domainEmbedder search.Embedder
+	if cfg.embeddingProvider != nil {
+		domainEmbedder = &embeddingAdapter{inner: cfg.embeddingProvider}
+	}
+
 	// Create vector indices (pairing embedding services with their stores)
 	var codeIndex handler.VectorIndex
 	if codeVectorStore != nil {
-		embSvc, err := domainservice.NewEmbedding(codeVectorStore)
+		embSvc, err := domainservice.NewEmbedding(codeVectorStore, domainEmbedder)
 		if err != nil {
 			return nil, fmt.Errorf("create code embedding service: %w", err)
 		}
@@ -235,7 +241,7 @@ func New(opts ...Option) (*Client, error) {
 	}
 	var textIndex handler.VectorIndex
 	if textVectorStore != nil {
-		embSvc, err := domainservice.NewEmbedding(textVectorStore)
+		embSvc, err := domainservice.NewEmbedding(textVectorStore, domainEmbedder)
 		if err != nil {
 			return nil, fmt.Errorf("create text embedding service: %w", err)
 		}
@@ -349,7 +355,7 @@ func New(opts ...Option) (*Client, error) {
 	client.Enrichments = enrichQSvc
 	client.Tasks = queue
 	client.Tracking = trackingSvc
-	client.Search = service.NewSearch(textVectorStore, codeVectorStore, bm25Store, enrichmentStore, &client.closed, logger)
+	client.Search = service.NewSearch(domainEmbedder, textVectorStore, codeVectorStore, bm25Store, enrichmentStore, &client.closed, logger)
 
 	// Register task handlers
 	if err := client.registerHandlers(); err != nil {
@@ -409,6 +415,19 @@ func (c *Client) WorkerIdle() bool {
 // Logger returns the client's logger.
 func (c *Client) Logger() *slog.Logger {
 	return c.logger
+}
+
+// embeddingAdapter adapts provider.Embedder to the domain search.Embedder interface.
+type embeddingAdapter struct {
+	inner provider.Embedder
+}
+
+func (a *embeddingAdapter) Embed(ctx context.Context, texts []string) ([][]float64, error) {
+	resp, err := a.inner.Embed(ctx, provider.NewEmbeddingRequest(texts))
+	if err != nil {
+		return nil, err
+	}
+	return resp.Embeddings(), nil
 }
 
 // buildSearchStores creates the search stores based on config.

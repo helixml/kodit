@@ -180,6 +180,7 @@ func (r MultiSearchResult) Count() int {
 
 // Search orchestrates hybrid code search across text and code vector indexes.
 type Search struct {
+	embedder        search.Embedder
 	textVectorStore search.VectorStore
 	codeVectorStore search.VectorStore
 	bm25Store       search.BM25Store
@@ -191,6 +192,7 @@ type Search struct {
 
 // NewSearch creates a new Search service.
 func NewSearch(
+	embedder search.Embedder,
 	textVectorStore search.VectorStore,
 	codeVectorStore search.VectorStore,
 	bm25Store search.BM25Store,
@@ -202,6 +204,7 @@ func NewSearch(
 		logger = slog.Default()
 	}
 	return &Search{
+		embedder:        embedder,
 		textVectorStore: textVectorStore,
 		codeVectorStore: codeVectorStore,
 		bm25Store:       bm25Store,
@@ -257,12 +260,48 @@ func (s Search) Search(ctx context.Context, request search.MultiRequest) (MultiS
 		topK = 10
 	}
 
+	filterOpt := search.WithFilters(request.Filters())
+
 	var fusionLists [][]search.FusionRequest
 
-	// Run text vector search if text query provided and store is available
-	if textQuery != "" && s.textVectorStore != nil {
-		searchReq := search.NewRequest(textQuery, topK*2, nil)
-		results, err := s.textVectorStore.Search(ctx, searchReq)
+	// Embed queries for vector search
+	var textEmbedding, codeEmbedding []float64
+	if s.embedder != nil {
+		var textsToEmbed []string
+		var textIdx, codeIdx int = -1, -1
+		if textQuery != "" && s.textVectorStore != nil {
+			textIdx = len(textsToEmbed)
+			textsToEmbed = append(textsToEmbed, textQuery)
+		}
+		if codeQuery != "" && s.codeVectorStore != nil && codeQuery != textQuery {
+			codeIdx = len(textsToEmbed)
+			textsToEmbed = append(textsToEmbed, codeQuery)
+		}
+
+		if len(textsToEmbed) > 0 {
+			embeddings, err := s.embedder.Embed(ctx, textsToEmbed)
+			if err != nil {
+				s.logger.Warn("embedding failed", "error", err)
+			} else {
+				if textIdx >= 0 && textIdx < len(embeddings) {
+					textEmbedding = embeddings[textIdx]
+				}
+				if codeIdx >= 0 && codeIdx < len(embeddings) {
+					codeEmbedding = embeddings[codeIdx]
+				} else if codeQuery == textQuery && textEmbedding != nil {
+					codeEmbedding = textEmbedding
+				}
+			}
+		}
+	}
+
+	// Run text vector search if embedding available
+	if len(textEmbedding) > 0 && s.textVectorStore != nil {
+		results, err := s.textVectorStore.Find(ctx,
+			filterOpt,
+			search.WithEmbedding(textEmbedding),
+			repository.WithLimit(topK*2),
+		)
 		if err != nil {
 			s.logger.Warn("text vector search failed", "error", err)
 		} else if len(results) > 0 {
@@ -270,10 +309,13 @@ func (s Search) Search(ctx context.Context, request search.MultiRequest) (MultiS
 		}
 	}
 
-	// Run code vector search if code query provided and store is available
-	if codeQuery != "" && s.codeVectorStore != nil {
-		searchReq := search.NewRequest(codeQuery, topK*2, nil)
-		results, err := s.codeVectorStore.Search(ctx, searchReq)
+	// Run code vector search if embedding available
+	if len(codeEmbedding) > 0 && s.codeVectorStore != nil {
+		results, err := s.codeVectorStore.Find(ctx,
+			filterOpt,
+			search.WithEmbedding(codeEmbedding),
+			repository.WithLimit(topK*2),
+		)
 		if err != nil {
 			s.logger.Warn("code vector search failed", "error", err)
 		} else if len(results) > 0 {
@@ -286,8 +328,11 @@ func (s Search) Search(ctx context.Context, request search.MultiRequest) (MultiS
 	if len(keywords) > 0 && s.bm25Store != nil {
 		var bm25Fusion []search.FusionRequest
 		for _, keyword := range keywords {
-			bm25Req := search.NewRequest(keyword, topK*2, nil)
-			results, err := s.bm25Store.Search(ctx, bm25Req)
+			results, err := s.bm25Store.Find(ctx,
+				filterOpt,
+				search.WithQuery(keyword),
+				repository.WithLimit(topK*2),
+			)
 			if err != nil {
 				s.logger.Warn("bm25 keyword search failed", "keyword", keyword, "error", err)
 				continue
@@ -323,7 +368,7 @@ func (s Search) Search(ctx context.Context, request search.MultiRequest) (MultiS
 		return NewMultiSearchResult(nil, nil), nil
 	}
 
-	// Fetch full enrichments
+	// Fetch full enrichments — filtering already happened in store queries
 	enrichments, err := s.enrichmentStore.Find(ctx, repository.WithIDIn(ids))
 	if err != nil {
 		return MultiSearchResult{}, fmt.Errorf("fetch enrichments: %w", err)
@@ -337,7 +382,7 @@ func (s Search) Search(ctx context.Context, request search.MultiRequest) (MultiS
 
 // SearchText performs text vector search against enrichment summaries.
 func (s Search) SearchText(ctx context.Context, query string, topK int) ([]enrichment.Enrichment, error) {
-	if s.textVectorStore == nil {
+	if s.textVectorStore == nil || s.embedder == nil {
 		return nil, nil
 	}
 
@@ -345,8 +390,18 @@ func (s Search) SearchText(ctx context.Context, query string, topK int) ([]enric
 		topK = 10
 	}
 
-	searchReq := search.NewRequest(query, topK, nil)
-	results, err := s.textVectorStore.Search(ctx, searchReq)
+	embeddings, err := s.embedder.Embed(ctx, []string{query})
+	if err != nil {
+		return nil, fmt.Errorf("embed query: %w", err)
+	}
+	if len(embeddings) == 0 || len(embeddings[0]) == 0 {
+		return nil, nil
+	}
+
+	results, err := s.textVectorStore.Find(ctx,
+		search.WithEmbedding(embeddings[0]),
+		repository.WithLimit(topK),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -365,7 +420,7 @@ func (s Search) SearchText(ctx context.Context, query string, topK int) ([]enric
 
 // SearchCode performs code vector search against code snippet embeddings.
 func (s Search) SearchCode(ctx context.Context, query string, topK int) ([]enrichment.Enrichment, error) {
-	if s.codeVectorStore == nil {
+	if s.codeVectorStore == nil || s.embedder == nil {
 		return nil, nil
 	}
 
@@ -373,8 +428,18 @@ func (s Search) SearchCode(ctx context.Context, query string, topK int) ([]enric
 		topK = 10
 	}
 
-	searchReq := search.NewRequest(query, topK, nil)
-	results, err := s.codeVectorStore.Search(ctx, searchReq)
+	embeddings, err := s.embedder.Embed(ctx, []string{query})
+	if err != nil {
+		return nil, fmt.Errorf("embed query: %w", err)
+	}
+	if len(embeddings) == 0 || len(embeddings[0]) == 0 {
+		return nil, nil
+	}
+
+	results, err := s.codeVectorStore.Find(ctx,
+		search.WithEmbedding(embeddings[0]),
+		repository.WithLimit(topK),
+	)
 	if err != nil {
 		return nil, err
 	}

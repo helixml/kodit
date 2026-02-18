@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/internal/database"
 	"github.com/stretchr/testify/assert"
@@ -43,8 +44,11 @@ func TestVectorChordBM25Store_Integration(t *testing.T) {
 	err = store.Index(ctx, search.NewIndexRequest(docs))
 	require.NoError(t, err)
 
-	// Search should find relevant documents.
-	results, err := store.Search(ctx, search.NewRequest("kubernetes pods", 10, nil))
+	// Find should return relevant documents.
+	results, err := store.Find(ctx,
+		search.WithQuery("kubernetes pods"),
+		repository.WithLimit(10),
+	)
 	require.NoError(t, err)
 	require.NotEmpty(t, results, "expected BM25 search to return results")
 
@@ -54,19 +58,26 @@ func TestVectorChordBM25Store_Integration(t *testing.T) {
 	}
 	assert.True(t, ids["vc-bm25-1"], "expected kubernetes document in results")
 
-	// Search with snippet filter.
-	filtered, err := store.Search(ctx, search.NewRequest("kubernetes", 10, []string{"vc-bm25-2", "vc-bm25-3"}))
+	// Find with snippet filter.
+	filtered, err := store.Find(ctx,
+		search.WithQuery("kubernetes"),
+		search.WithSnippetIDs([]string{"vc-bm25-2", "vc-bm25-3"}),
+		repository.WithLimit(10),
+	)
 	require.NoError(t, err)
 	for _, r := range filtered {
 		assert.NotEqual(t, "vc-bm25-1", r.SnippetID(), "filtered search should exclude vc-bm25-1")
 	}
 
 	// Delete documents.
-	err = store.Delete(ctx, search.NewDeleteRequest([]string{"vc-bm25-1", "vc-bm25-2", "vc-bm25-3"}))
+	err = store.DeleteBy(ctx, search.WithSnippetIDs([]string{"vc-bm25-1", "vc-bm25-2", "vc-bm25-3"}))
 	require.NoError(t, err)
 
-	// After deletion, search should return no results for deleted docs.
-	afterDelete, err := store.Search(ctx, search.NewRequest("kubernetes pods", 10, nil))
+	// After deletion, find should return no results for deleted docs.
+	afterDelete, err := store.Find(ctx,
+		search.WithQuery("kubernetes pods"),
+		repository.WithLimit(10),
+	)
 	require.NoError(t, err)
 	for _, r := range afterDelete {
 		assert.NotEqual(t, "vc-bm25-1", r.SnippetID(), "deleted document should not appear in results")

@@ -11,7 +11,6 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 // ErrUnsupportedDriver indicates the database URL uses an unsupported driver.
@@ -34,7 +33,7 @@ func NewDatabase(ctx context.Context, url string) (Database, error) {
 	}
 
 	config := &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Silent),
+		Logger: slogGormLogger{},
 	}
 
 	db, err := gorm.Open(dialector, config)

@@ -8,7 +8,7 @@ type Filters struct {
 	author             string
 	createdAfter       time.Time
 	createdBefore      time.Time
-	sourceRepo         string
+	sourceRepo         int64
 	filePath           string
 	enrichmentTypes    []string
 	enrichmentSubtypes []string
@@ -47,7 +47,7 @@ func WithCreatedBefore(t time.Time) FiltersOption {
 }
 
 // WithSourceRepo sets the source repository filter.
-func WithSourceRepo(repo string) FiltersOption {
+func WithSourceRepo(repo int64) FiltersOption {
 	return func(f *Filters) {
 		f.sourceRepo = repo
 	}
@@ -112,7 +112,7 @@ func (f Filters) CreatedAfter() time.Time { return f.createdAfter }
 func (f Filters) CreatedBefore() time.Time { return f.createdBefore }
 
 // SourceRepo returns the source repository filter.
-func (f Filters) SourceRepo() string { return f.sourceRepo }
+func (f Filters) SourceRepo() int64 { return f.sourceRepo }
 
 // FilePath returns the file path filter.
 func (f Filters) FilePath() string { return f.filePath }
@@ -153,7 +153,7 @@ func (f Filters) IsEmpty() bool {
 		f.author == "" &&
 		f.createdAfter.IsZero() &&
 		f.createdBefore.IsZero() &&
-		f.sourceRepo == "" &&
+		f.sourceRepo == 0 &&
 		f.filePath == "" &&
 		len(f.enrichmentTypes) == 0 &&
 		len(f.enrichmentSubtypes) == 0 &&

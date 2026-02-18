@@ -255,7 +255,11 @@ func (s *Server) handleSearch(ctx context.Context, request mcp.CallToolRequest) 
 		}
 	}
 	if repo := request.GetString("source_repo", ""); repo != "" {
-		opts = append(opts, search.WithSourceRepo(repo))
+		repoID, parseErr := strconv.ParseInt(repo, 10, 64)
+		if parseErr != nil {
+			return nil, fmt.Errorf("invalid source_repo %q: %w", repo, parseErr)
+		}
+		opts = append(opts, search.WithSourceRepo(repoID))
 	}
 	if subtypes := request.GetStringSlice("enrichment_subtypes", nil); len(subtypes) > 0 {
 		opts = append(opts, search.WithEnrichmentSubtypes(subtypes))

@@ -41,43 +41,6 @@ func (q Query) Filters() Filters { return q.filters }
 // TopK returns the number of results.
 func (q Query) TopK() int { return q.topK }
 
-// Request represents a generic search request.
-type Request struct {
-	query      string
-	topK       int
-	snippetIDs []string
-}
-
-// NewRequest creates a new Request.
-func NewRequest(query string, topK int, snippetIDs []string) Request {
-	var ids []string
-	if snippetIDs != nil {
-		ids = make([]string, len(snippetIDs))
-		copy(ids, snippetIDs)
-	}
-	return Request{
-		query:      query,
-		topK:       topK,
-		snippetIDs: ids,
-	}
-}
-
-// Query returns the search query.
-func (r Request) Query() string { return r.query }
-
-// TopK returns the number of results to return.
-func (r Request) TopK() int { return r.topK }
-
-// SnippetIDs returns the snippet IDs to filter by.
-func (r Request) SnippetIDs() []string {
-	if r.snippetIDs == nil {
-		return nil
-	}
-	ids := make([]string, len(r.snippetIDs))
-	copy(ids, r.snippetIDs)
-	return ids
-}
-
 // MultiRequest represents a multi-modal search request.
 type MultiRequest struct {
 	topK      int

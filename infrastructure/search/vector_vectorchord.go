@@ -171,42 +171,28 @@ func (s *VectorChordVectorStore) Index(ctx context.Context, request search.Index
 	return indexDocuments(ctx, &s.repo, s.embedder, s.logger, request, pgEntityFactory)
 }
 
-// Search performs vector similarity search.
-func (s *VectorChordVectorStore) Search(ctx context.Context, request search.Request) ([]search.Result, error) {
-	return cosineSearch(ctx, s.repo.DB(ctx), s.repo.Table(), s.embedder, request)
+// Find performs vector similarity search.
+func (s *VectorChordVectorStore) Find(ctx context.Context, options ...repository.Option) ([]search.Result, error) {
+	return cosineSearch(ctx, s.repo.DB(ctx), s.repo.Table(), options...)
 }
 
-// HasEmbedding checks if a snippet has an embedding of the given type.
-func (s *VectorChordVectorStore) HasEmbedding(ctx context.Context, snippetID string, embeddingType search.EmbeddingType) (bool, error) {
-	_ = embeddingType
-	return s.repo.Exists(ctx, repository.WithCondition("snippet_id", snippetID))
+// Exists checks if a snippet matching the options exists.
+func (s *VectorChordVectorStore) Exists(ctx context.Context, options ...repository.Option) (bool, error) {
+	return s.repo.Exists(ctx, options...)
 }
 
-// HasEmbeddings checks which snippet IDs have embeddings of the given type.
-func (s *VectorChordVectorStore) HasEmbeddings(ctx context.Context, snippetIDs []string, embeddingType search.EmbeddingType) (map[string]bool, error) {
-	if len(snippetIDs) == 0 {
-		return map[string]bool{}, nil
-	}
-	_ = embeddingType
-
+// SnippetIDs returns snippet IDs matching the given options.
+func (s *VectorChordVectorStore) SnippetIDs(ctx context.Context, options ...repository.Option) ([]string, error) {
 	var found []string
-	err := s.repo.DB(ctx).Where("snippet_id IN ?", snippetIDs).Pluck("snippet_id", &found).Error
+	db := database.ApplyOptions(s.repo.DB(ctx), options...)
+	err := db.Pluck("snippet_id", &found).Error
 	if err != nil {
 		return nil, err
 	}
-
-	result := make(map[string]bool, len(found))
-	for _, id := range found {
-		result[id] = true
-	}
-	return result, nil
+	return found, nil
 }
 
-// Delete removes documents from the vector index.
-func (s *VectorChordVectorStore) Delete(ctx context.Context, request search.DeleteRequest) error {
-	ids := request.SnippetIDs()
-	if len(ids) == 0 {
-		return nil
-	}
-	return s.repo.DeleteBy(ctx, repository.WithConditionIn("snippet_id", ids))
+// DeleteBy removes documents matching the given options.
+func (s *VectorChordVectorStore) DeleteBy(ctx context.Context, options ...repository.Option) error {
+	return s.repo.DeleteBy(ctx, options...)
 }
