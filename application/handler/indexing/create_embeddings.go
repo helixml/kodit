@@ -119,14 +119,14 @@ func (h *CreateCodeEmbeddings) filterNew(ctx context.Context, enrichments []enri
 		ids[i] = strconv.FormatInt(e.ID(), 10)
 	}
 
-	existingIDs, err := h.codeIndex.Store.SnippetIDs(ctx, search.WithSnippetIDs(ids))
+	found, err := h.codeIndex.Store.Find(ctx, search.WithSnippetIDs(ids))
 	if err != nil {
 		return nil, err
 	}
 
-	existing := make(map[string]bool, len(existingIDs))
-	for _, id := range existingIDs {
-		existing[id] = true
+	existing := make(map[string]bool, len(found))
+	for _, emb := range found {
+		existing[emb.SnippetID()] = true
 	}
 
 	result := make([]enrichment.Enrichment, 0, len(enrichments))

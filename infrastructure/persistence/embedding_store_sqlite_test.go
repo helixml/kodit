@@ -148,7 +148,7 @@ func TestTopKSimilarFiltered(t *testing.T) {
 	})
 }
 
-func TestSQLiteEmbeddingStore_SaveAllAndFind(t *testing.T) {
+func TestSQLiteEmbeddingStore_SaveAllAndSearch(t *testing.T) {
 	db := newTestDB(t)
 	store, err := NewSQLiteEmbeddingStore(db, TaskNameCode, nil)
 	require.NoError(t, err)
@@ -163,8 +163,8 @@ func TestSQLiteEmbeddingStore_SaveAllAndFind(t *testing.T) {
 	err = store.SaveAll(ctx, embeddings)
 	require.NoError(t, err)
 
-	// Find should return results
-	results, err := store.Find(ctx, search.WithEmbedding([]float64{1.0, 0.5, 0.0, 0.0}), repository.WithLimit(10))
+	// Search should return results
+	results, err := store.Search(ctx, search.WithEmbedding([]float64{1.0, 0.5, 0.0, 0.0}), repository.WithLimit(10))
 	require.NoError(t, err)
 	assert.NotEmpty(t, results)
 
@@ -188,13 +188,13 @@ func TestSQLiteEmbeddingStore_SaveAllEmpty(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestSQLiteEmbeddingStore_Find_NoEmbedding(t *testing.T) {
+func TestSQLiteEmbeddingStore_Search_NoEmbedding(t *testing.T) {
 	db := newTestDB(t)
 	store, err := NewSQLiteEmbeddingStore(db, TaskNameCode, nil)
 	require.NoError(t, err)
 	ctx := context.Background()
 
-	results, err := store.Find(ctx)
+	results, err := store.Search(ctx)
 	require.NoError(t, err)
 	assert.Empty(t, results)
 }
@@ -270,7 +270,7 @@ func TestSQLiteEmbeddingStore_DeleteBy(t *testing.T) {
 	assert.True(t, has)
 }
 
-func TestSQLiteEmbeddingStore_FindWithFilter(t *testing.T) {
+func TestSQLiteEmbeddingStore_SearchWithFilter(t *testing.T) {
 	db := newTestDB(t)
 	store, err := NewSQLiteEmbeddingStore(db, TaskNameCode, nil)
 	require.NoError(t, err)
@@ -284,8 +284,8 @@ func TestSQLiteEmbeddingStore_FindWithFilter(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Find with filter
-	results, err := store.Find(ctx,
+	// Search with filter
+	results, err := store.Search(ctx,
 		search.WithEmbedding([]float64{1.0, 0.0, 0.0, 0.0}),
 		search.WithSnippetIDs([]string{"snippet1", "snippet3"}),
 		repository.WithLimit(10),
@@ -303,7 +303,7 @@ func TestSQLiteEmbeddingStore_FindWithFilter(t *testing.T) {
 	assert.False(t, ids["snippet2"])
 }
 
-func TestSQLiteEmbeddingStore_SnippetIDs(t *testing.T) {
+func TestSQLiteEmbeddingStore_Find(t *testing.T) {
 	db := newTestDB(t)
 	store, err := NewSQLiteEmbeddingStore(db, TaskNameCode, nil)
 	require.NoError(t, err)
@@ -316,12 +316,17 @@ func TestSQLiteEmbeddingStore_SnippetIDs(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Get all snippet IDs
-	ids, err := store.SnippetIDs(ctx, search.WithSnippetIDs([]string{"snippet1", "snippet2", "snippet3"}))
+	// Find matching embeddings
+	found, err := store.Find(ctx, search.WithSnippetIDs([]string{"snippet1", "snippet2", "snippet3"}))
 	require.NoError(t, err)
-	assert.Len(t, ids, 2)
-	assert.Contains(t, ids, "snippet1")
-	assert.Contains(t, ids, "snippet2")
+	assert.Len(t, found, 2)
+
+	ids := make(map[string]bool, len(found))
+	for _, emb := range found {
+		ids[emb.SnippetID()] = true
+	}
+	assert.True(t, ids["snippet1"])
+	assert.True(t, ids["snippet2"])
 }
 
 func TestFloat64Slice_ScanValue(t *testing.T) {

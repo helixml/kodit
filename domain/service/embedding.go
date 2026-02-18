@@ -19,9 +19,6 @@ type Embedding interface {
 
 	// Exists checks whether any row matches the given options.
 	Exists(ctx context.Context, options ...repository.Option) (bool, error)
-
-	// SnippetIDs returns snippet IDs matching the given options.
-	SnippetIDs(ctx context.Context, options ...repository.Option) ([]string, error)
 }
 
 // EmbeddingService implements domain logic for embedding operations.
@@ -69,14 +66,14 @@ func (s *EmbeddingService) Index(ctx context.Context, request search.IndexReques
 		ids[i] = doc.SnippetID()
 	}
 
-	existingIDs, err := s.store.SnippetIDs(ctx, search.WithSnippetIDs(ids))
+	found, err := s.store.Find(ctx, search.WithSnippetIDs(ids))
 	if err != nil {
 		return fmt.Errorf("check existing: %w", err)
 	}
 
-	existing := make(map[string]struct{}, len(existingIDs))
-	for _, id := range existingIDs {
-		existing[id] = struct{}{}
+	existing := make(map[string]struct{}, len(found))
+	for _, emb := range found {
+		existing[emb.SnippetID()] = struct{}{}
 	}
 
 	var toEmbed []search.Document
@@ -142,15 +139,10 @@ func (s *EmbeddingService) Find(ctx context.Context, query string, options ...re
 	combined = append(combined, search.WithEmbedding(embeddings[0]))
 	combined = append(combined, options...)
 
-	return s.store.Find(ctx, combined...)
+	return s.store.Search(ctx, combined...)
 }
 
 // Exists checks whether any row matches the given options.
 func (s *EmbeddingService) Exists(ctx context.Context, options ...repository.Option) (bool, error) {
 	return s.store.Exists(ctx, options...)
-}
-
-// SnippetIDs returns snippet IDs matching the given options.
-func (s *EmbeddingService) SnippetIDs(ctx context.Context, options ...repository.Option) ([]string, error) {
-	return s.store.SnippetIDs(ctx, options...)
 }

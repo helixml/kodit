@@ -15,7 +15,7 @@ import (
 // SQLiteEmbeddingStore implements search.EmbeddingStore for SQLite.
 // Stores embeddings as JSON and performs cosine similarity search in-memory.
 type SQLiteEmbeddingStore struct {
-	repo   database.Repository[search.Embedding, SQLiteEmbeddingModel]
+	database.Repository[search.Embedding, SQLiteEmbeddingModel]
 	logger *slog.Logger
 }
 
@@ -26,7 +26,7 @@ func NewSQLiteEmbeddingStore(db database.Database, taskName TaskName, logger *sl
 	}
 	tableName := fmt.Sprintf("kodit_%s_embeddings", taskName)
 	s := &SQLiteEmbeddingStore{
-		repo: database.NewRepositoryForTable[search.Embedding, SQLiteEmbeddingModel](
+		Repository: database.NewRepositoryForTable[search.Embedding, SQLiteEmbeddingModel](
 			db, sqliteEmbeddingMapper{}, "embedding", tableName,
 		),
 		logger: logger,
@@ -53,8 +53,8 @@ func (s *SQLiteEmbeddingStore) SaveAll(ctx context.Context, embeddings []search.
 		return nil
 	}
 
-	tableName := s.repo.Table()
-	db := s.repo.DB(ctx)
+	tableName := s.Table()
+	db := s.DB(ctx)
 
 	return db.Transaction(func(tx *gorm.DB) error {
 		for _, emb := range embeddings {
@@ -74,8 +74,8 @@ func (s *SQLiteEmbeddingStore) SaveAll(ctx context.Context, embeddings []search.
 	})
 }
 
-// Find performs vector similarity search using pre-computed embedding from options.
-func (s *SQLiteEmbeddingStore) Find(ctx context.Context, options ...repository.Option) ([]search.Result, error) {
+// Search performs vector similarity search using pre-computed embedding from options.
+func (s *SQLiteEmbeddingStore) Search(ctx context.Context, options ...repository.Option) ([]search.Result, error) {
 	q := repository.Build(options...)
 	queryEmbedding, ok := search.EmbeddingFrom(q)
 	if !ok || len(queryEmbedding) == 0 {
@@ -124,7 +124,7 @@ func (s *SQLiteEmbeddingStore) loadVectors(ctx context.Context, options ...repos
 	var entities []SQLiteEmbeddingModel
 
 	q := repository.Build(options...)
-	db := database.ApplyConditions(s.repo.DB(ctx), options...)
+	db := database.ApplyConditions(s.DB(ctx), options...)
 
 	if filters, ok := search.FiltersFrom(q); ok {
 		db = database.ApplySearchFilters(db, filters)
@@ -144,25 +144,4 @@ func (s *SQLiteEmbeddingStore) loadVectors(ctx context.Context, options ...repos
 	}
 
 	return vectors, nil
-}
-
-// Exists checks if a snippet matching the options exists.
-func (s *SQLiteEmbeddingStore) Exists(ctx context.Context, options ...repository.Option) (bool, error) {
-	return s.repo.Exists(ctx, options...)
-}
-
-// SnippetIDs returns snippet IDs matching the given options.
-func (s *SQLiteEmbeddingStore) SnippetIDs(ctx context.Context, options ...repository.Option) ([]string, error) {
-	var found []string
-	db := database.ApplyOptions(s.repo.DB(ctx), options...)
-	err := db.Pluck("snippet_id", &found).Error
-	if err != nil {
-		return nil, err
-	}
-	return found, nil
-}
-
-// DeleteBy removes documents matching the given options.
-func (s *SQLiteEmbeddingStore) DeleteBy(ctx context.Context, options ...repository.Option) error {
-	return s.repo.DeleteBy(ctx, options...)
 }

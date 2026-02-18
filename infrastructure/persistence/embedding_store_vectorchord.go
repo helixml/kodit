@@ -48,7 +48,7 @@ var ErrDimensionMismatch = errors.New("embedding dimension mismatch")
 
 // VectorChordEmbeddingStore implements search.EmbeddingStore using VectorChord PostgreSQL extension.
 type VectorChordEmbeddingStore struct {
-	repo   database.Repository[search.Embedding, PgEmbeddingModel]
+	database.Repository[search.Embedding, PgEmbeddingModel]
 	logger *slog.Logger
 }
 
@@ -60,7 +60,7 @@ func NewVectorChordEmbeddingStore(ctx context.Context, db database.Database, tas
 	}
 	tableName := fmt.Sprintf("vectorchord_%s_embeddings", taskName)
 	s := &VectorChordEmbeddingStore{
-		repo: database.NewRepositoryForTable[search.Embedding, PgEmbeddingModel](
+		Repository: database.NewRepositoryForTable[search.Embedding, PgEmbeddingModel](
 			db, pgEmbeddingMapper{}, "embedding", tableName,
 		),
 		logger: logger,
@@ -112,8 +112,8 @@ CREATE TABLE IF NOT EXISTS %s (
 // migrateIndex drops a VectorChord index that was created with the wrong
 // operator class (e.g. vector_l2_ops instead of vector_cosine_ops).
 func (s *VectorChordEmbeddingStore) migrateIndex(ctx context.Context) error {
-	tableName := s.repo.Table()
-	db := s.repo.DB(ctx)
+	tableName := s.Table()
+	db := s.DB(ctx)
 
 	var opclass string
 	query := fmt.Sprintf(vcCheckIndexOpClassTemplate, tableName)
@@ -151,8 +151,8 @@ func (s *VectorChordEmbeddingStore) SaveAll(ctx context.Context, embeddings []se
 		return nil
 	}
 
-	tableName := s.repo.Table()
-	db := s.repo.DB(ctx)
+	tableName := s.Table()
+	db := s.DB(ctx)
 
 	return db.Transaction(func(tx *gorm.DB) error {
 		for _, emb := range embeddings {
@@ -172,28 +172,7 @@ func (s *VectorChordEmbeddingStore) SaveAll(ctx context.Context, embeddings []se
 	})
 }
 
-// Find performs vector similarity search.
-func (s *VectorChordEmbeddingStore) Find(ctx context.Context, options ...repository.Option) ([]search.Result, error) {
-	return cosineSearch(s.repo.DB(ctx), s.repo.Table(), options...)
-}
-
-// Exists checks if a snippet matching the options exists.
-func (s *VectorChordEmbeddingStore) Exists(ctx context.Context, options ...repository.Option) (bool, error) {
-	return s.repo.Exists(ctx, options...)
-}
-
-// SnippetIDs returns snippet IDs matching the given options.
-func (s *VectorChordEmbeddingStore) SnippetIDs(ctx context.Context, options ...repository.Option) ([]string, error) {
-	var found []string
-	db := database.ApplyOptions(s.repo.DB(ctx), options...)
-	err := db.Pluck("snippet_id", &found).Error
-	if err != nil {
-		return nil, err
-	}
-	return found, nil
-}
-
-// DeleteBy removes documents matching the given options.
-func (s *VectorChordEmbeddingStore) DeleteBy(ctx context.Context, options ...repository.Option) error {
-	return s.repo.DeleteBy(ctx, options...)
+// Search performs vector similarity search.
+func (s *VectorChordEmbeddingStore) Search(ctx context.Context, options ...repository.Option) ([]search.Result, error) {
+	return cosineSearch(s.DB(ctx), s.Table(), options...)
 }

@@ -318,7 +318,7 @@ func (s Search) Search(ctx context.Context, request search.MultiRequest) (MultiS
 
 	// Run text vector search if embedding available
 	if len(textEmbedding) > 0 && s.textVectorStore != nil {
-		results, err := s.textVectorStore.Find(ctx,
+		results, err := s.textVectorStore.Search(ctx,
 			filterOpt,
 			search.WithEmbedding(textEmbedding),
 			repository.WithLimit(topK*2),
@@ -332,7 +332,7 @@ func (s Search) Search(ctx context.Context, request search.MultiRequest) (MultiS
 
 	// Run code vector search if embedding available
 	if len(codeEmbedding) > 0 && s.codeVectorStore != nil {
-		results, err := s.codeVectorStore.Find(ctx,
+		results, err := s.codeVectorStore.Search(ctx,
 			filterOpt,
 			search.WithEmbedding(codeEmbedding),
 			repository.WithLimit(topK*2),
@@ -421,7 +421,7 @@ func (s Search) SearchText(ctx context.Context, query string, topK int) ([]enric
 		return nil, nil
 	}
 
-	results, err := s.textVectorStore.Find(ctx,
+	results, err := s.textVectorStore.Search(ctx,
 		search.WithEmbedding(embeddings[0]),
 		repository.WithLimit(topK),
 	)
@@ -459,7 +459,7 @@ func (s Search) SearchCode(ctx context.Context, query string, topK int) ([]enric
 		return nil, nil
 	}
 
-	results, err := s.codeVectorStore.Find(ctx,
+	results, err := s.codeVectorStore.Search(ctx,
 		search.WithEmbedding(embeddings[0]),
 		repository.WithLimit(topK),
 	)
