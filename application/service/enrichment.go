@@ -40,27 +40,16 @@ func NewEnrichment(
 }
 
 // List returns enrichments matching the given params.
-// If CommitSHA is set, returns enrichments for that commit.
-// If CommitSHAs is set, returns enrichments across multiple commits.
-// Otherwise returns enrichments matching the type/subtype filter.
+// Commit SHA filtering is handled via enrichment.WithCommitSHA / WithCommitSHAs
+// options, which the store resolves to association JOINs transparently.
 func (s *Enrichment) List(ctx context.Context, params *EnrichmentListParams) ([]enrichment.Enrichment, error) {
 	if params == nil {
 		return []enrichment.Enrichment{}, nil
 	}
 
-	paginationOpts := s.paginationOptions(params)
-
-	if params.CommitSHA != "" {
-		opts := append(s.filterOptions(params), paginationOpts...)
-		return s.enrichmentStore.FindByCommitSHA(ctx, params.CommitSHA, opts...)
-	}
-
-	if len(params.CommitSHAs) > 0 {
-		opts := append(s.filterOptions(params), paginationOpts...)
-		return s.enrichmentStore.FindByCommitSHAs(ctx, params.CommitSHAs, opts...)
-	}
-
-	opts := append(s.filterOptions(params), paginationOpts...)
+	opts := s.filterOptions(params)
+	opts = append(opts, s.commitOptions(params)...)
+	opts = append(opts, s.paginationOptions(params)...)
 	return s.enrichmentStore.Find(ctx, opts...)
 }
 
@@ -70,17 +59,9 @@ func (s *Enrichment) Count(ctx context.Context, params *EnrichmentListParams) (i
 		return 0, nil
 	}
 
-	filterOpts := s.filterOptions(params)
-
-	if params.CommitSHA != "" {
-		return s.enrichmentStore.CountByCommitSHA(ctx, params.CommitSHA, filterOpts...)
-	}
-
-	if len(params.CommitSHAs) > 0 {
-		return s.enrichmentStore.CountByCommitSHAs(ctx, params.CommitSHAs, filterOpts...)
-	}
-
-	return s.enrichmentStore.Count(ctx, filterOpts...)
+	opts := s.filterOptions(params)
+	opts = append(opts, s.commitOptions(params)...)
+	return s.enrichmentStore.Count(ctx, opts...)
 }
 
 func (s *Enrichment) filterOptions(params *EnrichmentListParams) []repository.Option {
@@ -92,6 +73,16 @@ func (s *Enrichment) filterOptions(params *EnrichmentListParams) []repository.Op
 		opts = append(opts, enrichment.WithSubtype(*params.Subtype))
 	}
 	return opts
+}
+
+func (s *Enrichment) commitOptions(params *EnrichmentListParams) []repository.Option {
+	if params.CommitSHA != "" {
+		return []repository.Option{enrichment.WithCommitSHA(params.CommitSHA)}
+	}
+	if len(params.CommitSHAs) > 0 {
+		return []repository.Option{enrichment.WithCommitSHAs(params.CommitSHAs)}
+	}
+	return nil
 }
 
 func (s *Enrichment) paginationOptions(params *EnrichmentListParams) []repository.Option {

@@ -49,7 +49,7 @@ func (h *APIDocs) Execute(ctx context.Context, payload map[string]any) error {
 		cp.RepoID(),
 	)
 
-	count, err := h.enrichCtx.Enrichments.CountByCommitSHA(ctx, cp.CommitSHA(), enrichment.WithType(enrichment.TypeUsage), enrichment.WithSubtype(enrichment.SubtypeAPIDocs))
+	count, err := h.enrichCtx.Enrichments.Count(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeUsage), enrichment.WithSubtype(enrichment.SubtypeAPIDocs))
 	if err != nil {
 		h.enrichCtx.Logger.Error("failed to check existing API docs", slog.String("error", err.Error()))
 		return err

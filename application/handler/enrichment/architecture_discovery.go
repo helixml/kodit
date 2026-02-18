@@ -77,7 +77,7 @@ func (h *ArchitectureDiscovery) Execute(ctx context.Context, payload map[string]
 
 	tracker.SetTotal(ctx, 3)
 
-	count, err := h.enrichCtx.Enrichments.CountByCommitSHA(ctx, cp.CommitSHA(), enrichment.WithType(enrichment.TypeArchitecture), enrichment.WithSubtype(enrichment.SubtypePhysical))
+	count, err := h.enrichCtx.Enrichments.Count(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeArchitecture), enrichment.WithSubtype(enrichment.SubtypePhysical))
 	if err != nil {
 		h.enrichCtx.Logger.Error("failed to check existing architecture", slog.String("error", err.Error()))
 		return err

@@ -86,7 +86,7 @@ func (h *Cookbook) Execute(ctx context.Context, payload map[string]any) error {
 		cp.RepoID(),
 	)
 
-	count, err := h.enrichCtx.Enrichments.CountByCommitSHA(ctx, cp.CommitSHA(), enrichment.WithType(enrichment.TypeUsage), enrichment.WithSubtype(enrichment.SubtypeCookbook))
+	count, err := h.enrichCtx.Enrichments.Count(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeUsage), enrichment.WithSubtype(enrichment.SubtypeCookbook))
 	if err != nil {
 		h.enrichCtx.Logger.Error("failed to check existing cookbook", slog.String("error", err.Error()))
 		return err

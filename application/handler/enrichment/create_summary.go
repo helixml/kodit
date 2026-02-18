@@ -47,7 +47,7 @@ func (h *CreateSummary) Execute(ctx context.Context, payload map[string]any) err
 		cp.RepoID(),
 	)
 
-	count, err := h.enrichCtx.Enrichments.CountByCommitSHA(ctx, cp.CommitSHA(), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeSnippetSummary))
+	count, err := h.enrichCtx.Enrichments.Count(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeSnippetSummary))
 	if err != nil {
 		h.enrichCtx.Logger.Error("failed to check existing summaries", slog.String("error", err.Error()))
 		return err
@@ -58,7 +58,7 @@ func (h *CreateSummary) Execute(ctx context.Context, payload map[string]any) err
 		return nil
 	}
 
-	snippetEnrichments, err := h.enrichCtx.Enrichments.FindByCommitSHA(ctx, cp.CommitSHA(), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeSnippet))
+	snippetEnrichments, err := h.enrichCtx.Enrichments.Find(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeSnippet))
 	if err != nil {
 		return fmt.Errorf("get snippet enrichments: %w", err)
 	}

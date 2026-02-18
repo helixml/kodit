@@ -49,7 +49,6 @@ import (
 	"github.com/helixml/kodit/infrastructure/git"
 	"github.com/helixml/kodit/infrastructure/persistence"
 	"github.com/helixml/kodit/infrastructure/provider"
-	infraSearch "github.com/helixml/kodit/infrastructure/search"
 	"github.com/helixml/kodit/infrastructure/slicing"
 	"github.com/helixml/kodit/infrastructure/slicing/language"
 	"github.com/helixml/kodit/infrastructure/tracking"
@@ -214,8 +213,28 @@ func New(opts ...Option) (*Client, error) {
 		Files:        fileStore,
 	}
 
+	// Probe embedding dimension once (only needed for PostgreSQL vector stores
+	// that require VECTOR(N) column declarations; SQLite stores JSON and needs
+	// no dimension up front).
+	var dimension int
+	needsDimensionProbe := cfg.embeddingProvider != nil &&
+		(cfg.database == databasePostgresPgvector || cfg.database == databasePostgresVectorchord)
+	if needsDimensionProbe {
+		resp, err := cfg.embeddingProvider.Embed(ctx, provider.NewEmbeddingRequest([]string{"dimension probe"}))
+		if err != nil {
+			errClose := db.Close()
+			return nil, errors.Join(fmt.Errorf("probe embedding dimension: %w", err), errClose)
+		}
+		probeEmbeddings := resp.Embeddings()
+		if len(probeEmbeddings) == 0 || len(probeEmbeddings[0]) == 0 {
+			errClose := db.Close()
+			return nil, errors.Join(fmt.Errorf("failed to obtain embedding dimension from provider"), errClose)
+		}
+		dimension = len(probeEmbeddings[0])
+	}
+
 	// Create search stores based on storage type
-	textVectorStore, codeVectorStore, bm25Store, err := buildSearchStores(ctx, cfg, db, logger)
+	textEmbeddingStore, codeEmbeddingStore, bm25Store, err := buildSearchStores(ctx, cfg, db, dimension, logger)
 	if err != nil {
 		errClose := db.Close()
 		return nil, errors.Join(fmt.Errorf("search stores: %w", err), errClose)
@@ -229,25 +248,25 @@ func New(opts ...Option) (*Client, error) {
 
 	// Create vector indices (pairing embedding services with their stores)
 	var codeIndex handler.VectorIndex
-	if codeVectorStore != nil {
-		embSvc, err := domainservice.NewEmbedding(codeVectorStore, domainEmbedder)
+	if codeEmbeddingStore != nil {
+		embSvc, err := domainservice.NewEmbedding(codeEmbeddingStore, domainEmbedder)
 		if err != nil {
 			return nil, fmt.Errorf("create code embedding service: %w", err)
 		}
 		codeIndex = handler.VectorIndex{
 			Embedding: embSvc,
-			Store:     codeVectorStore,
+			Store:     codeEmbeddingStore,
 		}
 	}
 	var textIndex handler.VectorIndex
-	if textVectorStore != nil {
-		embSvc, err := domainservice.NewEmbedding(textVectorStore, domainEmbedder)
+	if textEmbeddingStore != nil {
+		embSvc, err := domainservice.NewEmbedding(textEmbeddingStore, domainEmbedder)
 		if err != nil {
 			return nil, fmt.Errorf("create text embedding service: %w", err)
 		}
 		textIndex = handler.VectorIndex{
 			Embedding: embSvc,
-			Store:     textVectorStore,
+			Store:     textEmbeddingStore,
 		}
 	}
 
@@ -355,7 +374,7 @@ func New(opts ...Option) (*Client, error) {
 	client.Enrichments = enrichQSvc
 	client.Tasks = queue
 	client.Tracking = trackingSvc
-	client.Search = service.NewSearch(domainEmbedder, textVectorStore, codeVectorStore, bm25Store, enrichmentStore, &client.closed, logger)
+	client.Search = service.NewSearch(domainEmbedder, textEmbeddingStore, codeEmbeddingStore, bm25Store, enrichmentStore, &client.closed, logger)
 
 	// Register task handlers
 	if err := client.registerHandlers(); err != nil {
@@ -431,32 +450,58 @@ func (a *embeddingAdapter) Embed(ctx context.Context, texts []string) ([][]float
 }
 
 // buildSearchStores creates the search stores based on config.
-func buildSearchStores(ctx context.Context, cfg *clientConfig, db database.Database, logger *slog.Logger) (textVectorStore, codeVectorStore search.VectorStore, bm25Store search.BM25Store, err error) {
+func buildSearchStores(ctx context.Context, cfg *clientConfig, db database.Database, dimension int, logger *slog.Logger) (textEmbeddingStore, codeEmbeddingStore search.EmbeddingStore, bm25Store search.BM25Store, err error) {
 	switch cfg.database {
 	case databaseSQLite:
-		bm25Store = infraSearch.NewSQLiteBM25Store(db.GORM(), logger)
+		bm25Store, err = persistence.NewSQLiteBM25Store(db, logger)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("bm25 store: %w", err)
+		}
 		if cfg.embeddingProvider != nil {
-			textVectorStore = infraSearch.NewSQLiteVectorStore(db, infraSearch.TaskNameText, cfg.embeddingProvider, logger)
-			codeVectorStore = infraSearch.NewSQLiteVectorStore(db, infraSearch.TaskNameCode, cfg.embeddingProvider, logger)
+			textStore, textErr := persistence.NewSQLiteEmbeddingStore(db, persistence.TaskNameText, logger)
+			if textErr != nil {
+				return nil, nil, nil, fmt.Errorf("text embedding store: %w", textErr)
+			}
+			textEmbeddingStore = textStore
+			codeStore, codeErr := persistence.NewSQLiteEmbeddingStore(db, persistence.TaskNameCode, logger)
+			if codeErr != nil {
+				return nil, nil, nil, fmt.Errorf("code embedding store: %w", codeErr)
+			}
+			codeEmbeddingStore = codeStore
 		}
 	case databasePostgres:
-		bm25Store = infraSearch.NewPostgresBM25Store(db.GORM(), logger)
+		bm25Store, err = persistence.NewPostgresBM25Store(db, logger)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("bm25 store: %w", err)
+		}
 	case databasePostgresPgvector:
-		bm25Store = infraSearch.NewPostgresBM25Store(db.GORM(), logger)
+		bm25Store, err = persistence.NewPostgresBM25Store(db, logger)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("bm25 store: %w", err)
+		}
 		if cfg.embeddingProvider != nil {
-			textVectorStore = infraSearch.NewPgvectorStore(db, infraSearch.TaskNameText, cfg.embeddingProvider, logger)
-			codeVectorStore = infraSearch.NewPgvectorStore(db, infraSearch.TaskNameCode, cfg.embeddingProvider, logger)
+			textEmbeddingStore, err = persistence.NewPgvectorEmbeddingStore(ctx, db, persistence.TaskNameText, dimension, logger)
+			if err != nil {
+				return nil, nil, nil, fmt.Errorf("text embedding store: %w", err)
+			}
+			codeEmbeddingStore, err = persistence.NewPgvectorEmbeddingStore(ctx, db, persistence.TaskNameCode, dimension, logger)
+			if err != nil {
+				return nil, nil, nil, fmt.Errorf("code embedding store: %w", err)
+			}
 		}
 	case databasePostgresVectorchord:
-		bm25Store = infraSearch.NewVectorChordBM25Store(db.GORM(), logger)
+		bm25Store, err = persistence.NewVectorChordBM25Store(db, logger)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("bm25 store: %w", err)
+		}
 		if cfg.embeddingProvider != nil {
-			textVectorStore, err = infraSearch.NewVectorChordVectorStore(ctx, db, infraSearch.TaskNameText, cfg.embeddingProvider, logger)
+			textEmbeddingStore, err = persistence.NewVectorChordEmbeddingStore(ctx, db, persistence.TaskNameText, dimension, logger)
 			if err != nil {
-				return nil, nil, nil, fmt.Errorf("text vector store: %w", err)
+				return nil, nil, nil, fmt.Errorf("text embedding store: %w", err)
 			}
-			codeVectorStore, err = infraSearch.NewVectorChordVectorStore(ctx, db, infraSearch.TaskNameCode, cfg.embeddingProvider, logger)
+			codeEmbeddingStore, err = persistence.NewVectorChordEmbeddingStore(ctx, db, persistence.TaskNameCode, dimension, logger)
 			if err != nil {
-				return nil, nil, nil, fmt.Errorf("code vector store: %w", err)
+				return nil, nil, nil, fmt.Errorf("code embedding store: %w", err)
 			}
 		}
 	}

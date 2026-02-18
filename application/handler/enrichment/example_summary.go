@@ -46,7 +46,7 @@ func (h *ExampleSummary) Execute(ctx context.Context, payload map[string]any) er
 		cp.RepoID(),
 	)
 
-	count, err := h.enrichCtx.Enrichments.CountByCommitSHA(ctx, cp.CommitSHA(), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeExampleSummary))
+	count, err := h.enrichCtx.Enrichments.Count(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeExampleSummary))
 	if err != nil {
 		h.enrichCtx.Logger.Error("failed to check existing example summaries", slog.String("error", err.Error()))
 		return err
@@ -57,7 +57,7 @@ func (h *ExampleSummary) Execute(ctx context.Context, payload map[string]any) er
 		return nil
 	}
 
-	examples, err := h.enrichCtx.Enrichments.FindByCommitSHA(ctx, cp.CommitSHA(), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeExample))
+	examples, err := h.enrichCtx.Enrichments.Find(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeExample))
 	if err != nil {
 		return fmt.Errorf("get examples: %w", err)
 	}

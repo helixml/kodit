@@ -1,13 +1,14 @@
-package search
+package persistence
 
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
-	"sync"
 
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
+	"github.com/helixml/kodit/internal/database"
 	"gorm.io/gorm"
 )
 
@@ -36,49 +37,43 @@ var ErrSQLiteBM25InitializationFailed = errors.New("failed to initialize SQLite 
 
 // SQLiteBM25Store implements search.BM25Store using SQLite FTS5.
 type SQLiteBM25Store struct {
-	db          *gorm.DB
-	logger      *slog.Logger
-	initialized bool
-	nextRowID   int64
-	mu          sync.Mutex
+	db        *gorm.DB
+	logger    *slog.Logger
+	nextRowID int64
 }
 
-// NewSQLiteBM25Store creates a new SQLiteBM25Store.
-func NewSQLiteBM25Store(db *gorm.DB, logger *slog.Logger) *SQLiteBM25Store {
+// NewSQLiteBM25Store creates a new SQLiteBM25Store, eagerly initializing
+// the FTS5 table and row ID counter.
+func NewSQLiteBM25Store(db database.Database, logger *slog.Logger) (*SQLiteBM25Store, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &SQLiteBM25Store{
-		db:     db,
+	s := &SQLiteBM25Store{
+		db:     db.GORM(),
 		logger: logger,
 	}
-}
 
-func (s *SQLiteBM25Store) initialize(ctx context.Context) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.initialized {
-		return nil
-	}
+	ctx := context.Background()
 
 	if err := s.createTable(ctx); err != nil {
-		return errors.Join(ErrSQLiteBM25InitializationFailed, err)
+		return nil, errors.Join(ErrSQLiteBM25InitializationFailed, err)
 	}
 
 	// Get the max rowid to continue from
 	var maxRowID int64
 	if err := s.db.WithContext(ctx).Raw(sqliteMaxRowIDQuery).Scan(&maxRowID).Error; err != nil {
-		return errors.Join(ErrSQLiteBM25InitializationFailed, err)
+		return nil, errors.Join(ErrSQLiteBM25InitializationFailed, fmt.Errorf("read max rowid: %w", err))
 	}
 	s.nextRowID = maxRowID + 1
 
-	s.initialized = true
-	return nil
+	return s, nil
 }
 
 func (s *SQLiteBM25Store) createTable(ctx context.Context) error {
-	return s.db.WithContext(ctx).Exec(sqliteCreateFTS5Table).Error
+	if err := s.db.WithContext(ctx).Exec(sqliteCreateFTS5Table).Error; err != nil {
+		return fmt.Errorf("create fts5 table: %w", err)
+	}
+	return nil
 }
 
 func (s *SQLiteBM25Store) existingIDs(ctx context.Context, ids []string) (map[string]struct{}, error) {
@@ -86,14 +81,14 @@ func (s *SQLiteBM25Store) existingIDs(ctx context.Context, ids []string) (map[st
 		return map[string]struct{}{}, nil
 	}
 
-	var existingIDs []string
-	err := s.db.WithContext(ctx).Raw(sqliteCheckExistingQuery, ids).Scan(&existingIDs).Error
+	var found []string
+	err := s.db.WithContext(ctx).Raw(sqliteCheckExistingQuery, ids).Scan(&found).Error
 	if err != nil {
 		return nil, err
 	}
 
-	result := make(map[string]struct{}, len(existingIDs))
-	for _, id := range existingIDs {
+	result := make(map[string]struct{}, len(found))
+	for _, id := range found {
 		result[id] = struct{}{}
 	}
 	return result, nil
@@ -101,10 +96,6 @@ func (s *SQLiteBM25Store) existingIDs(ctx context.Context, ids []string) (map[st
 
 // Index adds documents to the BM25 index.
 func (s *SQLiteBM25Store) Index(ctx context.Context, request search.IndexRequest) error {
-	if err := s.initialize(ctx); err != nil {
-		return err
-	}
-
 	documents := request.Documents()
 
 	// Filter out invalid documents
@@ -158,10 +149,6 @@ func (s *SQLiteBM25Store) Index(ctx context.Context, request search.IndexRequest
 
 // Find performs BM25 keyword search using options.
 func (s *SQLiteBM25Store) Find(ctx context.Context, options ...repository.Option) ([]search.Result, error) {
-	if err := s.initialize(ctx); err != nil {
-		return nil, err
-	}
-
 	q := repository.Build(options...)
 	query, ok := search.QueryFrom(q)
 	if !ok || query == "" {
@@ -173,7 +160,7 @@ func (s *SQLiteBM25Store) Find(ctx context.Context, options ...repository.Option
 		limit = 10
 	}
 
-	ftsQuery := escapeF5Query(query)
+	ftsQuery := escapeFTS5Query(query)
 
 	tx := s.db.WithContext(ctx).
 		Table("kodit_bm25_documents").
@@ -184,7 +171,7 @@ func (s *SQLiteBM25Store) Find(ctx context.Context, options ...repository.Option
 		tx = tx.Where("snippet_id IN ?", snippetIDs)
 	}
 	if filters, ok := search.FiltersFrom(q); ok {
-		tx = applySearchFilters(tx, filters)
+		tx = database.ApplySearchFilters(tx, filters)
 	}
 
 	tx = tx.Order("score").Limit(limit)
@@ -217,10 +204,6 @@ func (s *SQLiteBM25Store) Find(ctx context.Context, options ...repository.Option
 
 // DeleteBy removes documents matching the given options.
 func (s *SQLiteBM25Store) DeleteBy(ctx context.Context, options ...repository.Option) error {
-	if err := s.initialize(ctx); err != nil {
-		return err
-	}
-
 	q := repository.Build(options...)
 	ids := search.SnippetIDsFrom(q)
 	if len(ids) == 0 {
@@ -230,8 +213,8 @@ func (s *SQLiteBM25Store) DeleteBy(ctx context.Context, options ...repository.Op
 	return s.db.WithContext(ctx).Exec(sqliteDeleteQuery, ids).Error
 }
 
-// escapeF5Query escapes special characters for FTS5 queries.
-func escapeF5Query(query string) string {
+// escapeFTS5Query escapes special characters for FTS5 queries.
+func escapeFTS5Query(query string) string {
 	// For simple queries, wrap in double quotes to treat as a phrase
 	// FTS5 special chars: AND OR NOT ( ) * ^
 	// Escape by wrapping in quotes

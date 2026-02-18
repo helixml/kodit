@@ -26,12 +26,12 @@ type Embedding interface {
 
 // EmbeddingService implements domain logic for embedding operations.
 type EmbeddingService struct {
-	store    search.VectorStore
+	store    search.EmbeddingStore
 	embedder search.Embedder
 }
 
 // NewEmbedding creates a new embedding service.
-func NewEmbedding(store search.VectorStore, embedder search.Embedder) (*EmbeddingService, error) {
+func NewEmbedding(store search.EmbeddingStore, embedder search.Embedder) (*EmbeddingService, error) {
 	if store == nil {
 		return nil, fmt.Errorf("NewEmbedding: nil store")
 	}
@@ -41,7 +41,8 @@ func NewEmbedding(store search.VectorStore, embedder search.Embedder) (*Embeddin
 	}, nil
 }
 
-// Index indexes documents using domain business rules.
+// Index indexes documents using domain business rules:
+// validate → deduplicate against store → embed → save.
 func (s *EmbeddingService) Index(ctx context.Context, request search.IndexRequest) error {
 	documents := request.Documents()
 
@@ -62,8 +63,59 @@ func (s *EmbeddingService) Index(ctx context.Context, request search.IndexReques
 		return nil
 	}
 
-	validRequest := search.NewIndexRequest(valid)
-	return s.store.Index(ctx, validRequest)
+	// Deduplicate: find which snippet IDs already exist
+	ids := make([]string, len(valid))
+	for i, doc := range valid {
+		ids[i] = doc.SnippetID()
+	}
+
+	existingIDs, err := s.store.SnippetIDs(ctx, search.WithSnippetIDs(ids))
+	if err != nil {
+		return fmt.Errorf("check existing: %w", err)
+	}
+
+	existing := make(map[string]struct{}, len(existingIDs))
+	for _, id := range existingIDs {
+		existing[id] = struct{}{}
+	}
+
+	var toEmbed []search.Document
+	for _, doc := range valid {
+		if _, ok := existing[doc.SnippetID()]; !ok {
+			toEmbed = append(toEmbed, doc)
+		}
+	}
+
+	if len(toEmbed) == 0 {
+		return nil
+	}
+
+	// Embed
+	if s.embedder == nil {
+		return fmt.Errorf("Index: nil embedder")
+	}
+
+	texts := make([]string, len(toEmbed))
+	for i, doc := range toEmbed {
+		texts[i] = doc.Text()
+	}
+
+	vectors, err := s.embedder.Embed(ctx, texts)
+	if err != nil {
+		return fmt.Errorf("generate embeddings: %w", err)
+	}
+
+	if len(vectors) != len(toEmbed) {
+		return fmt.Errorf("embedding count mismatch: got %d, expected %d", len(vectors), len(toEmbed))
+	}
+
+	// Build domain embeddings
+	embeddings := make([]search.Embedding, len(toEmbed))
+	for i, doc := range toEmbed {
+		embeddings[i] = search.NewEmbedding(doc.SnippetID(), vectors[i])
+	}
+
+	return s.store.SaveAll(ctx, embeddings)
 }
 
 // Find embeds the query text and performs vector similarity search.

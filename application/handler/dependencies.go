@@ -22,7 +22,7 @@ type EnrichmentContext struct {
 // VectorIndex pairs an embedding domain service with its backing vector store.
 type VectorIndex struct {
 	Embedding domainservice.Embedding
-	Store     search.VectorStore
+	Store     search.EmbeddingStore
 }
 
 // RepositoryStores groups the persistence stores for repository-related entities.

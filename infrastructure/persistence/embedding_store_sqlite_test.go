@@ -1,4 +1,4 @@
-package search
+package persistence
 
 import (
 	"context"
@@ -6,45 +6,20 @@ import (
 
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
-	"github.com/helixml/kodit/infrastructure/provider"
 	"github.com/helixml/kodit/internal/database"
-	"github.com/helixml/kodit/internal/testdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// fakeEmbedder implements provider.Embedder for testing.
-type fakeEmbedder struct {
-	dimension int
-}
-
-func newFakeEmbedder(dimension int) *fakeEmbedder {
-	return &fakeEmbedder{dimension: dimension}
-}
-
-func (f *fakeEmbedder) Embed(_ context.Context, req provider.EmbeddingRequest) (provider.EmbeddingResponse, error) {
-	texts := req.Texts()
-	embeddings := make([][]float64, len(texts))
-	for i := range texts {
-		embedding := make([]float64, f.dimension)
-		// Create deterministic embeddings based on text content
-		for j := range embedding {
-			embedding[j] = float64((i+1)*(j+1)) / float64(f.dimension)
-		}
-		embeddings[i] = embedding
-	}
-	return provider.NewEmbeddingResponse(embeddings, provider.NewUsage(len(texts), 0, len(texts))), nil
-}
-
-// embedText is a test helper that generates an embedding for a given text.
-func embedText(ctx context.Context, embedder *fakeEmbedder, text string) []float64 {
-	resp, _ := embedder.Embed(ctx, provider.NewEmbeddingRequest([]string{text}))
-	return resp.Embeddings()[0]
-}
-
-func testDB(t *testing.T) database.Database {
+// newTestDB creates an in-memory SQLite database for testing.
+// Cannot use testdb package here due to import cycle (testdb imports persistence).
+func newTestDB(t *testing.T) database.Database {
 	t.Helper()
-	return testdb.NewPlain(t)
+	ctx := context.Background()
+	db, err := database.NewDatabase(ctx, "sqlite:///:memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	return db
 }
 
 func TestCosineSimilarity(t *testing.T) {
@@ -173,75 +148,23 @@ func TestTopKSimilarFiltered(t *testing.T) {
 	})
 }
 
-func TestNewSQLiteVectorStore(t *testing.T) {
-	db := testDB(t)
-	embedder := newFakeEmbedder(384)
-	store := NewSQLiteVectorStore(db, TaskNameCode, embedder, nil)
-
-	assert.NotNil(t, store)
-	assert.NotNil(t, store.logger)
-	assert.False(t, store.initialized)
-	assert.Equal(t, "kodit_code_embeddings", store.repo.Table())
-}
-
-func TestNewSQLiteVectorStore_TextTask(t *testing.T) {
-	db := testDB(t)
-	embedder := newFakeEmbedder(384)
-	store := NewSQLiteVectorStore(db, TaskNameText, embedder, nil)
-
-	assert.Equal(t, "kodit_text_embeddings", store.repo.Table())
-}
-
-func TestSQLiteVectorStore_Index_EmptyDocuments(t *testing.T) {
-	db := testDB(t)
-	embedder := newFakeEmbedder(384)
-	store := NewSQLiteVectorStore(db, TaskNameCode, embedder, nil)
-	ctx := context.Background()
-
-	err := store.Index(ctx, search.NewIndexRequest([]search.Document{}))
+func TestSQLiteEmbeddingStore_SaveAllAndFind(t *testing.T) {
+	db := newTestDB(t)
+	store, err := NewSQLiteEmbeddingStore(db, TaskNameCode, nil)
 	require.NoError(t, err)
-}
-
-func TestSQLiteVectorStore_Find_NoEmbedding(t *testing.T) {
-	db := testDB(t)
-	embedder := newFakeEmbedder(384)
-	store := NewSQLiteVectorStore(db, TaskNameCode, embedder, nil)
 	ctx := context.Background()
 
-	// Find with no embedding option returns empty
-	results, err := store.Find(ctx)
-	require.NoError(t, err)
-	assert.Empty(t, results)
-}
-
-func TestSQLiteVectorStore_DeleteBy_EmptyIDs(t *testing.T) {
-	db := testDB(t)
-	embedder := newFakeEmbedder(384)
-	store := NewSQLiteVectorStore(db, TaskNameCode, embedder, nil)
-	ctx := context.Background()
-
-	err := store.DeleteBy(ctx, search.WithSnippetIDs([]string{}))
-	require.NoError(t, err)
-}
-
-func TestSQLiteVectorStore_IndexAndFind(t *testing.T) {
-	db := testDB(t)
-	embedder := newFakeEmbedder(4)
-	store := NewSQLiteVectorStore(db, TaskNameCode, embedder, nil)
-	ctx := context.Background()
-
-	// Index some documents
-	docs := []search.Document{
-		search.NewDocument("snippet1", "function add numbers"),
-		search.NewDocument("snippet2", "parse json data"),
-		search.NewDocument("snippet3", "calculate sum total"),
+	// Pre-computed embeddings (simulates what EmbeddingService would provide)
+	embeddings := []search.Embedding{
+		search.NewEmbedding("snippet1", []float64{1.0, 0.5, 0.0, 0.0}),
+		search.NewEmbedding("snippet2", []float64{0.0, 1.0, 0.5, 0.0}),
+		search.NewEmbedding("snippet3", []float64{0.0, 0.0, 1.0, 0.5}),
 	}
-	err := store.Index(ctx, search.NewIndexRequest(docs))
+	err = store.SaveAll(ctx, embeddings)
 	require.NoError(t, err)
 
 	// Find should return results
-	emb := embedText(ctx, embedder, "add numbers")
-	results, err := store.Find(ctx, search.WithEmbedding(emb), repository.WithLimit(10))
+	results, err := store.Find(ctx, search.WithEmbedding([]float64{1.0, 0.5, 0.0, 0.0}), repository.WithLimit(10))
 	require.NoError(t, err)
 	assert.NotEmpty(t, results)
 
@@ -255,28 +178,51 @@ func TestSQLiteVectorStore_IndexAndFind(t *testing.T) {
 	assert.True(t, ids["snippet3"])
 }
 
-func TestSQLiteVectorStore_IndexDuplicates(t *testing.T) {
-	db := testDB(t)
-	embedder := newFakeEmbedder(4)
-	store := NewSQLiteVectorStore(db, TaskNameCode, embedder, nil)
+func TestSQLiteEmbeddingStore_SaveAllEmpty(t *testing.T) {
+	db := newTestDB(t)
+	store, err := NewSQLiteEmbeddingStore(db, TaskNameCode, nil)
+	require.NoError(t, err)
 	ctx := context.Background()
 
-	// Index a document
-	docs := []search.Document{
-		search.NewDocument("snippet1", "test content"),
-	}
-	err := store.Index(ctx, search.NewIndexRequest(docs))
-	require.NoError(t, err)
-
-	// Index the same document again - should not error
-	err = store.Index(ctx, search.NewIndexRequest(docs))
+	err = store.SaveAll(ctx, []search.Embedding{})
 	require.NoError(t, err)
 }
 
-func TestSQLiteVectorStore_Exists(t *testing.T) {
-	db := testDB(t)
-	embedder := newFakeEmbedder(4)
-	store := NewSQLiteVectorStore(db, TaskNameCode, embedder, nil)
+func TestSQLiteEmbeddingStore_Find_NoEmbedding(t *testing.T) {
+	db := newTestDB(t)
+	store, err := NewSQLiteEmbeddingStore(db, TaskNameCode, nil)
+	require.NoError(t, err)
+	ctx := context.Background()
+
+	results, err := store.Find(ctx)
+	require.NoError(t, err)
+	assert.Empty(t, results)
+}
+
+func TestSQLiteEmbeddingStore_SaveAllDuplicates(t *testing.T) {
+	db := newTestDB(t)
+	store, err := NewSQLiteEmbeddingStore(db, TaskNameCode, nil)
+	require.NoError(t, err)
+	ctx := context.Background()
+
+	embeddings := []search.Embedding{
+		search.NewEmbedding("snippet1", []float64{1.0, 0.0, 0.0, 0.0}),
+	}
+	err = store.SaveAll(ctx, embeddings)
+	require.NoError(t, err)
+
+	// Save the same ID again with a different vector — should upsert, not error
+	embeddings2 := []search.Embedding{
+		search.NewEmbedding("snippet1", []float64{0.0, 1.0, 0.0, 0.0}),
+	}
+	err = store.SaveAll(ctx, embeddings2)
+	require.NoError(t, err)
+}
+
+func TestSQLiteEmbeddingStore_Exists(t *testing.T) {
+	db := newTestDB(t)
+	store, err := NewSQLiteEmbeddingStore(db, TaskNameCode, nil)
+	require.NoError(t, err)
 	ctx := context.Background()
 
 	// Initially does not exist
@@ -284,11 +230,10 @@ func TestSQLiteVectorStore_Exists(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, has)
 
-	// Index a document
-	docs := []search.Document{
-		search.NewDocument("snippet1", "test content"),
-	}
-	err = store.Index(ctx, search.NewIndexRequest(docs))
+	// Save an embedding
+	err = store.SaveAll(ctx, []search.Embedding{
+		search.NewEmbedding("snippet1", []float64{1.0, 0.0, 0.0, 0.0}),
+	})
 	require.NoError(t, err)
 
 	// Now should exist
@@ -297,21 +242,20 @@ func TestSQLiteVectorStore_Exists(t *testing.T) {
 	assert.True(t, has)
 }
 
-func TestSQLiteVectorStore_DeleteBy(t *testing.T) {
-	db := testDB(t)
-	embedder := newFakeEmbedder(4)
-	store := NewSQLiteVectorStore(db, TaskNameCode, embedder, nil)
+func TestSQLiteEmbeddingStore_DeleteBy(t *testing.T) {
+	db := newTestDB(t)
+	store, err := NewSQLiteEmbeddingStore(db, TaskNameCode, nil)
+	require.NoError(t, err)
 	ctx := context.Background()
 
-	// Index documents
-	docs := []search.Document{
-		search.NewDocument("snippet1", "test content one"),
-		search.NewDocument("snippet2", "test content two"),
-	}
-	err := store.Index(ctx, search.NewIndexRequest(docs))
+	// Save embeddings
+	err = store.SaveAll(ctx, []search.Embedding{
+		search.NewEmbedding("snippet1", []float64{1.0, 0.0, 0.0, 0.0}),
+		search.NewEmbedding("snippet2", []float64{0.0, 1.0, 0.0, 0.0}),
+	})
 	require.NoError(t, err)
 
-	// Delete one document
+	// Delete one
 	err = store.DeleteBy(ctx, search.WithSnippetIDs([]string{"snippet1"}))
 	require.NoError(t, err)
 
@@ -320,31 +264,29 @@ func TestSQLiteVectorStore_DeleteBy(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, has)
 
-	// Other document should still exist
+	// Other should still exist
 	has, err = store.Exists(ctx, search.WithSnippetID("snippet2"))
 	require.NoError(t, err)
 	assert.True(t, has)
 }
 
-func TestSQLiteVectorStore_FindWithFilter(t *testing.T) {
-	db := testDB(t)
-	embedder := newFakeEmbedder(4)
-	store := NewSQLiteVectorStore(db, TaskNameCode, embedder, nil)
+func TestSQLiteEmbeddingStore_FindWithFilter(t *testing.T) {
+	db := newTestDB(t)
+	store, err := NewSQLiteEmbeddingStore(db, TaskNameCode, nil)
+	require.NoError(t, err)
 	ctx := context.Background()
 
-	// Index documents
-	docs := []search.Document{
-		search.NewDocument("snippet1", "test content one"),
-		search.NewDocument("snippet2", "test content two"),
-		search.NewDocument("snippet3", "test content three"),
-	}
-	err := store.Index(ctx, search.NewIndexRequest(docs))
+	// Save embeddings
+	err = store.SaveAll(ctx, []search.Embedding{
+		search.NewEmbedding("snippet1", []float64{1.0, 0.0, 0.0, 0.0}),
+		search.NewEmbedding("snippet2", []float64{0.0, 1.0, 0.0, 0.0}),
+		search.NewEmbedding("snippet3", []float64{0.0, 0.0, 1.0, 0.0}),
+	})
 	require.NoError(t, err)
 
 	// Find with filter
-	emb := embedText(ctx, embedder, "test")
 	results, err := store.Find(ctx,
-		search.WithEmbedding(emb),
+		search.WithEmbedding([]float64{1.0, 0.0, 0.0, 0.0}),
 		search.WithSnippetIDs([]string{"snippet1", "snippet3"}),
 		repository.WithLimit(10),
 	)
@@ -359,6 +301,27 @@ func TestSQLiteVectorStore_FindWithFilter(t *testing.T) {
 	assert.True(t, ids["snippet1"])
 	assert.True(t, ids["snippet3"])
 	assert.False(t, ids["snippet2"])
+}
+
+func TestSQLiteEmbeddingStore_SnippetIDs(t *testing.T) {
+	db := newTestDB(t)
+	store, err := NewSQLiteEmbeddingStore(db, TaskNameCode, nil)
+	require.NoError(t, err)
+	ctx := context.Background()
+
+	// Save embeddings
+	err = store.SaveAll(ctx, []search.Embedding{
+		search.NewEmbedding("snippet1", []float64{1.0, 0.0, 0.0, 0.0}),
+		search.NewEmbedding("snippet2", []float64{0.0, 1.0, 0.0, 0.0}),
+	})
+	require.NoError(t, err)
+
+	// Get all snippet IDs
+	ids, err := store.SnippetIDs(ctx, search.WithSnippetIDs([]string{"snippet1", "snippet2", "snippet3"}))
+	require.NoError(t, err)
+	assert.Len(t, ids, 2)
+	assert.Contains(t, ids, "snippet1")
+	assert.Contains(t, ids, "snippet2")
 }
 
 func TestFloat64Slice_ScanValue(t *testing.T) {

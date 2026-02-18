@@ -1,22 +1,21 @@
-// Package search provides search infrastructure implementations for BM25 and vector search.
-package search
+package persistence
 
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
-	"sync"
 
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
+	"github.com/helixml/kodit/internal/database"
 	"gorm.io/gorm"
 )
 
 // SQL statements for VectorChord BM25 operations.
 const (
-	createVChordExtension = `CREATE EXTENSION IF NOT EXISTS vchord CASCADE`
-	createPGTokenizer     = `CREATE EXTENSION IF NOT EXISTS pg_tokenizer CASCADE`
-	createVChordBM25      = `CREATE EXTENSION IF NOT EXISTS vchord_bm25 CASCADE`
+	createPGTokenizer = `CREATE EXTENSION IF NOT EXISTS pg_tokenizer CASCADE`
+	createVChordBM25  = `CREATE EXTENSION IF NOT EXISTS vchord_bm25 CASCADE`
 
 	createBM25Table = `
 CREATE TABLE IF NOT EXISTS vectorchord_bm25_documents (
@@ -70,58 +69,49 @@ var ErrBM25InitializationFailed = errors.New("failed to initialize VectorChord B
 
 // VectorChordBM25Store implements search.BM25Store using VectorChord PostgreSQL extension.
 type VectorChordBM25Store struct {
-	db          *gorm.DB
-	logger      *slog.Logger
-	initialized bool
-	mu          sync.Mutex
+	db     *gorm.DB
+	logger *slog.Logger
 }
 
-// NewVectorChordBM25Store creates a new VectorChordBM25Store.
-func NewVectorChordBM25Store(db *gorm.DB, logger *slog.Logger) *VectorChordBM25Store {
+// NewVectorChordBM25Store creates a new VectorChordBM25Store, eagerly initializing
+// extensions, tokenizer, and tables.
+func NewVectorChordBM25Store(db database.Database, logger *slog.Logger) (*VectorChordBM25Store, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &VectorChordBM25Store{
-		db:     db,
+	s := &VectorChordBM25Store{
+		db:     db.GORM(),
 		logger: logger,
 	}
-}
 
-func (s *VectorChordBM25Store) initialize(ctx context.Context) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.initialized {
-		return nil
-	}
+	ctx := context.Background()
 
 	if err := s.createExtensions(ctx); err != nil {
-		return errors.Join(ErrBM25InitializationFailed, err)
+		return nil, errors.Join(ErrBM25InitializationFailed, err)
 	}
 
 	if err := s.createTokenizerIfNotExists(ctx); err != nil {
-		return errors.Join(ErrBM25InitializationFailed, err)
+		return nil, errors.Join(ErrBM25InitializationFailed, err)
 	}
 
 	if err := s.createTables(ctx); err != nil {
-		return errors.Join(ErrBM25InitializationFailed, err)
+		return nil, errors.Join(ErrBM25InitializationFailed, err)
 	}
 
-	s.initialized = true
-	return nil
+	return s, nil
 }
 
 func (s *VectorChordBM25Store) createExtensions(ctx context.Context) error {
 	db := s.db.WithContext(ctx)
 
-	if err := db.Exec(createVChordExtension).Error; err != nil {
-		return err
+	if err := db.Exec(vcCreateVChordExtension).Error; err != nil {
+		return fmt.Errorf("create vchord extension: %w", err)
 	}
 	if err := db.Exec(createPGTokenizer).Error; err != nil {
-		return err
+		return fmt.Errorf("create pg_tokenizer extension: %w", err)
 	}
 	if err := db.Exec(createVChordBM25).Error; err != nil {
-		return err
+		return fmt.Errorf("create vchord_bm25 extension: %w", err)
 	}
 	return nil
 }
@@ -149,10 +139,10 @@ func (s *VectorChordBM25Store) createTables(ctx context.Context) error {
 	db := s.db.WithContext(ctx)
 
 	if err := db.Exec(createBM25Table).Error; err != nil {
-		return err
+		return fmt.Errorf("create bm25 table: %w", err)
 	}
 	if err := db.Exec(createBM25Index).Error; err != nil {
-		return err
+		return fmt.Errorf("create bm25 index: %w", err)
 	}
 	return nil
 }
@@ -162,14 +152,14 @@ func (s *VectorChordBM25Store) existingIDs(ctx context.Context, ids []string) (m
 		return map[string]struct{}{}, nil
 	}
 
-	var existingIDs []string
-	err := s.db.WithContext(ctx).Raw(bm25CheckExistingIDsQuery, ids).Scan(&existingIDs).Error
+	var found []string
+	err := s.db.WithContext(ctx).Raw(bm25CheckExistingIDsQuery, ids).Scan(&found).Error
 	if err != nil {
 		return nil, err
 	}
 
-	result := make(map[string]struct{}, len(existingIDs))
-	for _, id := range existingIDs {
+	result := make(map[string]struct{}, len(found))
+	for _, id := range found {
 		result[id] = struct{}{}
 	}
 	return result, nil
@@ -177,10 +167,6 @@ func (s *VectorChordBM25Store) existingIDs(ctx context.Context, ids []string) (m
 
 // Index adds documents to the BM25 index.
 func (s *VectorChordBM25Store) Index(ctx context.Context, request search.IndexRequest) error {
-	if err := s.initialize(ctx); err != nil {
-		return err
-	}
-
 	documents := request.Documents()
 
 	// Filter out invalid documents
@@ -238,10 +224,6 @@ func (s *VectorChordBM25Store) Index(ctx context.Context, request search.IndexRe
 
 // Find performs BM25 keyword search using options.
 func (s *VectorChordBM25Store) Find(ctx context.Context, options ...repository.Option) ([]search.Result, error) {
-	if err := s.initialize(ctx); err != nil {
-		return nil, err
-	}
-
 	q := repository.Build(options...)
 	query, ok := search.QueryFrom(q)
 	if !ok || query == "" {
@@ -261,7 +243,7 @@ func (s *VectorChordBM25Store) Find(ctx context.Context, options ...repository.O
 		tx = tx.Where("snippet_id IN ?", snippetIDs)
 	}
 	if filters, ok := search.FiltersFrom(q); ok {
-		tx = applySearchFilters(tx, filters)
+		tx = database.ApplySearchFilters(tx, filters)
 	}
 
 	tx = tx.Order("bm25_score").Limit(limit)
@@ -286,10 +268,6 @@ func (s *VectorChordBM25Store) Find(ctx context.Context, options ...repository.O
 
 // DeleteBy removes documents matching the given options.
 func (s *VectorChordBM25Store) DeleteBy(ctx context.Context, options ...repository.Option) error {
-	if err := s.initialize(ctx); err != nil {
-		return err
-	}
-
 	q := repository.Build(options...)
 	ids := search.SnippetIDsFrom(q)
 	if len(ids) == 0 {

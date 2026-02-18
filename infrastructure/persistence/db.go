@@ -43,29 +43,43 @@ func PreMigrate(db database.Database) error {
 	// Add auto-increment id column to git_commit_files if missing.
 	// Old dumps predate this column; without it existing rows get id=0
 	// and enrichment associations are never created.
-	var hasIDColumn bool
+	// On fresh databases the table doesn't exist yet — AutoMigrate creates it
+	// with the id column, so we skip this migration entirely.
+	var tableExists bool
 	err = gdb.Raw(`
 		SELECT EXISTS(
-			SELECT 1 FROM information_schema.columns
-			WHERE table_name = 'git_commit_files' AND column_name = 'id'
+			SELECT 1 FROM information_schema.tables
+			WHERE table_name = 'git_commit_files'
 		)
-	`).Scan(&hasIDColumn).Error
+	`).Scan(&tableExists).Error
 	if err != nil {
 		return err
 	}
-	if !hasIDColumn {
-		slog.Warn("one-time database migration: adding id column to git_commit_files")
-		stmts := []string{
-			`CREATE SEQUENCE IF NOT EXISTS git_commit_files_id_seq`,
-			`ALTER TABLE git_commit_files ADD COLUMN id BIGINT NOT NULL DEFAULT nextval('git_commit_files_id_seq')`,
-			`ALTER SEQUENCE git_commit_files_id_seq OWNED BY git_commit_files.id`,
+	if tableExists {
+		var hasIDColumn bool
+		err = gdb.Raw(`
+			SELECT EXISTS(
+				SELECT 1 FROM information_schema.columns
+				WHERE table_name = 'git_commit_files' AND column_name = 'id'
+			)
+		`).Scan(&hasIDColumn).Error
+		if err != nil {
+			return err
 		}
-		for _, stmt := range stmts {
-			if err := gdb.Exec(stmt).Error; err != nil {
-				return fmt.Errorf("git_commit_files id migration: %w", err)
+		if !hasIDColumn {
+			slog.Warn("one-time database migration: adding id column to git_commit_files")
+			stmts := []string{
+				`CREATE SEQUENCE IF NOT EXISTS git_commit_files_id_seq`,
+				`ALTER TABLE git_commit_files ADD COLUMN id BIGINT NOT NULL DEFAULT nextval('git_commit_files_id_seq')`,
+				`ALTER SEQUENCE git_commit_files_id_seq OWNED BY git_commit_files.id`,
 			}
+			for _, stmt := range stmts {
+				if err := gdb.Exec(stmt).Error; err != nil {
+					return fmt.Errorf("git_commit_files id migration: %w", err)
+				}
+			}
+			slog.Info("one-time database migration complete: git_commit_files.id added")
 		}
-		slog.Info("one-time database migration complete: git_commit_files.id added")
 	}
 
 	// Replace non-unique ix_tasks_dedup_key with the unique index GORM expects.

@@ -36,3 +36,35 @@ func WithEntityIDIn(entityIDs []string) repository.Option {
 func WithEnrichmentIDIn(ids []int64) repository.Option {
 	return repository.WithConditionIn("enrichment_id", ids)
 }
+
+// WithCommitSHA filters enrichments associated with a single commit SHA
+// via the enrichment_associations table.
+func WithCommitSHA(sha string) repository.Option {
+	return repository.WithParam("enrichment_commit_sha", sha)
+}
+
+// WithCommitSHAs filters enrichments associated with multiple commit SHAs
+// via the enrichment_associations table.
+func WithCommitSHAs(shas []string) repository.Option {
+	return repository.WithParam("enrichment_commit_shas", shas)
+}
+
+// CommitSHAFrom extracts a single commit SHA filter from a query.
+func CommitSHAFrom(q repository.Query) (string, bool) {
+	v, ok := q.Param("enrichment_commit_sha")
+	if !ok {
+		return "", false
+	}
+	sha, ok := v.(string)
+	return sha, ok && sha != ""
+}
+
+// CommitSHAsFrom extracts multiple commit SHA filters from a query.
+func CommitSHAsFrom(q repository.Query) ([]string, bool) {
+	v, ok := q.Param("enrichment_commit_shas")
+	if !ok {
+		return nil, false
+	}
+	shas, ok := v.([]string)
+	return shas, ok && len(shas) > 0
+}

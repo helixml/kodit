@@ -1,4 +1,4 @@
-package search
+package database
 
 import (
 	"fmt"
@@ -7,11 +7,11 @@ import (
 	"gorm.io/gorm"
 )
 
-// applySearchFilters adds JOINs and WHERE clauses to a GORM query based on
+// ApplySearchFilters adds JOINs and WHERE clauses to a GORM query based on
 // search filters. The calling table must have a snippet_id column that stores
 // enrichment IDs as strings; the JOINs cast snippet_id to the appropriate
 // integer type for the dialect.
-func applySearchFilters(db *gorm.DB, filters search.Filters) *gorm.DB {
+func ApplySearchFilters(db *gorm.DB, filters search.Filters) *gorm.DB {
 	if filters.IsEmpty() {
 		return db
 	}

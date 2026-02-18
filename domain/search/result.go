@@ -71,6 +71,32 @@ func (f FusionResult) OriginalScores() []float64 {
 	return scores
 }
 
+// Embedding represents a snippet with its pre-computed embedding vector.
+type Embedding struct {
+	snippetID string
+	vector    []float64
+}
+
+// NewEmbedding creates a new Embedding value object.
+func NewEmbedding(snippetID string, vector []float64) Embedding {
+	cp := make([]float64, len(vector))
+	copy(cp, vector)
+	return Embedding{
+		snippetID: snippetID,
+		vector:    cp,
+	}
+}
+
+// SnippetID returns the snippet identifier.
+func (e Embedding) SnippetID() string { return e.snippetID }
+
+// Vector returns a defensive copy of the embedding vector.
+func (e Embedding) Vector() []float64 {
+	cp := make([]float64, len(e.vector))
+	copy(cp, e.vector)
+	return cp
+}
+
 // Document represents a generic document for indexing.
 type Document struct {
 	snippetID string

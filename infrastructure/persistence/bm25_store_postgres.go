@@ -1,14 +1,15 @@
-package search
+package persistence
 
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
-	"sync"
 
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
+	"github.com/helixml/kodit/internal/database"
 	"gorm.io/gorm"
 )
 
@@ -65,51 +66,42 @@ var ErrPostgresBM25InitializationFailed = errors.New("failed to initialize Postg
 
 // PostgresBM25Store implements search.BM25Store using PostgreSQL native full-text search.
 type PostgresBM25Store struct {
-	db          *gorm.DB
-	logger      *slog.Logger
-	initialized bool
-	mu          sync.Mutex
+	db     *gorm.DB
+	logger *slog.Logger
 }
 
-// NewPostgresBM25Store creates a new PostgresBM25Store.
-func NewPostgresBM25Store(db *gorm.DB, logger *slog.Logger) *PostgresBM25Store {
+// NewPostgresBM25Store creates a new PostgresBM25Store, eagerly initializing
+// tables and triggers.
+func NewPostgresBM25Store(db database.Database, logger *slog.Logger) (*PostgresBM25Store, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &PostgresBM25Store{
-		db:     db,
+	s := &PostgresBM25Store{
+		db:     db.GORM(),
 		logger: logger,
 	}
-}
 
-func (s *PostgresBM25Store) initialize(ctx context.Context) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.initialized {
-		return nil
-	}
+	ctx := context.Background()
 
 	if err := s.createTable(ctx); err != nil {
-		return errors.Join(ErrPostgresBM25InitializationFailed, err)
+		return nil, errors.Join(ErrPostgresBM25InitializationFailed, err)
 	}
 
 	if err := s.createTrigger(ctx); err != nil {
-		return errors.Join(ErrPostgresBM25InitializationFailed, err)
+		return nil, errors.Join(ErrPostgresBM25InitializationFailed, err)
 	}
 
-	s.initialized = true
-	return nil
+	return s, nil
 }
 
 func (s *PostgresBM25Store) createTable(ctx context.Context) error {
 	db := s.db.WithContext(ctx)
 
 	if err := db.Exec(pgCreateBM25Table).Error; err != nil {
-		return err
+		return fmt.Errorf("create bm25 table: %w", err)
 	}
 	if err := db.Exec(pgCreateTSVIndex).Error; err != nil {
-		return err
+		return fmt.Errorf("create tsv index: %w", err)
 	}
 	return nil
 }
@@ -118,10 +110,10 @@ func (s *PostgresBM25Store) createTrigger(ctx context.Context) error {
 	db := s.db.WithContext(ctx)
 
 	if err := db.Exec(pgCreateTriggerFunction).Error; err != nil {
-		return err
+		return fmt.Errorf("create trigger function: %w", err)
 	}
 	if err := db.Exec(pgCreateTrigger).Error; err != nil {
-		return err
+		return fmt.Errorf("create trigger: %w", err)
 	}
 	return nil
 }
@@ -131,14 +123,14 @@ func (s *PostgresBM25Store) existingIDs(ctx context.Context, ids []string) (map[
 		return map[string]struct{}{}, nil
 	}
 
-	var existingIDs []string
-	err := s.db.WithContext(ctx).Raw(pgCheckExistingIDsQuery, ids).Scan(&existingIDs).Error
+	var found []string
+	err := s.db.WithContext(ctx).Raw(pgCheckExistingIDsQuery, ids).Scan(&found).Error
 	if err != nil {
 		return nil, err
 	}
 
-	result := make(map[string]struct{}, len(existingIDs))
-	for _, id := range existingIDs {
+	result := make(map[string]struct{}, len(found))
+	for _, id := range found {
 		result[id] = struct{}{}
 	}
 	return result, nil
@@ -146,10 +138,6 @@ func (s *PostgresBM25Store) existingIDs(ctx context.Context, ids []string) (map[
 
 // Index adds documents to the BM25 index.
 func (s *PostgresBM25Store) Index(ctx context.Context, request search.IndexRequest) error {
-	if err := s.initialize(ctx); err != nil {
-		return err
-	}
-
 	documents := request.Documents()
 
 	// Filter out invalid documents
@@ -201,10 +189,6 @@ func (s *PostgresBM25Store) Index(ctx context.Context, request search.IndexReque
 
 // Find performs BM25-style keyword search using PostgreSQL ts_rank_cd.
 func (s *PostgresBM25Store) Find(ctx context.Context, options ...repository.Option) ([]search.Result, error) {
-	if err := s.initialize(ctx); err != nil {
-		return nil, err
-	}
-
 	q := repository.Build(options...)
 	query, ok := search.QueryFrom(q)
 	if !ok || query == "" {
@@ -227,7 +211,7 @@ func (s *PostgresBM25Store) Find(ctx context.Context, options ...repository.Opti
 		tx = tx.Where("snippet_id IN ?", snippetIDs)
 	}
 	if filters, ok := search.FiltersFrom(q); ok {
-		tx = applySearchFilters(tx, filters)
+		tx = database.ApplySearchFilters(tx, filters)
 	}
 
 	tx = tx.Order("score DESC").Limit(limit)
@@ -250,10 +234,6 @@ func (s *PostgresBM25Store) Find(ctx context.Context, options ...repository.Opti
 
 // DeleteBy removes documents matching the given options.
 func (s *PostgresBM25Store) DeleteBy(ctx context.Context, options ...repository.Option) error {
-	if err := s.initialize(ctx); err != nil {
-		return err
-	}
-
 	q := repository.Build(options...)
 	ids := search.SnippetIDsFrom(q)
 	if len(ids) == 0 {
@@ -265,7 +245,6 @@ func (s *PostgresBM25Store) DeleteBy(ctx context.Context, options ...repository.
 
 // sanitizePostgresQuery removes characters that could cause issues with plainto_tsquery.
 func sanitizePostgresQuery(query string) string {
-	// Replace characters that might cause issues
 	replacer := strings.NewReplacer(
 		"'", " ",
 		"\"", " ",

@@ -60,7 +60,7 @@ func (h *ExtractSnippets) Execute(ctx context.Context, payload map[string]any) e
 		cp.RepoID(),
 	)
 
-	existing, err := h.enrichmentStore.FindByCommitSHA(ctx, cp.CommitSHA(), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeSnippet))
+	existing, err := h.enrichmentStore.Find(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeSnippet))
 	if err != nil {
 		h.logger.Error("failed to check existing snippets", slog.String("error", err.Error()))
 		return err

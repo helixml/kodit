@@ -1,4 +1,4 @@
-package search
+package database
 
 import (
 	"database/sql/driver"

@@ -1,4 +1,4 @@
-package search
+package persistence
 
 import (
 	"context"
@@ -8,9 +8,9 @@ import (
 
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
-	"github.com/helixml/kodit/infrastructure/provider"
 	"github.com/helixml/kodit/internal/database"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // SQL queries that must stay as raw SQL (extensions, indexes, catalog).
@@ -40,39 +40,30 @@ JOIN pg_class c ON c.oid = i.indexrelid
 WHERE c.relname = '%s_idx'`
 )
 
-// TaskName represents the type of embeddings (code or text).
-type TaskName string
-
-// TaskName values.
-const (
-	TaskNameCode TaskName = "code"
-	TaskNameText TaskName = "text"
-)
-
 // ErrVectorInitializationFailed indicates VectorChord vector initialization failed.
 var ErrVectorInitializationFailed = errors.New("failed to initialize VectorChord vector repository")
 
 // ErrDimensionMismatch indicates embedding dimension doesn't match database.
 var ErrDimensionMismatch = errors.New("embedding dimension mismatch")
 
-// VectorChordVectorStore implements search.VectorStore using VectorChord PostgreSQL extension.
-type VectorChordVectorStore struct {
-	repo     database.Repository[PgEmbeddingEntity, PgEmbeddingEntity]
-	embedder provider.Embedder
-	logger   *slog.Logger
+// VectorChordEmbeddingStore implements search.EmbeddingStore using VectorChord PostgreSQL extension.
+type VectorChordEmbeddingStore struct {
+	repo   database.Repository[search.Embedding, PgEmbeddingModel]
+	logger *slog.Logger
 }
 
-// NewVectorChordVectorStore creates a new VectorChordVectorStore, eagerly
+// NewVectorChordEmbeddingStore creates a new VectorChordEmbeddingStore, eagerly
 // initializing the extension, table, index, and verifying the dimension.
-func NewVectorChordVectorStore(ctx context.Context, db database.Database, taskName TaskName, embedder provider.Embedder, logger *slog.Logger) (*VectorChordVectorStore, error) {
+func NewVectorChordEmbeddingStore(ctx context.Context, db database.Database, taskName TaskName, dimension int, logger *slog.Logger) (*VectorChordEmbeddingStore, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
 	tableName := fmt.Sprintf("vectorchord_%s_embeddings", taskName)
-	s := &VectorChordVectorStore{
-		repo:     newPgEmbeddingRepository(db, tableName),
-		embedder: embedder,
-		logger:   logger,
+	s := &VectorChordEmbeddingStore{
+		repo: database.NewRepositoryForTable[search.Embedding, PgEmbeddingModel](
+			db, pgEmbeddingMapper{}, "embedding", tableName,
+		),
+		logger: logger,
 	}
 
 	rawDB := db.Session(ctx)
@@ -81,17 +72,6 @@ func NewVectorChordVectorStore(ctx context.Context, db database.Database, taskNa
 	if err := rawDB.Exec(vcCreateVChordExtension).Error; err != nil {
 		return nil, errors.Join(ErrVectorInitializationFailed, fmt.Errorf("create extension: %w", err))
 	}
-
-	// Probe embedding dimension
-	resp, err := embedder.Embed(ctx, provider.NewEmbeddingRequest([]string{"dimension probe"}))
-	if err != nil {
-		return nil, errors.Join(ErrVectorInitializationFailed, fmt.Errorf("probe embedding dimension: %w", err))
-	}
-	probeEmbeddings := resp.Embeddings()
-	if len(probeEmbeddings) == 0 || len(probeEmbeddings[0]) == 0 {
-		return nil, errors.Join(ErrVectorInitializationFailed, errors.New("failed to obtain embedding dimension from provider"))
-	}
-	dimension := len(probeEmbeddings[0])
 
 	// Create table (dynamic dimension requires raw SQL)
 	createTableSQL := fmt.Sprintf(`
@@ -130,9 +110,8 @@ CREATE TABLE IF NOT EXISTS %s (
 }
 
 // migrateIndex drops a VectorChord index that was created with the wrong
-// operator class (e.g. vector_l2_ops instead of vector_cosine_ops). The
-// embedding data is preserved — only the index is rebuilt.
-func (s *VectorChordVectorStore) migrateIndex(ctx context.Context) error {
+// operator class (e.g. vector_l2_ops instead of vector_cosine_ops).
+func (s *VectorChordEmbeddingStore) migrateIndex(ctx context.Context) error {
 	tableName := s.repo.Table()
 	db := s.repo.DB(ctx)
 
@@ -166,23 +145,45 @@ func (s *VectorChordVectorStore) migrateIndex(ctx context.Context) error {
 	return nil
 }
 
-// Index adds documents to the vector index with embeddings.
-func (s *VectorChordVectorStore) Index(ctx context.Context, request search.IndexRequest) error {
-	return indexDocuments(ctx, &s.repo, s.embedder, s.logger, request, pgEntityFactory)
+// SaveAll persists pre-computed embeddings using upsert.
+func (s *VectorChordEmbeddingStore) SaveAll(ctx context.Context, embeddings []search.Embedding) error {
+	if len(embeddings) == 0 {
+		return nil
+	}
+
+	tableName := s.repo.Table()
+	db := s.repo.DB(ctx)
+
+	return db.Transaction(func(tx *gorm.DB) error {
+		for _, emb := range embeddings {
+			model := PgEmbeddingModel{
+				SnippetID: emb.SnippetID(),
+				Embedding: database.NewPgVector(emb.Vector()),
+			}
+			err := tx.Table(tableName).Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "snippet_id"}},
+				DoUpdates: clause.AssignmentColumns([]string{"embedding"}),
+			}).Create(&model).Error
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // Find performs vector similarity search.
-func (s *VectorChordVectorStore) Find(ctx context.Context, options ...repository.Option) ([]search.Result, error) {
-	return cosineSearch(ctx, s.repo.DB(ctx), s.repo.Table(), options...)
+func (s *VectorChordEmbeddingStore) Find(ctx context.Context, options ...repository.Option) ([]search.Result, error) {
+	return cosineSearch(s.repo.DB(ctx), s.repo.Table(), options...)
 }
 
 // Exists checks if a snippet matching the options exists.
-func (s *VectorChordVectorStore) Exists(ctx context.Context, options ...repository.Option) (bool, error) {
+func (s *VectorChordEmbeddingStore) Exists(ctx context.Context, options ...repository.Option) (bool, error) {
 	return s.repo.Exists(ctx, options...)
 }
 
 // SnippetIDs returns snippet IDs matching the given options.
-func (s *VectorChordVectorStore) SnippetIDs(ctx context.Context, options ...repository.Option) ([]string, error) {
+func (s *VectorChordEmbeddingStore) SnippetIDs(ctx context.Context, options ...repository.Option) ([]string, error) {
 	var found []string
 	db := database.ApplyOptions(s.repo.DB(ctx), options...)
 	err := db.Pluck("snippet_id", &found).Error
@@ -193,6 +194,6 @@ func (s *VectorChordVectorStore) SnippetIDs(ctx context.Context, options ...repo
 }
 
 // DeleteBy removes documents matching the given options.
-func (s *VectorChordVectorStore) DeleteBy(ctx context.Context, options ...repository.Option) error {
+func (s *VectorChordEmbeddingStore) DeleteBy(ctx context.Context, options ...repository.Option) error {
 	return s.repo.DeleteBy(ctx, options...)
 }

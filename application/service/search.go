@@ -202,8 +202,8 @@ func (r MultiSearchResult) Count() int {
 // Search orchestrates hybrid code search across text and code vector indexes.
 type Search struct {
 	embedder        search.Embedder
-	textVectorStore search.VectorStore
-	codeVectorStore search.VectorStore
+	textVectorStore search.EmbeddingStore
+	codeVectorStore search.EmbeddingStore
 	bm25Store       search.BM25Store
 	enrichmentStore enrichment.EnrichmentStore
 	fusion          search.Fusion
@@ -214,8 +214,8 @@ type Search struct {
 // NewSearch creates a new Search service.
 func NewSearch(
 	embedder search.Embedder,
-	textVectorStore search.VectorStore,
-	codeVectorStore search.VectorStore,
+	textVectorStore search.EmbeddingStore,
+	codeVectorStore search.EmbeddingStore,
 	bm25Store search.BM25Store,
 	enrichmentStore enrichment.EnrichmentStore,
 	closed *atomic.Bool,

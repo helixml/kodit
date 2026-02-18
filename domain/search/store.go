@@ -6,10 +6,10 @@ import (
 	"github.com/helixml/kodit/domain/repository"
 )
 
-// VectorStore defines operations for vector similarity search.
-type VectorStore interface {
-	// Index adds documents to the vector index with embeddings.
-	Index(ctx context.Context, request IndexRequest) error
+// EmbeddingStore defines persistence operations for vector embeddings.
+type EmbeddingStore interface {
+	// SaveAll persists pre-computed embeddings.
+	SaveAll(ctx context.Context, embeddings []Embedding) error
 
 	// Find performs vector similarity search using options.
 	// Embedding must be passed via WithEmbedding.

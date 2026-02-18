@@ -65,7 +65,7 @@ func (h *CreateSummaryEmbeddings) Execute(ctx context.Context, payload map[strin
 		cp.RepoID(),
 	)
 
-	enrichments, err := h.enrichmentStore.FindByCommitSHA(ctx, cp.CommitSHA(), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeSnippetSummary))
+	enrichments, err := h.enrichmentStore.Find(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeSnippetSummary))
 	if err != nil {
 		h.logger.Error("failed to get summary enrichments", slog.String("error", err.Error()))
 		return err

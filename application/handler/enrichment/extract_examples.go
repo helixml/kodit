@@ -61,7 +61,7 @@ func (h *ExtractExamples) Execute(ctx context.Context, payload map[string]any) e
 		cp.RepoID(),
 	)
 
-	count, err := h.enrichCtx.Enrichments.CountByCommitSHA(ctx, cp.CommitSHA(), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeExample))
+	count, err := h.enrichCtx.Enrichments.Count(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeExample))
 	if err != nil {
 		h.enrichCtx.Logger.Error("failed to check existing examples", slog.String("error", err.Error()))
 		return err

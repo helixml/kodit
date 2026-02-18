@@ -1,4 +1,4 @@
-package search
+package persistence
 
 import (
 	"context"
@@ -20,7 +20,7 @@ import (
 //
 // Skipped when VECTORCHORD_TEST_URL is not set.
 //
-//	VECTORCHORD_TEST_URL="postgresql://postgres:mysecretpassword@localhost:5434/kodit" go test -v -run TestVectorChordBM25Store_Integration ./infrastructure/search/
+//	VECTORCHORD_TEST_URL="postgresql://postgres:mysecretpassword@localhost:5434/kodit" go test -v -run TestVectorChordBM25Store_Integration ./infrastructure/persistence/
 func TestVectorChordBM25Store_Integration(t *testing.T) {
 	dsn := os.Getenv("VECTORCHORD_TEST_URL")
 	if dsn == "" {
@@ -33,7 +33,8 @@ func TestVectorChordBM25Store_Integration(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = db.Close() }()
 
-	store := NewVectorChordBM25Store(db.GORM(), nil)
+	store, err := NewVectorChordBM25Store(db, nil)
+	require.NoError(t, err)
 
 	// Index documents.
 	docs := []search.Document{

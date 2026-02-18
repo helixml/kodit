@@ -122,7 +122,7 @@ func (h *DatabaseSchema) Execute(ctx context.Context, payload map[string]any) er
 		cp.RepoID(),
 	)
 
-	count, err := h.enrichCtx.Enrichments.CountByCommitSHA(ctx, cp.CommitSHA(), enrichment.WithType(enrichment.TypeArchitecture), enrichment.WithSubtype(enrichment.SubtypeDatabaseSchema))
+	count, err := h.enrichCtx.Enrichments.Count(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeArchitecture), enrichment.WithSubtype(enrichment.SubtypeDatabaseSchema))
 	if err != nil {
 		h.enrichCtx.Logger.Error("failed to check existing database schema", slog.String("error", err.Error()))
 		return err

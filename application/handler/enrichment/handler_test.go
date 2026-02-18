@@ -192,7 +192,7 @@ func TestCommitDescriptionHandler(t *testing.T) {
 		err := h.Execute(ctx, payload)
 		require.NoError(t, err)
 
-		descriptions, err := enrichmentStore.FindByCommitSHA(ctx, "abc123def456",
+		descriptions, err := enrichmentStore.Find(ctx, enrichment.WithCommitSHA("abc123def456"),
 			enrichment.WithType(enrichment.TypeHistory),
 			enrichment.WithSubtype(enrichment.SubtypeCommitDescription))
 		require.NoError(t, err)
@@ -255,7 +255,7 @@ func TestCreateSummaryHandler(t *testing.T) {
 		err = h.Execute(ctx, payload)
 		require.NoError(t, err)
 
-		summaries, err := enrichmentStore.FindByCommitSHA(ctx, "abc123",
+		summaries, err := enrichmentStore.Find(ctx, enrichment.WithCommitSHA("abc123"),
 			enrichment.WithSubtype(enrichment.SubtypeSnippetSummary))
 		require.NoError(t, err)
 		assert.Len(t, summaries, 2)

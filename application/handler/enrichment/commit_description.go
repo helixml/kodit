@@ -60,7 +60,7 @@ func (h *CommitDescription) Execute(ctx context.Context, payload map[string]any)
 		cp.RepoID(),
 	)
 
-	count, err := h.enrichCtx.Enrichments.CountByCommitSHA(ctx, cp.CommitSHA(), enrichment.WithType(enrichment.TypeHistory), enrichment.WithSubtype(enrichment.SubtypeCommitDescription))
+	count, err := h.enrichCtx.Enrichments.Count(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeHistory), enrichment.WithSubtype(enrichment.SubtypeCommitDescription))
 	if err != nil {
 		h.enrichCtx.Logger.Error("failed to check existing commit description", slog.String("error", err.Error()))
 		return err

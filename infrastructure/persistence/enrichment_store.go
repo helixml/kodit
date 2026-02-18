@@ -8,6 +8,7 @@ import (
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/internal/database"
+	"gorm.io/gorm"
 )
 
 // EnrichmentStore implements enrichment.EnrichmentStore using GORM.
@@ -55,37 +56,17 @@ func (s EnrichmentStore) Delete(ctx context.Context, e enrichment.Enrichment) er
 	return nil
 }
 
-// FindByEntityKey returns all enrichments for a specific entity type (requires JOIN).
-func (s EnrichmentStore) FindByEntityKey(ctx context.Context, key enrichment.EntityTypeKey) ([]enrichment.Enrichment, error) {
-	var models []EnrichmentModel
-	result := s.DB(ctx).
-		Joins("JOIN enrichment_associations ON enrichment_associations.enrichment_id = enrichments_v2.id").
-		Where("enrichment_associations.entity_type = ?", string(key)).
-		Distinct().
-		Find(&models)
-	if result.Error != nil {
-		return nil, fmt.Errorf("find by entity key: %w", result.Error)
-	}
-
-	enrichments := make([]enrichment.Enrichment, len(models))
-	for i, model := range models {
-		enrichments[i] = s.Mapper().ToDomain(model)
-	}
-	return enrichments, nil
-}
-
-// FindByCommitSHA returns enrichments associated with a commit via JOIN.
-func (s EnrichmentStore) FindByCommitSHA(ctx context.Context, commitSHA string, options ...repository.Option) ([]enrichment.Enrichment, error) {
-	var models []EnrichmentModel
-	db := s.DB(ctx).
-		Joins("JOIN enrichment_associations ON enrichment_associations.enrichment_id = enrichments_v2.id").
-		Where("enrichment_associations.entity_type = ?", string(enrichment.EntityTypeCommit)).
-		Where("enrichment_associations.entity_id = ?", commitSHA).
-		Distinct()
+// Find retrieves enrichments matching the given options.
+// Supports commit SHA filtering via enrichment.WithCommitSHA / WithCommitSHAs
+// options, which join through enrichment_associations.
+func (s EnrichmentStore) Find(ctx context.Context, options ...repository.Option) ([]enrichment.Enrichment, error) {
+	q := repository.Build(options...)
+	db := s.commitJoin(s.DB(ctx), q)
 	db = database.ApplyOptions(db, options...)
-	result := db.Find(&models)
-	if result.Error != nil {
-		return nil, fmt.Errorf("find by commit SHA: %w", result.Error)
+
+	var models []EnrichmentModel
+	if err := db.Find(&models).Error; err != nil {
+		return nil, fmt.Errorf("find enrichments: %w", err)
 	}
 
 	enrichments := make([]enrichment.Enrichment, len(models))
@@ -95,63 +76,48 @@ func (s EnrichmentStore) FindByCommitSHA(ctx context.Context, commitSHA string, 
 	return enrichments, nil
 }
 
-// CountByCommitSHA returns the count of enrichments for a commit.
-func (s EnrichmentStore) CountByCommitSHA(ctx context.Context, commitSHA string, options ...repository.Option) (int64, error) {
-	var count int64
-	db := s.DB(ctx).Model(&EnrichmentModel{}).
-		Joins("JOIN enrichment_associations ON enrichment_associations.enrichment_id = enrichments_v2.id").
-		Where("enrichment_associations.entity_type = ?", string(enrichment.EntityTypeCommit)).
-		Where("enrichment_associations.entity_id = ?", commitSHA)
+// Count returns the number of enrichments matching the given options.
+func (s EnrichmentStore) Count(ctx context.Context, options ...repository.Option) (int64, error) {
+	q := repository.Build(options...)
+	db := s.commitJoin(s.DB(ctx).Model(&EnrichmentModel{}), q)
 	db = database.ApplyConditions(db, options...)
-	result := db.Distinct("enrichments_v2.id").Count(&count)
-	if result.Error != nil {
-		return 0, fmt.Errorf("count by commit SHA: %w", result.Error)
-	}
-	return count, nil
-}
-
-// FindByCommitSHAs returns enrichments across multiple commits via JOIN.
-func (s EnrichmentStore) FindByCommitSHAs(ctx context.Context, commitSHAs []string, options ...repository.Option) ([]enrichment.Enrichment, error) {
-	if len(commitSHAs) == 0 {
-		return []enrichment.Enrichment{}, nil
-	}
-
-	var models []EnrichmentModel
-	db := s.DB(ctx).
-		Joins("JOIN enrichment_associations ON enrichment_associations.enrichment_id = enrichments_v2.id").
-		Where("enrichment_associations.entity_type = ?", string(enrichment.EntityTypeCommit)).
-		Where("enrichment_associations.entity_id IN ?", commitSHAs).
-		Distinct()
-	db = database.ApplyOptions(db, options...)
-	result := db.Find(&models)
-	if result.Error != nil {
-		return nil, fmt.Errorf("find by commit SHAs: %w", result.Error)
-	}
-
-	enrichments := make([]enrichment.Enrichment, len(models))
-	for i, model := range models {
-		enrichments[i] = s.Mapper().ToDomain(model)
-	}
-	return enrichments, nil
-}
-
-// CountByCommitSHAs returns the count of enrichments across multiple commits.
-func (s EnrichmentStore) CountByCommitSHAs(ctx context.Context, commitSHAs []string, options ...repository.Option) (int64, error) {
-	if len(commitSHAs) == 0 {
-		return 0, nil
-	}
 
 	var count int64
-	db := s.DB(ctx).Model(&EnrichmentModel{}).
-		Joins("JOIN enrichment_associations ON enrichment_associations.enrichment_id = enrichments_v2.id").
-		Where("enrichment_associations.entity_type = ?", string(enrichment.EntityTypeCommit)).
-		Where("enrichment_associations.entity_id IN ?", commitSHAs)
-	db = database.ApplyConditions(db, options...)
-	result := db.Distinct("enrichments_v2.id").Count(&count)
-	if result.Error != nil {
-		return 0, fmt.Errorf("count by commit SHAs: %w", result.Error)
+	if needsCommitJoin(q) {
+		result := db.Distinct("enrichments_v2.id").Count(&count)
+		return count, result.Error
 	}
-	return count, nil
+	result := db.Count(&count)
+	return count, result.Error
+}
+
+// commitJoin applies the enrichment_associations JOIN when commit SHA
+// options are present in the query.
+func (s EnrichmentStore) commitJoin(db *gorm.DB, q repository.Query) *gorm.DB {
+	if sha, ok := enrichment.CommitSHAFrom(q); ok {
+		return db.
+			Joins("JOIN enrichment_associations ON enrichment_associations.enrichment_id = enrichments_v2.id").
+			Where("enrichment_associations.entity_type = ?", string(enrichment.EntityTypeCommit)).
+			Where("enrichment_associations.entity_id = ?", sha).
+			Distinct()
+	}
+	if shas, ok := enrichment.CommitSHAsFrom(q); ok {
+		return db.
+			Joins("JOIN enrichment_associations ON enrichment_associations.enrichment_id = enrichments_v2.id").
+			Where("enrichment_associations.entity_type = ?", string(enrichment.EntityTypeCommit)).
+			Where("enrichment_associations.entity_id IN ?", shas).
+			Distinct()
+	}
+	return db
+}
+
+// needsCommitJoin returns true when commit SHA filtering is active.
+func needsCommitJoin(q repository.Query) bool {
+	if _, ok := enrichment.CommitSHAFrom(q); ok {
+		return true
+	}
+	_, ok := enrichment.CommitSHAsFrom(q)
+	return ok
 }
 
 // AssociationStore implements enrichment.AssociationStore using GORM.

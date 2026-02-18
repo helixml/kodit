@@ -104,7 +104,7 @@ func (h *Delete) Execute(ctx context.Context, payload map[string]any) error {
 func (h *Delete) deleteEnrichmentData(ctx context.Context, commitSHA string) error {
 	// Find enrichments for this commit, then delete them.
 	// Associations are cascade-deleted when their parent enrichment is removed.
-	enrichments, err := h.enrichmentStore.FindByCommitSHA(ctx, commitSHA)
+	enrichments, err := h.enrichmentStore.Find(ctx, enrichment.WithCommitSHA(commitSHA))
 	if err != nil {
 		return fmt.Errorf("find enrichments for commit: %w", err)
 	}
