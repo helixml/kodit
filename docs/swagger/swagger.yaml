@@ -1499,22 +1499,22 @@ paths:
       summary: List tags
       tags:
       - repositories
-  /repositories/{id}/tags/{tag_id}:
+  /repositories/{id}/tags/{tag_name}:
     get:
       consumes:
       - application/json
-      description: Get a tag by ID
+      description: Get a tag by name
       parameters:
       - description: Repository ID
         in: path
         name: id
         required: true
         type: integer
-      - description: Tag ID
+      - description: Tag name
         in: path
-        name: tag_id
+        name: tag_name
         required: true
-        type: integer
+        type: string
       produces:
       - application/json
       responses:

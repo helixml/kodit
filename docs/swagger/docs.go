@@ -1424,14 +1424,14 @@ const docTemplate = `{
                 }
             }
         },
-        "/repositories/{id}/tags/{tag_id}": {
+        "/repositories/{id}/tags/{tag_name}": {
             "get": {
                 "security": [
                     {
                         "APIKeyAuth": []
                     }
                 ],
-                "description": "Get a tag by ID",
+                "description": "Get a tag by name",
                 "consumes": [
                     "application/json"
                 ],
@@ -1451,9 +1451,9 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "type": "integer",
-                        "description": "Tag ID",
-                        "name": "tag_id",
+                        "type": "string",
+                        "description": "Tag name",
+                        "name": "tag_name",
                         "in": "path",
                         "required": true
                     }

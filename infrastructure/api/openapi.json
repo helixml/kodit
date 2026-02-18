@@ -1657,14 +1657,14 @@
                 }
             }
         },
-        "/repositories/{id}/tags/{tag_id}": {
+        "/repositories/{id}/tags/{tag_name}": {
             "get": {
                 "security": [
                     {
                         "APIKeyAuth": []
                     }
                 ],
-                "description": "Get a tag by ID",
+                "description": "Get a tag by name",
                 "tags": [
                     "repositories"
                 ],
@@ -1680,12 +1680,12 @@
                         }
                     },
                     {
-                        "description": "Tag ID",
-                        "name": "tag_id",
+                        "description": "Tag name",
+                        "name": "tag_name",
                         "in": "path",
                         "required": true,
                         "schema": {
-                            "type": "integer"
+                            "type": "string"
                         }
                     }
                 ],

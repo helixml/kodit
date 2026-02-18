@@ -168,8 +168,8 @@ type ClientInterface interface {
 	// GetRepositoriesIdTags request
 	GetRepositoriesIdTags(ctx context.Context, id int, params *GetRepositoriesIdTagsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetRepositoriesIdTagsTagId request
-	GetRepositoriesIdTagsTagId(ctx context.Context, id int, tagId int, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetRepositoriesIdTagsTagName request
+	GetRepositoriesIdTagsTagName(ctx context.Context, id int, tagName string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetRepositoriesIdTrackingConfig request
 	GetRepositoriesIdTrackingConfig(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -509,8 +509,8 @@ func (c *Client) GetRepositoriesIdTags(ctx context.Context, id int, params *GetR
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetRepositoriesIdTagsTagId(ctx context.Context, id int, tagId int, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetRepositoriesIdTagsTagIdRequest(c.Server, id, tagId)
+func (c *Client) GetRepositoriesIdTagsTagName(ctx context.Context, id int, tagName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetRepositoriesIdTagsTagNameRequest(c.Server, id, tagName)
 	if err != nil {
 		return nil, err
 	}
@@ -1974,8 +1974,8 @@ func NewGetRepositoriesIdTagsRequest(server string, id int, params *GetRepositor
 	return req, nil
 }
 
-// NewGetRepositoriesIdTagsTagIdRequest generates requests for GetRepositoriesIdTagsTagId
-func NewGetRepositoriesIdTagsTagIdRequest(server string, id int, tagId int) (*http.Request, error) {
+// NewGetRepositoriesIdTagsTagNameRequest generates requests for GetRepositoriesIdTagsTagName
+func NewGetRepositoriesIdTagsTagNameRequest(server string, id int, tagName string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -1987,7 +1987,7 @@ func NewGetRepositoriesIdTagsTagIdRequest(server string, id int, tagId int) (*ht
 
 	var pathParam1 string
 
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "tag_id", runtime.ParamLocationPath, tagId)
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "tag_name", runtime.ParamLocationPath, tagName)
 	if err != nil {
 		return nil, err
 	}
@@ -2258,8 +2258,8 @@ type ClientWithResponsesInterface interface {
 	// GetRepositoriesIdTagsWithResponse request
 	GetRepositoriesIdTagsWithResponse(ctx context.Context, id int, params *GetRepositoriesIdTagsParams, reqEditors ...RequestEditorFn) (*GetRepositoriesIdTagsResponse, error)
 
-	// GetRepositoriesIdTagsTagIdWithResponse request
-	GetRepositoriesIdTagsTagIdWithResponse(ctx context.Context, id int, tagId int, reqEditors ...RequestEditorFn) (*GetRepositoriesIdTagsTagIdResponse, error)
+	// GetRepositoriesIdTagsTagNameWithResponse request
+	GetRepositoriesIdTagsTagNameWithResponse(ctx context.Context, id int, tagName string, reqEditors ...RequestEditorFn) (*GetRepositoriesIdTagsTagNameResponse, error)
 
 	// GetRepositoriesIdTrackingConfigWithResponse request
 	GetRepositoriesIdTrackingConfigWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*GetRepositoriesIdTrackingConfigResponse, error)
@@ -2867,7 +2867,7 @@ func (r GetRepositoriesIdTagsResponse) StatusCode() int {
 	return 0
 }
 
-type GetRepositoriesIdTagsTagIdResponse struct {
+type GetRepositoriesIdTagsTagNameResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *DtoTagJSONAPIResponse
@@ -2876,7 +2876,7 @@ type GetRepositoriesIdTagsTagIdResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r GetRepositoriesIdTagsTagIdResponse) Status() string {
+func (r GetRepositoriesIdTagsTagNameResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2884,7 +2884,7 @@ func (r GetRepositoriesIdTagsTagIdResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetRepositoriesIdTagsTagIdResponse) StatusCode() int {
+func (r GetRepositoriesIdTagsTagNameResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -3204,13 +3204,13 @@ func (c *ClientWithResponses) GetRepositoriesIdTagsWithResponse(ctx context.Cont
 	return ParseGetRepositoriesIdTagsResponse(rsp)
 }
 
-// GetRepositoriesIdTagsTagIdWithResponse request returning *GetRepositoriesIdTagsTagIdResponse
-func (c *ClientWithResponses) GetRepositoriesIdTagsTagIdWithResponse(ctx context.Context, id int, tagId int, reqEditors ...RequestEditorFn) (*GetRepositoriesIdTagsTagIdResponse, error) {
-	rsp, err := c.GetRepositoriesIdTagsTagId(ctx, id, tagId, reqEditors...)
+// GetRepositoriesIdTagsTagNameWithResponse request returning *GetRepositoriesIdTagsTagNameResponse
+func (c *ClientWithResponses) GetRepositoriesIdTagsTagNameWithResponse(ctx context.Context, id int, tagName string, reqEditors ...RequestEditorFn) (*GetRepositoriesIdTagsTagNameResponse, error) {
+	rsp, err := c.GetRepositoriesIdTagsTagName(ctx, id, tagName, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetRepositoriesIdTagsTagIdResponse(rsp)
+	return ParseGetRepositoriesIdTagsTagNameResponse(rsp)
 }
 
 // GetRepositoriesIdTrackingConfigWithResponse request returning *GetRepositoriesIdTrackingConfigResponse
@@ -4200,15 +4200,15 @@ func ParseGetRepositoriesIdTagsResponse(rsp *http.Response) (*GetRepositoriesIdT
 	return response, nil
 }
 
-// ParseGetRepositoriesIdTagsTagIdResponse parses an HTTP response from a GetRepositoriesIdTagsTagIdWithResponse call
-func ParseGetRepositoriesIdTagsTagIdResponse(rsp *http.Response) (*GetRepositoriesIdTagsTagIdResponse, error) {
+// ParseGetRepositoriesIdTagsTagNameResponse parses an HTTP response from a GetRepositoriesIdTagsTagNameWithResponse call
+func ParseGetRepositoriesIdTagsTagNameResponse(rsp *http.Response) (*GetRepositoriesIdTagsTagNameResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetRepositoriesIdTagsTagIdResponse{
+	response := &GetRepositoriesIdTagsTagNameResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}

@@ -695,9 +695,9 @@ List tags for a repository
 
 [middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
-### GET /repositories/{id}/tags/{tag_id}
+### GET /repositories/{id}/tags/{tag_name}
 
-Get a tag by ID
+Get a tag by name
 
 
 #### Parameters
@@ -705,7 +705,7 @@ Get a tag by ID
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | id | integer | True | Repository ID |
-| tag_id | integer | True | Tag ID |
+| tag_name | string | True | Tag name |
 
 
 #### Responses
