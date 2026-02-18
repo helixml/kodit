@@ -15,12 +15,13 @@ import (
 
 // fakeSearch implements Searcher with a canned result.
 type fakeSearch struct {
-	enrichments []enrichment.Enrichment
-	scores      map[string]float64
+	enrichments    []enrichment.Enrichment
+	scores         map[string]float64
+	originalScores map[string][]float64
 }
 
 func (f *fakeSearch) Search(_ context.Context, _ search.MultiRequest) (service.MultiSearchResult, error) {
-	return service.NewMultiSearchResult(f.enrichments, f.scores), nil
+	return service.NewMultiSearchResult(f.enrichments, f.scores, f.originalScores), nil
 }
 
 // fakeRepositoryLister implements RepositoryLister with canned repos.
@@ -165,8 +166,9 @@ func testServer() *Server {
 	e := testEnrichment()
 	return NewServer(
 		&fakeSearch{
-			enrichments: []enrichment.Enrichment{e},
-			scores:      map[string]float64{"42": 0.95},
+			enrichments:    []enrichment.Enrichment{e},
+			scores:         map[string]float64{"42": 0.95},
+			originalScores: map[string][]float64{"42": {0.85}},
 		},
 		&fakeRepositoryLister{repos: []repository.Repository{testRepo()}},
 		&fakeCommitFinder{commits: []repository.Commit{testCommit()}},
@@ -303,8 +305,8 @@ func TestServer_Search(t *testing.T) {
 	if items[0].Language != "go" {
 		t.Errorf("expected language go, got %s", items[0].Language)
 	}
-	if items[0].Score != 0.95 {
-		t.Errorf("expected score 0.95, got %f", items[0].Score)
+	if items[0].Score != 0.85 {
+		t.Errorf("expected score 0.85, got %f", items[0].Score)
 	}
 }
 

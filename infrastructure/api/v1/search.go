@@ -176,12 +176,12 @@ func buildSearchResponse(
 	repos map[int64]repository.Repository,
 ) dto.SearchResponse {
 	enrichments := result.Enrichments()
-	scores := result.FusedScores()
+	originalScores := result.OriginalScores()
 
 	data := make([]dto.SnippetData, len(enrichments))
 	for i, e := range enrichments {
 		idStr := strconv.FormatInt(e.ID(), 10)
-		data[i] = enrichmentToSearchResult(e, scores[idStr], related[idStr], fileMap[idStr], commits, repos)
+		data[i] = enrichmentToSearchResult(e, originalScores[idStr], related[idStr], fileMap[idStr], commits, repos)
 	}
 
 	return dto.SearchResponse{
@@ -191,7 +191,7 @@ func buildSearchResponse(
 
 func enrichmentToSearchResult(
 	e enrichment.Enrichment,
-	score float64,
+	scores []float64,
 	related []enrichment.Enrichment,
 	files []repository.File,
 	commits map[string]repository.Commit,
@@ -232,7 +232,7 @@ func enrichmentToSearchResult(
 				Language: e.Language(),
 			},
 			Enrichments:    enrichmentSchemas,
-			OriginalScores: []float64{score},
+			OriginalScores: scores,
 		},
 		Links: links,
 	}

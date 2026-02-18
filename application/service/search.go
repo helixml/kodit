@@ -138,14 +138,16 @@ func (r SearchResult) Count() int {
 
 // MultiSearchResult represents the result of a multi-modal search.
 type MultiSearchResult struct {
-	enrichments []enrichment.Enrichment
-	fusedScores map[string]float64
+	enrichments    []enrichment.Enrichment
+	fusedScores    map[string]float64
+	originalScores map[string][]float64
 }
 
 // NewMultiSearchResult creates a new MultiSearchResult.
 func NewMultiSearchResult(
 	enrichments []enrichment.Enrichment,
 	fusedScores map[string]float64,
+	originalScores map[string][]float64,
 ) MultiSearchResult {
 	enrich := make([]enrichment.Enrichment, len(enrichments))
 	copy(enrich, enrichments)
@@ -153,9 +155,17 @@ func NewMultiSearchResult(
 	scores := make(map[string]float64, len(fusedScores))
 	maps.Copy(scores, fusedScores)
 
+	originals := make(map[string][]float64, len(originalScores))
+	for k, v := range originalScores {
+		cp := make([]float64, len(v))
+		copy(cp, v)
+		originals[k] = cp
+	}
+
 	return MultiSearchResult{
-		enrichments: enrich,
-		fusedScores: scores,
+		enrichments:    enrich,
+		fusedScores:    scores,
+		originalScores: originals,
 	}
 }
 
@@ -170,6 +180,17 @@ func (r MultiSearchResult) Enrichments() []enrichment.Enrichment {
 func (r MultiSearchResult) FusedScores() map[string]float64 {
 	result := make(map[string]float64, len(r.fusedScores))
 	maps.Copy(result, r.fusedScores)
+	return result
+}
+
+// OriginalScores returns a map of enrichment ID string to raw scores from each search method.
+func (r MultiSearchResult) OriginalScores() map[string][]float64 {
+	result := make(map[string][]float64, len(r.originalScores))
+	for k, v := range r.originalScores {
+		cp := make([]float64, len(v))
+		copy(cp, v)
+		result[k] = cp
+	}
 	return result
 }
 
@@ -345,17 +366,19 @@ func (s Search) Search(ctx context.Context, request search.MultiRequest) (MultiS
 	}
 
 	if len(fusionLists) == 0 {
-		return NewMultiSearchResult(nil, nil), nil
+		return NewMultiSearchResult(nil, nil, nil), nil
 	}
 
 	// Fuse all result lists together
 	fusedResults := s.fusion.FuseTopK(topK, fusionLists...)
 
-	// Extract enrichment IDs from fused results
+	// Extract enrichment IDs and scores from fused results
 	fusedScores := make(map[string]float64, len(fusedResults))
+	originalScores := make(map[string][]float64, len(fusedResults))
 	ids := make([]int64, 0, len(fusedResults))
 	for _, result := range fusedResults {
 		fusedScores[result.ID()] = result.Score()
+		originalScores[result.ID()] = result.OriginalScores()
 		id, err := strconv.ParseInt(result.ID(), 10, 64)
 		if err != nil {
 			s.logger.Warn("failed to parse enrichment ID", "id", result.ID(), "error", err)
@@ -365,7 +388,7 @@ func (s Search) Search(ctx context.Context, request search.MultiRequest) (MultiS
 	}
 
 	if len(ids) == 0 {
-		return NewMultiSearchResult(nil, nil), nil
+		return NewMultiSearchResult(nil, nil, nil), nil
 	}
 
 	// Fetch full enrichments — filtering already happened in store queries
@@ -377,7 +400,7 @@ func (s Search) Search(ctx context.Context, request search.MultiRequest) (MultiS
 	// Order enrichments by fused score
 	ordered := orderByScore(enrichments, fusedScores)
 
-	return NewMultiSearchResult(ordered, fusedScores), nil
+	return NewMultiSearchResult(ordered, fusedScores, originalScores), nil
 }
 
 // SearchText performs text vector search against enrichment summaries.

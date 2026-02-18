@@ -275,7 +275,7 @@ func (s *Server) handleSearch(ctx context.Context, request mcp.CallToolRequest) 
 	}
 
 	enrichments := result.Enrichments()
-	scores := result.FusedScores()
+	originalScores := result.OriginalScores()
 
 	type searchResult struct {
 		ID       string  `json:"id"`
@@ -287,11 +287,17 @@ func (s *Server) handleSearch(ctx context.Context, request mcp.CallToolRequest) 
 	results := make([]searchResult, len(enrichments))
 	for i, e := range enrichments {
 		idStr := strconv.FormatInt(e.ID(), 10)
+		var best float64
+		for _, s := range originalScores[idStr] {
+			if s > best {
+				best = s
+			}
+		}
 		results[i] = searchResult{
 			ID:       idStr,
 			Content:  e.Content(),
 			Language: e.Language(),
-			Score:    scores[idStr],
+			Score:    best,
 		}
 	}
 
