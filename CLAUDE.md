@@ -62,6 +62,42 @@ Stylistic requirements:
 - **NO TYPE ALIASES**: Always update references when moving or renaming types.
 - **NO PANICS**: Never panic. If something goes wrong, return an error. If you can't return an error, rewrite the method so that it can error. In general, write all possible code with an error return variable, even if it's not used.
 
+## Repositories and Database Stores
+
+Every store **embeds** `database.Repository[D, E]` (`internal/database/repository.go`). This provides `Find`, `FindOne`, `Count`, `Exists`, `DeleteBy`, `Mapper()`, and `DB(ctx)`. Do not reimplement these. A store only adds methods its domain interface requires (`Save`, `Delete`, `SaveAll`).
+
+```go
+type CommitStore struct {
+    database.Repository[repository.Commit, CommitModel]
+}
+
+func NewCommitStore(db database.Database) CommitStore {
+    return CommitStore{
+        Repository: database.NewRepository[repository.Commit, CommitModel](db, CommitMapper{}, "commit"),
+    }
+}
+```
+
+**Use `Find` with options for lookups** — not raw GORM queries or one-off `Get`/`GetBy` methods. Define typed options in `domain/<domain>/options.go` using `repository.WithCondition`:
+
+```go
+// Option:
+func WithSHA(sha string) Option { return WithCondition("commit_sha", sha) }
+
+// Usage:
+commits, err := store.Find(ctx, repository.WithRepoID(id), repository.WithSHA(sha))
+one, err := store.FindOne(ctx, repository.WithID(id))
+```
+
+For JOINs or non-column filters, use `repository.WithParam` to pass data, then override `Find` in the store to apply the JOIN. See `EnrichmentStore` for the pattern.
+
+**Do not:**
+
+- Store separate `db` or `mapper` fields — use `s.DB(ctx)` and `s.Mapper()` from the embedding
+- Rewrite `Find`/`FindOne`/`Count` unless you need JOINs
+- Write raw `WHERE` clauses for equality/IN filters — use `WithCondition`/`WithConditionIn`
+- Add `Get(id)` or `GetByName(name)` methods — use `FindOne` with the right option
+
 ## Testing
 
 Use the `internal/testdb` package for test databases. Do not create ad-hoc SQLite connections in tests.
