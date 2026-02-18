@@ -17,11 +17,6 @@ import (
 const (
 	vcCreateVChordExtension = `CREATE EXTENSION IF NOT EXISTS vchord CASCADE`
 
-	vcCreateHNSWIndexTemplate = `
-CREATE INDEX IF NOT EXISTS %s_idx
-ON %s
-USING vchordrq (embedding vector_cosine_ops)`
-
 	vcCheckDimensionTemplate = `
 SELECT a.atttypmod as dimension
 FROM pg_attribute a
@@ -80,17 +75,6 @@ CREATE TABLE IF NOT EXISTS %s (
 		return nil, errors.Join(ErrVectorInitializationFailed, fmt.Errorf("create table: %w", err))
 	}
 
-	// Migrate index from old operator class if needed
-	if err := s.migrateIndex(ctx); err != nil {
-		return nil, errors.Join(ErrVectorInitializationFailed, fmt.Errorf("migrate index: %w", err))
-	}
-
-	// Create index (uses vector_cosine_ops)
-	indexSQL := fmt.Sprintf(vcCreateHNSWIndexTemplate, tableName, tableName)
-	if err := rawDB.Exec(indexSQL).Error; err != nil {
-		return nil, errors.Join(ErrVectorInitializationFailed, fmt.Errorf("create index: %w", err))
-	}
-
 	// Verify dimension matches
 	var dbDimension int
 	checkDimensionSQL := fmt.Sprintf(vcCheckDimensionTemplate, tableName)
@@ -105,34 +89,8 @@ CREATE TABLE IF NOT EXISTS %s (
 	return s, nil
 }
 
-// migrateIndex drops an existing index if it uses the wrong access method.
-func (s *VectorChordEmbeddingStore) migrateIndex(ctx context.Context) error {
-	tableName := s.Table()
-	db := s.DB(ctx)
-
-	var method string
-	query := fmt.Sprintf(vcCheckIndexMethodTemplate, tableName)
-	result := db.Raw(query).Scan(&method)
-	if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-		return fmt.Errorf("check index method: %w", result.Error)
-	}
-	if result.RowsAffected == 0 || method == "hnsw" {
-		return nil
-	}
-
-	s.logger.Warn("dropping embedding index with wrong access method",
-		slog.String("table", tableName),
-		slog.String("old_method", method),
-	)
-
-	dropSQL := fmt.Sprintf("DROP INDEX IF EXISTS %s_idx", tableName)
-	if err := db.Exec(dropSQL).Error; err != nil {
-		return fmt.Errorf("drop old index: %w", err)
-	}
-	return nil
-}
-
-// SaveAll persists pre-computed embeddings using upsert.
+// SaveAll persists pre-computed embeddings using upsert, then ensures
+// the vchordrq index exists (it requires data for K-means clustering).
 func (s *VectorChordEmbeddingStore) SaveAll(ctx context.Context, embeddings []search.Embedding) error {
 	if len(embeddings) == 0 {
 		return nil
@@ -141,7 +99,7 @@ func (s *VectorChordEmbeddingStore) SaveAll(ctx context.Context, embeddings []se
 	tableName := s.Table()
 	db := s.DB(ctx)
 
-	return db.Transaction(func(tx *gorm.DB) error {
+	err := db.Transaction(func(tx *gorm.DB) error {
 		for _, emb := range embeddings {
 			model := PgEmbeddingModel{
 				SnippetID: emb.SnippetID(),
@@ -157,9 +115,71 @@ func (s *VectorChordEmbeddingStore) SaveAll(ctx context.Context, embeddings []se
 		}
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+
+	return s.ensureIndex(ctx)
 }
 
-// Search performs vector similarity search.
+// ensureIndex creates the vchordrq index if it doesn't already exist.
+// Must be called after data has been inserted so K-means clustering has
+// vectors to work with.
+func (s *VectorChordEmbeddingStore) ensureIndex(ctx context.Context) error {
+	tableName := s.Table()
+	db := s.DB(ctx)
+
+	var method string
+	query := fmt.Sprintf(vcCheckIndexMethodTemplate, tableName)
+	result := db.Raw(query).Scan(&method)
+	if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return fmt.Errorf("check index method: %w", result.Error)
+	}
+	if result.RowsAffected > 0 {
+		return nil // index already exists
+	}
+
+	var count int64
+	if err := db.Table(tableName).Count(&count).Error; err != nil {
+		return fmt.Errorf("count rows: %w", err)
+	}
+
+	lists := max(count/10, 1)
+
+	indexSQL := fmt.Sprintf(`
+CREATE INDEX IF NOT EXISTS %s_idx
+ON %s
+USING vchordrq (embedding vector_cosine_ops) WITH (options = $$
+residual_quantization = true
+[build.internal]
+lists = [%d]
+$$)`, tableName, tableName, lists)
+
+	s.logger.Info("creating vchordrq index",
+		slog.String("table", tableName),
+		slog.Int64("rows", count),
+		slog.Int64("lists", lists),
+	)
+
+	if err := db.Exec(indexSQL).Error; err != nil {
+		return fmt.Errorf("create index: %w", err)
+	}
+	return nil
+}
+
+// Search performs vector similarity search within a transaction so that
+// the vchordrq.probes session variable is visible to the query.
 func (s *VectorChordEmbeddingStore) Search(ctx context.Context, options ...repository.Option) ([]search.Result, error) {
-	return cosineSearch(s.DB(ctx), s.Table(), options...)
+	db := s.DB(ctx)
+
+	var results []search.Result
+	err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec("SET LOCAL vchordrq.probes = 10").Error; err != nil {
+			return fmt.Errorf("set vchordrq.probes: %w", err)
+		}
+		var searchErr error
+		results, searchErr = cosineSearch(tx, s.Table(), options...)
+		return searchErr
+	})
+	return results, err
 }
