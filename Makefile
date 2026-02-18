@@ -74,11 +74,6 @@ docker-dev: download-model download-ort
 	docker compose -f docker-compose.dev.yaml $(PROFILES) up -d --wait
 	docker compose -f docker-compose.dev.yaml logs -f kodit
 
-.PHONY: docker-reset-db
-docker-reset-db: ## Reset vectorchord DB (nuke volume, reload SQL dump, run migrations)
-	docker compose -f docker-compose.dev.yaml --profile vectorchord down -v
-	docker compose -f docker-compose.dev.yaml --profile vectorchord up -d --wait
-
 .PHONY: docker-clean
 docker-clean:
 	docker compose -f docker-compose.dev.yaml $(ALL_PROFILES) down -v

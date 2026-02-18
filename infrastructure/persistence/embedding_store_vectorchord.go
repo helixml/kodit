@@ -17,14 +17,10 @@ import (
 const (
 	vcCreateVChordExtension = `CREATE EXTENSION IF NOT EXISTS vchord CASCADE`
 
-	vcCreateVChordIndexTemplate = `
+	vcCreateHNSWIndexTemplate = `
 CREATE INDEX IF NOT EXISTS %s_idx
 ON %s
-USING vchordrq (embedding vector_cosine_ops) WITH (options = $$
-residual_quantization = true
-[build.internal]
-lists = []
-$$)`
+USING vchordrq (embedding vector_cosine_ops)`
 
 	vcCheckDimensionTemplate = `
 SELECT a.atttypmod as dimension
@@ -33,10 +29,10 @@ JOIN pg_class c ON a.attrelid = c.oid
 WHERE c.relname = '%s'
 AND a.attname = 'embedding'`
 
-	vcCheckIndexOpClassTemplate = `
-SELECT opcname FROM pg_index i
-JOIN pg_opclass o ON o.oid = i.indclass[0]
+	vcCheckIndexMethodTemplate = `
+SELECT amname FROM pg_index i
 JOIN pg_class c ON c.oid = i.indexrelid
+JOIN pg_am a ON a.oid = c.relam
 WHERE c.relname = '%s_idx'`
 )
 
@@ -90,7 +86,7 @@ CREATE TABLE IF NOT EXISTS %s (
 	}
 
 	// Create index (uses vector_cosine_ops)
-	indexSQL := fmt.Sprintf(vcCreateVChordIndexTemplate, tableName, tableName)
+	indexSQL := fmt.Sprintf(vcCreateHNSWIndexTemplate, tableName, tableName)
 	if err := rawDB.Exec(indexSQL).Error; err != nil {
 		return nil, errors.Join(ErrVectorInitializationFailed, fmt.Errorf("create index: %w", err))
 	}
@@ -109,39 +105,30 @@ CREATE TABLE IF NOT EXISTS %s (
 	return s, nil
 }
 
-// migrateIndex drops a VectorChord index that was created with the wrong
-// operator class (e.g. vector_l2_ops instead of vector_cosine_ops).
+// migrateIndex drops an existing index if it uses the wrong access method.
 func (s *VectorChordEmbeddingStore) migrateIndex(ctx context.Context) error {
 	tableName := s.Table()
 	db := s.DB(ctx)
 
-	var opclass string
-	query := fmt.Sprintf(vcCheckIndexOpClassTemplate, tableName)
-	result := db.Raw(query).Scan(&opclass)
+	var method string
+	query := fmt.Sprintf(vcCheckIndexMethodTemplate, tableName)
+	result := db.Raw(query).Scan(&method)
 	if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-		return fmt.Errorf("check index opclass: %w", result.Error)
+		return fmt.Errorf("check index method: %w", result.Error)
 	}
-	if result.RowsAffected == 0 {
-		return nil // index does not exist yet
-	}
-	if opclass == "vector_cosine_ops" {
-		return nil // already correct
+	if result.RowsAffected == 0 || method == "hnsw" {
+		return nil
 	}
 
-	s.logger.Warn("VectorChord index uses wrong operator class, dropping index for recreation",
+	s.logger.Warn("dropping embedding index with wrong access method",
 		slog.String("table", tableName),
-		slog.String("old_opclass", opclass),
-		slog.String("new_opclass", "vector_cosine_ops"),
+		slog.String("old_method", method),
 	)
 
 	dropSQL := fmt.Sprintf("DROP INDEX IF EXISTS %s_idx", tableName)
 	if err := db.Exec(dropSQL).Error; err != nil {
 		return fmt.Errorf("drop old index: %w", err)
 	}
-
-	s.logger.Info("VectorChord index migrated — index will be recreated with vector_cosine_ops",
-		slog.String("table", tableName),
-	)
 	return nil
 }
 
