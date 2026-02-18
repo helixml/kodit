@@ -56,7 +56,7 @@ func (h *Scan) Execute(ctx context.Context, payload map[string]any) error {
 
 	existing, err := h.commitStore.Exists(ctx, repository.WithRepoID(cp.RepoID()), repository.WithSHA(cp.CommitSHA()))
 	if err != nil {
-		h.logger.Warn("failed to check existing commit", slog.String("error", err.Error()))
+		return fmt.Errorf("check existing commit: %w", err)
 	}
 
 	if existing {
