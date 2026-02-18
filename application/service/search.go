@@ -289,7 +289,7 @@ func (s Search) Search(ctx context.Context, request search.MultiRequest) (MultiS
 	var textEmbedding, codeEmbedding []float64
 	if s.embedder != nil {
 		var textsToEmbed []string
-		var textIdx, codeIdx int = -1, -1
+		var textIdx, codeIdx = -1, -1
 		if textQuery != "" && s.textVectorStore != nil {
 			textIdx = len(textsToEmbed)
 			textsToEmbed = append(textsToEmbed, textQuery)

@@ -17,7 +17,7 @@ func applySearchFilters(db *gorm.DB, filters search.Filters) *gorm.DB {
 	}
 
 	castType := "bigint"
-	if db.Dialector.Name() == "sqlite" {
+	if db.Name() == "sqlite" {
 		castType = "INTEGER"
 	}
 
