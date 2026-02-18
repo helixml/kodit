@@ -5,12 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"strconv"
-	"strings"
 
 	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/infrastructure/provider"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // TaskName represents the type of embeddings (code or text).
@@ -22,7 +21,7 @@ const (
 	TaskNameText TaskName = "text"
 )
 
-// SQL queries for VectorChord vector search.
+// SQL queries that must stay as raw SQL (extensions, indexes, catalog, similarity).
 const (
 	vcCreateVChordExtension = `CREATE EXTENSION IF NOT EXISTS vchord CASCADE`
 
@@ -34,12 +33,6 @@ residual_quantization = true
 [build.internal]
 lists = []
 $$)`
-
-	vcInsertQueryTemplate = `
-INSERT INTO %s (snippet_id, embedding)
-VALUES (?, ?)
-ON CONFLICT (snippet_id) DO UPDATE
-SET embedding = EXCLUDED.embedding`
 
 	vcSearchQueryTemplate = `
 SELECT snippet_id, embedding <=> ? as score
@@ -53,12 +46,6 @@ FROM %s
 WHERE snippet_id IN ?
 ORDER BY score ASC
 LIMIT ?`
-
-	vcCheckEmbeddingExistsTemplate = `
-SELECT EXISTS(SELECT 1 FROM %s WHERE snippet_id = ?)`
-
-	vcCheckExistingIDsTemplate = `
-SELECT snippet_id FROM %s WHERE snippet_id IN ?`
 
 	vcCheckDimensionTemplate = `
 SELECT a.atttypmod as dimension
@@ -117,7 +104,7 @@ func NewVectorChordVectorStore(ctx context.Context, db *gorm.DB, taskName TaskNa
 	}
 	dimension := len(probeEmbeddings[0])
 
-	// Create table
+	// Create table (dynamic dimension requires raw SQL)
 	createTableSQL := fmt.Sprintf(`
 CREATE TABLE IF NOT EXISTS %s (
     id SERIAL PRIMARY KEY,
@@ -192,15 +179,14 @@ func (s *VectorChordVectorStore) existingIDs(ctx context.Context, ids []string) 
 		return map[string]struct{}{}, nil
 	}
 
-	var existingIDs []string
-	query := fmt.Sprintf(vcCheckExistingIDsTemplate, s.tableName)
-	err := s.db.WithContext(ctx).Raw(query, ids).Scan(&existingIDs).Error
+	var found []string
+	err := s.db.WithContext(ctx).Table(s.tableName).Where("snippet_id IN ?", ids).Pluck("snippet_id", &found).Error
 	if err != nil {
 		return nil, err
 	}
 
-	result := make(map[string]struct{}, len(existingIDs))
-	for _, id := range existingIDs {
+	result := make(map[string]struct{}, len(found))
+	for _, id := range found {
 		result[id] = struct{}{}
 	}
 	return result, nil
@@ -252,12 +238,15 @@ func (s *VectorChordVectorStore) Index(ctx context.Context, request search.Index
 		return fmt.Errorf("embedding count mismatch: got %d, expected %d", len(embeddings), len(toIndex))
 	}
 
-	// Insert documents with embeddings
-	insertQuery := fmt.Sprintf(vcInsertQueryTemplate, s.tableName)
+	// Upsert documents with embeddings
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		for i, doc := range toIndex {
-			embeddingStr := formatEmbedding(embeddings[i])
-			if err := tx.Exec(insertQuery, doc.SnippetID(), embeddingStr).Error; err != nil {
+			entity := newPgEmbeddingEntity(doc.SnippetID(), NewPgVector(embeddings[i]))
+			err := tx.Table(s.tableName).Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "snippet_id"}},
+				DoUpdates: clause.AssignmentColumns([]string{"embedding"}),
+			}).Create(&entity).Error
+			if err != nil {
 				return err
 			}
 		}
@@ -288,7 +277,7 @@ func (s *VectorChordVectorStore) Search(ctx context.Context, request search.Requ
 		return []search.Result{}, nil
 	}
 
-	queryEmbedding := formatEmbedding(embeddings[0])
+	queryEmbedding := NewPgVector(embeddings[0]).String()
 
 	var rows []struct {
 		SnippetID string  `gorm:"column:snippet_id"`
@@ -324,14 +313,13 @@ func (s *VectorChordVectorStore) HasEmbedding(ctx context.Context, snippetID str
 	// Note: embeddingType is not used here because VectorChord uses separate tables per task
 	_ = embeddingType
 
-	var exists bool
-	query := fmt.Sprintf(vcCheckEmbeddingExistsTemplate, s.tableName)
-	err := s.db.WithContext(ctx).Raw(query, snippetID).Scan(&exists).Error
+	var count int64
+	err := s.db.WithContext(ctx).Table(s.tableName).Where("snippet_id = ?", snippetID).Count(&count).Error
 	if err != nil {
 		return false, err
 	}
 
-	return exists, nil
+	return count > 0, nil
 }
 
 // HasEmbeddings checks which snippet IDs have embeddings of the given type.
@@ -344,8 +332,7 @@ func (s *VectorChordVectorStore) HasEmbeddings(ctx context.Context, snippetIDs [
 	_ = embeddingType
 
 	var found []string
-	query := fmt.Sprintf(vcCheckExistingIDsTemplate, s.tableName)
-	err := s.db.WithContext(ctx).Raw(query, snippetIDs).Scan(&found).Error
+	err := s.db.WithContext(ctx).Table(s.tableName).Where("snippet_id IN ?", snippetIDs).Pluck("snippet_id", &found).Error
 	if err != nil {
 		return nil, err
 	}
@@ -364,15 +351,5 @@ func (s *VectorChordVectorStore) Delete(ctx context.Context, request search.Dele
 		return nil
 	}
 
-	deleteSQL := fmt.Sprintf("DELETE FROM %s WHERE snippet_id IN ?", s.tableName)
-	return s.db.WithContext(ctx).Exec(deleteSQL, ids).Error
-}
-
-// formatEmbedding formats a float slice as a PostgreSQL vector string.
-func formatEmbedding(embedding []float64) string {
-	parts := make([]string, len(embedding))
-	for i, v := range embedding {
-		parts[i] = strconv.FormatFloat(v, 'f', -1, 64)
-	}
-	return "[" + strings.Join(parts, ",") + "]"
+	return s.db.WithContext(ctx).Table(s.tableName).Where("snippet_id IN ?", ids).Delete(&PgEmbeddingEntity{}).Error
 }

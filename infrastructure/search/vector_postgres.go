@@ -10,30 +10,18 @@ import (
 	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/infrastructure/provider"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
-// SQL queries for pgvector.
+// SQL queries that must stay as raw SQL (extensions, indexes, catalog, similarity).
 const (
 	pgvCreateExtension = `CREATE EXTENSION IF NOT EXISTS vector`
-
-	pgvCreateTableTemplate = `
-CREATE TABLE IF NOT EXISTS %s (
-    id SERIAL PRIMARY KEY,
-    snippet_id VARCHAR(255) NOT NULL UNIQUE,
-    embedding VECTOR(%d) NOT NULL
-)`
 
 	pgvCreateIndexTemplate = `
 CREATE INDEX IF NOT EXISTS %s_idx
 ON %s
 USING ivfflat (embedding vector_cosine_ops)
 WITH (lists = 100)`
-
-	pgvInsertQueryTemplate = `
-INSERT INTO %s (snippet_id, embedding)
-VALUES (?, ?)
-ON CONFLICT (snippet_id) DO UPDATE
-SET embedding = EXCLUDED.embedding`
 
 	pgvSearchQueryTemplate = `
 SELECT snippet_id, embedding <=> ? as score
@@ -47,12 +35,6 @@ FROM %s
 WHERE snippet_id IN ?
 ORDER BY score ASC
 LIMIT ?`
-
-	pgvCheckEmbeddingExistsTemplate = `
-SELECT EXISTS(SELECT 1 FROM %s WHERE snippet_id = ?)`
-
-	pgvCheckExistingIDsTemplate = `
-SELECT snippet_id FROM %s WHERE snippet_id IN ?`
 
 	pgvCheckDimensionTemplate = `
 SELECT a.atttypmod as dimension
@@ -126,8 +108,13 @@ func (s *PgvectorStore) createTable(ctx context.Context) error {
 
 	dimension := len(embeddings[0])
 
-	// Create table with correct vector dimension
-	createTableSQL := fmt.Sprintf(pgvCreateTableTemplate, s.tableName, dimension)
+	// Create table with correct vector dimension (dynamic dimension requires raw SQL)
+	createTableSQL := fmt.Sprintf(`
+CREATE TABLE IF NOT EXISTS %s (
+    id SERIAL PRIMARY KEY,
+    snippet_id VARCHAR(255) NOT NULL UNIQUE,
+    embedding VECTOR(%d) NOT NULL
+)`, s.tableName, dimension)
 	if err := s.db.WithContext(ctx).Exec(createTableSQL).Error; err != nil {
 		return err
 	}
@@ -158,15 +145,14 @@ func (s *PgvectorStore) existingIDs(ctx context.Context, ids []string) (map[stri
 		return map[string]struct{}{}, nil
 	}
 
-	var existingIDs []string
-	query := fmt.Sprintf(pgvCheckExistingIDsTemplate, s.tableName)
-	err := s.db.WithContext(ctx).Raw(query, ids).Scan(&existingIDs).Error
+	var found []string
+	err := s.db.WithContext(ctx).Table(s.tableName).Where("snippet_id IN ?", ids).Pluck("snippet_id", &found).Error
 	if err != nil {
 		return nil, err
 	}
 
-	result := make(map[string]struct{}, len(existingIDs))
-	for _, id := range existingIDs {
+	result := make(map[string]struct{}, len(found))
+	for _, id := range found {
 		result[id] = struct{}{}
 	}
 	return result, nil
@@ -222,12 +208,15 @@ func (s *PgvectorStore) Index(ctx context.Context, request search.IndexRequest) 
 		return fmt.Errorf("embedding count mismatch: got %d, expected %d", len(embeddings), len(toIndex))
 	}
 
-	// Insert documents with embeddings
-	insertQuery := fmt.Sprintf(pgvInsertQueryTemplate, s.tableName)
+	// Upsert documents with embeddings
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		for i, doc := range toIndex {
-			embeddingStr := formatEmbedding(embeddings[i])
-			if err := tx.Exec(insertQuery, doc.SnippetID(), embeddingStr).Error; err != nil {
+			entity := newPgEmbeddingEntity(doc.SnippetID(), NewPgVector(embeddings[i]))
+			err := tx.Table(s.tableName).Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "snippet_id"}},
+				DoUpdates: clause.AssignmentColumns([]string{"embedding"}),
+			}).Create(&entity).Error
+			if err != nil {
 				return err
 			}
 		}
@@ -262,7 +251,7 @@ func (s *PgvectorStore) Search(ctx context.Context, request search.Request) ([]s
 		return []search.Result{}, nil
 	}
 
-	queryEmbedding := formatEmbedding(embeddings[0])
+	queryEmbedding := NewPgVector(embeddings[0]).String()
 
 	var rows []struct {
 		SnippetID string  `gorm:"column:snippet_id"`
@@ -302,14 +291,13 @@ func (s *PgvectorStore) HasEmbedding(ctx context.Context, snippetID string, embe
 	// Note: embeddingType is not used here because pgvector uses separate tables per task
 	_ = embeddingType
 
-	var exists bool
-	query := fmt.Sprintf(pgvCheckEmbeddingExistsTemplate, s.tableName)
-	err := s.db.WithContext(ctx).Raw(query, snippetID).Scan(&exists).Error
+	var count int64
+	err := s.db.WithContext(ctx).Table(s.tableName).Where("snippet_id = ?", snippetID).Count(&count).Error
 	if err != nil {
 		return false, err
 	}
 
-	return exists, nil
+	return count > 0, nil
 }
 
 // HasEmbeddings checks which snippet IDs have embeddings of the given type.
@@ -326,8 +314,7 @@ func (s *PgvectorStore) HasEmbeddings(ctx context.Context, snippetIDs []string, 
 	_ = embeddingType
 
 	var found []string
-	query := fmt.Sprintf(pgvCheckExistingIDsTemplate, s.tableName)
-	err := s.db.WithContext(ctx).Raw(query, snippetIDs).Scan(&found).Error
+	err := s.db.WithContext(ctx).Table(s.tableName).Where("snippet_id IN ?", snippetIDs).Pluck("snippet_id", &found).Error
 	if err != nil {
 		return nil, err
 	}
@@ -350,6 +337,5 @@ func (s *PgvectorStore) Delete(ctx context.Context, request search.DeleteRequest
 		return nil
 	}
 
-	deleteSQL := fmt.Sprintf("DELETE FROM %s WHERE snippet_id IN ?", s.tableName)
-	return s.db.WithContext(ctx).Exec(deleteSQL, ids).Error
+	return s.db.WithContext(ctx).Table(s.tableName).Where("snippet_id IN ?", ids).Delete(&PgEmbeddingEntity{}).Error
 }

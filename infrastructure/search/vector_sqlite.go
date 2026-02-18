@@ -12,6 +12,7 @@ import (
 	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/infrastructure/provider"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // Float64Slice is a custom type for JSON serialization of []float64 in SQLite.
@@ -46,15 +47,23 @@ func (f Float64Slice) Value() (driver.Value, error) {
 }
 
 // SQLiteEmbeddingEntity represents a vector embedding in SQLite.
+// Table routing is done via .Table(name) at the call site because GORM
+// caches schemas by type and dynamic TableName() does not work across
+// multiple table names for the same struct type.
 type SQLiteEmbeddingEntity struct {
 	ID        int64        `gorm:"column:id;primaryKey;autoIncrement"`
 	SnippetID string       `gorm:"column:snippet_id;uniqueIndex"`
 	Embedding Float64Slice `gorm:"column:embedding;type:json"`
 }
 
-// TableName returns the table name for this entity.
-func (SQLiteEmbeddingEntity) TableName() string {
-	return "sqlite_embeddings"
+// newSQLiteEmbeddingEntity creates a SQLiteEmbeddingEntity ready for insertion.
+func newSQLiteEmbeddingEntity(snippetID string, embedding []float64) SQLiteEmbeddingEntity {
+	cp := make(Float64Slice, len(embedding))
+	copy(cp, embedding)
+	return SQLiteEmbeddingEntity{
+		SnippetID: snippetID,
+		Embedding: cp,
+	}
 }
 
 // ErrSQLiteVectorInitializationFailed indicates SQLite vector initialization failed.
@@ -101,6 +110,8 @@ func (s *SQLiteVectorStore) initialize(ctx context.Context) error {
 }
 
 func (s *SQLiteVectorStore) createTable(ctx context.Context) error {
+	// Raw SQL because GORM's AutoMigrate caches schemas by type, which
+	// conflicts with our dynamic table names.
 	createTableSQL := fmt.Sprintf(`
 CREATE TABLE IF NOT EXISTS %s (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -116,15 +127,14 @@ func (s *SQLiteVectorStore) existingIDs(ctx context.Context, ids []string) (map[
 		return map[string]struct{}{}, nil
 	}
 
-	var existingIDs []string
-	query := fmt.Sprintf("SELECT snippet_id FROM %s WHERE snippet_id IN ?", s.tableName)
-	err := s.db.WithContext(ctx).Raw(query, ids).Scan(&existingIDs).Error
+	var found []string
+	err := s.db.WithContext(ctx).Table(s.tableName).Where("snippet_id IN ?", ids).Pluck("snippet_id", &found).Error
 	if err != nil {
 		return nil, err
 	}
 
-	result := make(map[string]struct{}, len(existingIDs))
-	for _, id := range existingIDs {
+	result := make(map[string]struct{}, len(found))
+	for _, id := range found {
 		result[id] = struct{}{}
 	}
 	return result, nil
@@ -180,20 +190,15 @@ func (s *SQLiteVectorStore) Index(ctx context.Context, request search.IndexReque
 		return fmt.Errorf("embedding count mismatch: got %d, expected %d", len(embeddings), len(toIndex))
 	}
 
-	// Insert documents with embeddings
-	insertQuery := fmt.Sprintf(`
-INSERT INTO %s (snippet_id, embedding)
-VALUES (?, ?)
-ON CONFLICT (snippet_id) DO UPDATE
-SET embedding = EXCLUDED.embedding`, s.tableName)
-
+	// Upsert documents with embeddings
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		for i, doc := range toIndex {
-			embeddingJSON, err := json.Marshal(embeddings[i])
+			entity := newSQLiteEmbeddingEntity(doc.SnippetID(), embeddings[i])
+			err := tx.Table(s.tableName).Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "snippet_id"}},
+				DoUpdates: clause.AssignmentColumns([]string{"embedding"}),
+			}).Create(&entity).Error
 			if err != nil {
-				return fmt.Errorf("marshal embedding: %w", err)
-			}
-			if err := tx.Exec(insertQuery, doc.SnippetID(), string(embeddingJSON)).Error; err != nil {
 				return err
 			}
 		}
@@ -262,35 +267,26 @@ func (s *SQLiteVectorStore) Search(ctx context.Context, request search.Request) 
 	return results, nil
 }
 
-// loadVectors loads embedding vectors from the database.
+// loadVectors loads embedding vectors from the database using GORM.
 // If snippetIDs is provided, only loads those specific vectors.
 func (s *SQLiteVectorStore) loadVectors(ctx context.Context, snippetIDs []string) ([]StoredVector, error) {
-	var rows []struct {
-		SnippetID string `gorm:"column:snippet_id"`
-		Embedding string `gorm:"column:embedding"`
-	}
+	var entities []SQLiteEmbeddingEntity
 
-	var err error
+	q := s.db.WithContext(ctx).Table(s.tableName)
 	if len(snippetIDs) > 0 {
-		query := fmt.Sprintf("SELECT snippet_id, embedding FROM %s WHERE snippet_id IN ?", s.tableName)
-		err = s.db.WithContext(ctx).Raw(query, snippetIDs).Scan(&rows).Error
-	} else {
-		query := fmt.Sprintf("SELECT snippet_id, embedding FROM %s", s.tableName)
-		err = s.db.WithContext(ctx).Raw(query).Scan(&rows).Error
+		q = q.Where("snippet_id IN ?", snippetIDs)
 	}
-
-	if err != nil {
+	if err := q.Find(&entities).Error; err != nil {
 		return nil, err
 	}
 
-	vectors := make([]StoredVector, 0, len(rows))
-	for _, row := range rows {
-		var embedding []float64
-		if err := json.Unmarshal([]byte(row.Embedding), &embedding); err != nil {
-			s.logger.Warn("failed to parse embedding", "snippet_id", row.SnippetID, "error", err)
+	vectors := make([]StoredVector, 0, len(entities))
+	for _, e := range entities {
+		if len(e.Embedding) == 0 {
+			s.logger.Warn("skipping empty embedding", "snippet_id", e.SnippetID)
 			continue
 		}
-		vectors = append(vectors, NewStoredVector(row.SnippetID, embedding))
+		vectors = append(vectors, NewStoredVector(e.SnippetID, e.Embedding))
 	}
 
 	return vectors, nil
@@ -306,8 +302,7 @@ func (s *SQLiteVectorStore) HasEmbedding(ctx context.Context, snippetID string, 
 	_ = embeddingType
 
 	var count int64
-	query := fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE snippet_id = ?", s.tableName)
-	err := s.db.WithContext(ctx).Raw(query, snippetID).Scan(&count).Error
+	err := s.db.WithContext(ctx).Table(s.tableName).Where("snippet_id = ?", snippetID).Count(&count).Error
 	if err != nil {
 		return false, err
 	}
@@ -329,8 +324,7 @@ func (s *SQLiteVectorStore) HasEmbeddings(ctx context.Context, snippetIDs []stri
 	_ = embeddingType
 
 	var found []string
-	query := fmt.Sprintf("SELECT snippet_id FROM %s WHERE snippet_id IN ?", s.tableName)
-	err := s.db.WithContext(ctx).Raw(query, snippetIDs).Scan(&found).Error
+	err := s.db.WithContext(ctx).Table(s.tableName).Where("snippet_id IN ?", snippetIDs).Pluck("snippet_id", &found).Error
 	if err != nil {
 		return nil, err
 	}
@@ -353,6 +347,5 @@ func (s *SQLiteVectorStore) Delete(ctx context.Context, request search.DeleteReq
 		return nil
 	}
 
-	deleteSQL := fmt.Sprintf("DELETE FROM %s WHERE snippet_id IN ?", s.tableName)
-	return s.db.WithContext(ctx).Exec(deleteSQL, ids).Error
+	return s.db.WithContext(ctx).Table(s.tableName).Where("snippet_id IN ?", ids).Delete(&SQLiteEmbeddingEntity{}).Error
 }
