@@ -17,7 +17,8 @@ WORKDIR /app
 
 # Copy go.mod and go.sum for dependency caching
 COPY go.mod go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
 
 # Download ORT and tokenizers to /usr/lib so they survive the volume mount
 COPY .ort-version ./
@@ -37,13 +38,40 @@ EXPOSE 8080
 CMD ["air", "-c", ".air.toml"]
 
 # Model stage — downloads and converts the embedding model to ONNX format
-FROM ghcr.io/astral-sh/uv:debian-slim AS model
+# Pinned by digest so the layer caches reliably across builds.
+FROM ghcr.io/astral-sh/uv@sha256:b852203fd7831954c58bfa1fec1166295adcfcfa50f4de7fdd0e684c8bd784eb AS model
 WORKDIR /build
 COPY tools/convert-model.py ./tools/convert-model.py
 RUN uv run --script tools/convert-model.py
 
-# Build stage — reuses dev for dependencies and ORT libraries
-FROM dev AS builder
+# Build stage — independent from dev, no Air or hot-reload tooling
+FROM golang:1.25-bookworm AS builder
+
+# Install build dependencies for CGo (tree-sitter)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy go.mod and go.sum for dependency caching
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
+
+# Download ORT and tokenizers
+COPY .ort-version ./
+COPY tools/download-ort/ ./tools/download-ort/
+RUN ORT_VERSION=$(cat .ort-version) go run ./tools/download-ort \
+    && cp ./lib/libonnxruntime.so /usr/lib/ \
+    && cp ./lib/libtokenizers.a /usr/lib/ \
+    && ldconfig \
+    && rm -rf ./lib ./tools .ort-version
+
+ENV CGO_ENABLED=1
+ENV CGO_LDFLAGS="-L/usr/lib"
+ENV ORT_LIB_DIR="/usr/lib"
 
 COPY --from=model /build/infrastructure/provider/models/ ./infrastructure/provider/models/
 
@@ -55,7 +83,9 @@ ARG VERSION=dev
 ARG COMMIT=unknown
 ARG BUILD_TIME=unknown
 
-RUN go build -tags "fts5 ORT embed_model" \
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go build -tags "fts5 ORT embed_model" \
     -ldflags "-X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.BuildTime=${BUILD_TIME}" \
     -o ./build/kodit ./cmd/kodit
 
