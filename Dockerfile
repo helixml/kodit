@@ -38,8 +38,9 @@ EXPOSE 8080
 CMD ["air", "-c", ".air.toml"]
 
 # Model stage — downloads and converts the embedding model to ONNX format
-# Pinned by digest so the layer caches reliably across builds.
-FROM ghcr.io/astral-sh/uv@sha256:b852203fd7831954c58bfa1fec1166295adcfcfa50f4de7fdd0e684c8bd784eb AS model
+# Uses debian-slim variant (not the default distroless) because the Python
+# ML dependencies (torch, onnxruntime) need system libraries and a shell.
+FROM ghcr.io/astral-sh/uv:debian-slim@sha256:b852203fd7831954c58bfa1fec1166295adcfcfa50f4de7fdd0e684c8bd784eb AS model
 WORKDIR /build
 COPY tools/convert-model.py ./tools/convert-model.py
 RUN uv run --script tools/convert-model.py
