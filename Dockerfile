@@ -2,7 +2,7 @@
 # Multi-stage build with tree-sitter CGo dependencies
 
 # Development stage — hot-reload with Air
-FROM golang:1.25-bookworm AS dev
+FROM golang:1.26-bookworm AS dev
 
 # Install build dependencies for CGo (tree-sitter)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -46,7 +46,7 @@ COPY tools/convert-model.py ./tools/convert-model.py
 RUN uv run --script tools/convert-model.py
 
 # Build stage — independent from dev, no Air or hot-reload tooling
-FROM golang:1.25-bookworm AS builder
+FROM golang:1.26-bookworm AS builder
 
 # Install build dependencies for CGo (tree-sitter)
 RUN apt-get update && apt-get install -y --no-install-recommends \
