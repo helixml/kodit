@@ -16,7 +16,9 @@ lib/
 *.so
 *.dylib
 
-# Models are pre-downloaded by 'make download-model' and copied into the image
+# Models are built inside the Docker image by the model stage — exclude local
+# copies to avoid sending them to the build context and overwriting the stage output.
+infrastructure/provider/models/
 
 # Test files
 *_test.go
