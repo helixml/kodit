@@ -95,7 +95,7 @@ func NewServer(
 
 	mcpServer := server.NewMCPServer(
 		"kodit",
-		"0.1.0",
+		"1.0.0",
 		server.WithToolCapabilities(true),
 		server.WithInstructions(instructions),
 	)

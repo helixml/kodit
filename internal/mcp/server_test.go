@@ -174,7 +174,7 @@ func testServer() *Server {
 		&fakeRepositoryLister{repos: []repository.Repository{testRepo()}},
 		&fakeCommitFinder{commits: []repository.Commit{testCommit()}},
 		&fakeEnrichmentQuery{enrichments: []enrichment.Enrichment{testArchEnrichment()}},
-		"0.1.0-test",
+		"1.0.0-test",
 		nil,
 	)
 }
@@ -200,8 +200,8 @@ func TestServer_Initialize(t *testing.T) {
 	if result.ServerInfo.Name != "kodit" {
 		t.Errorf("expected server name kodit, got %s", result.ServerInfo.Name)
 	}
-	if result.ServerInfo.Version != "0.1.0" {
-		t.Errorf("expected version 0.1.0, got %s", result.ServerInfo.Version)
+	if result.ServerInfo.Version != "1.0.0" {
+		t.Errorf("expected version 1.0.0, got %s", result.ServerInfo.Version)
 	}
 	if result.Capabilities.Tools == nil {
 		t.Error("expected tools capability to be present")
@@ -350,8 +350,8 @@ func TestServer_GetVersion(t *testing.T) {
 	}
 
 	text := textFromContent(t, result)
-	if text != "0.1.0-test" {
-		t.Errorf("expected version 0.1.0-test, got %s", text)
+	if text != "1.0.0-test" {
+		t.Errorf("expected version 1.0.0-test, got %s", text)
 	}
 }
 

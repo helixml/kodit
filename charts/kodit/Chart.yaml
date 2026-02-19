@@ -2,7 +2,7 @@ apiVersion: v2
 name: kodit
 description: A Helm chart for Kodit
 type: application
-version: 0.1.2
+version: 1.0.0
 appVersion: "1.0.0"
 dependencies:
   - name: common

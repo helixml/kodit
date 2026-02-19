@@ -31,7 +31,7 @@ BUILD_DIR=./build
 COVERAGE_FILE=coverage.out
 
 # Version info (can be overridden via environment or make args)
-VERSION?=0.1.0
+VERSION?=1.0.0
 COMMIT?=$(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_TIME?=$(shell date -u '+%Y-%m-%d_%H:%M:%S')
 
