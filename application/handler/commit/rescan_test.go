@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/helixml/kodit/application/handler"
+	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/task"
 	"github.com/helixml/kodit/infrastructure/persistence"
 	"github.com/helixml/kodit/internal/testdb"
@@ -55,7 +56,8 @@ func TestRescan_DeletesOldStatuses(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, statuses, 1)
 
-	h := NewRescan(enrichmentStore, associationStore, statusStore, &fakeTrackerFactory{}, logger)
+	enrichmentSvc := service.NewEnrichment(enrichmentStore, associationStore, nil, nil, nil)
+	h := NewRescan(enrichmentSvc, associationStore, statusStore, &fakeTrackerFactory{}, logger)
 
 	payload := map[string]any{
 		"repository_id": repoID,

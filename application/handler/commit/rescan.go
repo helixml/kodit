@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/helixml/kodit/application/handler"
+	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/task"
@@ -14,7 +15,7 @@ import (
 // Rescan handles the RESCAN_COMMIT task operation.
 // It clears existing indexed data for a commit to prepare for re-indexing.
 type Rescan struct {
-	enrichmentStore  enrichment.EnrichmentStore
+	enrichments      *service.Enrichment
 	associationStore enrichment.AssociationStore
 	statusStore      task.StatusStore
 	trackerFactory   handler.TrackerFactory
@@ -23,14 +24,14 @@ type Rescan struct {
 
 // NewRescan creates a new Rescan handler.
 func NewRescan(
-	enrichmentStore enrichment.EnrichmentStore,
+	enrichments *service.Enrichment,
 	associationStore enrichment.AssociationStore,
 	statusStore task.StatusStore,
 	trackerFactory handler.TrackerFactory,
 	logger *slog.Logger,
 ) *Rescan {
 	return &Rescan{
-		enrichmentStore:  enrichmentStore,
+		enrichments:      enrichments,
 		associationStore: associationStore,
 		statusStore:      statusStore,
 		trackerFactory:   trackerFactory,
@@ -71,7 +72,7 @@ func (h *Rescan) Execute(ctx context.Context, payload map[string]any) error {
 		for i, a := range associations {
 			ids[i] = a.EnrichmentID()
 		}
-		if err := h.enrichmentStore.DeleteBy(ctx, repository.WithIDIn(ids)); err != nil {
+		if err := h.enrichments.DeleteBy(ctx, repository.WithIDIn(ids)); err != nil {
 			return fmt.Errorf("delete enrichments: %w", err)
 		}
 	}

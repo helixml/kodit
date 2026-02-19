@@ -2,16 +2,19 @@ package kodit_test
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/helixml/kodit"
 	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/repository"
+	"github.com/helixml/kodit/internal/database"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -371,4 +374,171 @@ func TestIntegration_MultipleRepositories(t *testing.T) {
 
 	// Verify they have different IDs
 	assert.NotEqual(t, repo1.ID(), repo2.ID())
+}
+
+// currentBranch returns the current branch name of the git repo at repoPath.
+func currentBranch(t *testing.T, repoPath string) string {
+	t.Helper()
+
+	cmd := exec.Command("git", "branch", "--show-current")
+	cmd.Dir = repoPath
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, "git branch --show-current: %s", out)
+
+	return strings.TrimSpace(string(out))
+}
+
+// snapshotTableCounts opens a read-only connection to the SQLite database
+// at dbPath and returns row counts for all data tables that can accumulate
+// during sync and rescan operations. Returns 0 for tables that do not exist.
+func snapshotTableCounts(t *testing.T, dbPath string) map[string]int64 {
+	t.Helper()
+
+	ctx := context.Background()
+	db, err := database.NewDatabase(ctx, "sqlite:///"+dbPath)
+	require.NoError(t, err, "open database for snapshot")
+	defer func() { _ = db.Close() }()
+
+	tables := []string{
+		"git_commits",
+		"git_commit_files",
+		"enrichments_v2",
+		"enrichment_associations",
+		"kodit_bm25_documents",
+		"kodit_code_embeddings",
+		"kodit_text_embeddings",
+	}
+
+	counts := make(map[string]int64, len(tables))
+	for _, table := range tables {
+		var count int64
+		err := db.Session(ctx).Raw(fmt.Sprintf("SELECT COUNT(*) FROM \"%s\"", table)).Scan(&count).Error
+		if err != nil {
+			counts[table] = 0
+		} else {
+			counts[table] = count
+		}
+	}
+
+	return counts
+}
+
+func TestIntegration_Rescan_CleansUpSearchIndexes(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+	dataDir := filepath.Join(tmpDir, "data")
+	cloneDir := filepath.Join(tmpDir, "repos")
+
+	repoPath := createTestGitRepo(t)
+	branch := currentBranch(t, repoPath)
+
+	client, err := kodit.New(
+		kodit.WithSQLite(dbPath),
+		kodit.WithDataDir(dataDir),
+		kodit.WithCloneDir(cloneDir),
+		kodit.WithSkipProviderValidation(),
+		kodit.WithWorkerPollPeriod(testPollPeriod),
+	)
+	require.NoError(t, err)
+	defer func() { _ = client.Close() }()
+
+	ctx := context.Background()
+
+	repo, _, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{
+		URL:    fileURI(repoPath),
+		Branch: branch,
+	})
+	require.NoError(t, err)
+
+	waitForTasks(ctx, t, client, 60*time.Second)
+
+	commits, err := client.Commits.Find(ctx, repository.WithRepoID(repo.ID()))
+	require.NoError(t, err)
+	require.NotEmpty(t, commits, "expected at least one commit after indexing")
+
+	sha := commits[0].SHA()
+
+	baseline := snapshotTableCounts(t, dbPath)
+	t.Logf("baseline counts: %v", baseline)
+
+	require.Greater(t, baseline["kodit_bm25_documents"], int64(0), "expected BM25 documents after indexing")
+
+	err = client.Repositories.Rescan(ctx, &service.RescanParams{
+		RepositoryID: repo.ID(),
+		CommitSHA:    sha,
+	})
+	require.NoError(t, err)
+
+	waitForTasks(ctx, t, client, 60*time.Second)
+
+	after := snapshotTableCounts(t, dbPath)
+	t.Logf("after-rescan counts: %v", after)
+
+	// Rescan should delete old search indexes before re-creating them.
+	// Counts should match baseline (cleaned and re-created, not doubled).
+	assert.Equal(t, baseline["kodit_bm25_documents"], after["kodit_bm25_documents"],
+		"BM25 documents should be cleaned and re-created, not accumulated")
+	assert.Equal(t, baseline["kodit_code_embeddings"], after["kodit_code_embeddings"],
+		"code embeddings should be cleaned and re-created, not accumulated")
+	assert.Equal(t, baseline["kodit_text_embeddings"], after["kodit_text_embeddings"],
+		"text embeddings should be cleaned and re-created, not accumulated")
+}
+
+func TestIntegration_DuplicateSync_DoesNotDuplicateData(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+	dataDir := filepath.Join(tmpDir, "data")
+	cloneDir := filepath.Join(tmpDir, "repos")
+
+	repoPath := createTestGitRepo(t)
+	branch := currentBranch(t, repoPath)
+
+	client, err := kodit.New(
+		kodit.WithSQLite(dbPath),
+		kodit.WithDataDir(dataDir),
+		kodit.WithCloneDir(cloneDir),
+		kodit.WithSkipProviderValidation(),
+		kodit.WithWorkerPollPeriod(testPollPeriod),
+	)
+	require.NoError(t, err)
+	defer func() { _ = client.Close() }()
+
+	ctx := context.Background()
+
+	// Pass Branch so that Sync's Update() actually fetches and pulls.
+	repo, _, err := client.Repositories.Add(ctx, &service.RepositoryAddParams{
+		URL:    fileURI(repoPath),
+		Branch: branch,
+	})
+	require.NoError(t, err)
+
+	waitForTasks(ctx, t, client, 60*time.Second)
+
+	baseline := snapshotTableCounts(t, dbPath)
+	t.Logf("baseline counts: %v", baseline)
+
+	// Sync again with no changes — same HEAD, nothing new.
+	err = client.Repositories.Sync(ctx, repo.ID())
+	require.NoError(t, err)
+
+	waitForTasks(ctx, t, client, 60*time.Second)
+
+	after := snapshotTableCounts(t, dbPath)
+	t.Logf("after-duplicate-sync counts: %v", after)
+
+	// Scanning the same commit twice should be idempotent.
+	for table, beforeCount := range baseline {
+		assert.Equal(t, beforeCount, after[table],
+			"table %s should be unchanged after duplicate sync", table)
+	}
 }

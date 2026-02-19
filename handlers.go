@@ -32,7 +32,7 @@ func (c *Client) registerHandlers() error {
 		c.repoStores.Repositories, c.repoStores.Commits, c.repoStores.Files, c.gitInfra.Scanner, c.enrichCtx.Tracker, c.logger,
 	))
 	c.registry.Register(task.OperationRescanCommit, commithandler.NewRescan(
-		c.enrichCtx.Enrichments, c.enrichCtx.Associations, c.statusStore, c.enrichCtx.Tracker, c.logger,
+		c.Enrichments, c.enrichCtx.Associations, c.statusStore, c.enrichCtx.Tracker, c.logger,
 	))
 
 	// Indexing handlers (always registered for snippet extraction)
