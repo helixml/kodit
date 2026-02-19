@@ -165,6 +165,9 @@ type ClientInterface interface {
 	// GetRepositoriesIdStatusSummary request
 	GetRepositoriesIdStatusSummary(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// PostRepositoriesIdSync request
+	PostRepositoriesIdSync(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetRepositoriesIdTags request
 	GetRepositoriesIdTags(ctx context.Context, id int, params *GetRepositoriesIdTagsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -487,6 +490,18 @@ func (c *Client) GetRepositoriesIdStatus(ctx context.Context, id int, reqEditors
 
 func (c *Client) GetRepositoriesIdStatusSummary(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetRepositoriesIdStatusSummaryRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PostRepositoriesIdSync(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostRepositoriesIdSyncRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -1902,6 +1917,40 @@ func NewGetRepositoriesIdStatusSummaryRequest(server string, id int) (*http.Requ
 	return req, nil
 }
 
+// NewPostRepositoriesIdSyncRequest generates requests for PostRepositoriesIdSync
+func NewPostRepositoriesIdSyncRequest(server string, id int) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/repositories/%s/sync", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetRepositoriesIdTagsRequest generates requests for GetRepositoriesIdTags
 func NewGetRepositoriesIdTagsRequest(server string, id int, params *GetRepositoriesIdTagsParams) (*http.Request, error) {
 	var err error
@@ -2254,6 +2303,9 @@ type ClientWithResponsesInterface interface {
 
 	// GetRepositoriesIdStatusSummaryWithResponse request
 	GetRepositoriesIdStatusSummaryWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*GetRepositoriesIdStatusSummaryResponse, error)
+
+	// PostRepositoriesIdSyncWithResponse request
+	PostRepositoriesIdSyncWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*PostRepositoriesIdSyncResponse, error)
 
 	// GetRepositoriesIdTagsWithResponse request
 	GetRepositoriesIdTagsWithResponse(ctx context.Context, id int, params *GetRepositoriesIdTagsParams, reqEditors ...RequestEditorFn) (*GetRepositoriesIdTagsResponse, error)
@@ -2843,6 +2895,29 @@ func (r GetRepositoriesIdStatusSummaryResponse) StatusCode() int {
 	return 0
 }
 
+type PostRepositoriesIdSyncResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r PostRepositoriesIdSyncResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostRepositoriesIdSyncResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type GetRepositoriesIdTagsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -3193,6 +3268,15 @@ func (c *ClientWithResponses) GetRepositoriesIdStatusSummaryWithResponse(ctx con
 		return nil, err
 	}
 	return ParseGetRepositoriesIdStatusSummaryResponse(rsp)
+}
+
+// PostRepositoriesIdSyncWithResponse request returning *PostRepositoriesIdSyncResponse
+func (c *ClientWithResponses) PostRepositoriesIdSyncWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*PostRepositoriesIdSyncResponse, error) {
+	rsp, err := c.PostRepositoriesIdSync(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostRepositoriesIdSyncResponse(rsp)
 }
 
 // GetRepositoriesIdTagsWithResponse request returning *GetRepositoriesIdTagsResponse
@@ -4141,6 +4225,39 @@ func ParseGetRepositoriesIdStatusSummaryResponse(rsp *http.Response) (*GetReposi
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostRepositoriesIdSyncResponse parses an HTTP response from a PostRepositoriesIdSyncWithResponse call
+func ParsePostRepositoriesIdSyncResponse(rsp *http.Response) (*PostRepositoriesIdSyncResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostRepositoriesIdSyncResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {

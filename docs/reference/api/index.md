@@ -667,6 +667,30 @@ Get aggregated indexing status summary for a repository
 
 [middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
+### POST /repositories/{id}/sync
+
+Trigger a sync (git fetch + branch scan + commit indexing) for a repository
+
+
+#### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| id | integer | True | Repository ID |
+
+
+#### Responses
+
+- 202: Accepted
+
+- 404: Not Found
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
+- 500: Internal Server Error
+
+[middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
+
 ### GET /repositories/{id}/tags
 
 List tags for a repository

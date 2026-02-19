@@ -134,6 +134,27 @@ func (s *Repository) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
+// Sync triggers a sync (git fetch + branch scan + commit indexing) for a repository.
+func (s *Repository) Sync(ctx context.Context, id int64) error {
+	_, err := s.repoStore.FindOne(ctx, repository.WithID(id))
+	if err != nil {
+		return fmt.Errorf("get repository: %w", err)
+	}
+
+	payload := map[string]any{"repository_id": id}
+	operations := task.PrescribedOperations{}.SyncRepository()
+
+	if err := s.queue.EnqueueOperations(ctx, operations, task.PriorityUserInitiated, payload); err != nil {
+		return fmt.Errorf("enqueue sync: %w", err)
+	}
+
+	s.logger.Info("sync requested",
+		slog.Int64("repo_id", id),
+	)
+
+	return nil
+}
+
 // Rescan triggers a rescan of a specific commit.
 func (s *Repository) Rescan(ctx context.Context, params *RescanParams) error {
 	_, err := s.repoStore.FindOne(ctx, repository.WithID(params.RepositoryID))

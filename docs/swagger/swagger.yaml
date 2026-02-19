@@ -1460,6 +1460,36 @@ paths:
       summary: Get repository status summary
       tags:
       - repositories
+  /repositories/{id}/sync:
+    post:
+      consumes:
+      - application/json
+      description: Trigger a sync (git fetch + branch scan + commit indexing) for
+        a repository
+      parameters:
+      - description: Repository ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+      security:
+      - APIKeyAuth: []
+      summary: Sync repository
+      tags:
+      - repositories
   /repositories/{id}/tags:
     get:
       consumes:

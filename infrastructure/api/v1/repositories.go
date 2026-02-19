@@ -51,6 +51,7 @@ func (r *RepositoriesRouter) Routes() chi.Router {
 	router.Delete("/{id}/commits/{commit_sha}/enrichments/{enrichment_id}", r.DeleteCommitEnrichment)
 	router.Get("/{id}/commits/{commit_sha}/snippets", r.ListCommitSnippets)
 	router.Get("/{id}/commits/{commit_sha}/embeddings", r.ListCommitEmbeddingsDeprecated)
+	router.Post("/{id}/sync", r.Sync)
 	router.Post("/{id}/commits/{commit_sha}/rescan", r.RescanCommit)
 	router.Get("/{id}/tags", r.ListTags)
 	router.Get("/{id}/tags/{tag_name}", r.GetTag)
@@ -1022,6 +1023,36 @@ func (r *RepositoriesRouter) RescanCommit(w http.ResponseWriter, req *http.Reque
 	}
 
 	if err := r.client.Repositories.Rescan(ctx, &service.RescanParams{RepositoryID: id, CommitSHA: commitSHA}); err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	w.WriteHeader(http.StatusAccepted)
+}
+
+// Sync handles POST /api/v1/repositories/{id}/sync.
+//
+//	@Summary		Sync repository
+//	@Description	Trigger a sync (git fetch + branch scan + commit indexing) for a repository
+//	@Tags			repositories
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path	int	true	"Repository ID"
+//	@Success		202
+//	@Failure		404	{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500	{object}	middleware.JSONAPIErrorResponse
+//	@Security		APIKeyAuth
+//	@Router			/repositories/{id}/sync [post]
+func (r *RepositoriesRouter) Sync(w http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+
+	id, err := r.repositoryID(req)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	if err := r.client.Repositories.Sync(ctx, id); err != nil {
 		middleware.WriteError(w, req, err, r.logger)
 		return
 	}
