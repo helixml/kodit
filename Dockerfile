@@ -36,28 +36,8 @@ EXPOSE 8080
 
 CMD ["air", "-c", ".air.toml"]
 
-# Build stage — Debian-based for glibc (required by libtokenizers.a and libonnxruntime)
-FROM golang:1.25-bookworm AS builder
-
-# Install build dependencies for CGo (tree-sitter)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    git \
-    && rm -rf /var/lib/apt/lists/*
-
-# Set working directory
-WORKDIR /app
-
-# Copy go.mod and go.sum first for better caching
-COPY go.mod go.sum ./
-
-# Download dependencies
-RUN go mod download
-
-# Download ORT and tokenizers libraries (cached unless .ort-version or tool source changes)
-COPY .ort-version ./
-COPY tools/download-ort/ ./tools/download-ort/
-RUN ORT_VERSION=$(cat .ort-version) go run ./tools/download-ort
+# Build stage — reuses dev for dependencies and ORT libraries
+FROM dev AS builder
 
 # Copy pre-built embedding model (run 'make download-model' before building the image)
 COPY infrastructure/provider/models/ ./infrastructure/provider/models/
@@ -70,8 +50,7 @@ ARG VERSION=dev
 ARG COMMIT=unknown
 ARG BUILD_TIME=unknown
 
-RUN CGO_ENABLED=1 CGO_LDFLAGS="-L./lib" ORT_LIB_DIR="./lib" \
-    go build -tags "fts5 ORT embed_model" \
+RUN go build -tags "fts5 ORT embed_model" \
     -ldflags "-X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.BuildTime=${BUILD_TIME}" \
     -o ./build/kodit ./cmd/kodit
 
@@ -95,7 +74,7 @@ RUN mkdir -p /data && chown kodit:kodit /data
 
 # Copy binary and ORT library from builder
 COPY --from=builder /app/build/kodit /usr/local/bin/kodit
-COPY --from=builder --chmod=644 /app/lib/libonnxruntime.so /usr/lib/
+COPY --from=builder --chmod=644 /usr/lib/libonnxruntime.so /usr/lib/
 
 # Copy entrypoint script
 COPY --chmod=755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
@@ -114,5 +93,5 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:8080/healthz || exit 1
 
 # Entrypoint fixes data dir ownership then drops to kodit user
-ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
-CMD ["/usr/local/bin/kodit", "serve"]
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh", "/usr/local/bin/kodit"]
+CMD ["serve"]
