@@ -97,8 +97,8 @@ func TestMCPEndpoint_Initialize(t *testing.T) {
 	if resp.Result.ServerInfo.Name != "kodit" {
 		t.Errorf("server name = %q, want kodit", resp.Result.ServerInfo.Name)
 	}
-	if resp.Result.ServerInfo.Version != "0.1.0" {
-		t.Errorf("server version = %q, want 0.1.0", resp.Result.ServerInfo.Version)
+	if resp.Result.ServerInfo.Version != "1.0.0" {
+		t.Errorf("server version = %q, want 1.0.0", resp.Result.ServerInfo.Version)
 	}
 	if resp.Result.Capabilities.Tools == nil {
 		t.Error("expected tools capability to be present")
@@ -311,7 +311,7 @@ func TestMCPEndpoint_ServerMiddlewareStack(t *testing.T) {
 	if isError {
 		t.Fatalf("get_version returned error: %s", text)
 	}
-	if text != "0.1.0" {
-		t.Errorf("expected version 0.1.0, got %s", text)
+	if text != "1.0.0" {
+		t.Errorf("expected version 1.0.0, got %s", text)
 	}
 }

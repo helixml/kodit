@@ -46,12 +46,12 @@ code. This index is used to build a snippet library, ready for ingestion into an
 - Intelligent snippet extraction with context-aware dependencies
 - Efficient indexing with selective reindexing (only processes modified files)
 - Privacy first: respects .gitignore and .noindex files
-- **NEW in 0.3**: Auto-indexing configuration for shared server deployments
-- **NEW in 0.3**: Enhanced Git provider support including Azure DevOps
-- **NEW in 0.3**: Index private repositories via a PAT
-- **NEW in 0.3**: Improved progress monitoring and reporting during indexing
-- **NEW in 0.3**: Advanced code slicing infrastructure with Tree-sitter parsing
-- **NEW in 0.4**: Automatic periodic sync to keep indexes up-to-date
+- Auto-indexing configuration for shared server deployments
+- Enhanced Git provider support including Azure DevOps
+- Index private repositories via a PAT
+- Improved progress monitoring and reporting during indexing
+- Advanced code slicing infrastructure with Tree-sitter parsing
+- Automatic periodic sync to keep indexes up-to-date
 
 ### MCP Server
 
@@ -63,14 +63,15 @@ intent. Kodit has been tested to work well with:
 - Tested and verified with:
   - [Cursor](https://docs.helix.ml/kodit/getting-started/integration/#integration-with-cursor)
   - [Cline](https://docs.helix.ml/kodit/getting-started/integration/#integration-with-cline)
+  - [Claude Code](https://docs.helix.ml/kodit/reference/mcp/)
 - Please contribute more instructions! ... any other assistant is likely to work ...
-- **New in 0.3**: Advanced search filters by source, language, author, date range, and file path
-- **New in 0.3**: Hybrid search combining BM25 keyword search with semantic search
-- **New in 0.4**: Enhanced MCP tools with rich context parameters and metadata
+- Advanced search filters by source, language, author, date range, and file path
+- Hybrid search combining BM25 keyword search with semantic search
+- Enhanced MCP tools with rich context parameters and metadata
 
 ### Hosted MCP Server
 
-**New in 0.4**: Try Kodit instantly with our hosted MCP server at [https://kodit.helix.ml/mcp](https://kodit.helix.ml/mcp)! No installation required - just add it to your AI coding assistant and start searching popular codebases immediately.
+Try Kodit instantly with our hosted MCP server at [https://kodit.helix.ml/mcp](https://kodit.helix.ml/mcp)! No installation required - just add it to your AI coding assistant and start searching popular codebases immediately.
 
 The hosted server provides:
 
@@ -100,7 +101,7 @@ Supported providers:
 - Secure, private LLM enclave with [Helix](https://helix.ml).
 - Any other OpenAI compatible API
 
-**NEW in 0.3**: Enhanced deployment options:
+Enhanced deployment options:
 
 - Docker Compose configurations with VectorChord
 - Kubernetes manifests for production deployments
@@ -128,4 +129,4 @@ please [open a discussion](https://github.com/helixml/kodit/discussions).
 
 ## License
 
-[Apache 2.0 © 2025 HelixML, Inc.](./LICENSE)
+[Apache 2.0 © 2026 HelixML, Inc.](./LICENSE)
