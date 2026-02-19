@@ -3,7 +3,35 @@ entries:
   kodit:
   - apiVersion: v2
     appVersion: 1.0.0
-    created: "2026-02-19T16:05:44.236280253Z"
+    created: "2026-02-19T16:40:23.069323119Z"
+    dependencies:
+    - name: common
+      repository: https://bjw-s-labs.github.io/helm-charts
+      version: 4.5.0
+    description: A Helm chart for Kodit
+    digest: db0022a2c743db4093814a3c6737f15eaf4951d1a30b28ec51e870fd4ac35ecb
+    name: kodit
+    type: application
+    urls:
+    - https://helixml.github.io/kodit/kodit-1.0.0.tgz
+    version: 1.0.0
+  - apiVersion: v2
+    appVersion: 1.0.0
+    created: "2026-02-19T16:40:23.074119175Z"
+    dependencies:
+    - name: common
+      repository: https://bjw-s-labs.github.io/helm-charts
+      version: 4.5.0
+    description: A Helm chart for Kodit
+    digest: db0022a2c743db4093814a3c6737f15eaf4951d1a30b28ec51e870fd4ac35ecb
+    name: kodit
+    type: application
+    urls:
+    - https://helixml.github.io/kodit/.cr-release-packages/kodit-1.0.0.tgz
+    version: 1.0.0
+  - apiVersion: v2
+    appVersion: 1.0.0
+    created: "2026-02-19T16:40:23.065303438Z"
     dependencies:
     - name: common
       repository: https://bjw-s-labs.github.io/helm-charts
@@ -17,21 +45,7 @@ entries:
     version: 0.1.2
   - apiVersion: v2
     appVersion: 1.0.0
-    created: "2026-02-19T16:05:44.240874048Z"
-    dependencies:
-    - name: common
-      repository: https://bjw-s-labs.github.io/helm-charts
-      version: 4.5.0
-    description: A Helm chart for Kodit
-    digest: 49f5b76d6139e2c760c016bbed71eb782bab2f679e9f63031d921460bfa6670c
-    name: kodit
-    type: application
-    urls:
-    - https://helixml.github.io/kodit/.cr-release-packages/kodit-0.1.2.tgz
-    version: 0.1.2
-  - apiVersion: v2
-    appVersion: 1.0.0
-    created: "2026-02-19T16:05:44.232646515Z"
+    created: "2026-02-19T16:40:23.06176183Z"
     dependencies:
     - name: common
       repository: https://bjw-s-labs.github.io/helm-charts
@@ -45,7 +59,7 @@ entries:
     version: 0.1.1
   - apiVersion: v2
     appVersion: 1.0.0
-    created: "2026-02-19T16:05:44.22787373Z"
+    created: "2026-02-19T16:40:23.057401796Z"
     dependencies:
     - name: common
       repository: https://bjw-s-labs.github.io/helm-charts
@@ -57,4 +71,4 @@ entries:
     urls:
     - https://helixml.github.io/kodit/kodit-0.1.0.tgz
     version: 0.1.0
-generated: "2026-02-19T16:05:44.214036327Z"
+generated: "2026-02-19T16:40:23.05308883Z"
