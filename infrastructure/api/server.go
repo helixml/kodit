@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
 )
 
 // Server represents the HTTP API server.
@@ -34,6 +35,16 @@ func NewServer(addr string, logger *slog.Logger) Server {
 	router.Use(chimiddleware.RequestID)
 	router.Use(chimiddleware.RealIP)
 	router.Use(chimiddleware.Recoverer)
+
+	// CORS must be applied before auth middleware so preflight requests succeed.
+	router.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-API-KEY", "X-Correlation-ID"},
+		ExposedHeaders:   []string{"X-Correlation-ID"},
+		AllowCredentials: false,
+		MaxAge:           300,
+	}))
 
 	return Server{
 		router: router,
