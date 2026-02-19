@@ -36,11 +36,16 @@ EXPOSE 8080
 
 CMD ["air", "-c", ".air.toml"]
 
+# Model stage — downloads and converts the embedding model to ONNX format
+FROM ghcr.io/astral-sh/uv:debian-slim AS model
+WORKDIR /build
+COPY tools/convert-model.py ./tools/convert-model.py
+RUN uv run --script tools/convert-model.py
+
 # Build stage — reuses dev for dependencies and ORT libraries
 FROM dev AS builder
 
-# Copy pre-built embedding model (run 'make download-model' before building the image)
-COPY infrastructure/provider/models/ ./infrastructure/provider/models/
+COPY --from=model /build/infrastructure/provider/models/ ./infrastructure/provider/models/
 
 # Copy source code
 COPY . .
