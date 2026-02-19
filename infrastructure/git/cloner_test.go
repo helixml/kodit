@@ -82,7 +82,7 @@ func TestUpdate_MissingDirectory(t *testing.T) {
 		remoteURI,
 		repository.NewWorkingCopy(missingPath, remoteURI),
 		repository.NewTrackingConfigForBranch("main"),
-		time.Now(), time.Now(),
+		time.Now(), time.Now(), time.Time{},
 	)
 
 	newPath, err := cloner.Update(context.Background(), repo)
@@ -135,7 +135,7 @@ func TestUpdate_InaccessibleDirectory(t *testing.T) {
 		"https://github.com/example/repo.git",
 		repository.NewWorkingCopy(child, "https://github.com/example/repo.git"),
 		repository.NewTrackingConfigForBranch("main"),
-		time.Now(), time.Now(),
+		time.Now(), time.Now(), time.Time{},
 	)
 
 	newPath, err := cloner.Update(context.Background(), repo)

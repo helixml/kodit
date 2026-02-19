@@ -19,6 +19,10 @@ func ApplyOptions(db *gorm.DB, options ...repository.Option) *gorm.DB {
 		}
 	}
 
+	for _, clause := range q.Clauses() {
+		db = db.Where(clause.SQL(), clause.Args()...)
+	}
+
 	for _, ord := range q.Orders() {
 		dir := "ASC"
 		if !ord.Ascending() {
@@ -48,6 +52,10 @@ func ApplyConditions(db *gorm.DB, options ...repository.Option) *gorm.DB {
 		} else {
 			db = db.Where(fmt.Sprintf("%s = ?", cond.Field()), cond.Value())
 		}
+	}
+
+	for _, clause := range q.Clauses() {
+		db = db.Where(clause.SQL(), clause.Args()...)
 	}
 
 	return db

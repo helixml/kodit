@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/helixml/kodit/application/handler"
 	"github.com/helixml/kodit/application/service"
@@ -106,6 +107,11 @@ func (h *Sync) Execute(ctx context.Context, payload map[string]any) error {
 
 	if err := h.enqueueCommitScans(ctx, repo, branches); err != nil {
 		h.logger.Warn("failed to enqueue commit scans", slog.String("error", err.Error()))
+	}
+
+	repo = repo.WithLastScannedAt(time.Now())
+	if _, err := h.repoStore.Save(ctx, repo); err != nil {
+		return fmt.Errorf("save last synced at: %w", err)
 	}
 
 	h.logger.Info("repository synced successfully",

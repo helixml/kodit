@@ -16,6 +16,7 @@ type Repository struct {
 	trackingConfig TrackingConfig
 	createdAt      time.Time
 	updatedAt      time.Time
+	lastScannedAt  time.Time
 }
 
 // NewRepository creates a new Repository with a remote URL.
@@ -38,6 +39,7 @@ func ReconstructRepository(
 	workingCopy WorkingCopy,
 	trackingConfig TrackingConfig,
 	createdAt, updatedAt time.Time,
+	lastScannedAt time.Time,
 ) Repository {
 	return Repository{
 		id:             id,
@@ -46,6 +48,7 @@ func ReconstructRepository(
 		trackingConfig: trackingConfig,
 		createdAt:      createdAt,
 		updatedAt:      updatedAt,
+		lastScannedAt:  lastScannedAt,
 	}
 }
 
@@ -84,6 +87,15 @@ func (r Repository) WithWorkingCopy(wc WorkingCopy) Repository {
 func (r Repository) WithTrackingConfig(tc TrackingConfig) Repository {
 	r.trackingConfig = tc
 	r.updatedAt = time.Now()
+	return r
+}
+
+// LastScannedAt returns the last scanned timestamp.
+func (r Repository) LastScannedAt() time.Time { return r.lastScannedAt }
+
+// WithLastScannedAt returns a new Repository with the specified last scanned time.
+func (r Repository) WithLastScannedAt(t time.Time) Repository {
+	r.lastScannedAt = t
 	return r
 }
 

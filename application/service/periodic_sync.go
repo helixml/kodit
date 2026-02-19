@@ -91,7 +91,7 @@ func (p *PeriodicSync) run(ctx context.Context) {
 }
 
 func (p *PeriodicSync) sync(ctx context.Context) {
-	repos, err := p.repositories.Find(ctx)
+	repos, err := p.repositories.Find(ctx, repository.WithScanDueBefore(time.Now().Add(-p.interval)))
 	if err != nil {
 		if ctx.Err() != nil {
 			return

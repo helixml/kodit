@@ -130,11 +130,11 @@ func TestPeriodicSync_Enabled(t *testing.T) {
 			repository.ReconstructRepository(1, "https://github.com/org/repo-a",
 				repository.NewWorkingCopy("/tmp/a", "https://github.com/org/repo-a"),
 				repository.NewTrackingConfig("main", "", ""),
-				time.Now(), time.Now()),
+				time.Now(), time.Now(), time.Time{}),
 			repository.ReconstructRepository(2, "https://github.com/org/repo-b",
 				repository.NewWorkingCopy("/tmp/b", "https://github.com/org/repo-b"),
 				repository.NewTrackingConfig("main", "", ""),
-				time.Now(), time.Now()),
+				time.Now(), time.Now(), time.Time{}),
 		},
 	}
 
@@ -172,7 +172,7 @@ func TestPeriodicSync_Disabled(t *testing.T) {
 			repository.ReconstructRepository(1, "https://github.com/org/repo",
 				repository.NewWorkingCopy("/tmp/r", "https://github.com/org/repo"),
 				repository.NewTrackingConfig("main", "", ""),
-				time.Now(), time.Now()),
+				time.Now(), time.Now(), time.Time{}),
 		},
 	}
 

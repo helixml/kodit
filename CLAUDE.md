@@ -65,7 +65,11 @@ Stylistic requirements:
 
 ## Repositories and Database Stores
 
-Every store **embeds** `database.Repository[D, E]` (`internal/database/repository.go`). This provides `Find`, `FindOne`, `Count`, `Exists`, `DeleteBy`, `Mapper()`, and `DB(ctx)`. Do not reimplement these. A store only adds methods its domain interface requires (`Save`, `Delete`, `SaveAll`).
+Every store **embeds** `database.Repository[D, E]` (`internal/database/repository.go`).
+This provides `Find`, `FindOne`, `Count`, `Exists`, `DeleteBy`, `Mapper()`, and
+`DB(ctx)`. DO NOT ADD NEW METHODS TO A DERIVATIVE REPOSITORY. Use the repository.Option
+to provide custom behaviour. Push the filtering down into the options infrastructure
+instead of overriding.
 
 ```go
 type CommitStore struct {

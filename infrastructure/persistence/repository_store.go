@@ -6,6 +6,7 @@ import (
 
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/internal/database"
+
 	"gorm.io/gorm"
 )
 

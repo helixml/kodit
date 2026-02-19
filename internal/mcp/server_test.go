@@ -144,6 +144,7 @@ func testRepo() repository.Repository {
 		repository.NewTrackingConfigForBranch("main"),
 		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
 		time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		time.Time{},
 	)
 }
 

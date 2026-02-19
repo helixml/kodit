@@ -8,6 +8,7 @@ type Option func(Query) Query
 // Query holds conditions, ordering, and pagination for store lookups.
 type Query struct {
 	conditions []Condition
+	clauses    []Clause
 	orders     []Order
 	limit      int
 	offset     int
@@ -27,6 +28,13 @@ func Build(options ...Option) Query {
 func (q Query) Conditions() []Condition {
 	result := make([]Condition, len(q.conditions))
 	copy(result, q.conditions)
+	return result
+}
+
+// Clauses returns the raw WHERE clauses.
+func (q Query) Clauses() []Clause {
+	result := make([]Clause, len(q.clauses))
+	copy(result, q.clauses)
 	return result
 }
 
@@ -70,6 +78,18 @@ func (c Condition) String() string {
 	}
 	return fmt.Sprintf("%s = %v", c.field, c.value)
 }
+
+// Clause represents a raw WHERE clause with arguments.
+type Clause struct {
+	sql  string
+	args []any
+}
+
+// SQL returns the clause SQL expression.
+func (c Clause) SQL() string { return c.sql }
+
+// Args returns the clause bind arguments.
+func (c Clause) Args() []any { return c.args }
 
 // Order represents a sort specification.
 type Order struct {
@@ -152,6 +172,14 @@ func WithOrderDesc(field string) Option {
 // WithPagination returns limit and offset options for a page.
 func WithPagination(limit, offset int) []Option {
 	return []Option{WithLimit(limit), WithOffset(offset)}
+}
+
+// WithWhere adds a raw WHERE clause with bind arguments.
+func WithWhere(sql string, args ...any) Option {
+	return func(q Query) Query {
+		q.clauses = append(q.clauses, Clause{sql: sql, args: args})
+		return q
+	}
 }
 
 // WithParam stores an arbitrary key-value pair on the query.

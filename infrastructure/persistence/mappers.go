@@ -30,6 +30,11 @@ func (m RepositoryMapper) ToDomain(e RepositoryModel) repository.Repository {
 
 	tc := trackingConfigFromDB(e.TrackingType, e.TrackingName)
 
+	var lastSyncedAt time.Time
+	if e.LastScannedAt != nil {
+		lastSyncedAt = *e.LastScannedAt
+	}
+
 	return repository.ReconstructRepository(
 		e.ID,
 		e.RemoteURI,
@@ -37,6 +42,7 @@ func (m RepositoryMapper) ToDomain(e RepositoryModel) repository.Repository {
 		tc,
 		e.CreatedAt,
 		e.UpdatedAt,
+		lastSyncedAt,
 	)
 }
 
@@ -50,11 +56,18 @@ func (m RepositoryMapper) ToModel(r repository.Repository) RepositoryModel {
 
 	trackingType, trackingName := trackingConfigToDB(r.TrackingConfig())
 
+	var lastScannedAt *time.Time
+	if !r.LastScannedAt().IsZero() {
+		t := r.LastScannedAt()
+		lastScannedAt = &t
+	}
+
 	return RepositoryModel{
 		ID:                 r.ID(),
 		SanitizedRemoteURI: sanitizeRemoteURI(r.RemoteURL()),
 		RemoteURI:          r.RemoteURL(),
 		ClonedPath:         clonedPath,
+		LastScannedAt:      lastScannedAt,
 		TrackingType:       trackingType,
 		TrackingName:       trackingName,
 		CreatedAt:          r.CreatedAt(),

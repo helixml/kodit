@@ -1,5 +1,7 @@
 package repository
 
+import "time"
+
 // WithSHA filters by the "commit_sha" column.
 func WithSHA(sha string) Option {
 	return WithCondition("commit_sha", sha)
@@ -38,4 +40,9 @@ func WithBlobSHA(sha string) Option {
 // WithPath filters by the "path" column.
 func WithPath(path string) Option {
 	return WithCondition("path", path)
+}
+
+// WithScanDueBefore filters repositories whose last scan was before the given time (or never scanned).
+func WithScanDueBefore(t time.Time) Option {
+	return WithWhere("last_scanned_at IS NULL OR last_scanned_at < ?", t)
 }
