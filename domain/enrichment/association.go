@@ -69,28 +69,3 @@ func SnippetAssociation(enrichmentID int64, snippetID string) Association {
 func FileAssociation(enrichmentID int64, fileID string) Association {
 	return NewAssociation(enrichmentID, fileID, EntityTypeFile)
 }
-
-// SnippetSummaryLink pairs a snippet summary enrichment with its corresponding snippet enrichment.
-// This is used to track which summary belongs to which snippet.
-type SnippetSummaryLink struct {
-	summary Association
-	snippet Association
-}
-
-// NewSnippetSummaryLink creates a new link between a snippet summary and snippet association.
-func NewSnippetSummaryLink(summary, snippet Association) SnippetSummaryLink {
-	return SnippetSummaryLink{
-		summary: summary,
-		snippet: snippet,
-	}
-}
-
-// Summary returns the snippet summary association.
-func (l SnippetSummaryLink) Summary() Association {
-	return l.summary
-}
-
-// Snippet returns the snippet association.
-func (l SnippetSummaryLink) Snippet() Association {
-	return l.snippet
-}

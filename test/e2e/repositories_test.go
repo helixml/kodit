@@ -482,7 +482,7 @@ func TestRepositories_RescanCommit(t *testing.T) {
 	ts.CreateSnippetEnrichmentForCommit(commit.SHA(), `func TestFunction() {}`, "go")
 
 	// Create an enrichment and associate it with the commit
-	e := ts.CreateEnrichment(enrichment.TypeDevelopment, enrichment.SubtypeSnippetSummary, "Test summary")
+	e := ts.CreateEnrichment(enrichment.TypeDevelopment, enrichment.SubtypeExample, "Test example")
 	ts.CreateEnrichmentAssociation(e, enrichment.EntityTypeCommit, commit.SHA())
 
 	// Call the rescan endpoint

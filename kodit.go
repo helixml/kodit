@@ -49,8 +49,6 @@ import (
 	"github.com/helixml/kodit/infrastructure/git"
 	"github.com/helixml/kodit/infrastructure/persistence"
 	"github.com/helixml/kodit/infrastructure/provider"
-	"github.com/helixml/kodit/infrastructure/slicing"
-	"github.com/helixml/kodit/infrastructure/slicing/language"
 	"github.com/helixml/kodit/infrastructure/tracking"
 	"github.com/helixml/kodit/internal/config"
 	"github.com/helixml/kodit/internal/database"
@@ -94,9 +92,6 @@ type Client struct {
 	worker       *service.Worker
 	periodicSync *service.PeriodicSync
 	registry     *service.Registry
-
-	// Code slicing (internal)
-	slicer *slicing.Slicer
 
 	// Discovery services (each used by exactly one handler)
 	archDiscoverer    *enricher.PhysicalArchitectureService
@@ -297,11 +292,6 @@ func New(opts ...Option) (*Client, error) {
 		Scanner: scannerSvc,
 	}
 
-	// Create slicer for code extraction
-	langConfig := slicing.NewLanguageConfig()
-	analyzerFactory := language.NewFactory(langConfig)
-	slicer := slicing.NewSlicer(langConfig, analyzerFactory)
-
 	// Create tracker factory for progress reporting
 	reporters := []tracking.Reporter{
 		tracking.NewDBReporter(statusStore, logger),
@@ -353,7 +343,6 @@ func New(opts ...Option) (*Client, error) {
 		worker:            worker,
 		periodicSync:      periodicSync,
 		registry:          registry,
-		slicer:            slicer,
 		archDiscoverer:    archDiscoverer,
 		exampleDiscoverer: exampleDiscoverer,
 		schemaDiscoverer:  schemaDiscoverer,

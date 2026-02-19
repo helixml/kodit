@@ -28,8 +28,6 @@ const (
 	OperationExtractSnippetsForCommit                Operation = "kodit.commit.extract_snippets"
 	OperationCreateBM25IndexForCommit                Operation = "kodit.commit.create_bm25_index"
 	OperationCreateCodeEmbeddingsForCommit           Operation = "kodit.commit.create_code_embeddings"
-	OperationCreateSummaryEnrichmentForCommit        Operation = "kodit.commit.create_summary_enrichment"
-	OperationCreateSummaryEmbeddingsForCommit        Operation = "kodit.commit.create_summary_embeddings"
 	OperationCreateArchitectureEnrichmentForCommit   Operation = "kodit.commit.create_architecture_enrichment"
 	OperationCreatePublicAPIDocsForCommit            Operation = "kodit.commit.create_public_api_docs"
 	OperationCreateCommitDescriptionForCommit        Operation = "kodit.commit.create_commit_description"
@@ -107,9 +105,7 @@ func (PrescribedOperations) ScanAndIndexCommit() []Operation {
 		OperationCreateBM25IndexForCommit,
 		OperationCreateCodeEmbeddingsForCommit,
 		OperationCreateExampleCodeEmbeddingsForCommit,
-		OperationCreateSummaryEnrichmentForCommit,
 		OperationCreateExampleSummaryForCommit,
-		OperationCreateSummaryEmbeddingsForCommit,
 		OperationCreateExampleSummaryEmbeddingsForCommit,
 		OperationCreateArchitectureEnrichmentForCommit,
 		OperationCreatePublicAPIDocsForCommit,
@@ -125,8 +121,6 @@ func (PrescribedOperations) IndexCommit() []Operation {
 		OperationExtractSnippetsForCommit,
 		OperationCreateBM25IndexForCommit,
 		OperationCreateCodeEmbeddingsForCommit,
-		OperationCreateSummaryEnrichmentForCommit,
-		OperationCreateSummaryEmbeddingsForCommit,
 		OperationCreateArchitectureEnrichmentForCommit,
 		OperationCreatePublicAPIDocsForCommit,
 		OperationCreateCommitDescriptionForCommit,
@@ -144,9 +138,7 @@ func (PrescribedOperations) RescanCommit() []Operation {
 		OperationCreateBM25IndexForCommit,
 		OperationCreateCodeEmbeddingsForCommit,
 		OperationCreateExampleCodeEmbeddingsForCommit,
-		OperationCreateSummaryEnrichmentForCommit,
 		OperationCreateExampleSummaryForCommit,
-		OperationCreateSummaryEmbeddingsForCommit,
 		OperationCreateExampleSummaryEmbeddingsForCommit,
 		OperationCreateArchitectureEnrichmentForCommit,
 		OperationCreatePublicAPIDocsForCommit,

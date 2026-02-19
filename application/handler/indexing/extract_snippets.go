@@ -4,24 +4,28 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/helixml/kodit/application/handler"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
-	"github.com/helixml/kodit/domain/snippet"
 	"github.com/helixml/kodit/domain/task"
-	"github.com/helixml/kodit/infrastructure/slicing"
 )
 
-// ExtractSnippets extracts code snippets from commit files using AST parsing.
+const (
+	defaultChunkLines   = 60
+	defaultOverlapLines = 10
+)
+
+// ExtractSnippets extracts code snippets from commit files using line-based chunking.
 type ExtractSnippets struct {
 	repoStore        repository.RepositoryStore
 	enrichmentStore  enrichment.EnrichmentStore
 	associationStore enrichment.AssociationStore
 	fileStore        repository.FileStore
-	slicer           *slicing.Slicer
 	trackerFactory   handler.TrackerFactory
 	logger           *slog.Logger
 }
@@ -32,7 +36,6 @@ func NewExtractSnippets(
 	enrichmentStore enrichment.EnrichmentStore,
 	associationStore enrichment.AssociationStore,
 	fileStore repository.FileStore,
-	slicerInstance *slicing.Slicer,
 	trackerFactory handler.TrackerFactory,
 	logger *slog.Logger,
 ) *ExtractSnippets {
@@ -41,7 +44,6 @@ func NewExtractSnippets(
 		enrichmentStore:  enrichmentStore,
 		associationStore: associationStore,
 		fileStore:        fileStore,
-		slicer:           slicerInstance,
 		trackerFactory:   trackerFactory,
 		logger:           logger,
 	}
@@ -62,8 +64,7 @@ func (h *ExtractSnippets) Execute(ctx context.Context, payload map[string]any) e
 
 	existing, err := h.enrichmentStore.Find(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeSnippet))
 	if err != nil {
-		h.logger.Error("failed to check existing snippets", slog.String("error", err.Error()))
-		return err
+		return fmt.Errorf("check existing snippets: %w", err)
 	}
 
 	if len(existing) > 0 {
@@ -81,104 +82,157 @@ func (h *ExtractSnippets) Execute(ctx context.Context, payload map[string]any) e
 		return fmt.Errorf("repository %d has never been cloned", cp.RepoID())
 	}
 
-	// Load files from database (which have IDs from SCAN_COMMIT step)
 	files, err := h.fileStore.Find(ctx, repository.WithCommitSHA(cp.CommitSHA()))
 	if err != nil {
-		return fmt.Errorf("get commit files from database: %w", err)
+		return fmt.Errorf("get commit files: %w", err)
 	}
 
 	if len(files) == 0 {
-		h.logger.Info("no files found for commit, skipping",
-			slog.String("commit", handler.ShortSHA(cp.CommitSHA())),
-		)
 		tracker.Skip(ctx, "No files found for commit")
 		return nil
 	}
 
-	langFiles := h.groupFilesByExtension(files)
+	tracker.SetTotal(ctx, len(files))
 
-	tracker.SetTotal(ctx, len(langFiles))
+	saved := 0
+	for i, f := range files {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
 
-	cfg := slicing.DefaultSliceConfig()
-	var allSnippets []snippet.Snippet
+		tracker.SetCurrent(ctx, i, "Chunking "+f.Path())
 
-	processed := 0
-	for ext, extFiles := range langFiles {
-		message := fmt.Sprintf("Extracting snippets for %s", ext)
-		tracker.SetCurrent(ctx, processed, message)
-
-		result, sliceErr := h.slicer.Slice(ctx, extFiles, clonedPath, cfg)
-		if sliceErr != nil {
-			h.logger.Warn("failed to slice files",
-				slog.String("extension", ext),
-				slog.String("error", sliceErr.Error()),
+		chunks, lang, err := h.chunkFile(f, clonedPath)
+		if err != nil {
+			h.logger.Warn("failed to read file for chunking",
+				slog.String("path", f.Path()),
+				slog.String("error", err.Error()),
 			)
-			processed++
 			continue
 		}
 
-		allSnippets = append(allSnippets, result.Snippets()...)
-		processed++
+		for _, chunk := range chunks {
+			if err := h.saveChunk(ctx, chunk, lang, cp.CommitSHA(), f); err != nil {
+				return err
+			}
+			saved++
+		}
 	}
 
-	uniqueSnippets := h.deduplicateSnippets(allSnippets)
-
 	h.logger.Info("extracted snippets",
-		slog.Int("total", len(allSnippets)),
-		slog.Int("unique", len(uniqueSnippets)),
+		slog.Int("snippets", saved),
+		slog.Int("files", len(files)),
 		slog.String("commit", handler.ShortSHA(cp.CommitSHA())),
 	)
 
-	for _, s := range uniqueSnippets {
-		if s.Content() == "" {
-			continue
-		}
-		e := enrichment.NewSnippetEnrichmentWithLanguage(s.Content(), s.Extension())
-		saved, err := h.enrichmentStore.Save(ctx, e)
-		if err != nil {
-			return fmt.Errorf("save snippet enrichment: %w", err)
-		}
+	return nil
+}
 
-		assoc := enrichment.CommitAssociation(saved.ID(), cp.CommitSHA())
-		if _, err := h.associationStore.Save(ctx, assoc); err != nil {
-			return fmt.Errorf("save commit association: %w", err)
-		}
+func (h *ExtractSnippets) chunkFile(f repository.File, basePath string) ([]string, string, error) {
+	fullPath := filepath.Join(basePath, f.Path())
 
-		for _, f := range s.DerivesFrom() {
-			if f.ID() == 0 {
-				continue
-			}
-			fileAssoc := enrichment.FileAssociation(saved.ID(), strconv.FormatInt(f.ID(), 10))
-			if _, err := h.associationStore.Save(ctx, fileAssoc); err != nil {
-				return fmt.Errorf("save file association: %w", err)
-			}
+	content, err := os.ReadFile(fullPath)
+	if err != nil {
+		return nil, "", err
+	}
+
+	lang := fileLanguage(f)
+	text := string(content)
+	if strings.TrimSpace(text) == "" {
+		return nil, lang, nil
+	}
+
+	lines := strings.Split(text, "\n")
+	return splitLines(lines, defaultChunkLines, defaultOverlapLines), lang, nil
+}
+
+func (h *ExtractSnippets) saveChunk(ctx context.Context, chunk, language, commitSHA string, f repository.File) error {
+	e := enrichment.NewSnippetEnrichmentWithLanguage(chunk, language)
+	saved, err := h.enrichmentStore.Save(ctx, e)
+	if err != nil {
+		return fmt.Errorf("save snippet enrichment: %w", err)
+	}
+
+	if _, err := h.associationStore.Save(ctx, enrichment.CommitAssociation(saved.ID(), commitSHA)); err != nil {
+		return fmt.Errorf("save commit association: %w", err)
+	}
+
+	if f.ID() != 0 {
+		if _, err := h.associationStore.Save(ctx, enrichment.FileAssociation(saved.ID(), strconv.FormatInt(f.ID(), 10))); err != nil {
+			return fmt.Errorf("save file association: %w", err)
 		}
 	}
 
 	return nil
 }
 
-func (h *ExtractSnippets) groupFilesByExtension(files []repository.File) map[string][]repository.File {
-	result := make(map[string][]repository.File)
-
-	for _, f := range files {
-		ext := filepath.Ext(f.Path())
-		result[ext] = append(result[ext], f)
+// splitLines splits lines into overlapping chunks.
+func splitLines(lines []string, size, overlap int) []string {
+	if len(lines) == 0 {
+		return nil
 	}
 
-	return result
-}
+	if len(lines) <= size {
+		return []string{strings.Join(lines, "\n")}
+	}
 
-func (h *ExtractSnippets) deduplicateSnippets(snippets []snippet.Snippet) []snippet.Snippet {
-	seen := make(map[string]bool)
-	result := make([]snippet.Snippet, 0, len(snippets))
+	step := size - overlap
+	if step < 1 {
+		step = 1
+	}
 
-	for _, s := range snippets {
-		if !seen[s.SHA()] {
-			seen[s.SHA()] = true
-			result = append(result, s)
+	var chunks []string
+	for start := 0; start < len(lines); start += step {
+		end := start + size
+		if end > len(lines) {
+			end = len(lines)
+		}
+		chunk := strings.Join(lines[start:end], "\n")
+		if strings.TrimSpace(chunk) != "" {
+			chunks = append(chunks, chunk)
+		}
+		if end == len(lines) {
+			break
 		}
 	}
 
-	return result
+	return chunks
+}
+
+// fileLanguage derives the language name from a file's extension or language field.
+func fileLanguage(f repository.File) string {
+	if f.Language() != "" {
+		return f.Language()
+	}
+	ext := filepath.Ext(f.Path())
+	languages := map[string]string{
+		".py":    "python",
+		".go":    "go",
+		".java":  "java",
+		".c":     "c",
+		".cpp":   "cpp",
+		".cc":    "cpp",
+		".cxx":   "cpp",
+		".rs":    "rust",
+		".js":    "javascript",
+		".ts":    "typescript",
+		".tsx":   "tsx",
+		".cs":    "csharp",
+		".rb":    "ruby",
+		".php":   "php",
+		".kt":    "kotlin",
+		".swift": "swift",
+		".sh":    "shell",
+		".yaml":  "yaml",
+		".yml":   "yaml",
+		".json":  "json",
+		".md":    "markdown",
+		".sql":   "sql",
+	}
+	if lang, ok := languages[ext]; ok {
+		return lang
+	}
+	return ""
 }

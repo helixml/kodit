@@ -28,7 +28,6 @@ const (
 // Development subtypes.
 const (
 	SubtypeSnippet        Subtype = "snippet"
-	SubtypeSnippetSummary Subtype = "snippet_summary"
 	SubtypeExample        Subtype = "example"
 	SubtypeExampleSummary Subtype = "example_summary"
 )

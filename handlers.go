@@ -37,7 +37,7 @@ func (c *Client) registerHandlers() error {
 
 	// Indexing handlers (always registered for snippet extraction)
 	c.registry.Register(task.OperationExtractSnippetsForCommit, indexinghandler.NewExtractSnippets(
-		c.repoStores.Repositories, c.enrichCtx.Enrichments, c.enrichCtx.Associations, c.repoStores.Files, c.slicer, c.enrichCtx.Tracker, c.logger,
+		c.repoStores.Repositories, c.enrichCtx.Enrichments, c.enrichCtx.Associations, c.repoStores.Files, c.enrichCtx.Tracker, c.logger,
 	))
 
 	// BM25 index handler
@@ -62,12 +62,6 @@ func (c *Client) registerHandlers() error {
 
 	// Text embedding handlers — only if text embedding provider configured
 	if c.textIndex.Store != nil {
-		h, err := indexinghandler.NewCreateSummaryEmbeddings(c.textIndex, c.enrichCtx.Enrichments, c.enrichCtx.Associations, c.enrichCtx.Tracker, c.logger)
-		if err != nil {
-			return fmt.Errorf("create summary embeddings handler: %w", err)
-		}
-		c.registry.Register(task.OperationCreateSummaryEmbeddingsForCommit, h)
-
 		h2, err := indexinghandler.NewCreateExampleSummaryEmbeddings(c.textIndex, c.enrichCtx.Enrichments, c.enrichCtx.Tracker, c.logger)
 		if err != nil {
 			return fmt.Errorf("create example summary embeddings handler: %w", err)
@@ -77,12 +71,6 @@ func (c *Client) registerHandlers() error {
 
 	// Enrichment handlers that call Enricher — only if text provider configured
 	if c.enrichCtx.Enricher != nil {
-		h, err := enrichmenthandler.NewCreateSummary(c.enrichCtx)
-		if err != nil {
-			return fmt.Errorf("create summary handler: %w", err)
-		}
-		c.registry.Register(task.OperationCreateSummaryEnrichmentForCommit, h)
-
 		h2, err := enrichmenthandler.NewCommitDescription(c.repoStores.Repositories, c.enrichCtx, c.gitInfra.Adapter)
 		if err != nil {
 			return fmt.Errorf("commit description handler: %w", err)

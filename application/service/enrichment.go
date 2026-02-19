@@ -146,7 +146,7 @@ func (s *Enrichment) DeleteBy(ctx context.Context, opts ...repository.Option) er
 }
 
 // RelatedEnrichments returns enrichments that reference the given enrichment IDs
-// through the association store (e.g., snippet_summary enrichments pointing to snippet enrichments).
+// through the association store (e.g., enrichments pointing to snippet enrichments).
 // Returns a map of parent enrichment ID (as string) to its related enrichments.
 func (s *Enrichment) RelatedEnrichments(ctx context.Context, enrichmentIDs []int64) (map[string][]enrichment.Enrichment, error) {
 	if len(enrichmentIDs) == 0 {

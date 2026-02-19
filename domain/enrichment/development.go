@@ -12,12 +12,6 @@ func NewSnippetEnrichmentWithLanguage(content, language string) Enrichment {
 	return NewEnrichmentWithLanguage(TypeDevelopment, SubtypeSnippet, EntityTypeCommit, content, language)
 }
 
-// NewSnippetSummary creates a snippet summary enrichment for a commit.
-// Snippet summaries provide AI-generated descriptions of code snippets.
-func NewSnippetSummary(content string) Enrichment {
-	return NewEnrichment(TypeDevelopment, SubtypeSnippetSummary, EntityTypeCommit, content)
-}
-
 // NewExample creates an example enrichment for a commit.
 // Examples are code samples extracted from documentation.
 func NewExample(content string) Enrichment {
@@ -38,11 +32,6 @@ func IsDevelopmentEnrichment(e Enrichment) bool {
 // IsSnippetEnrichment returns true if the enrichment is a snippet subtype.
 func IsSnippetEnrichment(e Enrichment) bool {
 	return e.Type() == TypeDevelopment && e.Subtype() == SubtypeSnippet
-}
-
-// IsSnippetSummary returns true if the enrichment is a snippet summary subtype.
-func IsSnippetSummary(e Enrichment) bool {
-	return e.Type() == TypeDevelopment && e.Subtype() == SubtypeSnippetSummary
 }
 
 // IsExample returns true if the enrichment is an example subtype.
