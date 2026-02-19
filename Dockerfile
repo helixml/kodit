@@ -57,8 +57,7 @@ WORKDIR /app
 
 # Copy go.mod and go.sum for dependency caching
 COPY go.mod go.sum ./
-RUN --mount=type=cache,target=/go/pkg/mod \
-    go mod download
+RUN go mod download
 
 # Download ORT and tokenizers
 COPY .ort-version ./
@@ -83,9 +82,7 @@ ARG VERSION=dev
 ARG COMMIT=unknown
 ARG BUILD_TIME=unknown
 
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
-    go build -tags "fts5 ORT embed_model" \
+RUN go build -tags "fts5 ORT embed_model" \
     -ldflags "-X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.BuildTime=${BUILD_TIME}" \
     -o ./build/kodit ./cmd/kodit
 
