@@ -168,7 +168,7 @@ tools: ## Install development tools
 	$(GOCMD) install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 	$(GOCMD) install golang.org/x/tools/cmd/goimports@latest
 	$(GOCMD) install github.com/swaggo/swag/cmd/swag@latest
-	$(GOCMD) install golang.org/x/tools/cmd/goimports@latest
+	$(GOCMD) install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.5.1
 
 ##@ Documentation
 

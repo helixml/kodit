@@ -28,6 +28,12 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install tools
+        run: make tools
+
       - name: Generate docs
         run: make docs
 
