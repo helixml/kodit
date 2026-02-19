@@ -224,11 +224,11 @@ release: ## Create a GitHub release (VERSION required, e.g. make release VERSION
 	fi
 	@BRANCH=$$(git rev-parse --abbrev-ref HEAD); \
 	if [ "$$BRANCH" = "main" ]; then \
-		TAG="v$(VERSION)"; \
+		TAG="$(VERSION)"; \
 		echo "Creating release $$TAG on main..."; \
 		gh release create "$$TAG" --title "$$TAG" --generate-notes; \
 	else \
-		TAG="v$(VERSION)-rc.$(COMMIT)"; \
+		TAG="$(VERSION)-rc.$(COMMIT)"; \
 		echo "Creating pre-release $$TAG on branch $$BRANCH..."; \
 		gh release create "$$TAG" --title "$$TAG" --generate-notes --prerelease --target "$$BRANCH"; \
 	fi
