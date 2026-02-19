@@ -14,17 +14,25 @@ import (
 
 const hugotBatchMax = 32
 
-// HugotEmbedding provides local embedding generation using the st-codesearch-distilroberta-base
-// model via the hugot Go backend.
-//
-// The model is statically compiled into the binary (build tag embed_model)
-// and extracted to cacheDir on first use.
-type HugotEmbedding struct {
-	cacheDir string
+// ortSingleton holds the process-wide ONNX Runtime session and pipeline.
+// ORT only allows one active session per process, so all HugotEmbedding
+// instances must share it. The mutex serializes both initialization and
+// inference (ORT is not thread-safe).
+var ortSingleton struct {
 	session  *hugot.Session
 	pipeline *pipelines.FeatureExtractionPipeline
 	mu       sync.Mutex
 	ready    bool
+}
+
+// HugotEmbedding provides local embedding generation using the st-codesearch-distilroberta-base
+// model via the hugot Go backend.
+//
+// The model is statically compiled into the binary (build tag embed_model)
+// and extracted to cacheDir on first use. All instances share a single
+// ONNX Runtime session because ORT only supports one active session per process.
+type HugotEmbedding struct {
+	cacheDir string
 }
 
 // NewHugotEmbedding creates a HugotEmbedding that caches extracted model files in cacheDir.
@@ -40,10 +48,10 @@ func (h *HugotEmbedding) Available() bool {
 }
 
 func (h *HugotEmbedding) initialize() error {
-	h.mu.Lock()
-	defer h.mu.Unlock()
+	ortSingleton.mu.Lock()
+	defer ortSingleton.mu.Unlock()
 
-	if h.ready {
+	if ortSingleton.ready {
 		return nil
 	}
 
@@ -71,9 +79,9 @@ func (h *HugotEmbedding) initialize() error {
 		return fmt.Errorf("create feature extraction pipeline: %w", err)
 	}
 
-	h.session = session
-	h.pipeline = pipeline
-	h.ready = true
+	ortSingleton.session = session
+	ortSingleton.pipeline = pipeline
+	ortSingleton.ready = true
 	return nil
 }
 
@@ -165,6 +173,10 @@ func (h *HugotEmbedding) Embed(ctx context.Context, req EmbeddingRequest) (Embed
 		return EmbeddingResponse{}, fmt.Errorf("initialize hugot: %w", err)
 	}
 
+	// Hold the singleton mutex for inference — ORT is not thread-safe.
+	ortSingleton.mu.Lock()
+	defer ortSingleton.mu.Unlock()
+
 	embeddings := make([][]float64, 0, len(texts))
 
 	for i := 0; i < len(texts); i += hugotBatchMax {
@@ -175,7 +187,7 @@ func (h *HugotEmbedding) Embed(ctx context.Context, req EmbeddingRequest) (Embed
 		end := min(i+hugotBatchMax, len(texts))
 		batch := texts[i:end]
 
-		result, err := h.pipeline.RunPipeline(batch)
+		result, err := ortSingleton.pipeline.RunPipeline(batch)
 		if err != nil {
 			return EmbeddingResponse{}, fmt.Errorf("run embedding pipeline: %w", err)
 		}
@@ -192,20 +204,10 @@ func (h *HugotEmbedding) Embed(ctx context.Context, req EmbeddingRequest) (Embed
 	return NewEmbeddingResponse(embeddings, NewUsage(0, 0, 0)), nil
 }
 
-// Close releases the hugot session resources.
+// Close is a no-op. The ONNX Runtime session is process-global and shared
+// across all HugotEmbedding instances; it is cleaned up when the process exits.
 func (h *HugotEmbedding) Close() error {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	if h.session == nil {
-		return nil
-	}
-
-	err := h.session.Destroy()
-	h.session = nil
-	h.pipeline = nil
-	h.ready = false
-	return err
+	return nil
 }
 
 var _ Embedder = (*HugotEmbedding)(nil)
