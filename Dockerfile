@@ -39,7 +39,7 @@ CMD ["air", "-c", ".air.toml"]
 
 # Model stage — downloads and converts the embedding model to ONNX format
 # Pinned by digest so the layer caches reliably across builds.
-FROM ghcr.io/astral-sh/uv@sha256:b852203fd7831954c58bfa1fec1166295adcfcfa50f4de7fdd0e684c8bd784eb AS model
+FROM ghcr.io/astral-sh/uv@sha256:4cac394b6b72846f8a85a7a0e577c6d61d4e17fe2ccee65d9451a8b3c9efb4ac AS model
 WORKDIR /build
 COPY tools/convert-model.py ./tools/convert-model.py
 RUN uv run --script tools/convert-model.py
