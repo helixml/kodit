@@ -20,7 +20,7 @@ Kodit (outer container)
 make build
 
 # 2. Lint, format, and vet Kodit
-make lint-fix
+make check
 
 # 3. Test Kodit
 make test

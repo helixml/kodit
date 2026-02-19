@@ -74,10 +74,7 @@ func (p *PeriodicSync) Stop() {
 }
 
 func (p *PeriodicSync) run(ctx context.Context) {
-	// Sync immediately on startup
-	p.sync(ctx)
-
-	ticker := time.NewTicker(p.interval)
+	ticker := time.NewTicker(time.Second * 30)
 	defer ticker.Stop()
 
 	for {
@@ -107,15 +104,14 @@ func (p *PeriodicSync) sync(ctx context.Context) {
 	for _, repo := range repos {
 		payload := map[string]any{"repository_id": repo.ID()}
 		if err := p.queue.EnqueueOperations(ctx, operations, task.PriorityNormal, payload); err != nil {
-			if ctx.Err() != nil {
-				return
-			}
-			p.logger.Warn("periodic sync failed to enqueue",
+			p.logger.Error("periodic sync failed to enqueue",
 				slog.Int64("repo_id", repo.ID()),
 				slog.String("error", err.Error()),
 			)
+			if ctx.Err() != nil {
+				return
+			}
 		}
+		p.logger.Debug("periodic sync enqueued", slog.Int64("repo_id", repo.ID()))
 	}
-
-	p.logger.Debug("periodic sync enqueued", slog.Int("count", len(repos)))
 }
