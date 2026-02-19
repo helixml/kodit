@@ -2,7 +2,9 @@
 package api
 
 import (
+	"bytes"
 	"embed"
+	"fmt"
 	"io/fs"
 	"net/http"
 
@@ -72,7 +74,8 @@ func (d *DocsRouter) Routes() chi.Router {
 		_, _ = w.Write([]byte(SwaggerUIHTML(d.specURL)))
 	})
 
-	// Serve OpenAPI spec
+	// Serve OpenAPI spec with the server URL rewritten to match the
+	// incoming request so that Swagger UI "Try it out" works on any host.
 	router.Get("/openapi.json", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		data, err := fs.ReadFile(openapiSpec, "openapi.json")
@@ -80,6 +83,17 @@ func (d *DocsRouter) Routes() chi.Router {
 			http.Error(w, "Spec not found", http.StatusNotFound)
 			return
 		}
+		scheme := "https"
+		if forwarded := r.Header.Get("X-Forwarded-Proto"); forwarded != "" {
+			scheme = forwarded
+		} else if r.TLS == nil {
+			scheme = "http"
+		}
+		serverURL := fmt.Sprintf("%s://%s/api/v1", scheme, r.Host)
+		data = bytes.ReplaceAll(data,
+			[]byte(`"url": "//localhost:8080/api/v1"`),
+			[]byte(fmt.Sprintf(`"url": "%s"`, serverURL)),
+		)
 		_, _ = w.Write(data)
 	})
 
