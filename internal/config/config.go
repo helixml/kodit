@@ -12,23 +12,24 @@ import (
 
 // Default configuration values.
 const (
-	DefaultHost                  = "0.0.0.0"
-	DefaultPort                  = 8080
-	DefaultLogLevel              = "INFO"
-	DefaultWorkerCount           = 1
-	DefaultSearchLimit           = 10
-	DefaultCloneSubdir           = "repos"
-	DefaultEndpointParallelTasks = 10
-	DefaultEndpointTimeout       = 60 * time.Second
-	DefaultEndpointMaxRetries    = 5
-	DefaultEndpointInitialDelay  = 2 * time.Second
-	DefaultEndpointBackoffFactor = 2.0
-	DefaultEndpointMaxTokens     = 4000
-	DefaultPeriodicSyncInterval  = 1800.0 // seconds
-	DefaultPeriodicSyncRetries   = 3
-	DefaultRemoteTimeout         = 30 * time.Second
-	DefaultRemoteMaxRetries      = 3
-	DefaultReportingInterval     = 5 * time.Second
+	DefaultHost                      = "0.0.0.0"
+	DefaultPort                      = 8080
+	DefaultLogLevel                  = "INFO"
+	DefaultWorkerCount               = 1
+	DefaultSearchLimit               = 10
+	DefaultCloneSubdir               = "repos"
+	DefaultEndpointParallelTasks     = 10
+	DefaultEndpointTimeout           = 60 * time.Second
+	DefaultEndpointMaxRetries        = 5
+	DefaultEndpointInitialDelay      = 2 * time.Second
+	DefaultEndpointBackoffFactor     = 2.0
+	DefaultEndpointMaxTokens         = 4000
+	DefaultPeriodicSyncInterval      = 1800.0 // seconds
+	DefaultPeriodicSyncCheckInterval = 10.0   // seconds
+	DefaultPeriodicSyncRetries       = 3
+	DefaultRemoteTimeout             = 30 * time.Second
+	DefaultRemoteMaxRetries          = 3
+	DefaultReportingInterval         = 5 * time.Second
 )
 
 // LogFormat represents the log output format.
@@ -236,17 +237,19 @@ func NewEndpointWithOptions(opts ...EndpointOption) Endpoint {
 
 // PeriodicSyncConfig configures periodic repository syncing.
 type PeriodicSyncConfig struct {
-	enabled         bool
-	intervalSeconds float64
-	retryAttempts   int
+	enabled              bool
+	intervalSeconds      float64
+	checkIntervalSeconds float64
+	retryAttempts        int
 }
 
 // NewPeriodicSyncConfig creates a new PeriodicSyncConfig with defaults.
 func NewPeriodicSyncConfig() PeriodicSyncConfig {
 	return PeriodicSyncConfig{
-		enabled:         true,
-		intervalSeconds: DefaultPeriodicSyncInterval,
-		retryAttempts:   DefaultPeriodicSyncRetries,
+		enabled:              true,
+		intervalSeconds:      DefaultPeriodicSyncInterval,
+		checkIntervalSeconds: DefaultPeriodicSyncCheckInterval,
+		retryAttempts:        DefaultPeriodicSyncRetries,
 	}
 }
 
@@ -256,6 +259,11 @@ func (p PeriodicSyncConfig) Enabled() bool { return p.enabled }
 // Interval returns the sync interval as a duration.
 func (p PeriodicSyncConfig) Interval() time.Duration {
 	return time.Duration(p.intervalSeconds * float64(time.Second))
+}
+
+// CheckInterval returns how often to check for repositories due for sync.
+func (p PeriodicSyncConfig) CheckInterval() time.Duration {
+	return time.Duration(p.checkIntervalSeconds * float64(time.Second))
 }
 
 // RetryAttempts returns the retry count.
@@ -270,6 +278,12 @@ func (p PeriodicSyncConfig) WithEnabled(enabled bool) PeriodicSyncConfig {
 // WithIntervalSeconds returns a new config with the specified interval.
 func (p PeriodicSyncConfig) WithIntervalSeconds(seconds float64) PeriodicSyncConfig {
 	p.intervalSeconds = seconds
+	return p
+}
+
+// WithCheckIntervalSeconds returns a new config with the specified check interval.
+func (p PeriodicSyncConfig) WithCheckIntervalSeconds(seconds float64) PeriodicSyncConfig {
+	p.checkIntervalSeconds = seconds
 	return p
 }
 

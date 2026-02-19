@@ -13,11 +13,12 @@ import (
 
 // PeriodicSync enqueues SyncRepository tasks for all repositories on a timer.
 type PeriodicSync struct {
-	repositories repository.RepositoryStore
-	queue        *Queue
-	logger       *slog.Logger
-	interval     time.Duration
-	enabled      bool
+	repositories  repository.RepositoryStore
+	queue         *Queue
+	logger        *slog.Logger
+	interval      time.Duration
+	checkInterval time.Duration
+	enabled       bool
 
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -32,11 +33,12 @@ func NewPeriodicSync(
 	logger *slog.Logger,
 ) *PeriodicSync {
 	return &PeriodicSync{
-		repositories: repositories,
-		queue:        queue,
-		logger:       logger,
-		interval:     cfg.Interval(),
-		enabled:      cfg.Enabled(),
+		repositories:  repositories,
+		queue:         queue,
+		logger:        logger,
+		interval:      cfg.Interval(),
+		checkInterval: cfg.CheckInterval(),
+		enabled:       cfg.Enabled(),
 	}
 }
 
@@ -74,7 +76,7 @@ func (p *PeriodicSync) Stop() {
 }
 
 func (p *PeriodicSync) run(ctx context.Context) {
-	ticker := time.NewTicker(time.Second * 30)
+	ticker := time.NewTicker(p.checkInterval)
 	defer ticker.Stop()
 
 	for {

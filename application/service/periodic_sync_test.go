@@ -143,7 +143,8 @@ func TestPeriodicSync_Enabled(t *testing.T) {
 
 	cfg := config.NewPeriodicSyncConfig().
 		WithEnabled(true).
-		WithIntervalSeconds(0.01) // 10ms
+		WithIntervalSeconds(0.01).     // 10ms
+		WithCheckIntervalSeconds(0.01) // 10ms
 
 	ps := NewPeriodicSync(cfg, repoStore, queue, logger)
 	ps.Start(context.Background())
@@ -201,7 +202,8 @@ func TestPeriodicSync_EmptyRepositories(t *testing.T) {
 
 	cfg := config.NewPeriodicSyncConfig().
 		WithEnabled(true).
-		WithIntervalSeconds(0.01)
+		WithIntervalSeconds(0.01).
+		WithCheckIntervalSeconds(0.01)
 
 	ps := NewPeriodicSync(cfg, repoStore, queue, logger)
 	ps.Start(context.Background())
