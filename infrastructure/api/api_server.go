@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/helixml/kodit"
+	apimiddleware "github.com/helixml/kodit/infrastructure/api/middleware"
 	v1 "github.com/helixml/kodit/infrastructure/api/v1"
 	mcpinternal "github.com/helixml/kodit/internal/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -17,6 +18,7 @@ import (
 // APIServer provides an HTTP API backed by a kodit Client.
 type APIServer struct {
 	client       *kodit.Client
+	apiKeys      []string
 	server       *Server
 	router       chi.Router
 	routerCalled bool
@@ -24,10 +26,14 @@ type APIServer struct {
 }
 
 // NewAPIServer creates a new APIServer wired to the given kodit Client.
-func NewAPIServer(client *kodit.Client) *APIServer {
+// apiKeys configures write-protection: mutating endpoints (POST, PUT, PATCH,
+// DELETE) on /api/v1/repositories and /api/v1/enrichments require a valid key.
+// Read-only endpoints, search, MCP, and docs remain open.
+func NewAPIServer(client *kodit.Client, apiKeys []string) *APIServer {
 	return &APIServer{
-		client: client,
-		logger: client.Logger(),
+		client:  client,
+		apiKeys: apiKeys,
+		logger:  client.Logger(),
 	}
 }
 
@@ -64,10 +70,17 @@ func (a *APIServer) mountRoutes(router chi.Router) {
 
 	router.Route("/api/v1", func(r chi.Router) {
 		r.Use(chimiddleware.Timeout(60 * time.Second))
-		r.Mount("/repositories", reposRouter.Routes())
-		r.Mount("/queue", queueRouter.Routes())
-		r.Mount("/enrichments", enrichmentsRouter.Routes())
+
+		// Open routes — search is a read-only POST, queue is GET-only.
 		r.Mount("/search", searchRouter.Routes())
+		r.Mount("/queue", queueRouter.Routes())
+
+		// Write-protected routes — mutating methods require a valid API key.
+		r.Group(func(r chi.Router) {
+			r.Use(apimiddleware.WriteProtectAuth(a.apiKeys))
+			r.Mount("/repositories", reposRouter.Routes())
+			r.Mount("/enrichments", enrichmentsRouter.Routes())
+		})
 	})
 
 	// MCP (Model Context Protocol) endpoint — no timeout middleware.

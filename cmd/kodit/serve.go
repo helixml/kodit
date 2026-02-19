@@ -142,13 +142,12 @@ func runServe(envFile, host string, port int) error {
 	}()
 
 	// Create API server with the client's services
-	apiServer := api.NewAPIServer(client)
+	apiServer := api.NewAPIServer(client, cfg.APIKeys())
 	router := apiServer.Router()
 
 	// Apply custom middleware (MUST be done before MountRoutes)
 	router.Use(apimiddleware.Logging(slogger))
 	router.Use(apimiddleware.CorrelationID)
-	router.Use(apimiddleware.APIKeyAuth(cfg.APIKeys()))
 
 	// Mount API routes after middleware is configured
 	apiServer.MountRoutes()

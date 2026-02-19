@@ -80,3 +80,27 @@ func APIKey(config AuthConfig) func(http.Handler) http.Handler {
 func APIKeyAuth(apiKeys []string) func(http.Handler) http.Handler {
 	return APIKey(NewAuthConfigWithKeys(apiKeys))
 }
+
+// WriteProtect returns middleware that enforces API key authentication only for
+// mutating HTTP methods (POST, PUT, PATCH, DELETE). Safe methods (GET, HEAD,
+// OPTIONS) pass through without authentication.
+func WriteProtect(config AuthConfig) func(http.Handler) http.Handler {
+	authMiddleware := APIKey(config)
+	return func(next http.Handler) http.Handler {
+		protected := authMiddleware(next)
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case http.MethodGet, http.MethodHead, http.MethodOptions:
+				next.ServeHTTP(w, r)
+			default:
+				protected.ServeHTTP(w, r)
+			}
+		})
+	}
+}
+
+// WriteProtectAuth is a convenience function that creates write-protect middleware
+// from a slice of API keys.
+func WriteProtectAuth(apiKeys []string) func(http.Handler) http.Handler {
+	return WriteProtect(NewAuthConfigWithKeys(apiKeys))
+}

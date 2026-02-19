@@ -62,7 +62,7 @@ func postMCP(t *testing.T, handler http.Handler, body []byte, sessionID string) 
 
 func TestMCPEndpoint_Initialize(t *testing.T) {
 	client := newMCPTestClient(t)
-	apiServer := api.NewAPIServer(client)
+	apiServer := api.NewAPIServer(client, nil)
 	handler := apiServer.Handler()
 
 	body := mcpRequest(t, "initialize", 1, map[string]any{
@@ -107,7 +107,7 @@ func TestMCPEndpoint_Initialize(t *testing.T) {
 
 func TestMCPEndpoint_ListTools(t *testing.T) {
 	client := newMCPTestClient(t)
-	apiServer := api.NewAPIServer(client)
+	apiServer := api.NewAPIServer(client, nil)
 	handler := apiServer.Handler()
 
 	// Initialize first and capture session ID
@@ -168,7 +168,7 @@ func TestMCPEndpoint_ListTools(t *testing.T) {
 
 func TestMCPEndpoint_RejectsInvalidContentType(t *testing.T) {
 	client := newMCPTestClient(t)
-	apiServer := api.NewAPIServer(client)
+	apiServer := api.NewAPIServer(client, nil)
 	handler := apiServer.Handler()
 
 	req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader([]byte("{}")))
@@ -239,7 +239,7 @@ func TestMCPEndpoint_ToolCallResolvesLatestCommit(t *testing.T) {
 		t.Fatalf("add repository: %v", err)
 	}
 
-	apiServer := api.NewAPIServer(client)
+	apiServer := api.NewAPIServer(client, nil)
 	handler := apiServer.Handler()
 	sessionID := initMCPSession(t, handler)
 
@@ -277,7 +277,7 @@ func TestMCPEndpoint_ToolCallResolvesLatestCommit(t *testing.T) {
 // own response headers for session state.
 func TestMCPEndpoint_ServerMiddlewareStack(t *testing.T) {
 	client := newMCPTestClient(t)
-	apiServer := api.NewAPIServer(client)
+	apiServer := api.NewAPIServer(client, nil)
 	apiServer.MountRoutes()
 
 	// Build the same handler stack as ListenAndServe: the Server router
