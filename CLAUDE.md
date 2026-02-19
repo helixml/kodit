@@ -26,7 +26,7 @@ make check
 make test
 
 # 4. Run the smoke tests
-make smoke
+make test-smoke
 ```
 
 ## Code Patterns

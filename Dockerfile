@@ -82,6 +82,7 @@ FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     git \
+    gosu \
     wget \
     && rm -rf /var/lib/apt/lists/*
 
@@ -96,8 +97,11 @@ RUN mkdir -p /data && chown kodit:kodit /data
 COPY --from=builder /app/build/kodit /usr/local/bin/kodit
 COPY --from=builder --chmod=644 /app/lib/libonnxruntime.so /usr/lib/
 
-# Switch to non-root user
-USER kodit
+# Copy entrypoint script
+COPY --chmod=755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+
+# Default data directory (overridable via environment)
+ENV DATA_DIR=/data
 
 # Set working directory
 WORKDIR /data
@@ -109,6 +113,6 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:8080/healthz || exit 1
 
-# Default command
-ENTRYPOINT ["/usr/local/bin/kodit"]
-CMD ["serve"]
+# Entrypoint fixes data dir ownership then drops to kodit user
+ENTRYPOINT ["docker-entrypoint.sh"]
+CMD ["kodit", "serve"]

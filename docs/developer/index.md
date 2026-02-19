@@ -26,7 +26,7 @@ make build
 make test
 
 # Run the smoke tests (requires Docker)
-make smoke
+make test-smoke
 
 # Run the server locally
 make run
