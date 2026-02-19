@@ -1,86 +1,129 @@
-# syntax=docker/dockerfile:1.9
-ARG PYTHON_VERSION=3.13.5
-FROM python:${PYTHON_VERSION}-slim-bookworm AS build
+# Kodit Go Dockerfile
+# Multi-stage build with tree-sitter CGo dependencies
 
-# The following does not work in Podman unless you build in Docker
-# compatibility mode: <https://github.com/containers/podman/issues/8477>
-# You can manually prepend every RUN script with `set -ex` too.
-SHELL ["sh", "-exc"]
+# Development stage — hot-reload with Air
+FROM golang:1.25-bookworm AS dev
 
-# Ensure apt-get doesn't open a menu on you.
-ENV DEBIAN_FRONTEND=noninteractive
-
-RUN <<EOT
-apt-get update -qy
-apt-get install -qyy \
-    -o APT::Install-Recommends=false \
-    -o APT::Install-Suggests=false \
+# Install build dependencies for CGo (tree-sitter)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
     git \
-    build-essential
-EOT
+    && rm -rf /var/lib/apt/lists/*
 
-# Security-conscious organizations should package/review uv themselves.
-COPY --from=ghcr.io/astral-sh/uv:0.7.2 /uv /usr/local/bin/uv
-
-# - Silence uv complaining about not being able to use hard links,
-# - tell uv to byte-compile packages for faster application startups,
-# - prevent uv from accidentally downloading isolated Python builds,
-# - pick a Python (use `/usr/bin/python3.13` on uv 0.5.0 and later),
-# - and finally declare `/app` as the target for `uv sync`.
-ENV UV_LINK_MODE=copy \
-    UV_COMPILE_BYTECODE=1 \
-    UV_PYTHON_DOWNLOADS=never \
-    UV_PROJECT_ENVIRONMENT=/app
-
-# Write the PYTHON_VERSION to a .python-version
-RUN echo ${PYTHON_VERSION} > .python-version
-
-# Synchronize DEPENDENCIES without the application itself.
-# This layer is cached until uv.lock or pyproject.toml change, which are
-# only temporarily mounted into the build container since we don't need
-# them in the production one.
-# You can create `/app` using `uv venv` in a separate `RUN`
-# step to have it cached, but with uv it's so fast, it's not worth
-# it, so we let `uv sync` create it for us automagically.
-RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=uv.lock,target=uv.lock \
-    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    UV_PYTHON="python$(echo ${PYTHON_VERSION} | cut -d. -f1-2)" \
-    uv sync \
-        --locked \
-        --no-dev \
-        --no-install-project
-
-# Now install the rest from `/src`: The APPLICATION w/o dependencies.
-# `/src` will NOT be copied into the runtime container.
-# LEAVE THIS OUT if your application is NOT a proper Python package.
-COPY . /src
-WORKDIR /src
-RUN --mount=type=cache,target=/root/.cache/uv \
-    UV_PYTHON="python$(echo ${PYTHON_VERSION} | cut -d. -f1-2)" \
-    uv sync \
-        --locked \
-        --no-dev \
-        --no-editable
-
-##########################################################################
-
-FROM python:${PYTHON_VERSION}-slim-bookworm
-SHELL ["sh", "-exc"]
-
-RUN <<EOT
-apt-get update -qy
-apt-get install -qyy \
-    -o APT::Install-Recommends=false \
-    -o APT::Install-Suggests=false \
-    curl \
-    git 
-EOT
-
-ENV PATH=/app/bin:$PATH
+# Install Air for hot-reloading
+RUN go install github.com/air-verse/air@latest
 
 WORKDIR /app
-ENTRYPOINT ["/app/bin/kodit"]
 
-# Copy the pre-built `/app` directory to the runtime container
-COPY --from=build /app /app
+# Copy go.mod and go.sum for dependency caching
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
+
+# Download ORT and tokenizers to /usr/lib so they survive the volume mount
+COPY .ort-version ./
+COPY tools/download-ort/ ./tools/download-ort/
+RUN ORT_VERSION=$(cat .ort-version) go run ./tools/download-ort \
+    && cp ./lib/libonnxruntime.so /usr/lib/ \
+    && cp ./lib/libtokenizers.a /usr/lib/ \
+    && ldconfig \
+    && rm -rf ./lib ./tools .ort-version
+
+ENV CGO_ENABLED=1
+ENV CGO_LDFLAGS="-L/usr/lib"
+ENV ORT_LIB_DIR="/usr/lib"
+
+EXPOSE 8080
+
+CMD ["air", "-c", ".air.toml"]
+
+# Model stage — downloads and converts the embedding model to ONNX format
+# Pinned by digest so the layer caches reliably across builds.
+FROM ghcr.io/astral-sh/uv@sha256:b852203fd7831954c58bfa1fec1166295adcfcfa50f4de7fdd0e684c8bd784eb AS model
+WORKDIR /build
+COPY tools/convert-model.py ./tools/convert-model.py
+RUN uv run --script tools/convert-model.py
+
+# Build stage — independent from dev, no Air or hot-reload tooling
+FROM golang:1.25-bookworm AS builder
+
+# Install build dependencies for CGo (tree-sitter)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy go.mod and go.sum for dependency caching
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Download ORT and tokenizers
+COPY .ort-version ./
+COPY tools/download-ort/ ./tools/download-ort/
+RUN ORT_VERSION=$(cat .ort-version) go run ./tools/download-ort \
+    && cp ./lib/libonnxruntime.so /usr/lib/ \
+    && cp ./lib/libtokenizers.a /usr/lib/ \
+    && ldconfig \
+    && rm -rf ./lib ./tools .ort-version
+
+ENV CGO_ENABLED=1
+ENV CGO_LDFLAGS="-L/usr/lib"
+ENV ORT_LIB_DIR="/usr/lib"
+
+COPY --from=model /build/infrastructure/provider/models/ ./infrastructure/provider/models/
+
+# Copy source code
+COPY . .
+
+# Build the application
+ARG VERSION=dev
+ARG COMMIT=unknown
+ARG BUILD_TIME=unknown
+
+RUN go build -tags "fts5 ORT embed_model" \
+    -ldflags "-X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.BuildTime=${BUILD_TIME}" \
+    -o ./build/kodit ./cmd/kodit
+
+# Final stage — Debian slim for native glibc support
+FROM debian:bookworm-slim
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    git \
+    gosu \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN groupadd -g 1000 kodit && \
+    useradd -u 1000 -g kodit -s /bin/sh -m kodit
+
+# Create data directory
+RUN mkdir -p /data && chown kodit:kodit /data
+
+# Copy binary and ORT library from builder
+COPY --from=builder /app/build/kodit /usr/local/bin/kodit
+COPY --from=builder --chmod=644 /usr/lib/libonnxruntime.so /usr/lib/
+
+# Copy entrypoint script
+COPY --chmod=755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+
+# Default data directory (overridable via environment)
+ENV DATA_DIR=/data
+
+# Set working directory
+WORKDIR /data
+
+# Expose port
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/healthz || exit 1
+
+# Entrypoint fixes data dir ownership then drops to kodit user
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh", "/usr/local/bin/kodit"]
+CMD ["serve"]

@@ -10,13 +10,8 @@ anonymous usage metrics.
 
 ## What Kodit Captures
 
-You can see what metrics are sent by searching for [use of the helper
-functions](https://github.com/helixml/kodit/blob/main/src/kodit/log.py#L169) in the Kodit
-codebase.
-
 Kodit currently captures use of the following:
 
-- When a user uses the CLI methods
 - When the indexing service is used or queried
 
 No user data is collected, only metadata about Kodit usage.

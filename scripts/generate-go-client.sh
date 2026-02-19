@@ -1,35 +1,16 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(dirname "$SCRIPT_DIR")"
-OPENAPI_FILE="$ROOT_DIR/docs/reference/api/openapi.json"
-OPENAPI_30_FILE="$ROOT_DIR/docs/reference/api/openapi.3.0.json"
-GO_CLIENT_DIR="$ROOT_DIR/clients/go"
+OPENAPI_SPEC="./infrastructure/api/openapi.json"
+OUTPUT_DIR="./clients/go"
+PACKAGE="kodit"
 
-if [ ! -f "$OPENAPI_FILE" ]; then
-    echo "Error: OpenAPI file not found at $OPENAPI_FILE"
-    echo "Run 'make openapi' first"
-    exit 1
-fi
+echo "Generating Go client from ${OPENAPI_SPEC}..."
 
-OAPI_CODEGEN="oapi-codegen"
-if ! command -v oapi-codegen &> /dev/null; then
-    go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
-    if [ -n "$GOPATH" ]; then
-        OAPI_CODEGEN="$GOPATH/bin/oapi-codegen"
-    else
-        OAPI_CODEGEN="$HOME/go/bin/oapi-codegen"
-    fi
-fi
+oapi-codegen -package "${PACKAGE}" -generate types \
+  -o "${OUTPUT_DIR}/types.gen.go" "${OPENAPI_SPEC}"
 
-python3 "$SCRIPT_DIR/convert_openapi_to_30.py" "$OPENAPI_FILE" "$OPENAPI_30_FILE"
+oapi-codegen -package "${PACKAGE}" -generate client \
+  -o "${OUTPUT_DIR}/client.gen.go" "${OPENAPI_SPEC}"
 
-mkdir -p "$GO_CLIENT_DIR"
-
-"$OAPI_CODEGEN" -package kodit -generate types "$OPENAPI_30_FILE" > "$GO_CLIENT_DIR/types.gen.go"
-"$OAPI_CODEGEN" -package kodit -generate client "$OPENAPI_30_FILE" > "$GO_CLIENT_DIR/client.gen.go"
-
-cd "$GO_CLIENT_DIR"
-go mod tidy
-go fmt ./...
+echo "Go client generated in ${OUTPUT_DIR}"

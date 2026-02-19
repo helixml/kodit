@@ -6,32 +6,24 @@ weight: 29
 
 This document contains the complete configuration reference for Kodit. All configuration is done through environment variables.
 
-{% for model_name, model_info in models.items() %}
-{%- if model_name != "BaseSettings" and model_info.env_vars %}
-
-## {{ model_name }}
-
-{{ model_info.description }}
+## Environment Variables
 
 | Environment Variable | Type | Default | Description |
 |---------------------|------|---------|-------------|
-{%- for env_var in model_info.env_vars %}
-| `{{ env_var.name }}` | {{ env_var.type }} | `{{ env_var.default }}` | {{ env_var.description }} |
+{%- for env_var in env_vars %}
+| `{{ env_var.name }}` | {{ env_var.type }} | {{ env_var.default }} | {{ env_var.description }} |
 {%- endfor %}
-
-{% endif %}
-{% endfor %}
 
 ## Applying Configuration
 
 There are two ways to apply configuration to Kodit:
 
-1. A local `.env` file (e.g. `kodit --env-file .env serve`)
+1. A local `.env` file (e.g. `kodit serve --env-file .env`)
 2. Environment variables (e.g. `DATA_DIR=/path/to/kodit/data kodit serve`)
 
 How you specify environment variables is dependent on your deployment mechanism.
 
-### Docker Compose 
+### Docker Compose
 
 For example, in docker compose you can use the `environment` key:
 
@@ -69,7 +61,7 @@ Get your free API key from [Helix.ml](https://app.helix.ml/account).
 
 ```sh
 ENRICHMENT_ENDPOINT_BASE_URL=https://app.helix.ml/v1
-ENRICHMENT_ENDPOINT_MODEL=hosted_vllm/Qwen/Qwen3-8B
+ENRICHMENT_ENDPOINT_MODEL=Qwen/Qwen3-8B
 ENRICHMENT_ENDPOINT_NUM_PARALLEL_TASKS=1
 ENRICHMENT_ENDPOINT_TIMEOUT=300
 ENRICHMENT_ENDPOINT_API_KEY=hl-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
@@ -79,18 +71,8 @@ ENRICHMENT_ENDPOINT_API_KEY=hl-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 
 ```sh
 ENRICHMENT_ENDPOINT_BASE_URL=http://localhost:11434
-ENRICHMENT_ENDPOINT_MODEL=ollama_chat/qwen3:1.7b
+ENRICHMENT_ENDPOINT_MODEL=qwen3:1.7b
 ENRICHMENT_ENDPOINT_NUM_PARALLEL_TASKS=1
 ENRICHMENT_ENDPOINT_EXTRA_PARAMS='{"think": false}'
 ENRICHMENT_ENDPOINT_TIMEOUT=300
-```
-
-#### Azure OpenAI Enrichment Endpoint
-
-```sh
-ENRICHMENT_ENDPOINT_BASE_URL=https://winderai-openai-test.openai.azure.com/
-ENRICHMENT_ENDPOINT_MODEL=azure/gpt-4.1-nano # Must be in the format "azure/azure_deployment_name"
-ENRICHMENT_ENDPOINT_API_KEY=XXXX
-ENRICHMENT_ENDPOINT_NUM_PARALLEL_TASKS=5 # Azure defaults to 100K TPM
-ENRICHMENT_ENDPOINT_EXTRA_PARAMS={"api_version": "2024-12-01-preview"}
 ```

@@ -5,15 +5,46 @@ on:
   push:
   workflow_call:
 
-# Set default permissions for all jobs
 permissions:
-  contents: read # Needed to check out code
-  checks: write # Needed to report test results
+  contents: read
+  checks: write
 
 jobs:
-  test:
+  lint:
+    name: Lint and vet
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run go vet
+        run: make vet
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          args: --timeout=5m
+
+  test:
+    name: test (${{ matrix.name }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-amd64
+            runner: ubuntu-latest
+          - name: linux-arm64
+            runner: ubuntu-24.04-arm
+          - name: macos-arm64
+            runner: macos-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -21,99 +52,67 @@ jobs:
           fetch-tags: true
           fetch-depth: 0
 
-      # Use the official Python action to set up Python because it is faster
-      - name: "Set up Python"
-        uses: actions/setup-python@v5
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
-          python-version-file: ".python-version"
+          go-version-file: go.mod
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
 
-      - name: Install the project
-        run: uv sync --locked --all-extras --dev
+      - name: Download model and ORT libraries
+        run: make download-model download-ort
 
-      - name: Run tests
+      - name: Run unit tests
         run: make test
 
-      - name: Run integration test
-        run: make integration-test
+      - name: Run e2e tests
+        run: make test-e2e
 
-      - name: API Doc check
-        if: "!startsWith(github.ref, 'refs/tags/')"
-        run: make check
-
-  build-package:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+  build:
+    name: build (${{ matrix.name }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-amd64
+            runner: ubuntu-latest
+          - name: macos-arm64
+            runner: macos-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: "Set up Python"
-        uses: actions/setup-python@v5
         with:
-          python-version-file: ".python-version"
+          fetch-tags: true
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
 
-      - run: uv build --wheel --out-dir test-build
+      - name: Build
+        run: make build
 
-      - name: Upload built package
+      - name: Verify binary runs
+        run: ./build/kodit version
+
+      - name: Upload binary
+        if: matrix.name == 'linux-amd64'
         uses: actions/upload-artifact@v4
         with:
-          name: built-package
-          path: test-build/*.whl
+          name: kodit-binary
+          path: build/kodit
 
-  test-package:
-    needs: build-package
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version:
-          - 3.12
-          - 3.13
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          sparse-checkout: |
-            tests/smoke.py
-            uv.lock
-          sparse-checkout-cone-mode: false
-
-      - name: Download built package
-        uses: actions/download-artifact@v4
-        with:
-          name: built-package
-          path: test-build
-
-      - name: "Set up Python"
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-
-      - name: Extract path to wheel
-        id: wheel_path
-        run: echo "wheel_path=$(ls test-build/*.whl)" >> $GITHUB_OUTPUT
-
-      # This is equivalent to `pipx install --include-deps, but faster
-      - name: Install wheel
-        run: uv tool install "${{ steps.wheel_path.outputs.wheel_path }}"
-
-      - name: Run simple version command test
-        run: kodit version
-
-      - name: Delete kodit data_dir
-        run: rm -rf ${HOME}/.kodit
-
-      - name: Run smoke test
-        run: uv run ./tests/smoke.py
+      - name: API doc check
+        if: matrix.name == 'linux-amd64' && !startsWith(github.ref, 'refs/tags/')
+        run: make swag-check

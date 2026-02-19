@@ -1,0 +1,154 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  model:
+    name: Convert embedding model
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Download model
+        run: make download-model
+
+      - name: Upload model
+        uses: actions/upload-artifact@v4
+        with:
+          name: embedding-model
+          path: infrastructure/provider/models/flax-sentence-embeddings_st-codesearch-distilroberta-base
+          if-no-files-found: error
+          retention-days: 1
+
+  binaries:
+    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+    needs: model
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            runner: ubuntu-22.04
+            lib_name: libonnxruntime.so
+          - goos: linux
+            goarch: arm64
+            runner: ubuntu-22.04-arm
+            lib_name: libonnxruntime.so
+          - goos: darwin
+            goarch: arm64
+            runner: macos-latest
+            lib_name: libonnxruntime.dylib
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-tags: true
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Download pre-converted model
+        uses: actions/download-artifact@v4
+        with:
+          name: embedding-model
+          path: infrastructure/provider/models/flax-sentence-embeddings_st-codesearch-distilroberta-base
+
+      - name: Build binary
+        run: make build VERSION=${{ github.event.release.tag_name }}
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+
+      - name: Package release archive
+        shell: bash
+        run: |
+          STAGE="kodit-${{ matrix.goos }}-${{ matrix.goarch }}"
+          mkdir -p "${STAGE}"
+          cp build/kodit "${STAGE}/kodit"
+          mkdir -p "${STAGE}/lib"
+          cp lib/${{ matrix.lib_name }} "${STAGE}/lib/"
+          tar czf "${STAGE}.tar.gz" "${STAGE}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kodit-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: kodit-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
+  upload:
+    name: Upload release assets
+    runs-on: ubuntu-latest
+    needs: binaries
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: build
+          pattern: kodit-*
+          merge-multiple: true
+
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for archive in build/kodit-*; do
+            gh release upload "${{ github.event.release.tag_name }}" "$archive" --repo "${{ github.repository }}"
+          done
+
+  # Disabling homebrew for now since it's setup for Python binaries, not go binaries which it can handle natively.
+  # homebrew:
+  #   name: Bump Homebrew formula
+  #   needs: upload
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     contents: read
+  #   steps:
+  #     - uses: actions/checkout@v4
+
+  #     - name: Wait for release assets to be available
+  #       run: |
+  #         count=0
+  #         while true; do
+  #           if curl -sfL "https://github.com/${{ github.repository }}/releases/download/${{ github.event.release.tag_name }}/kodit-linux-amd64" > /dev/null; then
+  #             break
+  #           fi
+  #           sleep 5
+  #           count=$((count+1))
+  #           if [ $count -ge 60 ]; then
+  #             echo "Timeout reached after 300 seconds"
+  #             exit 1
+  #           fi
+  #         done
+
+  #     - uses: mislav/bump-homebrew-formula-action@v3
+  #       with:
+  #         formula-name: ${{ github.event.repository.name }}
+  #         formula-path: Formula/${{ github.event.repository.name }}.rb
+  #         homebrew-tap: ${{ github.repository_owner }}/homebrew-${{ github.event.repository.name }}
+  #         tag-name: "${{ github.event.release.tag_name }}"
+  #         download-url: "https://github.com/${{ github.repository }}/archive/refs/tags/${{ github.event.release.tag_name }}.tar.gz"
+  #         commit-message: |
+  #           {{formulaName}} {{version}}
+  #       env:
+  #         COMMITTER_TOKEN: ${{ secrets.COMMITTER_TOKEN }}

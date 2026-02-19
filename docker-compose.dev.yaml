@@ -1,0 +1,93 @@
+name: kodit-dev
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ${OLLAMA_MODELS:-ollama-models}:/root/.ollama
+    ports:
+      - "11434:11434"
+    healthcheck:
+      test: ["CMD", "bash", "-c", "cat < /dev/null > /dev/tcp/localhost/11434"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    profiles:
+      - ollama
+
+  # VectorChord PostgreSQL for migration smoke tests.
+  # Starts with a Python-era database dump loaded via /docker-entrypoint-initdb.d.
+  vectorchord:
+    image: tensorchord/vchord-suite:pg17-20250601
+    environment:
+      - POSTGRES_DB=kodit
+      - POSTGRES_PASSWORD=mysecretpassword
+    command: >
+      postgres
+      -c shared_preload_libraries=vchord,vchord_bm25,vector,pg_tokenizer
+      -c shared_buffers=32MB
+      -c work_mem=2MB
+      -c max_connections=50
+      -c max_worker_processes=2
+      -c maintenance_work_mem=32MB
+      -c effective_cache_size=256MB
+    volumes:
+      - ./test/smoke/testdata/kodit_dump.sql:/docker-entrypoint-initdb.d/01-dump.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d kodit"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    profiles:
+      - vectorchord
+
+  ollama-pull:
+    image: ollama/ollama:latest
+    entrypoint: ["ollama", "pull", "qwen3:0.6b"]
+    environment:
+      - OLLAMA_HOST=http://host.docker.internal:11434
+    profiles:
+      - ollama
+      - kodit
+
+  kodit:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    depends_on:
+      ollama-pull:
+        condition: service_completed_successfully
+    ports:
+      - "8080:8080"
+    volumes:
+      - .:/app
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "-q",
+          "-O",
+          "/dev/null",
+          "http://localhost:8080/healthz",
+        ]
+      interval: 6s
+      timeout: 0.5s
+      retries: 20
+    environment:
+      - DISABLE_TELEMETRY=true
+      # Use host.docker.internal for everything just in case the user has it running
+      # locally (e.g. ollama desktop)
+      - DB_URL=postgresql://postgres:mysecretpassword@host.docker.internal:5432/kodit
+      - ENRICHMENT_ENDPOINT_BASE_URL=http://host.docker.internal:11434/v1
+      - ENRICHMENT_ENDPOINT_MODEL=qwen3:0.6b
+      - ENRICHMENT_ENDPOINT_API_KEY=ollama
+      - LOG_LEVEL=INFO
+    profiles:
+      - kodit
+
+volumes:
+  ollama-models:

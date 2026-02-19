@@ -55,7 +55,7 @@ code. This index is used to build a snippet library, ready for ingestion into an
 - Efficient indexing with selective reindexing (only processes modified files)
 - Privacy first: respects .gitignore and .noindex files
 - Enhanced Git provider support including Github, Gitlab, Azure DevOps
-- **New in 0.5**: Index Git structure for incremental indexing and unlock future enrichments
+- Index Git structure for incremental indexing and unlock future enrichments
 
 ### MCP Server
 

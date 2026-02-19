@@ -27,7 +27,7 @@ services:
     environment:
       # Configure data storage
       DATA_DIR: /data
-      DB_URL: postgresql+asyncpg://postgres:mysecretpassword@vectorchord:5432/kodit
+      DB_URL: postgresql://postgres:mysecretpassword@vectorchord:5432/kodit
       DEFAULT_SEARCH_PROVIDER: vectorchord
 
       # External enrichment provider
@@ -44,9 +44,9 @@ services:
       EMBEDDING_ENDPOINT_MODEL: openai/text-embedding-3-small
 
       # Sync configuration
-      SYNC_PERIODIC_ENABLED: true
-      SYNC_PERIODIC_INTERVAL_SECONDS: 1800  # 30 minutes
-      SYNC_PERIODIC_RETRY_ATTEMPTS: 3
+      PERIODIC_SYNC_ENABLED: true
+      PERIODIC_SYNC_INTERVAL_SECONDS: 1800  # 30 minutes
+      PERIODIC_SYNC_RETRY_ATTEMPTS: 3
 
       # Logging configuration
       LOG_LEVEL: INFO # Set to DEBUG for more detailed logging

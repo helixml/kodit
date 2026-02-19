@@ -1,0 +1,17 @@
+root = "."
+tmp_dir = "/tmp/air"
+
+[build]
+  cmd = "go build -tags 'fts5 ORT embed_model' -o /tmp/air/kodit ./cmd/kodit"
+  bin = "/tmp/air/kodit"
+  args_bin = ["serve"]
+  include_ext = ["go", "toml", "yaml"]
+  exclude_dir = ["build", "lib", "test", "docs", "charts", "clients", "tools"]
+  exclude_regex = ["_test\\.go$"]
+  delay = 1000
+
+[log]
+  time = false
+
+[misc]
+  clean_on_exit = true

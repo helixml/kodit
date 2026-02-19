@@ -1,0 +1,228 @@
+package enrichment
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/helixml/kodit/application/handler"
+	"github.com/helixml/kodit/domain/enrichment"
+	"github.com/helixml/kodit/domain/repository"
+	"github.com/helixml/kodit/domain/snippet"
+	"github.com/helixml/kodit/domain/task"
+	infraGit "github.com/helixml/kodit/infrastructure/git"
+)
+
+// ExampleDiscoverer determines if files are example candidates.
+type ExampleDiscoverer interface {
+	IsExampleCandidate(path string) bool
+	IsDocumentationFile(path string) bool
+}
+
+// ExtractExamples handles the EXTRACT_EXAMPLES_FOR_COMMIT operation.
+type ExtractExamples struct {
+	repoStore   repository.RepositoryStore
+	commitStore repository.CommitStore
+	adapter     infraGit.Adapter
+	enrichCtx   handler.EnrichmentContext
+	discoverer  ExampleDiscoverer
+}
+
+// NewExtractExamples creates a new ExtractExamples handler.
+func NewExtractExamples(
+	repoStore repository.RepositoryStore,
+	commitStore repository.CommitStore,
+	adapter infraGit.Adapter,
+	enrichCtx handler.EnrichmentContext,
+	discoverer ExampleDiscoverer,
+) *ExtractExamples {
+	return &ExtractExamples{
+		repoStore:   repoStore,
+		commitStore: commitStore,
+		adapter:     adapter,
+		enrichCtx:   enrichCtx,
+		discoverer:  discoverer,
+	}
+}
+
+// Execute processes the EXTRACT_EXAMPLES_FOR_COMMIT task.
+func (h *ExtractExamples) Execute(ctx context.Context, payload map[string]any) error {
+	cp, err := handler.ExtractCommitPayload(payload)
+	if err != nil {
+		return err
+	}
+
+	tracker := h.enrichCtx.Tracker.ForOperation(
+		task.OperationExtractExamplesForCommit,
+		task.TrackableTypeRepository,
+		cp.RepoID(),
+	)
+
+	count, err := h.enrichCtx.Enrichments.Count(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeExample))
+	if err != nil {
+		h.enrichCtx.Logger.Error("failed to check existing examples", slog.String("error", err.Error()))
+		return err
+	}
+
+	if count > 0 {
+		tracker.Skip(ctx, "Examples already extracted for commit")
+		return nil
+	}
+
+	repo, err := h.repoStore.FindOne(ctx, repository.WithID(cp.RepoID()))
+	if err != nil {
+		return fmt.Errorf("get repository: %w", err)
+	}
+
+	clonedPath := repo.WorkingCopy().Path()
+	if clonedPath == "" {
+		return fmt.Errorf("repository %d has never been cloned", cp.RepoID())
+	}
+
+	files, err := h.adapter.CommitFiles(ctx, clonedPath, cp.CommitSHA())
+	if err != nil {
+		return fmt.Errorf("get commit files: %w", err)
+	}
+
+	var candidates []infraGit.FileInfo
+	for _, f := range files {
+		fullPath := filepath.Join(clonedPath, f.Path)
+		if h.discoverer.IsExampleCandidate(fullPath) {
+			candidates = append(candidates, f)
+		}
+	}
+
+	tracker.SetTotal(ctx, len(candidates))
+
+	var examples []string
+
+	for i, file := range candidates {
+		fullPath := filepath.Join(clonedPath, file.Path)
+		fileName := filepath.Base(file.Path)
+
+		tracker.SetCurrent(ctx, i, fmt.Sprintf("Processing %s", fileName))
+
+		if h.discoverer.IsDocumentationFile(fullPath) {
+			example := h.extractFromDocumentation(fullPath)
+			if example != "" {
+				examples = append(examples, example)
+			}
+		} else {
+			example := h.extractFullFile(fullPath)
+			if example != "" {
+				examples = append(examples, example)
+			}
+		}
+	}
+
+	uniqueExamples := deduplicateExamples(examples)
+
+	h.enrichCtx.Logger.Info("extracted examples",
+		slog.Int("total", len(examples)),
+		slog.Int("unique", len(uniqueExamples)),
+		slog.String("commit", handler.ShortSHA(cp.CommitSHA())),
+	)
+
+	for _, content := range uniqueExamples {
+		sanitized := sanitizeContent(content)
+		exampleEnrichment := enrichment.NewEnrichment(
+			enrichment.TypeDevelopment,
+			enrichment.SubtypeExample,
+			enrichment.EntityTypeCommit,
+			sanitized,
+		)
+
+		saved, err := h.enrichCtx.Enrichments.Save(ctx, exampleEnrichment)
+		if err != nil {
+			return fmt.Errorf("save example enrichment: %w", err)
+		}
+
+		commitAssoc := enrichment.CommitAssociation(saved.ID(), cp.CommitSHA())
+		if _, err := h.enrichCtx.Associations.Save(ctx, commitAssoc); err != nil {
+			return fmt.Errorf("save commit association: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func (h *ExtractExamples) extractFromDocumentation(path string) string {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		h.enrichCtx.Logger.Warn("failed to read file", slog.String("path", path), slog.String("error", err.Error()))
+		return ""
+	}
+
+	blocks := extractCodeBlocks(string(content))
+	if len(blocks) == 0 {
+		return ""
+	}
+
+	return strings.Join(blocks, "\n\n")
+}
+
+func (h *ExtractExamples) extractFullFile(path string) string {
+	ext := filepath.Ext(path)
+	language := snippet.Language{}
+
+	_, err := language.LanguageForExtension(ext)
+	if err != nil {
+		return ""
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		h.enrichCtx.Logger.Warn("failed to read file", slog.String("path", path), slog.String("error", err.Error()))
+		return ""
+	}
+
+	return string(content)
+}
+
+func deduplicateExamples(examples []string) []string {
+	seen := make(map[string]bool)
+	var result []string
+
+	for _, e := range examples {
+		if !seen[e] {
+			seen[e] = true
+			result = append(result, e)
+		}
+	}
+
+	return result
+}
+
+func sanitizeContent(content string) string {
+	return strings.ReplaceAll(content, "\x00", "")
+}
+
+// extractCodeBlocks extracts fenced code blocks from markdown content.
+func extractCodeBlocks(content string) []string {
+	var blocks []string
+	lines := strings.Split(content, "\n")
+	inBlock := false
+	var currentBlock []string
+
+	for _, line := range lines {
+		if strings.HasPrefix(line, "```") {
+			if inBlock {
+				blocks = append(blocks, strings.Join(currentBlock, "\n"))
+				currentBlock = nil
+				inBlock = false
+			} else {
+				inBlock = true
+			}
+		} else if inBlock {
+			currentBlock = append(currentBlock, line)
+		}
+	}
+
+	return blocks
+}
+
+// Ensure ExtractExamples implements handler.Handler.
+var _ handler.Handler = (*ExtractExamples)(nil)

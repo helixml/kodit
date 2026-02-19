@@ -5,33 +5,133 @@ on:
   push:
   workflow_call:
 
-env:
-  TEST_TAG: user/app:test
-
 jobs:
-  test-build:
-    name: Test and build Docker image
+  build:
+    name: Build Docker image (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+            artifact: kodit-image-amd64
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+            artifact: kodit-image-arm64
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+        with:
+          fetch-tags: true
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract version from git
+        id: version
+        run: |
+          VERSION=$(git describe --tags --always 2>/dev/null || echo "dev")
+          COMMIT=$(git rev-parse --short HEAD)
+          BUILD_TIME=$(date -u '+%Y-%m-%d_%H:%M:%S')
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+          echo "COMMIT=${COMMIT}" >> $GITHUB_OUTPUT
+          echo "BUILD_TIME=${BUILD_TIME}" >> $GITHUB_OUTPUT
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          platforms: ${{ matrix.platform }}
+          context: .
+          file: ./Dockerfile
+          tags: kodit:test
+          outputs: type=docker,dest=/tmp/image.tar
+          build-args: |
+            VERSION=${{ steps.version.outputs.VERSION }}
+            COMMIT=${{ steps.version.outputs.COMMIT }}
+            BUILD_TIME=${{ steps.version.outputs.BUILD_TIME }}
+          cache-from: type=gha,scope=${{ matrix.platform }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.platform }}
+
+      - name: Upload image
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: /tmp/image.tar
+          if-no-files-found: error
+          retention-days: 1
+
+  smoke-test:
+    name: Smoke test
     runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: read
+    timeout-minutes: 10
     steps:
       - name: Check out the repo
         uses: actions/checkout@v4
 
-      - name: Build test Docker image
-        id: push
-        uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671
+      - name: Download image
+        uses: actions/download-artifact@v4
         with:
-          context: .
-          file: ./Dockerfile
-          push: false
-          load: true
-          tags: ${{ env.TEST_TAG }}
+          name: kodit-image-amd64
+          path: /tmp
 
-      - name: Docker smoke test
-        run: ./tests/docker-smoke.sh
+      - name: Load image
+        run: docker load -i /tmp/image.tar
+
+      - name: Cache Ollama models
+        uses: actions/cache@v4
+        with:
+          path: /tmp/ollama-models
+          key: ollama-models-qwen2.5-0.5b
+
+      - name: Start compose stack
+        run: docker compose -f test/smoke/docker-compose.yml up -d
+        env:
+          OLLAMA_MODELS: /tmp/ollama-models
+
+      - name: Pull Ollama models
+        run: |
+          docker compose -f test/smoke/docker-compose.yml exec ollama ollama pull qwen2.5:0.5b
+          sudo chown -R $(id -u):$(id -g) /tmp/ollama-models
+
+      - name: Wait for kodit to be healthy
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8080/healthz; then
+              echo ""
+              echo "kodit is healthy"
+              exit 0
+            fi
+            echo "waiting for kodit... ($i/30)"
+            sleep 5
+          done
+          echo "kodit failed to become healthy"
+          docker compose -f test/smoke/docker-compose.yml logs kodit
+          exit 1
+
+      - name: Verify health endpoint
+        run: |
+          STATUS=$(curl -sf http://localhost:8080/healthz | jq -r '.status')
+          if [ "$STATUS" != "healthy" ]; then
+            echo "expected status 'healthy', got '$STATUS'"
+            exit 1
+          fi
+          echo "healthz returned status: $STATUS"
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f test/smoke/docker-compose.yml down -v
 
   push_to_registry:
     name: Push Docker image to registry
     runs-on: ubuntu-latest
+    needs: smoke-test
     environment:
       name: docker
     permissions:
@@ -39,70 +139,71 @@ jobs:
       contents: read
       attestations: write
       id-token: write
-    needs: test-build
-    # Only run on main branch or when explicitly triggered
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    strategy:
-      matrix:
-        python-version: ["3.12.8", "3.13.5"]
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     steps:
-      - name: Free up disk space
-        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet || true
-
       - name: Check out the repo
         uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        with:
+          fetch-tags: true
+          fetch-depth: 0
 
       - name: Log in to Docker Hub
-        uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a
+        uses: docker/login-action@v3
         with:
           registry: ${{ vars.REGISTRY }}
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Set short Python version
-        id: pyver
-        run: |
-          echo "SHORT_PY=$(echo '${{ matrix.python-version }}' | cut -d. -f1,2)" >> $GITHUB_OUTPUT
-          echo "ENABLE_DEFAULT=$([ \"$(echo '${{ matrix.python-version }}' | cut -d. -f1,2)\" = \"3.13\" ] && echo true || echo false)" >> $GITHUB_OUTPUT
+      - name: Download amd64 image
+        uses: actions/download-artifact@v4
+        with:
+          name: kodit-image-amd64
+          path: /tmp/amd64
+
+      - name: Download arm64 image
+        uses: actions/download-artifact@v4
+        with:
+          name: kodit-image-arm64
+          path: /tmp/arm64
 
       - name: Extract metadata (tags, labels) for Docker
         id: meta
-        uses: docker/metadata-action@9ec57ed1fcdbf14dcef7dfbe97b2010124a938b7
+        uses: docker/metadata-action@v5
         with:
           images: ${{ vars.REGISTRY }}/${{ vars.REGISTRY_ORG }}/${{ github.event.repository.name }}
           tags: |
-            type=semver,pattern={{version}},enable=${{ steps.pyver.outputs.ENABLE_DEFAULT }}
-            type=semver,pattern={{version}},suffix=-py${{ steps.pyver.outputs.SHORT_PY }}
-            type=semver,pattern={{major}}.{{minor}},enable=${{ steps.pyver.outputs.ENABLE_DEFAULT }}
-            type=semver,pattern={{major}}.{{minor}},suffix=-py${{ steps.pyver.outputs.SHORT_PY }}
-            type=ref,event=branch,enable=${{ steps.pyver.outputs.ENABLE_DEFAULT }}
-            type=ref,event=branch,suffix=-py${{ steps.pyver.outputs.SHORT_PY }}
-            type=ref,event=pr,enable=${{ steps.pyver.outputs.ENABLE_DEFAULT }}
-            type=ref,event=pr,suffix=-py${{ steps.pyver.outputs.SHORT_PY }}
-            type=sha,enable=${{ steps.pyver.outputs.ENABLE_DEFAULT }}
-            type=sha,suffix=-py${{ steps.pyver.outputs.SHORT_PY }}
-            type=raw,value=latest,enable=${{ steps.pyver.outputs.ENABLE_DEFAULT && startsWith(github.ref, 'refs/tags/') }}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/') }}
           flavor: |
             latest=false
 
-      - name: Build and push Docker image
+      - name: Push platform images and create manifests
         id: push
-        uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671
-        with:
-          platforms: linux/amd64,linux/arm64
-          context: .
-          file: ./Dockerfile
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            PYTHON_VERSION=${{ matrix.python-version }}
+        run: |
+          IMAGE="${{ vars.REGISTRY }}/${{ vars.REGISTRY_ORG }}/${{ github.event.repository.name }}"
+
+          docker load -i /tmp/amd64/image.tar
+          docker tag kodit:test "${IMAGE}:buildcache-amd64"
+          docker push "${IMAGE}:buildcache-amd64"
+
+          docker load -i /tmp/arm64/image.tar
+          docker tag kodit:test "${IMAGE}:buildcache-arm64"
+          docker push "${IMAGE}:buildcache-arm64"
+
+          readarray -t TAGS <<< "${{ steps.meta.outputs.tags }}"
+          for TAG in "${TAGS[@]}"; do
+            [ -z "$TAG" ] && continue
+            docker manifest create "$TAG" \
+              "${IMAGE}:buildcache-amd64" \
+              "${IMAGE}:buildcache-arm64"
+            DIGEST=$(docker manifest push --purge "$TAG")
+          done
+
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
 
       - name: Generate artifact attestation
         uses: actions/attest-build-provenance@v2

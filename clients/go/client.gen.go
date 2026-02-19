@@ -89,104 +89,107 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 
 // The interface specification for the client above.
 type ClientInterface interface {
-	// ListEnrichmentsApiV1EnrichmentsGet request
-	ListEnrichmentsApiV1EnrichmentsGet(ctx context.Context, params *ListEnrichmentsApiV1EnrichmentsGetParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetEnrichments request
+	GetEnrichments(ctx context.Context, params *GetEnrichmentsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// DeleteEnrichmentApiV1EnrichmentsEnrichmentIdDelete request
-	DeleteEnrichmentApiV1EnrichmentsEnrichmentIdDelete(ctx context.Context, enrichmentId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// DeleteEnrichmentsId request
+	DeleteEnrichmentsId(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetEnrichmentApiV1EnrichmentsEnrichmentIdGet request
-	GetEnrichmentApiV1EnrichmentsEnrichmentIdGet(ctx context.Context, enrichmentId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetEnrichmentsId request
+	GetEnrichmentsId(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchWithBody request with any body
-	UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchWithBody(ctx context.Context, enrichmentId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// PatchEnrichmentsIdWithBody request with any body
+	PatchEnrichmentsIdWithBody(ctx context.Context, id int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatch(ctx context.Context, enrichmentId string, body UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	PatchEnrichmentsId(ctx context.Context, id int, body PatchEnrichmentsIdJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ListQueueTasksApiV1QueueGet request
-	ListQueueTasksApiV1QueueGet(ctx context.Context, params *ListQueueTasksApiV1QueueGetParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetQueue request
+	GetQueue(ctx context.Context, params *GetQueueParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetQueueTaskApiV1QueueTaskIdGet request
-	GetQueueTaskApiV1QueueTaskIdGet(ctx context.Context, taskId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetQueueTaskId request
+	GetQueueTaskId(ctx context.Context, taskId int, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ListRepositoriesApiV1RepositoriesGet request
-	ListRepositoriesApiV1RepositoriesGet(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetRepositories request
+	GetRepositories(ctx context.Context, params *GetRepositoriesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// CreateRepositoryApiV1RepositoriesPostWithBody request with any body
-	CreateRepositoryApiV1RepositoriesPostWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// PostRepositoriesWithBody request with any body
+	PostRepositoriesWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	CreateRepositoryApiV1RepositoriesPost(ctx context.Context, body CreateRepositoryApiV1RepositoriesPostJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	PostRepositories(ctx context.Context, body PostRepositoriesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// DeleteRepositoryApiV1RepositoriesRepoIdDelete request
-	DeleteRepositoryApiV1RepositoriesRepoIdDelete(ctx context.Context, repoId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// DeleteRepositoriesId request
+	DeleteRepositoriesId(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetRepositoryApiV1RepositoriesRepoIdGet request
-	GetRepositoryApiV1RepositoriesRepoIdGet(ctx context.Context, repoId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetRepositoriesId request
+	GetRepositoriesId(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ListRepositoryCommitsApiV1RepositoriesRepoIdCommitsGet request
-	ListRepositoryCommitsApiV1RepositoriesRepoIdCommitsGet(ctx context.Context, repoId string, params *ListRepositoryCommitsApiV1RepositoriesRepoIdCommitsGetParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetRepositoriesIdCommits request
+	GetRepositoriesIdCommits(ctx context.Context, id int, params *GetRepositoriesIdCommitsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetRepositoryCommitApiV1RepositoriesRepoIdCommitsCommitShaGet request
-	GetRepositoryCommitApiV1RepositoriesRepoIdCommitsCommitShaGet(ctx context.Context, repoId string, commitSha string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetRepositoriesIdCommitsCommitSha request
+	GetRepositoriesIdCommitsCommitSha(ctx context.Context, id int, commitSha string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ListCommitEmbeddingsApiV1RepositoriesRepoIdCommitsCommitShaEmbeddingsGet request
-	ListCommitEmbeddingsApiV1RepositoriesRepoIdCommitsCommitShaEmbeddingsGet(ctx context.Context, repoId string, commitSha string, params *ListCommitEmbeddingsApiV1RepositoriesRepoIdCommitsCommitShaEmbeddingsGetParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetRepositoriesIdCommitsCommitShaEmbeddings request
+	GetRepositoriesIdCommitsCommitShaEmbeddings(ctx context.Context, id int, commitSha string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// DeleteAllCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsDelete request
-	DeleteAllCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsDelete(ctx context.Context, repoId string, commitSha string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// DeleteRepositoriesIdCommitsCommitShaEnrichments request
+	DeleteRepositoriesIdCommitsCommitShaEnrichments(ctx context.Context, id int, commitSha string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ListCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsGet request
-	ListCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsGet(ctx context.Context, repoId string, commitSha string, params *ListCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsGetParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetRepositoriesIdCommitsCommitShaEnrichments request
+	GetRepositoriesIdCommitsCommitShaEnrichments(ctx context.Context, id int, commitSha string, params *GetRepositoriesIdCommitsCommitShaEnrichmentsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// DeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdDelete request
-	DeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdDelete(ctx context.Context, repoId string, commitSha string, enrichmentId int, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// DeleteRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentId request
+	DeleteRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentId(ctx context.Context, id int, commitSha string, enrichmentId int, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGet request
-	ListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGet(ctx context.Context, repoId string, commitSha string, params *ListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGetParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentId request
+	GetRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentId(ctx context.Context, id int, commitSha string, enrichmentId int, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetCommitFileApiV1RepositoriesRepoIdCommitsCommitShaFilesBlobShaGet request
-	GetCommitFileApiV1RepositoriesRepoIdCommitsCommitShaFilesBlobShaGet(ctx context.Context, repoId string, commitSha string, blobSha string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetRepositoriesIdCommitsCommitShaFiles request
+	GetRepositoriesIdCommitsCommitShaFiles(ctx context.Context, id int, commitSha string, params *GetRepositoriesIdCommitsCommitShaFilesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// RescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPost request
-	RescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPost(ctx context.Context, repoId string, commitSha string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetRepositoriesIdCommitsCommitShaFilesBlobSha request
+	GetRepositoriesIdCommitsCommitShaFilesBlobSha(ctx context.Context, id int, commitSha string, blobSha string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippetsGet request
-	ListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippetsGet(ctx context.Context, repoId string, commitSha string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// PostRepositoriesIdCommitsCommitShaRescan request
+	PostRepositoriesIdCommitsCommitShaRescan(ctx context.Context, id int, commitSha string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ListRepositoryEnrichmentsApiV1RepositoriesRepoIdEnrichmentsGet request
-	ListRepositoryEnrichmentsApiV1RepositoriesRepoIdEnrichmentsGet(ctx context.Context, repoId string, params *ListRepositoryEnrichmentsApiV1RepositoriesRepoIdEnrichmentsGetParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetRepositoriesIdCommitsCommitShaSnippets request
+	GetRepositoriesIdCommitsCommitShaSnippets(ctx context.Context, id int, commitSha string, params *GetRepositoriesIdCommitsCommitShaSnippetsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetIndexStatusApiV1RepositoriesRepoIdStatusGet request
-	GetIndexStatusApiV1RepositoriesRepoIdStatusGet(ctx context.Context, repoId int, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetRepositoriesIdEnrichments request
+	GetRepositoriesIdEnrichments(ctx context.Context, id int, params *GetRepositoriesIdEnrichmentsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGet request
-	GetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGet(ctx context.Context, repoId int, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetRepositoriesIdStatus request
+	GetRepositoriesIdStatus(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ListRepositoryTagsApiV1RepositoriesRepoIdTagsGet request
-	ListRepositoryTagsApiV1RepositoriesRepoIdTagsGet(ctx context.Context, repoId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetRepositoriesIdStatusSummary request
+	GetRepositoriesIdStatusSummary(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGet request
-	GetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGet(ctx context.Context, repoId string, tagId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// PostRepositoriesIdSync request
+	PostRepositoriesIdSync(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGet request
-	GetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGet(ctx context.Context, repoId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetRepositoriesIdTags request
+	GetRepositoriesIdTags(ctx context.Context, id int, params *GetRepositoriesIdTagsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutWithBody request with any body
-	UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutWithBody(ctx context.Context, repoId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetRepositoriesIdTagsTagName request
+	GetRepositoriesIdTagsTagName(ctx context.Context, id int, tagName string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPut(ctx context.Context, repoId string, body UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetRepositoriesIdTrackingConfig request
+	GetRepositoriesIdTrackingConfig(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// SearchSnippetsApiV1SearchPostWithBody request with any body
-	SearchSnippetsApiV1SearchPostWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// PutRepositoriesIdTrackingConfigWithBody request with any body
+	PutRepositoriesIdTrackingConfigWithBody(ctx context.Context, id int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	SearchSnippetsApiV1SearchPost(ctx context.Context, body SearchSnippetsApiV1SearchPostJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	PutRepositoriesIdTrackingConfig(ctx context.Context, id int, body PutRepositoriesIdTrackingConfigJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// HealthzHealthzGet request
-	HealthzHealthzGet(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// PostSearchWithBody request with any body
+	PostSearchWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PostSearch(ctx context.Context, body PostSearchJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
-func (c *Client) ListEnrichmentsApiV1EnrichmentsGet(ctx context.Context, params *ListEnrichmentsApiV1EnrichmentsGetParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListEnrichmentsApiV1EnrichmentsGetRequest(c.Server, params)
+func (c *Client) GetEnrichments(ctx context.Context, params *GetEnrichmentsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetEnrichmentsRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -197,8 +200,8 @@ func (c *Client) ListEnrichmentsApiV1EnrichmentsGet(ctx context.Context, params 
 	return c.Client.Do(req)
 }
 
-func (c *Client) DeleteEnrichmentApiV1EnrichmentsEnrichmentIdDelete(ctx context.Context, enrichmentId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteRequest(c.Server, enrichmentId)
+func (c *Client) DeleteEnrichmentsId(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteEnrichmentsIdRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -209,8 +212,8 @@ func (c *Client) DeleteEnrichmentApiV1EnrichmentsEnrichmentIdDelete(ctx context.
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetEnrichmentApiV1EnrichmentsEnrichmentIdGet(ctx context.Context, enrichmentId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetEnrichmentApiV1EnrichmentsEnrichmentIdGetRequest(c.Server, enrichmentId)
+func (c *Client) GetEnrichmentsId(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetEnrichmentsIdRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -221,8 +224,8 @@ func (c *Client) GetEnrichmentApiV1EnrichmentsEnrichmentIdGet(ctx context.Contex
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchWithBody(ctx context.Context, enrichmentId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchRequestWithBody(c.Server, enrichmentId, contentType, body)
+func (c *Client) PatchEnrichmentsIdWithBody(ctx context.Context, id int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPatchEnrichmentsIdRequestWithBody(c.Server, id, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -233,8 +236,8 @@ func (c *Client) UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchWithBody(ctx c
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatch(ctx context.Context, enrichmentId string, body UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchRequest(c.Server, enrichmentId, body)
+func (c *Client) PatchEnrichmentsId(ctx context.Context, id int, body PatchEnrichmentsIdJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPatchEnrichmentsIdRequest(c.Server, id, body)
 	if err != nil {
 		return nil, err
 	}
@@ -245,8 +248,8 @@ func (c *Client) UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatch(ctx context.C
 	return c.Client.Do(req)
 }
 
-func (c *Client) ListQueueTasksApiV1QueueGet(ctx context.Context, params *ListQueueTasksApiV1QueueGetParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListQueueTasksApiV1QueueGetRequest(c.Server, params)
+func (c *Client) GetQueue(ctx context.Context, params *GetQueueParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetQueueRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -257,8 +260,8 @@ func (c *Client) ListQueueTasksApiV1QueueGet(ctx context.Context, params *ListQu
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetQueueTaskApiV1QueueTaskIdGet(ctx context.Context, taskId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetQueueTaskApiV1QueueTaskIdGetRequest(c.Server, taskId)
+func (c *Client) GetQueueTaskId(ctx context.Context, taskId int, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetQueueTaskIdRequest(c.Server, taskId)
 	if err != nil {
 		return nil, err
 	}
@@ -269,8 +272,8 @@ func (c *Client) GetQueueTaskApiV1QueueTaskIdGet(ctx context.Context, taskId str
 	return c.Client.Do(req)
 }
 
-func (c *Client) ListRepositoriesApiV1RepositoriesGet(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListRepositoriesApiV1RepositoriesGetRequest(c.Server)
+func (c *Client) GetRepositories(ctx context.Context, params *GetRepositoriesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetRepositoriesRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -281,8 +284,8 @@ func (c *Client) ListRepositoriesApiV1RepositoriesGet(ctx context.Context, reqEd
 	return c.Client.Do(req)
 }
 
-func (c *Client) CreateRepositoryApiV1RepositoriesPostWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateRepositoryApiV1RepositoriesPostRequestWithBody(c.Server, contentType, body)
+func (c *Client) PostRepositoriesWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostRepositoriesRequestWithBody(c.Server, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -293,8 +296,8 @@ func (c *Client) CreateRepositoryApiV1RepositoriesPostWithBody(ctx context.Conte
 	return c.Client.Do(req)
 }
 
-func (c *Client) CreateRepositoryApiV1RepositoriesPost(ctx context.Context, body CreateRepositoryApiV1RepositoriesPostJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateRepositoryApiV1RepositoriesPostRequest(c.Server, body)
+func (c *Client) PostRepositories(ctx context.Context, body PostRepositoriesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostRepositoriesRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -305,8 +308,8 @@ func (c *Client) CreateRepositoryApiV1RepositoriesPost(ctx context.Context, body
 	return c.Client.Do(req)
 }
 
-func (c *Client) DeleteRepositoryApiV1RepositoriesRepoIdDelete(ctx context.Context, repoId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteRepositoryApiV1RepositoriesRepoIdDeleteRequest(c.Server, repoId)
+func (c *Client) DeleteRepositoriesId(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteRepositoriesIdRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -317,8 +320,8 @@ func (c *Client) DeleteRepositoryApiV1RepositoriesRepoIdDelete(ctx context.Conte
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetRepositoryApiV1RepositoriesRepoIdGet(ctx context.Context, repoId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetRepositoryApiV1RepositoriesRepoIdGetRequest(c.Server, repoId)
+func (c *Client) GetRepositoriesId(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetRepositoriesIdRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -329,8 +332,8 @@ func (c *Client) GetRepositoryApiV1RepositoriesRepoIdGet(ctx context.Context, re
 	return c.Client.Do(req)
 }
 
-func (c *Client) ListRepositoryCommitsApiV1RepositoriesRepoIdCommitsGet(ctx context.Context, repoId string, params *ListRepositoryCommitsApiV1RepositoriesRepoIdCommitsGetParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListRepositoryCommitsApiV1RepositoriesRepoIdCommitsGetRequest(c.Server, repoId, params)
+func (c *Client) GetRepositoriesIdCommits(ctx context.Context, id int, params *GetRepositoriesIdCommitsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetRepositoriesIdCommitsRequest(c.Server, id, params)
 	if err != nil {
 		return nil, err
 	}
@@ -341,8 +344,8 @@ func (c *Client) ListRepositoryCommitsApiV1RepositoriesRepoIdCommitsGet(ctx cont
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetRepositoryCommitApiV1RepositoriesRepoIdCommitsCommitShaGet(ctx context.Context, repoId string, commitSha string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetRepositoryCommitApiV1RepositoriesRepoIdCommitsCommitShaGetRequest(c.Server, repoId, commitSha)
+func (c *Client) GetRepositoriesIdCommitsCommitSha(ctx context.Context, id int, commitSha string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetRepositoriesIdCommitsCommitShaRequest(c.Server, id, commitSha)
 	if err != nil {
 		return nil, err
 	}
@@ -353,8 +356,8 @@ func (c *Client) GetRepositoryCommitApiV1RepositoriesRepoIdCommitsCommitShaGet(c
 	return c.Client.Do(req)
 }
 
-func (c *Client) ListCommitEmbeddingsApiV1RepositoriesRepoIdCommitsCommitShaEmbeddingsGet(ctx context.Context, repoId string, commitSha string, params *ListCommitEmbeddingsApiV1RepositoriesRepoIdCommitsCommitShaEmbeddingsGetParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListCommitEmbeddingsApiV1RepositoriesRepoIdCommitsCommitShaEmbeddingsGetRequest(c.Server, repoId, commitSha, params)
+func (c *Client) GetRepositoriesIdCommitsCommitShaEmbeddings(ctx context.Context, id int, commitSha string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetRepositoriesIdCommitsCommitShaEmbeddingsRequest(c.Server, id, commitSha)
 	if err != nil {
 		return nil, err
 	}
@@ -365,8 +368,8 @@ func (c *Client) ListCommitEmbeddingsApiV1RepositoriesRepoIdCommitsCommitShaEmbe
 	return c.Client.Do(req)
 }
 
-func (c *Client) DeleteAllCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsDelete(ctx context.Context, repoId string, commitSha string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteAllCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsDeleteRequest(c.Server, repoId, commitSha)
+func (c *Client) DeleteRepositoriesIdCommitsCommitShaEnrichments(ctx context.Context, id int, commitSha string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteRepositoriesIdCommitsCommitShaEnrichmentsRequest(c.Server, id, commitSha)
 	if err != nil {
 		return nil, err
 	}
@@ -377,8 +380,8 @@ func (c *Client) DeleteAllCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitS
 	return c.Client.Do(req)
 }
 
-func (c *Client) ListCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsGet(ctx context.Context, repoId string, commitSha string, params *ListCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsGetParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsGetRequest(c.Server, repoId, commitSha, params)
+func (c *Client) GetRepositoriesIdCommitsCommitShaEnrichments(ctx context.Context, id int, commitSha string, params *GetRepositoriesIdCommitsCommitShaEnrichmentsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetRepositoriesIdCommitsCommitShaEnrichmentsRequest(c.Server, id, commitSha, params)
 	if err != nil {
 		return nil, err
 	}
@@ -389,8 +392,8 @@ func (c *Client) ListCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnr
 	return c.Client.Do(req)
 }
 
-func (c *Client) DeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdDelete(ctx context.Context, repoId string, commitSha string, enrichmentId int, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdDeleteRequest(c.Server, repoId, commitSha, enrichmentId)
+func (c *Client) DeleteRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentId(ctx context.Context, id int, commitSha string, enrichmentId int, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdRequest(c.Server, id, commitSha, enrichmentId)
 	if err != nil {
 		return nil, err
 	}
@@ -401,8 +404,8 @@ func (c *Client) DeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEn
 	return c.Client.Do(req)
 }
 
-func (c *Client) ListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGet(ctx context.Context, repoId string, commitSha string, params *ListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGetParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGetRequest(c.Server, repoId, commitSha, params)
+func (c *Client) GetRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentId(ctx context.Context, id int, commitSha string, enrichmentId int, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdRequest(c.Server, id, commitSha, enrichmentId)
 	if err != nil {
 		return nil, err
 	}
@@ -413,8 +416,8 @@ func (c *Client) ListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGet(
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetCommitFileApiV1RepositoriesRepoIdCommitsCommitShaFilesBlobShaGet(ctx context.Context, repoId string, commitSha string, blobSha string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetCommitFileApiV1RepositoriesRepoIdCommitsCommitShaFilesBlobShaGetRequest(c.Server, repoId, commitSha, blobSha)
+func (c *Client) GetRepositoriesIdCommitsCommitShaFiles(ctx context.Context, id int, commitSha string, params *GetRepositoriesIdCommitsCommitShaFilesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetRepositoriesIdCommitsCommitShaFilesRequest(c.Server, id, commitSha, params)
 	if err != nil {
 		return nil, err
 	}
@@ -425,8 +428,8 @@ func (c *Client) GetCommitFileApiV1RepositoriesRepoIdCommitsCommitShaFilesBlobSh
 	return c.Client.Do(req)
 }
 
-func (c *Client) RescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPost(ctx context.Context, repoId string, commitSha string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostRequest(c.Server, repoId, commitSha)
+func (c *Client) GetRepositoriesIdCommitsCommitShaFilesBlobSha(ctx context.Context, id int, commitSha string, blobSha string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetRepositoriesIdCommitsCommitShaFilesBlobShaRequest(c.Server, id, commitSha, blobSha)
 	if err != nil {
 		return nil, err
 	}
@@ -437,8 +440,8 @@ func (c *Client) RescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPost(c
 	return c.Client.Do(req)
 }
 
-func (c *Client) ListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippetsGet(ctx context.Context, repoId string, commitSha string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippetsGetRequest(c.Server, repoId, commitSha)
+func (c *Client) PostRepositoriesIdCommitsCommitShaRescan(ctx context.Context, id int, commitSha string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostRepositoriesIdCommitsCommitShaRescanRequest(c.Server, id, commitSha)
 	if err != nil {
 		return nil, err
 	}
@@ -449,8 +452,8 @@ func (c *Client) ListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippe
 	return c.Client.Do(req)
 }
 
-func (c *Client) ListRepositoryEnrichmentsApiV1RepositoriesRepoIdEnrichmentsGet(ctx context.Context, repoId string, params *ListRepositoryEnrichmentsApiV1RepositoriesRepoIdEnrichmentsGetParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListRepositoryEnrichmentsApiV1RepositoriesRepoIdEnrichmentsGetRequest(c.Server, repoId, params)
+func (c *Client) GetRepositoriesIdCommitsCommitShaSnippets(ctx context.Context, id int, commitSha string, params *GetRepositoriesIdCommitsCommitShaSnippetsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetRepositoriesIdCommitsCommitShaSnippetsRequest(c.Server, id, commitSha, params)
 	if err != nil {
 		return nil, err
 	}
@@ -461,8 +464,8 @@ func (c *Client) ListRepositoryEnrichmentsApiV1RepositoriesRepoIdEnrichmentsGet(
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetIndexStatusApiV1RepositoriesRepoIdStatusGet(ctx context.Context, repoId int, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetIndexStatusApiV1RepositoriesRepoIdStatusGetRequest(c.Server, repoId)
+func (c *Client) GetRepositoriesIdEnrichments(ctx context.Context, id int, params *GetRepositoriesIdEnrichmentsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetRepositoriesIdEnrichmentsRequest(c.Server, id, params)
 	if err != nil {
 		return nil, err
 	}
@@ -473,8 +476,8 @@ func (c *Client) GetIndexStatusApiV1RepositoriesRepoIdStatusGet(ctx context.Cont
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGet(ctx context.Context, repoId int, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetRequest(c.Server, repoId)
+func (c *Client) GetRepositoriesIdStatus(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetRepositoriesIdStatusRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -485,8 +488,8 @@ func (c *Client) GetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGet(ctx con
 	return c.Client.Do(req)
 }
 
-func (c *Client) ListRepositoryTagsApiV1RepositoriesRepoIdTagsGet(ctx context.Context, repoId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListRepositoryTagsApiV1RepositoriesRepoIdTagsGetRequest(c.Server, repoId)
+func (c *Client) GetRepositoriesIdStatusSummary(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetRepositoriesIdStatusSummaryRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -497,8 +500,8 @@ func (c *Client) ListRepositoryTagsApiV1RepositoriesRepoIdTagsGet(ctx context.Co
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGet(ctx context.Context, repoId string, tagId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGetRequest(c.Server, repoId, tagId)
+func (c *Client) PostRepositoriesIdSync(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostRepositoriesIdSyncRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -509,8 +512,8 @@ func (c *Client) GetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGet(ctx context
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGet(ctx context.Context, repoId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetRequest(c.Server, repoId)
+func (c *Client) GetRepositoriesIdTags(ctx context.Context, id int, params *GetRepositoriesIdTagsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetRepositoriesIdTagsRequest(c.Server, id, params)
 	if err != nil {
 		return nil, err
 	}
@@ -521,8 +524,8 @@ func (c *Client) GetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGet(ctx c
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutWithBody(ctx context.Context, repoId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutRequestWithBody(c.Server, repoId, contentType, body)
+func (c *Client) GetRepositoriesIdTagsTagName(ctx context.Context, id int, tagName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetRepositoriesIdTagsTagNameRequest(c.Server, id, tagName)
 	if err != nil {
 		return nil, err
 	}
@@ -533,8 +536,8 @@ func (c *Client) UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutWit
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPut(ctx context.Context, repoId string, body UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutRequest(c.Server, repoId, body)
+func (c *Client) GetRepositoriesIdTrackingConfig(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetRepositoriesIdTrackingConfigRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -545,8 +548,8 @@ func (c *Client) UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPut(ct
 	return c.Client.Do(req)
 }
 
-func (c *Client) SearchSnippetsApiV1SearchPostWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewSearchSnippetsApiV1SearchPostRequestWithBody(c.Server, contentType, body)
+func (c *Client) PutRepositoriesIdTrackingConfigWithBody(ctx context.Context, id int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutRepositoriesIdTrackingConfigRequestWithBody(c.Server, id, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -557,8 +560,8 @@ func (c *Client) SearchSnippetsApiV1SearchPostWithBody(ctx context.Context, cont
 	return c.Client.Do(req)
 }
 
-func (c *Client) SearchSnippetsApiV1SearchPost(ctx context.Context, body SearchSnippetsApiV1SearchPostJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewSearchSnippetsApiV1SearchPostRequest(c.Server, body)
+func (c *Client) PutRepositoriesIdTrackingConfig(ctx context.Context, id int, body PutRepositoriesIdTrackingConfigJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutRepositoriesIdTrackingConfigRequest(c.Server, id, body)
 	if err != nil {
 		return nil, err
 	}
@@ -569,8 +572,8 @@ func (c *Client) SearchSnippetsApiV1SearchPost(ctx context.Context, body SearchS
 	return c.Client.Do(req)
 }
 
-func (c *Client) HealthzHealthzGet(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewHealthzHealthzGetRequest(c.Server)
+func (c *Client) PostSearchWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostSearchRequestWithBody(c.Server, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -581,8 +584,20 @@ func (c *Client) HealthzHealthzGet(ctx context.Context, reqEditors ...RequestEdi
 	return c.Client.Do(req)
 }
 
-// NewListEnrichmentsApiV1EnrichmentsGetRequest generates requests for ListEnrichmentsApiV1EnrichmentsGet
-func NewListEnrichmentsApiV1EnrichmentsGetRequest(server string, params *ListEnrichmentsApiV1EnrichmentsGetParams) (*http.Request, error) {
+func (c *Client) PostSearch(ctx context.Context, body PostSearchJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostSearchRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// NewGetEnrichmentsRequest generates requests for GetEnrichments
+func NewGetEnrichmentsRequest(server string, params *GetEnrichmentsParams) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -590,7 +605,7 @@ func NewListEnrichmentsApiV1EnrichmentsGetRequest(server string, params *ListEnr
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/enrichments")
+	operationPath := fmt.Sprintf("/enrichments")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -678,13 +693,13 @@ func NewListEnrichmentsApiV1EnrichmentsGetRequest(server string, params *ListEnr
 	return req, nil
 }
 
-// NewDeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteRequest generates requests for DeleteEnrichmentApiV1EnrichmentsEnrichmentIdDelete
-func NewDeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteRequest(server string, enrichmentId string) (*http.Request, error) {
+// NewDeleteEnrichmentsIdRequest generates requests for DeleteEnrichmentsId
+func NewDeleteEnrichmentsIdRequest(server string, id int) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "enrichment_id", runtime.ParamLocationPath, enrichmentId)
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
 	if err != nil {
 		return nil, err
 	}
@@ -694,7 +709,7 @@ func NewDeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteRequest(server string,
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/enrichments/%s", pathParam0)
+	operationPath := fmt.Sprintf("/enrichments/%s", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -712,13 +727,13 @@ func NewDeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteRequest(server string,
 	return req, nil
 }
 
-// NewGetEnrichmentApiV1EnrichmentsEnrichmentIdGetRequest generates requests for GetEnrichmentApiV1EnrichmentsEnrichmentIdGet
-func NewGetEnrichmentApiV1EnrichmentsEnrichmentIdGetRequest(server string, enrichmentId string) (*http.Request, error) {
+// NewGetEnrichmentsIdRequest generates requests for GetEnrichmentsId
+func NewGetEnrichmentsIdRequest(server string, id int) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "enrichment_id", runtime.ParamLocationPath, enrichmentId)
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
 	if err != nil {
 		return nil, err
 	}
@@ -728,7 +743,7 @@ func NewGetEnrichmentApiV1EnrichmentsEnrichmentIdGetRequest(server string, enric
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/enrichments/%s", pathParam0)
+	operationPath := fmt.Sprintf("/enrichments/%s", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -746,24 +761,24 @@ func NewGetEnrichmentApiV1EnrichmentsEnrichmentIdGetRequest(server string, enric
 	return req, nil
 }
 
-// NewUpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchRequest calls the generic UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatch builder with application/json body
-func NewUpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchRequest(server string, enrichmentId string, body UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchJSONRequestBody) (*http.Request, error) {
+// NewPatchEnrichmentsIdRequest calls the generic PatchEnrichmentsId builder with application/json body
+func NewPatchEnrichmentsIdRequest(server string, id int, body PatchEnrichmentsIdJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewUpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchRequestWithBody(server, enrichmentId, "application/json", bodyReader)
+	return NewPatchEnrichmentsIdRequestWithBody(server, id, "application/json", bodyReader)
 }
 
-// NewUpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchRequestWithBody generates requests for UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatch with any type of body
-func NewUpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchRequestWithBody(server string, enrichmentId string, contentType string, body io.Reader) (*http.Request, error) {
+// NewPatchEnrichmentsIdRequestWithBody generates requests for PatchEnrichmentsId with any type of body
+func NewPatchEnrichmentsIdRequestWithBody(server string, id int, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "enrichment_id", runtime.ParamLocationPath, enrichmentId)
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
 	if err != nil {
 		return nil, err
 	}
@@ -773,7 +788,7 @@ func NewUpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchRequestWithBody(server 
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/enrichments/%s", pathParam0)
+	operationPath := fmt.Sprintf("/enrichments/%s", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -793,8 +808,8 @@ func NewUpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchRequestWithBody(server 
 	return req, nil
 }
 
-// NewListQueueTasksApiV1QueueGetRequest generates requests for ListQueueTasksApiV1QueueGet
-func NewListQueueTasksApiV1QueueGetRequest(server string, params *ListQueueTasksApiV1QueueGetParams) (*http.Request, error) {
+// NewGetQueueRequest generates requests for GetQueue
+func NewGetQueueRequest(server string, params *GetQueueParams) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -802,7 +817,7 @@ func NewListQueueTasksApiV1QueueGetRequest(server string, params *ListQueueTasks
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/queue")
+	operationPath := fmt.Sprintf("/queue")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -814,6 +829,38 @@ func NewListQueueTasksApiV1QueueGetRequest(server string, params *ListQueueTasks
 
 	if params != nil {
 		queryValues := queryURL.Query()
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "page", runtime.ParamLocationQuery, *params.Page); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.PageSize != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "page_size", runtime.ParamLocationQuery, *params.PageSize); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
 
 		if params.TaskType != nil {
 
@@ -842,8 +889,8 @@ func NewListQueueTasksApiV1QueueGetRequest(server string, params *ListQueueTasks
 	return req, nil
 }
 
-// NewGetQueueTaskApiV1QueueTaskIdGetRequest generates requests for GetQueueTaskApiV1QueueTaskIdGet
-func NewGetQueueTaskApiV1QueueTaskIdGetRequest(server string, taskId string) (*http.Request, error) {
+// NewGetQueueTaskIdRequest generates requests for GetQueueTaskId
+func NewGetQueueTaskIdRequest(server string, taskId int) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -858,7 +905,7 @@ func NewGetQueueTaskApiV1QueueTaskIdGetRequest(server string, taskId string) (*h
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/queue/%s", pathParam0)
+	operationPath := fmt.Sprintf("/queue/%s", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -876,8 +923,8 @@ func NewGetQueueTaskApiV1QueueTaskIdGetRequest(server string, taskId string) (*h
 	return req, nil
 }
 
-// NewListRepositoriesApiV1RepositoriesGetRequest generates requests for ListRepositoriesApiV1RepositoriesGet
-func NewListRepositoriesApiV1RepositoriesGetRequest(server string) (*http.Request, error) {
+// NewGetRepositoriesRequest generates requests for GetRepositories
+func NewGetRepositoriesRequest(server string, params *GetRepositoriesParams) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -885,149 +932,7 @@ func NewListRepositoriesApiV1RepositoriesGetRequest(server string) (*http.Reques
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/repositories")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewCreateRepositoryApiV1RepositoriesPostRequest calls the generic CreateRepositoryApiV1RepositoriesPost builder with application/json body
-func NewCreateRepositoryApiV1RepositoriesPostRequest(server string, body CreateRepositoryApiV1RepositoriesPostJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewCreateRepositoryApiV1RepositoriesPostRequestWithBody(server, "application/json", bodyReader)
-}
-
-// NewCreateRepositoryApiV1RepositoriesPostRequestWithBody generates requests for CreateRepositoryApiV1RepositoriesPost with any type of body
-func NewCreateRepositoryApiV1RepositoriesPostRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/repositories")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewDeleteRepositoryApiV1RepositoriesRepoIdDeleteRequest generates requests for DeleteRepositoryApiV1RepositoriesRepoIdDelete
-func NewDeleteRepositoryApiV1RepositoriesRepoIdDeleteRequest(server string, repoId string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "repo_id", runtime.ParamLocationPath, repoId)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/repositories/%s", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewGetRepositoryApiV1RepositoriesRepoIdGetRequest generates requests for GetRepositoryApiV1RepositoriesRepoIdGet
-func NewGetRepositoryApiV1RepositoriesRepoIdGetRequest(server string, repoId string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "repo_id", runtime.ParamLocationPath, repoId)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/repositories/%s", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewListRepositoryCommitsApiV1RepositoriesRepoIdCommitsGetRequest generates requests for ListRepositoryCommitsApiV1RepositoriesRepoIdCommitsGet
-func NewListRepositoryCommitsApiV1RepositoriesRepoIdCommitsGetRequest(server string, repoId string, params *ListRepositoryCommitsApiV1RepositoriesRepoIdCommitsGetParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "repo_id", runtime.ParamLocationPath, repoId)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/repositories/%s/commits", pathParam0)
+	operationPath := fmt.Sprintf("/repositories")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1083,20 +988,53 @@ func NewListRepositoryCommitsApiV1RepositoriesRepoIdCommitsGetRequest(server str
 	return req, nil
 }
 
-// NewGetRepositoryCommitApiV1RepositoriesRepoIdCommitsCommitShaGetRequest generates requests for GetRepositoryCommitApiV1RepositoriesRepoIdCommitsCommitShaGet
-func NewGetRepositoryCommitApiV1RepositoriesRepoIdCommitsCommitShaGetRequest(server string, repoId string, commitSha string) (*http.Request, error) {
+// NewPostRepositoriesRequest calls the generic PostRepositories builder with application/json body
+func NewPostRepositoriesRequest(server string, body PostRepositoriesJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostRepositoriesRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewPostRepositoriesRequestWithBody generates requests for PostRepositories with any type of body
+func NewPostRepositoriesRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "repo_id", runtime.ParamLocationPath, repoId)
+	serverURL, err := url.Parse(server)
 	if err != nil {
 		return nil, err
 	}
 
-	var pathParam1 string
+	operationPath := fmt.Sprintf("/repositories")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
 
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "commit_sha", runtime.ParamLocationPath, commitSha)
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteRepositoriesIdRequest generates requests for DeleteRepositoriesId
+func NewDeleteRepositoriesIdRequest(server string, id int) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
 	if err != nil {
 		return nil, err
 	}
@@ -1106,7 +1044,41 @@ func NewGetRepositoryCommitApiV1RepositoriesRepoIdCommitsCommitShaGetRequest(ser
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/repositories/%s/commits/%s", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/repositories/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetRepositoriesIdRequest generates requests for GetRepositoriesId
+func NewGetRepositoriesIdRequest(server string, id int) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/repositories/%s", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1124,20 +1096,13 @@ func NewGetRepositoryCommitApiV1RepositoriesRepoIdCommitsCommitShaGetRequest(ser
 	return req, nil
 }
 
-// NewListCommitEmbeddingsApiV1RepositoriesRepoIdCommitsCommitShaEmbeddingsGetRequest generates requests for ListCommitEmbeddingsApiV1RepositoriesRepoIdCommitsCommitShaEmbeddingsGet
-func NewListCommitEmbeddingsApiV1RepositoriesRepoIdCommitsCommitShaEmbeddingsGetRequest(server string, repoId string, commitSha string, params *ListCommitEmbeddingsApiV1RepositoriesRepoIdCommitsCommitShaEmbeddingsGetParams) (*http.Request, error) {
+// NewGetRepositoriesIdCommitsRequest generates requests for GetRepositoriesIdCommits
+func NewGetRepositoriesIdCommitsRequest(server string, id int, params *GetRepositoriesIdCommitsParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "repo_id", runtime.ParamLocationPath, repoId)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "commit_sha", runtime.ParamLocationPath, commitSha)
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
 	if err != nil {
 		return nil, err
 	}
@@ -1147,7 +1112,7 @@ func NewListCommitEmbeddingsApiV1RepositoriesRepoIdCommitsCommitShaEmbeddingsGet
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/repositories/%s/commits/%s/embeddings", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/repositories/%s/commits", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1160,9 +1125,25 @@ func NewListCommitEmbeddingsApiV1RepositoriesRepoIdCommitsCommitShaEmbeddingsGet
 	if params != nil {
 		queryValues := queryURL.Query()
 
-		if params.Full != nil {
+		if params.Page != nil {
 
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "full", runtime.ParamLocationQuery, *params.Full); err != nil {
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "page", runtime.ParamLocationQuery, *params.Page); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.PageSize != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "page_size", runtime.ParamLocationQuery, *params.PageSize); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
@@ -1187,13 +1168,13 @@ func NewListCommitEmbeddingsApiV1RepositoriesRepoIdCommitsCommitShaEmbeddingsGet
 	return req, nil
 }
 
-// NewDeleteAllCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsDeleteRequest generates requests for DeleteAllCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsDelete
-func NewDeleteAllCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsDeleteRequest(server string, repoId string, commitSha string) (*http.Request, error) {
+// NewGetRepositoriesIdCommitsCommitShaRequest generates requests for GetRepositoriesIdCommitsCommitSha
+func NewGetRepositoriesIdCommitsCommitShaRequest(server string, id int, commitSha string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "repo_id", runtime.ParamLocationPath, repoId)
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
 	if err != nil {
 		return nil, err
 	}
@@ -1210,7 +1191,89 @@ func NewDeleteAllCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichm
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/repositories/%s/commits/%s/enrichments", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/repositories/%s/commits/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetRepositoriesIdCommitsCommitShaEmbeddingsRequest generates requests for GetRepositoriesIdCommitsCommitShaEmbeddings
+func NewGetRepositoriesIdCommitsCommitShaEmbeddingsRequest(server string, id int, commitSha string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "commit_sha", runtime.ParamLocationPath, commitSha)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/repositories/%s/commits/%s/embeddings", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewDeleteRepositoriesIdCommitsCommitShaEnrichmentsRequest generates requests for DeleteRepositoriesIdCommitsCommitShaEnrichments
+func NewDeleteRepositoriesIdCommitsCommitShaEnrichmentsRequest(server string, id int, commitSha string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "commit_sha", runtime.ParamLocationPath, commitSha)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/repositories/%s/commits/%s/enrichments", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1228,13 +1291,13 @@ func NewDeleteAllCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichm
 	return req, nil
 }
 
-// NewListCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsGetRequest generates requests for ListCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsGet
-func NewListCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsGetRequest(server string, repoId string, commitSha string, params *ListCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsGetParams) (*http.Request, error) {
+// NewGetRepositoriesIdCommitsCommitShaEnrichmentsRequest generates requests for GetRepositoriesIdCommitsCommitShaEnrichments
+func NewGetRepositoriesIdCommitsCommitShaEnrichmentsRequest(server string, id int, commitSha string, params *GetRepositoriesIdCommitsCommitShaEnrichmentsParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "repo_id", runtime.ParamLocationPath, repoId)
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
 	if err != nil {
 		return nil, err
 	}
@@ -1251,7 +1314,7 @@ func NewListCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsG
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/repositories/%s/commits/%s/enrichments", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/repositories/%s/commits/%s/enrichments", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1280,6 +1343,22 @@ func NewListCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsG
 
 		}
 
+		if params.EnrichmentSubtype != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "enrichment_subtype", runtime.ParamLocationQuery, *params.EnrichmentSubtype); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
 		if params.Page != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "page", runtime.ParamLocationQuery, *params.Page); err != nil {
@@ -1323,13 +1402,13 @@ func NewListCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsG
 	return req, nil
 }
 
-// NewDeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdDeleteRequest generates requests for DeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdDelete
-func NewDeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdDeleteRequest(server string, repoId string, commitSha string, enrichmentId int) (*http.Request, error) {
+// NewDeleteRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdRequest generates requests for DeleteRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentId
+func NewDeleteRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdRequest(server string, id int, commitSha string, enrichmentId int) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "repo_id", runtime.ParamLocationPath, repoId)
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
 	if err != nil {
 		return nil, err
 	}
@@ -1353,7 +1432,7 @@ func NewDeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichments
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/repositories/%s/commits/%s/enrichments/%s", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/repositories/%s/commits/%s/enrichments/%s", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1371,13 +1450,61 @@ func NewDeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichments
 	return req, nil
 }
 
-// NewListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGetRequest generates requests for ListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGet
-func NewListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGetRequest(server string, repoId string, commitSha string, params *ListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGetParams) (*http.Request, error) {
+// NewGetRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdRequest generates requests for GetRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentId
+func NewGetRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdRequest(server string, id int, commitSha string, enrichmentId int) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "repo_id", runtime.ParamLocationPath, repoId)
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "commit_sha", runtime.ParamLocationPath, commitSha)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "enrichment_id", runtime.ParamLocationPath, enrichmentId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/repositories/%s/commits/%s/enrichments/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetRepositoriesIdCommitsCommitShaFilesRequest generates requests for GetRepositoriesIdCommitsCommitShaFiles
+func NewGetRepositoriesIdCommitsCommitShaFilesRequest(server string, id int, commitSha string, params *GetRepositoriesIdCommitsCommitShaFilesParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
 	if err != nil {
 		return nil, err
 	}
@@ -1394,7 +1521,7 @@ func NewListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGetRequest(se
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/repositories/%s/commits/%s/files", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/repositories/%s/commits/%s/files", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1450,13 +1577,13 @@ func NewListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGetRequest(se
 	return req, nil
 }
 
-// NewGetCommitFileApiV1RepositoriesRepoIdCommitsCommitShaFilesBlobShaGetRequest generates requests for GetCommitFileApiV1RepositoriesRepoIdCommitsCommitShaFilesBlobShaGet
-func NewGetCommitFileApiV1RepositoriesRepoIdCommitsCommitShaFilesBlobShaGetRequest(server string, repoId string, commitSha string, blobSha string) (*http.Request, error) {
+// NewGetRepositoriesIdCommitsCommitShaFilesBlobShaRequest generates requests for GetRepositoriesIdCommitsCommitShaFilesBlobSha
+func NewGetRepositoriesIdCommitsCommitShaFilesBlobShaRequest(server string, id int, commitSha string, blobSha string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "repo_id", runtime.ParamLocationPath, repoId)
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
 	if err != nil {
 		return nil, err
 	}
@@ -1480,7 +1607,7 @@ func NewGetCommitFileApiV1RepositoriesRepoIdCommitsCommitShaFilesBlobShaGetReque
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/repositories/%s/commits/%s/files/%s", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/repositories/%s/commits/%s/files/%s", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1498,13 +1625,13 @@ func NewGetCommitFileApiV1RepositoriesRepoIdCommitsCommitShaFilesBlobShaGetReque
 	return req, nil
 }
 
-// NewRescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostRequest generates requests for RescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPost
-func NewRescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostRequest(server string, repoId string, commitSha string) (*http.Request, error) {
+// NewPostRepositoriesIdCommitsCommitShaRescanRequest generates requests for PostRepositoriesIdCommitsCommitShaRescan
+func NewPostRepositoriesIdCommitsCommitShaRescanRequest(server string, id int, commitSha string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "repo_id", runtime.ParamLocationPath, repoId)
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
 	if err != nil {
 		return nil, err
 	}
@@ -1521,7 +1648,7 @@ func NewRescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostRequest(ser
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/repositories/%s/commits/%s/rescan", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/repositories/%s/commits/%s/rescan", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1539,13 +1666,13 @@ func NewRescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostRequest(ser
 	return req, nil
 }
 
-// NewListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippetsGetRequest generates requests for ListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippetsGet
-func NewListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippetsGetRequest(server string, repoId string, commitSha string) (*http.Request, error) {
+// NewGetRepositoriesIdCommitsCommitShaSnippetsRequest generates requests for GetRepositoriesIdCommitsCommitShaSnippets
+func NewGetRepositoriesIdCommitsCommitShaSnippetsRequest(server string, id int, commitSha string, params *GetRepositoriesIdCommitsCommitShaSnippetsParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "repo_id", runtime.ParamLocationPath, repoId)
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
 	if err != nil {
 		return nil, err
 	}
@@ -1562,7 +1689,7 @@ func NewListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippetsGetRequ
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/repositories/%s/commits/%s/snippets", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/repositories/%s/commits/%s/snippets", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1570,6 +1697,44 @@ func NewListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippetsGetRequ
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "page", runtime.ParamLocationQuery, *params.Page); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.PageSize != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "page_size", runtime.ParamLocationQuery, *params.PageSize); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -1580,13 +1745,13 @@ func NewListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippetsGetRequ
 	return req, nil
 }
 
-// NewListRepositoryEnrichmentsApiV1RepositoriesRepoIdEnrichmentsGetRequest generates requests for ListRepositoryEnrichmentsApiV1RepositoriesRepoIdEnrichmentsGet
-func NewListRepositoryEnrichmentsApiV1RepositoriesRepoIdEnrichmentsGetRequest(server string, repoId string, params *ListRepositoryEnrichmentsApiV1RepositoriesRepoIdEnrichmentsGetParams) (*http.Request, error) {
+// NewGetRepositoriesIdEnrichmentsRequest generates requests for GetRepositoriesIdEnrichments
+func NewGetRepositoriesIdEnrichmentsRequest(server string, id int, params *GetRepositoriesIdEnrichmentsParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "repo_id", runtime.ParamLocationPath, repoId)
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
 	if err != nil {
 		return nil, err
 	}
@@ -1596,7 +1761,7 @@ func NewListRepositoryEnrichmentsApiV1RepositoriesRepoIdEnrichmentsGetRequest(se
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/repositories/%s/enrichments", pathParam0)
+	operationPath := fmt.Sprintf("/repositories/%s/enrichments", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1684,13 +1849,13 @@ func NewListRepositoryEnrichmentsApiV1RepositoriesRepoIdEnrichmentsGetRequest(se
 	return req, nil
 }
 
-// NewGetIndexStatusApiV1RepositoriesRepoIdStatusGetRequest generates requests for GetIndexStatusApiV1RepositoriesRepoIdStatusGet
-func NewGetIndexStatusApiV1RepositoriesRepoIdStatusGetRequest(server string, repoId int) (*http.Request, error) {
+// NewGetRepositoriesIdStatusRequest generates requests for GetRepositoriesIdStatus
+func NewGetRepositoriesIdStatusRequest(server string, id int) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "repo_id", runtime.ParamLocationPath, repoId)
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
 	if err != nil {
 		return nil, err
 	}
@@ -1700,7 +1865,7 @@ func NewGetIndexStatusApiV1RepositoriesRepoIdStatusGetRequest(server string, rep
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/repositories/%s/status", pathParam0)
+	operationPath := fmt.Sprintf("/repositories/%s/status", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1718,13 +1883,13 @@ func NewGetIndexStatusApiV1RepositoriesRepoIdStatusGetRequest(server string, rep
 	return req, nil
 }
 
-// NewGetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetRequest generates requests for GetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGet
-func NewGetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetRequest(server string, repoId int) (*http.Request, error) {
+// NewGetRepositoriesIdStatusSummaryRequest generates requests for GetRepositoriesIdStatusSummary
+func NewGetRepositoriesIdStatusSummaryRequest(server string, id int) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "repo_id", runtime.ParamLocationPath, repoId)
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
 	if err != nil {
 		return nil, err
 	}
@@ -1734,7 +1899,7 @@ func NewGetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetRequest(server st
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/repositories/%s/status/summary", pathParam0)
+	operationPath := fmt.Sprintf("/repositories/%s/status/summary", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1752,13 +1917,13 @@ func NewGetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetRequest(server st
 	return req, nil
 }
 
-// NewListRepositoryTagsApiV1RepositoriesRepoIdTagsGetRequest generates requests for ListRepositoryTagsApiV1RepositoriesRepoIdTagsGet
-func NewListRepositoryTagsApiV1RepositoriesRepoIdTagsGetRequest(server string, repoId string) (*http.Request, error) {
+// NewPostRepositoriesIdSyncRequest generates requests for PostRepositoriesIdSync
+func NewPostRepositoriesIdSyncRequest(server string, id int) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "repo_id", runtime.ParamLocationPath, repoId)
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
 	if err != nil {
 		return nil, err
 	}
@@ -1768,7 +1933,7 @@ func NewListRepositoryTagsApiV1RepositoriesRepoIdTagsGetRequest(server string, r
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/repositories/%s/tags", pathParam0)
+	operationPath := fmt.Sprintf("/repositories/%s/sync", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1776,6 +1941,78 @@ func NewListRepositoryTagsApiV1RepositoriesRepoIdTagsGetRequest(server string, r
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetRepositoriesIdTagsRequest generates requests for GetRepositoriesIdTags
+func NewGetRepositoriesIdTagsRequest(server string, id int, params *GetRepositoriesIdTagsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/repositories/%s/tags", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Page != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "page", runtime.ParamLocationQuery, *params.Page); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.PageSize != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "page_size", runtime.ParamLocationQuery, *params.PageSize); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -1786,20 +2023,20 @@ func NewListRepositoryTagsApiV1RepositoriesRepoIdTagsGetRequest(server string, r
 	return req, nil
 }
 
-// NewGetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGetRequest generates requests for GetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGet
-func NewGetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGetRequest(server string, repoId string, tagId string) (*http.Request, error) {
+// NewGetRepositoriesIdTagsTagNameRequest generates requests for GetRepositoriesIdTagsTagName
+func NewGetRepositoriesIdTagsTagNameRequest(server string, id int, tagName string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "repo_id", runtime.ParamLocationPath, repoId)
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
 	if err != nil {
 		return nil, err
 	}
 
 	var pathParam1 string
 
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "tag_id", runtime.ParamLocationPath, tagId)
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "tag_name", runtime.ParamLocationPath, tagName)
 	if err != nil {
 		return nil, err
 	}
@@ -1809,7 +2046,7 @@ func NewGetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGetRequest(server string
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/repositories/%s/tags/%s", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/repositories/%s/tags/%s", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1827,13 +2064,13 @@ func NewGetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGetRequest(server string
 	return req, nil
 }
 
-// NewGetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetRequest generates requests for GetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGet
-func NewGetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetRequest(server string, repoId string) (*http.Request, error) {
+// NewGetRepositoriesIdTrackingConfigRequest generates requests for GetRepositoriesIdTrackingConfig
+func NewGetRepositoriesIdTrackingConfigRequest(server string, id int) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "repo_id", runtime.ParamLocationPath, repoId)
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
 	if err != nil {
 		return nil, err
 	}
@@ -1843,7 +2080,7 @@ func NewGetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetRequest(server 
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/repositories/%s/tracking-config", pathParam0)
+	operationPath := fmt.Sprintf("/repositories/%s/tracking-config", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1861,24 +2098,24 @@ func NewGetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetRequest(server 
 	return req, nil
 }
 
-// NewUpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutRequest calls the generic UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPut builder with application/json body
-func NewUpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutRequest(server string, repoId string, body UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutJSONRequestBody) (*http.Request, error) {
+// NewPutRepositoriesIdTrackingConfigRequest calls the generic PutRepositoriesIdTrackingConfig builder with application/json body
+func NewPutRepositoriesIdTrackingConfigRequest(server string, id int, body PutRepositoriesIdTrackingConfigJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewUpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutRequestWithBody(server, repoId, "application/json", bodyReader)
+	return NewPutRepositoriesIdTrackingConfigRequestWithBody(server, id, "application/json", bodyReader)
 }
 
-// NewUpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutRequestWithBody generates requests for UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPut with any type of body
-func NewUpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutRequestWithBody(server string, repoId string, contentType string, body io.Reader) (*http.Request, error) {
+// NewPutRepositoriesIdTrackingConfigRequestWithBody generates requests for PutRepositoriesIdTrackingConfig with any type of body
+func NewPutRepositoriesIdTrackingConfigRequestWithBody(server string, id int, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "repo_id", runtime.ParamLocationPath, repoId)
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "id", runtime.ParamLocationPath, id)
 	if err != nil {
 		return nil, err
 	}
@@ -1888,7 +2125,7 @@ func NewUpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutRequestWithB
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/repositories/%s/tracking-config", pathParam0)
+	operationPath := fmt.Sprintf("/repositories/%s/tracking-config", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1908,19 +2145,19 @@ func NewUpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutRequestWithB
 	return req, nil
 }
 
-// NewSearchSnippetsApiV1SearchPostRequest calls the generic SearchSnippetsApiV1SearchPost builder with application/json body
-func NewSearchSnippetsApiV1SearchPostRequest(server string, body SearchSnippetsApiV1SearchPostJSONRequestBody) (*http.Request, error) {
+// NewPostSearchRequest calls the generic PostSearch builder with application/json body
+func NewPostSearchRequest(server string, body PostSearchJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewSearchSnippetsApiV1SearchPostRequestWithBody(server, "application/json", bodyReader)
+	return NewPostSearchRequestWithBody(server, "application/json", bodyReader)
 }
 
-// NewSearchSnippetsApiV1SearchPostRequestWithBody generates requests for SearchSnippetsApiV1SearchPost with any type of body
-func NewSearchSnippetsApiV1SearchPostRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+// NewPostSearchRequestWithBody generates requests for PostSearch with any type of body
+func NewPostSearchRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -1928,7 +2165,7 @@ func NewSearchSnippetsApiV1SearchPostRequestWithBody(server string, contentType 
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/search")
+	operationPath := fmt.Sprintf("/search")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1944,33 +2181,6 @@ func NewSearchSnippetsApiV1SearchPostRequestWithBody(server string, contentType 
 	}
 
 	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewHealthzHealthzGetRequest generates requests for HealthzHealthzGet
-func NewHealthzHealthzGetRequest(server string) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/healthz")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
 
 	return req, nil
 }
@@ -2018,110 +2228,114 @@ func WithBaseURL(baseURL string) ClientOption {
 
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
-	// ListEnrichmentsApiV1EnrichmentsGetWithResponse request
-	ListEnrichmentsApiV1EnrichmentsGetWithResponse(ctx context.Context, params *ListEnrichmentsApiV1EnrichmentsGetParams, reqEditors ...RequestEditorFn) (*ListEnrichmentsApiV1EnrichmentsGetResponse, error)
+	// GetEnrichmentsWithResponse request
+	GetEnrichmentsWithResponse(ctx context.Context, params *GetEnrichmentsParams, reqEditors ...RequestEditorFn) (*GetEnrichmentsResponse, error)
 
-	// DeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteWithResponse request
-	DeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteWithResponse(ctx context.Context, enrichmentId string, reqEditors ...RequestEditorFn) (*DeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteResponse, error)
+	// DeleteEnrichmentsIdWithResponse request
+	DeleteEnrichmentsIdWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*DeleteEnrichmentsIdResponse, error)
 
-	// GetEnrichmentApiV1EnrichmentsEnrichmentIdGetWithResponse request
-	GetEnrichmentApiV1EnrichmentsEnrichmentIdGetWithResponse(ctx context.Context, enrichmentId string, reqEditors ...RequestEditorFn) (*GetEnrichmentApiV1EnrichmentsEnrichmentIdGetResponse, error)
+	// GetEnrichmentsIdWithResponse request
+	GetEnrichmentsIdWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*GetEnrichmentsIdResponse, error)
 
-	// UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchWithBodyWithResponse request with any body
-	UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchWithBodyWithResponse(ctx context.Context, enrichmentId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchResponse, error)
+	// PatchEnrichmentsIdWithBodyWithResponse request with any body
+	PatchEnrichmentsIdWithBodyWithResponse(ctx context.Context, id int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PatchEnrichmentsIdResponse, error)
 
-	UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchWithResponse(ctx context.Context, enrichmentId string, body UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchResponse, error)
+	PatchEnrichmentsIdWithResponse(ctx context.Context, id int, body PatchEnrichmentsIdJSONRequestBody, reqEditors ...RequestEditorFn) (*PatchEnrichmentsIdResponse, error)
 
-	// ListQueueTasksApiV1QueueGetWithResponse request
-	ListQueueTasksApiV1QueueGetWithResponse(ctx context.Context, params *ListQueueTasksApiV1QueueGetParams, reqEditors ...RequestEditorFn) (*ListQueueTasksApiV1QueueGetResponse, error)
+	// GetQueueWithResponse request
+	GetQueueWithResponse(ctx context.Context, params *GetQueueParams, reqEditors ...RequestEditorFn) (*GetQueueResponse, error)
 
-	// GetQueueTaskApiV1QueueTaskIdGetWithResponse request
-	GetQueueTaskApiV1QueueTaskIdGetWithResponse(ctx context.Context, taskId string, reqEditors ...RequestEditorFn) (*GetQueueTaskApiV1QueueTaskIdGetResponse, error)
+	// GetQueueTaskIdWithResponse request
+	GetQueueTaskIdWithResponse(ctx context.Context, taskId int, reqEditors ...RequestEditorFn) (*GetQueueTaskIdResponse, error)
 
-	// ListRepositoriesApiV1RepositoriesGetWithResponse request
-	ListRepositoriesApiV1RepositoriesGetWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListRepositoriesApiV1RepositoriesGetResponse, error)
+	// GetRepositoriesWithResponse request
+	GetRepositoriesWithResponse(ctx context.Context, params *GetRepositoriesParams, reqEditors ...RequestEditorFn) (*GetRepositoriesResponse, error)
 
-	// CreateRepositoryApiV1RepositoriesPostWithBodyWithResponse request with any body
-	CreateRepositoryApiV1RepositoriesPostWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateRepositoryApiV1RepositoriesPostResponse, error)
+	// PostRepositoriesWithBodyWithResponse request with any body
+	PostRepositoriesWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostRepositoriesResponse, error)
 
-	CreateRepositoryApiV1RepositoriesPostWithResponse(ctx context.Context, body CreateRepositoryApiV1RepositoriesPostJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateRepositoryApiV1RepositoriesPostResponse, error)
+	PostRepositoriesWithResponse(ctx context.Context, body PostRepositoriesJSONRequestBody, reqEditors ...RequestEditorFn) (*PostRepositoriesResponse, error)
 
-	// DeleteRepositoryApiV1RepositoriesRepoIdDeleteWithResponse request
-	DeleteRepositoryApiV1RepositoriesRepoIdDeleteWithResponse(ctx context.Context, repoId string, reqEditors ...RequestEditorFn) (*DeleteRepositoryApiV1RepositoriesRepoIdDeleteResponse, error)
+	// DeleteRepositoriesIdWithResponse request
+	DeleteRepositoriesIdWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*DeleteRepositoriesIdResponse, error)
 
-	// GetRepositoryApiV1RepositoriesRepoIdGetWithResponse request
-	GetRepositoryApiV1RepositoriesRepoIdGetWithResponse(ctx context.Context, repoId string, reqEditors ...RequestEditorFn) (*GetRepositoryApiV1RepositoriesRepoIdGetResponse, error)
+	// GetRepositoriesIdWithResponse request
+	GetRepositoriesIdWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*GetRepositoriesIdResponse, error)
 
-	// ListRepositoryCommitsApiV1RepositoriesRepoIdCommitsGetWithResponse request
-	ListRepositoryCommitsApiV1RepositoriesRepoIdCommitsGetWithResponse(ctx context.Context, repoId string, params *ListRepositoryCommitsApiV1RepositoriesRepoIdCommitsGetParams, reqEditors ...RequestEditorFn) (*ListRepositoryCommitsApiV1RepositoriesRepoIdCommitsGetResponse, error)
+	// GetRepositoriesIdCommitsWithResponse request
+	GetRepositoriesIdCommitsWithResponse(ctx context.Context, id int, params *GetRepositoriesIdCommitsParams, reqEditors ...RequestEditorFn) (*GetRepositoriesIdCommitsResponse, error)
 
-	// GetRepositoryCommitApiV1RepositoriesRepoIdCommitsCommitShaGetWithResponse request
-	GetRepositoryCommitApiV1RepositoriesRepoIdCommitsCommitShaGetWithResponse(ctx context.Context, repoId string, commitSha string, reqEditors ...RequestEditorFn) (*GetRepositoryCommitApiV1RepositoriesRepoIdCommitsCommitShaGetResponse, error)
+	// GetRepositoriesIdCommitsCommitShaWithResponse request
+	GetRepositoriesIdCommitsCommitShaWithResponse(ctx context.Context, id int, commitSha string, reqEditors ...RequestEditorFn) (*GetRepositoriesIdCommitsCommitShaResponse, error)
 
-	// ListCommitEmbeddingsApiV1RepositoriesRepoIdCommitsCommitShaEmbeddingsGetWithResponse request
-	ListCommitEmbeddingsApiV1RepositoriesRepoIdCommitsCommitShaEmbeddingsGetWithResponse(ctx context.Context, repoId string, commitSha string, params *ListCommitEmbeddingsApiV1RepositoriesRepoIdCommitsCommitShaEmbeddingsGetParams, reqEditors ...RequestEditorFn) (*ListCommitEmbeddingsApiV1RepositoriesRepoIdCommitsCommitShaEmbeddingsGetResponse, error)
+	// GetRepositoriesIdCommitsCommitShaEmbeddingsWithResponse request
+	GetRepositoriesIdCommitsCommitShaEmbeddingsWithResponse(ctx context.Context, id int, commitSha string, reqEditors ...RequestEditorFn) (*GetRepositoriesIdCommitsCommitShaEmbeddingsResponse, error)
 
-	// DeleteAllCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsDeleteWithResponse request
-	DeleteAllCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsDeleteWithResponse(ctx context.Context, repoId string, commitSha string, reqEditors ...RequestEditorFn) (*DeleteAllCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsDeleteResponse, error)
+	// DeleteRepositoriesIdCommitsCommitShaEnrichmentsWithResponse request
+	DeleteRepositoriesIdCommitsCommitShaEnrichmentsWithResponse(ctx context.Context, id int, commitSha string, reqEditors ...RequestEditorFn) (*DeleteRepositoriesIdCommitsCommitShaEnrichmentsResponse, error)
 
-	// ListCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsGetWithResponse request
-	ListCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsGetWithResponse(ctx context.Context, repoId string, commitSha string, params *ListCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsGetParams, reqEditors ...RequestEditorFn) (*ListCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsGetResponse, error)
+	// GetRepositoriesIdCommitsCommitShaEnrichmentsWithResponse request
+	GetRepositoriesIdCommitsCommitShaEnrichmentsWithResponse(ctx context.Context, id int, commitSha string, params *GetRepositoriesIdCommitsCommitShaEnrichmentsParams, reqEditors ...RequestEditorFn) (*GetRepositoriesIdCommitsCommitShaEnrichmentsResponse, error)
 
-	// DeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdDeleteWithResponse request
-	DeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdDeleteWithResponse(ctx context.Context, repoId string, commitSha string, enrichmentId int, reqEditors ...RequestEditorFn) (*DeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdDeleteResponse, error)
+	// DeleteRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdWithResponse request
+	DeleteRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdWithResponse(ctx context.Context, id int, commitSha string, enrichmentId int, reqEditors ...RequestEditorFn) (*DeleteRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdResponse, error)
 
-	// ListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGetWithResponse request
-	ListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGetWithResponse(ctx context.Context, repoId string, commitSha string, params *ListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGetParams, reqEditors ...RequestEditorFn) (*ListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGetResponse, error)
+	// GetRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdWithResponse request
+	GetRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdWithResponse(ctx context.Context, id int, commitSha string, enrichmentId int, reqEditors ...RequestEditorFn) (*GetRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdResponse, error)
 
-	// GetCommitFileApiV1RepositoriesRepoIdCommitsCommitShaFilesBlobShaGetWithResponse request
-	GetCommitFileApiV1RepositoriesRepoIdCommitsCommitShaFilesBlobShaGetWithResponse(ctx context.Context, repoId string, commitSha string, blobSha string, reqEditors ...RequestEditorFn) (*GetCommitFileApiV1RepositoriesRepoIdCommitsCommitShaFilesBlobShaGetResponse, error)
+	// GetRepositoriesIdCommitsCommitShaFilesWithResponse request
+	GetRepositoriesIdCommitsCommitShaFilesWithResponse(ctx context.Context, id int, commitSha string, params *GetRepositoriesIdCommitsCommitShaFilesParams, reqEditors ...RequestEditorFn) (*GetRepositoriesIdCommitsCommitShaFilesResponse, error)
 
-	// RescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostWithResponse request
-	RescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostWithResponse(ctx context.Context, repoId string, commitSha string, reqEditors ...RequestEditorFn) (*RescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostResponse, error)
+	// GetRepositoriesIdCommitsCommitShaFilesBlobShaWithResponse request
+	GetRepositoriesIdCommitsCommitShaFilesBlobShaWithResponse(ctx context.Context, id int, commitSha string, blobSha string, reqEditors ...RequestEditorFn) (*GetRepositoriesIdCommitsCommitShaFilesBlobShaResponse, error)
 
-	// ListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippetsGetWithResponse request
-	ListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippetsGetWithResponse(ctx context.Context, repoId string, commitSha string, reqEditors ...RequestEditorFn) (*ListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippetsGetResponse, error)
+	// PostRepositoriesIdCommitsCommitShaRescanWithResponse request
+	PostRepositoriesIdCommitsCommitShaRescanWithResponse(ctx context.Context, id int, commitSha string, reqEditors ...RequestEditorFn) (*PostRepositoriesIdCommitsCommitShaRescanResponse, error)
 
-	// ListRepositoryEnrichmentsApiV1RepositoriesRepoIdEnrichmentsGetWithResponse request
-	ListRepositoryEnrichmentsApiV1RepositoriesRepoIdEnrichmentsGetWithResponse(ctx context.Context, repoId string, params *ListRepositoryEnrichmentsApiV1RepositoriesRepoIdEnrichmentsGetParams, reqEditors ...RequestEditorFn) (*ListRepositoryEnrichmentsApiV1RepositoriesRepoIdEnrichmentsGetResponse, error)
+	// GetRepositoriesIdCommitsCommitShaSnippetsWithResponse request
+	GetRepositoriesIdCommitsCommitShaSnippetsWithResponse(ctx context.Context, id int, commitSha string, params *GetRepositoriesIdCommitsCommitShaSnippetsParams, reqEditors ...RequestEditorFn) (*GetRepositoriesIdCommitsCommitShaSnippetsResponse, error)
 
-	// GetIndexStatusApiV1RepositoriesRepoIdStatusGetWithResponse request
-	GetIndexStatusApiV1RepositoriesRepoIdStatusGetWithResponse(ctx context.Context, repoId int, reqEditors ...RequestEditorFn) (*GetIndexStatusApiV1RepositoriesRepoIdStatusGetResponse, error)
+	// GetRepositoriesIdEnrichmentsWithResponse request
+	GetRepositoriesIdEnrichmentsWithResponse(ctx context.Context, id int, params *GetRepositoriesIdEnrichmentsParams, reqEditors ...RequestEditorFn) (*GetRepositoriesIdEnrichmentsResponse, error)
 
-	// GetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetWithResponse request
-	GetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetWithResponse(ctx context.Context, repoId int, reqEditors ...RequestEditorFn) (*GetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetResponse, error)
+	// GetRepositoriesIdStatusWithResponse request
+	GetRepositoriesIdStatusWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*GetRepositoriesIdStatusResponse, error)
 
-	// ListRepositoryTagsApiV1RepositoriesRepoIdTagsGetWithResponse request
-	ListRepositoryTagsApiV1RepositoriesRepoIdTagsGetWithResponse(ctx context.Context, repoId string, reqEditors ...RequestEditorFn) (*ListRepositoryTagsApiV1RepositoriesRepoIdTagsGetResponse, error)
+	// GetRepositoriesIdStatusSummaryWithResponse request
+	GetRepositoriesIdStatusSummaryWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*GetRepositoriesIdStatusSummaryResponse, error)
 
-	// GetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGetWithResponse request
-	GetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGetWithResponse(ctx context.Context, repoId string, tagId string, reqEditors ...RequestEditorFn) (*GetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGetResponse, error)
+	// PostRepositoriesIdSyncWithResponse request
+	PostRepositoriesIdSyncWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*PostRepositoriesIdSyncResponse, error)
 
-	// GetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetWithResponse request
-	GetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetWithResponse(ctx context.Context, repoId string, reqEditors ...RequestEditorFn) (*GetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetResponse, error)
+	// GetRepositoriesIdTagsWithResponse request
+	GetRepositoriesIdTagsWithResponse(ctx context.Context, id int, params *GetRepositoriesIdTagsParams, reqEditors ...RequestEditorFn) (*GetRepositoriesIdTagsResponse, error)
 
-	// UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutWithBodyWithResponse request with any body
-	UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutWithBodyWithResponse(ctx context.Context, repoId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutResponse, error)
+	// GetRepositoriesIdTagsTagNameWithResponse request
+	GetRepositoriesIdTagsTagNameWithResponse(ctx context.Context, id int, tagName string, reqEditors ...RequestEditorFn) (*GetRepositoriesIdTagsTagNameResponse, error)
 
-	UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutWithResponse(ctx context.Context, repoId string, body UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutResponse, error)
+	// GetRepositoriesIdTrackingConfigWithResponse request
+	GetRepositoriesIdTrackingConfigWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*GetRepositoriesIdTrackingConfigResponse, error)
 
-	// SearchSnippetsApiV1SearchPostWithBodyWithResponse request with any body
-	SearchSnippetsApiV1SearchPostWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SearchSnippetsApiV1SearchPostResponse, error)
+	// PutRepositoriesIdTrackingConfigWithBodyWithResponse request with any body
+	PutRepositoriesIdTrackingConfigWithBodyWithResponse(ctx context.Context, id int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutRepositoriesIdTrackingConfigResponse, error)
 
-	SearchSnippetsApiV1SearchPostWithResponse(ctx context.Context, body SearchSnippetsApiV1SearchPostJSONRequestBody, reqEditors ...RequestEditorFn) (*SearchSnippetsApiV1SearchPostResponse, error)
+	PutRepositoriesIdTrackingConfigWithResponse(ctx context.Context, id int, body PutRepositoriesIdTrackingConfigJSONRequestBody, reqEditors ...RequestEditorFn) (*PutRepositoriesIdTrackingConfigResponse, error)
 
-	// HealthzHealthzGetWithResponse request
-	HealthzHealthzGetWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*HealthzHealthzGetResponse, error)
+	// PostSearchWithBodyWithResponse request with any body
+	PostSearchWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostSearchResponse, error)
+
+	PostSearchWithResponse(ctx context.Context, body PostSearchJSONRequestBody, reqEditors ...RequestEditorFn) (*PostSearchResponse, error)
 }
 
-type ListEnrichmentsApiV1EnrichmentsGetResponse struct {
+type GetEnrichmentsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *EnrichmentListResponse
+	JSON200      *DtoEnrichmentJSONAPIListResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
-func (r ListEnrichmentsApiV1EnrichmentsGetResponse) Status() string {
+func (r GetEnrichmentsResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2129,20 +2343,22 @@ func (r ListEnrichmentsApiV1EnrichmentsGetResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r ListEnrichmentsApiV1EnrichmentsGetResponse) StatusCode() int {
+func (r GetEnrichmentsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type DeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteResponse struct {
+type DeleteEnrichmentsIdResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
-func (r DeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteResponse) Status() string {
+func (r DeleteEnrichmentsIdResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2150,21 +2366,23 @@ func (r DeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteResponse) Status() str
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r DeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteResponse) StatusCode() int {
+func (r DeleteEnrichmentsIdResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type GetEnrichmentApiV1EnrichmentsEnrichmentIdGetResponse struct {
+type GetEnrichmentsIdResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *EnrichmentResponse
+	JSON200      *DtoEnrichmentJSONAPIResponse
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
-func (r GetEnrichmentApiV1EnrichmentsEnrichmentIdGetResponse) Status() string {
+func (r GetEnrichmentsIdResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2172,21 +2390,23 @@ func (r GetEnrichmentApiV1EnrichmentsEnrichmentIdGetResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetEnrichmentApiV1EnrichmentsEnrichmentIdGetResponse) StatusCode() int {
+func (r GetEnrichmentsIdResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchResponse struct {
+type PatchEnrichmentsIdResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *EnrichmentResponse
+	JSON200      *DtoEnrichmentJSONAPIResponse
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
-func (r UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchResponse) Status() string {
+func (r PatchEnrichmentsIdResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2194,21 +2414,22 @@ func (r UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchResponse) Status() stri
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchResponse) StatusCode() int {
+func (r PatchEnrichmentsIdResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type ListQueueTasksApiV1QueueGetResponse struct {
+type GetQueueResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *TaskListResponse
+	JSON200      *DtoTaskListResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
-func (r ListQueueTasksApiV1QueueGetResponse) Status() string {
+func (r GetQueueResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2216,21 +2437,23 @@ func (r ListQueueTasksApiV1QueueGetResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r ListQueueTasksApiV1QueueGetResponse) StatusCode() int {
+func (r GetQueueResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type GetQueueTaskApiV1QueueTaskIdGetResponse struct {
+type GetQueueTaskIdResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *TaskResponse
+	JSON200      *DtoTaskResponse
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
-func (r GetQueueTaskApiV1QueueTaskIdGetResponse) Status() string {
+func (r GetQueueTaskIdResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2238,21 +2461,22 @@ func (r GetQueueTaskApiV1QueueTaskIdGetResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetQueueTaskApiV1QueueTaskIdGetResponse) StatusCode() int {
+func (r GetQueueTaskIdResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type ListRepositoriesApiV1RepositoriesGetResponse struct {
+type GetRepositoriesResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *RepositoryListResponse
+	JSON200      *DtoRepositoryListResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
-func (r ListRepositoriesApiV1RepositoriesGetResponse) Status() string {
+func (r GetRepositoriesResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2260,21 +2484,24 @@ func (r ListRepositoriesApiV1RepositoriesGetResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r ListRepositoriesApiV1RepositoriesGetResponse) StatusCode() int {
+func (r GetRepositoriesResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type CreateRepositoryApiV1RepositoriesPostResponse struct {
+type PostRepositoriesResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *RepositoryResponse
+	JSON200      *DtoRepositoryResponse
+	JSON201      *DtoRepositoryResponse
+	JSON400      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
-func (r CreateRepositoryApiV1RepositoriesPostResponse) Status() string {
+func (r PostRepositoriesResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2282,20 +2509,22 @@ func (r CreateRepositoryApiV1RepositoriesPostResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r CreateRepositoryApiV1RepositoriesPostResponse) StatusCode() int {
+func (r PostRepositoriesResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type DeleteRepositoryApiV1RepositoriesRepoIdDeleteResponse struct {
+type DeleteRepositoriesIdResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
-func (r DeleteRepositoryApiV1RepositoriesRepoIdDeleteResponse) Status() string {
+func (r DeleteRepositoriesIdResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2303,21 +2532,23 @@ func (r DeleteRepositoryApiV1RepositoriesRepoIdDeleteResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r DeleteRepositoryApiV1RepositoriesRepoIdDeleteResponse) StatusCode() int {
+func (r DeleteRepositoriesIdResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type GetRepositoryApiV1RepositoriesRepoIdGetResponse struct {
+type GetRepositoriesIdResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *RepositoryDetailsResponse
+	JSON200      *DtoRepositoryDetailsResponse
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
-func (r GetRepositoryApiV1RepositoriesRepoIdGetResponse) Status() string {
+func (r GetRepositoriesIdResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2325,21 +2556,23 @@ func (r GetRepositoryApiV1RepositoriesRepoIdGetResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetRepositoryApiV1RepositoriesRepoIdGetResponse) StatusCode() int {
+func (r GetRepositoriesIdResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type ListRepositoryCommitsApiV1RepositoriesRepoIdCommitsGetResponse struct {
+type GetRepositoriesIdCommitsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *CommitListResponse
+	JSON200      *DtoCommitJSONAPIListResponse
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
-func (r ListRepositoryCommitsApiV1RepositoriesRepoIdCommitsGetResponse) Status() string {
+func (r GetRepositoriesIdCommitsResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2347,21 +2580,23 @@ func (r ListRepositoryCommitsApiV1RepositoriesRepoIdCommitsGetResponse) Status()
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r ListRepositoryCommitsApiV1RepositoriesRepoIdCommitsGetResponse) StatusCode() int {
+func (r GetRepositoriesIdCommitsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type GetRepositoryCommitApiV1RepositoriesRepoIdCommitsCommitShaGetResponse struct {
+type GetRepositoriesIdCommitsCommitShaResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *CommitResponse
+	JSON200      *DtoCommitJSONAPIResponse
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
-func (r GetRepositoryCommitApiV1RepositoriesRepoIdCommitsCommitShaGetResponse) Status() string {
+func (r GetRepositoriesIdCommitsCommitShaResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2369,21 +2604,21 @@ func (r GetRepositoryCommitApiV1RepositoriesRepoIdCommitsCommitShaGetResponse) S
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetRepositoryCommitApiV1RepositoriesRepoIdCommitsCommitShaGetResponse) StatusCode() int {
+func (r GetRepositoriesIdCommitsCommitShaResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type ListCommitEmbeddingsApiV1RepositoriesRepoIdCommitsCommitShaEmbeddingsGetResponse struct {
+type GetRepositoriesIdCommitsCommitShaEmbeddingsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *EmbeddingListResponse
+	JSON410      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
-func (r ListCommitEmbeddingsApiV1RepositoriesRepoIdCommitsCommitShaEmbeddingsGetResponse) Status() string {
+func (r GetRepositoriesIdCommitsCommitShaEmbeddingsResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2391,20 +2626,22 @@ func (r ListCommitEmbeddingsApiV1RepositoriesRepoIdCommitsCommitShaEmbeddingsGet
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r ListCommitEmbeddingsApiV1RepositoriesRepoIdCommitsCommitShaEmbeddingsGetResponse) StatusCode() int {
+func (r GetRepositoriesIdCommitsCommitShaEmbeddingsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type DeleteAllCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsDeleteResponse struct {
+type DeleteRepositoriesIdCommitsCommitShaEnrichmentsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
-func (r DeleteAllCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsDeleteResponse) Status() string {
+func (r DeleteRepositoriesIdCommitsCommitShaEnrichmentsResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2412,21 +2649,23 @@ func (r DeleteAllCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichm
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r DeleteAllCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsDeleteResponse) StatusCode() int {
+func (r DeleteRepositoriesIdCommitsCommitShaEnrichmentsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type ListCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsGetResponse struct {
+type GetRepositoriesIdCommitsCommitShaEnrichmentsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *EnrichmentListResponse
+	JSON200      *DtoEnrichmentJSONAPIListResponse
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
-func (r ListCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsGetResponse) Status() string {
+func (r GetRepositoriesIdCommitsCommitShaEnrichmentsResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2434,20 +2673,22 @@ func (r ListCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsG
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r ListCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsGetResponse) StatusCode() int {
+func (r GetRepositoriesIdCommitsCommitShaEnrichmentsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type DeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdDeleteResponse struct {
+type DeleteRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
-func (r DeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdDeleteResponse) Status() string {
+func (r DeleteRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2455,21 +2696,23 @@ func (r DeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichments
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r DeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdDeleteResponse) StatusCode() int {
+func (r DeleteRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type ListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGetResponse struct {
+type GetRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *FileListResponse
+	JSON200      *DtoEnrichmentJSONAPIResponse
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
-func (r ListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGetResponse) Status() string {
+func (r GetRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2477,21 +2720,23 @@ func (r ListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGetResponse) 
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r ListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGetResponse) StatusCode() int {
+func (r GetRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type GetCommitFileApiV1RepositoriesRepoIdCommitsCommitShaFilesBlobShaGetResponse struct {
+type GetRepositoriesIdCommitsCommitShaFilesResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *FileResponse
+	JSON200      *DtoFileJSONAPIListResponse
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
-func (r GetCommitFileApiV1RepositoriesRepoIdCommitsCommitShaFilesBlobShaGetResponse) Status() string {
+func (r GetRepositoriesIdCommitsCommitShaFilesResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2499,20 +2744,23 @@ func (r GetCommitFileApiV1RepositoriesRepoIdCommitsCommitShaFilesBlobShaGetRespo
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetCommitFileApiV1RepositoriesRepoIdCommitsCommitShaFilesBlobShaGetResponse) StatusCode() int {
+func (r GetRepositoriesIdCommitsCommitShaFilesResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type RescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostResponse struct {
+type GetRepositoriesIdCommitsCommitShaFilesBlobShaResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON200      *DtoFileJSONAPIResponse
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
-func (r RescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostResponse) Status() string {
+func (r GetRepositoriesIdCommitsCommitShaFilesBlobShaResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2520,21 +2768,22 @@ func (r RescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostResponse) S
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r RescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostResponse) StatusCode() int {
+func (r GetRepositoriesIdCommitsCommitShaFilesBlobShaResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type ListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippetsGetResponse struct {
+type PostRepositoriesIdCommitsCommitShaRescanResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *interface{}
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
-func (r ListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippetsGetResponse) Status() string {
+func (r PostRepositoriesIdCommitsCommitShaRescanResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2542,21 +2791,24 @@ func (r ListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippetsGetResp
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r ListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippetsGetResponse) StatusCode() int {
+func (r PostRepositoriesIdCommitsCommitShaRescanResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type ListRepositoryEnrichmentsApiV1RepositoriesRepoIdEnrichmentsGetResponse struct {
+type GetRepositoriesIdCommitsCommitShaSnippetsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *EnrichmentListResponse
+	JSON200      *DtoSnippetListResponse
+	JSON401      *MiddlewareJSONAPIErrorResponse
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
-func (r ListRepositoryEnrichmentsApiV1RepositoriesRepoIdEnrichmentsGetResponse) Status() string {
+func (r GetRepositoriesIdCommitsCommitShaSnippetsResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2564,21 +2816,23 @@ func (r ListRepositoryEnrichmentsApiV1RepositoriesRepoIdEnrichmentsGetResponse) 
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r ListRepositoryEnrichmentsApiV1RepositoriesRepoIdEnrichmentsGetResponse) StatusCode() int {
+func (r GetRepositoriesIdCommitsCommitShaSnippetsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type GetIndexStatusApiV1RepositoriesRepoIdStatusGetResponse struct {
+type GetRepositoriesIdEnrichmentsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *TaskStatusListResponse
+	JSON200      *DtoEnrichmentJSONAPIListResponse
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
-func (r GetIndexStatusApiV1RepositoriesRepoIdStatusGetResponse) Status() string {
+func (r GetRepositoriesIdEnrichmentsResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2586,21 +2840,23 @@ func (r GetIndexStatusApiV1RepositoriesRepoIdStatusGetResponse) Status() string 
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetIndexStatusApiV1RepositoriesRepoIdStatusGetResponse) StatusCode() int {
+func (r GetRepositoriesIdEnrichmentsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type GetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetResponse struct {
+type GetRepositoriesIdStatusResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *RepositoryStatusSummaryResponse
+	JSON200      *DtoTaskStatusListResponse
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
-func (r GetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetResponse) Status() string {
+func (r GetRepositoriesIdStatusResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2608,21 +2864,23 @@ func (r GetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetResponse) Status(
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetResponse) StatusCode() int {
+func (r GetRepositoriesIdStatusResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type ListRepositoryTagsApiV1RepositoriesRepoIdTagsGetResponse struct {
+type GetRepositoriesIdStatusSummaryResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *TagListResponse
+	JSON200      *DtoRepositoryStatusSummaryResponse
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
-func (r ListRepositoryTagsApiV1RepositoriesRepoIdTagsGetResponse) Status() string {
+func (r GetRepositoriesIdStatusSummaryResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2630,21 +2888,22 @@ func (r ListRepositoryTagsApiV1RepositoriesRepoIdTagsGetResponse) Status() strin
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r ListRepositoryTagsApiV1RepositoriesRepoIdTagsGetResponse) StatusCode() int {
+func (r GetRepositoriesIdStatusSummaryResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type GetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGetResponse struct {
+type PostRepositoriesIdSyncResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *TagResponse
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
-func (r GetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGetResponse) Status() string {
+func (r PostRepositoriesIdSyncResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2652,21 +2911,23 @@ func (r GetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGetResponse) Status() st
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGetResponse) StatusCode() int {
+func (r PostRepositoriesIdSyncResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type GetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetResponse struct {
+type GetRepositoriesIdTagsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *TrackingConfigResponse
+	JSON200      *DtoTagJSONAPIListResponse
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
-func (r GetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetResponse) Status() string {
+func (r GetRepositoriesIdTagsResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2674,21 +2935,23 @@ func (r GetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetResponse) Statu
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetResponse) StatusCode() int {
+func (r GetRepositoriesIdTagsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutResponse struct {
+type GetRepositoriesIdTagsTagNameResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *TrackingConfigResponse
+	JSON200      *DtoTagJSONAPIResponse
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
-func (r UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutResponse) Status() string {
+func (r GetRepositoriesIdTagsTagNameResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2696,22 +2959,23 @@ func (r UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutResponse) St
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutResponse) StatusCode() int {
+func (r GetRepositoriesIdTagsTagNameResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type SearchSnippetsApiV1SearchPostResponse struct {
+type GetRepositoriesIdTrackingConfigResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *SearchResponse
-	JSON422      *HTTPValidationError
+	JSON200      *DtoTrackingConfigResponse
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
-func (r SearchSnippetsApiV1SearchPostResponse) Status() string {
+func (r GetRepositoriesIdTrackingConfigResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2719,21 +2983,23 @@ func (r SearchSnippetsApiV1SearchPostResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r SearchSnippetsApiV1SearchPostResponse) StatusCode() int {
+func (r GetRepositoriesIdTrackingConfigResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type HealthzHealthzGetResponse struct {
+type PutRepositoriesIdTrackingConfigResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *interface{}
+	JSON200      *DtoTrackingConfigResponse
+	JSON404      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
 }
 
 // Status returns HTTPResponse.Status
-func (r HealthzHealthzGetResponse) Status() string {
+func (r PutRepositoriesIdTrackingConfigResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2741,1011 +3007,1470 @@ func (r HealthzHealthzGetResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r HealthzHealthzGetResponse) StatusCode() int {
+func (r PutRepositoriesIdTrackingConfigResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-// ListEnrichmentsApiV1EnrichmentsGetWithResponse request returning *ListEnrichmentsApiV1EnrichmentsGetResponse
-func (c *ClientWithResponses) ListEnrichmentsApiV1EnrichmentsGetWithResponse(ctx context.Context, params *ListEnrichmentsApiV1EnrichmentsGetParams, reqEditors ...RequestEditorFn) (*ListEnrichmentsApiV1EnrichmentsGetResponse, error) {
-	rsp, err := c.ListEnrichmentsApiV1EnrichmentsGet(ctx, params, reqEditors...)
+type PostSearchResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DtoSearchResponse
+	JSON400      *MiddlewareJSONAPIErrorResponse
+	JSON500      *MiddlewareJSONAPIErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r PostSearchResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostSearchResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// GetEnrichmentsWithResponse request returning *GetEnrichmentsResponse
+func (c *ClientWithResponses) GetEnrichmentsWithResponse(ctx context.Context, params *GetEnrichmentsParams, reqEditors ...RequestEditorFn) (*GetEnrichmentsResponse, error) {
+	rsp, err := c.GetEnrichments(ctx, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseListEnrichmentsApiV1EnrichmentsGetResponse(rsp)
+	return ParseGetEnrichmentsResponse(rsp)
 }
 
-// DeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteWithResponse request returning *DeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteResponse
-func (c *ClientWithResponses) DeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteWithResponse(ctx context.Context, enrichmentId string, reqEditors ...RequestEditorFn) (*DeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteResponse, error) {
-	rsp, err := c.DeleteEnrichmentApiV1EnrichmentsEnrichmentIdDelete(ctx, enrichmentId, reqEditors...)
+// DeleteEnrichmentsIdWithResponse request returning *DeleteEnrichmentsIdResponse
+func (c *ClientWithResponses) DeleteEnrichmentsIdWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*DeleteEnrichmentsIdResponse, error) {
+	rsp, err := c.DeleteEnrichmentsId(ctx, id, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseDeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteResponse(rsp)
+	return ParseDeleteEnrichmentsIdResponse(rsp)
 }
 
-// GetEnrichmentApiV1EnrichmentsEnrichmentIdGetWithResponse request returning *GetEnrichmentApiV1EnrichmentsEnrichmentIdGetResponse
-func (c *ClientWithResponses) GetEnrichmentApiV1EnrichmentsEnrichmentIdGetWithResponse(ctx context.Context, enrichmentId string, reqEditors ...RequestEditorFn) (*GetEnrichmentApiV1EnrichmentsEnrichmentIdGetResponse, error) {
-	rsp, err := c.GetEnrichmentApiV1EnrichmentsEnrichmentIdGet(ctx, enrichmentId, reqEditors...)
+// GetEnrichmentsIdWithResponse request returning *GetEnrichmentsIdResponse
+func (c *ClientWithResponses) GetEnrichmentsIdWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*GetEnrichmentsIdResponse, error) {
+	rsp, err := c.GetEnrichmentsId(ctx, id, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetEnrichmentApiV1EnrichmentsEnrichmentIdGetResponse(rsp)
+	return ParseGetEnrichmentsIdResponse(rsp)
 }
 
-// UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchWithBodyWithResponse request with arbitrary body returning *UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchResponse
-func (c *ClientWithResponses) UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchWithBodyWithResponse(ctx context.Context, enrichmentId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchResponse, error) {
-	rsp, err := c.UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchWithBody(ctx, enrichmentId, contentType, body, reqEditors...)
+// PatchEnrichmentsIdWithBodyWithResponse request with arbitrary body returning *PatchEnrichmentsIdResponse
+func (c *ClientWithResponses) PatchEnrichmentsIdWithBodyWithResponse(ctx context.Context, id int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PatchEnrichmentsIdResponse, error) {
+	rsp, err := c.PatchEnrichmentsIdWithBody(ctx, id, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseUpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchResponse(rsp)
+	return ParsePatchEnrichmentsIdResponse(rsp)
 }
 
-func (c *ClientWithResponses) UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchWithResponse(ctx context.Context, enrichmentId string, body UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchResponse, error) {
-	rsp, err := c.UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatch(ctx, enrichmentId, body, reqEditors...)
+func (c *ClientWithResponses) PatchEnrichmentsIdWithResponse(ctx context.Context, id int, body PatchEnrichmentsIdJSONRequestBody, reqEditors ...RequestEditorFn) (*PatchEnrichmentsIdResponse, error) {
+	rsp, err := c.PatchEnrichmentsId(ctx, id, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseUpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchResponse(rsp)
+	return ParsePatchEnrichmentsIdResponse(rsp)
 }
 
-// ListQueueTasksApiV1QueueGetWithResponse request returning *ListQueueTasksApiV1QueueGetResponse
-func (c *ClientWithResponses) ListQueueTasksApiV1QueueGetWithResponse(ctx context.Context, params *ListQueueTasksApiV1QueueGetParams, reqEditors ...RequestEditorFn) (*ListQueueTasksApiV1QueueGetResponse, error) {
-	rsp, err := c.ListQueueTasksApiV1QueueGet(ctx, params, reqEditors...)
+// GetQueueWithResponse request returning *GetQueueResponse
+func (c *ClientWithResponses) GetQueueWithResponse(ctx context.Context, params *GetQueueParams, reqEditors ...RequestEditorFn) (*GetQueueResponse, error) {
+	rsp, err := c.GetQueue(ctx, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseListQueueTasksApiV1QueueGetResponse(rsp)
+	return ParseGetQueueResponse(rsp)
 }
 
-// GetQueueTaskApiV1QueueTaskIdGetWithResponse request returning *GetQueueTaskApiV1QueueTaskIdGetResponse
-func (c *ClientWithResponses) GetQueueTaskApiV1QueueTaskIdGetWithResponse(ctx context.Context, taskId string, reqEditors ...RequestEditorFn) (*GetQueueTaskApiV1QueueTaskIdGetResponse, error) {
-	rsp, err := c.GetQueueTaskApiV1QueueTaskIdGet(ctx, taskId, reqEditors...)
+// GetQueueTaskIdWithResponse request returning *GetQueueTaskIdResponse
+func (c *ClientWithResponses) GetQueueTaskIdWithResponse(ctx context.Context, taskId int, reqEditors ...RequestEditorFn) (*GetQueueTaskIdResponse, error) {
+	rsp, err := c.GetQueueTaskId(ctx, taskId, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetQueueTaskApiV1QueueTaskIdGetResponse(rsp)
+	return ParseGetQueueTaskIdResponse(rsp)
 }
 
-// ListRepositoriesApiV1RepositoriesGetWithResponse request returning *ListRepositoriesApiV1RepositoriesGetResponse
-func (c *ClientWithResponses) ListRepositoriesApiV1RepositoriesGetWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListRepositoriesApiV1RepositoriesGetResponse, error) {
-	rsp, err := c.ListRepositoriesApiV1RepositoriesGet(ctx, reqEditors...)
+// GetRepositoriesWithResponse request returning *GetRepositoriesResponse
+func (c *ClientWithResponses) GetRepositoriesWithResponse(ctx context.Context, params *GetRepositoriesParams, reqEditors ...RequestEditorFn) (*GetRepositoriesResponse, error) {
+	rsp, err := c.GetRepositories(ctx, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseListRepositoriesApiV1RepositoriesGetResponse(rsp)
+	return ParseGetRepositoriesResponse(rsp)
 }
 
-// CreateRepositoryApiV1RepositoriesPostWithBodyWithResponse request with arbitrary body returning *CreateRepositoryApiV1RepositoriesPostResponse
-func (c *ClientWithResponses) CreateRepositoryApiV1RepositoriesPostWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateRepositoryApiV1RepositoriesPostResponse, error) {
-	rsp, err := c.CreateRepositoryApiV1RepositoriesPostWithBody(ctx, contentType, body, reqEditors...)
+// PostRepositoriesWithBodyWithResponse request with arbitrary body returning *PostRepositoriesResponse
+func (c *ClientWithResponses) PostRepositoriesWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostRepositoriesResponse, error) {
+	rsp, err := c.PostRepositoriesWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseCreateRepositoryApiV1RepositoriesPostResponse(rsp)
+	return ParsePostRepositoriesResponse(rsp)
 }
 
-func (c *ClientWithResponses) CreateRepositoryApiV1RepositoriesPostWithResponse(ctx context.Context, body CreateRepositoryApiV1RepositoriesPostJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateRepositoryApiV1RepositoriesPostResponse, error) {
-	rsp, err := c.CreateRepositoryApiV1RepositoriesPost(ctx, body, reqEditors...)
+func (c *ClientWithResponses) PostRepositoriesWithResponse(ctx context.Context, body PostRepositoriesJSONRequestBody, reqEditors ...RequestEditorFn) (*PostRepositoriesResponse, error) {
+	rsp, err := c.PostRepositories(ctx, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseCreateRepositoryApiV1RepositoriesPostResponse(rsp)
+	return ParsePostRepositoriesResponse(rsp)
 }
 
-// DeleteRepositoryApiV1RepositoriesRepoIdDeleteWithResponse request returning *DeleteRepositoryApiV1RepositoriesRepoIdDeleteResponse
-func (c *ClientWithResponses) DeleteRepositoryApiV1RepositoriesRepoIdDeleteWithResponse(ctx context.Context, repoId string, reqEditors ...RequestEditorFn) (*DeleteRepositoryApiV1RepositoriesRepoIdDeleteResponse, error) {
-	rsp, err := c.DeleteRepositoryApiV1RepositoriesRepoIdDelete(ctx, repoId, reqEditors...)
+// DeleteRepositoriesIdWithResponse request returning *DeleteRepositoriesIdResponse
+func (c *ClientWithResponses) DeleteRepositoriesIdWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*DeleteRepositoriesIdResponse, error) {
+	rsp, err := c.DeleteRepositoriesId(ctx, id, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseDeleteRepositoryApiV1RepositoriesRepoIdDeleteResponse(rsp)
+	return ParseDeleteRepositoriesIdResponse(rsp)
 }
 
-// GetRepositoryApiV1RepositoriesRepoIdGetWithResponse request returning *GetRepositoryApiV1RepositoriesRepoIdGetResponse
-func (c *ClientWithResponses) GetRepositoryApiV1RepositoriesRepoIdGetWithResponse(ctx context.Context, repoId string, reqEditors ...RequestEditorFn) (*GetRepositoryApiV1RepositoriesRepoIdGetResponse, error) {
-	rsp, err := c.GetRepositoryApiV1RepositoriesRepoIdGet(ctx, repoId, reqEditors...)
+// GetRepositoriesIdWithResponse request returning *GetRepositoriesIdResponse
+func (c *ClientWithResponses) GetRepositoriesIdWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*GetRepositoriesIdResponse, error) {
+	rsp, err := c.GetRepositoriesId(ctx, id, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetRepositoryApiV1RepositoriesRepoIdGetResponse(rsp)
+	return ParseGetRepositoriesIdResponse(rsp)
 }
 
-// ListRepositoryCommitsApiV1RepositoriesRepoIdCommitsGetWithResponse request returning *ListRepositoryCommitsApiV1RepositoriesRepoIdCommitsGetResponse
-func (c *ClientWithResponses) ListRepositoryCommitsApiV1RepositoriesRepoIdCommitsGetWithResponse(ctx context.Context, repoId string, params *ListRepositoryCommitsApiV1RepositoriesRepoIdCommitsGetParams, reqEditors ...RequestEditorFn) (*ListRepositoryCommitsApiV1RepositoriesRepoIdCommitsGetResponse, error) {
-	rsp, err := c.ListRepositoryCommitsApiV1RepositoriesRepoIdCommitsGet(ctx, repoId, params, reqEditors...)
+// GetRepositoriesIdCommitsWithResponse request returning *GetRepositoriesIdCommitsResponse
+func (c *ClientWithResponses) GetRepositoriesIdCommitsWithResponse(ctx context.Context, id int, params *GetRepositoriesIdCommitsParams, reqEditors ...RequestEditorFn) (*GetRepositoriesIdCommitsResponse, error) {
+	rsp, err := c.GetRepositoriesIdCommits(ctx, id, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseListRepositoryCommitsApiV1RepositoriesRepoIdCommitsGetResponse(rsp)
+	return ParseGetRepositoriesIdCommitsResponse(rsp)
 }
 
-// GetRepositoryCommitApiV1RepositoriesRepoIdCommitsCommitShaGetWithResponse request returning *GetRepositoryCommitApiV1RepositoriesRepoIdCommitsCommitShaGetResponse
-func (c *ClientWithResponses) GetRepositoryCommitApiV1RepositoriesRepoIdCommitsCommitShaGetWithResponse(ctx context.Context, repoId string, commitSha string, reqEditors ...RequestEditorFn) (*GetRepositoryCommitApiV1RepositoriesRepoIdCommitsCommitShaGetResponse, error) {
-	rsp, err := c.GetRepositoryCommitApiV1RepositoriesRepoIdCommitsCommitShaGet(ctx, repoId, commitSha, reqEditors...)
+// GetRepositoriesIdCommitsCommitShaWithResponse request returning *GetRepositoriesIdCommitsCommitShaResponse
+func (c *ClientWithResponses) GetRepositoriesIdCommitsCommitShaWithResponse(ctx context.Context, id int, commitSha string, reqEditors ...RequestEditorFn) (*GetRepositoriesIdCommitsCommitShaResponse, error) {
+	rsp, err := c.GetRepositoriesIdCommitsCommitSha(ctx, id, commitSha, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetRepositoryCommitApiV1RepositoriesRepoIdCommitsCommitShaGetResponse(rsp)
+	return ParseGetRepositoriesIdCommitsCommitShaResponse(rsp)
 }
 
-// ListCommitEmbeddingsApiV1RepositoriesRepoIdCommitsCommitShaEmbeddingsGetWithResponse request returning *ListCommitEmbeddingsApiV1RepositoriesRepoIdCommitsCommitShaEmbeddingsGetResponse
-func (c *ClientWithResponses) ListCommitEmbeddingsApiV1RepositoriesRepoIdCommitsCommitShaEmbeddingsGetWithResponse(ctx context.Context, repoId string, commitSha string, params *ListCommitEmbeddingsApiV1RepositoriesRepoIdCommitsCommitShaEmbeddingsGetParams, reqEditors ...RequestEditorFn) (*ListCommitEmbeddingsApiV1RepositoriesRepoIdCommitsCommitShaEmbeddingsGetResponse, error) {
-	rsp, err := c.ListCommitEmbeddingsApiV1RepositoriesRepoIdCommitsCommitShaEmbeddingsGet(ctx, repoId, commitSha, params, reqEditors...)
+// GetRepositoriesIdCommitsCommitShaEmbeddingsWithResponse request returning *GetRepositoriesIdCommitsCommitShaEmbeddingsResponse
+func (c *ClientWithResponses) GetRepositoriesIdCommitsCommitShaEmbeddingsWithResponse(ctx context.Context, id int, commitSha string, reqEditors ...RequestEditorFn) (*GetRepositoriesIdCommitsCommitShaEmbeddingsResponse, error) {
+	rsp, err := c.GetRepositoriesIdCommitsCommitShaEmbeddings(ctx, id, commitSha, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseListCommitEmbeddingsApiV1RepositoriesRepoIdCommitsCommitShaEmbeddingsGetResponse(rsp)
+	return ParseGetRepositoriesIdCommitsCommitShaEmbeddingsResponse(rsp)
 }
 
-// DeleteAllCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsDeleteWithResponse request returning *DeleteAllCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsDeleteResponse
-func (c *ClientWithResponses) DeleteAllCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsDeleteWithResponse(ctx context.Context, repoId string, commitSha string, reqEditors ...RequestEditorFn) (*DeleteAllCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsDeleteResponse, error) {
-	rsp, err := c.DeleteAllCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsDelete(ctx, repoId, commitSha, reqEditors...)
+// DeleteRepositoriesIdCommitsCommitShaEnrichmentsWithResponse request returning *DeleteRepositoriesIdCommitsCommitShaEnrichmentsResponse
+func (c *ClientWithResponses) DeleteRepositoriesIdCommitsCommitShaEnrichmentsWithResponse(ctx context.Context, id int, commitSha string, reqEditors ...RequestEditorFn) (*DeleteRepositoriesIdCommitsCommitShaEnrichmentsResponse, error) {
+	rsp, err := c.DeleteRepositoriesIdCommitsCommitShaEnrichments(ctx, id, commitSha, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseDeleteAllCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsDeleteResponse(rsp)
+	return ParseDeleteRepositoriesIdCommitsCommitShaEnrichmentsResponse(rsp)
 }
 
-// ListCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsGetWithResponse request returning *ListCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsGetResponse
-func (c *ClientWithResponses) ListCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsGetWithResponse(ctx context.Context, repoId string, commitSha string, params *ListCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsGetParams, reqEditors ...RequestEditorFn) (*ListCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsGetResponse, error) {
-	rsp, err := c.ListCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsGet(ctx, repoId, commitSha, params, reqEditors...)
+// GetRepositoriesIdCommitsCommitShaEnrichmentsWithResponse request returning *GetRepositoriesIdCommitsCommitShaEnrichmentsResponse
+func (c *ClientWithResponses) GetRepositoriesIdCommitsCommitShaEnrichmentsWithResponse(ctx context.Context, id int, commitSha string, params *GetRepositoriesIdCommitsCommitShaEnrichmentsParams, reqEditors ...RequestEditorFn) (*GetRepositoriesIdCommitsCommitShaEnrichmentsResponse, error) {
+	rsp, err := c.GetRepositoriesIdCommitsCommitShaEnrichments(ctx, id, commitSha, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseListCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsGetResponse(rsp)
+	return ParseGetRepositoriesIdCommitsCommitShaEnrichmentsResponse(rsp)
 }
 
-// DeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdDeleteWithResponse request returning *DeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdDeleteResponse
-func (c *ClientWithResponses) DeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdDeleteWithResponse(ctx context.Context, repoId string, commitSha string, enrichmentId int, reqEditors ...RequestEditorFn) (*DeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdDeleteResponse, error) {
-	rsp, err := c.DeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdDelete(ctx, repoId, commitSha, enrichmentId, reqEditors...)
+// DeleteRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdWithResponse request returning *DeleteRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdResponse
+func (c *ClientWithResponses) DeleteRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdWithResponse(ctx context.Context, id int, commitSha string, enrichmentId int, reqEditors ...RequestEditorFn) (*DeleteRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdResponse, error) {
+	rsp, err := c.DeleteRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentId(ctx, id, commitSha, enrichmentId, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseDeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdDeleteResponse(rsp)
+	return ParseDeleteRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdResponse(rsp)
 }
 
-// ListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGetWithResponse request returning *ListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGetResponse
-func (c *ClientWithResponses) ListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGetWithResponse(ctx context.Context, repoId string, commitSha string, params *ListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGetParams, reqEditors ...RequestEditorFn) (*ListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGetResponse, error) {
-	rsp, err := c.ListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGet(ctx, repoId, commitSha, params, reqEditors...)
+// GetRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdWithResponse request returning *GetRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdResponse
+func (c *ClientWithResponses) GetRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdWithResponse(ctx context.Context, id int, commitSha string, enrichmentId int, reqEditors ...RequestEditorFn) (*GetRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdResponse, error) {
+	rsp, err := c.GetRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentId(ctx, id, commitSha, enrichmentId, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGetResponse(rsp)
+	return ParseGetRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdResponse(rsp)
 }
 
-// GetCommitFileApiV1RepositoriesRepoIdCommitsCommitShaFilesBlobShaGetWithResponse request returning *GetCommitFileApiV1RepositoriesRepoIdCommitsCommitShaFilesBlobShaGetResponse
-func (c *ClientWithResponses) GetCommitFileApiV1RepositoriesRepoIdCommitsCommitShaFilesBlobShaGetWithResponse(ctx context.Context, repoId string, commitSha string, blobSha string, reqEditors ...RequestEditorFn) (*GetCommitFileApiV1RepositoriesRepoIdCommitsCommitShaFilesBlobShaGetResponse, error) {
-	rsp, err := c.GetCommitFileApiV1RepositoriesRepoIdCommitsCommitShaFilesBlobShaGet(ctx, repoId, commitSha, blobSha, reqEditors...)
+// GetRepositoriesIdCommitsCommitShaFilesWithResponse request returning *GetRepositoriesIdCommitsCommitShaFilesResponse
+func (c *ClientWithResponses) GetRepositoriesIdCommitsCommitShaFilesWithResponse(ctx context.Context, id int, commitSha string, params *GetRepositoriesIdCommitsCommitShaFilesParams, reqEditors ...RequestEditorFn) (*GetRepositoriesIdCommitsCommitShaFilesResponse, error) {
+	rsp, err := c.GetRepositoriesIdCommitsCommitShaFiles(ctx, id, commitSha, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetCommitFileApiV1RepositoriesRepoIdCommitsCommitShaFilesBlobShaGetResponse(rsp)
+	return ParseGetRepositoriesIdCommitsCommitShaFilesResponse(rsp)
 }
 
-// RescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostWithResponse request returning *RescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostResponse
-func (c *ClientWithResponses) RescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostWithResponse(ctx context.Context, repoId string, commitSha string, reqEditors ...RequestEditorFn) (*RescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostResponse, error) {
-	rsp, err := c.RescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPost(ctx, repoId, commitSha, reqEditors...)
+// GetRepositoriesIdCommitsCommitShaFilesBlobShaWithResponse request returning *GetRepositoriesIdCommitsCommitShaFilesBlobShaResponse
+func (c *ClientWithResponses) GetRepositoriesIdCommitsCommitShaFilesBlobShaWithResponse(ctx context.Context, id int, commitSha string, blobSha string, reqEditors ...RequestEditorFn) (*GetRepositoriesIdCommitsCommitShaFilesBlobShaResponse, error) {
+	rsp, err := c.GetRepositoriesIdCommitsCommitShaFilesBlobSha(ctx, id, commitSha, blobSha, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseRescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostResponse(rsp)
+	return ParseGetRepositoriesIdCommitsCommitShaFilesBlobShaResponse(rsp)
 }
 
-// ListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippetsGetWithResponse request returning *ListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippetsGetResponse
-func (c *ClientWithResponses) ListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippetsGetWithResponse(ctx context.Context, repoId string, commitSha string, reqEditors ...RequestEditorFn) (*ListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippetsGetResponse, error) {
-	rsp, err := c.ListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippetsGet(ctx, repoId, commitSha, reqEditors...)
+// PostRepositoriesIdCommitsCommitShaRescanWithResponse request returning *PostRepositoriesIdCommitsCommitShaRescanResponse
+func (c *ClientWithResponses) PostRepositoriesIdCommitsCommitShaRescanWithResponse(ctx context.Context, id int, commitSha string, reqEditors ...RequestEditorFn) (*PostRepositoriesIdCommitsCommitShaRescanResponse, error) {
+	rsp, err := c.PostRepositoriesIdCommitsCommitShaRescan(ctx, id, commitSha, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippetsGetResponse(rsp)
+	return ParsePostRepositoriesIdCommitsCommitShaRescanResponse(rsp)
 }
 
-// ListRepositoryEnrichmentsApiV1RepositoriesRepoIdEnrichmentsGetWithResponse request returning *ListRepositoryEnrichmentsApiV1RepositoriesRepoIdEnrichmentsGetResponse
-func (c *ClientWithResponses) ListRepositoryEnrichmentsApiV1RepositoriesRepoIdEnrichmentsGetWithResponse(ctx context.Context, repoId string, params *ListRepositoryEnrichmentsApiV1RepositoriesRepoIdEnrichmentsGetParams, reqEditors ...RequestEditorFn) (*ListRepositoryEnrichmentsApiV1RepositoriesRepoIdEnrichmentsGetResponse, error) {
-	rsp, err := c.ListRepositoryEnrichmentsApiV1RepositoriesRepoIdEnrichmentsGet(ctx, repoId, params, reqEditors...)
+// GetRepositoriesIdCommitsCommitShaSnippetsWithResponse request returning *GetRepositoriesIdCommitsCommitShaSnippetsResponse
+func (c *ClientWithResponses) GetRepositoriesIdCommitsCommitShaSnippetsWithResponse(ctx context.Context, id int, commitSha string, params *GetRepositoriesIdCommitsCommitShaSnippetsParams, reqEditors ...RequestEditorFn) (*GetRepositoriesIdCommitsCommitShaSnippetsResponse, error) {
+	rsp, err := c.GetRepositoriesIdCommitsCommitShaSnippets(ctx, id, commitSha, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseListRepositoryEnrichmentsApiV1RepositoriesRepoIdEnrichmentsGetResponse(rsp)
+	return ParseGetRepositoriesIdCommitsCommitShaSnippetsResponse(rsp)
 }
 
-// GetIndexStatusApiV1RepositoriesRepoIdStatusGetWithResponse request returning *GetIndexStatusApiV1RepositoriesRepoIdStatusGetResponse
-func (c *ClientWithResponses) GetIndexStatusApiV1RepositoriesRepoIdStatusGetWithResponse(ctx context.Context, repoId int, reqEditors ...RequestEditorFn) (*GetIndexStatusApiV1RepositoriesRepoIdStatusGetResponse, error) {
-	rsp, err := c.GetIndexStatusApiV1RepositoriesRepoIdStatusGet(ctx, repoId, reqEditors...)
+// GetRepositoriesIdEnrichmentsWithResponse request returning *GetRepositoriesIdEnrichmentsResponse
+func (c *ClientWithResponses) GetRepositoriesIdEnrichmentsWithResponse(ctx context.Context, id int, params *GetRepositoriesIdEnrichmentsParams, reqEditors ...RequestEditorFn) (*GetRepositoriesIdEnrichmentsResponse, error) {
+	rsp, err := c.GetRepositoriesIdEnrichments(ctx, id, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetIndexStatusApiV1RepositoriesRepoIdStatusGetResponse(rsp)
+	return ParseGetRepositoriesIdEnrichmentsResponse(rsp)
 }
 
-// GetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetWithResponse request returning *GetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetResponse
-func (c *ClientWithResponses) GetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetWithResponse(ctx context.Context, repoId int, reqEditors ...RequestEditorFn) (*GetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetResponse, error) {
-	rsp, err := c.GetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGet(ctx, repoId, reqEditors...)
+// GetRepositoriesIdStatusWithResponse request returning *GetRepositoriesIdStatusResponse
+func (c *ClientWithResponses) GetRepositoriesIdStatusWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*GetRepositoriesIdStatusResponse, error) {
+	rsp, err := c.GetRepositoriesIdStatus(ctx, id, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetResponse(rsp)
+	return ParseGetRepositoriesIdStatusResponse(rsp)
 }
 
-// ListRepositoryTagsApiV1RepositoriesRepoIdTagsGetWithResponse request returning *ListRepositoryTagsApiV1RepositoriesRepoIdTagsGetResponse
-func (c *ClientWithResponses) ListRepositoryTagsApiV1RepositoriesRepoIdTagsGetWithResponse(ctx context.Context, repoId string, reqEditors ...RequestEditorFn) (*ListRepositoryTagsApiV1RepositoriesRepoIdTagsGetResponse, error) {
-	rsp, err := c.ListRepositoryTagsApiV1RepositoriesRepoIdTagsGet(ctx, repoId, reqEditors...)
+// GetRepositoriesIdStatusSummaryWithResponse request returning *GetRepositoriesIdStatusSummaryResponse
+func (c *ClientWithResponses) GetRepositoriesIdStatusSummaryWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*GetRepositoriesIdStatusSummaryResponse, error) {
+	rsp, err := c.GetRepositoriesIdStatusSummary(ctx, id, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseListRepositoryTagsApiV1RepositoriesRepoIdTagsGetResponse(rsp)
+	return ParseGetRepositoriesIdStatusSummaryResponse(rsp)
 }
 
-// GetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGetWithResponse request returning *GetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGetResponse
-func (c *ClientWithResponses) GetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGetWithResponse(ctx context.Context, repoId string, tagId string, reqEditors ...RequestEditorFn) (*GetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGetResponse, error) {
-	rsp, err := c.GetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGet(ctx, repoId, tagId, reqEditors...)
+// PostRepositoriesIdSyncWithResponse request returning *PostRepositoriesIdSyncResponse
+func (c *ClientWithResponses) PostRepositoriesIdSyncWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*PostRepositoriesIdSyncResponse, error) {
+	rsp, err := c.PostRepositoriesIdSync(ctx, id, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGetResponse(rsp)
+	return ParsePostRepositoriesIdSyncResponse(rsp)
 }
 
-// GetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetWithResponse request returning *GetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetResponse
-func (c *ClientWithResponses) GetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetWithResponse(ctx context.Context, repoId string, reqEditors ...RequestEditorFn) (*GetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetResponse, error) {
-	rsp, err := c.GetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGet(ctx, repoId, reqEditors...)
+// GetRepositoriesIdTagsWithResponse request returning *GetRepositoriesIdTagsResponse
+func (c *ClientWithResponses) GetRepositoriesIdTagsWithResponse(ctx context.Context, id int, params *GetRepositoriesIdTagsParams, reqEditors ...RequestEditorFn) (*GetRepositoriesIdTagsResponse, error) {
+	rsp, err := c.GetRepositoriesIdTags(ctx, id, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetResponse(rsp)
+	return ParseGetRepositoriesIdTagsResponse(rsp)
 }
 
-// UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutWithBodyWithResponse request with arbitrary body returning *UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutResponse
-func (c *ClientWithResponses) UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutWithBodyWithResponse(ctx context.Context, repoId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutResponse, error) {
-	rsp, err := c.UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutWithBody(ctx, repoId, contentType, body, reqEditors...)
+// GetRepositoriesIdTagsTagNameWithResponse request returning *GetRepositoriesIdTagsTagNameResponse
+func (c *ClientWithResponses) GetRepositoriesIdTagsTagNameWithResponse(ctx context.Context, id int, tagName string, reqEditors ...RequestEditorFn) (*GetRepositoriesIdTagsTagNameResponse, error) {
+	rsp, err := c.GetRepositoriesIdTagsTagName(ctx, id, tagName, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseUpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutResponse(rsp)
+	return ParseGetRepositoriesIdTagsTagNameResponse(rsp)
 }
 
-func (c *ClientWithResponses) UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutWithResponse(ctx context.Context, repoId string, body UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutResponse, error) {
-	rsp, err := c.UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPut(ctx, repoId, body, reqEditors...)
+// GetRepositoriesIdTrackingConfigWithResponse request returning *GetRepositoriesIdTrackingConfigResponse
+func (c *ClientWithResponses) GetRepositoriesIdTrackingConfigWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*GetRepositoriesIdTrackingConfigResponse, error) {
+	rsp, err := c.GetRepositoriesIdTrackingConfig(ctx, id, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseUpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutResponse(rsp)
+	return ParseGetRepositoriesIdTrackingConfigResponse(rsp)
 }
 
-// SearchSnippetsApiV1SearchPostWithBodyWithResponse request with arbitrary body returning *SearchSnippetsApiV1SearchPostResponse
-func (c *ClientWithResponses) SearchSnippetsApiV1SearchPostWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SearchSnippetsApiV1SearchPostResponse, error) {
-	rsp, err := c.SearchSnippetsApiV1SearchPostWithBody(ctx, contentType, body, reqEditors...)
+// PutRepositoriesIdTrackingConfigWithBodyWithResponse request with arbitrary body returning *PutRepositoriesIdTrackingConfigResponse
+func (c *ClientWithResponses) PutRepositoriesIdTrackingConfigWithBodyWithResponse(ctx context.Context, id int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutRepositoriesIdTrackingConfigResponse, error) {
+	rsp, err := c.PutRepositoriesIdTrackingConfigWithBody(ctx, id, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseSearchSnippetsApiV1SearchPostResponse(rsp)
+	return ParsePutRepositoriesIdTrackingConfigResponse(rsp)
 }
 
-func (c *ClientWithResponses) SearchSnippetsApiV1SearchPostWithResponse(ctx context.Context, body SearchSnippetsApiV1SearchPostJSONRequestBody, reqEditors ...RequestEditorFn) (*SearchSnippetsApiV1SearchPostResponse, error) {
-	rsp, err := c.SearchSnippetsApiV1SearchPost(ctx, body, reqEditors...)
+func (c *ClientWithResponses) PutRepositoriesIdTrackingConfigWithResponse(ctx context.Context, id int, body PutRepositoriesIdTrackingConfigJSONRequestBody, reqEditors ...RequestEditorFn) (*PutRepositoriesIdTrackingConfigResponse, error) {
+	rsp, err := c.PutRepositoriesIdTrackingConfig(ctx, id, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseSearchSnippetsApiV1SearchPostResponse(rsp)
+	return ParsePutRepositoriesIdTrackingConfigResponse(rsp)
 }
 
-// HealthzHealthzGetWithResponse request returning *HealthzHealthzGetResponse
-func (c *ClientWithResponses) HealthzHealthzGetWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*HealthzHealthzGetResponse, error) {
-	rsp, err := c.HealthzHealthzGet(ctx, reqEditors...)
+// PostSearchWithBodyWithResponse request with arbitrary body returning *PostSearchResponse
+func (c *ClientWithResponses) PostSearchWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostSearchResponse, error) {
+	rsp, err := c.PostSearchWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseHealthzHealthzGetResponse(rsp)
+	return ParsePostSearchResponse(rsp)
 }
 
-// ParseListEnrichmentsApiV1EnrichmentsGetResponse parses an HTTP response from a ListEnrichmentsApiV1EnrichmentsGetWithResponse call
-func ParseListEnrichmentsApiV1EnrichmentsGetResponse(rsp *http.Response) (*ListEnrichmentsApiV1EnrichmentsGetResponse, error) {
+func (c *ClientWithResponses) PostSearchWithResponse(ctx context.Context, body PostSearchJSONRequestBody, reqEditors ...RequestEditorFn) (*PostSearchResponse, error) {
+	rsp, err := c.PostSearch(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostSearchResponse(rsp)
+}
+
+// ParseGetEnrichmentsResponse parses an HTTP response from a GetEnrichmentsWithResponse call
+func ParseGetEnrichmentsResponse(rsp *http.Response) (*GetEnrichmentsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &ListEnrichmentsApiV1EnrichmentsGetResponse{
+	response := &GetEnrichmentsResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest EnrichmentListResponse
+		var dest DtoEnrichmentJSONAPIListResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	}
 
 	return response, nil
 }
 
-// ParseDeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteResponse parses an HTTP response from a DeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteWithResponse call
-func ParseDeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteResponse(rsp *http.Response) (*DeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteResponse, error) {
+// ParseDeleteEnrichmentsIdResponse parses an HTTP response from a DeleteEnrichmentsIdWithResponse call
+func ParseDeleteEnrichmentsIdResponse(rsp *http.Response) (*DeleteEnrichmentsIdResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &DeleteEnrichmentApiV1EnrichmentsEnrichmentIdDeleteResponse{
+	response := &DeleteEnrichmentsIdResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
 	return response, nil
 }
 
-// ParseGetEnrichmentApiV1EnrichmentsEnrichmentIdGetResponse parses an HTTP response from a GetEnrichmentApiV1EnrichmentsEnrichmentIdGetWithResponse call
-func ParseGetEnrichmentApiV1EnrichmentsEnrichmentIdGetResponse(rsp *http.Response) (*GetEnrichmentApiV1EnrichmentsEnrichmentIdGetResponse, error) {
+// ParseGetEnrichmentsIdResponse parses an HTTP response from a GetEnrichmentsIdWithResponse call
+func ParseGetEnrichmentsIdResponse(rsp *http.Response) (*GetEnrichmentsIdResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetEnrichmentApiV1EnrichmentsEnrichmentIdGetResponse{
+	response := &GetEnrichmentsIdResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest EnrichmentResponse
+		var dest DtoEnrichmentJSONAPIResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 
 	return response, nil
 }
 
-// ParseUpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchResponse parses an HTTP response from a UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchWithResponse call
-func ParseUpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchResponse(rsp *http.Response) (*UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchResponse, error) {
+// ParsePatchEnrichmentsIdResponse parses an HTTP response from a PatchEnrichmentsIdWithResponse call
+func ParsePatchEnrichmentsIdResponse(rsp *http.Response) (*PatchEnrichmentsIdResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &UpdateEnrichmentApiV1EnrichmentsEnrichmentIdPatchResponse{
+	response := &PatchEnrichmentsIdResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest EnrichmentResponse
+		var dest DtoEnrichmentJSONAPIResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 
 	return response, nil
 }
 
-// ParseListQueueTasksApiV1QueueGetResponse parses an HTTP response from a ListQueueTasksApiV1QueueGetWithResponse call
-func ParseListQueueTasksApiV1QueueGetResponse(rsp *http.Response) (*ListQueueTasksApiV1QueueGetResponse, error) {
+// ParseGetQueueResponse parses an HTTP response from a GetQueueWithResponse call
+func ParseGetQueueResponse(rsp *http.Response) (*GetQueueResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &ListQueueTasksApiV1QueueGetResponse{
+	response := &GetQueueResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest TaskListResponse
+		var dest DtoTaskListResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 
 	return response, nil
 }
 
-// ParseGetQueueTaskApiV1QueueTaskIdGetResponse parses an HTTP response from a GetQueueTaskApiV1QueueTaskIdGetWithResponse call
-func ParseGetQueueTaskApiV1QueueTaskIdGetResponse(rsp *http.Response) (*GetQueueTaskApiV1QueueTaskIdGetResponse, error) {
+// ParseGetQueueTaskIdResponse parses an HTTP response from a GetQueueTaskIdWithResponse call
+func ParseGetQueueTaskIdResponse(rsp *http.Response) (*GetQueueTaskIdResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetQueueTaskApiV1QueueTaskIdGetResponse{
+	response := &GetQueueTaskIdResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest TaskResponse
+		var dest DtoTaskResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 
 	return response, nil
 }
 
-// ParseListRepositoriesApiV1RepositoriesGetResponse parses an HTTP response from a ListRepositoriesApiV1RepositoriesGetWithResponse call
-func ParseListRepositoriesApiV1RepositoriesGetResponse(rsp *http.Response) (*ListRepositoriesApiV1RepositoriesGetResponse, error) {
+// ParseGetRepositoriesResponse parses an HTTP response from a GetRepositoriesWithResponse call
+func ParseGetRepositoriesResponse(rsp *http.Response) (*GetRepositoriesResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &ListRepositoriesApiV1RepositoriesGetResponse{
+	response := &GetRepositoriesResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest RepositoryListResponse
+		var dest DtoRepositoryListResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 
 	return response, nil
 }
 
-// ParseCreateRepositoryApiV1RepositoriesPostResponse parses an HTTP response from a CreateRepositoryApiV1RepositoriesPostWithResponse call
-func ParseCreateRepositoryApiV1RepositoriesPostResponse(rsp *http.Response) (*CreateRepositoryApiV1RepositoriesPostResponse, error) {
+// ParsePostRepositoriesResponse parses an HTTP response from a PostRepositoriesWithResponse call
+func ParsePostRepositoriesResponse(rsp *http.Response) (*PostRepositoriesResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &CreateRepositoryApiV1RepositoriesPostResponse{
+	response := &PostRepositoriesResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest RepositoryResponse
+		var dest DtoRepositoryResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest DtoRepositoryResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	}
 
 	return response, nil
 }
 
-// ParseDeleteRepositoryApiV1RepositoriesRepoIdDeleteResponse parses an HTTP response from a DeleteRepositoryApiV1RepositoriesRepoIdDeleteWithResponse call
-func ParseDeleteRepositoryApiV1RepositoriesRepoIdDeleteResponse(rsp *http.Response) (*DeleteRepositoryApiV1RepositoriesRepoIdDeleteResponse, error) {
+// ParseDeleteRepositoriesIdResponse parses an HTTP response from a DeleteRepositoriesIdWithResponse call
+func ParseDeleteRepositoriesIdResponse(rsp *http.Response) (*DeleteRepositoriesIdResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &DeleteRepositoryApiV1RepositoriesRepoIdDeleteResponse{
+	response := &DeleteRepositoriesIdResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
 	return response, nil
 }
 
-// ParseGetRepositoryApiV1RepositoriesRepoIdGetResponse parses an HTTP response from a GetRepositoryApiV1RepositoriesRepoIdGetWithResponse call
-func ParseGetRepositoryApiV1RepositoriesRepoIdGetResponse(rsp *http.Response) (*GetRepositoryApiV1RepositoriesRepoIdGetResponse, error) {
+// ParseGetRepositoriesIdResponse parses an HTTP response from a GetRepositoriesIdWithResponse call
+func ParseGetRepositoriesIdResponse(rsp *http.Response) (*GetRepositoriesIdResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetRepositoryApiV1RepositoriesRepoIdGetResponse{
+	response := &GetRepositoriesIdResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest RepositoryDetailsResponse
+		var dest DtoRepositoryDetailsResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 
 	return response, nil
 }
 
-// ParseListRepositoryCommitsApiV1RepositoriesRepoIdCommitsGetResponse parses an HTTP response from a ListRepositoryCommitsApiV1RepositoriesRepoIdCommitsGetWithResponse call
-func ParseListRepositoryCommitsApiV1RepositoriesRepoIdCommitsGetResponse(rsp *http.Response) (*ListRepositoryCommitsApiV1RepositoriesRepoIdCommitsGetResponse, error) {
+// ParseGetRepositoriesIdCommitsResponse parses an HTTP response from a GetRepositoriesIdCommitsWithResponse call
+func ParseGetRepositoriesIdCommitsResponse(rsp *http.Response) (*GetRepositoriesIdCommitsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &ListRepositoryCommitsApiV1RepositoriesRepoIdCommitsGetResponse{
+	response := &GetRepositoriesIdCommitsResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest CommitListResponse
+		var dest DtoCommitJSONAPIListResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 
 	return response, nil
 }
 
-// ParseGetRepositoryCommitApiV1RepositoriesRepoIdCommitsCommitShaGetResponse parses an HTTP response from a GetRepositoryCommitApiV1RepositoriesRepoIdCommitsCommitShaGetWithResponse call
-func ParseGetRepositoryCommitApiV1RepositoriesRepoIdCommitsCommitShaGetResponse(rsp *http.Response) (*GetRepositoryCommitApiV1RepositoriesRepoIdCommitsCommitShaGetResponse, error) {
+// ParseGetRepositoriesIdCommitsCommitShaResponse parses an HTTP response from a GetRepositoriesIdCommitsCommitShaWithResponse call
+func ParseGetRepositoriesIdCommitsCommitShaResponse(rsp *http.Response) (*GetRepositoriesIdCommitsCommitShaResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetRepositoryCommitApiV1RepositoriesRepoIdCommitsCommitShaGetResponse{
+	response := &GetRepositoriesIdCommitsCommitShaResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest CommitResponse
+		var dest DtoCommitJSONAPIResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 
 	return response, nil
 }
 
-// ParseListCommitEmbeddingsApiV1RepositoriesRepoIdCommitsCommitShaEmbeddingsGetResponse parses an HTTP response from a ListCommitEmbeddingsApiV1RepositoriesRepoIdCommitsCommitShaEmbeddingsGetWithResponse call
-func ParseListCommitEmbeddingsApiV1RepositoriesRepoIdCommitsCommitShaEmbeddingsGetResponse(rsp *http.Response) (*ListCommitEmbeddingsApiV1RepositoriesRepoIdCommitsCommitShaEmbeddingsGetResponse, error) {
+// ParseGetRepositoriesIdCommitsCommitShaEmbeddingsResponse parses an HTTP response from a GetRepositoriesIdCommitsCommitShaEmbeddingsWithResponse call
+func ParseGetRepositoriesIdCommitsCommitShaEmbeddingsResponse(rsp *http.Response) (*GetRepositoriesIdCommitsCommitShaEmbeddingsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &ListCommitEmbeddingsApiV1RepositoriesRepoIdCommitsCommitShaEmbeddingsGetResponse{
+	response := &GetRepositoriesIdCommitsCommitShaEmbeddingsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON410 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteRepositoriesIdCommitsCommitShaEnrichmentsResponse parses an HTTP response from a DeleteRepositoriesIdCommitsCommitShaEnrichmentsWithResponse call
+func ParseDeleteRepositoriesIdCommitsCommitShaEnrichmentsResponse(rsp *http.Response) (*DeleteRepositoriesIdCommitsCommitShaEnrichmentsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteRepositoriesIdCommitsCommitShaEnrichmentsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetRepositoriesIdCommitsCommitShaEnrichmentsResponse parses an HTTP response from a GetRepositoriesIdCommitsCommitShaEnrichmentsWithResponse call
+func ParseGetRepositoriesIdCommitsCommitShaEnrichmentsResponse(rsp *http.Response) (*GetRepositoriesIdCommitsCommitShaEnrichmentsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetRepositoriesIdCommitsCommitShaEnrichmentsResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest EmbeddingListResponse
+		var dest DtoEnrichmentJSONAPIListResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	}
 
 	return response, nil
 }
 
-// ParseDeleteAllCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsDeleteResponse parses an HTTP response from a DeleteAllCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsDeleteWithResponse call
-func ParseDeleteAllCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsDeleteResponse(rsp *http.Response) (*DeleteAllCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsDeleteResponse, error) {
+// ParseDeleteRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdResponse parses an HTTP response from a DeleteRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdWithResponse call
+func ParseDeleteRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdResponse(rsp *http.Response) (*DeleteRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &DeleteAllCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsDeleteResponse{
+	response := &DeleteRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
 	return response, nil
 }
 
-// ParseListCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsGetResponse parses an HTTP response from a ListCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsGetWithResponse call
-func ParseListCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsGetResponse(rsp *http.Response) (*ListCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsGetResponse, error) {
+// ParseGetRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdResponse parses an HTTP response from a GetRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdWithResponse call
+func ParseGetRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdResponse(rsp *http.Response) (*GetRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &ListCommitEnrichmentsApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsGetResponse{
+	response := &GetRepositoriesIdCommitsCommitShaEnrichmentsEnrichmentIdResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest EnrichmentListResponse
+		var dest DtoEnrichmentJSONAPIResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	}
 
 	return response, nil
 }
 
-// ParseDeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdDeleteResponse parses an HTTP response from a DeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdDeleteWithResponse call
-func ParseDeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdDeleteResponse(rsp *http.Response) (*DeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdDeleteResponse, error) {
+// ParseGetRepositoriesIdCommitsCommitShaFilesResponse parses an HTTP response from a GetRepositoriesIdCommitsCommitShaFilesWithResponse call
+func ParseGetRepositoriesIdCommitsCommitShaFilesResponse(rsp *http.Response) (*GetRepositoriesIdCommitsCommitShaFilesResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &DeleteCommitEnrichmentApiV1RepositoriesRepoIdCommitsCommitShaEnrichmentsEnrichmentIdDeleteResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	return response, nil
-}
-
-// ParseListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGetResponse parses an HTTP response from a ListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGetWithResponse call
-func ParseListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGetResponse(rsp *http.Response) (*ListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGetResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListCommitFilesApiV1RepositoriesRepoIdCommitsCommitShaFilesGetResponse{
+	response := &GetRepositoriesIdCommitsCommitShaFilesResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest FileListResponse
+		var dest DtoFileJSONAPIListResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 
 	return response, nil
 }
 
-// ParseGetCommitFileApiV1RepositoriesRepoIdCommitsCommitShaFilesBlobShaGetResponse parses an HTTP response from a GetCommitFileApiV1RepositoriesRepoIdCommitsCommitShaFilesBlobShaGetWithResponse call
-func ParseGetCommitFileApiV1RepositoriesRepoIdCommitsCommitShaFilesBlobShaGetResponse(rsp *http.Response) (*GetCommitFileApiV1RepositoriesRepoIdCommitsCommitShaFilesBlobShaGetResponse, error) {
+// ParseGetRepositoriesIdCommitsCommitShaFilesBlobShaResponse parses an HTTP response from a GetRepositoriesIdCommitsCommitShaFilesBlobShaWithResponse call
+func ParseGetRepositoriesIdCommitsCommitShaFilesBlobShaResponse(rsp *http.Response) (*GetRepositoriesIdCommitsCommitShaFilesBlobShaResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetCommitFileApiV1RepositoriesRepoIdCommitsCommitShaFilesBlobShaGetResponse{
+	response := &GetRepositoriesIdCommitsCommitShaFilesBlobShaResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest FileResponse
+		var dest DtoFileJSONAPIResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	}
 
 	return response, nil
 }
 
-// ParseRescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostResponse parses an HTTP response from a RescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostWithResponse call
-func ParseRescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostResponse(rsp *http.Response) (*RescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostResponse, error) {
+// ParsePostRepositoriesIdCommitsCommitShaRescanResponse parses an HTTP response from a PostRepositoriesIdCommitsCommitShaRescanWithResponse call
+func ParsePostRepositoriesIdCommitsCommitShaRescanResponse(rsp *http.Response) (*PostRepositoriesIdCommitsCommitShaRescanResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &RescanCommitApiV1RepositoriesRepoIdCommitsCommitShaRescanPostResponse{
+	response := &PostRepositoriesIdCommitsCommitShaRescanResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
 	return response, nil
 }
 
-// ParseListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippetsGetResponse parses an HTTP response from a ListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippetsGetWithResponse call
-func ParseListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippetsGetResponse(rsp *http.Response) (*ListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippetsGetResponse, error) {
+// ParseGetRepositoriesIdCommitsCommitShaSnippetsResponse parses an HTTP response from a GetRepositoriesIdCommitsCommitShaSnippetsWithResponse call
+func ParseGetRepositoriesIdCommitsCommitShaSnippetsResponse(rsp *http.Response) (*GetRepositoriesIdCommitsCommitShaSnippetsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &ListCommitSnippetsApiV1RepositoriesRepoIdCommitsCommitShaSnippetsGetResponse{
+	response := &GetRepositoriesIdCommitsCommitShaSnippetsResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest interface{}
+		var dest DtoSnippetListResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 
 	return response, nil
 }
 
-// ParseListRepositoryEnrichmentsApiV1RepositoriesRepoIdEnrichmentsGetResponse parses an HTTP response from a ListRepositoryEnrichmentsApiV1RepositoriesRepoIdEnrichmentsGetWithResponse call
-func ParseListRepositoryEnrichmentsApiV1RepositoriesRepoIdEnrichmentsGetResponse(rsp *http.Response) (*ListRepositoryEnrichmentsApiV1RepositoriesRepoIdEnrichmentsGetResponse, error) {
+// ParseGetRepositoriesIdEnrichmentsResponse parses an HTTP response from a GetRepositoriesIdEnrichmentsWithResponse call
+func ParseGetRepositoriesIdEnrichmentsResponse(rsp *http.Response) (*GetRepositoriesIdEnrichmentsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &ListRepositoryEnrichmentsApiV1RepositoriesRepoIdEnrichmentsGetResponse{
+	response := &GetRepositoriesIdEnrichmentsResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest EnrichmentListResponse
+		var dest DtoEnrichmentJSONAPIListResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 
 	return response, nil
 }
 
-// ParseGetIndexStatusApiV1RepositoriesRepoIdStatusGetResponse parses an HTTP response from a GetIndexStatusApiV1RepositoriesRepoIdStatusGetWithResponse call
-func ParseGetIndexStatusApiV1RepositoriesRepoIdStatusGetResponse(rsp *http.Response) (*GetIndexStatusApiV1RepositoriesRepoIdStatusGetResponse, error) {
+// ParseGetRepositoriesIdStatusResponse parses an HTTP response from a GetRepositoriesIdStatusWithResponse call
+func ParseGetRepositoriesIdStatusResponse(rsp *http.Response) (*GetRepositoriesIdStatusResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetIndexStatusApiV1RepositoriesRepoIdStatusGetResponse{
+	response := &GetRepositoriesIdStatusResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest TaskStatusListResponse
+		var dest DtoTaskStatusListResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 
 	return response, nil
 }
 
-// ParseGetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetResponse parses an HTTP response from a GetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetWithResponse call
-func ParseGetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetResponse(rsp *http.Response) (*GetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetResponse, error) {
+// ParseGetRepositoriesIdStatusSummaryResponse parses an HTTP response from a GetRepositoriesIdStatusSummaryWithResponse call
+func ParseGetRepositoriesIdStatusSummaryResponse(rsp *http.Response) (*GetRepositoriesIdStatusSummaryResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetStatusSummaryApiV1RepositoriesRepoIdStatusSummaryGetResponse{
+	response := &GetRepositoriesIdStatusSummaryResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest RepositoryStatusSummaryResponse
+		var dest DtoRepositoryStatusSummaryResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 
 	return response, nil
 }
 
-// ParseListRepositoryTagsApiV1RepositoriesRepoIdTagsGetResponse parses an HTTP response from a ListRepositoryTagsApiV1RepositoriesRepoIdTagsGetWithResponse call
-func ParseListRepositoryTagsApiV1RepositoriesRepoIdTagsGetResponse(rsp *http.Response) (*ListRepositoryTagsApiV1RepositoriesRepoIdTagsGetResponse, error) {
+// ParsePostRepositoriesIdSyncResponse parses an HTTP response from a PostRepositoriesIdSyncWithResponse call
+func ParsePostRepositoriesIdSyncResponse(rsp *http.Response) (*PostRepositoriesIdSyncResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &ListRepositoryTagsApiV1RepositoriesRepoIdTagsGetResponse{
+	response := &PostRepositoriesIdSyncResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest TagListResponse
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON200 = &dest
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 
 	return response, nil
 }
 
-// ParseGetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGetResponse parses an HTTP response from a GetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGetWithResponse call
-func ParseGetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGetResponse(rsp *http.Response) (*GetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGetResponse, error) {
+// ParseGetRepositoriesIdTagsResponse parses an HTTP response from a GetRepositoriesIdTagsWithResponse call
+func ParseGetRepositoriesIdTagsResponse(rsp *http.Response) (*GetRepositoriesIdTagsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetRepositoryTagApiV1RepositoriesRepoIdTagsTagIdGetResponse{
+	response := &GetRepositoriesIdTagsResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest TagResponse
+		var dest DtoTagJSONAPIListResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 
 	return response, nil
 }
 
-// ParseGetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetResponse parses an HTTP response from a GetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetWithResponse call
-func ParseGetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetResponse(rsp *http.Response) (*GetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetResponse, error) {
+// ParseGetRepositoriesIdTagsTagNameResponse parses an HTTP response from a GetRepositoriesIdTagsTagNameWithResponse call
+func ParseGetRepositoriesIdTagsTagNameResponse(rsp *http.Response) (*GetRepositoriesIdTagsTagNameResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetTrackingConfigApiV1RepositoriesRepoIdTrackingConfigGetResponse{
+	response := &GetRepositoriesIdTagsTagNameResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest TrackingConfigResponse
+		var dest DtoTagJSONAPIResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 
 	return response, nil
 }
 
-// ParseUpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutResponse parses an HTTP response from a UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutWithResponse call
-func ParseUpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutResponse(rsp *http.Response) (*UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutResponse, error) {
+// ParseGetRepositoriesIdTrackingConfigResponse parses an HTTP response from a GetRepositoriesIdTrackingConfigWithResponse call
+func ParseGetRepositoriesIdTrackingConfigResponse(rsp *http.Response) (*GetRepositoriesIdTrackingConfigResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &UpdateTrackingConfigApiV1RepositoriesRepoIdTrackingConfigPutResponse{
+	response := &GetRepositoriesIdTrackingConfigResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest TrackingConfigResponse
+		var dest DtoTrackingConfigResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 
 	return response, nil
 }
 
-// ParseSearchSnippetsApiV1SearchPostResponse parses an HTTP response from a SearchSnippetsApiV1SearchPostWithResponse call
-func ParseSearchSnippetsApiV1SearchPostResponse(rsp *http.Response) (*SearchSnippetsApiV1SearchPostResponse, error) {
+// ParsePutRepositoriesIdTrackingConfigResponse parses an HTTP response from a PutRepositoriesIdTrackingConfigWithResponse call
+func ParsePutRepositoriesIdTrackingConfigResponse(rsp *http.Response) (*PutRepositoriesIdTrackingConfigResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &SearchSnippetsApiV1SearchPostResponse{
+	response := &PutRepositoriesIdTrackingConfigResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest SearchResponse
+		var dest DtoTrackingConfigResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
 
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest HTTPValidationError
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest MiddlewareJSONAPIErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON422 = &dest
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 
 	return response, nil
 }
 
-// ParseHealthzHealthzGetResponse parses an HTTP response from a HealthzHealthzGetWithResponse call
-func ParseHealthzHealthzGetResponse(rsp *http.Response) (*HealthzHealthzGetResponse, error) {
+// ParsePostSearchResponse parses an HTTP response from a PostSearchWithResponse call
+func ParsePostSearchResponse(rsp *http.Response) (*PostSearchResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &HealthzHealthzGetResponse{
+	response := &PostSearchResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest interface{}
+		var dest DtoSearchResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest MiddlewareJSONAPIErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 
