@@ -4,110 +4,128 @@
 
 We need a feature that generates a multi-page wiki from a repository. Two challenges:
 
-1. **Storage**: Enrichments are single documents (`enrichments_v2` table with a single `content` TEXT column). A wiki is a structured collection of pages with hierarchy, ordering, and cross-references.
+1. **Storage**: How to represent a structured collection of pages (with hierarchy, ordering, and cross-references) within the existing data model.
 2. **Generation**: Building a wiki requires iterating over all files in a repository, which could be very large. We need a strategy that stays within token budgets while producing coherent, comprehensive documentation.
 
 ---
 
 ## Part 1: Storage Design
 
-### Why enrichments don't work for wikis
+### Approach: Wiki as a single enrichment
 
-The current `Enrichment` model (`domain/enrichment/enrichment.go`) is a single immutable document:
+A wiki is conceptually the same as other enrichments — an immutable, generated document derived from repository content. The cookbook enrichment is already a multi-section structured document stored as one enrichment. The wiki follows the same pattern, just with more explicit hierarchy.
 
-```
-enrichments_v2: id | type | subtype | content | language | created_at | updated_at
-```
-
-A wiki page needs:
-- A **title** and **slug** (for URL/navigation)
-- **Ordering** (position within the wiki)
-- **Hierarchy** (parent-child pages, sections)
-- **Repository-level association** (enrichments only link to commits)
-
-Storing wiki pages as enrichments would require abusing the `content` field with JSON metadata, using enrichment-to-enrichment associations for hierarchy, and losing the ability to query by title/slug efficiently. This would couple two distinct domain concepts.
-
-### Proposed: New `WikiPage` domain entity
-
-Introduce a first-class `WikiPage` domain object and `wiki_pages` database table:
+The wiki is stored as **one enrichment** in the existing `enrichments_v2` table:
 
 ```
-wiki_pages
-├── id              BIGINT PRIMARY KEY AUTO_INCREMENT
-├── repo_id         BIGINT NOT NULL (FK → git_repos.id, ON DELETE CASCADE)
-├── commit_sha      VARCHAR(64) NOT NULL (FK → git_commits.commit_sha)
-├── slug            VARCHAR(255) NOT NULL
-├── title           VARCHAR(512) NOT NULL
-├── content         TEXT NOT NULL
-├── position        INT NOT NULL DEFAULT 0
-├── parent_id       BIGINT (FK → wiki_pages.id, ON DELETE CASCADE, nullable)
-├── created_at      TIMESTAMP NOT NULL
-├── updated_at      TIMESTAMP NOT NULL
-├── UNIQUE INDEX    idx_wiki_repo_commit_slug (repo_id, commit_sha, slug)
+Type:    "usage"
+Subtype: "wiki"
 ```
 
-Key design decisions:
+The `content` field holds the complete wiki as structured JSON:
 
-- **Direct FK to repository**: Unlike enrichments (which go through commits via associations), wiki pages belong to a repository at a specific commit. This makes querying simple: `SELECT * FROM wiki_pages WHERE repo_id = ? AND commit_sha = ? ORDER BY position`.
-- **Hierarchical structure via `parent_id`**: Top-level pages have `parent_id = NULL`. Sub-sections reference their parent. This gives us a tree without needing a separate table.
-- **`slug` for stable references**: Pages can cross-reference each other by slug (e.g., `[see Architecture](architecture)`). The `(repo_id, commit_sha, slug)` unique index prevents duplicate slugs.
-- **`position` for ordering**: Integer ordering within the same parent. The wiki table of contents is reconstructed by querying all pages for a repo/commit and sorting by parent_id + position.
-- **`commit_sha` for versioning**: When a repo is re-scanned at a new commit, the wiki is regenerated. Old wiki pages for the previous commit remain until explicitly cleaned up (or cascaded when the commit is deleted).
+```json
+{
+  "pages": [
+    {
+      "slug": "overview",
+      "title": "Project Overview",
+      "position": 0,
+      "content": "# Project Overview\n\nThis project...",
+      "children": [
+        {
+          "slug": "installation",
+          "title": "Installation",
+          "position": 0,
+          "content": "# Installation\n\nTo install..."
+        }
+      ]
+    },
+    {
+      "slug": "architecture",
+      "title": "Architecture",
+      "position": 1,
+      "content": "# Architecture\n\n...",
+      "children": []
+    }
+  ]
+}
+```
+
+Associated to the commit via the standard `enrichment_associations` table — identical to how cookbook or architecture enrichments work today.
+
+### Why this works
+
+1. **The wiki is generated as a complete unit** (Phase 1 plan → Phase 2 pages → Phase 3 index). It's never partially updated — it's regenerated wholesale. This matches the immutable enrichment model.
+
+2. **The cookbook is already the same concept** — a multi-section structured document stored as a single enrichment. The wiki is just larger with more explicit hierarchy.
+
+3. **No schema changes** — no migration, no new table, no new store. Just a new subtype constant and a domain object that parses the JSON content.
+
+4. **All existing infrastructure works** — commit associations, deletion cascading, rescan cleanup, the enrichment service's `List`/`Count`/`DeleteBy`.
+
+### Trade-off
+
+Individual pages aren't queryable at the DB level — the application always fetches the full wiki JSON and filters in memory. Since wikis are rendered with a navigation sidebar (requiring the full tree anyway), this is acceptable. A single-page API endpoint just does a slug lookup in the parsed tree.
 
 ### Domain layer
 
 ```
 domain/wiki/
-├── page.go          # WikiPage immutable value object
-├── store.go         # WikiPageStore interface
-└── options.go       # WithRepoID, WithCommitSHA, WithSlug, WithParentID, etc.
+├── wiki.go          # Wiki value object (parsed from enrichment JSON content)
+└── page.go          # Page value object (slug, title, content, position, children)
 ```
 
-`WikiPage` follows the same immutable pattern as other domain objects:
+`Wiki` is a domain object that wraps the parsed JSON structure. It is not a persistence entity — it's constructed by deserializing an enrichment's content:
 
 ```go
+type Wiki struct {
+    pages []Page
+}
+
 type Page struct {
-    id        int64
-    repoID    int64
-    commitSHA string
-    slug      string
-    title     string
-    content   string
-    position  int
-    parentID  int64   // 0 = top-level
-    createdAt time.Time
-    updatedAt time.Time
+    slug     string
+    title    string
+    content  string
+    position int
+    children []Page
 }
 ```
 
-### Persistence layer
+Key methods on `Wiki`:
+- `Pages()` — returns the full page tree
+- `Page(slug)` — finds a single page by slug (searches tree)
+- `JSON()` — serializes back to JSON for storage in enrichment content
 
+### Enrichment integration
+
+Add to `domain/enrichment/usage.go`:
+
+```go
+SubtypeWiki Subtype = "wiki"
 ```
-infrastructure/persistence/
-├── wiki_store.go    # WikiPageStore implementation (embeds database.Repository[wiki.Page, WikiPageModel])
-├── models.go        # WikiPageModel added
-├── mappers.go       # WikiPageMapper added
-├── db.go            # AutoMigrate updated
+
+Add a constructor:
+
+```go
+func NewWiki(content string) Enrichment {
+    return NewEnrichment(TypeUsage, SubtypeWiki, EntityTypeCommit, content)
+}
 ```
 
 ### Service layer
 
-```
-application/service/wiki.go
-```
-
-Service methods:
-- `Generate(ctx, repoID)` — enqueues wiki generation task
-- `Pages(ctx, repoID, commitSHA)` — returns full page tree
-- `Page(ctx, repoID, commitSHA, slug)` — returns single page
+No new service needed. The existing `application/service/enrichment.go` handles CRUD. The API layer fetches the wiki enrichment via the enrichment service (filtering by `type=usage, subtype=wiki, commitSHA=X`) and parses the JSON into the `wiki.Wiki` domain object.
 
 ### API layer
 
 ```
-GET /api/v1/repositories/{id}/wiki              # List all pages (tree structure)
-GET /api/v1/repositories/{id}/wiki/{slug}        # Single page
+GET /api/v1/repositories/{id}/wiki              # Full page tree (parsed from enrichment)
+GET /api/v1/repositories/{id}/wiki/{slug}        # Single page (slug lookup in parsed tree)
 POST /api/v1/repositories/{id}/wiki/generate     # Trigger wiki generation
 ```
+
+These endpoints fetch the wiki enrichment, deserialize the content JSON into `wiki.Wiki`, and return the requested data. Thin layer — no new service required.
 
 ---
 
@@ -115,7 +133,7 @@ POST /api/v1/repositories/{id}/wiki/generate     # Trigger wiki generation
 
 ### Multi-pass approach
 
-Wiki generation should be a **deterministic, multi-pass pipeline** — not an autonomous agent. This keeps token usage predictable and the process debuggable.
+Wiki generation is a **deterministic, multi-pass pipeline** — not an autonomous agent. This keeps token usage predictable and the process debuggable.
 
 #### Phase 1: Plan the wiki (1 LLM call)
 
@@ -170,7 +188,7 @@ For each page in the outline:
 
 1. **Gather context**: Read the specific files listed in `sources` (truncated to ~3K chars each, max ~15K total per page). If an enrichment is listed as a source, include its content directly.
 2. **Generate**: One LLM call per page with a focused system prompt and the gathered context.
-3. **Save**: Store as a `WikiPage` with the slug, title, position, and parent_id from the outline.
+3. **Collect**: Hold the generated page content in memory.
 
 **Token budget per page**: ~15K input context + ~2K output = ~17K tokens. For a 10-page wiki, that's ~170K tokens total.
 
@@ -179,6 +197,10 @@ For each page in the outline:
 #### Phase 3: Generate index page (1 LLM call, optional)
 
 Generate a root "index" page that serves as the wiki home. Input is the outline + first paragraph of each page. This provides a cohesive introduction.
+
+#### Phase 4: Assemble and save (no LLM call)
+
+Combine all generated pages into a single `wiki.Wiki` object, serialize to JSON, and save as one enrichment with a commit association. This is a single `enrichmentStore.Save()` + `associationStore.Save()` — the same pattern as every other enrichment handler.
 
 ### Token budget summary
 
@@ -195,7 +217,7 @@ This is manageable. For large repos with many pages (say 20), it would be ~350K 
 
 - **Leverage existing enrichments heavily**: Architecture, API docs, cookbook, and snippet summaries are already generated. The wiki can synthesize these rather than re-analyzing raw files. This means Phase 2 often just reformats and connects existing enrichment content.
 - **Smart file selection**: Phase 1 picks which files matter per page. Phase 2 only reads those files, not the whole repo.
-- **Content-addressed dedup**: If a wiki page's source files haven't changed (same blob SHAs), skip regeneration. Compare `wiki_pages.commit_sha` with the current HEAD to determine staleness.
+- **Content-addressed dedup**: If a wiki's source enrichments haven't changed, skip regeneration. Check whether the existing wiki enrichment's commit SHA matches the current HEAD.
 
 ### Task integration
 
@@ -206,17 +228,15 @@ OperationGenerateWikiForCommit Operation = "kodit.commit.generate_wiki"
 ```
 
 The handler (`application/handler/enrichment/wiki.go`) follows the standard pattern:
-1. Check if wiki already exists for this commit
+1. Check if wiki enrichment already exists for this commit (find by `type=usage, subtype=wiki, commitSHA`)
 2. If so, skip
-3. Otherwise, run Phase 1 → Phase 2 → Phase 3
-4. Save all pages in a transaction
+3. Otherwise, run Phase 1 → Phase 2 → Phase 3 → Phase 4
+4. Save the single enrichment + commit association
 5. Update tracker
 
 This operation goes at the end of `ScanAndIndexCommit()` — it depends on other enrichments being generated first (architecture, API docs, cookbook).
 
 ### Making it deterministic (not an agent)
-
-The user is right to want a deterministic pipeline rather than an autonomous agent:
 
 - **Phase 1** is deterministic: same inputs → same outline (low temperature, structured JSON output)
 - **Phase 2** is embarrassingly parallel: each page is independent
@@ -229,14 +249,13 @@ The only "iterative" part is processing pages one-by-one, but this is a simple l
 
 ## Part 3: Implementation Steps
 
-1. **Domain layer**: `domain/wiki/page.go`, `store.go`, `options.go`
-2. **Persistence layer**: `WikiPageModel`, `WikiPageStore`, mapper, AutoMigrate
-3. **Service layer**: `application/service/wiki.go`
-4. **Handler**: `application/handler/enrichment/wiki.go` (Phase 1-3 pipeline)
-5. **Task operation**: `OperationGenerateWikiForCommit` + add to `ScanAndIndexCommit()`
-6. **Context gatherer**: `infrastructure/enricher/wiki_context.go` (gathers file tree, reads files, collects existing enrichments)
-7. **API endpoints**: Wiki listing + single page + trigger generation
-8. **Tests**: Unit tests for domain, store, handler; integration test for full pipeline
+1. **Domain layer**: `domain/wiki/wiki.go` and `domain/wiki/page.go` — value objects for the parsed wiki structure, with JSON serialization/deserialization
+2. **Enrichment subtype**: Add `SubtypeWiki` to `domain/enrichment/usage.go` with `NewWiki()` constructor
+3. **Handler**: `application/handler/enrichment/wiki.go` — the Phase 1-4 pipeline, produces one enrichment
+4. **Task operation**: `OperationGenerateWikiForCommit` in `domain/task/operation.go`, add to `ScanAndIndexCommit()`
+5. **Context gatherer**: `infrastructure/enricher/wiki_context.go` — gathers file tree, reads files, collects existing enrichments for the LLM prompts
+6. **API endpoints**: Wiki listing + single page + trigger generation in `infrastructure/api/v1/`
+7. **Tests**: Unit tests for domain wiki parsing, handler pipeline, API endpoints
 
 ---
 
@@ -249,6 +268,9 @@ The only "iterative" part is processing pages one-by-one, but this is a simple l
    - Passed as parameters to the generation endpoint
    - Inferred automatically from repo structure (e.g., directories named `docs/`, `examples/`)
 
-3. **Should wiki pages participate in search/embeddings?** If yes, we'd need to create embeddings for wiki page content — similar to how snippet summaries get embedded. This would make wiki content searchable via the existing search API.
+3. **Should wiki content participate in search/embeddings?** The wiki is a single enrichment, so embedding the whole thing as one document would be too coarse. Options:
+   - Don't embed the wiki (it synthesizes other enrichments that are already embedded)
+   - Split pages into separate embedding documents at indexing time (without separate DB rows)
+   - Defer this to a future iteration
 
-4. **Wiki page cross-commit stability**: When regenerated at a new commit, should slugs remain stable? The Phase 1 outline would need awareness of the previous wiki structure to maintain URL stability.
+4. **Wiki cross-commit stability**: When regenerated at a new commit, should slugs remain stable? The Phase 1 outline would need awareness of the previous wiki structure to maintain URL stability.
