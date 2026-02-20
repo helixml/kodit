@@ -562,6 +562,26 @@ definitions:
     x-enum-varnames:
     - TrackingModeBranch
     - TrackingModeTag
+  dto.WikiTreeNode:
+    properties:
+      children:
+        items:
+          $ref: '#/definitions/dto.WikiTreeNode'
+        type: array
+      path:
+        type: string
+      slug:
+        type: string
+      title:
+        type: string
+    type: object
+  dto.WikiTreeResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/dto.WikiTreeNode'
+        type: array
+    type: object
   jsonapi.Links:
     properties:
       first:
@@ -1687,6 +1707,100 @@ paths:
       security:
       - APIKeyAuth: []
       summary: Update tracking config
+      tags:
+      - repositories
+  /repositories/{id}/wiki:
+    get:
+      consumes:
+      - application/json
+      description: Get the wiki navigation tree (titles and paths, no content)
+      parameters:
+      - description: Repository ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.WikiTreeResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+      security:
+      - APIKeyAuth: []
+      summary: Get wiki tree
+      tags:
+      - repositories
+  /repositories/{id}/wiki/{path}:
+    get:
+      description: Get a wiki page by hierarchical path as raw markdown
+      parameters:
+      - description: Repository ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Wiki page path (e.g. architecture/database-layer.md)
+        in: path
+        name: path
+        required: true
+        type: string
+      produces:
+      - text/markdown
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+      security:
+      - APIKeyAuth: []
+      summary: Get wiki page
+      tags:
+      - repositories
+  /repositories/{id}/wiki/generate:
+    post:
+      consumes:
+      - application/json
+      description: Trigger wiki generation for a repository
+      parameters:
+      - description: Repository ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.JSONAPIErrorResponse'
+      security:
+      - APIKeyAuth: []
+      summary: Generate wiki
       tags:
       - repositories
   /search:

@@ -414,6 +414,19 @@ type DtoTrackingConfigUpdateRequest struct {
 // DtoTrackingMode defines model for dto.TrackingMode.
 type DtoTrackingMode string
 
+// DtoWikiTreeNode defines model for dto.WikiTreeNode.
+type DtoWikiTreeNode struct {
+	Children *[]DtoWikiTreeNode `json:"children,omitempty"`
+	Path     *string            `json:"path,omitempty"`
+	Slug     *string            `json:"slug,omitempty"`
+	Title    *string            `json:"title,omitempty"`
+}
+
+// DtoWikiTreeResponse defines model for dto.WikiTreeResponse.
+type DtoWikiTreeResponse struct {
+	Data *[]DtoWikiTreeNode `json:"data,omitempty"`
+}
+
 // JsonapiLinks defines model for jsonapi.Links.
 type JsonapiLinks struct {
 	First *string `json:"first,omitempty"`

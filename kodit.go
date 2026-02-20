@@ -110,6 +110,7 @@ type Client struct {
 	schemaDiscoverer  *enricher.DatabaseSchemaService
 	apiDocService     *enricher.APIDocService
 	cookbookContext   *enricher.CookbookContextService
+	wikiContext       *enricher.WikiContextService
 
 	hugotEmbedding *provider.HugotEmbedding
 	closers        []io.Closer
@@ -352,6 +353,7 @@ func New(opts ...Option) (*Client, error) {
 	schemaDiscoverer := enricher.NewDatabaseSchemaService()
 	apiDocSvc := enricher.NewAPIDocService()
 	cookbookCtx := enricher.NewCookbookContextService()
+	wikiCtx := enricher.NewWikiContextService()
 
 	// Register cooldowns for cleanup on close so pending statuses are flushed.
 	cfg.closers = append(cfg.closers, dbCooldown, logCooldown)
@@ -377,6 +379,7 @@ func New(opts ...Option) (*Client, error) {
 		schemaDiscoverer:  schemaDiscoverer,
 		apiDocService:     apiDocSvc,
 		cookbookContext:   cookbookCtx,
+		wikiContext:       wikiCtx,
 		hugotEmbedding:    hugotEmbedding,
 		closers:           cfg.closers,
 		logger:            logger,

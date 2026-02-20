@@ -2,6 +2,7 @@
 package v1
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -16,8 +17,11 @@ import (
 	"github.com/helixml/kodit/domain/chunk"
 	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/repository"
+	"github.com/helixml/kodit/domain/task"
+	"github.com/helixml/kodit/domain/wiki"
 	"github.com/helixml/kodit/infrastructure/api/middleware"
 	"github.com/helixml/kodit/infrastructure/api/v1/dto"
+	"github.com/helixml/kodit/internal/database"
 )
 
 // RepositoriesRouter handles repository API endpoints.
@@ -59,6 +63,9 @@ func (r *RepositoriesRouter) Routes() chi.Router {
 	router.Get("/{id}/tags", r.ListTags)
 	router.Get("/{id}/tags/{tag_name}", r.GetTag)
 	router.Get("/{id}/enrichments", r.ListRepositoryEnrichments)
+	router.Post("/{id}/wiki/generate", r.GenerateWiki)
+	router.Get("/{id}/wiki", r.GetWikiTree)
+	router.Get("/{id}/wiki/*", r.GetWikiPage)
 	router.Get("/{id}/tracking-config", r.GetTrackingConfig)
 	router.Put("/{id}/tracking-config", r.UpdateTrackingConfig)
 	router.Get("/{id}/blob/{blob_name}/*", r.GetBlob)
@@ -1146,6 +1153,192 @@ func (r *RepositoriesRouter) ListRepositoryEnrichments(w http.ResponseWriter, re
 		Meta:  PaginationMeta(pagination, total),
 		Links: PaginationLinks(req, pagination, total),
 	})
+}
+
+// GetWikiTree handles GET /api/v1/repositories/{id}/wiki.
+//
+//	@Summary		Get wiki tree
+//	@Description	Get the wiki navigation tree (titles and paths, no content)
+//	@Tags			repositories
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path		int	true	"Repository ID"
+//	@Success		200	{object}	dto.WikiTreeResponse
+//	@Failure		404	{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500	{object}	middleware.JSONAPIErrorResponse
+//	@Security		APIKeyAuth
+//	@Router			/repositories/{id}/wiki [get]
+func (r *RepositoriesRouter) GetWikiTree(w http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+
+	id, err := r.repositoryID(req)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	parsed, err := r.latestWiki(ctx, id)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	pathIndex := parsed.PathIndex()
+	data := make([]dto.WikiTreeNode, 0, len(parsed.Pages()))
+	for _, p := range parsed.Pages() {
+		data = append(data, wikiTreeNode(p, pathIndex))
+	}
+
+	middleware.WriteJSON(w, http.StatusOK, dto.WikiTreeResponse{Data: data})
+}
+
+// GetWikiPage handles GET /api/v1/repositories/{id}/wiki/*.
+// Serves a single wiki page as raw markdown with rewritten links.
+//
+//	@Summary		Get wiki page
+//	@Description	Get a wiki page by hierarchical path as raw markdown
+//	@Tags			repositories
+//	@Produce		text/markdown
+//	@Param			id		path		int		true	"Repository ID"
+//	@Param			path	path		string	true	"Wiki page path (e.g. architecture/database-layer.md)"
+//	@Success		200		{string}	string
+//	@Failure		404		{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500		{object}	middleware.JSONAPIErrorResponse
+//	@Security		APIKeyAuth
+//	@Router			/repositories/{id}/wiki/{path} [get]
+func (r *RepositoriesRouter) GetWikiPage(w http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+
+	id, err := r.repositoryID(req)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	pagePath := strings.TrimPrefix(chi.URLParam(req, "*"), "/")
+	pagePath = strings.TrimSuffix(pagePath, ".md")
+
+	parsed, err := r.latestWiki(ctx, id)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	page, ok := parsed.PageByPath(pagePath)
+	if !ok {
+		middleware.WriteError(w, req, fmt.Errorf("wiki page %q not found: %w", pagePath, database.ErrNotFound), r.logger)
+		return
+	}
+
+	pathIndex := parsed.PathIndex()
+	urlPrefix := fmt.Sprintf("/api/v1/repositories/%d/wiki", id)
+	rewritten := wiki.NewRewrittenContent(page.Content(), pathIndex, urlPrefix, ".md")
+
+	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	if _, err := fmt.Fprint(w, rewritten.String()); err != nil {
+		r.logger.Error("failed to write wiki page response", "error", err)
+	}
+}
+
+// GenerateWiki handles POST /api/v1/repositories/{id}/wiki/generate.
+//
+//	@Summary		Generate wiki
+//	@Description	Trigger wiki generation for a repository
+//	@Tags			repositories
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path	int	true	"Repository ID"
+//	@Success		202
+//	@Failure		404	{object}	middleware.JSONAPIErrorResponse
+//	@Failure		500	{object}	middleware.JSONAPIErrorResponse
+//	@Security		APIKeyAuth
+//	@Router			/repositories/{id}/wiki/generate [post]
+func (r *RepositoriesRouter) GenerateWiki(w http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+
+	id, err := r.repositoryID(req)
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	// Find the latest commit for this repository.
+	commits, err := r.client.Commits.Find(ctx, repository.WithRepoID(id), repository.WithLimit(1))
+	if err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+	if len(commits) == 0 {
+		middleware.WriteError(w, req, fmt.Errorf("no commits found: %w", database.ErrNotFound), r.logger)
+		return
+	}
+
+	payload := map[string]any{
+		"repository_id": id,
+		"commit_sha":    commits[0].SHA(),
+	}
+	operations := []task.Operation{task.OperationGenerateWikiForCommit}
+	if err := r.client.Tasks.EnqueueOperations(ctx, operations, task.PriorityUserInitiated, payload); err != nil {
+		middleware.WriteError(w, req, err, r.logger)
+		return
+	}
+
+	w.WriteHeader(http.StatusAccepted)
+}
+
+// latestWiki finds the most recent wiki enrichment for a repository.
+func (r *RepositoriesRouter) latestWiki(ctx context.Context, repoID int64) (wiki.Wiki, error) {
+	commits, err := r.client.Commits.Find(ctx, repository.WithRepoID(repoID), repository.WithLimit(10))
+	if err != nil {
+		return wiki.Wiki{}, fmt.Errorf("find commits: %w", err)
+	}
+
+	shas := make([]string, 0, len(commits))
+	for _, c := range commits {
+		shas = append(shas, c.SHA())
+	}
+
+	if len(shas) == 0 {
+		return wiki.Wiki{}, fmt.Errorf("no commits found for repository: %w", database.ErrNotFound)
+	}
+
+	wikiType := enrichment.TypeUsage
+	wikiSubtype := enrichment.SubtypeWiki
+	enrichments, err := r.client.Enrichments.List(ctx, &service.EnrichmentListParams{
+		CommitSHAs: shas,
+		Type:       &wikiType,
+		Subtype:    &wikiSubtype,
+		Limit:      1,
+	})
+	if err != nil {
+		return wiki.Wiki{}, fmt.Errorf("find wiki enrichment: %w", err)
+	}
+
+	if len(enrichments) == 0 {
+		return wiki.Wiki{}, fmt.Errorf("no wiki found for repository: %w", database.ErrNotFound)
+	}
+
+	parsed, err := wiki.ParseWiki(enrichments[0].Content())
+	if err != nil {
+		return wiki.Wiki{}, fmt.Errorf("parse wiki content: %w", err)
+	}
+
+	return parsed, nil
+}
+
+func wikiTreeNode(p wiki.Page, pathIndex map[string]string) dto.WikiTreeNode {
+	children := make([]dto.WikiTreeNode, 0, len(p.Children()))
+	for _, child := range p.Children() {
+		children = append(children, wikiTreeNode(child, pathIndex))
+	}
+
+	return dto.WikiTreeNode{
+		Slug:     p.Slug(),
+		Title:    p.Title(),
+		Path:     pathIndex[p.Slug()] + ".md",
+		Children: children,
+	}
 }
 
 // ListTags handles GET /api/v1/repositories/{id}/tags.
