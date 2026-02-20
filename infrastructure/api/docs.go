@@ -89,7 +89,11 @@ func (d *DocsRouter) Routes() chi.Router {
 		} else if r.TLS == nil {
 			scheme = "http"
 		}
-		serverURL := fmt.Sprintf("%s://%s/api/v1", scheme, r.Host)
+		host := r.Host
+		if forwarded := r.Header.Get("X-Forwarded-Host"); forwarded != "" {
+			host = forwarded
+		}
+		serverURL := fmt.Sprintf("%s://%s/api/v1", scheme, host)
 		data = bytes.ReplaceAll(data,
 			[]byte(`"url": "//localhost:8080/api/v1"`),
 			[]byte(fmt.Sprintf(`"url": "%s"`, serverURL)),
