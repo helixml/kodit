@@ -4,7 +4,6 @@ package api
 import (
 	"bytes"
 	"embed"
-	"fmt"
 	"io/fs"
 	"net/http"
 
@@ -74,8 +73,9 @@ func (d *DocsRouter) Routes() chi.Router {
 		_, _ = w.Write([]byte(SwaggerUIHTML(d.specURL)))
 	})
 
-	// Serve OpenAPI spec with the server URL rewritten to match the
-	// incoming request so that Swagger UI "Try it out" works on any host.
+	// Serve OpenAPI spec with the hardcoded server URL replaced by a
+	// relative path. Swagger UI resolves relative URLs against the
+	// page's origin, so this works on any host without needing proxy headers.
 	router.Get("/openapi.json", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		data, err := fs.ReadFile(openapiSpec, "openapi.json")
@@ -83,20 +83,9 @@ func (d *DocsRouter) Routes() chi.Router {
 			http.Error(w, "Spec not found", http.StatusNotFound)
 			return
 		}
-		scheme := "https"
-		if forwarded := r.Header.Get("X-Forwarded-Proto"); forwarded != "" {
-			scheme = forwarded
-		} else if r.TLS == nil {
-			scheme = "http"
-		}
-		host := r.Host
-		if forwarded := r.Header.Get("X-Forwarded-Host"); forwarded != "" {
-			host = forwarded
-		}
-		serverURL := fmt.Sprintf("%s://%s/api/v1", scheme, host)
 		data = bytes.ReplaceAll(data,
 			[]byte(`"url": "//localhost:8080/api/v1"`),
-			[]byte(fmt.Sprintf(`"url": "%s"`, serverURL)),
+			[]byte(`"url": "/api/v1"`),
 		)
 		_, _ = w.Write(data)
 	})
