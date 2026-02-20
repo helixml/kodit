@@ -246,6 +246,7 @@ func (s Search) Available() bool {
 }
 
 // Query performs a simple hybrid code search with options.
+// TODO: Why is there a Query and a Search method? Which is correct?
 func (s Search) Query(ctx context.Context, query string, opts ...SearchOption) (SearchResult, error) {
 	if s.closed != nil && s.closed.Load() {
 		return SearchResult{}, ErrClientClosed
