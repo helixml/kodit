@@ -1217,6 +1217,15 @@ func (r *RepositoriesRouter) GetWikiPage(w http.ResponseWriter, req *http.Reques
 
 	pagePath := strings.TrimPrefix(chi.URLParam(req, "*"), "/")
 	pagePath = strings.TrimSuffix(pagePath, ".md")
+	pagePath = strings.TrimSuffix(pagePath, "/")
+
+	if pagePath == "generate" {
+		w.Header().Set("Allow", "POST")
+		middleware.WriteError(w, req, middleware.NewAPIError(
+			http.StatusMethodNotAllowed, "use POST to generate a wiki", nil,
+		), r.logger)
+		return
+	}
 
 	parsed, err := r.latestWiki(ctx, id)
 	if err != nil {
