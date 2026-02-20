@@ -402,12 +402,12 @@ func (h *Wiki) generateIndex(ctx context.Context, outline wikiOutline, wikiCtx w
 func stripCodeFence(text string) string {
 	trimmed := strings.TrimSpace(text)
 	if !strings.HasPrefix(trimmed, "```") {
-		return text
+		return trimmed
 	}
 	// Remove opening fence line.
 	firstNewline := strings.Index(trimmed, "\n")
 	if firstNewline == -1 {
-		return text
+		return trimmed
 	}
 	inner := trimmed[firstNewline+1:]
 	// Remove closing fence.
@@ -489,10 +489,23 @@ func extractJSON(text string) string {
 	if start == -1 {
 		return text
 	}
-	// Find the matching closing brace.
+	// Find the matching closing brace, skipping braces inside JSON strings.
 	depth := 0
+	inString := false
 	for i := start; i < len(text); i++ {
-		switch text[i] {
+		ch := text[i]
+		if inString {
+			switch ch {
+			case '\\':
+				i++ // skip escaped character
+			case '"':
+				inString = false
+			}
+			continue
+		}
+		switch ch {
+		case '"':
+			inString = true
 		case '{':
 			depth++
 		case '}':
