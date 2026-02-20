@@ -28,23 +28,34 @@ var ortSingleton struct {
 // HugotEmbedding provides local embedding generation using the st-codesearch-distilroberta-base
 // model via the hugot Go backend.
 //
-// The model is statically compiled into the binary (build tag embed_model)
-// and extracted to cacheDir on first use. All instances share a single
-// ONNX Runtime session because ORT only supports one active session per process.
+// The model can come from two sources (checked in order):
+//  1. Model files on disk — a subdirectory of cacheDir containing tokenizer.json.
+//  2. Statically embedded in the binary (build tag embed_model), extracted to
+//     cacheDir on first use.
+//
+// All instances share a single ONNX Runtime session because ORT only supports
+// one active session per process.
 type HugotEmbedding struct {
 	cacheDir string
 }
 
-// NewHugotEmbedding creates a HugotEmbedding that caches extracted model files in cacheDir.
+// NewHugotEmbedding creates a HugotEmbedding that looks for model files in cacheDir.
+// If no model exists on disk and the embed_model build tag was used, the
+// embedded model is extracted to cacheDir automatically.
 func NewHugotEmbedding(cacheDir string) *HugotEmbedding {
 	return &HugotEmbedding{
 		cacheDir: cacheDir,
 	}
 }
 
-// Available reports whether the embedded model was compiled in.
+// Available reports whether a usable model exists — either compiled into
+// the binary (embed_model build tag) or present on disk in cacheDir.
 func (h *HugotEmbedding) Available() bool {
-	return hasEmbeddedModel
+	if hasEmbeddedModel {
+		return true
+	}
+	_, err := h.diskModelPath()
+	return err == nil
 }
 
 func (h *HugotEmbedding) initialize() error {
@@ -85,10 +96,17 @@ func (h *HugotEmbedding) initialize() error {
 	return nil
 }
 
-// resolveModelPath extracts the embedded model to disk and returns its path.
+// resolveModelPath returns the path to a usable model directory.
+// It first checks for model files already on disk in cacheDir, then
+// falls back to extracting the statically embedded model (if compiled in).
 func (h *HugotEmbedding) resolveModelPath() (string, error) {
+	// Prefer model files already present on disk.
+	if diskPath, err := h.diskModelPath(); err == nil {
+		return diskPath, nil
+	}
+
 	if !hasEmbeddedModel {
-		return "", fmt.Errorf("no embedded model: build with -tags embed_model")
+		return "", fmt.Errorf("no model found in %s and no embedded model compiled in (build with -tags embed_model)", h.cacheDir)
 	}
 
 	if err := os.MkdirAll(h.cacheDir, 0o755); err != nil {
@@ -96,6 +114,26 @@ func (h *HugotEmbedding) resolveModelPath() (string, error) {
 	}
 
 	return extractEmbeddedModel(embeddedModelFS, h.cacheDir)
+}
+
+// diskModelPath looks for a model subdirectory containing tokenizer.json
+// inside cacheDir. Returns the path if found, or an error if no valid
+// model directory exists on disk.
+func (h *HugotEmbedding) diskModelPath() (string, error) {
+	entries, err := os.ReadDir(h.cacheDir)
+	if err != nil {
+		return "", fmt.Errorf("read model directory %s: %w", h.cacheDir, err)
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		candidate := filepath.Join(h.cacheDir, entry.Name())
+		if _, statErr := os.Stat(filepath.Join(candidate, "tokenizer.json")); statErr == nil {
+			return candidate, nil
+		}
+	}
+	return "", fmt.Errorf("no model subdirectory with tokenizer.json found in %s", h.cacheDir)
 }
 
 // extractEmbeddedModel writes the statically embedded model files to targetDir

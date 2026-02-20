@@ -42,9 +42,9 @@ CMD ["air", "-c", ".air.toml"]
 # ML dependencies (torch, onnxruntime) need system libraries and a shell.
 FROM ghcr.io/astral-sh/uv:debian-slim@sha256:b852203fd7831954c58bfa1fec1166295adcfcfa50f4de7fdd0e684c8bd784eb AS model
 WORKDIR /build
-COPY tools/convert-model.py ./tools/convert-model.py
+COPY cmd/download-model/convert-model.py ./convert-model.py
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv run --script tools/convert-model.py
+    uv run --script convert-model.py infrastructure/provider/models/flax-sentence-embeddings_st-codesearch-distilroberta-base
 
 # Build stage — independent from dev, no Air or hot-reload tooling
 FROM golang:1.26-bookworm AS builder
