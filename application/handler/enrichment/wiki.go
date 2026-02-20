@@ -430,16 +430,17 @@ func (h *Wiki) pageListingText(outline wikiOutline) string {
 // gatherSources reads the source files and enrichments referenced by a page entry.
 func (h *Wiki) gatherSources(entry outlinePage, wikiCtx wikiGatheredContext, repoPath string) string {
 	var parts []string
+	enrichmentsIncluded := false
 
 	for _, source := range entry.Sources {
-		if strings.HasSuffix(source, "_enrichment") || !strings.Contains(source, "/") {
-			// Might be an enrichment reference; include enrichment context.
-			if wikiCtx.enrichments != "" {
+		if strings.HasSuffix(source, "_enrichment") {
+			if wikiCtx.enrichments != "" && !enrichmentsIncluded {
 				parts = append(parts, wikiCtx.enrichments)
+				enrichmentsIncluded = true
 			}
 			continue
 		}
-		// It's a file path; read it.
+		// Treat as a file path.
 		content := h.contextGatherer.FileContent(repoPath, source, 3000)
 		if content != "" {
 			parts = append(parts, fmt.Sprintf("### %s\n```\n%s\n```", source, content))
