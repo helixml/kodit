@@ -228,7 +228,8 @@ func (h *Wiki) Execute(ctx context.Context, payload map[string]any) error {
 	}
 
 	// Phase 2: Generate each page.
-	tracker.SetTotal(ctx, len(outline.Pages)+2) // +2 for plan and index phases
+	flatCount := len(outline.flatten())
+	tracker.SetTotal(ctx, flatCount+2) // +2 for plan and index phases
 	tracker.SetCurrent(ctx, 1, "Generating wiki pages")
 
 	pages, err := h.generatePages(ctx, tracker, outline, wikiCtx, clonedPath)
@@ -237,7 +238,7 @@ func (h *Wiki) Execute(ctx context.Context, payload map[string]any) error {
 	}
 
 	// Phase 3: Generate index page.
-	tracker.SetCurrent(ctx, len(outline.Pages)+1, "Generating wiki index")
+	tracker.SetCurrent(ctx, flatCount+1, "Generating wiki index")
 
 	indexPage, err := h.generateIndex(ctx, outline, wikiCtx)
 	if err != nil {
@@ -248,7 +249,7 @@ func (h *Wiki) Execute(ctx context.Context, payload map[string]any) error {
 	allPages := append([]wiki.Page{indexPage}, pages...)
 
 	// Phase 4: Assemble and save.
-	tracker.SetCurrent(ctx, len(outline.Pages)+2, "Saving wiki")
+	tracker.SetCurrent(ctx, flatCount+2, "Saving wiki")
 
 	w := wiki.NewWiki(allPages)
 	content, err := w.JSON()
