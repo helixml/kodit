@@ -1751,14 +1751,14 @@ const docTemplate = `{
                 }
             }
         },
-        "/repositories/{id}/wiki/generate": {
+        "/repositories/{id}/wiki/rescan": {
             "post": {
                 "security": [
                     {
                         "APIKeyAuth": []
                     }
                 ],
-                "description": "Trigger wiki generation for a repository",
+                "description": "Delete the existing wiki and regenerate it from scratch",
                 "consumes": [
                     "application/json"
                 ],
@@ -1768,7 +1768,7 @@ const docTemplate = `{
                 "tags": [
                     "repositories"
                 ],
-                "summary": "Generate wiki",
+                "summary": "Rescan wiki",
                 "parameters": [
                     {
                         "type": "integer",

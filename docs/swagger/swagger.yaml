@@ -1774,11 +1774,11 @@ paths:
       summary: Get wiki page
       tags:
       - repositories
-  /repositories/{id}/wiki/generate:
+  /repositories/{id}/wiki/rescan:
     post:
       consumes:
       - application/json
-      description: Trigger wiki generation for a repository
+      description: Delete the existing wiki and regenerate it from scratch
       parameters:
       - description: Repository ID
         in: path
@@ -1800,7 +1800,7 @@ paths:
             $ref: '#/definitions/middleware.JSONAPIErrorResponse'
       security:
       - APIKeyAuth: []
-      summary: Generate wiki
+      summary: Rescan wiki
       tags:
       - repositories
   /search:

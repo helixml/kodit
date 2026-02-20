@@ -188,8 +188,8 @@ type ClientInterface interface {
 	// GetRepositoriesIdWiki request
 	GetRepositoriesIdWiki(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// PostRepositoriesIdWikiGenerate request
-	PostRepositoriesIdWikiGenerate(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// PostRepositoriesIdWikiRescan request
+	PostRepositoriesIdWikiRescan(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetRepositoriesIdWikiPath request
 	GetRepositoriesIdWikiPath(ctx context.Context, id int, path string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -608,8 +608,8 @@ func (c *Client) GetRepositoriesIdWiki(ctx context.Context, id int, reqEditors .
 	return c.Client.Do(req)
 }
 
-func (c *Client) PostRepositoriesIdWikiGenerate(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostRepositoriesIdWikiGenerateRequest(c.Server, id)
+func (c *Client) PostRepositoriesIdWikiRescan(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostRepositoriesIdWikiRescanRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -2325,8 +2325,8 @@ func NewGetRepositoriesIdWikiRequest(server string, id int) (*http.Request, erro
 	return req, nil
 }
 
-// NewPostRepositoriesIdWikiGenerateRequest generates requests for PostRepositoriesIdWikiGenerate
-func NewPostRepositoriesIdWikiGenerateRequest(server string, id int) (*http.Request, error) {
+// NewPostRepositoriesIdWikiRescanRequest generates requests for PostRepositoriesIdWikiRescan
+func NewPostRepositoriesIdWikiRescanRequest(server string, id int) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -2341,7 +2341,7 @@ func NewPostRepositoriesIdWikiGenerateRequest(server string, id int) (*http.Requ
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/repositories/%s/wiki/generate", pathParam0)
+	operationPath := fmt.Sprintf("/repositories/%s/wiki/rescan", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -2582,8 +2582,8 @@ type ClientWithResponsesInterface interface {
 	// GetRepositoriesIdWikiWithResponse request
 	GetRepositoriesIdWikiWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*GetRepositoriesIdWikiResponse, error)
 
-	// PostRepositoriesIdWikiGenerateWithResponse request
-	PostRepositoriesIdWikiGenerateWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*PostRepositoriesIdWikiGenerateResponse, error)
+	// PostRepositoriesIdWikiRescanWithResponse request
+	PostRepositoriesIdWikiRescanWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*PostRepositoriesIdWikiRescanResponse, error)
 
 	// GetRepositoriesIdWikiPathWithResponse request
 	GetRepositoriesIdWikiPathWithResponse(ctx context.Context, id int, path string, reqEditors ...RequestEditorFn) (*GetRepositoriesIdWikiPathResponse, error)
@@ -3326,7 +3326,7 @@ func (r GetRepositoriesIdWikiResponse) StatusCode() int {
 	return 0
 }
 
-type PostRepositoriesIdWikiGenerateResponse struct {
+type PostRepositoriesIdWikiRescanResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON404      *MiddlewareJSONAPIErrorResponse
@@ -3334,7 +3334,7 @@ type PostRepositoriesIdWikiGenerateResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r PostRepositoriesIdWikiGenerateResponse) Status() string {
+func (r PostRepositoriesIdWikiRescanResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -3342,7 +3342,7 @@ func (r PostRepositoriesIdWikiGenerateResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r PostRepositoriesIdWikiGenerateResponse) StatusCode() int {
+func (r PostRepositoriesIdWikiRescanResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -3697,13 +3697,13 @@ func (c *ClientWithResponses) GetRepositoriesIdWikiWithResponse(ctx context.Cont
 	return ParseGetRepositoriesIdWikiResponse(rsp)
 }
 
-// PostRepositoriesIdWikiGenerateWithResponse request returning *PostRepositoriesIdWikiGenerateResponse
-func (c *ClientWithResponses) PostRepositoriesIdWikiGenerateWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*PostRepositoriesIdWikiGenerateResponse, error) {
-	rsp, err := c.PostRepositoriesIdWikiGenerate(ctx, id, reqEditors...)
+// PostRepositoriesIdWikiRescanWithResponse request returning *PostRepositoriesIdWikiRescanResponse
+func (c *ClientWithResponses) PostRepositoriesIdWikiRescanWithResponse(ctx context.Context, id int, reqEditors ...RequestEditorFn) (*PostRepositoriesIdWikiRescanResponse, error) {
+	rsp, err := c.PostRepositoriesIdWikiRescan(ctx, id, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParsePostRepositoriesIdWikiGenerateResponse(rsp)
+	return ParsePostRepositoriesIdWikiRescanResponse(rsp)
 }
 
 // GetRepositoriesIdWikiPathWithResponse request returning *GetRepositoriesIdWikiPathResponse
@@ -4885,15 +4885,15 @@ func ParseGetRepositoriesIdWikiResponse(rsp *http.Response) (*GetRepositoriesIdW
 	return response, nil
 }
 
-// ParsePostRepositoriesIdWikiGenerateResponse parses an HTTP response from a PostRepositoriesIdWikiGenerateWithResponse call
-func ParsePostRepositoriesIdWikiGenerateResponse(rsp *http.Response) (*PostRepositoriesIdWikiGenerateResponse, error) {
+// ParsePostRepositoriesIdWikiRescanResponse parses an HTTP response from a PostRepositoriesIdWikiRescanWithResponse call
+func ParsePostRepositoriesIdWikiRescanResponse(rsp *http.Response) (*PostRepositoriesIdWikiRescanResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &PostRepositoriesIdWikiGenerateResponse{
+	response := &PostRepositoriesIdWikiRescanResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}

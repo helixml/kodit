@@ -63,7 +63,7 @@ func (r *RepositoriesRouter) Routes() chi.Router {
 	router.Get("/{id}/tags", r.ListTags)
 	router.Get("/{id}/tags/{tag_name}", r.GetTag)
 	router.Get("/{id}/enrichments", r.ListRepositoryEnrichments)
-	router.Post("/{id}/wiki/generate", r.GenerateWiki)
+	router.Post("/{id}/wiki/rescan", r.RescanWiki)
 	router.Get("/{id}/wiki", r.GetWikiTree)
 	router.Get("/{id}/wiki/*", r.GetWikiPage)
 	router.Get("/{id}/tracking-config", r.GetTrackingConfig)
@@ -1219,14 +1219,6 @@ func (r *RepositoriesRouter) GetWikiPage(w http.ResponseWriter, req *http.Reques
 	pagePath = strings.TrimSuffix(pagePath, ".md")
 	pagePath = strings.TrimSuffix(pagePath, "/")
 
-	if pagePath == "generate" {
-		w.Header().Set("Allow", "POST")
-		middleware.WriteError(w, req, middleware.NewAPIError(
-			http.StatusMethodNotAllowed, "use POST to generate a wiki", nil,
-		), r.logger)
-		return
-	}
-
 	parsed, err := r.latestWiki(ctx, id)
 	if err != nil {
 		middleware.WriteError(w, req, err, r.logger)
@@ -1250,10 +1242,10 @@ func (r *RepositoriesRouter) GetWikiPage(w http.ResponseWriter, req *http.Reques
 	}
 }
 
-// GenerateWiki handles POST /api/v1/repositories/{id}/wiki/generate.
+// RescanWiki handles POST /api/v1/repositories/{id}/wiki/rescan.
 //
-//	@Summary		Generate wiki
-//	@Description	Trigger wiki generation for a repository
+//	@Summary		Rescan wiki
+//	@Description	Delete the existing wiki and regenerate it from scratch
 //	@Tags			repositories
 //	@Accept			json
 //	@Produce		json
@@ -1262,8 +1254,8 @@ func (r *RepositoriesRouter) GetWikiPage(w http.ResponseWriter, req *http.Reques
 //	@Failure		404	{object}	middleware.JSONAPIErrorResponse
 //	@Failure		500	{object}	middleware.JSONAPIErrorResponse
 //	@Security		APIKeyAuth
-//	@Router			/repositories/{id}/wiki/generate [post]
-func (r *RepositoriesRouter) GenerateWiki(w http.ResponseWriter, req *http.Request) {
+//	@Router			/repositories/{id}/wiki/rescan [post]
+func (r *RepositoriesRouter) RescanWiki(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
 	id, err := r.repositoryID(req)

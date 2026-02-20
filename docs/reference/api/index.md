@@ -867,9 +867,9 @@ Get the wiki navigation tree (titles and paths, no content)
 
 [middleware.JSONAPIErrorResponse](#middleware.jsonapierrorresponse)
 
-### POST /repositories/{id}/wiki/generate
+### POST /repositories/{id}/wiki/rescan
 
-Trigger wiki generation for a repository
+Delete the existing wiki and regenerate it from scratch
 
 
 #### Parameters
