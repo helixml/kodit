@@ -15,16 +15,12 @@ import (
 	"github.com/helixml/kodit/domain/wiki"
 )
 
-const wikiPlanSystemPrompt = `You are a technical writer planning the structure of a comprehensive wiki
-for a software project. You analyze repository content and produce a structured outline.
-Output valid JSON only, with no additional text.`
+const wikiPlanSystemPrompt = `You are a technical writer planning the structure of a wiki for a software project.
+Output a single compact JSON object on as few lines as possible. No markdown, no explanation.`
 
-const wikiPlanTaskPrompt = `Based on the following repository information, plan a wiki with 5-15 pages.
-Return a JSON object with a "pages" array. Each page has:
-- "slug": URL-safe identifier (lowercase, hyphens)
-- "title": Display title
-- "sources": Array of relevant file paths or enrichment types to reference
-- "children": Array of child pages (same structure, may be empty)
+const wikiPlanTaskPrompt = `Plan a wiki with 4-8 top-level pages. Children are allowed but keep nesting to one level max.
+Return a JSON object: {"pages":[...]} where each page has "slug", "title", "sources", "children".
+Keep the JSON compact (one page per line). Short slugs, short source arrays (1-3 items max).
 
 Repository file tree:
 <file_tree>
@@ -41,8 +37,8 @@ Existing enrichments:
 %s
 </enrichments>
 
-Return ONLY the JSON object. Example structure:
-{"pages":[{"slug":"overview","title":"Project Overview","sources":["README.md"],"children":[]}]}`
+Example:
+{"pages":[{"slug":"overview","title":"Overview","sources":["README.md"],"children":[{"slug":"arch","title":"Architecture","sources":["src/"],"children":[]}]}]}`
 
 const wikiPageSystemPrompt = `You are a technical writer creating documentation for a software project wiki.
 Write clear, well-structured Markdown content for the requested page.
