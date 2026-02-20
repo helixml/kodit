@@ -123,6 +123,64 @@ func TestExtractEmbeddedModel_NoModelDir(t *testing.T) {
 	require.Contains(t, err.Error(), "no model directory found")
 }
 
+func TestHugotEmbedding_DiskModelPath(t *testing.T) {
+	modelDir := t.TempDir()
+
+	// No model yet — diskModelPath should fail.
+	emb := NewHugotEmbedding(modelDir)
+	_, err := emb.diskModelPath()
+	require.Error(t, err)
+
+	// Create a valid model subdirectory.
+	subdir := filepath.Join(modelDir, "my-model")
+	require.NoError(t, os.MkdirAll(subdir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(subdir, "tokenizer.json"), []byte(`{}`), 0o644))
+
+	got, err := emb.diskModelPath()
+	require.NoError(t, err)
+	require.Equal(t, subdir, got)
+}
+
+func TestHugotEmbedding_AvailableWithDiskModel(t *testing.T) {
+	modelDir := t.TempDir()
+	emb := NewHugotEmbedding(modelDir)
+
+	// Without embedded model and no disk model, should be unavailable.
+	if !hasEmbeddedModel {
+		require.False(t, emb.Available())
+	}
+
+	// Place model files on disk — should become available.
+	subdir := filepath.Join(modelDir, "test-model")
+	require.NoError(t, os.MkdirAll(subdir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(subdir, "tokenizer.json"), []byte(`{}`), 0o644))
+
+	require.True(t, emb.Available())
+}
+
+func TestHugotEmbedding_DiskModelPath_SkipsFiles(t *testing.T) {
+	modelDir := t.TempDir()
+
+	// A plain file (not a directory) should be skipped.
+	require.NoError(t, os.WriteFile(filepath.Join(modelDir, "README.md"), []byte("readme"), 0o644))
+
+	emb := NewHugotEmbedding(modelDir)
+	_, err := emb.diskModelPath()
+	require.Error(t, err)
+}
+
+func TestHugotEmbedding_DiskModelPath_SkipsDirWithoutTokenizer(t *testing.T) {
+	modelDir := t.TempDir()
+
+	// A directory without tokenizer.json should be skipped.
+	require.NoError(t, os.MkdirAll(filepath.Join(modelDir, "incomplete-model"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(modelDir, "incomplete-model", "config.json"), []byte(`{}`), 0o644))
+
+	emb := NewHugotEmbedding(modelDir)
+	_, err := emb.diskModelPath()
+	require.Error(t, err)
+}
+
 func TestHugotEmbedding_CancelledContext(t *testing.T) {
 	modelDir := t.TempDir()
 	emb := NewHugotEmbedding(modelDir)

@@ -139,7 +139,7 @@ check: fmt vet lint test ## Run all checks (format, vet, lint, test)
 
 .PHONY: download-model
 download-model: ## Convert and prepare the built-in embedding model (requires uv + Python)
-	$(GOCMD) run ./tools/download-model
+	$(GOCMD) run ./cmd/download-model infrastructure/provider/models/flax-sentence-embeddings_st-codesearch-distilroberta-base
 
 .PHONY: download-ort
 download-ort: ## Download the ONNX Runtime shared library for the current platform

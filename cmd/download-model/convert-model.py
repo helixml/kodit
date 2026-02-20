@@ -18,11 +18,14 @@ from optimum.onnxruntime import ORTModelForFeatureExtraction
 from transformers import AutoTokenizer
 
 MODEL_ID = "flax-sentence-embeddings/st-codesearch-distilroberta-base"
-DEFAULT_OUTPUT = "infrastructure/provider/models/flax-sentence-embeddings_st-codesearch-distilroberta-base"
 
 
 def main():
-    output_dir = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_OUTPUT
+    if len(sys.argv) < 2:
+        print("usage: download-model <dest>", file=sys.stderr)
+        sys.exit(1)
+
+    output_dir = sys.argv[1]
 
     # Skip if already converted
     onnx_dest = os.path.join(output_dir, "onnx", "model.onnx")
