@@ -329,11 +329,19 @@ func (h *Wiki) planWiki(ctx context.Context, wikiCtx wikiGatheredContext) (wikiO
 	}
 
 	text := responses[0].Text()
+	if strings.TrimSpace(text) == "" {
+		return wikiOutline{}, fmt.Errorf("wiki plan: LLM returned empty response")
+	}
 	text = extractJSON(text)
 
 	var outline wikiOutline
 	if err := json.Unmarshal([]byte(text), &outline); err != nil {
-		return wikiOutline{}, fmt.Errorf("parse wiki plan: %w", err)
+		// Include a truncated snippet of the response for debugging.
+		snippet := text
+		if len(snippet) > 200 {
+			snippet = snippet[:200] + "..."
+		}
+		return wikiOutline{}, fmt.Errorf("parse wiki plan: %w\nresponse: %s", err, snippet)
 	}
 
 	return outline, nil
