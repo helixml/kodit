@@ -43,7 +43,8 @@ CMD ["air", "-c", ".air.toml"]
 FROM ghcr.io/astral-sh/uv:debian-slim@sha256:b852203fd7831954c58bfa1fec1166295adcfcfa50f4de7fdd0e684c8bd784eb AS model
 WORKDIR /build
 COPY tools/convert-model.py ./tools/convert-model.py
-RUN uv run --script tools/convert-model.py
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv run --script tools/convert-model.py
 
 # Build stage — independent from dev, no Air or hot-reload tooling
 FROM golang:1.26-bookworm AS builder
@@ -58,12 +59,14 @@ WORKDIR /app
 
 # Copy go.mod and go.sum for dependency caching
 COPY go.mod go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
 
 # Download ORT and tokenizers
 COPY .ort-version ./
 COPY tools/download-ort/ ./tools/download-ort/
-RUN ORT_VERSION=$(cat .ort-version) go run ./tools/download-ort \
+RUN --mount=type=cache,target=/go/pkg/mod \
+    ORT_VERSION=$(cat .ort-version) go run ./tools/download-ort \
     && cp ./lib/libonnxruntime.so /usr/lib/ \
     && cp ./lib/libtokenizers.a /usr/lib/ \
     && ldconfig \
@@ -73,17 +76,20 @@ ENV CGO_ENABLED=1
 ENV CGO_LDFLAGS="-L/usr/lib"
 ENV ORT_LIB_DIR="/usr/lib"
 
-COPY --from=model /build/infrastructure/provider/models/ ./infrastructure/provider/models/
-
-# Copy source code
+# Copy source code first — the model stage runs in parallel until the
+# COPY --from=model below, so placing it after COPY . . gives the model
+# stage maximum time to finish while the builder prepares source.
 COPY . .
+COPY --from=model /build/infrastructure/provider/models/ ./infrastructure/provider/models/
 
 # Build the application
 ARG VERSION=dev
 ARG COMMIT=unknown
 ARG BUILD_TIME=unknown
 
-RUN go build -tags "fts5 ORT embed_model" \
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go build -tags "fts5 ORT embed_model" \
     -ldflags "-X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.BuildTime=${BUILD_TIME}" \
     -o ./build/kodit ./cmd/kodit
 
