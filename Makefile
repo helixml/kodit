@@ -216,19 +216,34 @@ docs: openapi generate-clients
 
 ##@ Release
 
+BUMP?=patch
+
 .PHONY: release
-release: ## Create a GitHub release (VERSION required, e.g. make release VERSION=1.0.0 RC=1)
-	@if [ "$(VERSION)" = "0.1.0" ]; then \
-		echo "ERROR: VERSION is required. Usage: make release VERSION=1.0.0"; \
+release: ## Create a GitHub release (BUMP=patch|minor|major, RELEASE=1 for full release)
+	@if [ "$(BUMP)" != "patch" ] && [ "$(BUMP)" != "minor" ] && [ "$(BUMP)" != "major" ]; then \
+		echo "ERROR: BUMP must be patch, minor, or major (got '$(BUMP)')"; \
 		exit 1; \
-	fi
-	@BRANCH=$$(git rev-parse --abbrev-ref HEAD); \
-	if [ "$(RC)" = "1" ] || [ "$$BRANCH" != "main" ]; then \
-		TAG="$(VERSION)-rc.$(COMMIT)"; \
+	fi; \
+	LATEST=$$(git tag --list '[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | grep -v '\-' | head -1); \
+	if [ -z "$$LATEST" ]; then \
+		echo "ERROR: no semver tags found"; \
+		exit 1; \
+	fi; \
+	MAJOR=$$(echo "$$LATEST" | cut -d. -f1); \
+	MINOR=$$(echo "$$LATEST" | cut -d. -f2); \
+	PATCH=$$(echo "$$LATEST" | cut -d. -f3); \
+	case "$(BUMP)" in \
+		major) MAJOR=$$((MAJOR + 1)); MINOR=0; PATCH=0 ;; \
+		minor) MINOR=$$((MINOR + 1)); PATCH=0 ;; \
+		patch) PATCH=$$((PATCH + 1)) ;; \
+	esac; \
+	BRANCH=$$(git rev-parse --abbrev-ref HEAD); \
+	if [ "$(RELEASE)" = "1" ]; then \
+		TAG="$$MAJOR.$$MINOR.$$PATCH"; \
+		echo "Creating release $$TAG on branch $$BRANCH..."; \
+		gh release create "$$TAG" --title "$$TAG" --generate-notes --target "$$BRANCH"; \
+	else \
+		TAG="$$MAJOR.$$MINOR.$$PATCH-rc.$(COMMIT)"; \
 		echo "Creating pre-release $$TAG on branch $$BRANCH..."; \
 		gh release create "$$TAG" --title "$$TAG" --generate-notes --prerelease --target "$$BRANCH"; \
-	else \
-		TAG="$(VERSION)"; \
-		echo "Creating release $$TAG on main..."; \
-		gh release create "$$TAG" --title "$$TAG" --generate-notes; \
 	fi
