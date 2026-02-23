@@ -35,6 +35,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"path/filepath"
 	"sync"
@@ -106,6 +107,7 @@ type Client struct {
 	cookbookContext   *enricher.CookbookContextService
 
 	hugotEmbedding *provider.HugotEmbedding
+	closers        []io.Closer
 
 	logger   *slog.Logger
 	dataDir  string
@@ -361,6 +363,7 @@ func New(opts ...Option) (*Client, error) {
 		apiDocService:     apiDocSvc,
 		cookbookContext:   cookbookCtx,
 		hugotEmbedding:    hugotEmbedding,
+		closers:           cfg.closers,
 		logger:            logger,
 		dataDir:           dataDir,
 		cloneDir:          cloneDir,
@@ -415,6 +418,13 @@ func (c *Client) Close() error {
 	if c.hugotEmbedding != nil {
 		if err := c.hugotEmbedding.Close(); err != nil {
 			c.logger.Error("failed to close hugot embedding", slog.Any("error", err))
+		}
+	}
+
+	// Close registered resources (e.g. caching transports)
+	for _, closer := range c.closers {
+		if err := closer.Close(); err != nil {
+			c.logger.Error("failed to close resource", slog.Any("error", err))
 		}
 	}
 

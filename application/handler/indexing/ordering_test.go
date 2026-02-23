@@ -2,9 +2,11 @@ package indexing
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"os"
 	"strconv"
+	"sync/atomic"
 	"testing"
 
 	"github.com/helixml/kodit/application/handler"
@@ -81,6 +83,74 @@ type fakeTrackerFactory struct{}
 
 func (f *fakeTrackerFactory) ForOperation(_ task.Operation, _ task.TrackableType, _ int64) handler.Tracker {
 	return &fakeTracker{}
+}
+
+// failingAssociationStore wraps a real AssociationStore and returns an error
+// from Find after a configured number of successful calls. This simulates a
+// transient failure that only surfaces in the second loop of filterNewEnrichments.
+type failingAssociationStore struct {
+	enrichment.AssociationStore
+	failAfter int32
+	calls     atomic.Int32
+	err       error
+}
+
+func (f *failingAssociationStore) Find(ctx context.Context, opts ...repository.Option) ([]enrichment.Association, error) {
+	if f.calls.Add(1) > f.failAfter {
+		return nil, f.err
+	}
+	return f.AssociationStore.Find(ctx, opts...)
+}
+
+func TestCreateSummaryEmbeddings_FilterPropagatesError(t *testing.T) {
+	ctx := context.Background()
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	db := testdb.New(t)
+	enrichmentStore := persistence.NewEnrichmentStore(db)
+	realAssocStore := persistence.NewAssociationStore(db)
+
+	commitSHA := "eee555fff666"
+
+	// Create one summary enrichment with a snippet association.
+	snippet, err := enrichmentStore.Save(ctx, enrichment.NewSnippetEnrichment("snippet content"))
+	require.NoError(t, err)
+	snippetSHA := strconv.FormatInt(snippet.ID(), 10)
+
+	summary, err := enrichmentStore.Save(ctx, enrichment.NewSnippetSummary("summary content"))
+	require.NoError(t, err)
+
+	_, err = realAssocStore.Save(ctx, enrichment.CommitAssociation(summary.ID(), commitSHA))
+	require.NoError(t, err)
+	_, err = realAssocStore.Save(ctx, enrichment.SnippetAssociation(summary.ID(), snippetSHA))
+	require.NoError(t, err)
+
+	// The first loop in filterNewEnrichments calls Find once (succeeds).
+	// The second loop calls Find again — this time it must fail.
+	injectedErr := errors.New("transient association lookup failure")
+	fakeAssocStore := &failingAssociationStore{
+		AssociationStore: realAssocStore,
+		failAfter:        1,
+		err:              injectedErr,
+	}
+
+	rec := &recordingEmbedding{}
+	h, err := NewCreateSummaryEmbeddings(
+		handler.VectorIndex{Embedding: rec, Store: &emptyEmbeddingStore{}},
+		enrichmentStore,
+		fakeAssocStore,
+		&fakeTrackerFactory{},
+		logger,
+	)
+	require.NoError(t, err)
+
+	payload := map[string]any{
+		"repository_id": int64(1),
+		"commit_sha":    commitSHA,
+	}
+	err = h.Execute(ctx, payload)
+	require.Error(t, err, "error from findSnippetSHA in the filter's second loop must propagate")
+	assert.ErrorIs(t, err, injectedErr)
 }
 
 func TestCreateCodeEmbeddings_OrdersByID(t *testing.T) {

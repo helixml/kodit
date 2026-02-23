@@ -1,6 +1,7 @@
 package kodit
 
 import (
+	"io"
 	"log/slog"
 	"time"
 
@@ -40,6 +41,7 @@ type clientConfig struct {
 	enrichmentParallelism  int
 	enricherParallelism    int
 	periodicSync           config.PeriodicSyncConfig
+	closers                []io.Closer
 }
 
 // newClientConfig creates a clientConfig with defaults from internal/config.
@@ -240,5 +242,12 @@ func WithPeriodicSyncConfig(cfg config.PeriodicSyncConfig) Option {
 func WithModelDir(dir string) Option {
 	return func(c *clientConfig) {
 		c.modelDir = dir
+	}
+}
+
+// WithCloser registers a resource to be closed when the Client shuts down.
+func WithCloser(c io.Closer) Option {
+	return func(cfg *clientConfig) {
+		cfg.closers = append(cfg.closers, c)
 	}
 }

@@ -62,6 +62,8 @@ func embeddingOptions(cfg config.AppConfig) ([]kodit.Option, error) {
 		return nil, nil
 	}
 
+	var opts []kodit.Option
+
 	openaiCfg := provider.OpenAIConfig{
 		APIKey:         endpoint.APIKey(),
 		BaseURL:        endpoint.BaseURL(),
@@ -78,6 +80,7 @@ func embeddingOptions(cfg config.AppConfig) ([]kodit.Option, error) {
 			Timeout:   endpoint.Timeout(),
 			Transport: transport,
 		}
+		opts = append(opts, kodit.WithCloser(transport))
 	}
 	p := provider.NewOpenAIProviderFromConfig(openaiCfg)
 
@@ -86,11 +89,11 @@ func embeddingOptions(cfg config.AppConfig) ([]kodit.Option, error) {
 		return nil, fmt.Errorf("max batch chars: %w", err)
 	}
 
-	opts := []kodit.Option{
+	opts = append(opts,
 		kodit.WithEmbeddingProvider(p),
 		kodit.WithEmbeddingBudget(budget),
 		kodit.WithEmbeddingParallelism(endpoint.NumParallelTasks()),
-	}
+	)
 
 	return opts, nil
 }
@@ -102,6 +105,8 @@ func textOptions(cfg config.AppConfig) ([]kodit.Option, error) {
 	if endpoint == nil || endpoint.BaseURL() == "" || endpoint.APIKey() == "" {
 		return nil, nil
 	}
+
+	var opts []kodit.Option
 
 	txtCfg := provider.OpenAIConfig{
 		APIKey:     endpoint.APIKey(),
@@ -119,6 +124,7 @@ func textOptions(cfg config.AppConfig) ([]kodit.Option, error) {
 			Timeout:   endpoint.Timeout(),
 			Transport: transport,
 		}
+		opts = append(opts, kodit.WithCloser(transport))
 	}
 	p := provider.NewOpenAIProviderFromConfig(txtCfg)
 
@@ -127,12 +133,12 @@ func textOptions(cfg config.AppConfig) ([]kodit.Option, error) {
 		return nil, fmt.Errorf("max batch chars: %w", err)
 	}
 
-	opts := []kodit.Option{
+	opts = append(opts,
 		kodit.WithTextProvider(p),
 		kodit.WithEnrichmentBudget(budget),
 		kodit.WithEnrichmentParallelism(endpoint.NumParallelTasks()),
 		kodit.WithEnricherParallelism(endpoint.NumParallelTasks()),
-	}
+	)
 
 	return opts, nil
 }

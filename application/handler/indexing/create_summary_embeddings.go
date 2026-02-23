@@ -173,7 +173,10 @@ func (h *CreateSummaryEmbeddings) filterNewEnrichments(ctx context.Context, enri
 	result := make([]enrichment.Enrichment, 0, len(enrichments))
 	for _, e := range enrichments {
 		snippetSHA, err := h.findSnippetSHA(ctx, e.ID())
-		if err != nil || snippetSHA == "" {
+		if err != nil {
+			return nil, err
+		}
+		if snippetSHA == "" {
 			continue
 		}
 		if !existing[snippetSHA] {
