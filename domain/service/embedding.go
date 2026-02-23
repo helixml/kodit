@@ -137,6 +137,14 @@ func (s *EmbeddingService) Index(ctx context.Context, request search.IndexReques
 		go func(idx int, batch []search.Document) {
 			defer wg.Done()
 			defer func() { <-sem }()
+			defer func() {
+				mu.Lock()
+				completed += len(batch)
+				if cfg.Progress() != nil {
+					cfg.Progress()(completed, total)
+				}
+				mu.Unlock()
+			}()
 
 			start := offsets[idx]
 			end := start + len(batch)
@@ -184,13 +192,6 @@ func (s *EmbeddingService) Index(ctx context.Context, request search.IndexReques
 				}
 				return
 			}
-
-			mu.Lock()
-			completed += len(batch)
-			if cfg.Progress() != nil {
-				cfg.Progress()(completed, total)
-			}
-			mu.Unlock()
 		}(i, batch)
 	}
 

@@ -475,3 +475,43 @@ func TestEmbeddingService_Index_ParallelBatches(t *testing.T) {
 	}
 	require.Equal(t, 7, total)
 }
+
+func TestEmbeddingService_Index_ProgressReachesTotalOnPartialFailure(t *testing.T) {
+	// Fail batch 1 of 3.
+	embedder := &fakeEmbedder{errAt: 1}
+	store := &fakeEmbeddingStore{existing: map[string]search.Embedding{}, saveErr: -1}
+
+	// 30-char budget, 10-char docs → 3 batches of 3/3/1.
+	budget, err := search.NewTokenBudget(30)
+	require.NoError(t, err)
+
+	// Parallelism 1 for deterministic ordering.
+	svc, err := NewEmbedding(store, embedder, budget, 1)
+	require.NoError(t, err)
+
+	documents := make([]search.Document, 7)
+	for i := range documents {
+		documents[i] = search.NewDocument(fmt.Sprintf("id-%d", i), strings.Repeat("a", 10))
+	}
+
+	type call struct {
+		completed int
+		total     int
+	}
+	var calls []call
+
+	err = svc.Index(context.Background(), search.NewIndexRequest(documents),
+		search.WithProgress(func(completed, total int) {
+			calls = append(calls, call{completed, total})
+		}),
+		search.WithMaxFailureRate(0.5),
+	)
+	require.NoError(t, err)
+
+	// Every batch must produce a progress callback, even failed ones,
+	// so the final completed count equals total.
+	require.Len(t, calls, 3, "progress called once per batch including the failed one")
+	require.Equal(t, 7, calls[len(calls)-1].completed,
+		"final progress must report all documents as processed")
+	require.Equal(t, 7, calls[len(calls)-1].total)
+}
