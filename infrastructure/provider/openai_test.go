@@ -279,3 +279,36 @@ func TestOpenAIProvider_EmbedEmptyResponseRetries(t *testing.T) {
 	require.Len(t, resp.Embeddings(), 2)
 	require.Equal(t, int64(3), counter.Load(), "should have retried twice then succeeded")
 }
+
+// upstreamErrorServer returns an httptest.Server that responds with HTTP 200
+// but an error body, simulating OpenRouter returning a provider routing failure
+// inside a successful HTTP response.
+func upstreamErrorServer(t *testing.T, counter *atomic.Int64) *httptest.Server {
+	t.Helper()
+
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		counter.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"error":{"message":"No successful provider responses.","code":404}}`))
+	}))
+}
+
+func TestOpenAIProvider_EmbedUpstreamErrorNotRetried(t *testing.T) {
+	var counter atomic.Int64
+	srv := upstreamErrorServer(t, &counter)
+	defer srv.Close()
+
+	p := NewOpenAIProviderFromConfig(OpenAIConfig{
+		APIKey:         "test-key",
+		BaseURL:        srv.URL,
+		EmbeddingModel: "test-model",
+		MaxRetries:     3,
+		InitialDelay:   time.Millisecond,
+	})
+
+	req := NewEmbeddingRequest([]string{"hello", "world"})
+	_, err := p.Embed(context.Background(), req)
+	require.Error(t, err)
+	require.ErrorIs(t, err, errUpstreamProviderFailure)
+	require.Equal(t, int64(1), counter.Load(), "upstream failure should not be retried")
+}

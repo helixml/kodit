@@ -16,8 +16,15 @@ const DefaultBatchSize = 10
 
 // errEmbeddingCountMismatch indicates the API returned fewer embedding vectors
 // than requested. This is retryable because transient upstream issues (e.g.
-// rate-limiting behind a 200 status) can produce empty or partial responses.
+// rate-limiting behind a 200 status) can produce partial responses.
 var errEmbeddingCountMismatch = errors.New("embedding response count mismatch")
+
+// errUpstreamProviderFailure indicates the API returned HTTP 200 but the
+// response body contained an error instead of embedding data. This happens
+// with routing providers like OpenRouter when all upstream providers fail.
+// The response has zero data, zero usage, and an empty model — retrying
+// is futile because the upstream provider is down, not transiently overloaded.
+var errUpstreamProviderFailure = errors.New("upstream provider failure")
 
 // OpenAIProvider implements both text generation and embedding using OpenAI API.
 type OpenAIProvider struct {
@@ -247,6 +254,16 @@ func (p *OpenAIProvider) Embed(ctx context.Context, req EmbeddingRequest) (Embed
 		resp, err = p.client.CreateEmbeddings(ctx, openaiReq)
 		if err != nil {
 			return err
+		}
+		// Detect upstream provider failure: routing providers (e.g. OpenRouter)
+		// return HTTP 200 with an error body that the go-openai library silently
+		// parses as an empty response. When zero data comes back with zero usage
+		// and no model, the upstream is down — not transiently overloaded.
+		if len(resp.Data) == 0 && string(resp.Model) == "" && resp.Usage.TotalTokens == 0 {
+			return fmt.Errorf(
+				"%w: provider returned HTTP 200 with no embedding data, no model, and zero usage (upstream routing failure)",
+				errUpstreamProviderFailure,
+			)
 		}
 		if len(resp.Data) != len(texts) {
 			return fmt.Errorf("%w: got %d vectors for %d texts", errEmbeddingCountMismatch, len(resp.Data), len(texts))
