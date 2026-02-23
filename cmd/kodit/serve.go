@@ -102,7 +102,10 @@ func runServe(envFile, host string, port int) error {
 	slogger := logger.Slog()
 
 	// Build kodit client options from shared config (database, embedding, text)
-	opts := clientOptions(cfg)
+	opts, err := clientOptions(cfg)
+	if err != nil {
+		return fmt.Errorf("build client options: %w", err)
+	}
 	opts = append(opts,
 		kodit.WithDataDir(cfg.DataDir()),
 		kodit.WithCloneDir(cfg.CloneDir()),
