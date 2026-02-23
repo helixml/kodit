@@ -18,7 +18,7 @@ const (
 	DefaultWorkerCount               = 1
 	DefaultSearchLimit               = 10
 	DefaultCloneSubdir               = "repos"
-	DefaultEndpointParallelTasks     = 10
+	DefaultEndpointParallelTasks     = 1
 	DefaultEndpointTimeout           = 60 * time.Second
 	DefaultEndpointMaxRetries        = 5
 	DefaultEndpointInitialDelay      = 2 * time.Second

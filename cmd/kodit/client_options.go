@@ -50,11 +50,12 @@ func embeddingOptions(cfg config.AppConfig) []kodit.Option {
 	}
 
 	p := provider.NewOpenAIProviderFromConfig(provider.OpenAIConfig{
-		APIKey:         endpoint.APIKey(),
-		BaseURL:        endpoint.BaseURL(),
-		EmbeddingModel: endpoint.Model(),
-		Timeout:        endpoint.Timeout(),
-		MaxRetries:     endpoint.MaxRetries(),
+		APIKey:              endpoint.APIKey(),
+		BaseURL:             endpoint.BaseURL(),
+		EmbeddingModel:      endpoint.Model(),
+		Timeout:             endpoint.Timeout(),
+		MaxRetries:          endpoint.MaxRetries(),
+		MaxParallelRequests: endpoint.NumParallelTasks(),
 	})
 
 	return []kodit.Option{kodit.WithEmbeddingProvider(p)}
