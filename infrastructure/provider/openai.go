@@ -6,25 +6,24 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"sync"
 	"time"
 
 	openai "github.com/sashabaranov/go-openai"
 )
 
-const embeddingBatchSize = 10
+// DefaultBatchSize is the default number of texts per embedding API call.
+const DefaultBatchSize = 10
 
 // OpenAIProvider implements both text generation and embedding using OpenAI API.
 type OpenAIProvider struct {
-	client              *openai.Client
-	chatModel           string
-	embeddingModel      string
-	maxRetries          int
-	maxParallelRequests int
-	initialDelay        time.Duration
-	backoffFactor       float64
-	supportsText        bool
-	supportsEmbedding   bool
+	client            *openai.Client
+	chatModel         string
+	embeddingModel    string
+	maxRetries        int
+	initialDelay      time.Duration
+	backoffFactor     float64
+	supportsText      bool
+	supportsEmbedding bool
 }
 
 // OpenAIOption is a functional option for OpenAIProvider.
@@ -66,15 +65,14 @@ func NewOpenAIProvider(apiKey string, opts ...OpenAIOption) *OpenAIProvider {
 	client := openai.NewClient(apiKey)
 
 	p := &OpenAIProvider{
-		client:              client,
-		chatModel:           "gpt-4",
-		embeddingModel:      "text-embedding-3-small",
-		maxRetries:          5,
-		maxParallelRequests: 1,
-		initialDelay:        2 * time.Second,
-		backoffFactor:       2.0,
-		supportsText:        true,
-		supportsEmbedding:   true,
+		client:            client,
+		chatModel:         "gpt-4",
+		embeddingModel:    "text-embedding-3-small",
+		maxRetries:        5,
+		initialDelay:      2 * time.Second,
+		backoffFactor:     2.0,
+		supportsText:      true,
+		supportsEmbedding: true,
 	}
 
 	for _, opt := range opts {
@@ -86,15 +84,14 @@ func NewOpenAIProvider(apiKey string, opts ...OpenAIOption) *OpenAIProvider {
 
 // OpenAIConfig holds configuration for OpenAI provider.
 type OpenAIConfig struct {
-	APIKey              string
-	BaseURL             string
-	ChatModel           string
-	EmbeddingModel      string
-	Timeout             time.Duration
-	MaxRetries          int
-	MaxParallelRequests int
-	InitialDelay        time.Duration
-	BackoffFactor       float64
+	APIKey         string
+	BaseURL        string
+	ChatModel      string
+	EmbeddingModel string
+	Timeout        time.Duration
+	MaxRetries     int
+	InitialDelay   time.Duration
+	BackoffFactor  float64
 }
 
 // NewOpenAIProviderFromConfig creates a provider from configuration.
@@ -139,15 +136,14 @@ func NewOpenAIProviderFromConfig(cfg OpenAIConfig) *OpenAIProvider {
 	}
 
 	return &OpenAIProvider{
-		client:              client,
-		chatModel:           chatModel,
-		embeddingModel:      embeddingModel,
-		maxRetries:          maxRetries,
-		maxParallelRequests: cfg.MaxParallelRequests,
-		initialDelay:        initialDelay,
-		backoffFactor:       backoffFactor,
-		supportsText:        true,
-		supportsEmbedding:   true,
+		client:            client,
+		chatModel:         chatModel,
+		embeddingModel:    embeddingModel,
+		maxRetries:        maxRetries,
+		initialDelay:      initialDelay,
+		backoffFactor:     backoffFactor,
+		supportsText:      true,
+		supportsEmbedding: true,
 	}
 }
 
@@ -223,9 +219,7 @@ func (p *OpenAIProvider) ChatCompletion(ctx context.Context, req ChatCompletionR
 	), nil
 }
 
-// Embed generates embeddings for the given texts. Texts are grouped into
-// batches of embeddingBatchSize (texts per request), then up to
-// maxParallelRequests batches are sent concurrently.
+// Embed generates embeddings for the given texts in a single API call.
 func (p *OpenAIProvider) Embed(ctx context.Context, req EmbeddingRequest) (EmbeddingResponse, error) {
 	if !p.supportsEmbedding {
 		return EmbeddingResponse{}, ErrUnsupportedOperation
@@ -236,68 +230,6 @@ func (p *OpenAIProvider) Embed(ctx context.Context, req EmbeddingRequest) (Embed
 		return NewEmbeddingResponse([][]float64{}, NewUsage(0, 0, 0)), nil
 	}
 
-	// Single batch — no goroutine overhead needed.
-	if len(texts) <= embeddingBatchSize {
-		return p.embedBatch(ctx, texts)
-	}
-
-	// Split into batches of embeddingBatchSize, send up to
-	// maxParallelRequests in parallel (0 = unlimited).
-	type batchResult struct {
-		embeddings [][]float64
-		usage      Usage
-		err        error
-	}
-
-	batches := partition(texts, embeddingBatchSize)
-	results := make([]batchResult, len(batches))
-
-	// Semaphore: 0 means unlimited, otherwise cap concurrency.
-	var sem chan struct{}
-	if p.maxParallelRequests > 0 {
-		sem = make(chan struct{}, p.maxParallelRequests)
-	}
-
-	var wg sync.WaitGroup
-	for i, batch := range batches {
-		if sem != nil {
-			sem <- struct{}{}
-		}
-		wg.Add(1)
-		go func(idx int, batch []string) {
-			defer wg.Done()
-			defer func() {
-				if sem != nil {
-					<-sem
-				}
-			}()
-			resp, err := p.embedBatch(ctx, batch)
-			results[idx] = batchResult{
-				embeddings: resp.Embeddings(),
-				usage:      resp.Usage(),
-				err:        err,
-			}
-		}(i, batch)
-	}
-	wg.Wait()
-
-	// Collect results in order.
-	embeddings := make([][]float64, 0, len(texts))
-	var totalPrompt, totalTokens int
-	for _, r := range results {
-		if r.err != nil {
-			return EmbeddingResponse{}, r.err
-		}
-		embeddings = append(embeddings, r.embeddings...)
-		totalPrompt += r.usage.PromptTokens()
-		totalTokens += r.usage.TotalTokens()
-	}
-
-	return NewEmbeddingResponse(embeddings, NewUsage(totalPrompt, 0, totalTokens)), nil
-}
-
-// embedBatch sends a single embedding request for the given texts.
-func (p *OpenAIProvider) embedBatch(ctx context.Context, texts []string) (EmbeddingResponse, error) {
 	openaiReq := openai.EmbeddingRequest{
 		Model: openai.EmbeddingModel(p.embeddingModel),
 		Input: texts,
@@ -325,16 +257,6 @@ func (p *OpenAIProvider) embedBatch(ctx context.Context, texts []string) (Embedd
 
 	usage := NewUsage(resp.Usage.PromptTokens, 0, resp.Usage.TotalTokens)
 	return NewEmbeddingResponse(embeddings, usage), nil
-}
-
-// partition splits a slice into sub-slices of at most batchSize.
-func partition(texts []string, batchSize int) [][]string {
-	var batches [][]string
-	for i := 0; i < len(texts); i += batchSize {
-		end := min(i+batchSize, len(texts))
-		batches = append(batches, texts[i:end])
-	}
-	return batches
 }
 
 // withRetry executes the function with exponential backoff retry.

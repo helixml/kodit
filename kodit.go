@@ -249,7 +249,7 @@ func New(opts ...Option) (*Client, error) {
 	// Create vector indices (pairing embedding services with their stores)
 	var codeIndex handler.VectorIndex
 	if codeEmbeddingStore != nil {
-		embSvc, err := domainservice.NewEmbedding(codeEmbeddingStore, domainEmbedder)
+		embSvc, err := domainservice.NewEmbedding(codeEmbeddingStore, domainEmbedder, provider.DefaultBatchSize)
 		if err != nil {
 			return nil, fmt.Errorf("create code embedding service: %w", err)
 		}
@@ -260,7 +260,7 @@ func New(opts ...Option) (*Client, error) {
 	}
 	var textIndex handler.VectorIndex
 	if textEmbeddingStore != nil {
-		embSvc, err := domainservice.NewEmbedding(textEmbeddingStore, domainEmbedder)
+		embSvc, err := domainservice.NewEmbedding(textEmbeddingStore, domainEmbedder, provider.DefaultBatchSize)
 		if err != nil {
 			return nil, fmt.Errorf("create text embedding service: %w", err)
 		}

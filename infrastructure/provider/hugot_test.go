@@ -41,8 +41,7 @@ func TestHugotEmbedding_EmbedBatch(t *testing.T) {
 		require.NoError(t, emb.Close())
 	}()
 
-	// 50 texts should be split into 5 batches of 10
-	texts := make([]string, 50)
+	texts := make([]string, 10)
 	for i := range texts {
 		texts[i] = "test sentence number"
 	}
@@ -52,7 +51,7 @@ func TestHugotEmbedding_EmbedBatch(t *testing.T) {
 	require.NoError(t, err)
 
 	embeddings := resp.Embeddings()
-	require.Len(t, embeddings, 50)
+	require.Len(t, embeddings, 10)
 	for i, vec := range embeddings {
 		require.Equal(t, 768, len(vec), "embedding %d has wrong dimension", i)
 	}

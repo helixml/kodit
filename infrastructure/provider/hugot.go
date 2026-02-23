@@ -12,8 +12,6 @@ import (
 	"github.com/knights-analytics/hugot/pipelines"
 )
 
-const hugotBatchMax = 10
-
 // ortSingleton holds the process-wide ONNX Runtime session and pipeline.
 // ORT only allows one active session per process, so all HugotEmbedding
 // instances must share it. The mutex serializes both initialization and
@@ -215,28 +213,18 @@ func (h *HugotEmbedding) Embed(ctx context.Context, req EmbeddingRequest) (Embed
 	ortSingleton.mu.Lock()
 	defer ortSingleton.mu.Unlock()
 
-	embeddings := make([][]float64, 0, len(texts))
+	result, err := ortSingleton.pipeline.RunPipeline(texts)
+	if err != nil {
+		return EmbeddingResponse{}, fmt.Errorf("run embedding pipeline: %w", err)
+	}
 
-	for i := 0; i < len(texts); i += hugotBatchMax {
-		if err := ctx.Err(); err != nil {
-			return EmbeddingResponse{}, err
+	embeddings := make([][]float64, len(result.Embeddings))
+	for i, vec32 := range result.Embeddings {
+		vec64 := make([]float64, len(vec32))
+		for j, v := range vec32 {
+			vec64[j] = float64(v)
 		}
-
-		end := min(i+hugotBatchMax, len(texts))
-		batch := texts[i:end]
-
-		result, err := ortSingleton.pipeline.RunPipeline(batch)
-		if err != nil {
-			return EmbeddingResponse{}, fmt.Errorf("run embedding pipeline: %w", err)
-		}
-
-		for _, vec32 := range result.Embeddings {
-			vec64 := make([]float64, len(vec32))
-			for j, v := range vec32 {
-				vec64[j] = float64(v)
-			}
-			embeddings = append(embeddings, vec64)
-		}
+		embeddings[i] = vec64
 	}
 
 	return NewEmbeddingResponse(embeddings, NewUsage(0, 0, 0)), nil

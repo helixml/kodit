@@ -43,9 +43,8 @@ func externalEmbedder(t *testing.T) *provider.OpenAIProvider {
 	})
 }
 
-// TestExternalEmbeddingBatching measures the effect of the provider's
-// automatic concurrent batching (batches of 10) versus sequential
-// single-item requests.
+// TestExternalEmbeddingBatching measures single-request latency and
+// latency distribution for external embedding providers.
 //
 // Run with:
 //
@@ -67,7 +66,7 @@ func TestExternalEmbeddingBatching(t *testing.T) {
 
 	// --- Phase 1: Sequential (one text per request) ---
 	t.Run("sequential", func(t *testing.T) {
-		counts := []int{1, 5, 10, 20}
+		counts := []int{1, 5, 10}
 		for _, count := range counts {
 			t.Run(fmt.Sprintf("n_%d", count), func(t *testing.T) {
 				batch := texts[:count]
@@ -88,69 +87,7 @@ func TestExternalEmbeddingBatching(t *testing.T) {
 		}
 	})
 
-	// --- Phase 2: Automatic batching (provider splits into concurrent batches of 10) ---
-	t.Run("auto_batched", func(t *testing.T) {
-		counts := []int{1, 5, 10, 20, 40, 80, 100}
-		for _, count := range counts {
-			t.Run(fmt.Sprintf("n_%d", count), func(t *testing.T) {
-				batch := sampleTexts(count)
-
-				start := time.Now()
-				req := provider.NewEmbeddingRequest(batch)
-				resp, err := embedder.Embed(ctx, req)
-				elapsed := time.Since(start)
-				require.NoError(t, err)
-				require.Len(t, resp.Embeddings(), count)
-
-				perItem := elapsed / time.Duration(count)
-				t.Logf("n=%d  total=%v  per_item=%v  items/sec=%.1f",
-					count, elapsed, perItem, float64(count)/elapsed.Seconds())
-			})
-		}
-	})
-
-	// --- Phase 3: Vary parallel requests (batch_size=10 fixed, vary parallelism) ---
-	// Simulates EMBEDDING_ENDPOINT_NUM_PARALLEL_TASKS with 100 texts.
-	// Each request carries 10 texts; parallelism controls how many
-	// requests fly at once.
-	t.Run("parallelism_scaling", func(t *testing.T) {
-		apiKey := os.Getenv("EMBEDDING_ENDPOINT_API_KEY")
-		allTexts := sampleTexts(100)
-		parallelisms := []int{1, 2, 4, 8, 10, 20, 0} // 0 = unlimited
-
-		for _, p := range parallelisms {
-			label := fmt.Sprintf("parallel_%d", p)
-			if p == 0 {
-				label = "parallel_unlimited"
-			}
-			t.Run(label, func(t *testing.T) {
-				emb := provider.NewOpenAIProviderFromConfig(provider.OpenAIConfig{
-					APIKey:              apiKey,
-					BaseURL:             openRouterBaseURL,
-					EmbeddingModel:      openRouterEmbeddingModel,
-					Timeout:             openRouterTimeout,
-					MaxRetries:          3,
-					InitialDelay:        time.Second,
-					BackoffFactor:       2.0,
-					MaxParallelRequests: p,
-				})
-				defer func() { _ = emb.Close() }()
-
-				start := time.Now()
-				req := provider.NewEmbeddingRequest(allTexts)
-				resp, err := emb.Embed(ctx, req)
-				elapsed := time.Since(start)
-				require.NoError(t, err)
-				require.Len(t, resp.Embeddings(), 100)
-
-				perItem := elapsed / 100
-				t.Logf("parallel_requests=%d  batch_size=10  total=%v  per_item=%v  items/sec=%.1f",
-					p, elapsed, perItem, 100.0/elapsed.Seconds())
-			})
-		}
-	})
-
-	// --- Phase 4: Latency distribution ---
+	// --- Phase 2: Latency distribution ---
 	// Measures p50/p95/p99 latency for single-item requests.
 	t.Run("latency_distribution", func(t *testing.T) {
 		const iterations = 20
