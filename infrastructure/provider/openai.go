@@ -19,8 +19,9 @@ var errEmbeddingCountMismatch = errors.New("embedding response count mismatch")
 // errUpstreamProviderFailure indicates the API returned HTTP 200 but the
 // response body contained an error instead of embedding data. This happens
 // with routing providers like OpenRouter when all upstream providers fail.
-// The response has zero data, zero usage, and an empty model — retrying
-// is futile because the upstream provider is down, not transiently overloaded.
+// The response has zero data, zero usage, and an empty model. This is
+// retryable because the failure is transient — the same model succeeds on
+// subsequent requests once OpenRouter re-routes to a healthy provider.
 var errUpstreamProviderFailure = errors.New("upstream provider failure")
 
 // OpenAIProvider implements both text generation and embedding using OpenAI API.
@@ -321,6 +322,13 @@ func (p *OpenAIProvider) isRetryable(err error) bool {
 	// Empty or partial embedding responses are retryable — upstream providers
 	// can return 200 with no data under transient load conditions.
 	if errors.Is(err, errEmbeddingCountMismatch) {
+		return true
+	}
+
+	// Upstream provider routing failures (e.g. OpenRouter "No successful
+	// provider responses") are transient — the same request succeeds once
+	// the routing layer picks a healthy provider.
+	if errors.Is(err, errUpstreamProviderFailure) {
 		return true
 	}
 

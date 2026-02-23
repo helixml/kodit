@@ -282,20 +282,66 @@ func TestOpenAIProvider_EmbedEmptyResponseRetries(t *testing.T) {
 
 // upstreamErrorServer returns an httptest.Server that responds with HTTP 200
 // but an error body, simulating OpenRouter returning a provider routing failure
-// inside a successful HTTP response.
-func upstreamErrorServer(t *testing.T, counter *atomic.Int64) *httptest.Server {
+// inside a successful HTTP response. After failCount requests it starts
+// returning valid embedding responses.
+func upstreamErrorServer(t *testing.T, counter *atomic.Int64, failCount int64) *httptest.Server {
 	t.Helper()
 
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		counter.Add(1)
+		n := counter.Add(1)
+
+		var body struct {
+			Input interface{} `json:"input"`
+			Model string      `json:"model"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"error":{"message":"No successful provider responses.","code":404}}`))
+
+		if n <= failCount {
+			_, _ = w.Write([]byte(`{"error":{"message":"No successful provider responses.","code":404}}`))
+			return
+		}
+
+		var texts []string
+		switch v := body.Input.(type) {
+		case string:
+			texts = []string{v}
+		case []interface{}:
+			for _, item := range v {
+				texts = append(texts, item.(string))
+			}
+		}
+
+		data := make([]map[string]interface{}, len(texts))
+		for i := range texts {
+			data[i] = map[string]interface{}{
+				"object":    "embedding",
+				"index":     i,
+				"embedding": []float64{0.1, 0.2, 0.3},
+			}
+		}
+
+		resp := map[string]interface{}{
+			"object": "list",
+			"data":   data,
+			"model":  body.Model,
+			"usage": map[string]int{
+				"prompt_tokens": len(texts) * 4,
+				"total_tokens":  len(texts) * 4,
+			},
+		}
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 }
 
-func TestOpenAIProvider_EmbedUpstreamErrorNotRetried(t *testing.T) {
+func TestOpenAIProvider_EmbedUpstreamErrorExhaustsRetries(t *testing.T) {
 	var counter atomic.Int64
-	srv := upstreamErrorServer(t, &counter)
+	// Always fail — never recover.
+	srv := upstreamErrorServer(t, &counter, 999)
 	defer srv.Close()
 
 	p := NewOpenAIProviderFromConfig(OpenAIConfig{
@@ -310,5 +356,26 @@ func TestOpenAIProvider_EmbedUpstreamErrorNotRetried(t *testing.T) {
 	_, err := p.Embed(context.Background(), req)
 	require.Error(t, err)
 	require.ErrorIs(t, err, errUpstreamProviderFailure)
-	require.Equal(t, int64(1), counter.Load(), "upstream failure should not be retried")
+	require.Equal(t, int64(4), counter.Load(), "should attempt 1 + 3 retries")
+}
+
+func TestOpenAIProvider_EmbedUpstreamErrorRecovers(t *testing.T) {
+	var counter atomic.Int64
+	// Fail the first 2 requests, then succeed.
+	srv := upstreamErrorServer(t, &counter, 2)
+	defer srv.Close()
+
+	p := NewOpenAIProviderFromConfig(OpenAIConfig{
+		APIKey:         "test-key",
+		BaseURL:        srv.URL,
+		EmbeddingModel: "test-model",
+		MaxRetries:     3,
+		InitialDelay:   time.Millisecond,
+	})
+
+	req := NewEmbeddingRequest([]string{"hello", "world"})
+	resp, err := p.Embed(context.Background(), req)
+	require.NoError(t, err)
+	require.Len(t, resp.Embeddings(), 2)
+	require.Equal(t, int64(3), counter.Load(), "should have retried twice then succeeded")
 }
