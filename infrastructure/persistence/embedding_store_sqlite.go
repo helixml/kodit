@@ -47,30 +47,28 @@ CREATE TABLE IF NOT EXISTS %s (
 	return s, nil
 }
 
-// SaveAll persists pre-computed embeddings using upsert.
+// SaveAll persists pre-computed embeddings using batched upsert.
 func (s *SQLiteEmbeddingStore) SaveAll(ctx context.Context, embeddings []search.Embedding) error {
 	if len(embeddings) == 0 {
 		return nil
+	}
+
+	models := make([]SQLiteEmbeddingModel, len(embeddings))
+	for i, emb := range embeddings {
+		models[i] = SQLiteEmbeddingModel{
+			SnippetID: emb.SnippetID(),
+			Embedding: Float64Slice(emb.Vector()),
+		}
 	}
 
 	tableName := s.Table()
 	db := s.DB(ctx)
 
 	return db.Transaction(func(tx *gorm.DB) error {
-		for _, emb := range embeddings {
-			model := SQLiteEmbeddingModel{
-				SnippetID: emb.SnippetID(),
-				Embedding: Float64Slice(emb.Vector()),
-			}
-			err := tx.Table(tableName).Clauses(clause.OnConflict{
-				Columns:   []clause.Column{{Name: "snippet_id"}},
-				DoUpdates: clause.AssignmentColumns([]string{"embedding"}),
-			}).Create(&model).Error
-			if err != nil {
-				return err
-			}
-		}
-		return nil
+		return tx.Table(tableName).Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "snippet_id"}},
+			DoUpdates: clause.AssignmentColumns([]string{"embedding"}),
+		}).CreateInBatches(models, saveAllBatchSize).Error
 	})
 }
 

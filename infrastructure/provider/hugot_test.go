@@ -41,7 +41,7 @@ func TestHugotEmbedding_EmbedBatch(t *testing.T) {
 		require.NoError(t, emb.Close())
 	}()
 
-	// 50 texts should be split into 2 batches (32 + 18)
+	// 50 texts should be split into 5 batches of 10
 	texts := make([]string, 50)
 	for i := range texts {
 		texts[i] = "test sentence number"

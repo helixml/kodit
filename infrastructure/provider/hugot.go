@@ -12,7 +12,7 @@ import (
 	"github.com/knights-analytics/hugot/pipelines"
 )
 
-const hugotBatchMax = 32
+const hugotBatchMax = 10
 
 // ortSingleton holds the process-wide ONNX Runtime session and pipeline.
 // ORT only allows one active session per process, so all HugotEmbedding

@@ -89,31 +89,29 @@ CREATE TABLE IF NOT EXISTS %s (
 	return s, nil
 }
 
-// SaveAll persists pre-computed embeddings using upsert, then ensures
+// SaveAll persists pre-computed embeddings using batched upsert, then ensures
 // the vchordrq index exists (it requires data for K-means clustering).
 func (s *VectorChordEmbeddingStore) SaveAll(ctx context.Context, embeddings []search.Embedding) error {
 	if len(embeddings) == 0 {
 		return nil
 	}
 
+	models := make([]PgEmbeddingModel, len(embeddings))
+	for i, emb := range embeddings {
+		models[i] = PgEmbeddingModel{
+			SnippetID: emb.SnippetID(),
+			Embedding: database.NewPgVector(emb.Vector()),
+		}
+	}
+
 	tableName := s.Table()
 	db := s.DB(ctx)
 
 	err := db.Transaction(func(tx *gorm.DB) error {
-		for _, emb := range embeddings {
-			model := PgEmbeddingModel{
-				SnippetID: emb.SnippetID(),
-				Embedding: database.NewPgVector(emb.Vector()),
-			}
-			err := tx.Table(tableName).Clauses(clause.OnConflict{
-				Columns:   []clause.Column{{Name: "snippet_id"}},
-				DoUpdates: clause.AssignmentColumns([]string{"embedding"}),
-			}).Create(&model).Error
-			if err != nil {
-				return err
-			}
-		}
-		return nil
+		return tx.Table(tableName).Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "snippet_id"}},
+			DoUpdates: clause.AssignmentColumns([]string{"embedding"}),
+		}).CreateInBatches(models, saveAllBatchSize).Error
 	})
 	if err != nil {
 		return err
