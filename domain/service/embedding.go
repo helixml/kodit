@@ -197,7 +197,10 @@ func (s *EmbeddingService) Index(ctx context.Context, request search.IndexReques
 	wg.Wait()
 
 	if len(batchErrors) > 0 {
-		return fmt.Errorf("%d of %d embedding batches failed: %w", len(batchErrors), len(batches), errors.Join(batchErrors...))
+		rate := float64(len(batchErrors)) / float64(len(batches))
+		if rate > cfg.MaxFailureRate() {
+			return fmt.Errorf("%d of %d embedding batches failed: %w", len(batchErrors), len(batches), errors.Join(batchErrors...))
+		}
 	}
 
 	return nil

@@ -222,7 +222,9 @@ func TestEmbeddingService_Index_EmbedErrorMidBatch(t *testing.T) {
 		documents[i] = search.NewDocument(fmt.Sprintf("id-%d", i), strings.Repeat("a", 10))
 	}
 
-	err = svc.Index(context.Background(), search.NewIndexRequest(documents))
+	err = svc.Index(context.Background(), search.NewIndexRequest(documents),
+		search.WithMaxFailureRate(0),
+	)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "embed batch")
 	require.Contains(t, err.Error(), "1 of 3 embedding batches failed")
@@ -248,7 +250,9 @@ func TestEmbeddingService_Index_SaveErrorMidBatch(t *testing.T) {
 		documents[i] = search.NewDocument(fmt.Sprintf("id-%d", i), strings.Repeat("a", 10))
 	}
 
-	err = svc.Index(context.Background(), search.NewIndexRequest(documents))
+	err = svc.Index(context.Background(), search.NewIndexRequest(documents),
+		search.WithMaxFailureRate(0),
+	)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "save batch")
 	require.Contains(t, err.Error(), "1 of 3 embedding batches failed")
@@ -388,6 +392,57 @@ func TestEmbeddingService_Index_LargeDocGetsOwnBatch(t *testing.T) {
 	require.Len(t, embedder.calls[0], 1, "first small doc alone (next doc would overflow)")
 	require.Len(t, embedder.calls[1], 1, "large doc alone in its own batch")
 	require.Len(t, embedder.calls[2], 1, "last small doc alone")
+}
+
+func TestEmbeddingService_Index_ToleratesPartialFailure(t *testing.T) {
+	embedder := &fakeEmbedder{errAt: 1}
+	store := &fakeEmbeddingStore{existing: map[string]search.Embedding{}, saveErr: -1}
+
+	// 30-char budget, 10-char docs → 3 batches of 3/3/1.
+	budget, err := search.NewTokenBudget(30)
+	require.NoError(t, err)
+
+	svc, err := NewEmbedding(store, embedder, budget, 1)
+	require.NoError(t, err)
+
+	documents := make([]search.Document, 7)
+	for i := range documents {
+		documents[i] = search.NewDocument(fmt.Sprintf("id-%d", i), strings.Repeat("a", 10))
+	}
+
+	// 1 of 3 batches fails (~33%), tolerance is 50% → no error.
+	err = svc.Index(context.Background(), search.NewIndexRequest(documents),
+		search.WithMaxFailureRate(0.5),
+	)
+	require.NoError(t, err)
+
+	require.Len(t, embedder.calls, 3, "all batches attempted")
+	require.Len(t, store.saved, 2, "2 successful saves")
+}
+
+func TestEmbeddingService_Index_ExceedsFailureTolerance(t *testing.T) {
+	// Fail at batch 0 and batch 1 (2 of 3 batches).
+	embedder := &fakeEmbedder{errAt: 0}
+	store := &fakeEmbeddingStore{existing: map[string]search.Embedding{}, saveErr: -1}
+
+	// 30-char budget, 10-char docs → 3 batches of 3/3/1.
+	budget, err := search.NewTokenBudget(30)
+	require.NoError(t, err)
+
+	svc, err := NewEmbedding(store, embedder, budget, 1)
+	require.NoError(t, err)
+
+	documents := make([]search.Document, 7)
+	for i := range documents {
+		documents[i] = search.NewDocument(fmt.Sprintf("id-%d", i), strings.Repeat("a", 10))
+	}
+
+	// 1 of 3 batches fails (~33%), tolerance is 10% → error.
+	err = svc.Index(context.Background(), search.NewIndexRequest(documents),
+		search.WithMaxFailureRate(0.1),
+	)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "1 of 3 embedding batches failed")
 }
 
 func TestEmbeddingService_Index_ParallelBatches(t *testing.T) {
