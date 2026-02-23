@@ -1,6 +1,9 @@
 package search
 
-import "fmt"
+import (
+	"fmt"
+	"unicode/utf8"
+)
 
 // maxTextsPerBatch is an internal cap on the number of texts in a single
 // embedding API call. This matches the previous DefaultBatchSize.
@@ -30,12 +33,13 @@ func DefaultTokenBudget() TokenBudget {
 	return b
 }
 
-// Truncate returns text capped to the character limit.
+// Truncate returns text capped to the character (rune) limit.
 func (b TokenBudget) Truncate(text string) string {
-	if len(text) > b.maxChars {
-		return text[:b.maxChars]
+	if utf8.RuneCountInString(text) <= b.maxChars {
+		return text
 	}
-	return text
+	runes := []rune(text)
+	return string(runes[:b.maxChars])
 }
 
 // Batches partitions documents into groups whose total truncated character
@@ -55,7 +59,7 @@ func (b TokenBudget) Batches(documents []Document) [][]Document {
 		batchChars := 0
 
 		for i < len(documents) && i-start < maxTextsPerBatch {
-			textLen := min(len(documents[i].Text()), b.maxChars)
+			textLen := min(utf8.RuneCountInString(documents[i].Text()), b.maxChars)
 
 			if batchChars+textLen > b.maxChars && i > start {
 				break

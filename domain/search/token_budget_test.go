@@ -3,6 +3,7 @@ package search
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/require"
 )
@@ -112,6 +113,44 @@ func TestTokenBudget_Batches_TruncatedSizeMeasured(t *testing.T) {
 	require.Len(t, batches[0], 1)
 	require.Len(t, batches[1], 1)
 	require.Len(t, batches[2], 1)
+}
+
+func TestTokenBudget_Truncate_MultibyteSafe(t *testing.T) {
+	// "hello 🌍🌎🌏" is 10 runes but 22 bytes (each emoji is 4 bytes).
+	// Truncating to 7 chars must produce "hello 🌍", not corrupt UTF-8.
+	b, _ := NewTokenBudget(7)
+	result := b.Truncate("hello 🌍🌎🌏")
+	require.Equal(t, "hello 🌍", result)
+	require.True(t, utf8.ValidString(result))
+}
+
+func TestTokenBudget_Truncate_CJK(t *testing.T) {
+	// Each CJK character is 3 bytes. A budget of 3 chars must keep 3 runes.
+	b, _ := NewTokenBudget(3)
+	result := b.Truncate("日本語テスト")
+	require.Equal(t, "日本語", result)
+	require.True(t, utf8.ValidString(result))
+}
+
+func TestTokenBudget_Truncate_MultibyteFitsExact(t *testing.T) {
+	// All characters fit — nothing should be truncated.
+	b, _ := NewTokenBudget(10)
+	result := b.Truncate("hello 🌍🌎🌏")
+	require.Equal(t, "hello 🌍🌎🌏", result)
+}
+
+func TestTokenBudget_Batches_MultibyteCharCounting(t *testing.T) {
+	// Budget 10 chars. Each doc is "🌍🌎🌏🌏🌏" = 5 runes (20 bytes).
+	// Two docs = 10 runes = exactly the budget, so both fit in one batch.
+	b, _ := NewTokenBudget(10)
+
+	docs := []Document{
+		NewDocument("a", "🌍🌎🌏🌏🌏"),
+		NewDocument("b", "🌍🌎🌏🌏🌏"),
+	}
+
+	batches := b.Batches(docs)
+	require.Len(t, batches, 1, "two 5-rune docs should fit in a 10-char budget")
 }
 
 func TestTokenBudget_Batches_SingleDoc(t *testing.T) {
