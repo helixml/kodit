@@ -14,6 +14,11 @@ import (
 // DefaultBatchSize is the default number of texts per embedding API call.
 const DefaultBatchSize = 10
 
+// errEmbeddingCountMismatch indicates the API returned fewer embedding vectors
+// than requested. This is retryable because transient upstream issues (e.g.
+// rate-limiting behind a 200 status) can produce empty or partial responses.
+var errEmbeddingCountMismatch = errors.New("embedding response count mismatch")
+
 // OpenAIProvider implements both text generation and embedding using OpenAI API.
 type OpenAIProvider struct {
 	client            *openai.Client
@@ -240,7 +245,13 @@ func (p *OpenAIProvider) Embed(ctx context.Context, req EmbeddingRequest) (Embed
 
 	err = p.withRetry(ctx, func() error {
 		resp, err = p.client.CreateEmbeddings(ctx, openaiReq)
-		return err
+		if err != nil {
+			return err
+		}
+		if len(resp.Data) != len(texts) {
+			return fmt.Errorf("%w: got %d vectors for %d texts", errEmbeddingCountMismatch, len(resp.Data), len(texts))
+		}
+		return nil
 	})
 
 	if err != nil {
@@ -293,6 +304,12 @@ func (p *OpenAIProvider) withRetry(ctx context.Context, fn func() error) error {
 
 // isRetryable determines if an error should be retried.
 func (p *OpenAIProvider) isRetryable(err error) bool {
+	// Empty or partial embedding responses are retryable — upstream providers
+	// can return 200 with no data under transient load conditions.
+	if errors.Is(err, errEmbeddingCountMismatch) {
+		return true
+	}
+
 	// HTTP client timeouts are retryable
 	var netErr net.Error
 	if errors.As(err, &netErr) && netErr.Timeout() {
