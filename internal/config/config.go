@@ -27,7 +27,7 @@ const (
 	DefaultPeriodicSyncInterval      = 1800.0 // seconds
 	DefaultPeriodicSyncCheckInterval = 10.0   // seconds
 	DefaultPeriodicSyncRetries       = 3
-	DefaultEndpointMaxBatchChars      = 16000
+	DefaultEndpointMaxBatchChars     = 16000
 	DefaultRemoteTimeout             = 30 * time.Second
 	DefaultRemoteMaxRetries          = 3
 	DefaultReportingInterval         = 5 * time.Second

@@ -5,10 +5,6 @@ import (
 	"unicode/utf8"
 )
 
-// maxTextsPerBatch is an internal cap on the number of texts in a single
-// embedding API call. This matches the previous DefaultBatchSize.
-const maxTextsPerBatch = 10
-
 // TokenBudget constrains embedding batches to stay within model token limits.
 // It holds a single character budget: each batch's total (truncated) text
 // must not exceed maxChars, and individual texts are truncated to maxChars.
@@ -43,9 +39,9 @@ func (b TokenBudget) Truncate(text string) string {
 }
 
 // Batches partitions documents into groups whose total truncated character
-// count stays within the budget. Each batch also contains at most 10 texts.
-// A single document whose truncated text still exceeds the budget is placed
-// alone in its own batch.
+// count stays within the budget. The token budget is the sole constraint on
+// batch size. A single document whose truncated text still exceeds the budget
+// is placed alone in its own batch.
 func (b TokenBudget) Batches(documents []Document) [][]Document {
 	if len(documents) == 0 {
 		return nil
@@ -58,7 +54,7 @@ func (b TokenBudget) Batches(documents []Document) [][]Document {
 		start := i
 		batchChars := 0
 
-		for i < len(documents) && i-start < maxTextsPerBatch {
+		for i < len(documents) {
 			textLen := min(utf8.RuneCountInString(documents[i].Text()), b.maxChars)
 
 			if batchChars+textLen > b.maxChars && i > start {

@@ -127,7 +127,7 @@ func TestEmbeddingPipeline(t *testing.T) {
 	require.NoError(t, err)
 
 	adapter := &embeddingAdapter{inner: embedder}
-	svc, err := domainservice.NewEmbedding(store, adapter, search.DefaultTokenBudget())
+	svc, err := domainservice.NewEmbedding(store, adapter, search.DefaultTokenBudget(), 1)
 	require.NoError(t, err)
 
 	// --- Phase 1: ONNX Model Inference ---
@@ -302,7 +302,7 @@ func TestEmbeddingPipelineCPUProfile(t *testing.T) {
 	require.NoError(t, err)
 
 	adapter := &embeddingAdapter{inner: embedder}
-	svc, err := domainservice.NewEmbedding(store, adapter, search.DefaultTokenBudget())
+	svc, err := domainservice.NewEmbedding(store, adapter, search.DefaultTokenBudget(), 1)
 	require.NoError(t, err)
 
 	// Create profile output
@@ -358,7 +358,7 @@ func TestEmbeddingPipelineMemProfile(t *testing.T) {
 	require.NoError(t, err)
 
 	adapter := &embeddingAdapter{inner: embedder}
-	svc, err := domainservice.NewEmbedding(store, adapter, search.DefaultTokenBudget())
+	svc, err := domainservice.NewEmbedding(store, adapter, search.DefaultTokenBudget(), 1)
 	require.NoError(t, err)
 
 	// Warm up

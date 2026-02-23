@@ -64,6 +64,8 @@ func embeddingOptions(cfg config.AppConfig) []kodit.Option {
 		opts = append(opts, kodit.WithEmbeddingBudget(budget))
 	}
 
+	opts = append(opts, kodit.WithEmbeddingParallelism(endpoint.NumParallelTasks()))
+
 	return opts
 }
 
@@ -88,6 +90,8 @@ func textOptions(cfg config.AppConfig) []kodit.Option {
 	if budget, err := search.NewTokenBudget(endpoint.MaxBatchChars()); err == nil {
 		opts = append(opts, kodit.WithEnrichmentBudget(budget))
 	}
+
+	opts = append(opts, kodit.WithEnrichmentParallelism(endpoint.NumParallelTasks()))
 
 	return opts
 }

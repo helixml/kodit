@@ -49,22 +49,6 @@ func TestTokenBudget_Batches_Empty(t *testing.T) {
 	require.Nil(t, b.Batches([]Document{}))
 }
 
-func TestTokenBudget_Batches_ByCount(t *testing.T) {
-	// Budget large enough for all texts, so the 10-text cap is the limit.
-	b, _ := NewTokenBudget(100000)
-
-	docs := make([]Document, 23)
-	for i := range docs {
-		docs[i] = NewDocument("id", "x")
-	}
-
-	batches := b.Batches(docs)
-	require.Len(t, batches, 3)
-	require.Len(t, batches[0], 10)
-	require.Len(t, batches[1], 10)
-	require.Len(t, batches[2], 3)
-}
-
 func TestTokenBudget_Batches_ByChars(t *testing.T) {
 	// 25 chars budget. Each doc is 10 chars, so 2 fit per batch.
 	b, _ := NewTokenBudget(25)

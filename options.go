@@ -36,6 +36,8 @@ type clientConfig struct {
 	skipProviderValidation bool
 	embeddingBudget        search.TokenBudget
 	enrichmentBudget       search.TokenBudget
+	embeddingParallelism   int
+	enrichmentParallelism  int
 	periodicSync           config.PeriodicSyncConfig
 }
 
@@ -43,11 +45,13 @@ type clientConfig struct {
 // This ensures all defaults come from the single source of truth.
 func newClientConfig() *clientConfig {
 	return &clientConfig{
-		dataDir:          config.DefaultDataDir(),
-		workerCount:      config.DefaultWorkerCount,
-		embeddingBudget:  search.DefaultTokenBudget(),
-		enrichmentBudget: search.DefaultTokenBudget(),
-		periodicSync:     config.NewPeriodicSyncConfig(),
+		dataDir:               config.DefaultDataDir(),
+		workerCount:           config.DefaultWorkerCount,
+		embeddingBudget:       search.DefaultTokenBudget(),
+		enrichmentBudget:      search.DefaultTokenBudget(),
+		embeddingParallelism:  1,
+		enrichmentParallelism: 1,
+		periodicSync:          config.NewPeriodicSyncConfig(),
 	}
 }
 
@@ -132,6 +136,26 @@ func WithEmbeddingBudget(b search.TokenBudget) Option {
 func WithEnrichmentBudget(b search.TokenBudget) Option {
 	return func(c *clientConfig) {
 		c.enrichmentBudget = b
+	}
+}
+
+// WithEmbeddingParallelism sets how many embedding batches are dispatched concurrently.
+// Defaults to 1. Values <= 0 are ignored.
+func WithEmbeddingParallelism(n int) Option {
+	return func(c *clientConfig) {
+		if n > 0 {
+			c.embeddingParallelism = n
+		}
+	}
+}
+
+// WithEnrichmentParallelism sets how many enrichment embedding batches are dispatched concurrently.
+// Defaults to 1. Values <= 0 are ignored.
+func WithEnrichmentParallelism(n int) Option {
+	return func(c *clientConfig) {
+		if n > 0 {
+			c.enrichmentParallelism = n
+		}
 	}
 }
 
