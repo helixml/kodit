@@ -61,7 +61,7 @@ func (h *CreateExampleCodeEmbeddings) Execute(ctx context.Context, payload map[s
 		cp.RepoID(),
 	)
 
-	examples, err := h.enrichmentStore.Find(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeExample), repository.WithOrderAsc("id"))
+	examples, err := h.enrichmentStore.Find(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeExample), repository.WithOrderAsc("enrichments_v2.id"))
 	if err != nil {
 		h.logger.Error("failed to get example enrichments", slog.String("error", err.Error()))
 		return err
