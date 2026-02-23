@@ -41,6 +41,8 @@ func (a *embeddingAdapter) Embed(ctx context.Context, texts []string) ([][]float
 	return resp.Embeddings(), nil
 }
 
+func (a *embeddingAdapter) Capacity() int { return a.inner.Capacity() }
+
 // testDB connects to the VectorChord PostgreSQL instance and drops any
 // leftover performance test tables. Returns the database and a cleanup function.
 func testDB(t *testing.T) database.Database {

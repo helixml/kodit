@@ -82,8 +82,6 @@ func (h *CreateExampleCodeEmbeddings) Execute(ctx context.Context, payload map[s
 		return nil
 	}
 
-	tracker.SetTotal(ctx, len(newExamples))
-
 	documents := make([]search.Document, 0, len(newExamples))
 	for _, e := range newExamples {
 		content := e.Content()
@@ -98,13 +96,15 @@ func (h *CreateExampleCodeEmbeddings) Execute(ctx context.Context, payload map[s
 		return nil
 	}
 
+	tracker.SetTotal(ctx, len(documents))
+
 	request := search.NewIndexRequest(documents)
-	if err := h.codeIndex.Embedding.Index(ctx, request); err != nil {
+	if err := h.codeIndex.Embedding.Index(ctx, request, search.WithProgress(func(completed, total int) {
+		tracker.SetCurrent(ctx, completed, "Creating example code embeddings")
+	})); err != nil {
 		h.logger.Error("failed to create example code embeddings", slog.String("error", err.Error()))
 		return err
 	}
-
-	tracker.SetCurrent(ctx, len(newExamples), "Creating example code embeddings")
 
 	h.logger.Info("example code embeddings created",
 		slog.Int("documents", len(documents)),

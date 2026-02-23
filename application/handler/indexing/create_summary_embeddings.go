@@ -87,8 +87,6 @@ func (h *CreateSummaryEmbeddings) Execute(ctx context.Context, payload map[strin
 		return nil
 	}
 
-	tracker.SetTotal(ctx, len(newEnrichments))
-
 	documents := make([]search.Document, 0, len(newEnrichments))
 	for _, e := range newEnrichments {
 		content := e.Content()
@@ -116,13 +114,15 @@ func (h *CreateSummaryEmbeddings) Execute(ctx context.Context, payload map[strin
 		return nil
 	}
 
+	tracker.SetTotal(ctx, len(documents))
+
 	request := search.NewIndexRequest(documents)
-	if err := h.textIndex.Embedding.Index(ctx, request); err != nil {
+	if err := h.textIndex.Embedding.Index(ctx, request, search.WithProgress(func(completed, total int) {
+		tracker.SetCurrent(ctx, completed, "Creating summary embeddings")
+	})); err != nil {
 		h.logger.Error("failed to create summary embeddings", slog.String("error", err.Error()))
 		return err
 	}
-
-	tracker.SetCurrent(ctx, len(newEnrichments), "Creating summary embeddings")
 
 	h.logger.Info("summary embeddings created",
 		slog.Int("documents", len(documents)),

@@ -196,11 +196,19 @@ func extractEmbeddedModel(embedded fs.FS, targetDir string) (string, error) {
 	return modelPath, nil
 }
 
+// Capacity returns the maximum number of texts per Embed call.
+func (h *HugotEmbedding) Capacity() int { return hugotBatchMax }
+
 // Embed generates embeddings for the given texts using the local model.
+// The number of texts must not exceed Capacity().
 func (h *HugotEmbedding) Embed(ctx context.Context, req EmbeddingRequest) (EmbeddingResponse, error) {
 	texts := req.Texts()
 	if len(texts) == 0 {
 		return NewEmbeddingResponse([][]float64{}, NewUsage(0, 0, 0)), nil
+	}
+
+	if len(texts) > hugotBatchMax {
+		return EmbeddingResponse{}, fmt.Errorf("embed: %d texts exceeds capacity %d", len(texts), hugotBatchMax)
 	}
 
 	if err := ctx.Err(); err != nil {
@@ -215,28 +223,18 @@ func (h *HugotEmbedding) Embed(ctx context.Context, req EmbeddingRequest) (Embed
 	ortSingleton.mu.Lock()
 	defer ortSingleton.mu.Unlock()
 
-	embeddings := make([][]float64, 0, len(texts))
+	result, err := ortSingleton.pipeline.RunPipeline(texts)
+	if err != nil {
+		return EmbeddingResponse{}, fmt.Errorf("run embedding pipeline: %w", err)
+	}
 
-	for i := 0; i < len(texts); i += hugotBatchMax {
-		if err := ctx.Err(); err != nil {
-			return EmbeddingResponse{}, err
+	embeddings := make([][]float64, len(result.Embeddings))
+	for i, vec32 := range result.Embeddings {
+		vec64 := make([]float64, len(vec32))
+		for j, v := range vec32 {
+			vec64[j] = float64(v)
 		}
-
-		end := min(i+hugotBatchMax, len(texts))
-		batch := texts[i:end]
-
-		result, err := ortSingleton.pipeline.RunPipeline(batch)
-		if err != nil {
-			return EmbeddingResponse{}, fmt.Errorf("run embedding pipeline: %w", err)
-		}
-
-		for _, vec32 := range result.Embeddings {
-			vec64 := make([]float64, len(vec32))
-			for j, v := range vec32 {
-				vec64[j] = float64(v)
-			}
-			embeddings = append(embeddings, vec64)
-		}
+		embeddings[i] = vec64
 	}
 
 	return NewEmbeddingResponse(embeddings, NewUsage(0, 0, 0)), nil

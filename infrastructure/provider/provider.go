@@ -207,7 +207,11 @@ type TextGenerator interface {
 // Embedder generates embeddings for text.
 type Embedder interface {
 	// Embed generates embeddings for the given texts.
+	// The number of texts must not exceed Capacity().
 	Embed(ctx context.Context, req EmbeddingRequest) (EmbeddingResponse, error)
+
+	// Capacity returns the maximum number of texts accepted per Embed call.
+	Capacity() int
 }
 
 // Provider combines text generation and embedding capabilities.

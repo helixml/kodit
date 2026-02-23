@@ -12,7 +12,7 @@ import (
 // Embedding provides domain logic for embedding operations.
 type Embedding interface {
 	// Index indexes documents using domain business rules.
-	Index(ctx context.Context, request search.IndexRequest) error
+	Index(ctx context.Context, request search.IndexRequest, opts ...search.IndexOption) error
 
 	// Find embeds the query text and performs vector similarity search.
 	Find(ctx context.Context, query string, options ...repository.Option) ([]search.Result, error)
@@ -39,8 +39,10 @@ func NewEmbedding(store search.EmbeddingStore, embedder search.Embedder) (*Embed
 }
 
 // Index indexes documents using domain business rules:
-// validate → deduplicate against store → embed → save.
-func (s *EmbeddingService) Index(ctx context.Context, request search.IndexRequest) error {
+// validate → deduplicate against store → batch embed → batch save.
+func (s *EmbeddingService) Index(ctx context.Context, request search.IndexRequest, opts ...search.IndexOption) error {
+	cfg := search.NewIndexConfig(opts...)
+
 	documents := request.Documents()
 
 	// Skip if empty
@@ -92,27 +94,44 @@ func (s *EmbeddingService) Index(ctx context.Context, request search.IndexReques
 		return fmt.Errorf("Index: nil embedder")
 	}
 
-	texts := make([]string, len(toEmbed))
-	for i, doc := range toEmbed {
-		texts[i] = doc.Text()
+	capacity := s.embedder.Capacity()
+	total := len(toEmbed)
+	completed := 0
+
+	for i := 0; i < total; i += capacity {
+		end := min(i+capacity, total)
+		batch := toEmbed[i:end]
+
+		texts := make([]string, len(batch))
+		for j, doc := range batch {
+			texts[j] = doc.Text()
+		}
+
+		vectors, err := s.embedder.Embed(ctx, texts)
+		if err != nil {
+			return fmt.Errorf("embed batch [%d:%d]: %w", i, end, err)
+		}
+
+		if len(vectors) != len(batch) {
+			return fmt.Errorf("embedding count mismatch: got %d, expected %d", len(vectors), len(batch))
+		}
+
+		embeddings := make([]search.Embedding, len(batch))
+		for j, doc := range batch {
+			embeddings[j] = search.NewEmbedding(doc.SnippetID(), vectors[j])
+		}
+
+		if err := s.store.SaveAll(ctx, embeddings); err != nil {
+			return fmt.Errorf("save batch [%d:%d]: %w", i, end, err)
+		}
+
+		completed += len(batch)
+		if cfg.Progress() != nil {
+			cfg.Progress()(completed, total)
+		}
 	}
 
-	vectors, err := s.embedder.Embed(ctx, texts)
-	if err != nil {
-		return fmt.Errorf("generate embeddings: %w", err)
-	}
-
-	if len(vectors) != len(toEmbed) {
-		return fmt.Errorf("embedding count mismatch: got %d, expected %d", len(vectors), len(toEmbed))
-	}
-
-	// Build domain embeddings
-	embeddings := make([]search.Embedding, len(toEmbed))
-	for i, doc := range toEmbed {
-		embeddings[i] = search.NewEmbedding(doc.SnippetID(), vectors[i])
-	}
-
-	return s.store.SaveAll(ctx, embeddings)
+	return nil
 }
 
 // Find embeds the query text and performs vector similarity search.

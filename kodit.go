@@ -449,6 +449,8 @@ func (a *embeddingAdapter) Embed(ctx context.Context, texts []string) ([][]float
 	return resp.Embeddings(), nil
 }
 
+func (a *embeddingAdapter) Capacity() int { return a.inner.Capacity() }
+
 // buildSearchStores creates the search stores based on config.
 func buildSearchStores(ctx context.Context, cfg *clientConfig, db database.Database, dimension int, logger *slog.Logger) (textEmbeddingStore, codeEmbeddingStore search.EmbeddingStore, bm25Store search.BM25Store, err error) {
 	switch cfg.database {

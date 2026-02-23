@@ -82,8 +82,6 @@ func (h *CreateCodeEmbeddings) Execute(ctx context.Context, payload map[string]a
 		return nil
 	}
 
-	tracker.SetTotal(ctx, len(newEnrichments))
-
 	documents := make([]search.Document, 0, len(newEnrichments))
 	for _, e := range newEnrichments {
 		if e.Content() != "" {
@@ -97,13 +95,15 @@ func (h *CreateCodeEmbeddings) Execute(ctx context.Context, payload map[string]a
 		return nil
 	}
 
+	tracker.SetTotal(ctx, len(documents))
+
 	request := search.NewIndexRequest(documents)
-	if err := h.codeIndex.Embedding.Index(ctx, request); err != nil {
+	if err := h.codeIndex.Embedding.Index(ctx, request, search.WithProgress(func(completed, total int) {
+		tracker.SetCurrent(ctx, completed, "Creating code embeddings")
+	})); err != nil {
 		h.logger.Error("failed to create embeddings", slog.String("error", err.Error()))
 		return err
 	}
-
-	tracker.SetCurrent(ctx, len(newEnrichments), "Creating code embeddings for commit")
 
 	h.logger.Info("code embeddings created",
 		slog.Int("documents", len(documents)),
