@@ -38,6 +38,7 @@ type clientConfig struct {
 	enrichmentBudget       search.TokenBudget
 	embeddingParallelism   int
 	enrichmentParallelism  int
+	enricherParallelism    int
 	periodicSync           config.PeriodicSyncConfig
 }
 
@@ -51,6 +52,7 @@ func newClientConfig() *clientConfig {
 		enrichmentBudget:      search.DefaultTokenBudget(),
 		embeddingParallelism:  1,
 		enrichmentParallelism: 1,
+		enricherParallelism:   1,
 		periodicSync:          config.NewPeriodicSyncConfig(),
 	}
 }
@@ -155,6 +157,16 @@ func WithEnrichmentParallelism(n int) Option {
 	return func(c *clientConfig) {
 		if n > 0 {
 			c.enrichmentParallelism = n
+		}
+	}
+}
+
+// WithEnricherParallelism sets how many enrichment LLM requests are dispatched concurrently.
+// Defaults to 1. Values <= 0 are ignored.
+func WithEnricherParallelism(n int) Option {
+	return func(c *clientConfig) {
+		if n > 0 {
+			c.enricherParallelism = n
 		}
 	}
 }

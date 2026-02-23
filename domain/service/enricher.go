@@ -47,5 +47,5 @@ func (r EnrichmentResponse) Text() string { return r.text }
 // Enricher generates enrichments using an AI provider.
 type Enricher interface {
 	// Enrich processes requests and returns responses for each.
-	Enrich(ctx context.Context, requests []EnrichmentRequest) ([]EnrichmentResponse, error)
+	Enrich(ctx context.Context, requests []EnrichmentRequest, opts ...EnrichOption) ([]EnrichmentResponse, error)
 }

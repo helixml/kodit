@@ -108,6 +108,7 @@ func textOptions(cfg config.AppConfig) ([]kodit.Option, error) {
 		kodit.WithTextProvider(p),
 		kodit.WithEnrichmentBudget(budget),
 		kodit.WithEnrichmentParallelism(endpoint.NumParallelTasks()),
+		kodit.WithEnricherParallelism(endpoint.NumParallelTasks()),
 	}
 
 	return opts, nil

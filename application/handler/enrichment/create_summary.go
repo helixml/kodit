@@ -79,13 +79,22 @@ func (h *CreateSummary) Execute(ctx context.Context, payload map[string]any) err
 		requests = append(requests, domainservice.NewEnrichmentRequest(id, e.Content(), summarizationSystemPrompt))
 	}
 
-	responses, err := h.enrichCtx.Enricher.Enrich(ctx, requests)
+	responses, err := h.enrichCtx.Enricher.Enrich(ctx, requests,
+		domainservice.WithEnrichProgress(func(completed, total int) {
+			tracker.SetCurrent(ctx, completed, "Enriching snippets for commit")
+		}),
+		domainservice.WithRequestError(func(requestID string, err error) {
+			h.enrichCtx.Logger.Error("enrichment request failed",
+				slog.String("request_id", requestID),
+				slog.String("error", err.Error()),
+			)
+		}),
+	)
 	if err != nil {
 		return fmt.Errorf("enrich snippets: %w", err)
 	}
 
-	for i, resp := range responses {
-		tracker.SetCurrent(ctx, i, "Enriching snippets for commit")
+	for _, resp := range responses {
 
 		snippetEnrichment, ok := enrichmentMap[resp.ID()]
 		if !ok {

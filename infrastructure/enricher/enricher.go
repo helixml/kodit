@@ -3,8 +3,10 @@ package enricher
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"log/slog"
+	"sync"
+	"sync/atomic"
 
 	domainservice "github.com/helixml/kodit/domain/service"
 	"github.com/helixml/kodit/infrastructure/provider"
@@ -15,16 +17,16 @@ type ProviderEnricher struct {
 	generator   provider.TextGenerator
 	maxTokens   int
 	temperature float64
-	log         *slog.Logger
+	parallelism int
 }
 
 // NewProviderEnricher creates a new ProviderEnricher.
-func NewProviderEnricher(generator provider.TextGenerator, log *slog.Logger) *ProviderEnricher {
+func NewProviderEnricher(generator provider.TextGenerator) *ProviderEnricher {
 	return &ProviderEnricher{
 		generator:   generator,
 		maxTokens:   2048,
 		temperature: 0.7,
-		log:         log,
+		parallelism: 1,
 	}
 }
 
@@ -40,39 +42,95 @@ func (e *ProviderEnricher) WithTemperature(t float64) *ProviderEnricher {
 	return e
 }
 
-// Enrich processes requests sequentially and returns responses.
+// WithParallelism sets how many requests are dispatched concurrently.
+// Values <= 0 are clamped to 1.
+func (e *ProviderEnricher) WithParallelism(n int) *ProviderEnricher {
+	if n <= 0 {
+		n = 1
+	}
+	e.parallelism = n
+	return e
+}
+
+// Enrich processes requests in parallel and returns responses.
 // Implements domainservice.Enricher interface.
-func (e *ProviderEnricher) Enrich(ctx context.Context, requests []domainservice.EnrichmentRequest) ([]domainservice.EnrichmentResponse, error) {
-	var filtered []domainservice.EnrichmentRequest
-	for _, req := range requests {
+func (e *ProviderEnricher) Enrich(ctx context.Context, requests []domainservice.EnrichmentRequest, opts ...domainservice.EnrichOption) ([]domainservice.EnrichmentResponse, error) {
+	cfg := domainservice.NewEnrichConfig(opts...)
+
+	var filtered []int
+	for i, req := range requests {
 		if req.Text() != "" {
-			filtered = append(filtered, req)
+			filtered = append(filtered, i)
 		}
 	}
 
 	if len(filtered) == 0 {
-		e.log.Warn("no valid requests for enrichment")
-		return nil, nil
+		return []domainservice.EnrichmentResponse{}, nil
 	}
 
-	responses := make([]domainservice.EnrichmentResponse, 0, len(filtered))
+	total := len(filtered)
+	responses := make([]domainservice.EnrichmentResponse, total)
 
-	for _, req := range filtered {
-		select {
-		case <-ctx.Done():
-			return responses, ctx.Err()
-		default:
+	var (
+		mu            sync.Mutex
+		requestErrors []error
+		completed     int32
+	)
+
+	sem := make(chan struct{}, e.parallelism)
+	var wg sync.WaitGroup
+
+	for slot, reqIdx := range filtered {
+		if err := ctx.Err(); err != nil {
+			break
 		}
 
-		response, err := e.processRequest(ctx, req)
-		if err != nil {
-			return responses, fmt.Errorf("enrich request %s: %w", req.ID(), err)
-		}
+		wg.Add(1)
+		sem <- struct{}{}
 
-		responses = append(responses, response)
+		go func(slot, reqIdx int) {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			req := requests[reqIdx]
+			resp, err := e.processRequest(ctx, req)
+			if err != nil {
+				mu.Lock()
+				requestErrors = append(requestErrors, fmt.Errorf("enrich request %s: %w", req.ID(), err))
+				mu.Unlock()
+				if cfg.RequestError() != nil {
+					cfg.RequestError()(req.ID(), err)
+				}
+				return
+			}
+
+			responses[slot] = resp
+
+			done := int(atomic.AddInt32(&completed, 1))
+			if cfg.Progress() != nil {
+				cfg.Progress()(done, total)
+			}
+		}(slot, reqIdx)
 	}
 
-	return responses, nil
+	wg.Wait()
+
+	if len(requestErrors) > 0 {
+		rate := float64(len(requestErrors)) / float64(total)
+		if rate > cfg.MaxFailureRate() {
+			return nil, fmt.Errorf("%d of %d enrichment requests failed: %w", len(requestErrors), total, errors.Join(requestErrors...))
+		}
+	}
+
+	// Filter out zero-value responses (failed slots).
+	result := make([]domainservice.EnrichmentResponse, 0, total-len(requestErrors))
+	for _, resp := range responses {
+		if resp.ID() != "" {
+			result = append(result, resp)
+		}
+	}
+
+	return result, nil
 }
 
 func (e *ProviderEnricher) processRequest(ctx context.Context, req domainservice.EnrichmentRequest) (domainservice.EnrichmentResponse, error) {

@@ -320,7 +320,8 @@ func New(opts ...Option) (*Client, error) {
 	// Create enricher infrastructure (only if text provider is configured)
 	var enricherImpl domainservice.Enricher
 	if cfg.textProvider != nil {
-		enricherImpl = enricher.NewProviderEnricher(cfg.textProvider, logger)
+		enricherImpl = enricher.NewProviderEnricher(cfg.textProvider).
+			WithParallelism(cfg.enricherParallelism)
 	}
 
 	// Build enrichment context
