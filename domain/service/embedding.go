@@ -23,18 +23,24 @@ type Embedding interface {
 
 // EmbeddingService implements domain logic for embedding operations.
 type EmbeddingService struct {
-	store    search.EmbeddingStore
-	embedder search.Embedder
+	store     search.EmbeddingStore
+	embedder  search.Embedder
+	batchSize int
 }
 
 // NewEmbedding creates a new embedding service.
-func NewEmbedding(store search.EmbeddingStore, embedder search.Embedder) (*EmbeddingService, error) {
+// batchSize controls how many texts are sent per Embed call.
+func NewEmbedding(store search.EmbeddingStore, embedder search.Embedder, batchSize int) (*EmbeddingService, error) {
 	if store == nil {
 		return nil, fmt.Errorf("NewEmbedding: nil store")
 	}
+	if batchSize <= 0 {
+		return nil, fmt.Errorf("NewEmbedding: batch size must be positive, got %d", batchSize)
+	}
 	return &EmbeddingService{
-		store:    store,
-		embedder: embedder,
+		store:     store,
+		embedder:  embedder,
+		batchSize: batchSize,
 	}, nil
 }
 
@@ -94,12 +100,11 @@ func (s *EmbeddingService) Index(ctx context.Context, request search.IndexReques
 		return fmt.Errorf("Index: nil embedder")
 	}
 
-	capacity := s.embedder.Capacity()
 	total := len(toEmbed)
 	completed := 0
 
-	for i := 0; i < total; i += capacity {
-		end := min(i+capacity, total)
+	for i := 0; i < total; i += s.batchSize {
+		end := min(i+s.batchSize, total)
 		batch := toEmbed[i:end]
 
 		texts := make([]string, len(batch))

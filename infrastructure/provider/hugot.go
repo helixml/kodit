@@ -12,8 +12,6 @@ import (
 	"github.com/knights-analytics/hugot/pipelines"
 )
 
-const hugotBatchMax = 10
-
 // ortSingleton holds the process-wide ONNX Runtime session and pipeline.
 // ORT only allows one active session per process, so all HugotEmbedding
 // instances must share it. The mutex serializes both initialization and
@@ -196,19 +194,11 @@ func extractEmbeddedModel(embedded fs.FS, targetDir string) (string, error) {
 	return modelPath, nil
 }
 
-// Capacity returns the maximum number of texts per Embed call.
-func (h *HugotEmbedding) Capacity() int { return hugotBatchMax }
-
 // Embed generates embeddings for the given texts using the local model.
-// The number of texts must not exceed Capacity().
 func (h *HugotEmbedding) Embed(ctx context.Context, req EmbeddingRequest) (EmbeddingResponse, error) {
 	texts := req.Texts()
 	if len(texts) == 0 {
 		return NewEmbeddingResponse([][]float64{}, NewUsage(0, 0, 0)), nil
-	}
-
-	if len(texts) > hugotBatchMax {
-		return EmbeddingResponse{}, fmt.Errorf("embed: %d texts exceeds capacity %d", len(texts), hugotBatchMax)
 	}
 
 	if err := ctx.Err(); err != nil {

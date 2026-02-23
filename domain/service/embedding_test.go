@@ -13,9 +13,8 @@ import (
 // --- fakes ---
 
 type fakeEmbedder struct {
-	calls    [][]string
-	capacity int
-	errAt    int // batch index at which to return an error; -1 = never
+	calls [][]string
+	errAt int // batch index at which to return an error; -1 = never
 }
 
 func (f *fakeEmbedder) Embed(_ context.Context, texts []string) ([][]float64, error) {
@@ -30,8 +29,6 @@ func (f *fakeEmbedder) Embed(_ context.Context, texts []string) ([][]float64, er
 	}
 	return vectors, nil
 }
-
-func (f *fakeEmbedder) Capacity() int { return f.capacity }
 
 type fakeEmbeddingStore struct {
 	saved    [][]search.Embedding
@@ -78,9 +75,9 @@ func (f *fakeEmbeddingStore) DeleteBy(_ context.Context, _ ...repository.Option)
 // --- tests ---
 
 func TestEmbeddingService_Index_EmptyRequest(t *testing.T) {
-	embedder := &fakeEmbedder{capacity: 10, errAt: -1}
+	embedder := &fakeEmbedder{errAt: -1}
 	store := &fakeEmbeddingStore{existing: map[string]search.Embedding{}, saveErr: -1}
-	svc, err := NewEmbedding(store, embedder)
+	svc, err := NewEmbedding(store, embedder, 10)
 	require.NoError(t, err)
 
 	err = svc.Index(context.Background(), search.NewIndexRequest(nil))
@@ -90,9 +87,9 @@ func TestEmbeddingService_Index_EmptyRequest(t *testing.T) {
 }
 
 func TestEmbeddingService_Index_SingleBatch(t *testing.T) {
-	embedder := &fakeEmbedder{capacity: 10, errAt: -1}
+	embedder := &fakeEmbedder{errAt: -1}
 	store := &fakeEmbeddingStore{existing: map[string]search.Embedding{}, saveErr: -1}
-	svc, err := NewEmbedding(store, embedder)
+	svc, err := NewEmbedding(store, embedder, 10)
 	require.NoError(t, err)
 
 	documents := make([]search.Document, 5)
@@ -103,15 +100,15 @@ func TestEmbeddingService_Index_SingleBatch(t *testing.T) {
 	err = svc.Index(context.Background(), search.NewIndexRequest(documents))
 	require.NoError(t, err)
 
-	require.Len(t, embedder.calls, 1, "5 docs with capacity 10 = 1 Embed call")
+	require.Len(t, embedder.calls, 1, "5 docs with batch size 10 = 1 Embed call")
 	require.Len(t, store.saved, 1, "1 SaveAll call")
 	require.Len(t, store.saved[0], 5)
 }
 
 func TestEmbeddingService_Index_MultipleBatches(t *testing.T) {
-	embedder := &fakeEmbedder{capacity: 10, errAt: -1}
+	embedder := &fakeEmbedder{errAt: -1}
 	store := &fakeEmbeddingStore{existing: map[string]search.Embedding{}, saveErr: -1}
-	svc, err := NewEmbedding(store, embedder)
+	svc, err := NewEmbedding(store, embedder, 10)
 	require.NoError(t, err)
 
 	documents := make([]search.Document, 25)
@@ -122,7 +119,7 @@ func TestEmbeddingService_Index_MultipleBatches(t *testing.T) {
 	err = svc.Index(context.Background(), search.NewIndexRequest(documents))
 	require.NoError(t, err)
 
-	require.Len(t, embedder.calls, 3, "25 docs with capacity 10 = 3 Embed calls")
+	require.Len(t, embedder.calls, 3, "25 docs with batch size 10 = 3 Embed calls")
 	require.Len(t, embedder.calls[0], 10)
 	require.Len(t, embedder.calls[1], 10)
 	require.Len(t, embedder.calls[2], 5)
@@ -134,9 +131,9 @@ func TestEmbeddingService_Index_MultipleBatches(t *testing.T) {
 }
 
 func TestEmbeddingService_Index_ProgressCallback(t *testing.T) {
-	embedder := &fakeEmbedder{capacity: 10, errAt: -1}
+	embedder := &fakeEmbedder{errAt: -1}
 	store := &fakeEmbeddingStore{existing: map[string]search.Embedding{}, saveErr: -1}
-	svc, err := NewEmbedding(store, embedder)
+	svc, err := NewEmbedding(store, embedder, 10)
 	require.NoError(t, err)
 
 	documents := make([]search.Document, 25)
@@ -165,7 +162,7 @@ func TestEmbeddingService_Index_ProgressCallback(t *testing.T) {
 }
 
 func TestEmbeddingService_Index_Deduplication(t *testing.T) {
-	embedder := &fakeEmbedder{capacity: 10, errAt: -1}
+	embedder := &fakeEmbedder{errAt: -1}
 	store := &fakeEmbeddingStore{
 		existing: map[string]search.Embedding{
 			"id-0": search.NewEmbedding("id-0", []float64{1, 2, 3}),
@@ -173,7 +170,7 @@ func TestEmbeddingService_Index_Deduplication(t *testing.T) {
 		},
 		saveErr: -1,
 	}
-	svc, err := NewEmbedding(store, embedder)
+	svc, err := NewEmbedding(store, embedder, 10)
 	require.NoError(t, err)
 
 	documents := []search.Document{
@@ -191,9 +188,9 @@ func TestEmbeddingService_Index_Deduplication(t *testing.T) {
 }
 
 func TestEmbeddingService_Index_EmbedErrorMidBatch(t *testing.T) {
-	embedder := &fakeEmbedder{capacity: 10, errAt: 1}
+	embedder := &fakeEmbedder{errAt: 1}
 	store := &fakeEmbeddingStore{existing: map[string]search.Embedding{}, saveErr: -1}
-	svc, err := NewEmbedding(store, embedder)
+	svc, err := NewEmbedding(store, embedder, 10)
 	require.NoError(t, err)
 
 	documents := make([]search.Document, 25)
@@ -211,9 +208,9 @@ func TestEmbeddingService_Index_EmbedErrorMidBatch(t *testing.T) {
 }
 
 func TestEmbeddingService_Index_SaveErrorMidBatch(t *testing.T) {
-	embedder := &fakeEmbedder{capacity: 10, errAt: -1}
+	embedder := &fakeEmbedder{errAt: -1}
 	store := &fakeEmbeddingStore{existing: map[string]search.Embedding{}, saveErr: 1}
-	svc, err := NewEmbedding(store, embedder)
+	svc, err := NewEmbedding(store, embedder, 10)
 	require.NoError(t, err)
 
 	documents := make([]search.Document, 25)
@@ -231,9 +228,9 @@ func TestEmbeddingService_Index_SaveErrorMidBatch(t *testing.T) {
 }
 
 func TestEmbeddingService_Index_InvalidDocumentsFiltered(t *testing.T) {
-	embedder := &fakeEmbedder{capacity: 10, errAt: -1}
+	embedder := &fakeEmbedder{errAt: -1}
 	store := &fakeEmbeddingStore{existing: map[string]search.Embedding{}, saveErr: -1}
-	svc, err := NewEmbedding(store, embedder)
+	svc, err := NewEmbedding(store, embedder, 10)
 	require.NoError(t, err)
 
 	documents := []search.Document{

@@ -65,11 +65,6 @@ func fakeEmbeddingServer(t *testing.T, counter *atomic.Int64) *httptest.Server {
 	}))
 }
 
-func TestOpenAIProvider_Capacity(t *testing.T) {
-	p := NewOpenAIProvider("test-key")
-	require.Equal(t, embeddingBatchSize, p.Capacity())
-}
-
 func TestOpenAIProvider_EmbedEmpty(t *testing.T) {
 	var counter atomic.Int64
 	srv := fakeEmbeddingServer(t, &counter)
@@ -119,7 +114,7 @@ func TestOpenAIProvider_EmbedWithinBatchLimit(t *testing.T) {
 		EmbeddingModel: "test-model",
 	})
 
-	texts := make([]string, embeddingBatchSize)
+	texts := make([]string, 10)
 	for i := range texts {
 		texts[i] = "text"
 	}
@@ -127,31 +122,8 @@ func TestOpenAIProvider_EmbedWithinBatchLimit(t *testing.T) {
 	req := NewEmbeddingRequest(texts)
 	resp, err := p.Embed(context.Background(), req)
 	require.NoError(t, err)
-	require.Len(t, resp.Embeddings(), embeddingBatchSize)
-	require.Equal(t, int64(1), counter.Load(), "texts within batch limit should be one request")
-}
-
-func TestOpenAIProvider_EmbedExceedsCapacity(t *testing.T) {
-	var counter atomic.Int64
-	srv := fakeEmbeddingServer(t, &counter)
-	defer srv.Close()
-
-	p := NewOpenAIProviderFromConfig(OpenAIConfig{
-		APIKey:         "test-key",
-		BaseURL:        srv.URL,
-		EmbeddingModel: "test-model",
-	})
-
-	texts := make([]string, embeddingBatchSize+1)
-	for i := range texts {
-		texts[i] = "text"
-	}
-
-	req := NewEmbeddingRequest(texts)
-	_, err := p.Embed(context.Background(), req)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "exceeds capacity")
-	require.Equal(t, int64(0), counter.Load(), "no HTTP request when over capacity")
+	require.Len(t, resp.Embeddings(), 10)
+	require.Equal(t, int64(1), counter.Load(), "10 texts should be one request")
 }
 
 func TestOpenAIProvider_EmbedAggregatesUsage(t *testing.T) {
@@ -165,7 +137,6 @@ func TestOpenAIProvider_EmbedAggregatesUsage(t *testing.T) {
 		EmbeddingModel: "test-model",
 	})
 
-	// 10 texts = 1 batch within capacity. Each text returns 4 prompt tokens.
 	texts := make([]string, 10)
 	for i := range texts {
 		texts[i] = "text"

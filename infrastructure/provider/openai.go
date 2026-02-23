@@ -11,7 +11,8 @@ import (
 	openai "github.com/sashabaranov/go-openai"
 )
 
-const embeddingBatchSize = 10
+// DefaultBatchSize is the default number of texts per embedding API call.
+const DefaultBatchSize = 10
 
 // OpenAIProvider implements both text generation and embedding using OpenAI API.
 type OpenAIProvider struct {
@@ -218,11 +219,7 @@ func (p *OpenAIProvider) ChatCompletion(ctx context.Context, req ChatCompletionR
 	), nil
 }
 
-// Capacity returns the maximum number of texts per Embed call.
-func (p *OpenAIProvider) Capacity() int { return embeddingBatchSize }
-
 // Embed generates embeddings for the given texts in a single API call.
-// The number of texts must not exceed Capacity().
 func (p *OpenAIProvider) Embed(ctx context.Context, req EmbeddingRequest) (EmbeddingResponse, error) {
 	if !p.supportsEmbedding {
 		return EmbeddingResponse{}, ErrUnsupportedOperation
@@ -231,10 +228,6 @@ func (p *OpenAIProvider) Embed(ctx context.Context, req EmbeddingRequest) (Embed
 	texts := req.Texts()
 	if len(texts) == 0 {
 		return NewEmbeddingResponse([][]float64{}, NewUsage(0, 0, 0)), nil
-	}
-
-	if len(texts) > embeddingBatchSize {
-		return EmbeddingResponse{}, fmt.Errorf("embed: %d texts exceeds capacity %d", len(texts), embeddingBatchSize)
 	}
 
 	openaiReq := openai.EmbeddingRequest{

@@ -30,11 +30,6 @@ func TestHugotEmbedding_Embed(t *testing.T) {
 	require.Equal(t, 768, len(embeddings[0]), "st-codesearch-distilroberta-base produces 768 dimensions")
 }
 
-func TestHugotEmbedding_Capacity(t *testing.T) {
-	emb := NewHugotEmbedding(t.TempDir())
-	require.Equal(t, hugotBatchMax, emb.Capacity())
-}
-
 func TestHugotEmbedding_EmbedBatch(t *testing.T) {
 	if !hasEmbeddedModel {
 		t.Skip("skipping: requires -tags embed_model")
@@ -46,8 +41,7 @@ func TestHugotEmbedding_EmbedBatch(t *testing.T) {
 		require.NoError(t, emb.Close())
 	}()
 
-	// Exactly at capacity (10 texts).
-	texts := make([]string, hugotBatchMax)
+	texts := make([]string, 10)
 	for i := range texts {
 		texts[i] = "test sentence number"
 	}
@@ -57,28 +51,10 @@ func TestHugotEmbedding_EmbedBatch(t *testing.T) {
 	require.NoError(t, err)
 
 	embeddings := resp.Embeddings()
-	require.Len(t, embeddings, hugotBatchMax)
+	require.Len(t, embeddings, 10)
 	for i, vec := range embeddings {
 		require.Equal(t, 768, len(vec), "embedding %d has wrong dimension", i)
 	}
-}
-
-func TestHugotEmbedding_EmbedExceedsCapacity(t *testing.T) {
-	modelDir := t.TempDir()
-	emb := NewHugotEmbedding(modelDir)
-	defer func() {
-		require.NoError(t, emb.Close())
-	}()
-
-	texts := make([]string, hugotBatchMax+1)
-	for i := range texts {
-		texts[i] = "text"
-	}
-
-	req := NewEmbeddingRequest(texts)
-	_, err := emb.Embed(context.Background(), req)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "exceeds capacity")
 }
 
 func TestHugotEmbedding_EmbedEmpty(t *testing.T) {

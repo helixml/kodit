@@ -41,8 +41,6 @@ func (a *embeddingAdapter) Embed(ctx context.Context, texts []string) ([][]float
 	return resp.Embeddings(), nil
 }
 
-func (a *embeddingAdapter) Capacity() int { return a.inner.Capacity() }
-
 // testDB connects to the VectorChord PostgreSQL instance and drops any
 // leftover performance test tables. Returns the database and a cleanup function.
 func testDB(t *testing.T) database.Database {
@@ -129,7 +127,7 @@ func TestEmbeddingPipeline(t *testing.T) {
 	require.NoError(t, err)
 
 	adapter := &embeddingAdapter{inner: embedder}
-	svc, err := domainservice.NewEmbedding(store, adapter)
+	svc, err := domainservice.NewEmbedding(store, adapter, provider.DefaultBatchSize)
 	require.NoError(t, err)
 
 	// --- Phase 1: ONNX Model Inference ---
@@ -304,7 +302,7 @@ func TestEmbeddingPipelineCPUProfile(t *testing.T) {
 	require.NoError(t, err)
 
 	adapter := &embeddingAdapter{inner: embedder}
-	svc, err := domainservice.NewEmbedding(store, adapter)
+	svc, err := domainservice.NewEmbedding(store, adapter, provider.DefaultBatchSize)
 	require.NoError(t, err)
 
 	// Create profile output
@@ -360,7 +358,7 @@ func TestEmbeddingPipelineMemProfile(t *testing.T) {
 	require.NoError(t, err)
 
 	adapter := &embeddingAdapter{inner: embedder}
-	svc, err := domainservice.NewEmbedding(store, adapter)
+	svc, err := domainservice.NewEmbedding(store, adapter, provider.DefaultBatchSize)
 	require.NoError(t, err)
 
 	// Warm up
