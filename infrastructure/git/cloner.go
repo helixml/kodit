@@ -81,7 +81,7 @@ func (c *RepositoryCloner) CloneToPath(ctx context.Context, remoteURI string, cl
 // path if the repository was relocated (e.g. after migration).
 func (c *RepositoryCloner) Update(ctx context.Context, repo repository.Repository) (string, error) {
 	if !repo.HasWorkingCopy() {
-		return "", fmt.Errorf("repository %d has never been cloned", repo.ID())
+		return "", repository.ErrNotCloned
 	}
 
 	clonePath := repo.WorkingCopy().Path()

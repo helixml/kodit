@@ -94,6 +94,7 @@ func (PrescribedOperations) CreateNewRepository() []Operation {
 // SyncRepository returns the operations needed to sync a repository.
 func (PrescribedOperations) SyncRepository() []Operation {
 	return []Operation{
+		OperationCloneRepository,
 		OperationSyncRepository,
 	}
 }

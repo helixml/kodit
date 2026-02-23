@@ -8,6 +8,9 @@ import (
 // ErrEmptyRemoteURL indicates a repo was created with an empty remote URL.
 var ErrEmptyRemoteURL = errors.New("remote URL cannot be empty")
 
+// ErrNotCloned indicates an operation requires a working copy that does not exist.
+var ErrNotCloned = errors.New("repository has not been cloned")
+
 // Repository represents a tracked Git repository (aggregate root).
 type Repository struct {
 	id             int64
