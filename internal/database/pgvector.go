@@ -88,9 +88,16 @@ func (v PgVector) Value() (driver.Value, error) {
 
 // String returns the PostgreSQL vector literal "[1.0,2.0,3.0]".
 func (v PgVector) String() string {
-	parts := make([]string, len(v.floats))
+	// Pre-allocate: ~12 bytes per float (digits + comma) plus brackets.
+	var b strings.Builder
+	b.Grow(len(v.floats)*12 + 2)
+	b.WriteByte('[')
 	for i, f := range v.floats {
-		parts[i] = strconv.FormatFloat(f, 'f', -1, 64)
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		b.WriteString(strconv.FormatFloat(f, 'f', -1, 64))
 	}
-	return "[" + strings.Join(parts, ",") + "]"
+	b.WriteByte(']')
+	return b.String()
 }

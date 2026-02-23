@@ -13,6 +13,9 @@ import (
 	"gorm.io/gorm"
 )
 
+// saveAllBatchSize controls how many rows are inserted per multi-row INSERT.
+const saveAllBatchSize = 100
+
 // TaskName represents the type of embeddings (code or text).
 type TaskName string
 
