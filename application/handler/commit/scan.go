@@ -74,7 +74,7 @@ func (h *Scan) Execute(ctx context.Context, payload map[string]any) error {
 	}
 
 	if !repo.HasWorkingCopy() {
-		return fmt.Errorf("repository %d has not been cloned", cp.RepoID())
+		return repository.ErrNotCloned
 	}
 
 	tracker.SetTotal(ctx, 2)

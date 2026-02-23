@@ -66,7 +66,7 @@ func (h *Sync) Execute(ctx context.Context, payload map[string]any) error {
 	}
 
 	if !repo.HasWorkingCopy() {
-		return fmt.Errorf("repository %d has not been cloned", repoID)
+		return repository.ErrNotCloned
 	}
 
 	tracker.SetTotal(ctx, 3)
