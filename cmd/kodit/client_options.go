@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/helixml/kodit"
@@ -61,13 +62,20 @@ func embeddingOptions(cfg config.AppConfig) ([]kodit.Option, error) {
 		return nil, nil
 	}
 
-	p := provider.NewOpenAIProviderFromConfig(provider.OpenAIConfig{
+	openaiCfg := provider.OpenAIConfig{
 		APIKey:         endpoint.APIKey(),
 		BaseURL:        endpoint.BaseURL(),
 		EmbeddingModel: endpoint.Model(),
 		Timeout:        endpoint.Timeout(),
 		MaxRetries:     endpoint.MaxRetries(),
-	})
+	}
+	if cacheDir := cfg.HTTPCacheDir(); cacheDir != "" {
+		openaiCfg.HTTPClient = &http.Client{
+			Timeout:   endpoint.Timeout(),
+			Transport: provider.NewCachingTransport(cacheDir, nil),
+		}
+	}
+	p := provider.NewOpenAIProviderFromConfig(openaiCfg)
 
 	budget, err := search.NewTokenBudget(endpoint.MaxBatchChars())
 	if err != nil {
@@ -91,13 +99,20 @@ func textOptions(cfg config.AppConfig) ([]kodit.Option, error) {
 		return nil, nil
 	}
 
-	p := provider.NewOpenAIProviderFromConfig(provider.OpenAIConfig{
+	txtCfg := provider.OpenAIConfig{
 		APIKey:     endpoint.APIKey(),
 		BaseURL:    endpoint.BaseURL(),
 		ChatModel:  endpoint.Model(),
 		Timeout:    endpoint.Timeout(),
 		MaxRetries: endpoint.MaxRetries(),
-	})
+	}
+	if cacheDir := cfg.HTTPCacheDir(); cacheDir != "" {
+		txtCfg.HTTPClient = &http.Client{
+			Timeout:   endpoint.Timeout(),
+			Transport: provider.NewCachingTransport(cacheDir, nil),
+		}
+	}
+	p := provider.NewOpenAIProviderFromConfig(txtCfg)
 
 	budget, err := search.NewTokenBudget(endpoint.MaxBatchChars())
 	if err != nil {

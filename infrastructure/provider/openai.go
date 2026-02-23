@@ -102,6 +102,7 @@ type OpenAIConfig struct {
 	MaxRetries     int
 	InitialDelay   time.Duration
 	BackoffFactor  float64
+	HTTPClient     *http.Client
 }
 
 // NewOpenAIProviderFromConfig creates a provider from configuration.
@@ -112,7 +113,9 @@ func NewOpenAIProviderFromConfig(cfg OpenAIConfig) *OpenAIProvider {
 		config.BaseURL = cfg.BaseURL
 	}
 
-	if cfg.Timeout > 0 {
+	if cfg.HTTPClient != nil {
+		config.HTTPClient = cfg.HTTPClient
+	} else if cfg.Timeout > 0 {
 		config.HTTPClient = &http.Client{
 			Timeout: cfg.Timeout,
 		}

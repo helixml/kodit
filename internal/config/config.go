@@ -398,6 +398,7 @@ type AppConfig struct {
 	litellmCache           LiteLLMCacheConfig
 	workerCount            int
 	searchLimit            int
+	httpCacheDir           string
 }
 
 // DefaultDataDir returns the default data directory.
@@ -519,6 +520,9 @@ func (c AppConfig) WorkerCount() int { return c.workerCount }
 
 // SearchLimit returns the default search result limit.
 func (c AppConfig) SearchLimit() int { return c.searchLimit }
+
+// HTTPCacheDir returns the HTTP response cache directory, or empty if disabled.
+func (c AppConfig) HTTPCacheDir() string { return c.httpCacheDir }
 
 // IsRemote returns true if running in remote mode.
 func (c AppConfig) IsRemote() bool {
@@ -654,6 +658,11 @@ func WithSearchLimit(n int) AppConfigOption {
 			c.searchLimit = n
 		}
 	}
+}
+
+// WithHTTPCacheDir sets the HTTP response cache directory.
+func WithHTTPCacheDir(dir string) AppConfigOption {
+	return func(c *AppConfig) { c.httpCacheDir = dir }
 }
 
 // NewAppConfigWithOptions creates an AppConfig with functional options.

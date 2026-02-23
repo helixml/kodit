@@ -61,7 +61,9 @@ Environment variables:
   PERIODIC_SYNC_INTERVAL_SECONDS  Sync interval (default: 1800)
 
   REMOTE_SERVER_URL            Remote Kodit server URL
-  REMOTE_API_KEY               Remote server API key`,
+  REMOTE_API_KEY               Remote server API key
+
+  HTTP_CACHE_DIR               Directory for caching HTTP POST responses on disk`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runServe(envFile, host, port)
 		},

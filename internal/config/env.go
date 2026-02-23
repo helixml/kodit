@@ -77,6 +77,11 @@ type EnvConfig struct {
 	// SearchLimit is the default search result limit.
 	// Env: SEARCH_LIMIT (default: 10)
 	SearchLimit int `envconfig:"SEARCH_LIMIT" default:"10"`
+
+	// HTTPCacheDir is the directory for caching HTTP responses to disk.
+	// When set, POST request/response pairs are cached to avoid repeated API calls.
+	// Env: HTTP_CACHE_DIR
+	HTTPCacheDir string `envconfig:"HTTP_CACHE_DIR"`
 }
 
 // EndpointEnv holds environment configuration for an AI endpoint.
@@ -264,6 +269,11 @@ func (e EnvConfig) ToAppConfig() AppConfig {
 	// Search limit
 	if e.SearchLimit > 0 {
 		cfg = applyOption(cfg, WithSearchLimit(e.SearchLimit))
+	}
+
+	// HTTP cache directory
+	if e.HTTPCacheDir != "" {
+		cfg = applyOption(cfg, WithHTTPCacheDir(e.HTTPCacheDir))
 	}
 
 	return cfg
