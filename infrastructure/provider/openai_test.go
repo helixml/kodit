@@ -115,7 +115,7 @@ func TestOpenAIProvider_EmbedWithinBatchLimit(t *testing.T) {
 		EmbeddingModel: "test-model",
 	})
 
-	texts := make([]string, openAIBatchMax)
+	texts := make([]string, embeddingBatchSize)
 	for i := range texts {
 		texts[i] = "text"
 	}
@@ -123,7 +123,7 @@ func TestOpenAIProvider_EmbedWithinBatchLimit(t *testing.T) {
 	req := NewEmbeddingRequest(texts)
 	resp, err := p.Embed(context.Background(), req)
 	require.NoError(t, err)
-	require.Len(t, resp.Embeddings(), openAIBatchMax)
+	require.Len(t, resp.Embeddings(), embeddingBatchSize)
 	require.Equal(t, int64(1), counter.Load(), "texts within batch limit should be one request")
 }
 

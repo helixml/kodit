@@ -94,8 +94,8 @@ type EndpointEnv struct {
 	APIKey string `envconfig:"API_KEY"`
 
 	// NumParallelTasks is the number of parallel tasks.
-	// Env: *_NUM_PARALLEL_TASKS (default: 10)
-	NumParallelTasks int `envconfig:"NUM_PARALLEL_TASKS" default:"10"`
+	// Env: *_NUM_PARALLEL_TASKS (default: 1)
+	NumParallelTasks int `envconfig:"NUM_PARALLEL_TASKS" default:"1"`
 
 	// SocketPath is the Unix socket path for local communication.
 	// Env: *_SOCKET_PATH

@@ -25,8 +25,8 @@ func TestDefaultConstants(t *testing.T) {
 	if DefaultCloneSubdir != "repos" {
 		t.Errorf("DefaultCloneSubdir = %v, want 'repos'", DefaultCloneSubdir)
 	}
-	if DefaultEndpointParallelTasks != 10 {
-		t.Errorf("DefaultEndpointParallelTasks = %v, want 10", DefaultEndpointParallelTasks)
+	if DefaultEndpointParallelTasks != 1 {
+		t.Errorf("DefaultEndpointParallelTasks = %v, want 1", DefaultEndpointParallelTasks)
 	}
 	if DefaultEndpointTimeout != 60*time.Second {
 		t.Errorf("DefaultEndpointTimeout = %v, want 60s", DefaultEndpointTimeout)

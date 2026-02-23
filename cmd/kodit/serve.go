@@ -50,7 +50,7 @@ Environment variables:
     BASE_URL                   Base URL (e.g., https://api.openai.com/v1)
     MODEL                      Model identifier (e.g., text-embedding-3-small)
     API_KEY                    API key for authentication
-    NUM_PARALLEL_TASKS         Concurrent requests (default: 10)
+    NUM_PARALLEL_TASKS         Concurrent requests (default: 1)
     TIMEOUT                    Request timeout in seconds (default: 60)
     MAX_RETRIES                Retry attempts (default: 5)
 
