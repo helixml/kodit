@@ -70,9 +70,13 @@ func embeddingOptions(cfg config.AppConfig) ([]kodit.Option, error) {
 		MaxRetries:     endpoint.MaxRetries(),
 	}
 	if cacheDir := cfg.HTTPCacheDir(); cacheDir != "" {
+		transport, err := provider.NewCachingTransport(cacheDir, nil)
+		if err != nil {
+			return nil, fmt.Errorf("http cache: %w", err)
+		}
 		openaiCfg.HTTPClient = &http.Client{
 			Timeout:   endpoint.Timeout(),
-			Transport: provider.NewCachingTransport(cacheDir, nil),
+			Transport: transport,
 		}
 	}
 	p := provider.NewOpenAIProviderFromConfig(openaiCfg)
@@ -107,9 +111,13 @@ func textOptions(cfg config.AppConfig) ([]kodit.Option, error) {
 		MaxRetries: endpoint.MaxRetries(),
 	}
 	if cacheDir := cfg.HTTPCacheDir(); cacheDir != "" {
+		transport, err := provider.NewCachingTransport(cacheDir, nil)
+		if err != nil {
+			return nil, fmt.Errorf("http cache: %w", err)
+		}
 		txtCfg.HTTPClient = &http.Client{
 			Timeout:   endpoint.Timeout(),
-			Transport: provider.NewCachingTransport(cacheDir, nil),
+			Transport: transport,
 		}
 	}
 	p := provider.NewOpenAIProviderFromConfig(txtCfg)

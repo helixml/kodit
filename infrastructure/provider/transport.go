@@ -2,39 +2,66 @@ package provider
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
-	"os"
-	"path/filepath"
+
+	"github.com/helixml/kodit/internal/database"
+
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
+// cacheEntry is the GORM model for cached HTTP responses.
+type cacheEntry struct {
+	Key        string `gorm:"primaryKey;column:key"`
+	StatusCode int    `gorm:"column:status_code"`
+	Header     []byte `gorm:"column:header"`
+	Body       []byte `gorm:"column:body"`
+}
+
+func (cacheEntry) TableName() string { return "http_cache" }
+
 // CachingTransport is an http.RoundTripper that caches POST request/response
-// pairs on disk, keyed by the SHA-256 of method + URL + request body.
+// pairs in a SQLite database, keyed by the SHA-256 of method + URL + request body.
 // Only 2xx responses are cached. Cache read/write errors are non-fatal —
 // they silently fall through to the inner transport.
 type CachingTransport struct {
 	inner http.RoundTripper
-	dir   string
+	db    database.Database
 }
 
-// NewCachingTransport creates a CachingTransport that stores cache files
-// under dir. If inner is nil, http.DefaultTransport is used.
-func NewCachingTransport(dir string, inner http.RoundTripper) *CachingTransport {
+// NewCachingTransport creates a CachingTransport that stores cached responses
+// in a SQLite database under dir/http_cache.db.
+// If inner is nil, http.DefaultTransport is used.
+func NewCachingTransport(dir string, inner http.RoundTripper) (*CachingTransport, error) {
 	if inner == nil {
 		inner = http.DefaultTransport
 	}
-	_ = os.MkdirAll(dir, 0o755)
-	return &CachingTransport{inner: inner, dir: dir}
+
+	db, err := database.NewDatabaseWithConfig(
+		context.Background(),
+		"sqlite:///"+dir+"/http_cache.db",
+		&gorm.Config{Logger: logger.Discard},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := db.GORM().AutoMigrate(&cacheEntry{}); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+
+	return &CachingTransport{inner: inner, db: db}, nil
 }
 
-type cachedResponse struct {
-	StatusCode int                 `json:"status_code"`
-	Header     map[string][]string `json:"header"`
-	Body       string              `json:"body"`
+// Close closes the underlying SQLite database.
+func (t *CachingTransport) Close() error {
+	return t.db.Close()
 }
 
 // RoundTrip implements http.RoundTripper.
@@ -45,10 +72,9 @@ func (t *CachingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	}
 	req.Body = io.NopCloser(bytes.NewReader(body))
 
-	key := t.cacheKey(req.Method, req.URL.String(), body)
-	path := filepath.Join(t.dir, key+".json")
+	key := cacheKey(req.Method, req.URL.String(), body)
 
-	if resp, ok := t.readCache(path, req); ok {
+	if resp, ok := t.readCache(key, req); ok {
 		return resp, nil
 	}
 
@@ -67,13 +93,13 @@ func (t *CachingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	}
 	_ = resp.Body.Close()
 
-	t.writeCache(path, resp.StatusCode, resp.Header, respBody)
+	t.writeCache(key, resp.StatusCode, resp.Header, respBody)
 
 	resp.Body = io.NopCloser(bytes.NewReader(respBody))
 	return resp, nil
 }
 
-func (t *CachingTransport) cacheKey(method, url string, body []byte) string {
+func cacheKey(method, url string, body []byte) string {
 	h := sha256.New()
 	h.Write([]byte(method))
 	h.Write([]byte("\n"))
@@ -83,40 +109,40 @@ func (t *CachingTransport) cacheKey(method, url string, body []byte) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-func (t *CachingTransport) readCache(path string, req *http.Request) (*http.Response, bool) {
-	data, err := os.ReadFile(path)
-	if err != nil {
+func (t *CachingTransport) readCache(key string, req *http.Request) (*http.Response, bool) {
+	var entry cacheEntry
+	result := t.db.GORM().Where("`key` = ?", key).First(&entry)
+	if result.Error != nil {
 		return nil, false
 	}
 
-	var cached cachedResponse
-	if err := json.Unmarshal(data, &cached); err != nil {
-		return nil, false
-	}
-
-	body, err := base64.StdEncoding.DecodeString(cached.Body)
-	if err != nil {
+	var header http.Header
+	if err := json.Unmarshal(entry.Header, &header); err != nil {
 		return nil, false
 	}
 
 	resp := &http.Response{
-		StatusCode: cached.StatusCode,
-		Header:     cached.Header,
-		Body:       io.NopCloser(bytes.NewReader(body)),
+		StatusCode: entry.StatusCode,
+		Header:     header,
+		Body:       io.NopCloser(bytes.NewReader(entry.Body)),
 		Request:    req,
 	}
 	return resp, true
 }
 
-func (t *CachingTransport) writeCache(path string, statusCode int, header http.Header, body []byte) {
-	cached := cachedResponse{
-		StatusCode: statusCode,
-		Header:     header,
-		Body:       base64.StdEncoding.EncodeToString(body),
-	}
-	data, err := json.Marshal(cached)
+func (t *CachingTransport) writeCache(key string, statusCode int, header http.Header, body []byte) {
+	headerJSON, err := json.Marshal(header)
 	if err != nil {
 		return
 	}
-	_ = os.WriteFile(path, data, 0o644)
+
+	entry := cacheEntry{
+		Key:        key,
+		StatusCode: statusCode,
+		Header:     headerJSON,
+		Body:       body,
+	}
+
+	// Use Save to upsert — if the key already exists, update it.
+	_ = t.db.GORM().Save(&entry).Error
 }
