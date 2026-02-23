@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	openai "github.com/sashabaranov/go-openai"
 )
+
+const openAIBatchMax = 10
 
 // OpenAIProvider implements both text generation and embedding using OpenAI API.
 type OpenAIProvider struct {
@@ -216,7 +219,8 @@ func (p *OpenAIProvider) ChatCompletion(ctx context.Context, req ChatCompletionR
 	), nil
 }
 
-// Embed generates embeddings for the given texts.
+// Embed generates embeddings for the given texts. Texts are split into
+// concurrent batches of openAIBatchMax to maximize throughput.
 func (p *OpenAIProvider) Embed(ctx context.Context, req EmbeddingRequest) (EmbeddingResponse, error) {
 	if !p.supportsEmbedding {
 		return EmbeddingResponse{}, ErrUnsupportedOperation
@@ -227,6 +231,53 @@ func (p *OpenAIProvider) Embed(ctx context.Context, req EmbeddingRequest) (Embed
 		return NewEmbeddingResponse([][]float64{}, NewUsage(0, 0, 0)), nil
 	}
 
+	// Single batch — no goroutine overhead needed.
+	if len(texts) <= openAIBatchMax {
+		return p.embedBatch(ctx, texts)
+	}
+
+	// Split into concurrent batches of openAIBatchMax.
+	type batchResult struct {
+		embeddings [][]float64
+		usage      Usage
+		err        error
+	}
+
+	batches := partition(texts, openAIBatchMax)
+	results := make([]batchResult, len(batches))
+
+	var wg sync.WaitGroup
+	for i, batch := range batches {
+		wg.Add(1)
+		go func(idx int, batch []string) {
+			defer wg.Done()
+			resp, err := p.embedBatch(ctx, batch)
+			results[idx] = batchResult{
+				embeddings: resp.Embeddings(),
+				usage:      resp.Usage(),
+				err:        err,
+			}
+		}(i, batch)
+	}
+	wg.Wait()
+
+	// Collect results in order.
+	embeddings := make([][]float64, 0, len(texts))
+	var totalPrompt, totalTokens int
+	for _, r := range results {
+		if r.err != nil {
+			return EmbeddingResponse{}, r.err
+		}
+		embeddings = append(embeddings, r.embeddings...)
+		totalPrompt += r.usage.PromptTokens()
+		totalTokens += r.usage.TotalTokens()
+	}
+
+	return NewEmbeddingResponse(embeddings, NewUsage(totalPrompt, 0, totalTokens)), nil
+}
+
+// embedBatch sends a single embedding request for the given texts.
+func (p *OpenAIProvider) embedBatch(ctx context.Context, texts []string) (EmbeddingResponse, error) {
 	openaiReq := openai.EmbeddingRequest{
 		Model: openai.EmbeddingModel(p.embeddingModel),
 		Input: texts,
@@ -253,8 +304,17 @@ func (p *OpenAIProvider) Embed(ctx context.Context, req EmbeddingRequest) (Embed
 	}
 
 	usage := NewUsage(resp.Usage.PromptTokens, 0, resp.Usage.TotalTokens)
-
 	return NewEmbeddingResponse(embeddings, usage), nil
+}
+
+// partition splits a slice into sub-slices of at most batchSize.
+func partition(texts []string, batchSize int) [][]string {
+	var batches [][]string
+	for i := 0; i < len(texts); i += batchSize {
+		end := min(i+batchSize, len(texts))
+		batches = append(batches, texts[i:end])
+	}
+	return batches
 }
 
 // withRetry executes the function with exponential backoff retry.
