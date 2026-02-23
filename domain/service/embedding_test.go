@@ -201,10 +201,11 @@ func TestEmbeddingService_Index_EmbedErrorMidBatch(t *testing.T) {
 	err = svc.Index(context.Background(), search.NewIndexRequest(documents))
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "embed batch")
+	require.Contains(t, err.Error(), "1 of 3 embedding batches failed")
 
-	// Batch 1 was saved before the error.
-	require.Len(t, store.saved, 1)
-	require.Len(t, store.saved[0], 10)
+	// All 3 batches attempted; batch 0 and 2 saved, batch 1 failed embed.
+	require.Len(t, embedder.calls, 3, "all batches attempted despite mid-batch error")
+	require.Len(t, store.saved, 2, "2 successful saves (batch 0 and 2)")
 }
 
 func TestEmbeddingService_Index_SaveErrorMidBatch(t *testing.T) {
@@ -221,10 +222,42 @@ func TestEmbeddingService_Index_SaveErrorMidBatch(t *testing.T) {
 	err = svc.Index(context.Background(), search.NewIndexRequest(documents))
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "save batch")
+	require.Contains(t, err.Error(), "1 of 3 embedding batches failed")
 
-	// Batch 0 saved, batch 1 failed.
-	require.Len(t, store.saved, 2)
-	require.Len(t, store.saved[0], 10)
+	// All 3 batches attempted for embed and save; save at index 1 failed.
+	require.Len(t, embedder.calls, 3, "all batches embedded")
+	require.Len(t, store.saved, 3, "all 3 save attempts made")
+}
+
+func TestEmbeddingService_Index_BatchErrorCallback(t *testing.T) {
+	embedder := &fakeEmbedder{errAt: 1}
+	store := &fakeEmbeddingStore{existing: map[string]search.Embedding{}, saveErr: -1}
+	svc, err := NewEmbedding(store, embedder, 10)
+	require.NoError(t, err)
+
+	documents := make([]search.Document, 25)
+	for i := range documents {
+		documents[i] = search.NewDocument(fmt.Sprintf("id-%d", i), fmt.Sprintf("text %d", i))
+	}
+
+	type batchErrCall struct {
+		start int
+		end   int
+		err   string
+	}
+	var errCalls []batchErrCall
+
+	err = svc.Index(context.Background(), search.NewIndexRequest(documents),
+		search.WithBatchError(func(batchStart, batchEnd int, err error) {
+			errCalls = append(errCalls, batchErrCall{batchStart, batchEnd, err.Error()})
+		}),
+	)
+	require.Error(t, err)
+
+	require.Len(t, errCalls, 1, "batch error callback called once for the failed batch")
+	require.Equal(t, 10, errCalls[0].start)
+	require.Equal(t, 20, errCalls[0].end)
+	require.Contains(t, errCalls[0].err, "embed error at batch 1")
 }
 
 func TestEmbeddingService_Index_InvalidDocumentsFiltered(t *testing.T) {

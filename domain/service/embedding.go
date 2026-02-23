@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -102,8 +103,13 @@ func (s *EmbeddingService) Index(ctx context.Context, request search.IndexReques
 
 	total := len(toEmbed)
 	completed := 0
+	var batchErrors []error
 
 	for i := 0; i < total; i += s.batchSize {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
 		end := min(i+s.batchSize, total)
 		batch := toEmbed[i:end]
 
@@ -114,11 +120,21 @@ func (s *EmbeddingService) Index(ctx context.Context, request search.IndexReques
 
 		vectors, err := s.embedder.Embed(ctx, texts)
 		if err != nil {
-			return fmt.Errorf("embed batch [%d:%d]: %w", i, end, err)
+			batchErr := fmt.Errorf("embed batch [%d:%d]: %w", i, end, err)
+			batchErrors = append(batchErrors, batchErr)
+			if cfg.BatchError() != nil {
+				cfg.BatchError()(i, end, err)
+			}
+			continue
 		}
 
 		if len(vectors) != len(batch) {
-			return fmt.Errorf("embedding count mismatch: got %d, expected %d", len(vectors), len(batch))
+			batchErr := fmt.Errorf("embed batch [%d:%d]: count mismatch: got %d, expected %d", i, end, len(vectors), len(batch))
+			batchErrors = append(batchErrors, batchErr)
+			if cfg.BatchError() != nil {
+				cfg.BatchError()(i, end, fmt.Errorf("count mismatch: got %d, expected %d", len(vectors), len(batch)))
+			}
+			continue
 		}
 
 		embeddings := make([]search.Embedding, len(batch))
@@ -127,13 +143,23 @@ func (s *EmbeddingService) Index(ctx context.Context, request search.IndexReques
 		}
 
 		if err := s.store.SaveAll(ctx, embeddings); err != nil {
-			return fmt.Errorf("save batch [%d:%d]: %w", i, end, err)
+			batchErr := fmt.Errorf("save batch [%d:%d]: %w", i, end, err)
+			batchErrors = append(batchErrors, batchErr)
+			if cfg.BatchError() != nil {
+				cfg.BatchError()(i, end, err)
+			}
+			continue
 		}
 
 		completed += len(batch)
 		if cfg.Progress() != nil {
 			cfg.Progress()(completed, total)
 		}
+	}
+
+	if len(batchErrors) > 0 {
+		totalBatches := (total + s.batchSize - 1) / s.batchSize
+		return fmt.Errorf("%d of %d embedding batches failed: %w", len(batchErrors), totalBatches, errors.Join(batchErrors...))
 	}
 
 	return nil

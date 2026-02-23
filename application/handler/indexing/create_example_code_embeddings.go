@@ -99,9 +99,19 @@ func (h *CreateExampleCodeEmbeddings) Execute(ctx context.Context, payload map[s
 	tracker.SetTotal(ctx, len(documents))
 
 	request := search.NewIndexRequest(documents)
-	if err := h.codeIndex.Embedding.Index(ctx, request, search.WithProgress(func(completed, total int) {
-		tracker.SetCurrent(ctx, completed, "Creating example code embeddings")
-	})); err != nil {
+	if err := h.codeIndex.Embedding.Index(ctx, request,
+		search.WithProgress(func(completed, total int) {
+			tracker.SetCurrent(ctx, completed, "Creating example code embeddings")
+		}),
+		search.WithBatchError(func(batchStart, batchEnd int, err error) {
+			h.logger.Error("embedding batch failed",
+				slog.String("operation", "create_example_code_embeddings"),
+				slog.Int("batch_start", batchStart),
+				slog.Int("batch_end", batchEnd),
+				slog.String("error", err.Error()),
+			)
+		}),
+	); err != nil {
 		h.logger.Error("failed to create example code embeddings", slog.String("error", err.Error()))
 		return err
 	}
