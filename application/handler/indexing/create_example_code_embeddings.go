@@ -8,6 +8,7 @@ import (
 
 	"github.com/helixml/kodit/application/handler"
 	"github.com/helixml/kodit/domain/enrichment"
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/domain/task"
 )
@@ -60,7 +61,7 @@ func (h *CreateExampleCodeEmbeddings) Execute(ctx context.Context, payload map[s
 		cp.RepoID(),
 	)
 
-	examples, err := h.enrichmentStore.Find(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeExample))
+	examples, err := h.enrichmentStore.Find(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeExample), repository.WithOrderAsc("id"))
 	if err != nil {
 		h.logger.Error("failed to get example enrichments", slog.String("error", err.Error()))
 		return err

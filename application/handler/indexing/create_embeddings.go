@@ -8,6 +8,7 @@ import (
 
 	"github.com/helixml/kodit/application/handler"
 	"github.com/helixml/kodit/domain/enrichment"
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/domain/task"
 )
@@ -60,7 +61,7 @@ func (h *CreateCodeEmbeddings) Execute(ctx context.Context, payload map[string]a
 		cp.RepoID(),
 	)
 
-	enrichments, err := h.enrichmentStore.Find(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeSnippet))
+	enrichments, err := h.enrichmentStore.Find(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeSnippet), repository.WithOrderAsc("id"))
 	if err != nil {
 		h.logger.Error("failed to get snippet enrichments for commit", slog.String("error", err.Error()))
 		return err
