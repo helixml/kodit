@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/helixml/kodit/domain/repository"
@@ -72,12 +73,20 @@ func (f *fakeEmbeddingStore) DeleteBy(_ context.Context, _ ...repository.Option)
 	return nil
 }
 
+// --- helpers ---
+
+func testBudget() search.TokenBudget {
+	// Large char budget so existing count-based tests are unaffected.
+	b, _ := search.NewTokenBudget(1000000)
+	return b
+}
+
 // --- tests ---
 
 func TestEmbeddingService_Index_EmptyRequest(t *testing.T) {
 	embedder := &fakeEmbedder{errAt: -1}
 	store := &fakeEmbeddingStore{existing: map[string]search.Embedding{}, saveErr: -1}
-	svc, err := NewEmbedding(store, embedder, 10)
+	svc, err := NewEmbedding(store, embedder, testBudget())
 	require.NoError(t, err)
 
 	err = svc.Index(context.Background(), search.NewIndexRequest(nil))
@@ -89,7 +98,7 @@ func TestEmbeddingService_Index_EmptyRequest(t *testing.T) {
 func TestEmbeddingService_Index_SingleBatch(t *testing.T) {
 	embedder := &fakeEmbedder{errAt: -1}
 	store := &fakeEmbeddingStore{existing: map[string]search.Embedding{}, saveErr: -1}
-	svc, err := NewEmbedding(store, embedder, 10)
+	svc, err := NewEmbedding(store, embedder, testBudget())
 	require.NoError(t, err)
 
 	documents := make([]search.Document, 5)
@@ -108,7 +117,7 @@ func TestEmbeddingService_Index_SingleBatch(t *testing.T) {
 func TestEmbeddingService_Index_MultipleBatches(t *testing.T) {
 	embedder := &fakeEmbedder{errAt: -1}
 	store := &fakeEmbeddingStore{existing: map[string]search.Embedding{}, saveErr: -1}
-	svc, err := NewEmbedding(store, embedder, 10)
+	svc, err := NewEmbedding(store, embedder, testBudget())
 	require.NoError(t, err)
 
 	documents := make([]search.Document, 25)
@@ -133,7 +142,7 @@ func TestEmbeddingService_Index_MultipleBatches(t *testing.T) {
 func TestEmbeddingService_Index_ProgressCallback(t *testing.T) {
 	embedder := &fakeEmbedder{errAt: -1}
 	store := &fakeEmbeddingStore{existing: map[string]search.Embedding{}, saveErr: -1}
-	svc, err := NewEmbedding(store, embedder, 10)
+	svc, err := NewEmbedding(store, embedder, testBudget())
 	require.NoError(t, err)
 
 	documents := make([]search.Document, 25)
@@ -170,7 +179,7 @@ func TestEmbeddingService_Index_Deduplication(t *testing.T) {
 		},
 		saveErr: -1,
 	}
-	svc, err := NewEmbedding(store, embedder, 10)
+	svc, err := NewEmbedding(store, embedder, testBudget())
 	require.NoError(t, err)
 
 	documents := []search.Document{
@@ -190,7 +199,7 @@ func TestEmbeddingService_Index_Deduplication(t *testing.T) {
 func TestEmbeddingService_Index_EmbedErrorMidBatch(t *testing.T) {
 	embedder := &fakeEmbedder{errAt: 1}
 	store := &fakeEmbeddingStore{existing: map[string]search.Embedding{}, saveErr: -1}
-	svc, err := NewEmbedding(store, embedder, 10)
+	svc, err := NewEmbedding(store, embedder, testBudget())
 	require.NoError(t, err)
 
 	documents := make([]search.Document, 25)
@@ -211,7 +220,7 @@ func TestEmbeddingService_Index_EmbedErrorMidBatch(t *testing.T) {
 func TestEmbeddingService_Index_SaveErrorMidBatch(t *testing.T) {
 	embedder := &fakeEmbedder{errAt: -1}
 	store := &fakeEmbeddingStore{existing: map[string]search.Embedding{}, saveErr: 1}
-	svc, err := NewEmbedding(store, embedder, 10)
+	svc, err := NewEmbedding(store, embedder, testBudget())
 	require.NoError(t, err)
 
 	documents := make([]search.Document, 25)
@@ -232,7 +241,7 @@ func TestEmbeddingService_Index_SaveErrorMidBatch(t *testing.T) {
 func TestEmbeddingService_Index_BatchErrorCallback(t *testing.T) {
 	embedder := &fakeEmbedder{errAt: 1}
 	store := &fakeEmbeddingStore{existing: map[string]search.Embedding{}, saveErr: -1}
-	svc, err := NewEmbedding(store, embedder, 10)
+	svc, err := NewEmbedding(store, embedder, testBudget())
 	require.NoError(t, err)
 
 	documents := make([]search.Document, 25)
@@ -263,7 +272,7 @@ func TestEmbeddingService_Index_BatchErrorCallback(t *testing.T) {
 func TestEmbeddingService_Index_InvalidDocumentsFiltered(t *testing.T) {
 	embedder := &fakeEmbedder{errAt: -1}
 	store := &fakeEmbeddingStore{existing: map[string]search.Embedding{}, saveErr: -1}
-	svc, err := NewEmbedding(store, embedder, 10)
+	svc, err := NewEmbedding(store, embedder, testBudget())
 	require.NoError(t, err)
 
 	documents := []search.Document{
@@ -277,4 +286,81 @@ func TestEmbeddingService_Index_InvalidDocumentsFiltered(t *testing.T) {
 
 	require.Len(t, embedder.calls, 1)
 	require.Len(t, embedder.calls[0], 1, "only 1 valid document")
+}
+
+func TestEmbeddingService_Index_TruncatesLargeTexts(t *testing.T) {
+	embedder := &fakeEmbedder{errAt: -1}
+	store := &fakeEmbeddingStore{existing: map[string]search.Embedding{}, saveErr: -1}
+
+	budget, err := search.NewTokenBudget(20)
+	require.NoError(t, err)
+
+	svc, err := NewEmbedding(store, embedder, budget)
+	require.NoError(t, err)
+
+	documents := []search.Document{
+		search.NewDocument("id-0", "short"),
+		search.NewDocument("id-1", strings.Repeat("x", 50)),
+	}
+
+	err = svc.Index(context.Background(), search.NewIndexRequest(documents))
+	require.NoError(t, err)
+
+	// "short" (5 chars) fits alone. The 50-char text is truncated to 20.
+	// Both exceed 20 together so they split into separate batches.
+	require.Len(t, embedder.calls, 2)
+	require.Equal(t, "short", embedder.calls[0][0])
+	require.Len(t, embedder.calls[1][0], 20, "text truncated to maxChars")
+}
+
+func TestEmbeddingService_Index_SplitsByCharBudget(t *testing.T) {
+	embedder := &fakeEmbedder{errAt: -1}
+	store := &fakeEmbeddingStore{existing: map[string]search.Embedding{}, saveErr: -1}
+
+	// 30 chars budget. Each doc is 10 chars, so 3 fit per batch.
+	budget, err := search.NewTokenBudget(30)
+	require.NoError(t, err)
+
+	svc, err := NewEmbedding(store, embedder, budget)
+	require.NoError(t, err)
+
+	documents := make([]search.Document, 7)
+	for i := range documents {
+		documents[i] = search.NewDocument(fmt.Sprintf("id-%d", i), strings.Repeat("a", 10))
+	}
+
+	err = svc.Index(context.Background(), search.NewIndexRequest(documents))
+	require.NoError(t, err)
+
+	// 7 docs * 10 chars = 70 chars. At 30 chars/batch: batches of 3, 3, 1.
+	require.Len(t, embedder.calls, 3)
+	require.Len(t, embedder.calls[0], 3)
+	require.Len(t, embedder.calls[1], 3)
+	require.Len(t, embedder.calls[2], 1)
+}
+
+func TestEmbeddingService_Index_LargeDocGetsOwnBatch(t *testing.T) {
+	embedder := &fakeEmbedder{errAt: -1}
+	store := &fakeEmbeddingStore{existing: map[string]search.Embedding{}, saveErr: -1}
+
+	// 20 chars budget. Large doc exceeds it, gets its own batch.
+	budget, err := search.NewTokenBudget(20)
+	require.NoError(t, err)
+
+	svc, err := NewEmbedding(store, embedder, budget)
+	require.NoError(t, err)
+
+	documents := []search.Document{
+		search.NewDocument("id-0", strings.Repeat("a", 5)),
+		search.NewDocument("id-1", strings.Repeat("b", 50)), // exceeds batch budget, gets own batch
+		search.NewDocument("id-2", strings.Repeat("c", 5)),
+	}
+
+	err = svc.Index(context.Background(), search.NewIndexRequest(documents))
+	require.NoError(t, err)
+
+	require.Len(t, embedder.calls, 3)
+	require.Len(t, embedder.calls[0], 1, "first small doc alone (next doc would overflow)")
+	require.Len(t, embedder.calls[1], 1, "large doc alone in its own batch")
+	require.Len(t, embedder.calls[2], 1, "last small doc alone")
 }

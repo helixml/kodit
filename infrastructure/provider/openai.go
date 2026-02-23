@@ -11,9 +11,6 @@ import (
 	openai "github.com/sashabaranov/go-openai"
 )
 
-// DefaultBatchSize is the default number of texts per embedding API call.
-const DefaultBatchSize = 10
-
 // errEmbeddingCountMismatch indicates the API returned fewer embedding vectors
 // than requested. This is retryable because transient upstream issues (e.g.
 // rate-limiting behind a 200 status) can produce partial responses.

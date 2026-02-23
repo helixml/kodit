@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/helixml/kodit"
+	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/infrastructure/provider"
 	"github.com/helixml/kodit/internal/config"
 )
@@ -57,7 +58,13 @@ func embeddingOptions(cfg config.AppConfig) []kodit.Option {
 		MaxRetries:     endpoint.MaxRetries(),
 	})
 
-	return []kodit.Option{kodit.WithEmbeddingProvider(p)}
+	opts := []kodit.Option{kodit.WithEmbeddingProvider(p)}
+
+	if budget, err := search.NewTokenBudget(endpoint.MaxBatchChars()); err == nil {
+		opts = append(opts, kodit.WithEmbeddingBudget(budget))
+	}
+
+	return opts
 }
 
 // textOptions returns a kodit.Option for the text generation provider when the
@@ -76,7 +83,13 @@ func textOptions(cfg config.AppConfig) []kodit.Option {
 		MaxRetries: endpoint.MaxRetries(),
 	})
 
-	return []kodit.Option{kodit.WithTextProvider(p)}
+	opts := []kodit.Option{kodit.WithTextProvider(p)}
+
+	if budget, err := search.NewTokenBudget(endpoint.MaxBatchChars()); err == nil {
+		opts = append(opts, kodit.WithEnrichmentBudget(budget))
+	}
+
+	return opts
 }
 
 // isSQLite checks if the database URL is for SQLite.

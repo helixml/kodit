@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/infrastructure/provider"
 	"github.com/helixml/kodit/internal/config"
 )
@@ -33,6 +34,8 @@ type clientConfig struct {
 	workerCount            int
 	workerPollPeriod       time.Duration
 	skipProviderValidation bool
+	embeddingBudget        search.TokenBudget
+	enrichmentBudget       search.TokenBudget
 	periodicSync           config.PeriodicSyncConfig
 }
 
@@ -40,9 +43,11 @@ type clientConfig struct {
 // This ensures all defaults come from the single source of truth.
 func newClientConfig() *clientConfig {
 	return &clientConfig{
-		dataDir:      config.DefaultDataDir(),
-		workerCount:  config.DefaultWorkerCount,
-		periodicSync: config.NewPeriodicSyncConfig(),
+		dataDir:          config.DefaultDataDir(),
+		workerCount:      config.DefaultWorkerCount,
+		embeddingBudget:  search.DefaultTokenBudget(),
+		enrichmentBudget: search.DefaultTokenBudget(),
+		periodicSync:     config.NewPeriodicSyncConfig(),
 	}
 }
 
@@ -113,6 +118,20 @@ func WithTextProvider(p provider.TextGenerator) Option {
 func WithEmbeddingProvider(p provider.Embedder) Option {
 	return func(c *clientConfig) {
 		c.embeddingProvider = p
+	}
+}
+
+// WithEmbeddingBudget sets the token budget for code embedding batches.
+func WithEmbeddingBudget(b search.TokenBudget) Option {
+	return func(c *clientConfig) {
+		c.embeddingBudget = b
+	}
+}
+
+// WithEnrichmentBudget sets the token budget for enrichment embedding batches.
+func WithEnrichmentBudget(b search.TokenBudget) Option {
+	return func(c *clientConfig) {
+		c.enrichmentBudget = b
 	}
 }
 
