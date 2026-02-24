@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -354,4 +355,84 @@ func TestExtractSnippets_ProcessesExtensionsInSortedOrder(t *testing.T) {
 	expected := []string{".aaa", ".bbb", ".ddd", ".mmm", ".zzz"}
 	assert.Equal(t, expected, got,
 		"extensions must be processed in sorted order for deterministic cache keys")
+}
+
+// recordingFileStore wraps a real FileStore and captures the options passed to
+// Find so tests can verify ordering constraints without depending on downstream
+// slicer determinism (the slicer iterates maps internally).
+type recordingFileStore struct {
+	repository.FileStore
+	findOptions []repository.Option
+}
+
+func (r *recordingFileStore) Find(ctx context.Context, opts ...repository.Option) ([]repository.File, error) {
+	r.findOptions = opts
+	return r.FileStore.Find(ctx, opts...)
+}
+
+func TestExtractSnippets_QueriesFilesInPathOrder(t *testing.T) {
+	ctx := context.Background()
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	db := testdb.New(t)
+	repoStore := persistence.NewRepositoryStore(db)
+	enrichmentStore := persistence.NewEnrichmentStore(db)
+	associationStore := persistence.NewAssociationStore(db)
+	realFileStore := persistence.NewFileStore(db)
+
+	tmpDir := t.TempDir()
+	repo, err := repository.NewRepository("https://github.com/test/repo")
+	require.NoError(t, err)
+	repo = repo.
+		WithWorkingCopy(repository.NewWorkingCopy(tmpDir, "https://github.com/test/repo")).
+		WithTrackingConfig(repository.NewTrackingConfig("main", "", ""))
+	savedRepo, err := repoStore.Save(ctx, repo)
+	require.NoError(t, err)
+
+	commitSHA := "hhh999iii000"
+
+	// Create a single Go file so the handler reaches the file query.
+	content := "package example\n\nfunc Hello() {}\n"
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "hello.go"), []byte(content), 0o644))
+	_, err = realFileStore.Save(ctx, repository.NewFile(commitSHA, "hello.go", "go", int64(len(content))))
+	require.NoError(t, err)
+
+	rec := &recordingFileStore{FileStore: realFileStore}
+
+	langConfig := slicing.NewLanguageConfig()
+	analyzerFactory := language.NewFactory(langConfig)
+	slicer := slicing.NewSlicer(langConfig, analyzerFactory)
+
+	h := NewExtractSnippets(
+		repoStore,
+		enrichmentStore,
+		associationStore,
+		rec,
+		slicer,
+		&fakeTrackerFactory{},
+		logger,
+	)
+
+	payload := map[string]any{
+		"repository_id": savedRepo.ID(),
+		"commit_sha":    commitSHA,
+	}
+	err = h.Execute(ctx, payload)
+	require.NoError(t, err)
+
+	// The file query must include ORDER BY path ASC so that files within
+	// each extension group are processed in deterministic order.
+	q := repository.Build(rec.findOptions...)
+	orders := q.Orders()
+	require.NotEmpty(t, orders, "file query must include an explicit ORDER BY")
+
+	found := false
+	for _, o := range orders {
+		if o.Field() == "path" && o.Ascending() {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found,
+		"file query must order by path ASC for deterministic cache keys, got orders: %v", orders)
 }

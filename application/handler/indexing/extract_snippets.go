@@ -83,7 +83,7 @@ func (h *ExtractSnippets) Execute(ctx context.Context, payload map[string]any) e
 	}
 
 	// Load files from database (which have IDs from SCAN_COMMIT step)
-	files, err := h.fileStore.Find(ctx, repository.WithCommitSHA(cp.CommitSHA()))
+	files, err := h.fileStore.Find(ctx, repository.WithCommitSHA(cp.CommitSHA()), repository.WithOrderAsc("path"))
 	if err != nil {
 		return fmt.Errorf("get commit files from database: %w", err)
 	}
