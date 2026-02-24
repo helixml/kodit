@@ -107,8 +107,18 @@ func TestEndpoint_Defaults(t *testing.T) {
 	if e.MaxTokens() != DefaultEndpointMaxTokens {
 		t.Errorf("MaxTokens() = %v, want %v", e.MaxTokens(), DefaultEndpointMaxTokens)
 	}
+	if e.MaxBatchSize() != DefaultEndpointMaxBatchSize {
+		t.Errorf("MaxBatchSize() = %v, want %v", e.MaxBatchSize(), DefaultEndpointMaxBatchSize)
+	}
 	if e.IsConfigured() {
 		t.Error("IsConfigured() should be false for default endpoint")
+	}
+}
+
+func TestEndpoint_WithMaxBatchSize(t *testing.T) {
+	e := NewEndpointWithOptions(WithMaxBatchSize(10))
+	if e.MaxBatchSize() != 10 {
+		t.Errorf("MaxBatchSize() = %v, want 10", e.MaxBatchSize())
 	}
 }
 

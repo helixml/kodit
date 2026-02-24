@@ -8,6 +8,7 @@ import (
 
 	"github.com/helixml/kodit/application/handler"
 	"github.com/helixml/kodit/domain/enrichment"
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/domain/task"
 )
@@ -60,7 +61,7 @@ func (h *CreateCodeEmbeddings) Execute(ctx context.Context, payload map[string]a
 		cp.RepoID(),
 	)
 
-	enrichments, err := h.enrichmentStore.Find(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeSnippet))
+	enrichments, err := h.enrichmentStore.Find(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeSnippet), repository.WithOrderAsc("enrichments_v2.id"))
 	if err != nil {
 		h.logger.Error("failed to get snippet enrichments for commit", slog.String("error", err.Error()))
 		return err
@@ -98,9 +99,19 @@ func (h *CreateCodeEmbeddings) Execute(ctx context.Context, payload map[string]a
 	tracker.SetTotal(ctx, len(documents))
 
 	request := search.NewIndexRequest(documents)
-	if err := h.codeIndex.Embedding.Index(ctx, request, search.WithProgress(func(completed, total int) {
-		tracker.SetCurrent(ctx, completed, "Creating code embeddings")
-	})); err != nil {
+	if err := h.codeIndex.Embedding.Index(ctx, request,
+		search.WithProgress(func(completed, total int) {
+			tracker.SetCurrent(ctx, completed, "Creating code embeddings")
+		}),
+		search.WithBatchError(func(batchStart, batchEnd int, err error) {
+			h.logger.Error("embedding batch failed",
+				slog.String("operation", "create_code_embeddings"),
+				slog.Int("batch_start", batchStart),
+				slog.Int("batch_end", batchEnd),
+				slog.String("error", err.Error()),
+			)
+		}),
+	); err != nil {
 		h.logger.Error("failed to create embeddings", slog.String("error", err.Error()))
 		return err
 	}

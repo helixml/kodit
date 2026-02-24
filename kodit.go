@@ -35,6 +35,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"path/filepath"
 	"sync"
@@ -106,6 +107,7 @@ type Client struct {
 	cookbookContext   *enricher.CookbookContextService
 
 	hugotEmbedding *provider.HugotEmbedding
+	closers        []io.Closer
 
 	logger   *slog.Logger
 	dataDir  string
@@ -249,7 +251,7 @@ func New(opts ...Option) (*Client, error) {
 	// Create vector indices (pairing embedding services with their stores)
 	var codeIndex handler.VectorIndex
 	if codeEmbeddingStore != nil {
-		embSvc, err := domainservice.NewEmbedding(codeEmbeddingStore, domainEmbedder, provider.DefaultBatchSize)
+		embSvc, err := domainservice.NewEmbedding(codeEmbeddingStore, domainEmbedder, cfg.embeddingBudget, cfg.embeddingParallelism)
 		if err != nil {
 			return nil, fmt.Errorf("create code embedding service: %w", err)
 		}
@@ -260,7 +262,7 @@ func New(opts ...Option) (*Client, error) {
 	}
 	var textIndex handler.VectorIndex
 	if textEmbeddingStore != nil {
-		embSvc, err := domainservice.NewEmbedding(textEmbeddingStore, domainEmbedder, provider.DefaultBatchSize)
+		embSvc, err := domainservice.NewEmbedding(textEmbeddingStore, domainEmbedder, cfg.enrichmentBudget, cfg.enrichmentParallelism)
 		if err != nil {
 			return nil, fmt.Errorf("create text embedding service: %w", err)
 		}
@@ -320,7 +322,8 @@ func New(opts ...Option) (*Client, error) {
 	// Create enricher infrastructure (only if text provider is configured)
 	var enricherImpl domainservice.Enricher
 	if cfg.textProvider != nil {
-		enricherImpl = enricher.NewProviderEnricher(cfg.textProvider, logger)
+		enricherImpl = enricher.NewProviderEnricher(cfg.textProvider).
+			WithParallelism(cfg.enricherParallelism)
 	}
 
 	// Build enrichment context
@@ -360,6 +363,7 @@ func New(opts ...Option) (*Client, error) {
 		apiDocService:     apiDocSvc,
 		cookbookContext:   cookbookCtx,
 		hugotEmbedding:    hugotEmbedding,
+		closers:           cfg.closers,
 		logger:            logger,
 		dataDir:           dataDir,
 		cloneDir:          cloneDir,
@@ -414,6 +418,13 @@ func (c *Client) Close() error {
 	if c.hugotEmbedding != nil {
 		if err := c.hugotEmbedding.Close(); err != nil {
 			c.logger.Error("failed to close hugot embedding", slog.Any("error", err))
+		}
+	}
+
+	// Close registered resources (e.g. caching transports)
+	for _, closer := range c.closers {
+		if err := closer.Close(); err != nil {
+			c.logger.Error("failed to close resource", slog.Any("error", err))
 		}
 	}
 

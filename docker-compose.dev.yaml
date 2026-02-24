@@ -62,8 +62,6 @@ services:
         condition: service_completed_successfully
     ports:
       - "8080:8080"
-    volumes:
-      - .:/app
     healthcheck:
       test:
         [
@@ -86,8 +84,12 @@ services:
       - ENRICHMENT_ENDPOINT_MODEL=qwen3:0.6b
       - ENRICHMENT_ENDPOINT_API_KEY=ollama
       - LOG_LEVEL=INFO
+      - HTTP_CACHE_DIR=/kodit-data
     profiles:
       - kodit
-
+    volumes:
+      - .:/app
+      - ${KODIT_DIR:-kodit-data}:/kodit-data
 volumes:
   ollama-models:
+  kodit-data:

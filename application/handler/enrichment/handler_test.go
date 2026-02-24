@@ -38,7 +38,7 @@ type fakeEnricher struct {
 	err       error
 }
 
-func (f *fakeEnricher) Enrich(_ context.Context, requests []domainservice.EnrichmentRequest) ([]domainservice.EnrichmentResponse, error) {
+func (f *fakeEnricher) Enrich(_ context.Context, requests []domainservice.EnrichmentRequest, _ ...domainservice.EnrichOption) ([]domainservice.EnrichmentResponse, error) {
 	if f.err != nil {
 		return nil, f.err
 	}

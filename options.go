@@ -1,9 +1,11 @@
 package kodit
 
 import (
+	"io"
 	"log/slog"
 	"time"
 
+	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/infrastructure/provider"
 	"github.com/helixml/kodit/internal/config"
 )
@@ -33,16 +35,27 @@ type clientConfig struct {
 	workerCount            int
 	workerPollPeriod       time.Duration
 	skipProviderValidation bool
+	embeddingBudget        search.TokenBudget
+	enrichmentBudget       search.TokenBudget
+	embeddingParallelism   int
+	enrichmentParallelism  int
+	enricherParallelism    int
 	periodicSync           config.PeriodicSyncConfig
+	closers                []io.Closer
 }
 
 // newClientConfig creates a clientConfig with defaults from internal/config.
 // This ensures all defaults come from the single source of truth.
 func newClientConfig() *clientConfig {
 	return &clientConfig{
-		dataDir:      config.DefaultDataDir(),
-		workerCount:  config.DefaultWorkerCount,
-		periodicSync: config.NewPeriodicSyncConfig(),
+		dataDir:               config.DefaultDataDir(),
+		workerCount:           config.DefaultWorkerCount,
+		embeddingBudget:       search.DefaultTokenBudget(),
+		enrichmentBudget:      search.DefaultTokenBudget(),
+		embeddingParallelism:  1,
+		enrichmentParallelism: 1,
+		enricherParallelism:   1,
+		periodicSync:          config.NewPeriodicSyncConfig(),
 	}
 }
 
@@ -116,6 +129,50 @@ func WithEmbeddingProvider(p provider.Embedder) Option {
 	}
 }
 
+// WithEmbeddingBudget sets the token budget for code embedding batches.
+func WithEmbeddingBudget(b search.TokenBudget) Option {
+	return func(c *clientConfig) {
+		c.embeddingBudget = b
+	}
+}
+
+// WithEnrichmentBudget sets the token budget for enrichment embedding batches.
+func WithEnrichmentBudget(b search.TokenBudget) Option {
+	return func(c *clientConfig) {
+		c.enrichmentBudget = b
+	}
+}
+
+// WithEmbeddingParallelism sets how many embedding batches are dispatched concurrently.
+// Defaults to 1. Values <= 0 are ignored.
+func WithEmbeddingParallelism(n int) Option {
+	return func(c *clientConfig) {
+		if n > 0 {
+			c.embeddingParallelism = n
+		}
+	}
+}
+
+// WithEnrichmentParallelism sets how many enrichment embedding batches are dispatched concurrently.
+// Defaults to 1. Values <= 0 are ignored.
+func WithEnrichmentParallelism(n int) Option {
+	return func(c *clientConfig) {
+		if n > 0 {
+			c.enrichmentParallelism = n
+		}
+	}
+}
+
+// WithEnricherParallelism sets how many enrichment LLM requests are dispatched concurrently.
+// Defaults to 1. Values <= 0 are ignored.
+func WithEnricherParallelism(n int) Option {
+	return func(c *clientConfig) {
+		if n > 0 {
+			c.enricherParallelism = n
+		}
+	}
+}
+
 // WithDataDir sets the data directory for cloned repositories and database storage.
 func WithDataDir(dir string) Option {
 	return func(c *clientConfig) {
@@ -185,5 +242,12 @@ func WithPeriodicSyncConfig(cfg config.PeriodicSyncConfig) Option {
 func WithModelDir(dir string) Option {
 	return func(c *clientConfig) {
 		c.modelDir = dir
+	}
+}
+
+// WithCloser registers a resource to be closed when the Client shuts down.
+func WithCloser(c io.Closer) Option {
+	return func(cfg *clientConfig) {
+		cfg.closers = append(cfg.closers, c)
 	}
 }

@@ -1,9 +1,12 @@
 package main
 
 import (
+	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/helixml/kodit"
+	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/infrastructure/provider"
 	"github.com/helixml/kodit/internal/config"
 )
@@ -12,14 +15,24 @@ import (
 // of AppConfig: database storage, embedding provider, and text provider.
 // Callers append entrypoint-specific options (API keys, worker count, etc.)
 // before passing the full slice to kodit.New.
-func clientOptions(cfg config.AppConfig) []kodit.Option {
+func clientOptions(cfg config.AppConfig) ([]kodit.Option, error) {
 	var opts []kodit.Option
 
 	opts = append(opts, storageOptions(cfg)...)
-	opts = append(opts, embeddingOptions(cfg)...)
-	opts = append(opts, textOptions(cfg)...)
 
-	return opts
+	embOpts, err := embeddingOptions(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("embedding config: %w", err)
+	}
+	opts = append(opts, embOpts...)
+
+	txtOpts, err := textOptions(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("text config: %w", err)
+	}
+	opts = append(opts, txtOpts...)
+
+	return opts, nil
 }
 
 // storageOptions returns the kodit.Option for the configured database backend.
@@ -43,40 +56,93 @@ func storageOptions(cfg config.AppConfig) []kodit.Option {
 
 // embeddingOptions returns a kodit.Option for the embedding provider when the
 // embedding endpoint is fully configured, or an empty slice otherwise.
-func embeddingOptions(cfg config.AppConfig) []kodit.Option {
+func embeddingOptions(cfg config.AppConfig) ([]kodit.Option, error) {
 	endpoint := cfg.EmbeddingEndpoint()
 	if endpoint == nil || endpoint.BaseURL() == "" || endpoint.APIKey() == "" {
-		return nil
+		return nil, nil
 	}
 
-	p := provider.NewOpenAIProviderFromConfig(provider.OpenAIConfig{
+	var opts []kodit.Option
+
+	openaiCfg := provider.OpenAIConfig{
 		APIKey:         endpoint.APIKey(),
 		BaseURL:        endpoint.BaseURL(),
 		EmbeddingModel: endpoint.Model(),
 		Timeout:        endpoint.Timeout(),
 		MaxRetries:     endpoint.MaxRetries(),
-	})
+	}
+	if cacheDir := cfg.HTTPCacheDir(); cacheDir != "" {
+		transport, err := provider.NewCachingTransport(cacheDir, nil)
+		if err != nil {
+			return nil, fmt.Errorf("http cache: %w", err)
+		}
+		openaiCfg.HTTPClient = &http.Client{
+			Timeout:   endpoint.Timeout(),
+			Transport: transport,
+		}
+		opts = append(opts, kodit.WithCloser(transport))
+	}
+	p := provider.NewOpenAIProviderFromConfig(openaiCfg)
 
-	return []kodit.Option{kodit.WithEmbeddingProvider(p)}
+	budget, err := search.NewTokenBudget(endpoint.MaxBatchChars())
+	if err != nil {
+		return nil, fmt.Errorf("max batch chars: %w", err)
+	}
+	budget = budget.WithMaxBatchSize(endpoint.MaxBatchSize())
+
+	opts = append(opts,
+		kodit.WithEmbeddingProvider(p),
+		kodit.WithEmbeddingBudget(budget),
+		kodit.WithEmbeddingParallelism(endpoint.NumParallelTasks()),
+	)
+
+	return opts, nil
 }
 
 // textOptions returns a kodit.Option for the text generation provider when the
 // enrichment endpoint is fully configured, or an empty slice otherwise.
-func textOptions(cfg config.AppConfig) []kodit.Option {
+func textOptions(cfg config.AppConfig) ([]kodit.Option, error) {
 	endpoint := cfg.EnrichmentEndpoint()
 	if endpoint == nil || endpoint.BaseURL() == "" || endpoint.APIKey() == "" {
-		return nil
+		return nil, nil
 	}
 
-	p := provider.NewOpenAIProviderFromConfig(provider.OpenAIConfig{
+	var opts []kodit.Option
+
+	txtCfg := provider.OpenAIConfig{
 		APIKey:     endpoint.APIKey(),
 		BaseURL:    endpoint.BaseURL(),
 		ChatModel:  endpoint.Model(),
 		Timeout:    endpoint.Timeout(),
 		MaxRetries: endpoint.MaxRetries(),
-	})
+	}
+	if cacheDir := cfg.HTTPCacheDir(); cacheDir != "" {
+		transport, err := provider.NewCachingTransport(cacheDir, nil)
+		if err != nil {
+			return nil, fmt.Errorf("http cache: %w", err)
+		}
+		txtCfg.HTTPClient = &http.Client{
+			Timeout:   endpoint.Timeout(),
+			Transport: transport,
+		}
+		opts = append(opts, kodit.WithCloser(transport))
+	}
+	p := provider.NewOpenAIProviderFromConfig(txtCfg)
 
-	return []kodit.Option{kodit.WithTextProvider(p)}
+	budget, err := search.NewTokenBudget(endpoint.MaxBatchChars())
+	if err != nil {
+		return nil, fmt.Errorf("max batch chars: %w", err)
+	}
+	budget = budget.WithMaxBatchSize(endpoint.MaxBatchSize())
+
+	opts = append(opts,
+		kodit.WithTextProvider(p),
+		kodit.WithEnrichmentBudget(budget),
+		kodit.WithEnrichmentParallelism(endpoint.NumParallelTasks()),
+		kodit.WithEnricherParallelism(endpoint.NumParallelTasks()),
+	)
+
+	return opts, nil
 }
 
 // isSQLite checks if the database URL is for SQLite.

@@ -7,6 +7,7 @@ import (
 
 	"github.com/helixml/kodit/application/handler"
 	"github.com/helixml/kodit/domain/enrichment"
+	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/domain/task"
 )
@@ -65,7 +66,7 @@ func (h *CreateSummaryEmbeddings) Execute(ctx context.Context, payload map[strin
 		cp.RepoID(),
 	)
 
-	enrichments, err := h.enrichmentStore.Find(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeSnippetSummary))
+	enrichments, err := h.enrichmentStore.Find(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeSnippetSummary), repository.WithOrderAsc("enrichments_v2.id"))
 	if err != nil {
 		h.logger.Error("failed to get summary enrichments", slog.String("error", err.Error()))
 		return err
@@ -117,9 +118,19 @@ func (h *CreateSummaryEmbeddings) Execute(ctx context.Context, payload map[strin
 	tracker.SetTotal(ctx, len(documents))
 
 	request := search.NewIndexRequest(documents)
-	if err := h.textIndex.Embedding.Index(ctx, request, search.WithProgress(func(completed, total int) {
-		tracker.SetCurrent(ctx, completed, "Creating summary embeddings")
-	})); err != nil {
+	if err := h.textIndex.Embedding.Index(ctx, request,
+		search.WithProgress(func(completed, total int) {
+			tracker.SetCurrent(ctx, completed, "Creating summary embeddings")
+		}),
+		search.WithBatchError(func(batchStart, batchEnd int, err error) {
+			h.logger.Error("embedding batch failed",
+				slog.String("operation", "create_summary_embeddings"),
+				slog.Int("batch_start", batchStart),
+				slog.Int("batch_end", batchEnd),
+				slog.String("error", err.Error()),
+			)
+		}),
+	); err != nil {
 		h.logger.Error("failed to create summary embeddings", slog.String("error", err.Error()))
 		return err
 	}
@@ -133,10 +144,7 @@ func (h *CreateSummaryEmbeddings) Execute(ctx context.Context, payload map[strin
 }
 
 func (h *CreateSummaryEmbeddings) filterNewEnrichments(ctx context.Context, enrichments []enrichment.Enrichment) ([]enrichment.Enrichment, error) {
-	// Collect snippet SHAs for all enrichments
 	snippetSHAs := make([]string, 0, len(enrichments))
-	shaToEnrichment := make(map[string][]enrichment.Enrichment, len(enrichments))
-
 	for _, e := range enrichments {
 		snippetSHA, err := h.findSnippetSHA(ctx, e.ID())
 		if err != nil {
@@ -146,7 +154,6 @@ func (h *CreateSummaryEmbeddings) filterNewEnrichments(ctx context.Context, enri
 			continue
 		}
 		snippetSHAs = append(snippetSHAs, snippetSHA)
-		shaToEnrichment[snippetSHA] = append(shaToEnrichment[snippetSHA], e)
 	}
 
 	if len(snippetSHAs) == 0 {
@@ -164,9 +171,16 @@ func (h *CreateSummaryEmbeddings) filterNewEnrichments(ctx context.Context, enri
 	}
 
 	result := make([]enrichment.Enrichment, 0, len(enrichments))
-	for sha, items := range shaToEnrichment {
-		if !existing[sha] {
-			result = append(result, items...)
+	for _, e := range enrichments {
+		snippetSHA, err := h.findSnippetSHA(ctx, e.ID())
+		if err != nil {
+			return nil, err
+		}
+		if snippetSHA == "" {
+			continue
+		}
+		if !existing[snippetSHA] {
+			result = append(result, e)
 		}
 	}
 

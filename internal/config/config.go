@@ -27,6 +27,8 @@ const (
 	DefaultPeriodicSyncInterval      = 1800.0 // seconds
 	DefaultPeriodicSyncCheckInterval = 10.0   // seconds
 	DefaultPeriodicSyncRetries       = 3
+	DefaultEndpointMaxBatchChars     = 16000
+	DefaultEndpointMaxBatchSize      = 1
 	DefaultRemoteTimeout             = 30 * time.Second
 	DefaultRemoteMaxRetries          = 3
 	DefaultReportingInterval         = 5 * time.Second
@@ -100,6 +102,8 @@ type Endpoint struct {
 	backoffFactor    float64
 	extraParams      map[string]any
 	maxTokens        int
+	maxBatchChars    int
+	maxBatchSize     int
 }
 
 // NewEndpoint creates a new Endpoint with defaults.
@@ -111,6 +115,8 @@ func NewEndpoint() Endpoint {
 		initialDelay:     DefaultEndpointInitialDelay,
 		backoffFactor:    DefaultEndpointBackoffFactor,
 		maxTokens:        DefaultEndpointMaxTokens,
+		maxBatchChars:    DefaultEndpointMaxBatchChars,
+		maxBatchSize:     DefaultEndpointMaxBatchSize,
 	}
 }
 
@@ -155,6 +161,12 @@ func (e Endpoint) ExtraParams() map[string]any {
 
 // MaxTokens returns the maximum token limit.
 func (e Endpoint) MaxTokens() int { return e.maxTokens }
+
+// MaxBatchChars returns the maximum total characters per embedding batch.
+func (e Endpoint) MaxBatchChars() int { return e.maxBatchChars }
+
+// MaxBatchSize returns the maximum number of requests per batch.
+func (e Endpoint) MaxBatchSize() int { return e.maxBatchSize }
 
 // IsConfigured returns true if the endpoint has required configuration.
 func (e Endpoint) IsConfigured() bool {
@@ -224,6 +236,16 @@ func WithExtraParams(params map[string]any) EndpointOption {
 // WithMaxTokens sets the maximum token limit.
 func WithMaxTokens(n int) EndpointOption {
 	return func(e *Endpoint) { e.maxTokens = n }
+}
+
+// WithMaxBatchChars sets the maximum total characters per embedding batch.
+func WithMaxBatchChars(n int) EndpointOption {
+	return func(e *Endpoint) { e.maxBatchChars = n }
+}
+
+// WithMaxBatchSize sets the maximum number of requests per batch.
+func WithMaxBatchSize(n int) EndpointOption {
+	return func(e *Endpoint) { e.maxBatchSize = n }
 }
 
 // NewEndpointWithOptions creates an Endpoint with functional options.
@@ -387,6 +409,7 @@ type AppConfig struct {
 	litellmCache           LiteLLMCacheConfig
 	workerCount            int
 	searchLimit            int
+	httpCacheDir           string
 }
 
 // DefaultDataDir returns the default data directory.
@@ -508,6 +531,9 @@ func (c AppConfig) WorkerCount() int { return c.workerCount }
 
 // SearchLimit returns the default search result limit.
 func (c AppConfig) SearchLimit() int { return c.searchLimit }
+
+// HTTPCacheDir returns the HTTP response cache directory, or empty if disabled.
+func (c AppConfig) HTTPCacheDir() string { return c.httpCacheDir }
 
 // IsRemote returns true if running in remote mode.
 func (c AppConfig) IsRemote() bool {
@@ -643,6 +669,11 @@ func WithSearchLimit(n int) AppConfigOption {
 			c.searchLimit = n
 		}
 	}
+}
+
+// WithHTTPCacheDir sets the HTTP response cache directory.
+func WithHTTPCacheDir(dir string) AppConfigOption {
+	return func(c *AppConfig) { c.httpCacheDir = dir }
 }
 
 // NewAppConfigWithOptions creates an AppConfig with functional options.

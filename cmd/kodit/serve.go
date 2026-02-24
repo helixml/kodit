@@ -61,7 +61,9 @@ Environment variables:
   PERIODIC_SYNC_INTERVAL_SECONDS  Sync interval (default: 1800)
 
   REMOTE_SERVER_URL            Remote Kodit server URL
-  REMOTE_API_KEY               Remote server API key`,
+  REMOTE_API_KEY               Remote server API key
+
+  HTTP_CACHE_DIR               Directory for caching HTTP POST responses on disk`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runServe(envFile, host, port)
 		},
@@ -102,7 +104,10 @@ func runServe(envFile, host string, port int) error {
 	slogger := logger.Slog()
 
 	// Build kodit client options from shared config (database, embedding, text)
-	opts := clientOptions(cfg)
+	opts, err := clientOptions(cfg)
+	if err != nil {
+		return fmt.Errorf("build client options: %w", err)
+	}
 	opts = append(opts,
 		kodit.WithDataDir(cfg.DataDir()),
 		kodit.WithCloneDir(cfg.CloneDir()),

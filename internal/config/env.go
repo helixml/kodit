@@ -77,6 +77,11 @@ type EnvConfig struct {
 	// SearchLimit is the default search result limit.
 	// Env: SEARCH_LIMIT (default: 10)
 	SearchLimit int `envconfig:"SEARCH_LIMIT" default:"10"`
+
+	// HTTPCacheDir is the directory for caching HTTP responses to disk.
+	// When set, POST request/response pairs are cached to avoid repeated API calls.
+	// Env: HTTP_CACHE_DIR
+	HTTPCacheDir string `envconfig:"HTTP_CACHE_DIR"`
 }
 
 // EndpointEnv holds environment configuration for an AI endpoint.
@@ -124,6 +129,14 @@ type EndpointEnv struct {
 	// MaxTokens is the maximum token limit.
 	// Env: *_MAX_TOKENS (default: 4000)
 	MaxTokens int `envconfig:"MAX_TOKENS" default:"4000"`
+
+	// MaxBatchChars is the maximum total characters per embedding batch.
+	// Env: *_MAX_BATCH_CHARS (default: 16000)
+	MaxBatchChars int `envconfig:"MAX_BATCH_CHARS" default:"16000"`
+
+	// MaxBatchSize is the maximum number of requests per batch.
+	// Env: *_MAX_BATCH_SIZE (default: 1)
+	MaxBatchSize int `envconfig:"MAX_BATCH_SIZE" default:"1"`
 }
 
 // PeriodicSyncEnv holds environment configuration for periodic sync.
@@ -262,6 +275,11 @@ func (e EnvConfig) ToAppConfig() AppConfig {
 		cfg = applyOption(cfg, WithSearchLimit(e.SearchLimit))
 	}
 
+	// HTTP cache directory
+	if e.HTTPCacheDir != "" {
+		cfg = applyOption(cfg, WithHTTPCacheDir(e.HTTPCacheDir))
+	}
+
 	return cfg
 }
 
@@ -286,6 +304,8 @@ func (e EndpointEnv) ToEndpoint() Endpoint {
 		WithInitialDelay(time.Duration(e.InitialDelay * float64(time.Second))),
 		WithBackoffFactor(e.BackoffFactor),
 		WithMaxTokens(e.MaxTokens),
+		WithMaxBatchChars(e.MaxBatchChars),
+		WithMaxBatchSize(e.MaxBatchSize),
 	}
 
 	if e.BaseURL != "" {

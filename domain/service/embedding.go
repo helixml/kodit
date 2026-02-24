@@ -2,8 +2,10 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
@@ -23,24 +25,28 @@ type Embedding interface {
 
 // EmbeddingService implements domain logic for embedding operations.
 type EmbeddingService struct {
-	store     search.EmbeddingStore
-	embedder  search.Embedder
-	batchSize int
+	store       search.EmbeddingStore
+	embedder    search.Embedder
+	budget      search.TokenBudget
+	parallelism int
 }
 
 // NewEmbedding creates a new embedding service.
-// batchSize controls how many texts are sent per Embed call.
-func NewEmbedding(store search.EmbeddingStore, embedder search.Embedder, batchSize int) (*EmbeddingService, error) {
+// The budget controls text truncation and adaptive batching.
+// Parallelism controls how many batches are dispatched concurrently;
+// values <= 0 are clamped to 1.
+func NewEmbedding(store search.EmbeddingStore, embedder search.Embedder, budget search.TokenBudget, parallelism int) (*EmbeddingService, error) {
 	if store == nil {
 		return nil, fmt.Errorf("NewEmbedding: nil store")
 	}
-	if batchSize <= 0 {
-		return nil, fmt.Errorf("NewEmbedding: batch size must be positive, got %d", batchSize)
+	if parallelism <= 0 {
+		parallelism = 1
 	}
 	return &EmbeddingService{
-		store:     store,
-		embedder:  embedder,
-		batchSize: batchSize,
+		store:       store,
+		embedder:    embedder,
+		budget:      budget,
+		parallelism: parallelism,
 	}, nil
 }
 
@@ -100,39 +106,101 @@ func (s *EmbeddingService) Index(ctx context.Context, request search.IndexReques
 		return fmt.Errorf("Index: nil embedder")
 	}
 
+	batches := s.budget.Batches(toEmbed)
 	total := len(toEmbed)
-	completed := 0
 
-	for i := 0; i < total; i += s.batchSize {
-		end := min(i+s.batchSize, total)
-		batch := toEmbed[i:end]
+	// Precompute batch offsets.
+	offsets := make([]int, len(batches))
+	off := 0
+	for i, batch := range batches {
+		offsets[i] = off
+		off += len(batch)
+	}
 
-		texts := make([]string, len(batch))
-		for j, doc := range batch {
-			texts[j] = doc.Text()
+	var (
+		mu          sync.Mutex
+		batchErrors []error
+		completed   int
+	)
+
+	sem := make(chan struct{}, s.parallelism)
+	var wg sync.WaitGroup
+
+	for i, batch := range batches {
+		if err := ctx.Err(); err != nil {
+			break
 		}
 
-		vectors, err := s.embedder.Embed(ctx, texts)
-		if err != nil {
-			return fmt.Errorf("embed batch [%d:%d]: %w", i, end, err)
-		}
+		wg.Add(1)
+		sem <- struct{}{}
 
-		if len(vectors) != len(batch) {
-			return fmt.Errorf("embedding count mismatch: got %d, expected %d", len(vectors), len(batch))
-		}
+		go func(idx int, batch []search.Document) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			defer func() {
+				mu.Lock()
+				completed += len(batch)
+				if cfg.Progress() != nil {
+					cfg.Progress()(completed, total)
+				}
+				mu.Unlock()
+			}()
 
-		embeddings := make([]search.Embedding, len(batch))
-		for j, doc := range batch {
-			embeddings[j] = search.NewEmbedding(doc.SnippetID(), vectors[j])
-		}
+			start := offsets[idx]
+			end := start + len(batch)
 
-		if err := s.store.SaveAll(ctx, embeddings); err != nil {
-			return fmt.Errorf("save batch [%d:%d]: %w", i, end, err)
-		}
+			texts := make([]string, len(batch))
+			for j, doc := range batch {
+				texts[j] = s.budget.Truncate(doc.Text())
+			}
 
-		completed += len(batch)
-		if cfg.Progress() != nil {
-			cfg.Progress()(completed, total)
+			vectors, err := s.embedder.Embed(ctx, texts)
+			if err != nil {
+				batchErr := fmt.Errorf("embed batch [%d:%d]: %w", start, end, err)
+				mu.Lock()
+				batchErrors = append(batchErrors, batchErr)
+				mu.Unlock()
+				if cfg.BatchError() != nil {
+					cfg.BatchError()(start, end, err)
+				}
+				return
+			}
+
+			if len(vectors) != len(batch) {
+				batchErr := fmt.Errorf("embed batch [%d:%d]: count mismatch: got %d, expected %d", start, end, len(vectors), len(batch))
+				mu.Lock()
+				batchErrors = append(batchErrors, batchErr)
+				mu.Unlock()
+				if cfg.BatchError() != nil {
+					cfg.BatchError()(start, end, fmt.Errorf("count mismatch: got %d, expected %d", len(vectors), len(batch)))
+				}
+				return
+			}
+
+			embeddings := make([]search.Embedding, len(batch))
+			for j, doc := range batch {
+				embeddings[j] = search.NewEmbedding(doc.SnippetID(), vectors[j])
+			}
+
+			if err := s.store.SaveAll(ctx, embeddings); err != nil {
+				batchErr := fmt.Errorf("save batch [%d:%d]: %w", start, end, err)
+				mu.Lock()
+				batchErrors = append(batchErrors, batchErr)
+				mu.Unlock()
+				if cfg.BatchError() != nil {
+					cfg.BatchError()(start, end, err)
+				}
+				return
+			}
+		}(i, batch)
+	}
+
+	wg.Wait()
+
+	if len(batchErrors) > 0 {
+		rate := float64(len(batchErrors)) / float64(len(batches))
+		if rate > cfg.MaxFailureRate() {
+			return fmt.Errorf("%d of %d embedding batches failed: %w", len(batchErrors), len(batches), errors.Join(batchErrors...))
 		}
 	}
 

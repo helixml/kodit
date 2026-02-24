@@ -79,7 +79,16 @@ func (r Repository[D, E]) sessionDB(ctx context.Context) *gorm.DB {
 }
 
 // Find retrieves entities matching the given options.
+// When no ordering is specified, results are sorted by primary key ASC to
+// ensure deterministic output across database engines (Postgres does not
+// guarantee row order without an explicit ORDER BY).
 func (r Repository[D, E]) Find(ctx context.Context, options ...repository.Option) ([]D, error) {
+	q := repository.Build(options...)
+	if len(q.Orders()) == 0 {
+		for _, col := range r.primaryKeyColumns() {
+			options = append(options, repository.WithOrderAsc(col))
+		}
+	}
 	var entities []E
 	db := ApplyOptions(r.modelDB(ctx), options...)
 	result := db.Find(&entities)
@@ -144,6 +153,21 @@ func (r Repository[D, E]) Count(ctx context.Context, options ...repository.Optio
 		return 0, fmt.Errorf("count %s: %w", r.label, result.Error)
 	}
 	return count, nil
+}
+
+// primaryKeyColumns returns the database column names of the entity's primary
+// key by parsing GORM struct tags. GORM caches parsed schemas internally, so
+// repeated calls are efficient.
+func (r Repository[D, E]) primaryKeyColumns() []string {
+	stmt := &gorm.Statement{DB: r.db.GORM()}
+	if err := stmt.Parse(new(E)); err != nil {
+		return nil
+	}
+	columns := make([]string, 0, len(stmt.Schema.PrimaryFields))
+	for _, field := range stmt.Schema.PrimaryFields {
+		columns = append(columns, field.DBName)
+	}
+	return columns
 }
 
 // Mapper returns the entity mapper for external use.

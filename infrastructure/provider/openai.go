@@ -11,8 +11,18 @@ import (
 	openai "github.com/sashabaranov/go-openai"
 )
 
-// DefaultBatchSize is the default number of texts per embedding API call.
-const DefaultBatchSize = 10
+// errEmbeddingCountMismatch indicates the API returned fewer embedding vectors
+// than requested. This is retryable because transient upstream issues (e.g.
+// rate-limiting behind a 200 status) can produce partial responses.
+var errEmbeddingCountMismatch = errors.New("embedding response count mismatch")
+
+// errUpstreamProviderFailure indicates the API returned HTTP 200 but the
+// response body contained an error instead of embedding data. This happens
+// with routing providers like OpenRouter when all upstream providers fail.
+// The response has zero data, zero usage, and an empty model. This is
+// retryable because the failure is transient — the same model succeeds on
+// subsequent requests once OpenRouter re-routes to a healthy provider.
+var errUpstreamProviderFailure = errors.New("upstream provider failure")
 
 // OpenAIProvider implements both text generation and embedding using OpenAI API.
 type OpenAIProvider struct {
@@ -92,6 +102,7 @@ type OpenAIConfig struct {
 	MaxRetries     int
 	InitialDelay   time.Duration
 	BackoffFactor  float64
+	HTTPClient     *http.Client
 }
 
 // NewOpenAIProviderFromConfig creates a provider from configuration.
@@ -102,7 +113,9 @@ func NewOpenAIProviderFromConfig(cfg OpenAIConfig) *OpenAIProvider {
 		config.BaseURL = cfg.BaseURL
 	}
 
-	if cfg.Timeout > 0 {
+	if cfg.HTTPClient != nil {
+		config.HTTPClient = cfg.HTTPClient
+	} else if cfg.Timeout > 0 {
 		config.HTTPClient = &http.Client{
 			Timeout: cfg.Timeout,
 		}
@@ -240,7 +253,23 @@ func (p *OpenAIProvider) Embed(ctx context.Context, req EmbeddingRequest) (Embed
 
 	err = p.withRetry(ctx, func() error {
 		resp, err = p.client.CreateEmbeddings(ctx, openaiReq)
-		return err
+		if err != nil {
+			return err
+		}
+		// Detect upstream provider failure: routing providers (e.g. OpenRouter)
+		// return HTTP 200 with an error body that the go-openai library silently
+		// parses as an empty response. When zero data comes back with zero usage
+		// and no model, the upstream is down — not transiently overloaded.
+		if len(resp.Data) == 0 && string(resp.Model) == "" && resp.Usage.TotalTokens == 0 {
+			return fmt.Errorf(
+				"%w: provider returned HTTP 200 with no embedding data, no model, and zero usage (upstream routing failure)",
+				errUpstreamProviderFailure,
+			)
+		}
+		if len(resp.Data) != len(texts) {
+			return fmt.Errorf("%w: got %d vectors for %d texts", errEmbeddingCountMismatch, len(resp.Data), len(texts))
+		}
+		return nil
 	})
 
 	if err != nil {
@@ -293,6 +322,19 @@ func (p *OpenAIProvider) withRetry(ctx context.Context, fn func() error) error {
 
 // isRetryable determines if an error should be retried.
 func (p *OpenAIProvider) isRetryable(err error) bool {
+	// Empty or partial embedding responses are retryable — upstream providers
+	// can return 200 with no data under transient load conditions.
+	if errors.Is(err, errEmbeddingCountMismatch) {
+		return true
+	}
+
+	// Upstream provider routing failures (e.g. OpenRouter "No successful
+	// provider responses") are transient — the same request succeeds once
+	// the routing layer picks a healthy provider.
+	if errors.Is(err, errUpstreamProviderFailure) {
+		return true
+	}
+
 	// HTTP client timeouts are retryable
 	var netErr net.Error
 	if errors.As(err, &netErr) && netErr.Timeout() {
