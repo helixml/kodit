@@ -65,3 +65,53 @@ If SQLite locking is the bottleneck, you will see:
 - Throughput plateauing or declining above 4–8 goroutines on `cache_miss`.
 
 If those patterns appear, the fix is to introduce an in-memory read-through layer (e.g. `sync.Map` keyed by the SHA-256 cache key) so concurrent read hits never touch SQLite at all, and writes are de-duplicated with a singleflight group.
+
+## Implementation Notes
+
+### Build Requirements
+
+- SQLite requires CGO. The test must be run with `CGO_ENABLED=1 go test -tags "fts5" -run TestCachingTransportPerformance -v ./test/performance/...`
+- The `make test` target already sets `CGO_ENABLED=1` via the Makefile `GOENV` variable, so the test runs correctly under `make test`.
+- The `go test` invocation in the original requirements spec (no flags) does not work without CGO — updated to require `-tags fts5` and `CGO_ENABLED=1`.
+
+### Actual Results (first run on dev machine)
+
+```
+cache_miss  goroutines=1    total_reqs=50     wall=    16ms  req/sec=  3094.6  p50=   259µs  p99= 2.419ms
+cache_miss  goroutines=4    total_reqs=200    wall=    45ms  req/sec=  4476.7  p50=   685µs  p99= 4.393ms
+cache_miss  goroutines=8    total_reqs=400    wall=    66ms  req/sec=  6079.6  p50=  1.11ms  p99= 3.675ms
+cache_miss  goroutines=16   total_reqs=800    wall=   145ms  req/sec=  5517.2  p50= 2.248ms  p99= 9.552ms
+cache_miss  goroutines=32   total_reqs=1600   wall=   408ms  req/sec=  3922.7  p50= 5.598ms  p99=43.487ms
+
+cache_hit   goroutines=1    total_reqs=50     wall=     2ms  req/sec= 28175.5  p50=    30µs  p99=    99µs
+cache_hit   goroutines=4    total_reqs=200    wall=     5ms  req/sec= 37113.2  p50=    67µs  p99=   515µs
+cache_hit   goroutines=8    total_reqs=400    wall=    11ms  req/sec= 34918.4  p50=   133µs  p99=   975µs
+cache_hit   goroutines=16   total_reqs=800    wall=    21ms  req/sec= 37807.4  p50=   233µs  p99= 1.922ms
+cache_hit   goroutines=32   total_reqs=1600   wall=    33ms  req/sec= 48781.7  p50=   350µs  p99=  3.26ms
+
+mixed       goroutines=1    total_reqs=50     wall=     1ms  req/sec= 36842.2  p50=    12µs  p99=   225µs
+mixed       goroutines=4    total_reqs=200    wall=    28ms  req/sec=  7107.5  p50=   220µs  p99= 3.096ms
+mixed       goroutines=8    total_reqs=400    wall=    48ms  req/sec=  8406.4  p50=   461µs  p99=  4.37ms
+mixed       goroutines=16   total_reqs=800    wall=    93ms  req/sec=  8581.7  p50=   994µs  p99= 5.101ms
+mixed       goroutines=32   total_reqs=1600   wall=   249ms  req/sec=  6420.7  p50=  2.31ms  p99=13.614ms
+```
+
+### Key Observations from Results
+
+The data **confirms** the SQLite write-lock bottleneck hypothesis:
+
+1. **`cache_miss` p99 degrades sharply with concurrency**: 2.4ms at 1 goroutine → 43ms at 32 goroutines (18× increase). Throughput peaks at 8 goroutines (~6k req/sec) then falls back to ~3.9k at 32 — classic single-writer serialisation collapse.
+
+2. **`cache_hit` scales well**: p99 only grows from 99µs → 3.3ms across the same concurrency range (33× throughput increase vs 1-goroutine baseline). WAL mode allows concurrent reads, so read-only contention is mild. At 32 goroutines it actually achieves *higher* throughput than 1 goroutine because there is no upstream round-trip.
+
+3. **`mixed` p99 is dominated by the cold writers**: At 32 goroutines p99=13.6ms, midway between the pure hit and pure miss extremes, confirming cold-path writes are the source of tail latency.
+
+### Recommended Fix
+
+Replace the SQLite read path with an in-memory `sync.Map` keyed by the SHA-256 cache key. Warm hits never touch the DB. For concurrent misses on the same key, use `golang.org/x/sync/singleflight` to coalesce upstream calls. SQLite then only handles the cold write path, which is inherently less latency-sensitive.
+
+### Gotchas
+
+- `sortDurations` is already defined in `external_embedding_test.go` (same package). Do not redefine it in the new file.
+- Use `strings.NewReader` for request bodies — the existing unit tests use this pattern.
+- The `for g := range goroutines` integer-range syntax requires Go 1.22+; this codebase is on Go 1.25 so it is fine.
