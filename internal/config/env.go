@@ -133,6 +133,10 @@ type EndpointEnv struct {
 	// MaxBatchChars is the maximum total characters per embedding batch.
 	// Env: *_MAX_BATCH_CHARS (default: 16000)
 	MaxBatchChars int `envconfig:"MAX_BATCH_CHARS" default:"16000"`
+
+	// MaxBatchSize is the maximum number of requests per batch.
+	// Env: *_MAX_BATCH_SIZE (default: 1)
+	MaxBatchSize int `envconfig:"MAX_BATCH_SIZE" default:"1"`
 }
 
 // PeriodicSyncEnv holds environment configuration for periodic sync.
@@ -301,6 +305,7 @@ func (e EndpointEnv) ToEndpoint() Endpoint {
 		WithBackoffFactor(e.BackoffFactor),
 		WithMaxTokens(e.MaxTokens),
 		WithMaxBatchChars(e.MaxBatchChars),
+		WithMaxBatchSize(e.MaxBatchSize),
 	}
 
 	if e.BaseURL != "" {

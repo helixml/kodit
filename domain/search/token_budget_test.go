@@ -52,6 +52,7 @@ func TestTokenBudget_Batches_Empty(t *testing.T) {
 func TestTokenBudget_Batches_ByChars(t *testing.T) {
 	// 25 chars budget. Each doc is 10 chars, so 2 fit per batch.
 	b, _ := NewTokenBudget(25)
+	b = b.WithMaxBatchSize(100)
 
 	docs := make([]Document, 5)
 	for i := range docs {
@@ -127,6 +128,7 @@ func TestTokenBudget_Batches_MultibyteCharCounting(t *testing.T) {
 	// Budget 10 chars. Each doc is "🌍🌎🌏🌏🌏" = 5 runes (20 bytes).
 	// Two docs = 10 runes = exactly the budget, so both fit in one batch.
 	b, _ := NewTokenBudget(10)
+	b = b.WithMaxBatchSize(100)
 
 	docs := []Document{
 		NewDocument("a", "🌍🌎🌏🌏🌏"),
@@ -143,4 +145,79 @@ func TestTokenBudget_Batches_SingleDoc(t *testing.T) {
 	batches := b.Batches(docs)
 	require.Len(t, batches, 1)
 	require.Len(t, batches[0], 1)
+}
+
+func TestTokenBudget_WithMaxBatchSize_LimitsBatchCount(t *testing.T) {
+	// 100 char budget, 5-char docs. Without max batch size limit, all 6 docs
+	// would fit in one batch (30 chars < 100). With max batch size of 2,
+	// we should get 3 batches of 2 docs each.
+	b, err := NewTokenBudget(100)
+	require.NoError(t, err)
+	b = b.WithMaxBatchSize(2)
+
+	docs := make([]Document, 6)
+	for i := range docs {
+		docs[i] = NewDocument("id", "hello")
+	}
+
+	batches := b.Batches(docs)
+	require.Len(t, batches, 3)
+	for _, batch := range batches {
+		require.Len(t, batch, 2)
+	}
+}
+
+func TestTokenBudget_WithMaxBatchSize_DefaultIsOne(t *testing.T) {
+	// Default max batch size is 1, so each doc gets its own batch.
+	b, err := NewTokenBudget(100)
+	require.NoError(t, err)
+
+	docs := make([]Document, 3)
+	for i := range docs {
+		docs[i] = NewDocument("id", "hello")
+	}
+
+	batches := b.Batches(docs)
+	require.Len(t, batches, 3)
+	for _, batch := range batches {
+		require.Len(t, batch, 1)
+	}
+}
+
+func TestTokenBudget_WithMaxBatchSize_TokenBudgetStillApplied(t *testing.T) {
+	// Even with a generous max batch size, the token budget still constrains.
+	// 15 char budget, 10-char docs. Only 1 fits per batch due to chars,
+	// even though max batch size allows 10.
+	b, err := NewTokenBudget(15)
+	require.NoError(t, err)
+	b = b.WithMaxBatchSize(10)
+
+	docs := make([]Document, 3)
+	for i := range docs {
+		docs[i] = NewDocument("id", strings.Repeat("a", 10))
+	}
+
+	batches := b.Batches(docs)
+	require.Len(t, batches, 3)
+	for _, batch := range batches {
+		require.Len(t, batch, 1)
+	}
+}
+
+func TestTokenBudget_WithMaxBatchSize_UnevenSplit(t *testing.T) {
+	// 7 docs with max batch size 3 → 3 + 3 + 1
+	b, err := NewTokenBudget(1000)
+	require.NoError(t, err)
+	b = b.WithMaxBatchSize(3)
+
+	docs := make([]Document, 7)
+	for i := range docs {
+		docs[i] = NewDocument("id", "hi")
+	}
+
+	batches := b.Batches(docs)
+	require.Len(t, batches, 3)
+	require.Len(t, batches[0], 3)
+	require.Len(t, batches[1], 3)
+	require.Len(t, batches[2], 1)
 }

@@ -28,6 +28,7 @@ const (
 	DefaultPeriodicSyncCheckInterval = 10.0   // seconds
 	DefaultPeriodicSyncRetries       = 3
 	DefaultEndpointMaxBatchChars     = 16000
+	DefaultEndpointMaxBatchSize      = 1
 	DefaultRemoteTimeout             = 30 * time.Second
 	DefaultRemoteMaxRetries          = 3
 	DefaultReportingInterval         = 5 * time.Second
@@ -102,6 +103,7 @@ type Endpoint struct {
 	extraParams      map[string]any
 	maxTokens        int
 	maxBatchChars    int
+	maxBatchSize     int
 }
 
 // NewEndpoint creates a new Endpoint with defaults.
@@ -114,6 +116,7 @@ func NewEndpoint() Endpoint {
 		backoffFactor:    DefaultEndpointBackoffFactor,
 		maxTokens:        DefaultEndpointMaxTokens,
 		maxBatchChars:    DefaultEndpointMaxBatchChars,
+		maxBatchSize:     DefaultEndpointMaxBatchSize,
 	}
 }
 
@@ -161,6 +164,9 @@ func (e Endpoint) MaxTokens() int { return e.maxTokens }
 
 // MaxBatchChars returns the maximum total characters per embedding batch.
 func (e Endpoint) MaxBatchChars() int { return e.maxBatchChars }
+
+// MaxBatchSize returns the maximum number of requests per batch.
+func (e Endpoint) MaxBatchSize() int { return e.maxBatchSize }
 
 // IsConfigured returns true if the endpoint has required configuration.
 func (e Endpoint) IsConfigured() bool {
@@ -235,6 +241,11 @@ func WithMaxTokens(n int) EndpointOption {
 // WithMaxBatchChars sets the maximum total characters per embedding batch.
 func WithMaxBatchChars(n int) EndpointOption {
 	return func(e *Endpoint) { e.maxBatchChars = n }
+}
+
+// WithMaxBatchSize sets the maximum number of requests per batch.
+func WithMaxBatchSize(n int) EndpointOption {
+	return func(e *Endpoint) { e.maxBatchSize = n }
 }
 
 // NewEndpointWithOptions creates an Endpoint with functional options.

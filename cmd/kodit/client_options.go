@@ -88,6 +88,7 @@ func embeddingOptions(cfg config.AppConfig) ([]kodit.Option, error) {
 	if err != nil {
 		return nil, fmt.Errorf("max batch chars: %w", err)
 	}
+	budget = budget.WithMaxBatchSize(endpoint.MaxBatchSize())
 
 	opts = append(opts,
 		kodit.WithEmbeddingProvider(p),
@@ -132,6 +133,7 @@ func textOptions(cfg config.AppConfig) ([]kodit.Option, error) {
 	if err != nil {
 		return nil, fmt.Errorf("max batch chars: %w", err)
 	}
+	budget = budget.WithMaxBatchSize(endpoint.MaxBatchSize())
 
 	opts = append(opts,
 		kodit.WithTextProvider(p),

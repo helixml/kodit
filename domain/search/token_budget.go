@@ -6,10 +6,12 @@ import (
 )
 
 // TokenBudget constrains embedding batches to stay within model token limits.
-// It holds a single character budget: each batch's total (truncated) text
-// must not exceed maxChars, and individual texts are truncated to maxChars.
+// It holds a character budget and a maximum batch size: each batch's total
+// (truncated) text must not exceed maxChars, each batch contains at most
+// maxBatchSize documents, and individual texts are truncated to maxChars.
 type TokenBudget struct {
-	maxChars int
+	maxChars     int
+	maxBatchSize int
 }
 
 // NewTokenBudget creates a TokenBudget with the given character limit.
@@ -18,7 +20,7 @@ func NewTokenBudget(maxChars int) (TokenBudget, error) {
 	if maxChars <= 0 {
 		return TokenBudget{}, fmt.Errorf("NewTokenBudget: maxChars must be positive, got %d", maxChars)
 	}
-	return TokenBudget{maxChars: maxChars}, nil
+	return TokenBudget{maxChars: maxChars, maxBatchSize: 1}, nil
 }
 
 // DefaultTokenBudget returns a conservative budget of 16 000 characters
@@ -26,6 +28,16 @@ func NewTokenBudget(maxChars int) (TokenBudget, error) {
 // text-embedding-3-small.
 func DefaultTokenBudget() TokenBudget {
 	b, _ := NewTokenBudget(16000)
+	return b
+}
+
+// WithMaxBatchSize returns a new TokenBudget with the given maximum number
+// of documents per batch. Values <= 0 are clamped to 1.
+func (b TokenBudget) WithMaxBatchSize(n int) TokenBudget {
+	if n <= 0 {
+		n = 1
+	}
+	b.maxBatchSize = n
 	return b
 }
 
@@ -39,8 +51,8 @@ func (b TokenBudget) Truncate(text string) string {
 }
 
 // Batches partitions documents into groups whose total truncated character
-// count stays within the budget. The token budget is the sole constraint on
-// batch size. A single document whose truncated text still exceeds the budget
+// count stays within the budget and whose size does not exceed maxBatchSize.
+// A single document whose truncated text still exceeds the character budget
 // is placed alone in its own batch.
 func (b TokenBudget) Batches(documents []Document) [][]Document {
 	if len(documents) == 0 {
@@ -55,6 +67,10 @@ func (b TokenBudget) Batches(documents []Document) [][]Document {
 		batchChars := 0
 
 		for i < len(documents) {
+			if i-start >= b.maxBatchSize && i > start {
+				break
+			}
+
 			textLen := min(utf8.RuneCountInString(documents[i].Text()), b.maxChars)
 
 			if batchChars+textLen > b.maxChars && i > start {

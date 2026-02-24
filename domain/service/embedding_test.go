@@ -76,9 +76,9 @@ func (f *fakeEmbeddingStore) DeleteBy(_ context.Context, _ ...repository.Option)
 // --- helpers ---
 
 func testBudget() search.TokenBudget {
-	// Large char budget so existing count-based tests are unaffected.
+	// Large char budget and batch size so existing count-based tests are unaffected.
 	b, _ := search.NewTokenBudget(1000000)
-	return b
+	return b.WithMaxBatchSize(1000000)
 }
 
 // --- tests ---
@@ -121,6 +121,7 @@ func TestEmbeddingService_Index_MultipleBatches(t *testing.T) {
 	// 30-char budget. Each doc "aaaaaaaaaa" is 10 chars, so 3 fit per batch.
 	budget, err := search.NewTokenBudget(30)
 	require.NoError(t, err)
+	budget = budget.WithMaxBatchSize(100)
 
 	svc, err := NewEmbedding(store, embedder, budget, 1)
 	require.NoError(t, err)
@@ -151,6 +152,7 @@ func TestEmbeddingService_Index_ProgressCallback(t *testing.T) {
 	// 30-char budget. Each doc "aaaaaaaaaa" is 10 chars, so 3 fit per batch.
 	budget, err := search.NewTokenBudget(30)
 	require.NoError(t, err)
+	budget = budget.WithMaxBatchSize(100)
 
 	svc, err := NewEmbedding(store, embedder, budget, 1)
 	require.NoError(t, err)
@@ -213,6 +215,7 @@ func TestEmbeddingService_Index_EmbedErrorMidBatch(t *testing.T) {
 	// 30-char budget, 10-char docs → 3 batches of 3/3/1.
 	budget, err := search.NewTokenBudget(30)
 	require.NoError(t, err)
+	budget = budget.WithMaxBatchSize(100)
 
 	svc, err := NewEmbedding(store, embedder, budget, 1)
 	require.NoError(t, err)
@@ -241,6 +244,7 @@ func TestEmbeddingService_Index_SaveErrorMidBatch(t *testing.T) {
 	// 30-char budget, 10-char docs → 3 batches of 3/3/1.
 	budget, err := search.NewTokenBudget(30)
 	require.NoError(t, err)
+	budget = budget.WithMaxBatchSize(100)
 
 	svc, err := NewEmbedding(store, embedder, budget, 1)
 	require.NoError(t, err)
@@ -269,6 +273,7 @@ func TestEmbeddingService_Index_BatchErrorCallback(t *testing.T) {
 	// 30-char budget, 10-char docs → 3 batches of 3/3/1.
 	budget, err := search.NewTokenBudget(30)
 	require.NoError(t, err)
+	budget = budget.WithMaxBatchSize(100)
 
 	svc, err := NewEmbedding(store, embedder, budget, 1)
 	require.NoError(t, err)
@@ -349,6 +354,7 @@ func TestEmbeddingService_Index_SplitsByCharBudget(t *testing.T) {
 	// 30 chars budget. Each doc is 10 chars, so 3 fit per batch.
 	budget, err := search.NewTokenBudget(30)
 	require.NoError(t, err)
+	budget = budget.WithMaxBatchSize(100)
 
 	svc, err := NewEmbedding(store, embedder, budget, 1)
 	require.NoError(t, err)
@@ -401,6 +407,7 @@ func TestEmbeddingService_Index_ToleratesPartialFailure(t *testing.T) {
 	// 30-char budget, 10-char docs → 3 batches of 3/3/1.
 	budget, err := search.NewTokenBudget(30)
 	require.NoError(t, err)
+	budget = budget.WithMaxBatchSize(100)
 
 	svc, err := NewEmbedding(store, embedder, budget, 1)
 	require.NoError(t, err)
@@ -428,6 +435,7 @@ func TestEmbeddingService_Index_ExceedsFailureTolerance(t *testing.T) {
 	// 30-char budget, 10-char docs → 3 batches of 3/3/1.
 	budget, err := search.NewTokenBudget(30)
 	require.NoError(t, err)
+	budget = budget.WithMaxBatchSize(100)
 
 	svc, err := NewEmbedding(store, embedder, budget, 1)
 	require.NoError(t, err)
@@ -452,6 +460,7 @@ func TestEmbeddingService_Index_ParallelBatches(t *testing.T) {
 	// 30-char budget, 10-char docs → 3 batches of 3/3/1.
 	budget, err := search.NewTokenBudget(30)
 	require.NoError(t, err)
+	budget = budget.WithMaxBatchSize(100)
 
 	svc, err := NewEmbedding(store, embedder, budget, 3)
 	require.NoError(t, err)
@@ -484,6 +493,7 @@ func TestEmbeddingService_Index_ProgressReachesTotalOnPartialFailure(t *testing.
 	// 30-char budget, 10-char docs → 3 batches of 3/3/1.
 	budget, err := search.NewTokenBudget(30)
 	require.NoError(t, err)
+	budget = budget.WithMaxBatchSize(100)
 
 	// Parallelism 1 for deterministic ordering.
 	svc, err := NewEmbedding(store, embedder, budget, 1)
