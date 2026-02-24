@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sort"
 
 	"github.com/helixml/kodit/application/handler"
 	"github.com/helixml/kodit/domain/enrichment"
@@ -74,10 +75,17 @@ func (h *APIDocs) Execute(ctx context.Context, payload map[string]any) error {
 
 	tracker.SetTotal(ctx, len(langFiles))
 
+	languages := make([]string, 0, len(langFiles))
+	for lang := range langFiles {
+		languages = append(languages, lang)
+	}
+	sort.Strings(languages)
+
 	var allEnrichments []enrichment.Enrichment
 
 	i := 0
-	for lang, langFileList := range langFiles {
+	for _, lang := range languages {
+		langFileList := langFiles[lang]
 		tracker.SetCurrent(ctx, i, fmt.Sprintf("Extracting API docs for %s", lang))
 
 		enrichments, err := h.extractor.Extract(ctx, langFileList, lang, false)

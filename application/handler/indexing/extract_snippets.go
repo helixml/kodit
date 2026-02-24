@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"sort"
 	"strconv"
 
 	"github.com/helixml/kodit/application/handler"
@@ -102,8 +103,15 @@ func (h *ExtractSnippets) Execute(ctx context.Context, payload map[string]any) e
 	cfg := slicing.DefaultSliceConfig()
 	var allSnippets []snippet.Snippet
 
+	extensions := make([]string, 0, len(langFiles))
+	for ext := range langFiles {
+		extensions = append(extensions, ext)
+	}
+	sort.Strings(extensions)
+
 	processed := 0
-	for ext, extFiles := range langFiles {
+	for _, ext := range extensions {
+		extFiles := langFiles[ext]
 		message := fmt.Sprintf("Extracting snippets for %s", ext)
 		tracker.SetCurrent(ctx, processed, message)
 

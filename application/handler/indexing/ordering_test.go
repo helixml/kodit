@@ -3,9 +3,11 @@ package indexing
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -15,6 +17,8 @@ import (
 	"github.com/helixml/kodit/domain/search"
 	"github.com/helixml/kodit/domain/task"
 	"github.com/helixml/kodit/infrastructure/persistence"
+	"github.com/helixml/kodit/infrastructure/slicing"
+	"github.com/helixml/kodit/infrastructure/slicing/language"
 	"github.com/helixml/kodit/internal/testdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -260,4 +264,94 @@ func TestCreateSummaryEmbeddings_OrdersByID(t *testing.T) {
 		assert.Equal(t, snippetSHAs[i], doc.SnippetID(),
 			"document %d should reference snippet SHA %s", i, snippetSHAs[i])
 	}
+}
+
+// recordingTracker captures the messages passed to SetCurrent in order.
+type recordingTracker struct {
+	messages []string
+}
+
+func (r *recordingTracker) SetTotal(_ context.Context, _ int) {}
+func (r *recordingTracker) Skip(_ context.Context, _ string)  {}
+func (r *recordingTracker) Fail(_ context.Context, _ string)  {}
+func (r *recordingTracker) Complete(_ context.Context)        {}
+func (r *recordingTracker) SetCurrent(_ context.Context, _ int, msg string) {
+	r.messages = append(r.messages, msg)
+}
+
+type recordingTrackerFactory struct {
+	tracker *recordingTracker
+}
+
+func (f *recordingTrackerFactory) ForOperation(_ task.Operation, _ task.TrackableType, _ int64) handler.Tracker {
+	return f.tracker
+}
+
+func TestExtractSnippets_ProcessesExtensionsInSortedOrder(t *testing.T) {
+	ctx := context.Background()
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	db := testdb.New(t)
+	repoStore := persistence.NewRepositoryStore(db)
+	enrichmentStore := persistence.NewEnrichmentStore(db)
+	associationStore := persistence.NewAssociationStore(db)
+	fileStore := persistence.NewFileStore(db)
+
+	// Create a repo with a working copy pointing to a temp dir.
+	tmpDir := t.TempDir()
+	repo, err := repository.NewRepository("https://github.com/test/repo")
+	require.NoError(t, err)
+	repo = repo.
+		WithWorkingCopy(repository.NewWorkingCopy(tmpDir, "https://github.com/test/repo")).
+		WithTrackingConfig(repository.NewTrackingConfig("main", "", ""))
+	savedRepo, err := repoStore.Save(ctx, repo)
+	require.NoError(t, err)
+
+	// Create files with 5 extensions in deliberately unsorted order.
+	// The slicer won't find analyzers for these fake extensions, so it
+	// returns empty results for each group — but the tracker still records
+	// the processing order.
+	commitSHA := "fff777ggg888"
+	extensions := []string{".zzz", ".aaa", ".mmm", ".bbb", ".ddd"}
+	for i, ext := range extensions {
+		f := repository.NewFile(commitSHA, fmt.Sprintf("file%d%s", i, ext), "", 100)
+		_, err := fileStore.Save(ctx, f)
+		require.NoError(t, err)
+	}
+
+	langConfig := slicing.NewLanguageConfig()
+	analyzerFactory := language.NewFactory(langConfig)
+	slicer := slicing.NewSlicer(langConfig, analyzerFactory)
+
+	rec := &recordingTracker{}
+	h := NewExtractSnippets(
+		repoStore,
+		enrichmentStore,
+		associationStore,
+		fileStore,
+		slicer,
+		&recordingTrackerFactory{tracker: rec},
+		logger,
+	)
+
+	payload := map[string]any{
+		"repository_id": savedRepo.ID(),
+		"commit_sha":    commitSHA,
+	}
+	err = h.Execute(ctx, payload)
+	require.NoError(t, err)
+
+	// Extract extension from each "Extracting snippets for .xxx" message.
+	require.Len(t, rec.messages, len(extensions),
+		"tracker should receive one SetCurrent per extension")
+
+	var got []string
+	for _, msg := range rec.messages {
+		ext := strings.TrimPrefix(msg, "Extracting snippets for ")
+		got = append(got, ext)
+	}
+
+	expected := []string{".aaa", ".bbb", ".ddd", ".mmm", ".zzz"}
+	assert.Equal(t, expected, got,
+		"extensions must be processed in sorted order for deterministic cache keys")
 }
