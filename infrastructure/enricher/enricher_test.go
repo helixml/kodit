@@ -156,6 +156,34 @@ func TestProviderEnricher_Enrich_FiltersEmptyText(t *testing.T) {
 	assert.Len(t, responses, 2)
 }
 
+func TestProviderEnricher_Enrich_ProgressReachesTotalOnPartialFailure(t *testing.T) {
+	// Fail request 1 of 3.
+	gen := &fakeTextGenerator{failAt: map[int]struct{}{1: {}}}
+	// Parallelism 1 for deterministic ordering.
+	e := NewProviderEnricher(gen).WithParallelism(1)
+
+	type call struct {
+		completed int
+		total     int
+	}
+	var calls []call
+
+	_, err := e.Enrich(context.Background(), newRequests(3),
+		domainservice.WithEnrichProgress(func(completed, total int) {
+			calls = append(calls, call{completed, total})
+		}),
+		domainservice.WithMaxFailureRate(0.5),
+	)
+	require.NoError(t, err)
+
+	// Every request must produce a progress callback, even failed ones,
+	// so the final completed count equals total.
+	require.Len(t, calls, 3, "progress called once per request including the failed one")
+	require.Equal(t, 3, calls[len(calls)-1].completed,
+		"final progress must report all requests as processed")
+	require.Equal(t, 3, calls[len(calls)-1].total)
+}
+
 func TestProviderEnricher_Enrich_ContextCancelled(t *testing.T) {
 	gen := &fakeTextGenerator{}
 	e := NewProviderEnricher(gen)

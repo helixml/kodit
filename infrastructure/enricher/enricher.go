@@ -91,6 +91,12 @@ func (e *ProviderEnricher) Enrich(ctx context.Context, requests []domainservice.
 		go func(slot, reqIdx int) {
 			defer wg.Done()
 			defer func() { <-sem }()
+			defer func() {
+				done := int(atomic.AddInt32(&completed, 1))
+				if cfg.Progress() != nil {
+					cfg.Progress()(done, total)
+				}
+			}()
 
 			req := requests[reqIdx]
 			resp, err := e.processRequest(ctx, req)
@@ -105,11 +111,6 @@ func (e *ProviderEnricher) Enrich(ctx context.Context, requests []domainservice.
 			}
 
 			responses[slot] = resp
-
-			done := int(atomic.AddInt32(&completed, 1))
-			if cfg.Progress() != nil {
-				cfg.Progress()(done, total)
-			}
 		}(slot, reqIdx)
 	}
 
