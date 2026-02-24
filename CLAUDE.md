@@ -105,6 +105,12 @@ For JOINs or non-column filters, use `repository.WithParam` to pass data, then o
 
 ## Testing
 
+When the user says "tdd", follow the red-green TDD cycle strictly:
+
+1. **Red**: Write a failing test that demonstrates the bug or specifies the new behaviour. Run it and confirm it fails.
+2. **Green**: Apply the minimal fix. Run the test and confirm it passes.
+3. Run the full test suite to check for regressions.
+
 Use the `internal/testdb` package for test databases. Do not create ad-hoc SQLite connections in tests.
 
 ```go
