@@ -9,6 +9,6 @@ echo "🚀 Starting project: moveme"
 # Add your setup commands here:
 # Example: sudo apt-get install -y package-name
 # Example: npm install
-# Example: pip install -r requirements.txt
+# Example: pip install 
 
 echo "✅ Project startup complete"
