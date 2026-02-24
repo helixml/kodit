@@ -40,6 +40,7 @@ import (
 	"path/filepath"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/helixml/kodit/application/handler"
 	"github.com/helixml/kodit/application/service"
@@ -304,11 +305,12 @@ func New(opts ...Option) (*Client, error) {
 	analyzerFactory := language.NewFactory(langConfig)
 	slicer := slicing.NewSlicer(langConfig, analyzerFactory)
 
-	// Create tracker factory for progress reporting
-	reporters := []tracking.Reporter{
-		tracking.NewDBReporter(statusStore, logger),
-		tracking.NewLoggingReporter(logger),
-	}
+	// Create tracker factory for progress reporting.
+	// Wrap reporters in cooldowns to limit database writes and log output
+	// to at most once per second per status ID during high-frequency updates.
+	dbCooldown := tracking.NewCooldown(tracking.NewDBReporter(statusStore, logger), time.Second)
+	logCooldown := tracking.NewCooldown(tracking.NewLoggingReporter(logger), time.Second)
+	reporters := []tracking.Reporter{dbCooldown, logCooldown}
 	trackerFactory := &trackerFactoryImpl{
 		reporters: reporters,
 		logger:    logger,
@@ -341,6 +343,9 @@ func New(opts ...Option) (*Client, error) {
 	schemaDiscoverer := enricher.NewDatabaseSchemaService()
 	apiDocSvc := enricher.NewAPIDocService()
 	cookbookCtx := enricher.NewCookbookContextService()
+
+	// Register cooldowns for cleanup on close so pending statuses are flushed.
+	cfg.closers = append(cfg.closers, dbCooldown, logCooldown)
 
 	client := &Client{
 		db:                db,
