@@ -2,6 +2,7 @@
 
 import contextlib
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -14,121 +15,81 @@ import structlog
 DEFAULT_PID_FILE = Path("/tmp/kodit-benchmark.pid")
 DEFAULT_STARTUP_TIMEOUT = 60
 
-DEFAULT_DOCKER_IMAGE = "tensorchord/vchord-suite:pg17-20250601"
-DEFAULT_DOCKER_NAME = "kodit-benchmark-db"
-DEFAULT_DB_PASSWORD = "benchmarkpassword"  # noqa: S105
-DEFAULT_DB_NAME = "kodit"
+# Relative path from test/benchmark/ to the project build directory
+_PROJECT_BUILD_DIR = Path(__file__).resolve().parents[4] / "build"
 
 
-def build_db_url(host: str, port: int, password: str, db_name: str) -> str:
-    """Build a PostgreSQL connection URL."""
-    return f"postgresql+asyncpg://postgres:{password}@{host}:{port}/{db_name}"
+def _kodit_binary() -> str:
+    """Locate the kodit binary on PATH or in the project build directory."""
+    on_path = shutil.which("kodit")
+    if on_path:
+        return on_path
+    candidate = _PROJECT_BUILD_DIR / "kodit"
+    if candidate.is_file():
+        return str(candidate)
+    msg = (
+        "kodit binary not found. Either add it to PATH or run "
+        "'make build' from the project root."
+    )
+    raise FileNotFoundError(msg)
+
+_COMPOSE_DB_URL = "postgresql://postgres:mysecretpassword@127.0.0.1:5432/kodit"  # noqa: S105
+
+# Project root and compose file paths
+_PROJECT_ROOT = Path(__file__).resolve().parents[4]
+_COMPOSE_DEV = _PROJECT_ROOT / "docker-compose.dev.yaml"
+_COMPOSE_BENCHMARK = _PROJECT_ROOT / "test" / "benchmark" / "docker-compose.benchmark.yaml"
 
 
-class DatabaseContainer:
-    """Manages the PostgreSQL/VectorChord Docker container."""
+class ComposeDatabase:
+    """Manages the vectorchord database via docker compose."""
 
-    def __init__(
-        self,
-        port: int,
-        name: str = DEFAULT_DOCKER_NAME,
-        image: str = DEFAULT_DOCKER_IMAGE,
-        password: str = DEFAULT_DB_PASSWORD,
-        db_name: str = DEFAULT_DB_NAME,
-    ) -> None:
-        """Initialize database container manager."""
-        self._name = name
-        self._image = image
-        self._port = port
-        self._password = password
-        self._db_name = db_name
+    def __init__(self) -> None:
+        """Initialize compose database manager."""
         self._log = structlog.get_logger(__name__)
 
     @property
     def db_url(self) -> str:
-        """Return the database URL for this container."""
-        return build_db_url("127.0.0.1", self._port, self._password, self._db_name)
+        """Return the database URL for the compose-managed database."""
+        return _COMPOSE_DB_URL
 
     def start(self) -> bool:
-        """Start a fresh database container."""
-        self._log.info("Removing existing container", name=self._name)
-        subprocess.run(  # noqa: S603
-            ["docker", "rm", "-f", self._name],  # noqa: S607
-            capture_output=True,
-            check=False,
-        )
-
-        self._log.info(
-            "Starting database container", name=self._name, image=self._image
-        )
-        result = subprocess.run(  # noqa: S603
-            [  # noqa: S607
-                "docker",
-                "run",
-                "--name",
-                self._name,
-                "-e",
-                f"POSTGRES_DB={self._db_name}",
-                "-e",
-                f"POSTGRES_PASSWORD={self._password}",
-                "-p",
-                f"{self._port}:5432",
-                "-d",
-                self._image,
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-
-        if result.returncode != 0:
-            self._log.error("Failed to start container", error=result.stderr)
+        """Tear down any existing service and start a fresh one."""
+        self._log.info("Starting vectorchord via docker compose")
+        if not self._compose("down", "-v"):
             return False
-
-        self._log.info("Container started, waiting for database")
-        return self._wait_for_ready()
+        return self._compose("up", "-d", "--wait")
 
     def stop(self) -> bool:
-        """Stop and remove the database container."""
-        self._log.info("Stopping database container", name=self._name)
+        """Stop and remove the compose-managed database."""
+        self._log.info("Stopping vectorchord via docker compose")
+        return self._compose("down", "-v")
+
+    def _compose(self, *args: str) -> bool:
+        """Run a docker compose command targeting the vectorchord profile."""
+        cmd = [
+            "docker", "compose",  # noqa: S607
+            "-f", str(_COMPOSE_DEV),
+            "-f", str(_COMPOSE_BENCHMARK),
+            "--profile", "vectorchord",
+            *args,
+        ]
+        self._log.debug("Running compose command", cmd=" ".join(cmd))
         result = subprocess.run(  # noqa: S603
-            ["docker", "rm", "-f", self._name],  # noqa: S607
+            cmd,
             capture_output=True,
             text=True,
             check=False,
+            cwd=str(_PROJECT_ROOT),
         )
         if result.returncode != 0:
-            self._log.error("Failed to stop container", error=result.stderr)
-            return False
-        self._log.info("Container stopped")
-        return True
-
-    def _wait_for_ready(self, timeout: int = 30) -> bool:
-        """Wait for PostgreSQL to accept connections."""
-        deadline = time.monotonic() + timeout
-        attempt = 0
-
-        while time.monotonic() < deadline:
-            attempt += 1
-            result = subprocess.run(  # noqa: S603
-                [  # noqa: S607
-                    "docker",
-                    "exec",
-                    self._name,
-                    "pg_isready",
-                    "-U",
-                    "postgres",
-                ],
-                capture_output=True,
-                check=False,
+            self._log.error(
+                "Compose command failed",
+                cmd=" ".join(cmd),
+                stderr=result.stderr,
             )
-            if result.returncode == 0:
-                self._log.info("Database is ready", attempts=attempt)
-                return True
-            time.sleep(0.5)
-
-        self._log.error("Database failed to become ready", attempts=attempt)
-        return False
+            return False
+        return True
 
 
 class ServerProcess:
@@ -138,7 +99,6 @@ class ServerProcess:
         self,
         host: str,
         port: int,
-        db_port: int,
         enrichment_base_url: str,
         enrichment_model: str,
         enrichment_api_key: str,
@@ -157,7 +117,7 @@ class ServerProcess:
         self._port = port
         self._pid_file = pid_file
         self._startup_timeout = startup_timeout
-        self._db = DatabaseContainer(port=db_port)
+        self._db = ComposeDatabase()
         self._enrichment_base_url = enrichment_base_url
         self._enrichment_model = enrichment_model
         self._enrichment_api_key = enrichment_api_key
@@ -191,17 +151,14 @@ class ServerProcess:
         env = self._build_env()
         self._log.info("Using configuration", db_url=self._db.db_url)
 
+        binary = _kodit_binary()
+        self._log.info("Using kodit binary", path=binary)
+
+        env["HOST"] = self._host
+        env["PORT"] = str(self._port)
+
         process = subprocess.Popen(  # noqa: S603
-            [
-                sys.executable,
-                "-m",
-                "kodit.cli",
-                "serve",
-                "--host",
-                self._host,
-                "--port",
-                str(self._port),
-            ],
+            [binary, "serve"],
             env=env,
             stdout=sys.stdout,
             stderr=sys.stderr,
@@ -223,33 +180,49 @@ class ServerProcess:
         """Build environment variables for the kodit process."""
         env = os.environ.copy()
 
-        # Disable .env file reading by pointing to non-existent file
-        env["KODIT_ENV_FILE"] = "/nonexistent/.env.benchmark"
+        # Point Kodit at the project root .env for API keys
+        project_env = _PROJECT_BUILD_DIR.parent / ".env"
+        if project_env.is_file():
+            env["KODIT_ENV_FILE"] = str(project_env)
 
         # Disable telemetry for benchmarks
         env["DISABLE_TELEMETRY"] = "true"
+
+        # Point to the ORT library in the project lib/ directory
+        project_lib = _PROJECT_BUILD_DIR.parent / "lib"
+        if project_lib.is_dir() and "ORT_LIB_DIR" not in env:
+            env["ORT_LIB_DIR"] = str(project_lib)
 
         # Database configuration
         env["DB_URL"] = self._db.db_url
         env["DEFAULT_SEARCH_PROVIDER"] = "vectorchord"
 
-        # Enrichment endpoint configuration
-        env["ENRICHMENT_ENDPOINT_BASE_URL"] = self._enrichment_base_url
-        env["ENRICHMENT_ENDPOINT_MODEL"] = self._enrichment_model
-        env["ENRICHMENT_ENDPOINT_API_KEY"] = self._enrichment_api_key
-        env["ENRICHMENT_ENDPOINT_NUM_PARALLEL_TASKS"] = str(
-            self._enrichment_parallel_tasks
-        )
-        env["ENRICHMENT_ENDPOINT_TIMEOUT"] = str(self._enrichment_timeout)
+        # HTTP response caching for OpenRouter requests
+        cache_dir = _PROJECT_ROOT / "test" / "benchmark" / ".http_cache"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        env["HTTP_CACHE_DIR"] = str(cache_dir)
 
-        # Embedding endpoint configuration
-        env["EMBEDDING_ENDPOINT_BASE_URL"] = self._embedding_base_url
-        env["EMBEDDING_ENDPOINT_MODEL"] = self._embedding_model
-        env["EMBEDDING_ENDPOINT_API_KEY"] = self._embedding_api_key
-        env["EMBEDDING_ENDPOINT_NUM_PARALLEL_TASKS"] = str(
-            self._embedding_parallel_tasks
-        )
-        env["EMBEDDING_ENDPOINT_TIMEOUT"] = str(self._embedding_timeout)
+        # Enrichment endpoint configuration (only override non-empty values
+        # so that the project .env defaults can take effect)
+        overrides = {
+            "ENRICHMENT_ENDPOINT_BASE_URL": self._enrichment_base_url,
+            "ENRICHMENT_ENDPOINT_MODEL": self._enrichment_model,
+            "ENRICHMENT_ENDPOINT_API_KEY": self._enrichment_api_key,
+            "ENRICHMENT_ENDPOINT_NUM_PARALLEL_TASKS": str(
+                self._enrichment_parallel_tasks
+            ),
+            "ENRICHMENT_ENDPOINT_TIMEOUT": str(self._enrichment_timeout),
+            "EMBEDDING_ENDPOINT_BASE_URL": self._embedding_base_url,
+            "EMBEDDING_ENDPOINT_MODEL": self._embedding_model,
+            "EMBEDDING_ENDPOINT_API_KEY": self._embedding_api_key,
+            "EMBEDDING_ENDPOINT_NUM_PARALLEL_TASKS": str(
+                self._embedding_parallel_tasks
+            ),
+            "EMBEDDING_ENDPOINT_TIMEOUT": str(self._embedding_timeout),
+        }
+        for key, value in overrides.items():
+            if value:
+                env[key] = value
 
         return env
 

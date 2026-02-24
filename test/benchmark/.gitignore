@@ -1,0 +1,6 @@
+__pycache__/
+repos/
+output/
+.venv/
+logs/
+.http_cache/

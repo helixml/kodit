@@ -486,7 +486,10 @@ class MiniSweAgentRunner:
         output_dir = config.output_dir / condition
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        if instances:
+        if instances is not None:
+            if not instances:
+                msg = "No instances to run (all preparation failed?)"
+                raise ValueError(msg)
             # Run with custom instances (for Kodit-augmented condition)
             return self._run_with_custom_instances(
                 config=config,

@@ -292,7 +292,6 @@ class BatchConfig:
     skip_evaluation: bool
     host: str
     port: int
-    db_port: int
     enrichment_base_url: str
     enrichment_model: str
     enrichment_parallel_tasks: int
@@ -363,7 +362,6 @@ class BatchRunner:
         server = ServerProcess(
             host=self._config.host,
             port=self._config.port,
-            db_port=self._config.db_port,
             enrichment_base_url=self._config.enrichment_base_url,
             enrichment_model=self._config.enrichment_model,
             enrichment_api_key=self._config.api_key,
