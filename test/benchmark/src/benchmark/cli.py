@@ -5,7 +5,9 @@ from pathlib import Path
 
 import click
 import structlog
+from dotenv import load_dotenv
 
+from benchmark.log import configure_logging
 from benchmark.minisweagent.runner import MiniSweAgentRunner, RunConfig
 from benchmark.server import ServerProcess
 from benchmark.swebench.evaluator import (
@@ -16,10 +18,8 @@ from benchmark.swebench.loader import DatasetLoader
 from benchmark.swebench.repository import (
     DEFAULT_REPOS_DIR,
 )
-from kodit.config import AppContext
-from kodit.log import configure_logging
 
-DEFAULT_OUTPUT_DIR = Path("benchmarks/data")
+DEFAULT_OUTPUT_DIR = Path("data")
 
 
 def _extract_run_stats(output_dir: Path) -> dict:
@@ -280,22 +280,23 @@ def _print_resolution_differences(baseline_only: set, kodit_only: set) -> None:
 # Server defaults
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
-DEFAULT_DB_PORT = 5432
 
-# Enrichment defaults
-# Note: When using openrouter/* prefixed models, do NOT set base_url.
-# LiteLLM automatically routes to OpenRouter based on the model prefix.
-DEFAULT_ENRICHMENT_BASE_URL = ""
-DEFAULT_ENRICHMENT_PARALLEL_TASKS = 25
+# Enrichment defaults (OpenRouter base URL for the Kodit Go server)
+DEFAULT_ENRICHMENT_BASE_URL = "https://openrouter.ai/api/v1"
+DEFAULT_ENRICHMENT_PARALLEL_TASKS = 50
 DEFAULT_ENRICHMENT_TIMEOUT = 60
-DEFAULT_EMBEDDING_BASE_URL = ""
-DEFAULT_EMBEDDING_PARALLEL_TASKS = 25
+
+# Embedding defaults (OpenRouter base URL for the Kodit Go server)
+DEFAULT_EMBEDDING_BASE_URL = "https://openrouter.ai/api/v1"
+DEFAULT_EMBEDDING_PARALLEL_TASKS = 50
 DEFAULT_EMBEDDING_TIMEOUT = 60
+DEFAULT_EMBEDDING_MODEL = "thenlper/gte-base"
 
 # Model defaults
-DEFAULT_EMBEDDING_MODEL = "openrouter/mistralai/codestral-embed-2505"
-DEFAULT_SWE_AGENT_MODEL = "openrouter/anthropic/claude-haiku-4.5"
-DEFAULT_KODIT_ENRICHMENT_MODEL = "openrouter/mistralai/ministral-8b-2512"
+# Kodit server models (no litellm prefix — the Go server talks to OpenRouter directly)
+DEFAULT_KODIT_ENRICHMENT_MODEL = "mistralai/mistral-nemo"
+# SWE-agent model (uses litellm, needs the openrouter/ prefix)
+DEFAULT_SWE_AGENT_MODEL = "openrouter/minimax/minimax-m2.5"
 
 
 class MissingApiKeyError(click.ClickException):
@@ -338,10 +339,15 @@ def require_embedding_api_key(api_key: str | None) -> str:
     return api_key
 
 
+# Project root .env (two levels up from test/benchmark/)
+_PROJECT_ROOT = Path(__file__).resolve().parents[4]
+
+
 @click.group(context_settings={"max_content_width": 100})
 def cli() -> None:
     """kodit-benchmark CLI - Benchmark Kodit's retrieval capabilities."""
-    configure_logging(AppContext())
+    load_dotenv(_PROJECT_ROOT / ".env")
+    configure_logging()
 
 
 @cli.command("download")
@@ -355,7 +361,7 @@ def cli() -> None:
     "--output",
     type=click.Path(path_type=Path),
     default=None,
-    help="Output JSON file path (default: benchmarks/data/swebench-{variant}.json)",
+    help="Output JSON file path (default: data/swebench-{variant}.json)",
 )
 def download(dataset: str, output: Path | None) -> None:
     """Download SWE-bench dataset from HuggingFace and save as JSON."""
@@ -377,7 +383,7 @@ def download(dataset: str, output: Path | None) -> None:
 # Mini-swe-agent commands
 # ============================================================================
 
-MINI_SWE_AGENT_OUTPUT_DIR = Path("benchmarks/minisweagent")
+MINI_SWE_AGENT_OUTPUT_DIR = Path("output/minisweagent")
 MINI_SWE_AGENT_CONFIG_DIR = Path(__file__).parent / "minisweagent" / "configs"
 
 
@@ -590,7 +596,6 @@ def mini_run_baseline(  # noqa: PLR0913, PLR0915, C901
 )
 @click.option("--host", default=DEFAULT_HOST, help="Kodit server host")
 @click.option("--port", default=DEFAULT_PORT, type=int, help="Kodit server port")
-@click.option("--db-port", default=DEFAULT_DB_PORT, type=int, help="Database port")
 @click.option(
     "--enrichment-base-url",
     default=DEFAULT_ENRICHMENT_BASE_URL,
@@ -685,7 +690,6 @@ def mini_run_kodit(  # noqa: PLR0913, PLR0915, C901
     top_k: int,
     host: str,
     port: int,
-    db_port: int,
     enrichment_base_url: str,
     kodit_enrichment_model: str,
     enrichment_parallel_tasks: int,
@@ -721,7 +725,8 @@ def mini_run_kodit(  # noqa: PLR0913, PLR0915, C901
     7. Stops the Kodit server
     """
     api_key = require_api_key(api_key)
-    embedding_api_key = require_embedding_api_key(embedding_api_key)
+    if not embedding_api_key:
+        embedding_api_key = api_key
     log = structlog.get_logger(__name__)
 
     # Load instances
@@ -751,7 +756,6 @@ def mini_run_kodit(  # noqa: PLR0913, PLR0915, C901
         return ServerProcess(
             host=host,
             port=port,
-            db_port=db_port,
             enrichment_base_url=enrichment_base_url,
             enrichment_model=kodit_enrichment_model,
             enrichment_api_key=api_key,
@@ -946,8 +950,10 @@ def mini_compare(
 
     # Build comparison data for JSON output
     comparison = _build_comparison_dict(
-        baseline_stats, kodit_stats,
-        baseline_results, kodit_results,
+        baseline_stats,
+        kodit_stats,
+        baseline_results,
+        kodit_results,
         instance_sets,
     )
 
@@ -958,8 +964,10 @@ def mini_compare(
 
     # Display formatted report
     _display_comparison_report(
-        baseline_stats, kodit_stats,
-        baseline_results, kodit_results,
+        baseline_stats,
+        kodit_stats,
+        baseline_results,
+        kodit_results,
         output,
     )
 
