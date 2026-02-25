@@ -38,7 +38,7 @@ func (s *Queue) Enqueue(ctx context.Context, t task.Task) error {
 		return err
 	}
 
-	s.logger.Info("task enqueued",
+	s.logger.Debug("task enqueued",
 		slog.String("dedup_key", t.DedupKey()),
 		slog.String("operation", t.Operation().String()),
 	)
