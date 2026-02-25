@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
+	"sync"
 
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/domain/search"
@@ -40,7 +42,8 @@ var ErrDimensionMismatch = errors.New("embedding dimension mismatch")
 // VectorChordEmbeddingStore implements search.EmbeddingStore using VectorChord PostgreSQL extension.
 type VectorChordEmbeddingStore struct {
 	database.Repository[search.Embedding, PgEmbeddingModel]
-	logger *slog.Logger
+	logger  *slog.Logger
+	indexMu sync.Mutex
 }
 
 // NewVectorChordEmbeddingStore creates a new VectorChordEmbeddingStore, eagerly
@@ -122,8 +125,12 @@ func (s *VectorChordEmbeddingStore) SaveAll(ctx context.Context, embeddings []se
 
 // ensureIndex creates the vchordrq index if it doesn't already exist.
 // Must be called after data has been inserted so K-means clustering has
-// vectors to work with.
+// vectors to work with. A mutex serializes callers within this process;
+// the constraint-violation check handles races across separate processes.
 func (s *VectorChordEmbeddingStore) ensureIndex(ctx context.Context) error {
+	s.indexMu.Lock()
+	defer s.indexMu.Unlock()
+
 	tableName := s.Table()
 	db := s.DB(ctx)
 
@@ -160,6 +167,11 @@ $$)`, tableName, tableName, lists)
 	)
 
 	if err := db.Exec(indexSQL).Error; err != nil {
+		// Another process may have created the index concurrently,
+		// producing a unique_violation (SQLSTATE 23505) on pg_class_relname_nsp_index.
+		if strings.Contains(err.Error(), "SQLSTATE 23505") {
+			return nil
+		}
 		return fmt.Errorf("create index: %w", err)
 	}
 	return nil

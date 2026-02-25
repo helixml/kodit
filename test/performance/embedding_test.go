@@ -8,6 +8,7 @@ import (
 	"os"
 	"runtime"
 	"runtime/pprof"
+	"sync"
 	"testing"
 	"time"
 
@@ -427,6 +428,63 @@ func TestVectorCopyOverhead(t *testing.T) {
 		elapsed := time.Since(start)
 		t.Logf("iterations=%d  total=%v  per_op=%v", iterations, elapsed, elapsed/iterations)
 	})
+}
+
+// TestConcurrentSaveAll verifies that multiple goroutines calling SaveAll
+// in parallel do not race on ensureIndex and cause unique_violation errors.
+// Each round drops the index so every goroutine attempts re-creation.
+func TestConcurrentSaveAll(t *testing.T) {
+	ctx := context.Background()
+	db := testDB(t)
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
+
+	const tableName = "vectorchord_perf_embeddings"
+	const goroutines = 8
+	const perGoroutine = 5
+	const rounds = 5
+
+	for round := range rounds {
+		// Drop the index so every goroutine races to recreate it.
+		raw := db.Session(ctx)
+		raw.Exec(fmt.Sprintf("DROP INDEX IF EXISTS %s_idx", tableName))
+
+		store, err := persistence.NewVectorChordEmbeddingStore(
+			ctx, db, "perf", embeddingDimension, logger,
+		)
+		require.NoError(t, err)
+
+		// Pre-build embeddings so goroutines reach ensureIndex at nearly the same time.
+		batches := make([][]search.Embedding, goroutines)
+		for g := range goroutines {
+			batch := make([]search.Embedding, perGoroutine)
+			for i := range batch {
+				batch[i] = search.NewEmbedding(
+					fmt.Sprintf("concurrent-r%d-g%d-%04d", round, g, i),
+					randomVector(embeddingDimension),
+				)
+			}
+			batches[g] = batch
+		}
+
+		// Start barrier: all goroutines launch SaveAll simultaneously.
+		errs := make([]error, goroutines)
+		start := make(chan struct{})
+		var wg sync.WaitGroup
+		for g := range goroutines {
+			wg.Add(1)
+			go func(id int) {
+				defer wg.Done()
+				<-start
+				errs[id] = store.SaveAll(ctx, batches[id])
+			}(g)
+		}
+		close(start)
+		wg.Wait()
+
+		for i, e := range errs {
+			require.NoError(t, e, "round %d goroutine %d returned error", round, i)
+		}
+	}
 }
 
 // TestSaveAllBatching measures whether SaveAll would benefit from
