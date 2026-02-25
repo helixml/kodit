@@ -406,6 +406,105 @@ func TestChunkFiles_HandlesAbsoluteFilePaths(t *testing.T) {
 	assert.Len(t, chunks, 1, "should create chunk from file with absolute path")
 }
 
+func TestChunkFiles_OnlyIndexesSourceAndDocFiles(t *testing.T) {
+	ctx := context.Background()
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	db := testdb.New(t)
+
+	enrichmentStore := persistence.NewEnrichmentStore(db)
+	associationStore := persistence.NewAssociationStore(db)
+	repoStore := persistence.NewRepositoryStore(db)
+	fileStore := persistence.NewFileStore(db)
+
+	commitSHA := "meta111meta222"
+	tmpDir := t.TempDir()
+
+	repo, err := repository.NewRepository("https://github.com/test/repo")
+	require.NoError(t, err)
+	repo = repo.
+		WithWorkingCopy(repository.NewWorkingCopy(tmpDir, "https://github.com/test/repo")).
+		WithTrackingConfig(repository.NewTrackingConfig("main", "", ""))
+	savedRepo, err := repoStore.Save(ctx, repo)
+	require.NoError(t, err)
+
+	textContent := make([]byte, 100)
+	for i := range textContent {
+		textContent[i] = 'M'
+	}
+
+	// Files that should NOT be indexed (metadata, lock files, unknown extensions).
+	skipped := []struct {
+		path string
+		ext  string
+	}{
+		{"go.mod", ".mod"},
+		{"go.sum", ".sum"},
+		{"package-lock.json", ".json"},
+		{"yarn.lock", ".lock"},
+		{"pnpm-lock.yaml", ".yaml"},
+		{"Cargo.lock", ".lock"},
+		{"composer.lock", ".lock"},
+		{"data.csv", ".csv"},
+		{"image.png", ".png"},
+		{"nested/dir/model.pkl", ".pkl"},
+	}
+
+	// Files that SHOULD be indexed (source code and documentation).
+	indexed := []struct {
+		path string
+		ext  string
+	}{
+		{"main.go", ".go"},
+		{"app.py", ".py"},
+		{"index.ts", ".ts"},
+		{"component.tsx", ".tsx"},
+		{"lib.rs", ".rs"},
+		{"README.md", ".md"},
+		{"setup.sh", ".sh"},
+		{"style.css", ".css"},
+		{"page.html", ".html"},
+		{"query.sql", ".sql"},
+	}
+
+	adapterFiles := make(map[string][]byte)
+	for _, sf := range skipped {
+		f := repository.NewFileWithDetails(commitSHA, sf.path, "abc", "text/plain", sf.ext, 100)
+		_, err = fileStore.Save(ctx, f)
+		require.NoError(t, err)
+		adapterFiles[sf.path] = textContent
+	}
+	for _, sf := range indexed {
+		f := repository.NewFileWithDetails(commitSHA, sf.path, "abc", "text/plain", sf.ext, 100)
+		_, err = fileStore.Save(ctx, f)
+		require.NoError(t, err)
+		adapterFiles[sf.path] = textContent
+	}
+
+	h := NewChunkFiles(
+		repoStore, enrichmentStore, associationStore, fileStore,
+		&fakeGitAdapter{files: adapterFiles},
+		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
+		&fakeTrackerFactory{},
+		logger,
+	)
+
+	payload := map[string]any{
+		"repository_id": savedRepo.ID(),
+		"commit_sha":    commitSHA,
+	}
+
+	err = h.Execute(ctx, payload)
+	require.NoError(t, err)
+
+	chunks, err := enrichmentStore.Find(ctx,
+		enrichment.WithCommitSHA(commitSHA),
+		enrichment.WithType(enrichment.TypeDevelopment),
+		enrichment.WithSubtype(enrichment.SubtypeChunk),
+	)
+	require.NoError(t, err)
+	assert.Len(t, chunks, len(indexed), "only source and documentation files should be indexed")
+}
+
 func TestChunkFiles_SetsLanguageFromExtension(t *testing.T) {
 	ctx := context.Background()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))

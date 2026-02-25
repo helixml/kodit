@@ -37,6 +37,8 @@ type TextChunks struct {
 }
 
 // NewTextChunks splits content into fixed-size chunks with the given parameters.
+// Size, Overlap, and MinSize are measured in runes (Unicode code points), while
+// the returned Chunk.Offset is a byte offset into the original string.
 func NewTextChunks(content string, params ChunkParams) (TextChunks, error) {
 	if params.Overlap >= params.Size {
 		return TextChunks{}, fmt.Errorf("overlap (%d) must be less than size (%d)", params.Overlap, params.Size)
@@ -46,23 +48,24 @@ func NewTextChunks(content string, params ChunkParams) (TextChunks, error) {
 		return TextChunks{}, nil
 	}
 
+	runes := []rune(content)
 	step := params.Size - params.Overlap
 	var chunks []Chunk
 
-	for offset := 0; offset < len(content); offset += step {
-		end := min(offset+params.Size, len(content))
+	for i := 0; i < len(runes); i += step {
+		end := min(i+params.Size, len(runes))
 
-		text := content[offset:end]
-		if len(text) < params.MinSize {
+		slice := runes[i:end]
+		if len(slice) < params.MinSize {
 			break
 		}
 
 		// Skip chunks fully covered by the previous chunk's overlap.
-		if offset > 0 && len(text) <= params.Overlap {
+		if i > 0 && len(slice) <= params.Overlap {
 			break
 		}
 
-		chunks = append(chunks, Chunk{content: text, offset: offset})
+		chunks = append(chunks, Chunk{content: string(slice), offset: len(string(runes[:i]))})
 	}
 
 	return TextChunks{chunks: chunks}, nil

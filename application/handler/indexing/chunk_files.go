@@ -116,6 +116,11 @@ func (h *ChunkFiles) Execute(ctx context.Context, payload map[string]any) error 
 	for _, f := range files {
 		tracker.SetCurrent(ctx, processed, fmt.Sprintf("Chunking %s", f.Path()))
 
+		if !isIndexable(f.Path()) {
+			processed++
+			continue
+		}
+
 		relPath := relativeFilePath(f.Path(), clonedPath)
 		content, readErr := h.fileContent.FileContent(ctx, clonedPath, cp.CommitSHA(), relPath)
 		if readErr != nil {
@@ -205,6 +210,74 @@ func relativeFilePath(filePath, clonedPath string) string {
 	}
 
 	return filePath
+}
+
+// indexableExtensions lists file extensions that contain human-written source
+// code or documentation worth indexing. Everything else (lock files, images,
+// binary formats, data files) is skipped.
+var indexableExtensions = map[string]bool{
+	// Go
+	".go": true,
+	// Python
+	".py": true, ".pyi": true, ".pyx": true,
+	// JavaScript / TypeScript
+	".js": true, ".mjs": true, ".cjs": true, ".jsx": true,
+	".ts": true, ".mts": true, ".cts": true, ".tsx": true,
+	// Ruby
+	".rb": true, ".erb": true,
+	// Rust
+	".rs": true,
+	// Java / Kotlin / Scala / Groovy
+	".java": true, ".kt": true, ".kts": true, ".scala": true, ".groovy": true,
+	// C / C++ / Objective-C
+	".c": true, ".h": true, ".cpp": true, ".cc": true, ".cxx": true,
+	".hpp": true, ".hxx": true, ".m": true, ".mm": true,
+	// C# / F#
+	".cs": true, ".fs": true, ".fsx": true,
+	// PHP
+	".php": true,
+	// Swift
+	".swift": true,
+	// Shell
+	".sh": true, ".bash": true, ".zsh": true, ".fish": true,
+	// SQL
+	".sql": true,
+	// R
+	".r": true,
+	// Lua
+	".lua": true,
+	// Perl
+	".pl": true, ".pm": true,
+	// Elixir / Erlang
+	".ex": true, ".exs": true, ".erl": true, ".hrl": true,
+	// Haskell
+	".hs": true,
+	// Clojure
+	".clj": true, ".cljs": true, ".cljc": true,
+	// Dart
+	".dart": true,
+	// Zig / Nim
+	".zig": true, ".nim": true,
+	// Julia
+	".jl": true,
+	// OCaml
+	".ml": true, ".mli": true,
+	// V / D
+	".v": true, ".d": true,
+	// Web
+	".html": true, ".htm": true, ".css": true, ".scss": true,
+	".sass": true, ".less": true, ".vue": true, ".svelte": true,
+	// Documentation
+	".md": true, ".mdx": true, ".rst": true, ".adoc": true, ".tex": true,
+	// IDL / Schema
+	".proto": true, ".graphql": true, ".gql": true, ".thrift": true,
+}
+
+// isIndexable returns true if the file extension is in the whitelist of
+// source code and documentation formats worth indexing.
+func isIndexable(path string) bool {
+	ext := strings.ToLower(filepath.Ext(path))
+	return indexableExtensions[ext]
 }
 
 // isBinary returns true if the content contains null bytes in the first 8KB.
