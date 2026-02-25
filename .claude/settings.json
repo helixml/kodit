@@ -1,0 +1,19 @@
+{
+    "attribution": {
+        "commit": "Assisted by AI. Co-Authored-By: Helix <noreply@helix.ml>",
+        "pr": "Assisted by AI. Co-Authored-By: Helix <noreply@helix.ml>"
+    },
+    "hooks": {
+        "PostToolUse": [
+            {
+                "matcher": "Write|Edit",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "filepath=\"$CLAUDE_FILE_PATH\"; if [[ \"$filepath\" == *.go ]]; then gofmt -w \"$filepath\" && goimports -w \"$filepath\"; fi"
+                    }
+                ]
+            }
+        ]
+    }
+}
