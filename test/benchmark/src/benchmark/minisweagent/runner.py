@@ -46,12 +46,21 @@ class DatabaseCache:
         self._log = structlog.get_logger(__name__)
 
     def path(self, instance: SWEBenchInstance) -> Path:
-        """Return the cache file path for an instance."""
-        return self._cache_dir / f"{instance.instance_id}.tar"
+        """Return the cache file path for an instance.
+
+        Prefers .tar.gz but falls back to legacy .tar if it exists.
+        """
+        gz = self._cache_dir / f"{instance.instance_id}.tar.gz"
+        if gz.is_file():
+            return gz
+        legacy = self._cache_dir / f"{instance.instance_id}.tar"
+        if legacy.is_file():
+            return legacy
+        return gz
 
     def partial_path(self, instance: SWEBenchInstance) -> Path:
         """Return the partial-dump cache file path for an instance."""
-        return self._cache_dir / f"{instance.instance_id}.partial.tar"
+        return self._cache_dir / f"{instance.instance_id}.partial.tar.gz"
 
     def exists(self, instance: SWEBenchInstance) -> bool:
         """Check whether a cached dump exists for the given instance."""
