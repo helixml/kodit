@@ -12,6 +12,7 @@ import (
 	indexinghandler "github.com/helixml/kodit/application/handler/indexing"
 	repohandler "github.com/helixml/kodit/application/handler/repository"
 	"github.com/helixml/kodit/application/service"
+	"github.com/helixml/kodit/domain/enrichment"
 	"github.com/helixml/kodit/domain/task"
 	"github.com/helixml/kodit/infrastructure/tracking"
 )
@@ -35,19 +36,32 @@ func (c *Client) registerHandlers() error {
 		c.Enrichments, c.enrichCtx.Associations, c.statusStore, c.enrichCtx.Tracker, c.logger,
 	))
 
-	// Indexing handlers (always registered for snippet extraction)
-	c.registry.Register(task.OperationExtractSnippetsForCommit, indexinghandler.NewExtractSnippets(
-		c.repoStores.Repositories, c.enrichCtx.Enrichments, c.enrichCtx.Associations, c.repoStores.Files, c.slicer, c.enrichCtx.Tracker, c.logger,
-	))
+	// Indexing handlers — choose between simple chunking and AST-based extraction
+	if c.simpleChunking {
+		c.registry.Register(task.OperationExtractSnippetsForCommit, indexinghandler.NewChunkFiles(
+			c.repoStores.Repositories, c.enrichCtx.Enrichments, c.enrichCtx.Associations, c.repoStores.Files,
+			c.gitInfra.Adapter, c.chunkParams, c.enrichCtx.Tracker, c.logger,
+		))
+	} else {
+		c.registry.Register(task.OperationExtractSnippetsForCommit, indexinghandler.NewExtractSnippets(
+			c.repoStores.Repositories, c.enrichCtx.Enrichments, c.enrichCtx.Associations, c.repoStores.Files, c.slicer, c.enrichCtx.Tracker, c.logger,
+		))
+	}
+
+	// Select the enrichment subtype that BM25 and code embedding handlers query for
+	subtype := enrichment.SubtypeSnippet
+	if c.simpleChunking {
+		subtype = enrichment.SubtypeChunk
+	}
 
 	// BM25 index handler
 	c.registry.Register(task.OperationCreateBM25IndexForCommit, indexinghandler.NewCreateBM25Index(
-		c.bm25Service, c.enrichCtx.Enrichments, c.enrichCtx.Tracker, c.logger,
+		c.bm25Service, c.enrichCtx.Enrichments, c.enrichCtx.Tracker, c.logger, subtype,
 	))
 
 	// Code embedding handlers — only if embedding provider configured
 	if c.codeIndex.Store != nil {
-		h, err := indexinghandler.NewCreateCodeEmbeddings(c.codeIndex, c.enrichCtx.Enrichments, c.enrichCtx.Tracker, c.logger)
+		h, err := indexinghandler.NewCreateCodeEmbeddings(c.codeIndex, c.enrichCtx.Enrichments, c.enrichCtx.Tracker, c.logger, subtype)
 		if err != nil {
 			return fmt.Errorf("create code embeddings handler: %w", err)
 		}

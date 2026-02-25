@@ -184,6 +184,7 @@ func TestCreateCodeEmbeddings_OrdersByID(t *testing.T) {
 		enrichmentStore,
 		&fakeTrackerFactory{},
 		logger,
+		enrichment.SubtypeSnippet,
 	)
 	require.NoError(t, err)
 

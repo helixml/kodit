@@ -46,6 +46,7 @@ import (
 	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/search"
 	domainservice "github.com/helixml/kodit/domain/service"
+	"github.com/helixml/kodit/infrastructure/chunking"
 	"github.com/helixml/kodit/infrastructure/enricher"
 	"github.com/helixml/kodit/infrastructure/enricher/example"
 	"github.com/helixml/kodit/infrastructure/git"
@@ -110,12 +111,14 @@ type Client struct {
 	hugotEmbedding *provider.HugotEmbedding
 	closers        []io.Closer
 
-	logger   *slog.Logger
-	dataDir  string
-	cloneDir string
-	apiKeys  []string
-	closed   atomic.Bool
-	mu       sync.Mutex
+	logger         *slog.Logger
+	dataDir        string
+	cloneDir       string
+	apiKeys        []string
+	simpleChunking bool
+	chunkParams    chunking.ChunkParams
+	closed         atomic.Bool
+	mu             sync.Mutex
 }
 
 // New creates a new Client with the given options.
@@ -373,6 +376,8 @@ func New(opts ...Option) (*Client, error) {
 		dataDir:           dataDir,
 		cloneDir:          cloneDir,
 		apiKeys:           cfg.apiKeys,
+		simpleChunking:    cfg.simpleChunking,
+		chunkParams:       cfg.chunkParams,
 	}
 
 	// Initialize service fields directly

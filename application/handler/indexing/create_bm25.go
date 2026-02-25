@@ -12,24 +12,28 @@ import (
 	"github.com/helixml/kodit/domain/task"
 )
 
-// CreateBM25Index creates BM25 keyword index for commit snippets.
+// CreateBM25Index creates BM25 keyword index for commit enrichments.
 type CreateBM25Index struct {
 	bm25Service     *domainservice.BM25
 	enrichmentStore enrichment.EnrichmentStore
+	subtype         enrichment.Subtype
 	trackerFactory  handler.TrackerFactory
 	logger          *slog.Logger
 }
 
 // NewCreateBM25Index creates a new CreateBM25Index handler.
+// The subtype parameter controls which enrichments to index (e.g. SubtypeSnippet or SubtypeChunk).
 func NewCreateBM25Index(
 	bm25Service *domainservice.BM25,
 	enrichmentStore enrichment.EnrichmentStore,
 	trackerFactory handler.TrackerFactory,
 	logger *slog.Logger,
+	subtype enrichment.Subtype,
 ) *CreateBM25Index {
 	return &CreateBM25Index{
 		bm25Service:     bm25Service,
 		enrichmentStore: enrichmentStore,
+		subtype:         subtype,
 		trackerFactory:  trackerFactory,
 		logger:          logger,
 	}
@@ -48,7 +52,7 @@ func (h *CreateBM25Index) Execute(ctx context.Context, payload map[string]any) e
 		cp.RepoID(),
 	)
 
-	enrichments, err := h.enrichmentStore.Find(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeSnippet))
+	enrichments, err := h.enrichmentStore.Find(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(h.subtype))
 	if err != nil {
 		h.logger.Error("failed to get snippet enrichments for commit", slog.String("error", err.Error()))
 		return err

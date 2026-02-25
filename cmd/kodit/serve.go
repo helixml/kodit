@@ -13,6 +13,7 @@ import (
 	"github.com/helixml/kodit"
 	"github.com/helixml/kodit/infrastructure/api"
 	apimiddleware "github.com/helixml/kodit/infrastructure/api/middleware"
+	"github.com/helixml/kodit/infrastructure/chunking"
 	"github.com/helixml/kodit/internal/config"
 	"github.com/helixml/kodit/internal/log"
 	"github.com/spf13/cobra"
@@ -130,6 +131,18 @@ func runServe(envFile, host string, port int) error {
 	// Skip provider validation if explicitly disabled (for testing)
 	if cfg.SkipProviderValidation() {
 		opts = append(opts, kodit.WithSkipProviderValidation())
+	}
+
+	// Simple chunking mode
+	if cfg.SimpleChunking() {
+		opts = append(opts, kodit.WithSimpleChunking())
+		if cfg.ChunkSize() > 0 || cfg.ChunkOverlap() > 0 || cfg.ChunkMinSize() > 0 {
+			opts = append(opts, kodit.WithChunkParams(chunking.ChunkParams{
+				Size:    cfg.ChunkSize(),
+				Overlap: cfg.ChunkOverlap(),
+				MinSize: cfg.ChunkMinSize(),
+			}))
+		}
 	}
 
 	// Create kodit client and log settings

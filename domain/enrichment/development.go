@@ -30,6 +30,18 @@ func NewExampleSummary(content string) Enrichment {
 	return NewEnrichment(TypeDevelopment, SubtypeExampleSummary, EntityTypeCommit, content)
 }
 
+// NewChunkEnrichment creates a chunk enrichment for a commit.
+// Chunk enrichments represent fixed-size text chunks of repository files.
+func NewChunkEnrichment(content string) Enrichment {
+	return NewEnrichment(TypeDevelopment, SubtypeChunk, EntityTypeCommit, content)
+}
+
+// NewChunkEnrichmentWithLanguage creates a chunk enrichment with language metadata.
+// The language field preserves the file extension so search results can report it.
+func NewChunkEnrichmentWithLanguage(content, language string) Enrichment {
+	return NewEnrichmentWithLanguage(TypeDevelopment, SubtypeChunk, EntityTypeCommit, content, language)
+}
+
 // IsDevelopmentEnrichment returns true if the enrichment is a development type.
 func IsDevelopmentEnrichment(e Enrichment) bool {
 	return e.Type() == TypeDevelopment
