@@ -186,7 +186,14 @@ class RepositoryPreparer:
                 )
                 last_status = status
 
-            if status == "completed":
+            if status in ("completed", "completed_with_errors"):
+                if status == "completed_with_errors":
+                    message = data["data"]["attributes"].get("message", "")
+                    self._log.warning(
+                        "Indexing completed with errors",
+                        repo_id=repo_id,
+                        message=message,
+                    )
                 self._log.info("Indexing completed", repo_id=repo_id)
                 return
 

@@ -7,10 +7,11 @@ type IndexStatus string
 
 // IndexStatus values.
 const (
-	IndexStatusPending    IndexStatus = "pending"
-	IndexStatusInProgress IndexStatus = "in_progress"
-	IndexStatusCompleted  IndexStatus = "completed"
-	IndexStatusFailed     IndexStatus = "failed"
+	IndexStatusPending             IndexStatus = "pending"
+	IndexStatusInProgress          IndexStatus = "in_progress"
+	IndexStatusCompleted           IndexStatus = "completed"
+	IndexStatusCompletedWithErrors IndexStatus = "completed_with_errors"
+	IndexStatusFailed              IndexStatus = "failed"
 )
 
 // CommitIndex represents an indexed commit with its snippets.
