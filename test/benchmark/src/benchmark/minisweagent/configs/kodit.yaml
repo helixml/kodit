@@ -1,5 +1,5 @@
-# Mini-swe-agent configuration for SWE-bench with Kodit retrieval
-# The problem statement will be augmented with Kodit-retrieved context before running
+# Mini-swe-agent configuration for SWE-bench with live Kodit MCP access
+# The agent has a CLI tool mounted at /kodit-cli.py for querying the codebase
 
 agent:
   system_template: |
@@ -18,8 +18,54 @@ agent:
     </format_example>
 
     Failure to follow these rules will cause your response to be rejected.
+
+    ## Kodit Code Intelligence Tools
+
+    You have access to a code intelligence tool at `/kodit-cli.py` that can search the codebase and retrieve documentation. Use it to understand the project before making changes.
+
+    ### Available commands:
+
+    **Search the codebase** - find relevant code snippets by intent and keywords:
+    ```
+    python /kodit-cli.py search --intent "describe what you're looking for" --keywords "keyword1,keyword2"
+    ```
+    You can optionally filter by file paths or content:
+    ```
+    python /kodit-cli.py search --intent "..." --keywords "..." --file-paths "src/,lib/" --file-contents "class,function"
+    ```
+
+    **Get architecture documentation** - understand the high-level structure:
+    ```
+    python /kodit-cli.py architecture --repo-url "REPO_URL"
+    ```
+
+    **Get API documentation** - understand the public API surface:
+    ```
+    python /kodit-cli.py api-docs --repo-url "REPO_URL"
+    ```
+
+    **Get database schema** - understand the data model:
+    ```
+    python /kodit-cli.py database-schema --repo-url "REPO_URL"
+    ```
+
+    **Get cookbook / usage examples**:
+    ```
+    python /kodit-cli.py cookbook --repo-url "REPO_URL"
+    ```
+
+    **List indexed repositories** - find the repo URL to use with other commands:
+    ```
+    python /kodit-cli.py list-repositories
+    ```
+
+    ### When to use Kodit tools:
+    - **Start here**: Use `list-repositories` to find the repo URL, then `architecture` to understand the project structure
+    - **Before searching files manually**: Use `search` with a clear intent — it returns semantically relevant code snippets
+    - **When you need context**: Use `api-docs`, `database-schema`, or `cookbook` to understand how the code works
+    - **Multiple queries are fine**: Call these tools as many times as needed throughout your investigation
   instance_template: |
-    {{task}}
+    Please solve this issue: {{task}}
 
     You can execute bash commands and edit files to implement the necessary changes.
 
@@ -27,8 +73,11 @@ agent:
 
     This workflow should be done step-by-step so that you can iterate on your changes and any possible problems.
 
-    1. **Start with the provided code context above** - relevant code snippets have been pre-retrieved for you. Examine them carefully to understand the codebase structure and identify the files you need to modify.
-    2. Read the full content of the relevant files identified from the context
+    1. **Start by querying Kodit** to understand the codebase:
+       - Run `python /kodit-cli.py list-repositories` to find the repo URL
+       - Run `python /kodit-cli.py architecture --repo-url "REPO_URL"` to understand the project structure
+       - Run `python /kodit-cli.py search --intent "..." --keywords "..."` to find relevant code
+    2. Read the full content of the relevant files identified from Kodit results
     3. Create a script to reproduce the issue
     4. Edit the source code to resolve the issue
     5. Verify your fix works by running your script again
@@ -48,10 +97,10 @@ agent:
     Here is an example of a correct response:
 
     <example_response>
-    THOUGHT: Based on the provided code context, I can see the relevant file is src/flask/blueprints.py. Let me read the full file to understand the implementation.
+    THOUGHT: I need to understand the codebase architecture first. Let me query Kodit for the project structure.
 
     ```bash
-    cat /testbed/src/flask/blueprints.py
+    python /kodit-cli.py list-repositories
     ```
     </example_response>
 

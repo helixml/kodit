@@ -582,19 +582,7 @@ def mini_run_baseline(  # noqa: PLR0913, PLR0915, C901
     default=DEFAULT_REPOS_DIR,
     help="Directory to clone repositories into",
 )
-@click.option(
-    "--workers",
-    default=1,
-    type=int,
-    help="Number of parallel workers",
-)
-@click.option(
-    "--top-k",
-    default=10,
-    type=int,
-    help="Number of snippets to retrieve per instance",
-)
-@click.option("--host", default=DEFAULT_HOST, help="Kodit server host")
+@click.option("--host", default="0.0.0.0", help="Kodit server host")  # noqa: S104
 @click.option("--port", default=DEFAULT_PORT, type=int, help="Kodit server port")
 @click.option(
     "--enrichment-base-url",
@@ -678,16 +666,15 @@ def mini_run_baseline(  # noqa: PLR0913, PLR0915, C901
     help="Run SWE-bench evaluation after completion",
 )
 @click.option(
-    "--force-reindex",
-    is_flag=True,
-    help="Force re-indexing even if cached augmented instances exist",
+    "--cache-dir",
+    type=click.Path(path_type=Path),
+    default=Path(__file__).resolve().parents[2] / ".db_cache",
+    help="Directory for caching indexed database dumps (set empty to disable)",
 )
 def mini_run_kodit(  # noqa: PLR0913, PLR0915, C901
     dataset_file: Path,
     output_dir: Path,
     repos_dir: Path,
-    workers: int,
-    top_k: int,
     host: str,
     port: int,
     enrichment_base_url: str,
@@ -705,24 +692,19 @@ def mini_run_kodit(  # noqa: PLR0913, PLR0915, C901
     swe_agent_model: str,
     stream: bool,  # noqa: FBT001
     evaluate: bool,  # noqa: FBT001
-    force_reindex: bool,  # noqa: FBT001
+    cache_dir: Path | None,
 ) -> None:
-    """Run mini-swe-agent with Kodit retrieval.
+    """Run mini-swe-agent with live Kodit MCP access.
 
-    This runs mini-swe-agent against SWE-bench instances with problem
-    statements augmented with Kodit-retrieved code context.
-
-    If augmented instances have been cached from a previous run, the indexing
-    and retrieval steps are skipped. Use --force-reindex to regenerate.
+    Gives the agent a CLI tool (kodit_mcp_cli.py) volume-mounted into the
+    Docker container so it can query Kodit throughout its execution.
 
     For each instance, this command:
-    1. Starts the Kodit server and database
-    2. Clones the repository at the exact commit
-    3. Indexes it with Kodit and waits for completion
-    4. Retrieves relevant code snippets
-    5. Augments the problem statement with the context
-    6. Runs mini-swe-agent with the augmented problem statement
-    7. Stops the Kodit server
+    1. Starts a fresh Kodit server and database
+    2. Clones the repository at the exact commit and indexes it
+    3. Runs mini-swe-agent with the MCP CLI mounted at /kodit-cli.py
+    4. Collects the prediction
+    5. Stops the Kodit server
     """
     api_key = require_api_key(api_key)
     if not embedding_api_key:
@@ -744,10 +726,8 @@ def mini_run_kodit(  # noqa: PLR0913, PLR0915, C901
         log.info("Limited instances", limit=limit)
 
     log.info(
-        "Running mini-swe-agent with Kodit",
+        "Running mini-swe-agent with Kodit MCP",
         instance_count=len(instances),
-        workers=workers,
-        top_k=top_k,
         repos_dir=str(repos_dir),
     )
 
@@ -771,27 +751,28 @@ def mini_run_kodit(  # noqa: PLR0913, PLR0915, C901
     base_url = f"http://{host}:{port}"
 
     # Create runner and config
-    runner = MiniSweAgentRunner(kodit_base_url=base_url, top_k=top_k)
+    runner = MiniSweAgentRunner(kodit_base_url=base_url)
     config = RunConfig(
         config_path=MINI_SWE_AGENT_CONFIG_DIR / "kodit.yaml",
         output_dir=output_dir,
         model=swe_agent_model,
         repos_dir=repos_dir,
-        workers=workers,
+        workers=1,
         api_key=api_key,
         stream_output=stream,
-        force_reindex=force_reindex,
+        cache_dir=cache_dir,
     )
 
-    # Process each instance with fresh server start/stop
-    result = runner.run_with_kodit_per_instance(
+    # Process each instance with fresh server start/stop and MCP access
+    result = runner.run_with_kodit_mcp(
         config=config,
         instances=instances,
         server_factory=create_server,
+        port=port,
     )
 
     click.echo("\n" + "=" * 60)
-    click.echo("MINI-SWE-AGENT WITH KODIT COMPLETE")
+    click.echo("MINI-SWE-AGENT WITH KODIT MCP COMPLETE")
     click.echo("=" * 60)
     click.echo(f"Total instances: {result.total_instances}")
     click.echo(f"Completed: {result.completed_instances}")
@@ -831,7 +812,7 @@ def mini_run_kodit(  # noqa: PLR0913, PLR0915, C901
             eval_result = evaluator.evaluate_full(
                 predictions_path=jsonl_path,
                 dataset_name="princeton-nlp/SWE-bench_Verified",
-                max_workers=workers,
+                max_workers=1,
                 run_id="mini_swe_agent_kodit",
             )
 

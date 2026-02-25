@@ -194,7 +194,8 @@ class RepositoryPreparer:
                         repo_id=repo_id,
                         message=message,
                     )
-                self._log.info("Indexing completed", repo_id=repo_id)
+                else:
+                    self._log.info("Indexing completed", repo_id=repo_id)
                 return
 
             if status == "failed":
