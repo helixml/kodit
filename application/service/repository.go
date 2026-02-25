@@ -34,12 +34,13 @@ type TrackingConfigParams struct {
 // Embeds Collection for Find/Get; bespoke methods handle writes and lifecycle.
 type Repository struct {
 	repository.Collection[repository.Repository]
-	repoStore   repository.RepositoryStore
-	commitStore repository.CommitStore
-	branchStore repository.BranchStore
-	tagStore    repository.TagStore
-	queue       *Queue
-	logger      *slog.Logger
+	repoStore     repository.RepositoryStore
+	commitStore   repository.CommitStore
+	branchStore   repository.BranchStore
+	tagStore      repository.TagStore
+	queue         *Queue
+	prescribedOps task.PrescribedOperations
+	logger        *slog.Logger
 }
 
 // NewRepository creates a new Repository service.
@@ -49,16 +50,18 @@ func NewRepository(
 	branchStore repository.BranchStore,
 	tagStore repository.TagStore,
 	queue *Queue,
+	prescribedOps task.PrescribedOperations,
 	logger *slog.Logger,
 ) *Repository {
 	return &Repository{
-		Collection:  repository.NewCollection[repository.Repository](repoStore),
-		repoStore:   repoStore,
-		commitStore: commitStore,
-		branchStore: branchStore,
-		tagStore:    tagStore,
-		queue:       queue,
-		logger:      logger,
+		Collection:    repository.NewCollection[repository.Repository](repoStore),
+		repoStore:     repoStore,
+		commitStore:   commitStore,
+		branchStore:   branchStore,
+		tagStore:      tagStore,
+		queue:         queue,
+		prescribedOps: prescribedOps,
+		logger:        logger,
 	}
 }
 
@@ -94,7 +97,7 @@ func (s *Repository) Add(ctx context.Context, params *RepositoryAddParams) (repo
 	}
 
 	payload := map[string]any{"repository_id": savedRepo.ID()}
-	operations := task.PrescribedOperations{}.CreateNewRepository()
+	operations := s.prescribedOps.CreateNewRepository()
 
 	if err := s.queue.EnqueueOperations(ctx, operations, task.PriorityUserInitiated, payload); err != nil {
 		s.logger.Warn("failed to enqueue clone task",
@@ -142,7 +145,7 @@ func (s *Repository) Sync(ctx context.Context, id int64) error {
 	}
 
 	payload := map[string]any{"repository_id": id}
-	operations := task.PrescribedOperations{}.SyncRepository()
+	operations := s.prescribedOps.SyncRepository()
 
 	if err := s.queue.EnqueueOperations(ctx, operations, task.PriorityUserInitiated, payload); err != nil {
 		return fmt.Errorf("enqueue sync: %w", err)
@@ -255,7 +258,7 @@ func (s *Repository) enqueueRescan(ctx context.Context, params *RescanParams) er
 		"repository_id": params.RepositoryID,
 		"commit_sha":    params.CommitSHA,
 	}
-	operations := task.PrescribedOperations{}.RescanCommit()
+	operations := s.prescribedOps.RescanCommit()
 
 	if err := s.queue.EnqueueOperations(ctx, operations, task.PriorityUserInitiated, payload); err != nil {
 		return fmt.Errorf("enqueue rescan: %w", err)

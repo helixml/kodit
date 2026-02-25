@@ -82,6 +82,22 @@ type EnvConfig struct {
 	// When set, POST request/response pairs are cached to avoid repeated API calls.
 	// Env: HTTP_CACHE_DIR
 	HTTPCacheDir string `envconfig:"HTTP_CACHE_DIR"`
+
+	// SimpleChunking enables fixed-size text chunking instead of AST-based snippet extraction.
+	// Env: SIMPLE_CHUNKING_ENABLED (default: false)
+	SimpleChunking bool `envconfig:"SIMPLE_CHUNKING_ENABLED" default:"false"`
+
+	// ChunkSize is the target size in characters for each text chunk.
+	// Env: CHUNK_SIZE (default: 1500)
+	ChunkSize int `envconfig:"CHUNK_SIZE" default:"1500"`
+
+	// ChunkOverlap is the number of overlapping characters between adjacent chunks.
+	// Env: CHUNK_OVERLAP (default: 200)
+	ChunkOverlap int `envconfig:"CHUNK_OVERLAP" default:"200"`
+
+	// ChunkMinSize is the minimum chunk size in characters; smaller chunks are dropped.
+	// Env: CHUNK_MIN_SIZE (default: 50)
+	ChunkMinSize int `envconfig:"CHUNK_MIN_SIZE" default:"50"`
 }
 
 // EndpointEnv holds environment configuration for an AI endpoint.
@@ -278,6 +294,20 @@ func (e EnvConfig) ToAppConfig() AppConfig {
 	// HTTP cache directory
 	if e.HTTPCacheDir != "" {
 		cfg = applyOption(cfg, WithHTTPCacheDir(e.HTTPCacheDir))
+	}
+
+	// Simple chunking
+	if e.SimpleChunking {
+		cfg = applyOption(cfg, WithSimpleChunking(true))
+	}
+	if e.ChunkSize > 0 {
+		cfg = applyOption(cfg, WithChunkSize(e.ChunkSize))
+	}
+	if e.ChunkOverlap > 0 {
+		cfg = applyOption(cfg, WithChunkOverlap(e.ChunkOverlap))
+	}
+	if e.ChunkMinSize > 0 {
+		cfg = applyOption(cfg, WithChunkMinSize(e.ChunkMinSize))
 	}
 
 	return cfg

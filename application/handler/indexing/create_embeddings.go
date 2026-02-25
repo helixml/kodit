@@ -13,20 +13,23 @@ import (
 	"github.com/helixml/kodit/domain/task"
 )
 
-// CreateCodeEmbeddings creates vector embeddings for commit snippets.
+// CreateCodeEmbeddings creates vector embeddings for commit enrichments.
 type CreateCodeEmbeddings struct {
 	codeIndex       handler.VectorIndex
 	enrichmentStore enrichment.EnrichmentStore
+	subtype         enrichment.Subtype
 	trackerFactory  handler.TrackerFactory
 	logger          *slog.Logger
 }
 
 // NewCreateCodeEmbeddings creates a new CreateCodeEmbeddings handler.
+// The subtype parameter controls which enrichments to embed (e.g. SubtypeSnippet or SubtypeChunk).
 func NewCreateCodeEmbeddings(
 	codeIndex handler.VectorIndex,
 	enrichmentStore enrichment.EnrichmentStore,
 	trackerFactory handler.TrackerFactory,
 	logger *slog.Logger,
+	subtype enrichment.Subtype,
 ) (*CreateCodeEmbeddings, error) {
 	if codeIndex.Embedding == nil {
 		return nil, fmt.Errorf("NewCreateCodeEmbeddings: nil Embedding")
@@ -43,6 +46,7 @@ func NewCreateCodeEmbeddings(
 	return &CreateCodeEmbeddings{
 		codeIndex:       codeIndex,
 		enrichmentStore: enrichmentStore,
+		subtype:         subtype,
 		trackerFactory:  trackerFactory,
 		logger:          logger,
 	}, nil
@@ -61,7 +65,7 @@ func (h *CreateCodeEmbeddings) Execute(ctx context.Context, payload map[string]a
 		cp.RepoID(),
 	)
 
-	enrichments, err := h.enrichmentStore.Find(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(enrichment.SubtypeSnippet), repository.WithOrderAsc("enrichments_v2.id"))
+	enrichments, err := h.enrichmentStore.Find(ctx, enrichment.WithCommitSHA(cp.CommitSHA()), enrichment.WithType(enrichment.TypeDevelopment), enrichment.WithSubtype(h.subtype), repository.WithOrderAsc("enrichments_v2.id"))
 	if err != nil {
 		h.logger.Error("failed to get snippet enrichments for commit", slog.String("error", err.Error()))
 		return err

@@ -15,6 +15,7 @@ import (
 type PeriodicSync struct {
 	repositories  repository.RepositoryStore
 	queue         *Queue
+	prescribedOps task.PrescribedOperations
 	logger        *slog.Logger
 	interval      time.Duration
 	checkInterval time.Duration
@@ -30,11 +31,13 @@ func NewPeriodicSync(
 	cfg config.PeriodicSyncConfig,
 	repositories repository.RepositoryStore,
 	queue *Queue,
+	prescribedOps task.PrescribedOperations,
 	logger *slog.Logger,
 ) *PeriodicSync {
 	return &PeriodicSync{
 		repositories:  repositories,
 		queue:         queue,
+		prescribedOps: prescribedOps,
 		logger:        logger,
 		interval:      cfg.Interval(),
 		checkInterval: cfg.CheckInterval(),
@@ -101,7 +104,7 @@ func (p *PeriodicSync) sync(ctx context.Context) {
 		return
 	}
 
-	operations := task.PrescribedOperations{}.SyncRepository()
+	operations := p.prescribedOps.SyncRepository()
 
 	for _, repo := range repos {
 		payload := map[string]any{"repository_id": repo.ID()}

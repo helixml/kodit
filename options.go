@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/helixml/kodit/domain/search"
+	"github.com/helixml/kodit/infrastructure/chunking"
 	"github.com/helixml/kodit/infrastructure/provider"
 	"github.com/helixml/kodit/internal/config"
 )
@@ -41,6 +42,8 @@ type clientConfig struct {
 	enrichmentParallelism  int
 	enricherParallelism    int
 	periodicSync           config.PeriodicSyncConfig
+	simpleChunking         bool
+	chunkParams            chunking.ChunkParams
 	closers                []io.Closer
 }
 
@@ -56,6 +59,7 @@ func newClientConfig() *clientConfig {
 		enrichmentParallelism: 1,
 		enricherParallelism:   1,
 		periodicSync:          config.NewPeriodicSyncConfig(),
+		chunkParams:           chunking.DefaultChunkParams(),
 	}
 }
 
@@ -242,6 +246,20 @@ func WithPeriodicSyncConfig(cfg config.PeriodicSyncConfig) Option {
 func WithModelDir(dir string) Option {
 	return func(c *clientConfig) {
 		c.modelDir = dir
+	}
+}
+
+// WithSimpleChunking enables fixed-size text chunking instead of AST-based snippet extraction.
+func WithSimpleChunking() Option {
+	return func(c *clientConfig) {
+		c.simpleChunking = true
+	}
+}
+
+// WithChunkParams sets the chunk parameters for simple chunking.
+func WithChunkParams(params chunking.ChunkParams) Option {
+	return func(c *clientConfig) {
+		c.chunkParams = params
 	}
 }
 

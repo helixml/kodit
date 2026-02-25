@@ -45,7 +45,7 @@ services:
 
   ollama-pull:
     image: ollama/ollama:latest
-    entrypoint: ["ollama", "pull", "qwen3:0.6b"]
+    entrypoint: ["bash", "-c", "until ollama list >/dev/null 2>&1; do echo 'waiting for ollama...'; sleep 2; done && ollama pull qwen3:0.6b"]
     environment:
       - OLLAMA_HOST=http://host.docker.internal:11434
     profiles:
@@ -87,6 +87,7 @@ services:
       - ENRICHMENT_ENDPOINT_API_KEY=ollama
       - LOG_LEVEL=INFO
       - HTTP_CACHE_DIR=/kodit-data
+      - SIMPLE_CHUNKING_ENABLED=true
     profiles:
       - kodit
     volumes:

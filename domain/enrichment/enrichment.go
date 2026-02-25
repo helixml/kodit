@@ -31,6 +31,7 @@ const (
 	SubtypeSnippetSummary Subtype = "snippet_summary"
 	SubtypeExample        Subtype = "example"
 	SubtypeExampleSummary Subtype = "example_summary"
+	SubtypeChunk          Subtype = "chunk"
 )
 
 // History subtypes.
@@ -49,9 +50,10 @@ type EntityTypeKey string
 
 // Entity type key constants.
 const (
-	EntityTypeCommit  EntityTypeKey = "git_commits"
-	EntityTypeSnippet EntityTypeKey = "enrichments_v2"
-	EntityTypeFile    EntityTypeKey = "git_commit_files"
+	EntityTypeCommit     EntityTypeKey = "git_commits"
+	EntityTypeSnippet    EntityTypeKey = "enrichments_v2"
+	EntityTypeFile       EntityTypeKey = "git_commit_files"
+	EntityTypeRepository EntityTypeKey = "git_repos"
 )
 
 // Enrichment represents AI-generated semantic metadata that can be attached to entities.
