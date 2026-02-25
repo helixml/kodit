@@ -2,7 +2,7 @@ root = "."
 tmp_dir = "/tmp/air"
 
 [build]
-  cmd = "go build -tags 'fts5 ORT embed_model' -o /tmp/air/kodit ./cmd/kodit"
+  cmd = "go build -buildvcs=false -tags 'fts5 ORT embed_model' -o /tmp/air/kodit ./cmd/kodit"
   bin = "/tmp/air/kodit"
   args_bin = ["serve"]
   include_ext = ["go", "toml", "yaml"]

@@ -51,6 +51,8 @@ services:
     profiles:
       - ollama
       - kodit
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   kodit:
     build:
@@ -91,6 +93,8 @@ services:
     volumes:
       - .:/app
       - ${KODIT_DIR:-kodit-data}:/kodit-data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 volumes:
   ollama-models:
   kodit-data:
