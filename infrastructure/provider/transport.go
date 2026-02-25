@@ -56,6 +56,15 @@ func NewCachingTransport(dir string, inner http.RoundTripper) (*CachingTransport
 		return nil, err
 	}
 
+	// The default SQLite pool is a single connection, which serializes all
+	// access. WAL mode supports concurrent readers, so we open multiple
+	// connections to let reads proceed in parallel. Writes still serialize
+	// at the SQLite level; busy_timeout handles contention.
+	if err := db.ConfigurePool(4, 4, 0); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+
 	return &CachingTransport{inner: inner, db: db}, nil
 }
 
