@@ -136,7 +136,7 @@ func runServe(envFile, host string, port int) error {
 	// Simple chunking mode
 	if cfg.SimpleChunking() {
 		opts = append(opts, kodit.WithSimpleChunking())
-		if cfg.ChunkSize() > 0 || cfg.ChunkOverlap() > 0 || cfg.ChunkMinSize() > 0 {
+		if cfg.ChunkSize() > 0 && cfg.ChunkOverlap() > 0 && cfg.ChunkMinSize() > 0 {
 			opts = append(opts, kodit.WithChunkParams(chunking.ChunkParams{
 				Size:    cfg.ChunkSize(),
 				Overlap: cfg.ChunkOverlap(),
