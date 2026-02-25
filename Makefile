@@ -255,6 +255,14 @@ release: ## Create a GitHub release (BUMP=patch|minor|major, RELEASE=1 for full 
 
 ##@ Benchmark
 
-.PHONY: benchmark5
-benchmark5:
-	cd test/benchmark && uv run src/benchmark/cli.py mini-swe-agent run-kodit --dataset-file data/swebench-verified.json --limit 5 --stream > output.log 2>&1
+.PHONY: benchmark-kodit-5
+benchmark-kodit-5:
+	cd test/benchmark && uv run src/benchmark/cli.py mini-swe-agent run-kodit --dataset-file data/swebench-verified.json --limit 5 --stream > benchmark-kodit-5.log 2>&1
+
+.PHONY: benchmark-baseline-5
+benchmark-baseline-5:
+	cd test/benchmark && uv run src/benchmark/cli.py mini-swe-agent run-baseline --dataset-file data/swebench-verified.json --limit 5 --stream > benchmark-baseline-5.log 2>&1
+
+.PHONY: compare
+compare:
+	cd test/benchmark && uv run src/benchmark/cli.py mini-swe-agent compare
