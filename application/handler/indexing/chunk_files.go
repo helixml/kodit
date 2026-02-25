@@ -5,7 +5,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/helixml/kodit/application/handler"
 	"github.com/helixml/kodit/domain/enrichment"
@@ -114,7 +116,8 @@ func (h *ChunkFiles) Execute(ctx context.Context, payload map[string]any) error 
 	for _, f := range files {
 		tracker.SetCurrent(ctx, processed, fmt.Sprintf("Chunking %s", f.Path()))
 
-		content, readErr := h.fileContent.FileContent(ctx, clonedPath, cp.CommitSHA(), f.Path())
+		relPath := relativeFilePath(f.Path(), clonedPath)
+		content, readErr := h.fileContent.FileContent(ctx, clonedPath, cp.CommitSHA(), relPath)
 		if readErr != nil {
 			h.logger.Warn("failed to read file content",
 				slog.String("path", f.Path()),
@@ -170,6 +173,38 @@ func (h *ChunkFiles) Execute(ctx context.Context, payload map[string]any) error 
 	)
 
 	return nil
+}
+
+// relativeFilePath converts a file path to a path relative to a git repository.
+// File records from legacy database migrations may contain absolute paths instead of
+// repository-relative paths. This function normalizes both cases so that git show
+// (which requires repo-relative paths) works correctly.
+func relativeFilePath(filePath, clonedPath string) string {
+	if !filepath.IsAbs(filePath) {
+		return filePath
+	}
+
+	// If the path starts with the current clone directory, strip it.
+	clonedPath = filepath.Clean(clonedPath)
+	if rel, err := filepath.Rel(clonedPath, filePath); err == nil && !strings.HasPrefix(rel, "..") {
+		return rel
+	}
+
+	// Legacy absolute paths follow the pattern: /<data-dir>/<type>/<repo-name>/<relative-path>
+	// where <type> is "clones" or "repos". Find the last such segment and extract the
+	// relative portion after the repo directory.
+	parts := strings.Split(filepath.Clean(filePath), string(filepath.Separator))
+	lastIdx := -1
+	for i, part := range parts {
+		if part == "clones" || part == "repos" {
+			lastIdx = i
+		}
+	}
+	if lastIdx >= 0 && lastIdx+2 < len(parts) {
+		return filepath.Join(parts[lastIdx+2:]...)
+	}
+
+	return filePath
 }
 
 // isBinary returns true if the content contains null bytes in the first 8KB.

@@ -299,6 +299,113 @@ func TestChunkFiles_ContinuesOnFileContentError(t *testing.T) {
 	assert.Len(t, chunks, 1, "should create chunks for the successful file only")
 }
 
+func TestRelativeFilePath(t *testing.T) {
+	tests := []struct {
+		name      string
+		filePath  string
+		clonePath string
+		want      string
+	}{
+		{
+			name:      "already relative",
+			filePath:  "src/main.go",
+			clonePath: "/root/.kodit/repos/github.com_test_repo",
+			want:      "src/main.go",
+		},
+		{
+			name:      "absolute matching current clone dir",
+			filePath:  "/root/.kodit/repos/github.com_test_repo/src/main.go",
+			clonePath: "/root/.kodit/repos/github.com_test_repo",
+			want:      "src/main.go",
+		},
+		{
+			name:      "absolute with legacy clones prefix",
+			filePath:  "/root/.kodit/clones/91983239377d5cbb-ent-demo/bigquery/main.py",
+			clonePath: "/root/.kodit/repos/github.com_winderai_analytics-ai-agent-demo",
+			want:      "bigquery/main.py",
+		},
+		{
+			name:      "absolute with repos prefix different repo dir",
+			filePath:  "/data/repos/old-name/lib/utils.rb",
+			clonePath: "/data/repos/new-name",
+			want:      "lib/utils.rb",
+		},
+		{
+			name:      "unknown absolute path returned as-is",
+			filePath:  "/some/random/absolute/path.txt",
+			clonePath: "/root/.kodit/repos/myrepo",
+			want:      "/some/random/absolute/path.txt",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := relativeFilePath(tt.filePath, tt.clonePath)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestChunkFiles_HandlesAbsoluteFilePaths(t *testing.T) {
+	ctx := context.Background()
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	db := testdb.New(t)
+
+	enrichmentStore := persistence.NewEnrichmentStore(db)
+	associationStore := persistence.NewAssociationStore(db)
+	repoStore := persistence.NewRepositoryStore(db)
+	fileStore := persistence.NewFileStore(db)
+
+	commitSHA := "fff666ggg777"
+	tmpDir := t.TempDir()
+
+	repo, err := repository.NewRepository("https://github.com/test/repo")
+	require.NoError(t, err)
+	repo = repo.
+		WithWorkingCopy(repository.NewWorkingCopy(tmpDir, "https://github.com/test/repo")).
+		WithTrackingConfig(repository.NewTrackingConfig("main", "", ""))
+	savedRepo, err := repoStore.Save(ctx, repo)
+	require.NoError(t, err)
+
+	content := make([]byte, 100)
+	for i := range content {
+		content[i] = 'Z'
+	}
+
+	// File record has an absolute path (Python-era legacy data).
+	absPath := "/root/.kodit/clones/91983239377d5cbb-ent-demo/bigquery/main.py"
+	f := repository.NewFileWithDetails(commitSHA, absPath, "abc123", "text/x-python", ".py", 100)
+	_, err = fileStore.Save(ctx, f)
+	require.NoError(t, err)
+
+	// The adapter expects the RELATIVE path since git show works with repo-relative paths.
+	adapter := &fakeGitAdapter{files: map[string][]byte{"bigquery/main.py": content}}
+
+	h := NewChunkFiles(
+		repoStore, enrichmentStore, associationStore, fileStore,
+		adapter,
+		chunking.ChunkParams{Size: 100, Overlap: 0, MinSize: 1},
+		&fakeTrackerFactory{},
+		logger,
+	)
+
+	payload := map[string]any{
+		"repository_id": savedRepo.ID(),
+		"commit_sha":    commitSHA,
+	}
+
+	err = h.Execute(ctx, payload)
+	require.NoError(t, err)
+
+	chunks, err := enrichmentStore.Find(ctx,
+		enrichment.WithCommitSHA(commitSHA),
+		enrichment.WithType(enrichment.TypeDevelopment),
+		enrichment.WithSubtype(enrichment.SubtypeChunk),
+	)
+	require.NoError(t, err)
+	assert.Len(t, chunks, 1, "should create chunk from file with absolute path")
+}
+
 func TestChunkFiles_SetsLanguageFromExtension(t *testing.T) {
 	ctx := context.Background()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
