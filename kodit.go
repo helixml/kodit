@@ -46,6 +46,7 @@ import (
 	"github.com/helixml/kodit/application/service"
 	"github.com/helixml/kodit/domain/search"
 	domainservice "github.com/helixml/kodit/domain/service"
+	"github.com/helixml/kodit/domain/task"
 	"github.com/helixml/kodit/infrastructure/chunking"
 	"github.com/helixml/kodit/infrastructure/enricher"
 	"github.com/helixml/kodit/infrastructure/enricher/example"
@@ -117,6 +118,7 @@ type Client struct {
 	apiKeys        []string
 	simpleChunking bool
 	chunkParams    chunking.ChunkParams
+	prescribedOps  task.PrescribedOperations
 	closed         atomic.Bool
 	mu             sync.Mutex
 }
@@ -322,7 +324,8 @@ func New(opts ...Option) (*Client, error) {
 	if cfg.workerPollPeriod > 0 {
 		worker.WithPollPeriod(cfg.workerPollPeriod)
 	}
-	periodicSync := service.NewPeriodicSync(cfg.periodicSync, repoStore, queue, logger)
+	prescribedOps := task.NewPrescribedOperations(!cfg.simpleChunking)
+	periodicSync := service.NewPeriodicSync(cfg.periodicSync, repoStore, queue, prescribedOps, logger)
 
 	// Create enricher infrastructure (only if text provider is configured)
 	var enricherImpl domainservice.Enricher
@@ -378,10 +381,11 @@ func New(opts ...Option) (*Client, error) {
 		apiKeys:           cfg.apiKeys,
 		simpleChunking:    cfg.simpleChunking,
 		chunkParams:       cfg.chunkParams,
+		prescribedOps:     prescribedOps,
 	}
 
 	// Initialize service fields directly
-	client.Repositories = service.NewRepository(repoStore, commitStore, branchStore, tagStore, queue, logger)
+	client.Repositories = service.NewRepository(repoStore, commitStore, branchStore, tagStore, queue, client.prescribedOps, logger)
 	client.Commits = service.NewCommit(commitStore)
 	client.Tags = service.NewTag(tagStore)
 	client.Files = service.NewFile(fileStore)

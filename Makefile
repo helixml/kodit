@@ -67,7 +67,7 @@ endif
 
 .PHONY: dev
 dev: docker-dev ## Start Docker development environment (idempotent, non-destructive)
-	docker compose -f docker-compose.dev.yaml logs -f kodit
+	docker compose -f docker-compose.dev.yaml --profile kodit logs -f kodit
 
 .PHONY: docker-dev
 docker-dev: download-model download-ort 

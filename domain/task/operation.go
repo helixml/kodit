@@ -59,20 +59,27 @@ func (o Operation) IsCommitOperation() bool {
 }
 
 // PrescribedOperations provides predefined operation sequences for common workflows.
-type PrescribedOperations struct{}
+type PrescribedOperations struct {
+	examples bool
+}
+
+// NewPrescribedOperations creates a PrescribedOperations with the given example extraction setting.
+func NewPrescribedOperations(examples bool) PrescribedOperations {
+	return PrescribedOperations{examples: examples}
+}
 
 // All returns every operation that appears in any prescribed workflow.
 // Used at startup to validate that all required handlers are registered.
-func (PrescribedOperations) All() []Operation {
+func (p PrescribedOperations) All() []Operation {
 	seen := make(map[Operation]struct{})
 	var all []Operation
 
 	for _, ops := range [][]Operation{
-		PrescribedOperations{}.CreateNewRepository(),
-		PrescribedOperations{}.SyncRepository(),
-		PrescribedOperations{}.ScanAndIndexCommit(),
-		PrescribedOperations{}.IndexCommit(),
-		PrescribedOperations{}.RescanCommit(),
+		p.CreateNewRepository(),
+		p.SyncRepository(),
+		p.ScanAndIndexCommit(),
+		p.IndexCommit(),
+		p.RescanCommit(),
 	} {
 		for _, op := range ops {
 			if _, ok := seen[op]; !ok {
@@ -85,14 +92,14 @@ func (PrescribedOperations) All() []Operation {
 }
 
 // CreateNewRepository returns the operations needed to create a new repository.
-func (PrescribedOperations) CreateNewRepository() []Operation {
+func (p PrescribedOperations) CreateNewRepository() []Operation {
 	return []Operation{
 		OperationCloneRepository,
 	}
 }
 
 // SyncRepository returns the operations needed to sync a repository.
-func (PrescribedOperations) SyncRepository() []Operation {
+func (p PrescribedOperations) SyncRepository() []Operation {
 	return []Operation{
 		OperationCloneRepository,
 		OperationSyncRepository,
@@ -100,59 +107,98 @@ func (PrescribedOperations) SyncRepository() []Operation {
 }
 
 // ScanAndIndexCommit returns the full operation sequence for scanning and indexing a commit.
-func (PrescribedOperations) ScanAndIndexCommit() []Operation {
-	return []Operation{
+func (p PrescribedOperations) ScanAndIndexCommit() []Operation {
+	ops := []Operation{
 		OperationScanCommit,
 		OperationExtractSnippetsForCommit,
-		OperationExtractExamplesForCommit,
+	}
+	if p.examples {
+		ops = append(ops, OperationExtractExamplesForCommit)
+	}
+	ops = append(ops,
 		OperationCreateBM25IndexForCommit,
 		OperationCreateCodeEmbeddingsForCommit,
-		OperationCreateExampleCodeEmbeddingsForCommit,
-		OperationCreateSummaryEnrichmentForCommit,
-		OperationCreateExampleSummaryForCommit,
+	)
+	if p.examples {
+		ops = append(ops, OperationCreateExampleCodeEmbeddingsForCommit)
+	}
+	if p.examples {
+		ops = append(ops, OperationCreateSummaryEnrichmentForCommit)
+	}
+	if p.examples {
+		ops = append(ops, OperationCreateExampleSummaryForCommit)
+	}
+	ops = append(ops,
 		OperationCreateSummaryEmbeddingsForCommit,
-		OperationCreateExampleSummaryEmbeddingsForCommit,
+	)
+	if p.examples {
+		ops = append(ops, OperationCreateExampleSummaryEmbeddingsForCommit)
+	}
+	ops = append(ops,
 		OperationCreateArchitectureEnrichmentForCommit,
 		OperationCreatePublicAPIDocsForCommit,
 		OperationCreateCommitDescriptionForCommit,
 		OperationCreateDatabaseSchemaForCommit,
 		OperationCreateCookbookForCommit,
-	}
+	)
+	return ops
 }
 
 // IndexCommit returns the operation sequence for indexing an already-scanned commit.
-func (PrescribedOperations) IndexCommit() []Operation {
-	return []Operation{
+func (p PrescribedOperations) IndexCommit() []Operation {
+	ops := []Operation{
 		OperationExtractSnippetsForCommit,
 		OperationCreateBM25IndexForCommit,
 		OperationCreateCodeEmbeddingsForCommit,
-		OperationCreateSummaryEnrichmentForCommit,
+	}
+	if p.examples {
+		ops = append(ops, OperationCreateSummaryEnrichmentForCommit)
+	}
+	ops = append(ops,
 		OperationCreateSummaryEmbeddingsForCommit,
 		OperationCreateArchitectureEnrichmentForCommit,
 		OperationCreatePublicAPIDocsForCommit,
 		OperationCreateCommitDescriptionForCommit,
 		OperationCreateDatabaseSchemaForCommit,
 		OperationCreateCookbookForCommit,
-	}
+	)
+	return ops
 }
 
 // RescanCommit returns the operation sequence for rescanning a commit (full reindex).
-func (PrescribedOperations) RescanCommit() []Operation {
-	return []Operation{
+func (p PrescribedOperations) RescanCommit() []Operation {
+	ops := []Operation{
 		OperationRescanCommit,
 		OperationExtractSnippetsForCommit,
-		OperationExtractExamplesForCommit,
+	}
+	if p.examples {
+		ops = append(ops, OperationExtractExamplesForCommit)
+	}
+	ops = append(ops,
 		OperationCreateBM25IndexForCommit,
 		OperationCreateCodeEmbeddingsForCommit,
-		OperationCreateExampleCodeEmbeddingsForCommit,
-		OperationCreateSummaryEnrichmentForCommit,
-		OperationCreateExampleSummaryForCommit,
+	)
+	if p.examples {
+		ops = append(ops, OperationCreateExampleCodeEmbeddingsForCommit)
+	}
+	if p.examples {
+		ops = append(ops, OperationCreateSummaryEnrichmentForCommit)
+	}
+	if p.examples {
+		ops = append(ops, OperationCreateExampleSummaryForCommit)
+	}
+	ops = append(ops,
 		OperationCreateSummaryEmbeddingsForCommit,
-		OperationCreateExampleSummaryEmbeddingsForCommit,
+	)
+	if p.examples {
+		ops = append(ops, OperationCreateExampleSummaryEmbeddingsForCommit)
+	}
+	ops = append(ops,
 		OperationCreateArchitectureEnrichmentForCommit,
 		OperationCreatePublicAPIDocsForCommit,
 		OperationCreateCommitDescriptionForCommit,
 		OperationCreateDatabaseSchemaForCommit,
 		OperationCreateCookbookForCommit,
-	}
+	)
+	return ops
 }

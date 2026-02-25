@@ -24,7 +24,7 @@ func (c *Client) registerHandlers() error {
 		c.repoStores.Repositories, c.gitInfra.Cloner, c.queue, c.enrichCtx.Tracker, c.logger,
 	))
 	c.registry.Register(task.OperationSyncRepository, repohandler.NewSync(
-		c.repoStores.Repositories, c.repoStores.Branches, c.gitInfra.Cloner, c.gitInfra.Scanner, c.queue, c.enrichCtx.Tracker, c.logger,
+		c.repoStores.Repositories, c.repoStores.Branches, c.gitInfra.Cloner, c.gitInfra.Scanner, c.queue, c.prescribedOps, c.enrichCtx.Tracker, c.logger,
 	))
 	c.registry.Register(task.OperationDeleteRepository, repohandler.NewDelete(
 		c.repoStores, c.Enrichments, c.queue, c.enrichCtx.Tracker, c.logger,
@@ -67,11 +67,13 @@ func (c *Client) registerHandlers() error {
 		}
 		c.registry.Register(task.OperationCreateCodeEmbeddingsForCommit, h)
 
-		h2, err := indexinghandler.NewCreateExampleCodeEmbeddings(c.codeIndex, c.enrichCtx.Enrichments, c.enrichCtx.Tracker, c.logger)
-		if err != nil {
-			return fmt.Errorf("create example code embeddings handler: %w", err)
+		if !c.simpleChunking {
+			h2, err := indexinghandler.NewCreateExampleCodeEmbeddings(c.codeIndex, c.enrichCtx.Enrichments, c.enrichCtx.Tracker, c.logger)
+			if err != nil {
+				return fmt.Errorf("create example code embeddings handler: %w", err)
+			}
+			c.registry.Register(task.OperationCreateExampleCodeEmbeddingsForCommit, h2)
 		}
-		c.registry.Register(task.OperationCreateExampleCodeEmbeddingsForCommit, h2)
 	}
 
 	// Text embedding handlers — only if text embedding provider configured
@@ -82,20 +84,24 @@ func (c *Client) registerHandlers() error {
 		}
 		c.registry.Register(task.OperationCreateSummaryEmbeddingsForCommit, h)
 
-		h2, err := indexinghandler.NewCreateExampleSummaryEmbeddings(c.textIndex, c.enrichCtx.Enrichments, c.enrichCtx.Tracker, c.logger)
-		if err != nil {
-			return fmt.Errorf("create example summary embeddings handler: %w", err)
+		if !c.simpleChunking {
+			h2, err := indexinghandler.NewCreateExampleSummaryEmbeddings(c.textIndex, c.enrichCtx.Enrichments, c.enrichCtx.Tracker, c.logger)
+			if err != nil {
+				return fmt.Errorf("create example summary embeddings handler: %w", err)
+			}
+			c.registry.Register(task.OperationCreateExampleSummaryEmbeddingsForCommit, h2)
 		}
-		c.registry.Register(task.OperationCreateExampleSummaryEmbeddingsForCommit, h2)
 	}
 
 	// Enrichment handlers that call Enricher — only if text provider configured
 	if c.enrichCtx.Enricher != nil {
-		h, err := enrichmenthandler.NewCreateSummary(c.enrichCtx)
-		if err != nil {
-			return fmt.Errorf("create summary handler: %w", err)
+		if !c.simpleChunking {
+			h, err := enrichmenthandler.NewCreateSummary(c.enrichCtx)
+			if err != nil {
+				return fmt.Errorf("create summary handler: %w", err)
+			}
+			c.registry.Register(task.OperationCreateSummaryEnrichmentForCommit, h)
 		}
-		c.registry.Register(task.OperationCreateSummaryEnrichmentForCommit, h)
 
 		h2, err := enrichmenthandler.NewCommitDescription(c.repoStores.Repositories, c.enrichCtx, c.gitInfra.Adapter)
 		if err != nil {
@@ -109,11 +115,13 @@ func (c *Client) registerHandlers() error {
 		}
 		c.registry.Register(task.OperationCreateArchitectureEnrichmentForCommit, h3)
 
-		h4, err := enrichmenthandler.NewExampleSummary(c.enrichCtx)
-		if err != nil {
-			return fmt.Errorf("example summary handler: %w", err)
+		if !c.simpleChunking {
+			h4, err := enrichmenthandler.NewExampleSummary(c.enrichCtx)
+			if err != nil {
+				return fmt.Errorf("example summary handler: %w", err)
+			}
+			c.registry.Register(task.OperationCreateExampleSummaryForCommit, h4)
 		}
-		c.registry.Register(task.OperationCreateExampleSummaryForCommit, h4)
 
 		h5, err := enrichmenthandler.NewDatabaseSchema(c.repoStores.Repositories, c.enrichCtx, c.schemaDiscoverer)
 		if err != nil {
@@ -133,10 +141,12 @@ func (c *Client) registerHandlers() error {
 		c.repoStores.Files, c.enrichCtx, c.apiDocService,
 	))
 
-	// Example extraction handler (no LLM dependency)
-	c.registry.Register(task.OperationExtractExamplesForCommit, enrichmenthandler.NewExtractExamples(
-		c.repoStores.Repositories, c.repoStores.Commits, c.gitInfra.Adapter, c.enrichCtx, c.exampleDiscoverer,
-	))
+	// Example extraction handler (no LLM dependency) — disabled when simple chunking is active
+	if !c.simpleChunking {
+		c.registry.Register(task.OperationExtractExamplesForCommit, enrichmenthandler.NewExtractExamples(
+			c.repoStores.Repositories, c.repoStores.Commits, c.gitInfra.Adapter, c.enrichCtx, c.exampleDiscoverer,
+		))
+	}
 
 	c.logger.Info("registered task handlers", slog.Int("count", len(c.registry.Operations())))
 	return nil
@@ -146,7 +156,7 @@ func (c *Client) registerHandlers() error {
 // Returns an error listing missing operations and which provider to configure.
 func (c *Client) validateHandlers() error {
 	var missing []string
-	for _, op := range (task.PrescribedOperations{}).All() {
+	for _, op := range c.prescribedOps.All() {
 		if !c.registry.HasHandler(op) {
 			missing = append(missing, op.String())
 		}
