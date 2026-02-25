@@ -40,9 +40,9 @@ func (s RepositoryStatusSummary) UpdatedAt() time.Time {
 }
 
 // StatusSummaryFromTasks derives a RepositoryStatusSummary from task statuses.
-// Priority: failed > in_progress > pending_queue > completed > pending.
-// If there are pending queue tasks, the status is IN_PROGRESS even if
-// all current task.Status records are terminal.
+// Priority: in_progress/started > pending_queue > completed_with_errors/failed > completed > pending.
+// When all tasks are terminal and failures exist, returns completed_with_errors
+// if more tasks succeeded than failed, otherwise returns failed.
 func StatusSummaryFromTasks(tasks []task.Status, pendingTaskCount int) RepositoryStatusSummary {
 	now := time.Now()
 
@@ -53,25 +53,7 @@ func StatusSummaryFromTasks(tasks []task.Status, pendingTaskCount int) Repositor
 		return NewRepositoryStatusSummary(snippet.IndexStatusPending, "", now)
 	}
 
-	// Check for failed tasks
-	var mostRecentFailed *task.Status
-	for i := range tasks {
-		t := &tasks[i]
-		if t.State() == task.ReportingStateFailed {
-			if mostRecentFailed == nil || t.UpdatedAt().After(mostRecentFailed.UpdatedAt()) {
-				mostRecentFailed = t
-			}
-		}
-	}
-	if mostRecentFailed != nil {
-		return NewRepositoryStatusSummary(
-			snippet.IndexStatusFailed,
-			mostRecentFailed.Error(),
-			mostRecentFailed.UpdatedAt(),
-		)
-	}
-
-	// Check for in-progress tasks
+	// Check for in-progress tasks (highest priority — work is still running)
 	var mostRecentInProgress *task.Status
 	for i := range tasks {
 		t := &tasks[i]
@@ -90,21 +72,47 @@ func StatusSummaryFromTasks(tasks []task.Status, pendingTaskCount int) Repositor
 		)
 	}
 
-	// If we have pending queue tasks but all task statuses are terminal,
-	// still report as in progress
+	// If we have pending queue tasks, work is still running
 	if pendingTaskCount > 0 {
 		return NewRepositoryStatusSummary(snippet.IndexStatusInProgress, "", now)
 	}
 
-	// Check for completed tasks
-	var mostRecentCompleted *task.Status
+	// Count terminal states and track most recent of each
+	var (
+		completedCount      int
+		failedCount         int
+		mostRecentFailed    *task.Status
+		mostRecentCompleted *task.Status
+	)
 	for i := range tasks {
 		t := &tasks[i]
-		if t.State() == task.ReportingStateCompleted {
+		switch t.State() {
+		case task.ReportingStateCompleted, task.ReportingStateSkipped:
+			completedCount++
 			if mostRecentCompleted == nil || t.UpdatedAt().After(mostRecentCompleted.UpdatedAt()) {
 				mostRecentCompleted = t
 			}
+		case task.ReportingStateFailed:
+			failedCount++
+			if mostRecentFailed == nil || t.UpdatedAt().After(mostRecentFailed.UpdatedAt()) {
+				mostRecentFailed = t
+			}
 		}
+	}
+
+	if mostRecentFailed != nil && completedCount > failedCount {
+		return NewRepositoryStatusSummary(
+			snippet.IndexStatusCompletedWithErrors,
+			mostRecentFailed.Error(),
+			mostRecentFailed.UpdatedAt(),
+		)
+	}
+	if mostRecentFailed != nil {
+		return NewRepositoryStatusSummary(
+			snippet.IndexStatusFailed,
+			mostRecentFailed.Error(),
+			mostRecentFailed.UpdatedAt(),
+		)
 	}
 	if mostRecentCompleted != nil {
 		return NewRepositoryStatusSummary(
