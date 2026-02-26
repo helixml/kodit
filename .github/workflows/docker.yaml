@@ -57,7 +57,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ matrix.platform }}
 
       - name: Upload image
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.artifact }}
           path: /tmp/image.tar
