@@ -79,6 +79,42 @@ func (f LineFilter) Apply(content []byte) []byte {
 	return bytes.Join(result, []byte("\n"))
 }
 
+// ApplyWithLineNumbers extracts matching lines and prefixes each with its
+// original 1-based line number and a tab character.
+// If no ranges are set (pass-through), all lines are numbered.
+func (f LineFilter) ApplyWithLineNumbers(content []byte) []byte {
+	lines := bytes.Split(content, []byte("\n"))
+	var result [][]byte
+
+	if len(f.ranges) == 0 {
+		for i, line := range lines {
+			result = append(result, []byte(fmt.Sprintf("%d\t%s", i+1, line)))
+		}
+		return bytes.Join(result, []byte("\n"))
+	}
+
+	for _, r := range f.ranges {
+		start := r.start - 1
+		end := r.end
+
+		if start >= len(lines) {
+			continue
+		}
+		if end > len(lines) {
+			end = len(lines)
+		}
+		if start < 0 {
+			start = 0
+		}
+
+		for i := start; i < end; i++ {
+			result = append(result, []byte(fmt.Sprintf("%d\t%s", i+1, lines[i])))
+		}
+	}
+
+	return bytes.Join(result, []byte("\n"))
+}
+
 // Empty returns true if this is a pass-through filter.
 func (f LineFilter) Empty() bool {
 	return len(f.ranges) == 0

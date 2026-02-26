@@ -15,7 +15,7 @@ Current version: 1.0.
 
 | URL | Description |
 |-----|-------------|
-| https://localhost:8080/api/v1 |  |
+| /api/v1 |  |
 
 ## Authentication
 
@@ -299,6 +299,7 @@ Returns raw file content from a Git repository at a given blob reference (commit
 | blob_name | string | True | Commit SHA, tag name, or branch name |
 | path | string | True | File path within the repository |
 | lines | string |  | Line ranges to extract (e.g. L17-L26,L45,L55-L90) |
+| line_numbers | boolean |  | Prefix each line with its 1-based line number |
 
 
 #### Responses

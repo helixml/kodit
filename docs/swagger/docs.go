@@ -561,6 +561,12 @@ const docTemplate = `{
                         "description": "Line ranges to extract (e.g. L17-L26,L45,L55-L90)",
                         "name": "lines",
                         "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Prefix each line with its 1-based line number",
+                        "name": "line_numbers",
+                        "in": "query"
                     }
                 ],
                 "responses": {

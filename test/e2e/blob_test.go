@@ -228,6 +228,55 @@ func TestBlob_ReadFileWithEncodedSlashes(t *testing.T) {
 	}
 }
 
+func TestBlob_WithLineNumbers(t *testing.T) {
+	ts := NewTestServer(t)
+	repoDir, commitSHA := initGitRepo(t)
+
+	repo := ts.CreateRepositoryWithRealWorkingCopy("https://github.com/test/blob-lineno-repo.git", repoDir)
+	ts.CreateCommit(repo, commitSHA, "initial commit")
+	ts.CreateBranch(repo, "main", commitSHA, true)
+
+	resp := ts.GET(fmt.Sprintf("/api/v1/repositories/%d/blob/main/README.md?line_numbers=true", repo.ID()))
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body := ts.ReadBody(resp)
+		t.Fatalf("status = %d, want %d; body: %s", resp.StatusCode, http.StatusOK, body)
+	}
+
+	body := ts.ReadBody(resp)
+	// README.md has 3 lines: "# Test Repo", "", "Hello world."
+	// With line numbers: "1\t# Test Repo\n2\t\n3\tHello world."
+	if !strings.HasPrefix(body, "1\t# Test Repo\n") {
+		t.Errorf("expected line-numbered output, got: %q", body)
+	}
+	if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "text/plain") {
+		t.Errorf("Content-Type = %q, want text/plain", ct)
+	}
+}
+
+func TestBlob_WithLineNumbersAndLineFilter(t *testing.T) {
+	ts := NewTestServer(t)
+	repoDir, commitSHA := initGitRepo(t)
+
+	repo := ts.CreateRepositoryWithRealWorkingCopy("https://github.com/test/blob-lineno-filter-repo.git", repoDir)
+	ts.CreateCommit(repo, commitSHA, "initial commit")
+	ts.CreateBranch(repo, "main", commitSHA, true)
+
+	resp := ts.GET(fmt.Sprintf("/api/v1/repositories/%d/blob/main/README.md?lines=L1&line_numbers=true", repo.ID()))
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body := ts.ReadBody(resp)
+		t.Fatalf("status = %d, want %d; body: %s", resp.StatusCode, http.StatusOK, body)
+	}
+
+	body := ts.ReadBody(resp)
+	if body != "1\t# Test Repo" {
+		t.Errorf("expected %q, got %q", "1\t# Test Repo", body)
+	}
+}
+
 func TestBlob_WithLineFilter(t *testing.T) {
 	ts := NewTestServer(t)
 	repoDir, commitSHA := initGitRepo(t)

@@ -84,6 +84,52 @@ func TestNewLineFilter_BeyondEnd(t *testing.T) {
 	}
 }
 
+func TestLineFilter_ApplyWithLineNumbers(t *testing.T) {
+	content := []byte("alpha\nbeta\ngamma\ndelta")
+
+	f, err := NewLineFilter("")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	result := string(f.ApplyWithLineNumbers(content))
+	expected := "1\talpha\n2\tbeta\n3\tgamma\n4\tdelta"
+	if result != expected {
+		t.Errorf("expected %q, got %q", expected, result)
+	}
+}
+
+func TestLineFilter_ApplyWithLineNumbers_Range(t *testing.T) {
+	content := []byte("alpha\nbeta\ngamma\ndelta\nepsilon")
+
+	f, err := NewLineFilter("L2-L4")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	result := string(f.ApplyWithLineNumbers(content))
+	// Line numbers should reflect the original positions, not 1-based within the filtered output.
+	expected := "2\tbeta\n3\tgamma\n4\tdelta"
+	if result != expected {
+		t.Errorf("expected %q, got %q", expected, result)
+	}
+}
+
+func TestLineFilter_ApplyWithLineNumbers_MultipleRanges(t *testing.T) {
+	content := []byte("a\nb\nc\nd\ne\nf\ng")
+
+	f, err := NewLineFilter("L1-L2,L5")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	result := string(f.ApplyWithLineNumbers(content))
+	expected := "1\ta\n2\tb\n5\te"
+	if result != expected {
+		t.Errorf("expected %q, got %q", expected, result)
+	}
+}
+
 func TestNewLineFilter_InvalidFormat(t *testing.T) {
 	tests := []string{
 		"abc",

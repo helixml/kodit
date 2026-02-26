@@ -941,6 +941,10 @@ paths:
         in: query
         name: lines
         type: string
+      - description: Prefix each line with its 1-based line number
+        in: query
+        name: line_numbers
+        type: boolean
       produces:
       - application/octet-stream
       - text/plain

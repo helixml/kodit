@@ -475,6 +475,9 @@ type GetRepositoriesParams struct {
 type GetRepositoriesIdBlobBlobNamePathParams struct {
 	// Lines Line ranges to extract (e.g. L17-L26,L45,L55-L90)
 	Lines *string `form:"lines,omitempty" json:"lines,omitempty"`
+
+	// LineNumbers Prefix each line with its 1-based line number
+	LineNumbers *bool `form:"line_numbers,omitempty" json:"line_numbers,omitempty"`
 }
 
 // GetRepositoriesIdCommitsParams defines parameters for GetRepositoriesIdCommits.
