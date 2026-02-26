@@ -74,6 +74,7 @@ type Client struct {
 	Commits      *service.Commit
 	Tags         *service.Tag
 	Files        *service.File
+	Blobs        *service.Blob
 	Enrichments  *service.Enrichment
 	Tasks        *service.Queue
 	Tracking     *service.Tracking
@@ -389,6 +390,7 @@ func New(opts ...Option) (*Client, error) {
 	client.Commits = service.NewCommit(commitStore)
 	client.Tags = service.NewTag(tagStore)
 	client.Files = service.NewFile(fileStore)
+	client.Blobs = service.NewBlob(repoStore, commitStore, tagStore, branchStore, gitAdapter)
 	client.Enrichments = enrichQSvc
 	client.Tasks = queue
 	client.Tracking = trackingSvc
