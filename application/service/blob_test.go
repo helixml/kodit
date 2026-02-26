@@ -2,12 +2,14 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/infrastructure/git"
+	"github.com/helixml/kodit/internal/database"
 )
 
 type fakeBlobCommitStore struct {
@@ -180,7 +182,7 @@ func (f *fakeBlobGitAdapter) FileContent(_ context.Context, _, commitSHA, filePa
 	key := commitSHA + ":" + filePath
 	content, ok := f.content[key]
 	if !ok {
-		return nil, fmt.Errorf("file not found: %s", key)
+		return nil, fmt.Errorf("get file: %w", git.ErrFileNotFound)
 	}
 	return content, nil
 }
@@ -355,5 +357,17 @@ func TestBlob_ContentByBranch(t *testing.T) {
 	}
 	if string(result.Content()) != "# Branch\nContent" {
 		t.Errorf("unexpected content: %q", string(result.Content()))
+	}
+}
+
+func TestBlob_ContentFileNotFound(t *testing.T) {
+	blob, _ := newTestBlob()
+
+	_, err := blob.Content(context.Background(), 1, "main", "nonexistent.go")
+	if err == nil {
+		t.Fatal("expected error for nonexistent file")
+	}
+	if !errors.Is(err, database.ErrNotFound) {
+		t.Errorf("expected database.ErrNotFound, got: %v", err)
 	}
 }

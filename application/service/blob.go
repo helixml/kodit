@@ -2,11 +2,13 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 
 	"github.com/helixml/kodit/domain/repository"
 	"github.com/helixml/kodit/infrastructure/git"
+	"github.com/helixml/kodit/internal/database"
 )
 
 var commitSHAPattern = regexp.MustCompile(`^[0-9a-f]{7,40}$`)
@@ -104,6 +106,9 @@ func (b *Blob) Content(ctx context.Context, repoID int64, blobName, filePath str
 
 	content, err := b.git.FileContent(ctx, repo.WorkingCopy().Path(), commitSHA, filePath)
 	if err != nil {
+		if errors.Is(err, git.ErrFileNotFound) {
+			return BlobContent{}, fmt.Errorf("%s: %w", filePath, database.ErrNotFound)
+		}
 		return BlobContent{}, fmt.Errorf("read file content: %w", err)
 	}
 
