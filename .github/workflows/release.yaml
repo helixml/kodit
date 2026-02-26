@@ -67,7 +67,7 @@ jobs:
           go-version-file: go.mod
 
       - name: Download pre-converted model
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: embedding-model
           path: infrastructure/provider/models/flax-sentence-embeddings_st-codesearch-distilroberta-base
@@ -102,7 +102,7 @@ jobs:
     needs: binaries
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           path: build
           pattern: kodit-*

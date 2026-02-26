@@ -76,7 +76,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Download image
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: kodit-image-amd64
           path: /tmp
@@ -155,13 +155,13 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Download amd64 image
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: kodit-image-amd64
           path: /tmp/amd64
 
       - name: Download arm64 image
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: kodit-image-arm64
           path: /tmp/arm64
